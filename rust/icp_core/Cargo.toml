@@ -1,0 +1,36 @@
+[package]
+name = "icp_core"
+version = "0.1.0"
+edition = "2021"
+description = "Core IC identity and principal utilities for Flutter integration"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# BIP39 mnemonic and seed
+bip39 = { version = "2", default-features = false, features = ["std"] }
+# Bitcoin bip32 derivation and secp256k1 types
+bitcoin = { version = "0.31", default-features = true, features = ["std"] }
+# Ed25519 key handling (avoid pkcs8/pem to prevent base64ct/edition2024)
+ed25519-dalek = { version = "2", default-features = false }
+# Hashing for SHA-224
+sha2 = "0.10"
+# Base64 for exporting keys in the same form as Dart
+base64 = "0.22"
+# Principal formatting (CRC32 + base32) and text <-> bytes
+candid = "0.10"
+# Lightweight error type
+thiserror = "1.0"
+hex-literal = "0.4"
+
+[features]
+default = []
+ffi = []
+
+[dev-dependencies]
+clap = { version = "4", features = ["derive"] }
+once_cell = "1"
+
+[package.metadata.cargo-clippy]
+allow = []
+warn = ["clippy::all", "clippy::pedantic"]
+deny = ["warnings"]
