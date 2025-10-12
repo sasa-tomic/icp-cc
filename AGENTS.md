@@ -7,4 +7,5 @@
 - All tests must pass
 - For rust code ensure the following passes without any warnings or errors, ensuring good test coverage after fixing any potential errors or warnings:
 ❯ cargo clippy --benches --tests --all-features && cargo clippy && cargo fmt --all && cargo nextest run
+- For flutter code ensure linter and `flutter test` and `flutter analyze` are completely clean without warnings or errors - fix if anything is not clean
 - Only commit changes after all the above is satisfied
