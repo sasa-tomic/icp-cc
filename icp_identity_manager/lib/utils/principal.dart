@@ -12,8 +12,9 @@ class PrincipalUtils {
 
   // DER SubjectPublicKeyInfo prefixes
   // Ed25519: 302a300506032b6570032100 || 32-byte raw public key
-  static final Uint8List _ed25519DerPrefix =
-      Uint8List.fromList(convert.hex.decode('302a300506032b6570032100'));
+  static final Uint8List _ed25519DerPrefix = Uint8List.fromList(
+    convert.hex.decode('302a300506032b6570032100'),
+  );
 
   // secp256k1 SPKI:
   // 30 56                        ; SEQUENCE (len 86)
@@ -38,12 +39,10 @@ class PrincipalUtils {
         if (publicKeyBytes.length != 32) {
           throw ArgumentError('Ed25519 public key must be 32 bytes');
         }
-        return Uint8List.fromList(
-          <int>[
-            ..._ed25519DerPrefix,
-            ...publicKeyBytes,
-          ],
-        );
+        return Uint8List.fromList(<int>[
+          ..._ed25519DerPrefix,
+          ...publicKeyBytes,
+        ]);
       case KeyAlgorithm.secp256k1:
         // Expect uncompressed 65-byte point (0x04 | X:32 | Y:32)
         if (publicKeyBytes.length == 64) {
@@ -55,12 +54,10 @@ class PrincipalUtils {
             'secp256k1 public key must be uncompressed 65 bytes starting with 0x04',
           );
         }
-        return Uint8List.fromList(
-          <int>[
-            ..._secp256k1DerPrefix,
-            ...publicKeyBytes,
-          ],
-        );
+        return Uint8List.fromList(<int>[
+          ..._secp256k1DerPrefix,
+          ...publicKeyBytes,
+        ]);
     }
   }
 
@@ -111,7 +108,10 @@ class PrincipalUtils {
     final Uint8List body = decoded.sublist(4);
     final int expected = _crc32(body);
     final int actual =
-        (crcBytes[0] << 24) | (crcBytes[1] << 16) | (crcBytes[2] << 8) | crcBytes[3];
+        (crcBytes[0] << 24) |
+        (crcBytes[1] << 16) |
+        (crcBytes[2] << 8) |
+        crcBytes[3];
     if (expected != actual) {
       throw const FormatException('Invalid principal: checksum mismatch');
     }
@@ -121,8 +121,10 @@ class PrincipalUtils {
   /// Convenience: derive textual principal from an [IdentityRecord].
   static String textFromRecord(IdentityRecord record) {
     final Uint8List publicKeyBytes = base64Decode(record.publicKey);
-    final Uint8List principalBytes =
-        principalFromPublicKey(record.algorithm, publicKeyBytes);
+    final Uint8List principalBytes = principalFromPublicKey(
+      record.algorithm,
+      publicKeyBytes,
+    );
     return toText(principalBytes);
   }
 
@@ -282,13 +284,17 @@ class PrincipalUtils {
       0xc67178f2,
     ];
 
-    int _rotr(int x, int n) => ((x >>> n) | (x << (32 - n))) & 0xFFFFFFFF;
-    int _ch(int x, int y, int z) => (x & y) ^ (~x & z);
-    int _maj(int x, int y, int z) => (x & y) ^ (x & z) ^ (y & z);
-    int _bsig0(int x) => _rotr(x, 2) ^ _rotr(x, 13) ^ _rotr(x, 22);
-    int _bsig1(int x) => _rotr(x, 6) ^ _rotr(x, 11) ^ _rotr(x, 25);
-    int _ssig0(int x) => _rotr(x, 7) ^ _rotr(x, 18) ^ (x >>> 3);
-    int _ssig1(int x) => _rotr(x, 17) ^ _rotr(x, 19) ^ (x >>> 10);
+    int rotateRight(int x, int n) => ((x >>> n) | (x << (32 - n))) & 0xFFFFFFFF;
+    int choose(int x, int y, int z) => (x & y) ^ (~x & z);
+    int majority(int x, int y, int z) => (x & y) ^ (x & z) ^ (y & z);
+    int bigSigma0(int x) =>
+        rotateRight(x, 2) ^ rotateRight(x, 13) ^ rotateRight(x, 22);
+    int bigSigma1(int x) =>
+        rotateRight(x, 6) ^ rotateRight(x, 11) ^ rotateRight(x, 25);
+    int smallSigma0(int x) =>
+        rotateRight(x, 7) ^ rotateRight(x, 18) ^ (x >>> 3);
+    int smallSigma1(int x) =>
+        rotateRight(x, 17) ^ rotateRight(x, 19) ^ (x >>> 10);
 
     // SHA-224 initial hash values
     int h0 = 0xc1059ed8;
@@ -317,13 +323,18 @@ class PrincipalUtils {
       final List<int> w = List<int>.filled(64, 0);
       for (int t = 0; t < 16; t++) {
         final int j = t * 4;
-        w[t] = (chunk[j] << 24) |
+        w[t] =
+            (chunk[j] << 24) |
             (chunk[j + 1] << 16) |
             (chunk[j + 2] << 8) |
             (chunk[j + 3]);
       }
       for (int t = 16; t < 64; t++) {
-        w[t] = (w[t - 16] + _ssig0(w[t - 15]) + w[t - 7] + _ssig1(w[t - 2])) &
+        w[t] =
+            (w[t - 16] +
+                smallSigma0(w[t - 15]) +
+                w[t - 7] +
+                smallSigma1(w[t - 2])) &
             0xFFFFFFFF;
       }
 
@@ -337,8 +348,9 @@ class PrincipalUtils {
       int h = h7;
 
       for (int t = 0; t < 64; t++) {
-        final int t1 = (h + _bsig1(e) + _ch(e, f, g) + k[t] + w[t]) & 0xFFFFFFFF;
-        final int t2 = (_bsig0(a) + _maj(a, b, c)) & 0xFFFFFFFF;
+        final int t1 =
+            (h + bigSigma1(e) + choose(e, f, g) + k[t] + w[t]) & 0xFFFFFFFF;
+        final int t2 = (bigSigma0(a) + majority(a, b, c)) & 0xFFFFFFFF;
         h = g;
         g = f;
         f = e;

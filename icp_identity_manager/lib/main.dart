@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:bip39/bip39.dart' as bip39;
@@ -160,12 +159,16 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       case _IdentityAction.rename:
         await _showRenameDialog(record);
         break;
+      case _IdentityAction.delete:
+        await _confirmAndDelete(record);
+        break;
     }
   }
 
   Future<void> _showRenameDialog(IdentityRecord record) async {
-    final TextEditingController controller =
-        TextEditingController(text: record.label);
+    final TextEditingController controller = TextEditingController(
+      text: record.label,
+    );
     final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     final String? result = await showDialog<String>(
       context: context,
@@ -212,9 +215,43 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Identity renamed')),
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Identity renamed')));
+  }
+
+  Future<void> _confirmAndDelete(IdentityRecord record) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete identity'),
+          content: const Text(
+            'This action will permanently delete this identity from this device. This cannot be undone.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
+    if (confirmed != true) {
+      return;
+    }
+    await _controller.deleteIdentity(record.id);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Identity deleted')));
   }
 
   @override
@@ -245,46 +282,71 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             onRefresh: _controller.refresh,
             child: ListView.separated(
               padding: const EdgeInsets.only(bottom: 96, top: 8),
+              itemCount: identities.length,
+              separatorBuilder: (BuildContext context, int index) =>
+                  const Divider(height: 1),
               itemBuilder: (BuildContext context, int index) {
                 final IdentityRecord record = identities[index];
                 final String principalText = PrincipalUtils.textFromRecord(record);
                 final String principalPrefix = principalText.length >= 5
                     ? principalText.substring(0, 5)
                     : principalText;
-                return ListTile(
-                  title: Text(record.label),
-                  subtitle: Text('$principalPrefix • ${_subtitleFor(record)}'),
-                  leading: CircleAvatar(
-                    child: Text(
-                      record.label.isNotEmpty
-                          ? record.label.substring(0, 1).toUpperCase()
-                          : '#',
+                return Dismissible(
+                  key: ValueKey<String>(record.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: const <Widget>[
+                        Icon(Icons.delete),
+                        SizedBox(width: 8),
+                        Text('Delete'),
+                      ],
                     ),
                   ),
-                  onTap: () => _copyToClipboard(
-                    'Principal',
-                    PrincipalUtils.textFromRecord(record),
-                  ),
-                  trailing: PopupMenuButton<_IdentityAction>(
-                    onSelected: (_IdentityAction action) =>
-                        _handleAction(action, record),
-                    itemBuilder: (BuildContext context) =>
-                        <PopupMenuEntry<_IdentityAction>>[
-                          const PopupMenuItem<_IdentityAction>(
-                            value: _IdentityAction.showDetails,
-                            child: Text('Show details'),
-                          ),
-                          const PopupMenuItem<_IdentityAction>(
-                            value: _IdentityAction.rename,
-                            child: Text('Rename'),
-                          ),
-                        ],
+                  confirmDismiss: (_) async {
+                    await _confirmAndDelete(record);
+                    return false;
+                  },
+                  child: ListTile(
+                    title: Text(record.label),
+                    subtitle: Text('$principalPrefix • ${_subtitleFor(record)}'),
+                    leading: CircleAvatar(
+                      child: Text(
+                        record.label.isNotEmpty
+                            ? record.label.substring(0, 1).toUpperCase()
+                            : '#',
+                      ),
+                    ),
+                    onTap: () => _copyToClipboard(
+                      'Principal',
+                      PrincipalUtils.textFromRecord(record),
+                    ),
+                    trailing: PopupMenuButton<_IdentityAction>(
+                      onSelected: (_IdentityAction action) =>
+                          _handleAction(action, record),
+                      itemBuilder: (BuildContext context) =>
+                          <PopupMenuEntry<_IdentityAction>>[
+                        const PopupMenuItem<_IdentityAction>(
+                          value: _IdentityAction.showDetails,
+                          child: Text('Show details'),
+                        ),
+                        const PopupMenuItem<_IdentityAction>(
+                          value: _IdentityAction.rename,
+                          child: Text('Rename'),
+                        ),
+                        const PopupMenuItem<_IdentityAction>(
+                          value: _IdentityAction.delete,
+                          child: Text('Delete'),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
-              separatorBuilder: (BuildContext context, int index) =>
-                  const Divider(height: 1),
-              itemCount: identities.length,
             ),
           );
         },
@@ -528,7 +590,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction {
-  showDetails,
-  rename,
-}
+enum _IdentityAction { showDetails, rename, delete }

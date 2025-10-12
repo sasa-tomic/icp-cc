@@ -29,10 +29,7 @@ void main() {
       record.algorithm,
       publicKeyBytes,
     );
-    expect(
-      PrincipalUtils.fromText(principal),
-      principalBytes,
-    );
+    expect(PrincipalUtils.fromText(principal), principalBytes);
   });
 
   test('derives and formats secp256k1 principal', () async {
@@ -54,9 +51,6 @@ void main() {
       record.algorithm,
       publicKeyBytes,
     );
-    expect(
-      PrincipalUtils.fromText(principal),
-      principalBytes,
-    );
+    expect(PrincipalUtils.fromText(principal), principalBytes);
   });
 }
