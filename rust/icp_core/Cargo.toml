@@ -5,6 +5,9 @@ edition = "2021"
 description = "Core IC identity and principal utilities for Flutter integration"
 license = "MIT OR Apache-2.0"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 # BIP39 mnemonic and seed
 bip39 = { version = "2", default-features = false, features = ["std"] }
@@ -33,10 +36,6 @@ reqwest = { version = "=0.12.23", default-features = false, features = [
 ] }
 ic-agent = { version = "0.44.2" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
-
-[features]
-default = []
-ffi = []
 
 [dev-dependencies]
 clap = { version = "4", features = ["derive"] }

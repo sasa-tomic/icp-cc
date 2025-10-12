@@ -106,6 +106,53 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
+# Include Rust FFI library (libicp_core.so). Try building it if missing.
+set(RUST_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../")
+set(RUST_CRATE_DIR "${RUST_PROJECT_ROOT}/rust/icp_core")
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+  set(RUST_PROFILE "debug")
+  set(CARGO_BUILD_CMD "cargo build -p icp_core")
+else()
+  set(RUST_PROFILE "release")
+  set(CARGO_BUILD_CMD "cargo build -p icp_core --release")
+endif()
+
+set(RUST_LIB_CANDIDATE_1 "${RUST_CRATE_DIR}/target/${RUST_PROFILE}/libicp_core.so")
+set(RUST_LIB_CANDIDATE_2 "${RUST_PROJECT_ROOT}/target/${RUST_PROFILE}/libicp_core.so")
+set(RUST_LIB_PATH "")
+if(EXISTS "${RUST_LIB_CANDIDATE_1}")
+  set(RUST_LIB_PATH "${RUST_LIB_CANDIDATE_1}")
+elseif(EXISTS "${RUST_LIB_CANDIDATE_2}")
+  set(RUST_LIB_PATH "${RUST_LIB_CANDIDATE_2}")
+endif()
+
+if(RUST_LIB_PATH STREQUAL "")
+  message(STATUS "Building Rust library via cargo: ${CARGO_BUILD_CMD}")
+  execute_process(
+    COMMAND bash -lc "${CARGO_BUILD_CMD}"
+    WORKING_DIRECTORY "${RUST_PROJECT_ROOT}"
+    RESULT_VARIABLE CARGO_RESULT
+  )
+  if(CARGO_RESULT EQUAL 0)
+    if(EXISTS "${RUST_LIB_CANDIDATE_1}")
+      set(RUST_LIB_PATH "${RUST_LIB_CANDIDATE_1}")
+    elseif(EXISTS "${RUST_LIB_CANDIDATE_2}")
+      set(RUST_LIB_PATH "${RUST_LIB_CANDIDATE_2}")
+    endif()
+  else()
+    message(WARNING "Failed to build icp_core via cargo; ICP FFI will be unavailable on Linux.")
+  endif()
+endif()
+
+if(NOT RUST_LIB_PATH STREQUAL "")
+  message(STATUS "Including Rust library: ${RUST_LIB_PATH}")
+  install(FILES "${RUST_LIB_PATH}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+else()
+  message(WARNING "Rust libicp_core.so not found; ICP FFI will be unavailable on Linux.")
+endif()
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

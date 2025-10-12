@@ -1,6 +1,5 @@
 pub mod canister_client;
 pub mod favorites;
-#[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod identity;
 pub mod principal;
