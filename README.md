@@ -14,10 +14,6 @@ cargo fmt --all
 cargo clippy --benches --tests --manifest-path rust/icp_core/Cargo.toml
 cargo nextest run --manifest-path rust/icp_core/Cargo.toml
 ```
-- With network features (for fetching candid and calling canisters):
-```bash
-cargo clippy --manifest-path rust/icp_core/Cargo.toml --features network
-```
 
 ## Flutter app
 From `icp_identity_manager/`:
@@ -27,7 +23,7 @@ flutter run
 ```
 
 ## Canister client (Rust API)
-- Fetch candid (requires `--features network`):
+- Fetch candid:
 ```rust
 let did = icp_core::canister_client::fetch_candid("ryjl3-tyaaa-aaaaa-aaaba-cai", None)?;
 ```

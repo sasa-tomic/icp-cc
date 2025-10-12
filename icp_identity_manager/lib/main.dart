@@ -421,7 +421,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                       final cid = _canisterController.text.trim();
                       if (cid.isEmpty) return;
                       final did = await _bridge.fetchCandid(canisterId: cid);
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       await showDialog<void>(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -702,10 +702,10 @@ class _WellKnownList extends StatelessWidget {
   final void Function(String canisterId, String method) onSelect;
 
   static const List<Map<String, String>> _items = <Map<String, String>>[
+    // NNS Registry
+    {'label': 'NNS Registry', 'cid': 'rwlgt-iiaaa-aaaaa-aaaaa-cai', 'method': 'get_value'},
     // NNS Governance
     {'label': 'NNS Governance', 'cid': 'rrkah-fqaaa-aaaaa-aaaaq-cai', 'method': 'get_neuron_ids'},
-    // NNS Registry
-    {'label': 'NNS Registry', 'cid': 'rhnmp-oyaaa-aaaaa-aaaca-cai', 'method': 'get_value'},
     // NNS Ledger
     {'label': 'NNS Ledger', 'cid': 'ryjl3-tyaaa-aaaaa-aaaba-cai', 'method': 'account_balance_dfx'},
   ];
