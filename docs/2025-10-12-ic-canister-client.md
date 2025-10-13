@@ -38,7 +38,7 @@ Tests:
 - Integration tests (opt-in): deferred for now.
 
 FFI:
-- Next: thin FFI to expose fetch_candid, parse_candid_interface, call_anonymous/authenticated, favorites add/list/remove.
+- Done: thin FFI exports `fetch_candid`, `parse_candid_interface`, `call_anonymous`/`call_authenticated`, and favorites `add`/`list`/`remove` from `rust/icp_core/src/ffi.rs`. A Dart bridge in `icp_identity_manager/lib/rust/native_bridge.dart` wires these into the Flutter app layer.
 
 UI guidance:
 - It's sufficient to show a list of functions; optionally show signature text (args/results) if trivial. No renderer required.
@@ -48,5 +48,11 @@ Out of scope for now:
 - Custom subnets UI; accept explicit `host` param.
 
 Done (current status):
-- Core modules compile cleanly; unit tests pass; clippy/fmt clean.
+- Canister client implemented: `fetch_candid`, Candid parsing, and `call_anonymous`/`call_authenticated` using `ic-agent`.
 - Favorites persistence implemented and tested.
+- FFI exports added and wired via Dart bridge.
+- Core compiles cleanly; unit tests pass; clippy/fmt clean.
+
+Remaining:
+- Integrate the canister client UX in the Flutter app (list methods, call flow).
+- Keep integration tests optional; add when an environment is available.

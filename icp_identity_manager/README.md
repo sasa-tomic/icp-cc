@@ -56,7 +56,7 @@ flutter build apk --release
 The release build lands alongside the debug artifact under `build/app/outputs/flutter-apk/`.
 
 ## Next Steps
-1. Integrate with `ic4j-agent` to sign and submit canister calls using the stored Ed25519 key material.
+1. Integrate canister client UI: list methods from fetched Candid and enable calls (anonymous/authenticated) via the existing Rust FFI bridge.
 2. Add secure storage options (KeyStore/Keychain on mobile, OS keyrings on desktop) before shipping sensitive data.
 3. Extend the identity generator to support additional algorithms (e.g. Ed448) and hardware-backed keys.
 4. Wire rename/delete affordances into the UI and add import flows for existing seed phrases.
