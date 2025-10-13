@@ -1,5 +1,6 @@
+use candid::types::{FuncMode, TypeEnv, TypeInner};
 use candid::{IDLArgs, Principal};
-use regex::Regex;
+use candid_parser::{check_prog, IDLProg};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -34,46 +35,42 @@ pub struct ParsedInterface {
 }
 
 pub fn parse_candid_interface(candid_source: &str) -> Result<ParsedInterface, CanisterClientError> {
-    let service_split = candid_source
-        .split("service ")
-        .nth(1)
-        .ok_or_else(|| CanisterClientError::CandidParse("missing service block".into()))?;
+    // Parse Candid using official parser and type checker
+    let prog: IDLProg = candid_source
+        .parse::<IDLProg>()
+        .map_err(|e| CanisterClientError::CandidParse(format!("parse: {e}")))?;
+    let mut env = TypeEnv::new();
+    let actor = check_prog(&mut env, &prog)
+        .map_err(|e| CanisterClientError::CandidParse(format!("typecheck: {e}")))?
+        .ok_or_else(|| CanisterClientError::CandidParse("no service/actor found".into()))?;
+
+    // Extract service/interface methods
+    let svc = env
+        .as_service(&actor)
+        .map_err(|e| CanisterClientError::CandidParse(format!("service: {e}")))?;
 
     let mut methods: Vec<MethodInfo> = Vec::new();
+    for (name, ty) in svc.iter() {
+        if let TypeInner::Func(f) = ty.as_ref() {
+            // Determine method kind
+            let mut mk = MethodKind::Update;
+            if f.modes.contains(&FuncMode::CompositeQuery) {
+                mk = MethodKind::CompositeQuery;
+            } else if f.modes.contains(&FuncMode::Query) {
+                mk = MethodKind::Query;
+            }
 
-    let re = Regex::new(r"(?m)^\s*([a-zA-Z_][\w-]*)\s*:\s*\(([^)]*)\)\s*->\s*\(([^)]*)\)\s*(?:query|composite_query)?").unwrap();
-    for cap in re.captures_iter(service_split) {
-        let name = cap.get(1).unwrap().as_str().to_string();
-        let args_str = cap.get(2).unwrap().as_str().trim();
-        let rets_str = cap.get(3).unwrap().as_str().trim();
+            // Collect arg and return type strings using Display
+            let args: Vec<String> = f.args.iter().map(|t| t.to_string()).collect();
+            let rets: Vec<String> = f.rets.iter().map(|t| t.to_string()).collect();
 
-        // Find suffix on the matched line
-        let matched = cap.get(0).unwrap().as_str();
-        let kind = if matched.contains("composite_query") {
-            MethodKind::CompositeQuery
-        } else if matched.contains("query") {
-            MethodKind::Query
-        } else {
-            MethodKind::Update
-        };
-
-        let args = if args_str.is_empty() {
-            vec![]
-        } else {
-            args_str.split(',').map(|s| s.trim().to_string()).collect()
-        };
-        let rets = if rets_str.is_empty() {
-            vec![]
-        } else {
-            rets_str.split(',').map(|s| s.trim().to_string()).collect()
-        };
-
-        methods.push(MethodInfo {
-            name,
-            kind,
-            args,
-            rets,
-        });
+            methods.push(MethodInfo {
+                name: name.to_string(),
+                kind: mk,
+                args,
+                rets,
+            });
+        }
     }
 
     Ok(ParsedInterface { methods })

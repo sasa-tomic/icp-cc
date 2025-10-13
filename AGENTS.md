@@ -10,3 +10,5 @@
 ❯ cargo clippy --benches --tests --all-features && cargo clippy && cargo fmt --all && cargo nextest run
 - For flutter code ensure linter and `flutter test` and `flutter analyze` are completely clean without warnings or errors - fix if anything is not clean
 - Only commit changes after all the above is satisfied
+- You MUST STRICTLY adhere to the above rules
+- Use context7 if applicable to find Up-to-date Docs on APIs and libraries

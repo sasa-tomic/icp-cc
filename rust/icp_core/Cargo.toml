@@ -21,6 +21,7 @@ sha2 = "0.10"
 base64 = "0.22"
 # Principal formatting (CRC32 + base32) and text <-> bytes
 candid = { version = "0.10", features = ["value"] }
+candid_parser = "0.2"
 # Lightweight error type
 thiserror = "2.0"
 hex-literal = "1.0"
