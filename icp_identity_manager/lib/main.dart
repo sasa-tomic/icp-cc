@@ -41,8 +41,6 @@ class IdentityHomePage extends StatefulWidget {
 class _IdentityHomePageState extends State<IdentityHomePage> {
   late final IdentityController _controller;
   final RustBridgeLoader _bridge = const RustBridgeLoader();
-  final TextEditingController _canisterController = TextEditingController();
-  final TextEditingController _methodController = TextEditingController();
   String? _lastResult;
 
   @override
@@ -58,8 +56,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     _controller
       ..removeListener(_onControllerChanged)
       ..dispose();
-    _canisterController.dispose();
-    _methodController.dispose();
     super.dispose();
   }
 
@@ -388,118 +384,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       useSafeArea: true,
       isScrollControlled: true,
       builder: (BuildContext context) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            shrinkWrap: true,
-            children: <Widget>[
-              Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _canisterController,
-                decoration: const InputDecoration(
-                  labelText: 'Canister ID',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TextField(
-                      controller: _methodController,
-                      decoration: const InputDecoration(
-                        labelText: 'Method name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: () async {
-                      final cid = _canisterController.text.trim();
-                      if (cid.isEmpty) return;
-                      final did = await _bridge.fetchCandid(canisterId: cid);
-                      if (!context.mounted) return;
-                      await showDialog<void>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Candid (raw)'),
-                          content: SingleChildScrollView(child: SelectableText(did ?? 'Failed to fetch.')),
-                          actions: <Widget>[
-                            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-                          ],
-                        ),
-                      );
-                    },
-                    child: const Text('Fetch Candid'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: FilledButton.tonal(
-                      onPressed: () async {
-                        final cid = _canisterController.text.trim();
-                        final method = _methodController.text.trim();
-                        if (cid.isEmpty || method.isEmpty) return;
-                        final out = _bridge.callAnonymous(
-                          canisterId: cid,
-                          method: method,
-                          kind: 0, // Query by default
-                          args: '()',
-                          host: null,
-                        );
-                        setState(() => _lastResult = out);
-                      },
-                      child: const Text('Call anonymous (query) ()'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: () async {
-                      final cid = _canisterController.text.trim();
-                      final method = _methodController.text.trim();
-                      if (cid.isEmpty || method.isEmpty) return;
-                      _bridge.favoritesAdd(canisterId: cid, method: method);
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to favorites')));
-                    },
-                    icon: const Icon(Icons.favorite_border),
-                    label: const Text('Save favorite'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (_lastResult != null)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('Last result', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    SelectableText(_lastResult!),
-                  ],
-                ),
-              const SizedBox(height: 16),
-              Text('Well-known canisters', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              _WellKnownList(onSelect: (cid, method) {
-                _canisterController.text = cid;
-                _methodController.text = method;
-              }),
-              const SizedBox(height: 16),
-              Text('Favorites', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              _FavoritesList(bridge: _bridge, onTapEntry: (cid, method) {
-                _canisterController.text = cid;
-                _methodController.text = method;
-              }),
-            ],
-          ),
-        );
+        return _CanisterClientSheet(bridge: _bridge);
       },
     );
   }
@@ -726,6 +611,207 @@ class _WellKnownList extends StatelessWidget {
           onTap: () => onSelect(e['cid'] ?? '', e['method'] ?? ''),
         );
       },
+    );
+  }
+}
+
+class _CanisterClientSheet extends StatefulWidget {
+  const _CanisterClientSheet({required this.bridge});
+  final RustBridgeLoader bridge;
+
+  @override
+  State<_CanisterClientSheet> createState() => _CanisterClientSheetState();
+}
+
+class _CanisterClientSheetState extends State<_CanisterClientSheet> {
+  final TextEditingController _canisterController = TextEditingController();
+  final TextEditingController _hostController = TextEditingController(text: 'https://ic0.app');
+  String? _candidRaw;
+  List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
+  bool _isFetching = false;
+
+  @override
+  void dispose() {
+    _canisterController.dispose();
+    _hostController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchAndParse() async {
+    final String cid = _canisterController.text.trim();
+    if (cid.isEmpty || _isFetching) return;
+    setState(() => _isFetching = true);
+    try {
+      final String? did = await widget.bridge.fetchCandid(
+        canisterId: cid,
+        host: _hostController.text.trim().isEmpty ? null : _hostController.text.trim(),
+      );
+      if (did == null || did.trim().isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch Candid')));
+        return;
+      }
+      final String? parsedJson = widget.bridge.parseCandid(candidText: did);
+      if (parsedJson == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to parse Candid')));
+        return;
+      }
+      final Map<String, dynamic> parsed = json.decode(parsedJson) as Map<String, dynamic>;
+      final List<dynamic> methods = (parsed['methods'] as List<dynamic>? ?? <dynamic>[]);
+      setState(() {
+        _candidRaw = did;
+        _methods = methods
+            .whereType<Map<String, dynamic>>()
+            .map((m) => {
+                  'name': m['name'] as String? ?? '',
+                  'kind': m['kind'] as String? ?? '',
+                  'args': (m['args'] as List<dynamic>? ?? const <dynamic>[])
+                      .map((e) => e.toString())
+                      .toList(),
+                  'rets': (m['rets'] as List<dynamic>? ?? const <dynamic>[])
+                      .map((e) => e.toString())
+                      .toList(),
+                })
+            .toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => _isFetching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        shrinkWrap: true,
+        children: <Widget>[
+          Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _canisterController,
+            decoration: const InputDecoration(
+              labelText: 'Canister ID',
+              border: OutlineInputBorder(),
+            ),
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _hostController,
+            decoration: const InputDecoration(
+              labelText: 'Replica Host (optional)',
+              hintText: 'https://ic0.app',
+              border: OutlineInputBorder(),
+            ),
+            textInputAction: TextInputAction.done,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: FilledButton(
+                  onPressed: _isFetching ? null : _fetchAndParse,
+                  child: _isFetching
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Fetch & List Methods'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (_candidRaw != null)
+                OutlinedButton(
+                  onPressed: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Candid (raw)'),
+                        content: SingleChildScrollView(child: SelectableText(_candidRaw!)),
+                        actions: <Widget>[
+                          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+                        ],
+                      ),
+                    );
+                  },
+                  child: const Text('View Candid'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_methods.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Methods', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _methods.length,
+                  separatorBuilder: (BuildContext _, int __) => const Divider(height: 1),
+                  itemBuilder: (BuildContext context, int index) {
+                    final m = _methods[index];
+                    final String name = m['name'] as String;
+                    final String kind = (m['kind'] as String).toString();
+                    final List<String> args = (m['args'] as List<dynamic>).cast<String>();
+                    final List<String> rets = (m['rets'] as List<dynamic>).cast<String>();
+                    final String sig = '(${args.join(', ')}) -> (${rets.join(', ')})';
+                    return ListTile(
+                      leading: Icon(
+                        kind.toLowerCase().contains('update') ? Icons.sync_alt : Icons.search,
+                      ),
+                      title: Text(name),
+                      subtitle: Text('$kind • $sig'),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: <Widget>[
+                          IconButton(
+                            tooltip: 'Use method',
+                            icon: const Icon(Icons.input),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              // In follow-ups we can prefill call UI with this method.
+                            },
+                          ),
+                          IconButton(
+                            tooltip: 'Favorite',
+                            icon: const Icon(Icons.favorite_border),
+                            onPressed: () {
+                              final cid = _canisterController.text.trim();
+                              if (cid.isEmpty) return;
+                              widget.bridge.favoritesAdd(canisterId: cid, method: name);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to favorites')));
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          const SizedBox(height: 16),
+          Text('Well-known canisters', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _WellKnownList(onSelect: (cid, method) {
+            _canisterController.text = cid;
+            // Method is used for quick call later; here we just help selection.
+          }),
+          const SizedBox(height: 16),
+          Text('Favorites', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _FavoritesList(
+            bridge: widget.bridge,
+            onTapEntry: (cid, method) {
+              _canisterController.text = cid;
+            },
+          ),
+        ],
+      ),
     );
   }
 }
