@@ -1,48 +1,34 @@
-# ICP Identity Manager + Canister Client
+# ICP Identity Manager - Build Guide
 
-This repository contains a Flutter app (`icp_identity_manager/`) and a Rust crate (`rust/icp_core/`). The Rust crate provides identity utilities and a lightweight ICP canister client.
+Use the Makefile and scripts in `scripts/` to build native libraries and fail fast if missing.
 
-## Prerequisites
-- Rust (latest stable). Recommended: rustup toolchain up to date.
-- Flutter SDK (3.22+).
-- Android/iOS toolchains as needed for mobile.
+Quickstart
+- Linux desktop:
+  - `make linux`
+  - `cd icp_identity_manager && flutter run -d linux`
+- Android:
+  - `./scripts/bootstrap.sh` (Linux installs Android SDK/NDK/toolchains and rust targets)
+  - `make android`
+  - `cd icp_identity_manager && flutter run -d <your-device-id>`
+- macOS:
+  - `make macos`
+- iOS:
+  - `make ios`
+- Windows:
+  - `make windows`
 
-## Build Rust
-- Format, lint, and test all Rust crates:
-```bash
-cargo fmt --all
-cargo clippy --benches --tests --manifest-path rust/icp_core/Cargo.toml
-cargo nextest run --manifest-path rust/icp_core/Cargo.toml
-```
+Fail-fast bundling
+- Linux/Windows CMake will abort if the native lib is missing with an actionable message.
+- Android Gradle will abort mergeJniLibs if any ABI lib is missing, showing which ones and suggesting `make android`.
 
-## Flutter app
-From `icp_identity_manager/`:
-```bash
-flutter pub get
-flutter run
-```
+Scripts
+- `scripts/bootstrap.sh`: Installs rustup and Android SDK/NDK on Linux; sets targets.
+- `scripts/build_linux.sh`: Builds `libicp_core.so` and copies into Flutter bundle dirs.
+- `scripts/build_android.sh`: Builds all Android ABIs and copies into `jniLibs/`.
+- `scripts/build_macos.sh`: Builds `libicp_core.dylib` and copies to common output dirs.
+- `scripts/build_ios.sh`: Builds iOS static libs; assemble xcframework as needed.
+- `scripts/build_windows.sh`: Builds `icp_core.dll` and copies into runner dirs.
 
-## Canister client (Rust API)
-- Fetch candid:
-```rust
-let did = icp_core::canister_client::fetch_candid("ryjl3-tyaaa-aaaaa-aaaba-cai", None)?;
-```
-- Parse interface:
-```rust
-let parsed = icp_core::canister_client::parse_candid_interface(&did)?; // list methods
-```
-- Call canister:
-```rust
-use icp_core::canister_client::MethodKind;
-let out = icp_core::canister_client::call_anonymous(
-  "ryjl3-tyaaa-aaaaa-aaaba-cai",
-  "greet",
-  MethodKind::Query,
-  "()",
-  None,
-)?;
-```
-
-## Notes
-- Args currently accept "()" for empty or "base64:<candid_encoded_bytes>".
-- Favorites are stored at `$XDG_CONFIG_HOME/icp-cc/favorites.json`.
+Notes
+- For Android, ensure an emulator or device is connected; use `icp_identity_manager/tool/run_android.sh` to start a default emulator and run.
+- For iOS/macOS, additional Xcode project copy phases can be added to auto-embed the dylib/xcframework if desired.
