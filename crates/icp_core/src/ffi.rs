@@ -2,6 +2,7 @@ use crate::{
     canister_client::{self, MethodKind},
     favorites as fav, generate_ed25519_identity, generate_secp256k1_identity,
 };
+use serde_json::json;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
@@ -138,7 +139,10 @@ pub unsafe extern "C" fn icp_call_anonymous(
     };
     match canister_client::call_anonymous(cid, m, mk, a, host_opt) {
         Ok(s) => CString::new(s).unwrap().into_raw(),
-        Err(_) => null_c_string(),
+        Err(e) => {
+            let err_json = json!({"ok": false, "error": e.to_string()}).to_string();
+            CString::new(err_json).unwrap().into_raw()
+        }
     }
 }
 
@@ -193,7 +197,10 @@ pub unsafe extern "C" fn icp_call_authenticated(
     };
     match canister_client::call_authenticated(cid, m, mk, a, k, host_opt) {
         Ok(s) => CString::new(s).unwrap().into_raw(),
-        Err(_) => null_c_string(),
+        Err(e) => {
+            let err_json = json!({"ok": false, "error": e.to_string()}).to_string();
+            CString::new(err_json).unwrap().into_raw()
+        }
     }
 }
 

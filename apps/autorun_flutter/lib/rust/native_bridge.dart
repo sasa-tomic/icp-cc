@@ -136,7 +136,8 @@ class RustBridgeLoader {
       final res = fn(cid.cast(), m.cast(), kind, a.cast(), h.cast());
       if (res == ffi.nullptr) return null;
       try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
+        final s = res.cast<pkg_ffi.Utf8>().toDartString();
+        return s;
       } finally {
         final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
         free(res);
@@ -170,7 +171,8 @@ class RustBridgeLoader {
       final res = fn(cid.cast(), m.cast(), kind, a.cast(), k.cast(), h.cast());
       if (res == ffi.nullptr) return null;
       try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
+        final s = res.cast<pkg_ffi.Utf8>().toDartString();
+        return s;
       } finally {
         final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
         free(res);
