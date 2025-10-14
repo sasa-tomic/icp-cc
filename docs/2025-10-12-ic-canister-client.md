@@ -38,7 +38,7 @@ Tests:
 - Integration tests (opt-in): deferred for now.
 
 FFI:
-- Done: thin FFI exports `fetch_candid`, `parse_candid_interface`, `call_anonymous`/`call_authenticated`, and favorites `add`/`list`/`remove` from `rust/icp_core/src/ffi.rs`. A Dart bridge in `icp_identity_manager/lib/rust/native_bridge.dart` wires these into the Flutter app layer.
+- Done: thin FFI exports `fetch_candid`, `parse_candid_interface`, `call_anonymous`/`call_authenticated`, and favorites `add`/`list`/`remove` from `rust/icp_core/src/ffi.rs`. A Dart bridge in `icp_autorun/lib/rust/native_bridge.dart` wires these into the Flutter app layer.
 
 UI guidance:
 - It's sufficient to show a list of functions; optionally show signature text (args/results) if trivial. No renderer required.

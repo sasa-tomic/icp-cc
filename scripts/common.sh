@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 CRATE_DIR="${REPO_ROOT}/rust/icp_core"
-DART_APP_DIR="${REPO_ROOT}/icp_identity_manager"
+DART_APP_DIR="${REPO_ROOT}/icp_autorun"
 
 ensure_tools() {
   if ! command -v rustup >/dev/null 2>&1; then
