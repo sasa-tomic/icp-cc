@@ -11,6 +11,7 @@ import 'services/identity_repository.dart';
 import 'utils/principal.dart';
 import 'utils/candid_args.dart';
 import 'services/favorites_events.dart';
+import 'utils/json_format.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,7 +45,7 @@ class _MainHomePageState extends State<MainHomePage> {
   int _currentIndex = 0;
   final RustBridgeLoader _bridge = const RustBridgeLoader();
 
-  Future<void> _openCanisterClient({String? initialCanisterId}) async {
+  Future<void> _openCanisterClient({String? initialCanisterId, String? initialMethodName}) async {
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -53,6 +54,7 @@ class _MainHomePageState extends State<MainHomePage> {
         return _CanisterClientSheet(
           bridge: _bridge,
           initialCanisterId: initialCanisterId,
+          initialMethodName: initialMethodName,
         );
       },
     );
@@ -89,7 +91,7 @@ class _FavoritesScreen extends StatelessWidget {
   const _FavoritesScreen({required this.bridge, required this.onOpenClient});
 
   final RustBridgeLoader bridge;
-  final Future<void> Function({String? initialCanisterId}) onOpenClient;
+  final Future<void> Function({String? initialCanisterId, String? initialMethodName}) onOpenClient;
 
   @override
   Widget build(BuildContext context) {
@@ -110,7 +112,7 @@ class _FavoritesScreen extends StatelessWidget {
           Text('Well-known canisters', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           _WellKnownList(onSelect: (cid, method) {
-            onOpenClient(initialCanisterId: cid);
+            onOpenClient(initialCanisterId: cid, initialMethodName: method);
           }),
           const SizedBox(height: 16),
           Text('Your favorites', style: Theme.of(context).textTheme.titleMedium),
@@ -118,7 +120,7 @@ class _FavoritesScreen extends StatelessWidget {
           _FavoritesList(
             bridge: bridge,
             onTapEntry: (cid, method) {
-              onOpenClient(initialCanisterId: cid);
+              onOpenClient(initialCanisterId: cid, initialMethodName: method);
             },
           ),
         ],
@@ -697,9 +699,10 @@ class _WellKnownList extends StatelessWidget {
 }
 
 class _CanisterClientSheet extends StatefulWidget {
-  const _CanisterClientSheet({required this.bridge, this.initialCanisterId});
+  const _CanisterClientSheet({required this.bridge, this.initialCanisterId, this.initialMethodName});
   final RustBridgeLoader bridge;
   final String? initialCanisterId;
+  final String? initialMethodName;
 
   @override
   State<_CanisterClientSheet> createState() => _CanisterClientSheetState();
@@ -734,6 +737,9 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
     super.initState();
     if ((widget.initialCanisterId ?? '').isNotEmpty) {
       _canisterController.text = widget.initialCanisterId!.trim();
+    }
+    if ((widget.initialMethodName ?? '').isNotEmpty) {
+      _methodController.text = widget.initialMethodName!.trim();
     }
   }
 
@@ -774,11 +780,32 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                       .toList(),
                 })
             .toList();
-        // Initialize arg fields based on the first method signature as a hint
-        if (_methods.isNotEmpty && _argControllers.isEmpty) {
+        // If a method was preselected, align kind and arg fields to its signature
+        final String preset = _methodController.text.trim();
+        Map<String, dynamic>? selected;
+        if (preset.isNotEmpty) {
+          selected = _methods.cast<Map<String, dynamic>?>().firstWhere(
+                (m) => (m?['name'] as String? ?? '') == preset,
+                orElse: () => null,
+              );
+        }
+        if (selected != null) {
+          final List<String> args = (selected['args'] as List<dynamic>).cast<String>();
+          for (final c in _argControllers) {
+            c.dispose();
+          }
+          _argControllers = List<TextEditingController>.generate(args.length, (_) => TextEditingController());
+          final String kind = (selected['kind'] as String).toLowerCase();
+          _selectedKind = kind.contains('update')
+              ? 1
+              : (kind.contains('composite') ? 2 : 0);
+        } else if (_methods.isNotEmpty && _argControllers.isEmpty) {
+          // Fallback to the first method as a hint when nothing preset matches
           final List<String> args = (_methods.first['args'] as List<dynamic>).cast<String>();
           _argControllers = List<TextEditingController>.generate(args.length, (_) => TextEditingController());
-          _methodController.text = (_methods.first['name'] as String?) ?? '';
+          if (_methodController.text.trim().isEmpty) {
+            _methodController.text = (_methods.first['name'] as String?) ?? '';
+          }
         }
       });
     } catch (e) {
@@ -800,6 +827,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
           Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           TextField(
+            key: const Key('canisterField'),
             controller: _canisterController,
             decoration: const InputDecoration(
               labelText: 'Canister ID',
@@ -819,6 +847,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
           ),
           const SizedBox(height: 8),
           TextField(
+            key: const Key('methodField'),
             controller: _methodController,
             decoration: const InputDecoration(
               labelText: 'Method name',
@@ -973,7 +1002,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                 );
               }
               setState(() {
-                _resultJson = out;
+                _resultJson = formatJsonIfPossible(out ?? '');
               });
             },
           ),
@@ -1059,7 +1088,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
           const SizedBox(height: 8),
           _WellKnownList(onSelect: (cid, method) {
             _canisterController.text = cid;
-            // Method is used for quick call later; here we just help selection.
+            _methodController.text = method;
           }),
           const SizedBox(height: 16),
           Text('Favorites', style: Theme.of(context).textTheme.titleMedium),
@@ -1068,6 +1097,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
             bridge: widget.bridge,
             onTapEntry: (cid, method) {
               _canisterController.text = cid;
+              _methodController.text = method;
             },
           ),
         ],
