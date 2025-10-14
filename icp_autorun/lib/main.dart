@@ -10,6 +10,7 @@ import 'models/identity_record.dart';
 import 'services/identity_repository.dart';
 import 'utils/principal.dart';
 import 'utils/candid_args.dart';
+import 'services/favorites_events.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1042,6 +1043,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                               final cid = _canisterController.text.trim();
                               if (cid.isEmpty) return;
                               widget.bridge.favoritesAdd(canisterId: cid, method: name);
+                              FavoritesEvents.notifyChanged();
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to favorites')));
                             },
                           ),
@@ -1076,11 +1078,20 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
 
 class _FavoritesListState extends State<_FavoritesList> {
   List<Map<String, dynamic>> _entries = const <Map<String, dynamic>>[];
+  late final VoidCallback _listener;
 
   @override
   void initState() {
     super.initState();
     _reload();
+    _listener = _reload;
+    FavoritesEvents.listenable.addListener(_listener);
+  }
+
+  @override
+  void dispose() {
+    FavoritesEvents.listenable.removeListener(_listener);
+    super.dispose();
   }
 
   void _reload() {
@@ -1121,7 +1132,7 @@ class _FavoritesListState extends State<_FavoritesList> {
             icon: const Icon(Icons.delete),
             onPressed: () async {
               widget.bridge.favoritesRemove(canisterId: cid, method: method);
-              _reload();
+              FavoritesEvents.notifyChanged();
             },
           ),
           onTap: () => widget.onTapEntry(cid, method),
