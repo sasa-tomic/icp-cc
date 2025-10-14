@@ -5,11 +5,11 @@ Use the Makefile and scripts in `scripts/` to build native libraries and fail fa
 Quickstart
 - Linux desktop:
   - `make linux`
-  - `cd icp_autorun && flutter run -d linux`
+  - `cd apps/autorun_flutter && flutter run -d linux`
 - Android:
   - `./scripts/bootstrap.sh` (Linux installs Android SDK/NDK/toolchains and rust targets)
   - `make android`
-  - `cd icp_autorun && flutter run -d <your-device-id>`
+  - `cd apps/autorun_flutter && flutter run -d <your-device-id>`
 - macOS:
   - `make macos`
 - iOS:
@@ -30,5 +30,11 @@ Scripts
 - `scripts/build_windows.sh`: Builds `icp_core.dll` and copies into runner dirs.
 
 Notes
-- For Android, ensure an emulator or device is connected; use `icp_autorun/tool/run_android.sh` to start a default emulator and run.
+- For Android, ensure an emulator or device is connected; use `apps/autorun_flutter/tool/run_android.sh` to start a default emulator and run.
+
+Repo layout
+- `apps/autorun_flutter`: Flutter application
+- `crates/icp_core`: Rust FFI crate (cdylib)
+- `scripts/`: Build and bootstrap helpers
+- `docs/`: Architecture and build docs
 - For iOS/macOS, additional Xcode project copy phases can be added to auto-embed the dylib/xcframework if desired.

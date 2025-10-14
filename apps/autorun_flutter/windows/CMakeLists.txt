@@ -89,7 +89,7 @@ endif()
 
 # Include Rust DLL (icp_core.dll) if present, or try building it
 set(RUST_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../")
-set(RUST_CRATE_DIR "${RUST_PROJECT_ROOT}/rust/icp_core")
+set(RUST_CRATE_DIR "${RUST_PROJECT_ROOT}/crates/icp_core")
 set(RUST_PROFILE "$<IF:$<CONFIG:Debug>,debug,release>")
 set(RUST_DLL1 "${RUST_CRATE_DIR}/target/${RUST_PROFILE}/icp_core.dll")
 set(RUST_DLL2 "${RUST_PROJECT_ROOT}/target/${RUST_PROFILE}/icp_core.dll")

@@ -1,5 +1,5 @@
 [workspace]
 members = [
-  "rust/icp_core",
+  "crates/icp_core",
 ]
 resolver = "2"

@@ -108,7 +108,7 @@ endforeach(bundled_library)
 
 # Include Rust FFI library (libicp_core.so). Fail fast if missing.
 set(RUST_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../")
-set(RUST_CRATE_DIR "${RUST_PROJECT_ROOT}/rust/icp_core")
+set(RUST_CRATE_DIR "${RUST_PROJECT_ROOT}/crates/icp_core")
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
   set(RUST_PROFILE "debug")
 else()
