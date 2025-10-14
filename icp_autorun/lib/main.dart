@@ -9,6 +9,7 @@ import 'rust/native_bridge.dart';
 import 'models/identity_record.dart';
 import 'services/identity_repository.dart';
 import 'utils/principal.dart';
+import 'utils/candid_args.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -706,6 +707,11 @@ class _CanisterClientSheet extends StatefulWidget {
 class _CanisterClientSheetState extends State<_CanisterClientSheet> {
   final TextEditingController _canisterController = TextEditingController();
   final TextEditingController _hostController = TextEditingController(text: 'https://ic0.app');
+  final TextEditingController _methodController = TextEditingController();
+  final TextEditingController _identityKeyController = TextEditingController();
+  int _selectedKind = 0; // 0=query,1=update,2=comp
+  List<TextEditingController> _argControllers = <TextEditingController>[];
+  String? _resultJson;
   String? _candidRaw;
   List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
   bool _isFetching = false;
@@ -714,6 +720,11 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
   void dispose() {
     _canisterController.dispose();
     _hostController.dispose();
+    _methodController.dispose();
+    _identityKeyController.dispose();
+    for (final c in _argControllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -762,6 +773,12 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                       .toList(),
                 })
             .toList();
+        // Initialize arg fields based on the first method signature as a hint
+        if (_methods.isNotEmpty && _argControllers.isEmpty) {
+          final List<String> args = (_methods.first['args'] as List<dynamic>).cast<String>();
+          _argControllers = List<TextEditingController>.generate(args.length, (_) => TextEditingController());
+          _methodController.text = (_methods.first['name'] as String?) ?? '';
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -799,6 +816,98 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
             ),
             textInputAction: TextInputAction.done,
           ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _methodController,
+            decoration: const InputDecoration(
+              labelText: 'Method name',
+              border: OutlineInputBorder(),
+            ),
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 8),
+          InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Method kind',
+              border: OutlineInputBorder(),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: _selectedKind,
+                items: const <DropdownMenuItem<int>>[
+                  DropdownMenuItem<int>(value: 0, child: Text('Query')),
+                  DropdownMenuItem<int>(value: 1, child: Text('Update')),
+                  DropdownMenuItem<int>(value: 2, child: Text('Composite Query')),
+                ],
+                onChanged: (int? v) => setState(() => _selectedKind = v ?? 0),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_argControllers.isEmpty)
+            OutlinedButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Add argument field'),
+              onPressed: () => setState(() => _argControllers.add(TextEditingController())),
+            )
+          else ...<Widget>[
+            Text('Arguments', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _argControllers.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (BuildContext context, int index) {
+                return Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: TextField(
+                        controller: _argControllers[index],
+                        decoration: InputDecoration(
+                          labelText: 'Arg ${index + 1} (Candid literal)',
+                          hintText: 'e.g. 42 or "hello" or vec {1;2}',
+                          border: const OutlineInputBorder(),
+                        ),
+                        minLines: 1,
+                        maxLines: 3,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: () => setState(() => _argControllers.removeAt(index)),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Add argument'),
+                onPressed: () => setState(() => _argControllers.add(TextEditingController())),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          ExpansionTile(
+            title: const Text('Authenticated (optional)'),
+            subtitle: const Text('Ed25519 private key (base64)'),
+            children: <Widget>[
+              TextField(
+                controller: _identityKeyController,
+                decoration: const InputDecoration(
+                  labelText: 'Private key (base64)',
+                  border: OutlineInputBorder(),
+                ),
+                minLines: 1,
+                maxLines: 3,
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           Row(
             children: <Widget>[
@@ -829,6 +938,57 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                 ),
             ],
           ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Call method'),
+            onPressed: () {
+              final String cid = _canisterController.text.trim();
+              final String method = _methodController.text.trim();
+              if (cid.isEmpty || method.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter canister and method')));
+                return;
+              }
+              final String args = composeCandidArgs(_argControllers.map((e) => e.text).toList());
+              final String? host = _hostController.text.trim().isEmpty ? null : _hostController.text.trim();
+              final String key = _identityKeyController.text.trim();
+              String? out;
+              if (key.isEmpty) {
+                out = widget.bridge.callAnonymous(
+                  canisterId: cid,
+                  method: method,
+                  kind: _selectedKind,
+                  args: args,
+                  host: host,
+                );
+              } else {
+                out = widget.bridge.callAuthenticated(
+                  canisterId: cid,
+                  method: method,
+                  kind: _selectedKind,
+                  privateKeyB64: key,
+                  args: args,
+                  host: host,
+                );
+              }
+              setState(() {
+                _resultJson = out;
+              });
+            },
+          ),
+          if ((_resultJson ?? '').isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            Text('Result (JSON)', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Theme.of(context).dividerColor),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: SelectableText(_resultJson!),
+            ),
+          ],
           const SizedBox(height: 12),
           if (_methods.isNotEmpty)
             Column(
@@ -861,8 +1021,18 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                             tooltip: 'Use method',
                             icon: const Icon(Icons.input),
                             onPressed: () {
-                              Navigator.of(context).pop();
-                              // In follow-ups we can prefill call UI with this method.
+                              _methodController.text = name;
+                              // Reset args count to match signature as hint
+                              final int count = args.length;
+                              setState(() {
+                                for (final c in _argControllers) {
+                                  c.dispose();
+                                }
+                                _argControllers = List<TextEditingController>.generate(count, (_) => TextEditingController());
+                                _selectedKind = kind.toLowerCase().contains('update')
+                                    ? 1
+                                    : (kind.toLowerCase().contains('composite') ? 2 : 0);
+                              });
                             },
                           ),
                           IconButton(
