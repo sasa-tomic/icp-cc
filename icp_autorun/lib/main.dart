@@ -26,7 +26,101 @@ class IdentityApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const IdentityHomePage(),
+      home: const MainHomePage(),
+    );
+  }
+}
+
+class MainHomePage extends StatefulWidget {
+  const MainHomePage({super.key});
+
+  @override
+  State<MainHomePage> createState() => _MainHomePageState();
+}
+
+class _MainHomePageState extends State<MainHomePage> {
+  int _currentIndex = 0;
+  final RustBridgeLoader _bridge = const RustBridgeLoader();
+
+  Future<void> _openCanisterClient({String? initialCanisterId}) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return _CanisterClientSheet(
+          bridge: _bridge,
+          initialCanisterId: initialCanisterId,
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: <Widget>[
+          _FavoritesScreen(
+            bridge: _bridge,
+            onOpenClient: _openCanisterClient,
+          ),
+          const IdentityHomePage(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        destinations: const <NavigationDestination>[
+          NavigationDestination(icon: Icon(Icons.favorite), label: 'Favorites'),
+          NavigationDestination(icon: Icon(Icons.verified_user), label: 'Identities'),
+        ],
+        onDestinationSelected: (int index) {
+          setState(() => _currentIndex = index);
+        },
+      ),
+    );
+  }
+}
+
+class _FavoritesScreen extends StatelessWidget {
+  const _FavoritesScreen({required this.bridge, required this.onOpenClient});
+
+  final RustBridgeLoader bridge;
+  final Future<void> Function({String? initialCanisterId}) onOpenClient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Favorites'),
+        actions: <Widget>[
+          IconButton(
+            onPressed: () => onOpenClient(),
+            tooltip: 'Canister client',
+            icon: const Icon(Icons.cloud),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          Text('Well-known canisters', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _WellKnownList(onSelect: (cid, method) {
+            onOpenClient(initialCanisterId: cid);
+          }),
+          const SizedBox(height: 16),
+          Text('Your favorites', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _FavoritesList(
+            bridge: bridge,
+            onTapEntry: (cid, method) {
+              onOpenClient(initialCanisterId: cid);
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -272,11 +366,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             tooltip: 'Reload identities',
             icon: const Icon(Icons.refresh),
           ),
-          IconButton(
-            onPressed: () => _showCanisterClientSheet(),
-            tooltip: 'Canister client',
-            icon: const Icon(Icons.cloud),
-          ),
         ],
       ),
       body: Builder(
@@ -378,16 +467,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     ).toUpperCase();
     return '$algorithm • $timestamp';
   }
-  Future<void> _showCanisterClientSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return _CanisterClientSheet(bridge: _bridge);
-      },
-    );
-  }
+  // Canister client now accessible from Favorites screen.
 
 }
 
@@ -616,8 +696,10 @@ class _WellKnownList extends StatelessWidget {
 }
 
 class _CanisterClientSheet extends StatefulWidget {
-  const _CanisterClientSheet({required this.bridge});
+  const _CanisterClientSheet({required this.bridge, this.initialCanisterId, this.initialMethod});
   final RustBridgeLoader bridge;
+  final String? initialCanisterId;
+  final String? initialMethod;
 
   @override
   State<_CanisterClientSheet> createState() => _CanisterClientSheetState();
@@ -635,6 +717,14 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
     _canisterController.dispose();
     _hostController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if ((widget.initialCanisterId ?? '').isNotEmpty) {
+      _canisterController.text = widget.initialCanisterId!.trim();
+    }
   }
 
   Future<void> _fetchAndParse() async {
