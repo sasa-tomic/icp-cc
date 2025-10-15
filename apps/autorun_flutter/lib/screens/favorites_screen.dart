@@ -9,6 +9,7 @@ import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
 import '../utils/candid_json_example.dart';
+import '../utils/candid_json_validate.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key, required this.bridge, required this.onOpenClient});
@@ -77,6 +78,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
   bool _isFetching = false;
   String _expectedJsonExample = '';
+  List<String> _resolvedArgs = const <String>[];
+  List<String> _validationErrors = const <String>[];
 
   @override
   void dispose() {
@@ -151,14 +154,15 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           _selectedKind = kind.contains('update') ? 1 : (kind.contains('composite') ? 2 : 0);
           // Expand aliases using Candid source
           final resolver = CandidTypeResolver(_candidRaw ?? '');
-          final List<String> resolvedArgs = resolver.resolveArgTypes((selected['args'] as List<String>));
-          _currentMethodSig = resolvedArgs
+          _resolvedArgs = resolver.resolveArgTypes((selected['args'] as List<String>));
+          _currentMethodSig = _resolvedArgs
               .asMap()
               .entries
               .map((e) => {'name': 'arg${e.key}', 'type': e.value})
               .toList();
-          _expectedJsonExample = buildJsonExampleForArgs(resolvedArgs);
-          _useAutoForm = true;
+          _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
+          _jsonArgsController.text = _expectedJsonExample;
+          _useAutoForm = false;
         } else if (_methods.isNotEmpty) {
           // Fallback to the first method as a hint when nothing preset matches
           if (_methodController.text.trim().isEmpty) {
@@ -246,6 +250,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           ),
           const SizedBox(height: 12),
           argsEditor,
+          if (_validationErrors.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text('Input issues', style: Theme.of(context).textTheme.titleSmall!.copyWith(color: Theme.of(context).colorScheme.error)),
+            const SizedBox(height: 4),
+            ..._validationErrors.map((e) => Text('• $e', style: TextStyle(color: Theme.of(context).colorScheme.error))).toList(),
+          ],
           if (_expectedJsonExample.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
             Text('Expected args (JSON)', style: Theme.of(context).textTheme.titleMedium),
@@ -317,6 +327,15 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                 return;
               }
               final String args = _jsonArgsController.text.trim();
+              // Live validation before sending
+              if (_resolvedArgs.isNotEmpty) {
+                final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: args);
+                setState(() => _validationErrors = v.errors);
+                if (!v.ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fix input errors')));
+                  return;
+                }
+              }
               final String? host = _hostController.text.trim().isEmpty ? null : _hostController.text.trim();
               final String key = _identityKeyController.text.trim();
               String? out;
@@ -395,14 +414,15 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                                     ? 1
                                     : (kind.toLowerCase().contains('composite') ? 2 : 0);
                               final resolver = CandidTypeResolver(_candidRaw ?? '');
-                              final List<String> resolvedArgs = resolver.resolveArgTypes(args);
-                              _currentMethodSig = resolvedArgs
+                              _resolvedArgs = resolver.resolveArgTypes(args);
+                              _currentMethodSig = _resolvedArgs
                                   .asMap()
                                   .entries
                                   .map((e) => {'name': 'arg${e.key}', 'type': e.value})
                                   .toList();
-                              _expectedJsonExample = buildJsonExampleForArgs(resolvedArgs);
-                              _useAutoForm = true;
+                              _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
+                              _jsonArgsController.text = _expectedJsonExample;
+                              _useAutoForm = false;
                               });
                             },
                           ),
@@ -587,7 +607,17 @@ class _ArgsEditorState extends State<_ArgsEditor> {
                 border: const OutlineInputBorder(),
               ),
               keyboardType: inputType,
-              onChanged: (_) => _rebuildJson(),
+              onChanged: (_) {
+                _rebuildJson();
+                // Best-effort live validation comparing built JSON vs expected types
+                try {
+                  final model = CandidFormModel(widget.argTypes);
+                  final List<dynamic> values = _controllers.map((c) => c.text.trim()).toList();
+                  final jsonStr = model.buildJson(values);
+                  final res = validateJsonArgs(resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
+                  // Bubble up? The parent shows errors from main controller text; skip here.
+                } catch (_) {}
+              },
             );
           },
         ),
