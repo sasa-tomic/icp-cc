@@ -7,6 +7,8 @@ import '../rust/native_bridge.dart';
 import '../services/favorites_events.dart';
 import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
+import '../utils/candid_type_resolver.dart';
+import '../utils/candid_json_example.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key, required this.bridge, required this.onOpenClient});
@@ -74,6 +76,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   String? _candidRaw;
   List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
   bool _isFetching = false;
+  String _expectedJsonExample = '';
 
   @override
   void dispose() {
@@ -146,11 +149,15 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         if (selected != null) {
           final String kind = (selected['kind'] as String).toLowerCase();
           _selectedKind = kind.contains('update') ? 1 : (kind.contains('composite') ? 2 : 0);
-          _currentMethodSig = (selected['args'] as List<String>)
+          // Expand aliases using Candid source
+          final resolver = CandidTypeResolver(_candidRaw ?? '');
+          final List<String> resolvedArgs = resolver.resolveArgTypes((selected['args'] as List<String>));
+          _currentMethodSig = resolvedArgs
               .asMap()
               .entries
               .map((e) => {'name': 'arg${e.key}', 'type': e.value})
               .toList();
+          _expectedJsonExample = buildJsonExampleForArgs(resolvedArgs);
           _useAutoForm = true;
         } else if (_methods.isNotEmpty) {
           // Fallback to the first method as a hint when nothing preset matches
@@ -183,24 +190,31 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         children: <Widget>[
           Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          TextField(
-            key: const Key('canisterField'),
-            controller: _canisterController,
-            decoration: const InputDecoration(
-              labelText: 'Canister ID',
-              border: OutlineInputBorder(),
-            ),
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _hostController,
-            decoration: const InputDecoration(
-              labelText: 'Replica Host (optional)',
-              hintText: 'https://ic0.app',
-              border: OutlineInputBorder(),
-            ),
-            textInputAction: TextInputAction.done,
+          ExpansionTile(
+            initiallyExpanded: false,
+            title: const Text('Connection (optional)'),
+            subtitle: const Text('Canister ID and Replica host'),
+            children: <Widget>[
+              TextField(
+                key: const Key('canisterField'),
+                controller: _canisterController,
+                decoration: const InputDecoration(
+                  labelText: 'Canister ID',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _hostController,
+                decoration: const InputDecoration(
+                  labelText: 'Replica Host (optional)',
+                  hintText: 'https://ic0.app',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.done,
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           TextField(
@@ -232,6 +246,19 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           ),
           const SizedBox(height: 12),
           argsEditor,
+          if (_expectedJsonExample.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            Text('Expected args (JSON)', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Theme.of(context).dividerColor),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: SelectableText(_expectedJsonExample),
+            ),
+          ],
           const SizedBox(height: 12),
           ExpansionTile(
             title: const Text('Authenticated (optional)'),
@@ -367,11 +394,14 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                                 _selectedKind = kind.toLowerCase().contains('update')
                                     ? 1
                                     : (kind.toLowerCase().contains('composite') ? 2 : 0);
-                              _currentMethodSig = args
+                              final resolver = CandidTypeResolver(_candidRaw ?? '');
+                              final List<String> resolvedArgs = resolver.resolveArgTypes(args);
+                              _currentMethodSig = resolvedArgs
                                   .asMap()
                                   .entries
                                   .map((e) => {'name': 'arg${e.key}', 'type': e.value})
                                   .toList();
+                              _expectedJsonExample = buildJsonExampleForArgs(resolvedArgs);
                               _useAutoForm = true;
                               });
                             },
