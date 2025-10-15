@@ -82,21 +82,31 @@ void _validateValueAgainstType(dynamic value, String type, List<String> errors, 
     return;
   }
   if (t.startsWith('record')) {
-    if (value is! Map) {
-      errors.add('$p expected object with named fields');
+    final fields = parseRecordType(type);
+    if (value is Map) {
+      for (final f in fields) {
+        if (!value.containsKey(f.name)) {
+          if (f.icType.trim().toLowerCase().startsWith('opt')) {
+            continue; // optional may be omitted
+          }
+          errors.add('$p missing field ${f.name}');
+          continue;
+        }
+        _validateValueAgainstType(value[f.name], f.icType, errors, path: '$p.${f.name}');
+      }
       return;
     }
-    final fields = parseRecordType(type);
-    for (final f in fields) {
-      if (!value.containsKey(f.name)) {
-        if (f.icType.trim().toLowerCase().startsWith('opt')) {
-          continue; // optional may be omitted
-        }
-        errors.add('$p missing field ${f.name}');
-        continue;
+    if (value is List) {
+      if (value.length != fields.length) {
+        errors.add('$p expected ${fields.length} items for record');
+        return;
       }
-      _validateValueAgainstType(value[f.name], f.icType, errors, path: '$p.${f.name}');
+      for (int i = 0; i < fields.length; i += 1) {
+        _validateValueAgainstType(value[i], fields[i].icType, errors, path: '$p.${fields[i].name}');
+      }
+      return;
     }
+    errors.add('$p expected object or array matching record fields');
     return;
   }
   if (t.startsWith('variant')) {

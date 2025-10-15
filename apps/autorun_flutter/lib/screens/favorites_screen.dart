@@ -81,12 +81,24 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   List<String> _resolvedArgs = const <String>[];
   List<String> _validationErrors = const <String>[];
 
+  void _onArgsChanged() {
+    if (_resolvedArgs.isEmpty) return;
+    final String args = _jsonArgsController.text.trim();
+    try {
+      final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: args);
+      if (mounted) setState(() => _validationErrors = v.errors);
+    } catch (e) {
+      if (mounted) setState(() => _validationErrors = <String>['Validation error: $e']);
+    }
+  }
+
   @override
   void dispose() {
     _canisterController.dispose();
     _hostController.dispose();
     _methodController.dispose();
     _identityKeyController.dispose();
+    _jsonArgsController.removeListener(_onArgsChanged);
     _jsonArgsController.dispose();
     super.dispose();
   }
@@ -94,6 +106,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   @override
   void initState() {
     super.initState();
+    _jsonArgsController.addListener(_onArgsChanged);
     if ((widget.initialCanisterId ?? '').isNotEmpty) {
       _canisterController.text = widget.initialCanisterId!.trim();
     }
@@ -162,6 +175,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
               .toList();
           _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
           _jsonArgsController.text = _expectedJsonExample;
+          // Trigger validation display for the example
+          final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: _jsonArgsController.text.trim());
+          _validationErrors = v.errors;
           _useAutoForm = false;
         } else if (_methods.isNotEmpty) {
           // Fallback to the first method as a hint when nothing preset matches
@@ -338,6 +354,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                   return;
                 }
               }
+                // Fail-fast check: do not allow accidental empty JSON for single-arg non-empty types
+                if (_resolvedArgs.length == 1 && args.isEmpty) {
+                  setState(() => _validationErrors = <String>['(root) expected value for ${_resolvedArgs.first}']);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide argument value')));
+                  return;
+                }
               final String? host = _hostController.text.trim().isEmpty ? null : _hostController.text.trim();
               final String key = _identityKeyController.text.trim();
               String? out;
@@ -424,6 +446,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                                   .toList();
                               _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
                               _jsonArgsController.text = _expectedJsonExample;
+                              final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: _jsonArgsController.text.trim());
+                              _validationErrors = v.errors;
                               _useAutoForm = false;
                               });
                             },
@@ -480,6 +504,7 @@ class _ArgsEditor extends StatefulWidget {
   final List<String> argTypes;
   final TextEditingController controller;
   final ValueChanged<bool> onToggle;
+  // Note: parent listens to controller and shows errors; keeping API minimal
 
   @override
   State<_ArgsEditor> createState() => _ArgsEditorState();
