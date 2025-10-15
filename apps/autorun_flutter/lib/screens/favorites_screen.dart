@@ -254,7 +254,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
             const SizedBox(height: 8),
             Text('Input issues', style: Theme.of(context).textTheme.titleSmall!.copyWith(color: Theme.of(context).colorScheme.error)),
             const SizedBox(height: 4),
-            ..._validationErrors.map((e) => Text('• $e', style: TextStyle(color: Theme.of(context).colorScheme.error))).toList(),
+            ..._validationErrors.map(
+              (e) => Text('• $e', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
           ],
           if (_expectedJsonExample.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
@@ -614,7 +616,7 @@ class _ArgsEditorState extends State<_ArgsEditor> {
                   final model = CandidFormModel(widget.argTypes);
                   final List<dynamic> values = _controllers.map((c) => c.text.trim()).toList();
                   final jsonStr = model.buildJson(values);
-                  final res = validateJsonArgs(resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
+                  validateJsonArgs(resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
                   // Bubble up? The parent shows errors from main controller text; skip here.
                 } catch (_) {}
               },

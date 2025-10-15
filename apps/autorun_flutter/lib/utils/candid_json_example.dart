@@ -24,14 +24,13 @@ String _exampleForType(String type) {
   if (t.startsWith('int')) return '-1';
 
   if (t.startsWith('opt')) {
-    final String inner = _extractAngleOrTail(type, 'opt');
     // Show as null by default; users may replace with the inner example
     return 'null';
   }
   if (t.startsWith('vec')) {
     final String inner = _extractAngleOrTail(type, 'vec');
     final String ex = _exampleForType(inner);
-    return '[ ${ex} ]';
+    return '[ $ex ]';
   }
   if (t.startsWith('record')) {
     return _exampleForRecord(type);
