@@ -397,7 +397,11 @@ fn json_to_idl_value(
             )))
         }
         Var(_id) => {
-            // Type variables are not resolved here; treat as unsupported to fail fast
+            // Resolve named aliases (e.g., ListNeurons) via the type environment and recurse
+            let alias = ty.to_string();
+            if let Ok(resolved) = _env.find_type(&alias) {
+                return json_to_idl_value(v, _env, resolved);
+            }
             return Err(CanisterClientError::CandidParse(format!(
                 "unsupported candid type in JSON args: {ty}"
             )));
@@ -740,5 +744,95 @@ mod tests {
         assert!(v.is_object());
         let obj = v.as_object().unwrap();
         assert!(obj.contains_key("ticker") || obj.contains_key("4007505752"));
+    }
+
+    #[test]
+    fn json_to_idl_resolves_alias_minimal_list_neurons() {
+        let did = r#"
+            type NeuronSubaccount = vec nat8;
+            type ListNeurons = record {
+              neuron_ids : vec nat64;
+              include_neurons_readable_by_caller : bool;
+              include_empty_neurons_readable_by_caller : opt bool;
+              include_public_neurons_in_full_neurons : opt bool;
+              page_number: opt nat64;
+              page_size: opt nat64;
+              neuron_subaccounts: opt vec NeuronSubaccount;
+            };
+            service : {
+              list_neurons: (ListNeurons) -> ();
+            }
+        "#;
+
+        let prog: IDLProg = did.parse::<IDLProg>().expect("parse candid ok");
+        let mut env = TypeEnv::new();
+        let actor = check_prog(&mut env, &prog)
+            .expect("typecheck ok")
+            .expect("actor found");
+        let func = env
+            .get_method(&actor, "list_neurons")
+            .expect("method found")
+            .clone();
+        assert_eq!(func.args.len(), 1);
+        let list_neurons_ty = &func.args[0];
+
+        let json_str = r#"{
+            "neuron_ids": [42],
+            "include_neurons_readable_by_caller": true
+        }"#;
+        let v: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let idl_value = super::json_to_idl_value(&v, &env, list_neurons_ty)
+            .expect("json converts to IDLValue via alias");
+        let args = IDLArgs::new(&[idl_value]);
+        // Ensure it encodes with the expected aliased type
+        args.to_bytes_with_types(&env, std::slice::from_ref(list_neurons_ty))
+            .expect("encode with types succeeds");
+    }
+
+    #[test]
+    fn json_to_idl_resolves_alias_full_list_neurons_with_null_opts() {
+        let did = r#"
+            type NeuronSubaccount = vec nat8;
+            type ListNeurons = record {
+              neuron_ids : vec nat64;
+              include_neurons_readable_by_caller : bool;
+              include_empty_neurons_readable_by_caller : opt bool;
+              include_public_neurons_in_full_neurons : opt bool;
+              page_number: opt nat64;
+              page_size: opt nat64;
+              neuron_subaccounts: opt vec NeuronSubaccount;
+            };
+            service : {
+              list_neurons: (ListNeurons) -> ();
+            }
+        "#;
+
+        let prog: IDLProg = did.parse::<IDLProg>().expect("parse candid ok");
+        let mut env = TypeEnv::new();
+        let actor = check_prog(&mut env, &prog)
+            .expect("typecheck ok")
+            .expect("actor found");
+        let func = env
+            .get_method(&actor, "list_neurons")
+            .expect("method found")
+            .clone();
+        assert_eq!(func.args.len(), 1);
+        let list_neurons_ty = &func.args[0];
+
+        let json_str = r#"{
+            "neuron_ids": [42],
+            "include_neurons_readable_by_caller": true,
+            "include_empty_neurons_readable_by_caller": null,
+            "include_public_neurons_in_full_neurons": null,
+            "page_number": null,
+            "page_size": null,
+            "neuron_subaccounts": null
+        }"#;
+        let v: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let idl_value = super::json_to_idl_value(&v, &env, list_neurons_ty)
+            .expect("json converts to IDLValue via alias with null opts");
+        let args = IDLArgs::new(&[idl_value]);
+        args.to_bytes_with_types(&env, std::slice::from_ref(list_neurons_ty))
+            .expect("encode with types succeeds");
     }
 }
