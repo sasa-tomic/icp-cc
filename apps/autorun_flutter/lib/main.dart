@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'rust/native_bridge.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/identity_home_page.dart';
+import 'screens/scripts_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +59,7 @@ class _MainHomePageState extends State<MainHomePage> {
       body: IndexedStack(
         index: _currentIndex,
         children: <Widget>[
+          const ScriptsScreen(),
           FavoritesScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
           const IdentityHomePage(),
         ],
@@ -65,6 +67,7 @@ class _MainHomePageState extends State<MainHomePage> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         destinations: const <NavigationDestination>[
+          NavigationDestination(icon: Icon(Icons.code), label: 'Scripts'),
           NavigationDestination(icon: Icon(Icons.favorite), label: 'Favorites'),
           NavigationDestination(icon: Icon(Icons.verified_user), label: 'Identities'),
         ],
