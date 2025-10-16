@@ -66,6 +66,27 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
       );
       return;
     }
+    if (out is Map<String, dynamic> && (out['action'] as String?) == 'message') {
+      showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Script UI'),
+          content: SingleChildScrollView(
+            child: ScriptUiRenderer(
+              runner: _runner,
+              uiSpec: const <String, dynamic>{
+                'action': 'ui',
+                'ui': <String, dynamic>{'type': 'list', 'items': <dynamic>[], 'buttons': <dynamic>[]},
+              } ,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+          ],
+        ),
+      );
+      return;
+    }
     showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(

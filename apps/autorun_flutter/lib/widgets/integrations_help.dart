@@ -17,36 +17,11 @@ class IntegrationsHelpDialog extends StatelessWidget {
           separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (BuildContext context, int index) {
             final info = ScriptRunner.integrationCatalog[index];
-            return ExpansionTile(
-              tilePadding: EdgeInsets.zero,
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
               title: Text('${info.id} — ${info.title}'),
               subtitle: Text(info.description),
-              children: <Widget>[
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Lua example:',
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                SelectableText(
-                  info.example,
-                  style: const TextStyle(fontFamily: 'monospace'),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop(info.example);
-                    },
-                    icon: const Icon(Icons.input),
-                    label: const Text('Insert example here'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
+              onTap: () => Navigator.of(context).pop(info.example),
             );
           },
         ),
