@@ -8,6 +8,7 @@ import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/script_ui_renderer.dart';
+import '../widgets/integrations_help.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -375,15 +376,35 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
       title: Text('Edit: ${widget.record.title}'),
       content: SizedBox(
         width: 600,
-        child: TextField(
-          controller: _sourceController,
-          minLines: 8,
-          maxLines: 16,
-          decoration: const InputDecoration(
-            labelText: 'Lua source',
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.multiline,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                TextButton.icon(
+                  onPressed: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (_) => const IntegrationsHelpDialog(),
+                    );
+                  },
+                  icon: const Icon(Icons.extension),
+                  label: const Text('Integrations'),
+                ),
+              ],
+            ),
+            TextField(
+              controller: _sourceController,
+              minLines: 8,
+              maxLines: 16,
+              decoration: const InputDecoration(
+                labelText: 'Lua source',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.multiline,
+            ),
+          ],
         ),
       ),
       actions: <Widget>[

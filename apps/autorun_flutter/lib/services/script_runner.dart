@@ -2,6 +2,20 @@ import 'dart:convert';
 
 import '../rust/native_bridge.dart';
 
+class IntegrationInfo {
+  const IntegrationInfo({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.example,
+  });
+
+  final String id; // e.g. icp_call
+  final String title; // Short human label
+  final String description; // Helpful description
+  final String example; // Minimal Lua snippet example
+}
+
 class CanisterCallSpec {
   CanisterCallSpec({
     required this.label,
@@ -98,6 +112,42 @@ class ScriptRunner {
   ScriptRunner(this._bridge);
 
   final ScriptBridge _bridge;
+
+  /// Catalog of integrations available to Lua scripts.
+  /// Extend this list as new helpers are added in [_injectHelpers].
+  static const List<IntegrationInfo> integrationCatalog = <IntegrationInfo>[
+    IntegrationInfo(
+      id: 'icp_call',
+      title: 'Canister call',
+      description:
+          'Perform a single canister method call. Supports anonymous or authenticated calls. Returns the raw JSON result.',
+      example:
+          'return icp_call({\n  canister_id = "aaaaa-aa",\n  method = "greet",\n  kind = 0, -- 0=query, 1=update, 2=composite\n  args = "(\"World\")"\n})',
+    ),
+    IntegrationInfo(
+      id: 'icp_batch',
+      title: 'Batch calls',
+      description:
+          'Execute multiple canister calls and return a map of label→result. Each item can include canister_id, method, kind, args, host, private_key_b64.',
+      example:
+          'local a = { label = "gov", canister_id = "rrkah-fqaaa-aaaaa-aaaaq-cai", method = "get_pending_proposals", kind = 0, args = "()" }\nlocal b = { label = "ledger", canister_id = "ryjl3-tyaaa-aaaaa-aaaba-cai", method = "query_blocks", kind = 0, args = "{\\"start\\":0,\\"length\\":10}" }\nreturn icp_batch({ a, b })',
+    ),
+    IntegrationInfo(
+      id: 'icp_message',
+      title: 'Message',
+      description:
+          'Return a simple message to the UI layer. Useful for debugging or informing the user.',
+      example: 'return icp_message("Hello from Lua")',
+    ),
+    IntegrationInfo(
+      id: 'icp_ui_list',
+      title: 'UI: List with buttons',
+      description:
+          'Describe a minimal UI list that the app renders. Items are shown with optional buttons that can trigger actions (e.g. icp_call).',
+      example:
+          'return icp_ui_list({\n  items = { { title = "Item A" }, { title = "Item B" } },\n  buttons = { { title = "Refresh", action = { action = "batch", calls = {} } } }\n})',
+    ),
+  ];
 
   /// Execute the plan: call canisters in order, build arg, run Lua.
   /// Fails fast on any call/parse error.

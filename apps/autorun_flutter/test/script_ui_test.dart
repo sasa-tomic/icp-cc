@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/script_runner.dart';
+import 'package:icp_autorun/widgets/integrations_help.dart';
 
 class _FakeBridge implements ScriptBridge {
   @override
@@ -58,5 +60,32 @@ void main() {
     expect(obj['action'], 'ui');
     final ui = obj['ui'] as Map<String, dynamic>;
     expect(ui['type'], 'list');
+  });
+
+  testWidgets('Integrations help dialog lists known integrations', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => Center(
+          child: ElevatedButton(
+            onPressed: () {
+              showDialog<void>(
+                context: context,
+                builder: (_) => const IntegrationsHelpDialog(),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Available integrations'), findsOneWidget);
+    expect(find.textContaining('icp_call'), findsWidgets);
+    expect(find.textContaining('icp_batch'), findsWidgets);
+    expect(find.textContaining('icp_message'), findsWidgets);
+    expect(find.textContaining('icp_ui_list'), findsWidgets);
   });
 }
