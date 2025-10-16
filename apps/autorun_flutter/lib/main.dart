@@ -20,10 +20,9 @@ class IdentityApp extends StatelessWidget {
       title: 'ICP Identity Manager',
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
-          brightness: Brightness.light,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo, brightness: Brightness.light),
+        visualDensity: VisualDensity.standard,
+        splashFactory: InkSparkle.splashFactory,
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           scrolledUnderElevation: 0,
@@ -60,13 +59,14 @@ class IdentityApp extends StatelessWidget {
             borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
+        listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
+        dividerTheme: const DividerThemeData(space: 1),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
-          brightness: Brightness.dark,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo, brightness: Brightness.dark),
+        visualDensity: VisualDensity.standard,
+        splashFactory: InkSparkle.splashFactory,
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           scrolledUnderElevation: 0,
@@ -103,6 +103,8 @@ class IdentityApp extends StatelessWidget {
             borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
+        listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
+        dividerTheme: const DividerThemeData(space: 1),
       ),
       themeMode: ThemeMode.system,
       home: const MainHomePage(),

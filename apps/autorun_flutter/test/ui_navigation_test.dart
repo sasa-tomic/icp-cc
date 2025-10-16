@@ -22,8 +22,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.verified_user));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
-    // Identities screen title is present
-    expect(find.text('ICP Identity Manager'), findsOneWidget);
+    // Identities screen FAB unique label is present
+    expect(find.text('New identity'), findsOneWidget);
 
     // Switch back to Favorites and open client
     await tester.tap(find.byIcon(Icons.favorite));
