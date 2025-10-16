@@ -7,6 +7,7 @@ import '../services/script_repository.dart';
 import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/script_ui_renderer.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -48,16 +49,31 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Run failed: ${res.error}')));
       return;
     }
+    final dynamic out = res.result;
+    if (out is Map<String, dynamic> && (out['action'] as String?) == 'ui') {
+      showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Script UI'),
+          content: SingleChildScrollView(
+            child: ScriptUiRenderer(runner: _runner, uiSpec: out),
+          ),
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+          ],
+        ),
+      );
+      return;
+    }
     showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Script result'),
-        content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('  ').convert(res.result))),
-        actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-        ],
-      ),
-    );
+        context: context,
+        builder: (_) => AlertDialog(
+              title: const Text('Script result'),
+              content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('  ').convert(res.result))),
+              actions: <Widget>[
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+              ],
+            ));
   }
 
   Future<void> _confirmAndDeleteScript(ScriptRecord record) async {

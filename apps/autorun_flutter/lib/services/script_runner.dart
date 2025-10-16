@@ -236,6 +236,10 @@ class ScriptRunner {
         }
         return ScriptRunResult(ok: true, result: outputs);
       }
+      // UI description passthrough (rendered by Flutter layer)
+      if (result is Map<String, dynamic> && (result['action'] as String?) == 'ui') {
+        return ScriptRunResult(ok: true, result: result);
+      }
       return ScriptRunResult(ok: true, result: result);
     } catch (e) {
       // If not in wrapper, try to parse as bare JSON result
@@ -248,11 +252,100 @@ class ScriptRunner {
     }
   }
 
+  /// Perform a single action object returned by Lua or UI buttons.
+  /// Supports 'call' and 'batch'. Returns decoded JSON when possible.
+  Future<ScriptRunResult> performAction(Map<String, dynamic> action) async {
+    final String kindStr = (action['action'] as String? ?? '').trim();
+    if (kindStr.isEmpty) {
+      return ScriptRunResult(ok: false, error: 'performAction: missing action');
+    }
+    if (kindStr == 'call') {
+      final String canisterId = (action['canister_id'] as String?)?.trim() ?? '';
+      final String method = (action['method'] as String?)?.trim() ?? '';
+      final int kind = (action['kind'] as num?)?.toInt() ?? 0;
+      final String args = (action['args'] as String?) ?? '()';
+      final String? host = (action['host'] as String?)?.trim().isEmpty == true ? null : action['host'] as String?;
+      final String? key = (action['private_key_b64'] as String?)?.trim();
+      if (canisterId.isEmpty || method.isEmpty) {
+        return ScriptRunResult(ok: false, error: 'call action missing canister_id/method');
+      }
+      String? callOut;
+      if (key == null || key.isEmpty) {
+        callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+      } else {
+        callOut = _bridge.callAuthenticated(
+          canisterId: canisterId,
+          method: method,
+          kind: kind,
+          privateKeyB64: key,
+          args: args,
+          host: host,
+        );
+      }
+      if (callOut == null || callOut.trim().isEmpty) {
+        return ScriptRunResult(ok: false, error: 'call returned empty');
+      }
+      try {
+        final dynamic parsed = json.decode(callOut);
+        return ScriptRunResult(ok: true, result: parsed);
+      } catch (_) {
+        return ScriptRunResult(ok: true, result: callOut);
+      }
+    }
+    if (kindStr == 'batch') {
+      final List<dynamic> calls = (action['calls'] as List<dynamic>? ?? const <dynamic>[]);
+      if (calls.isEmpty) {
+        return ScriptRunResult(ok: false, error: 'batch has no calls');
+      }
+      final Map<String, dynamic> outputs = <String, dynamic>{};
+      for (final dynamic item in calls) {
+        if (item is! Map<String, dynamic>) {
+          return ScriptRunResult(ok: false, error: 'invalid call spec in batch');
+        }
+        final String label = ((item['label'] as String?) ?? (item['method'] as String? ?? '')).trim();
+        final String canisterId = (item['canister_id'] as String?)?.trim() ?? '';
+        final String method = (item['method'] as String?)?.trim() ?? '';
+        final int kind = (item['kind'] as num?)?.toInt() ?? 0;
+        final String args = (item['args'] as String?) ?? '()';
+        final String? host = (item['host'] as String?)?.trim().isEmpty == true ? null : item['host'] as String?;
+        final String? key = (item['private_key_b64'] as String?)?.trim();
+        if (canisterId.isEmpty || method.isEmpty) {
+          return ScriptRunResult(ok: false, error: 'batch call missing canister_id/method');
+        }
+        String? callOut;
+        if (key == null || key.isEmpty) {
+          callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+        } else {
+          callOut = _bridge.callAuthenticated(
+            canisterId: canisterId,
+            method: method,
+            kind: kind,
+            privateKeyB64: key,
+            args: args,
+            host: host,
+          );
+        }
+        if (callOut == null || callOut.trim().isEmpty) {
+          return ScriptRunResult(ok: false, error: 'Follow-up call returned empty for ${label.isEmpty ? method : label}');
+        }
+        try {
+          outputs[label.isEmpty ? method : label] = json.decode(callOut);
+        } catch (_) {
+          outputs[label.isEmpty ? method : label] = callOut;
+        }
+      }
+      return ScriptRunResult(ok: true, result: outputs);
+    }
+    return ScriptRunResult(ok: false, error: 'Unsupported action: $kindStr');
+  }
+
   String _injectHelpers(String src) {
-    // Provide a minimal helper the script can call: icp_call{...}
+    // Provide minimal helpers the script can call.
     const String helpers =
         'function icp_call(spec) spec = spec or {}; spec.action = "call"; return spec end\n'
-        'function icp_batch(calls) calls = calls or {}; return { action = "batch", calls = calls } end\n';
+        'function icp_batch(calls) calls = calls or {}; return { action = "batch", calls = calls } end\n'
+        'function icp_message(text) return { action = "message", text = tostring(text or "") } end\n'
+        'function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end\n';
     return '$helpers$src';
   }
 }

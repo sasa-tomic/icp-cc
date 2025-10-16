@@ -11,3 +11,13 @@
 - Tests: unit tests for model/repo, Lua execution plumbing, and navigation/UI flows.
 - E2E: integration tests covering read→transform→display and read→transform→call.
 
+
+## Follow-ups: Lua-driven UI (next iterations)
+
+- Add richer UI elements: text fields, toggles, select menus, tables with columns, images.
+- Support paginated lists and loading states driven by Lua.
+- Add menu to pick common UI elements/actions in the script editor: button, canister method call, message, list.
+- Provide input bindings so button actions can incorporate user-entered values.
+- Validation and error surfaces for action results in the UI container.
+- Theming and layout presets for script UIs.
+
