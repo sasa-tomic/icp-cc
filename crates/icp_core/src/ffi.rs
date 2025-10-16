@@ -1,6 +1,6 @@
 use crate::{
     canister_client::{self, MethodKind},
-    favorites as fav, generate_ed25519_identity, generate_secp256k1_identity,
+    favorites as fav, generate_ed25519_identity, generate_secp256k1_identity, lua_engine,
 };
 use serde_json::json;
 use std::ffi::{CStr, CString};
@@ -213,6 +213,33 @@ pub unsafe extern "C" fn icp_favorites_list() -> *mut c_char {
     let entries = fav::list().unwrap_or_default();
     let json = serde_json::to_string(&entries).unwrap_or_else(|_| "[]".to_string());
     CString::new(json).unwrap().into_raw()
+}
+
+// ---- Lua scripting FFI ----
+/// # Safety
+/// - `script` and `json_arg` must be null or valid, null-terminated C strings.
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_lua_exec(
+    script: *const c_char,
+    json_arg: *const c_char,
+) -> *mut c_char {
+    if script.is_null() {
+        return null_c_string();
+    }
+    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
+    let arg_opt = if json_arg.is_null() {
+        None
+    } else {
+        Some(CStr::from_ptr(json_arg).to_str().unwrap_or(""))
+    };
+    match lua_engine::execute_lua_json(script_s, arg_opt) {
+        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Err(e) => {
+            let err_json = json!({"ok": false, "error": e.to_string()}).to_string();
+            CString::new(err_json).unwrap().into_raw()
+        }
+    }
 }
 
 /// # Safety

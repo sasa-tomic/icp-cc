@@ -13,6 +13,7 @@ class _Symbols {
   static const String favList = 'icp_favorites_list';
   static const String favAdd = 'icp_favorites_add';
   static const String favRemove = 'icp_favorites_remove';
+  static const String luaExec = 'icp_lua_exec';
 }
 
 class RustIdentityResult {
@@ -198,6 +199,28 @@ class RustBridgeLoader {
     } finally {
       final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
       free(res);
+    }
+  }
+
+  String? luaExec({required String script, String? jsonArg}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8();
+    final a = jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8();
+    try {
+      final fn = lib.lookupFunction<_Str2StrNative, _Str2StrDart>(_Symbols.luaExec);
+      final res = fn(s.cast(), a.cast());
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      pkg_ffi.malloc
+        ..free(s)
+        ..free(a);
     }
   }
 
