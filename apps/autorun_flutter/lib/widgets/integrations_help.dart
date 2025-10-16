@@ -35,6 +35,17 @@ class IntegrationsHelpDialog extends StatelessWidget {
                   style: const TextStyle(fontFamily: 'monospace'),
                 ),
                 const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop(info.example);
+                    },
+                    icon: const Icon(Icons.input),
+                    label: const Text('Insert example here'),
+                  ),
+                ),
+                const SizedBox(height: 8),
               ],
             );
           },

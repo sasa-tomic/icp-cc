@@ -341,17 +341,61 @@ class _ScriptEditorDialog extends StatefulWidget {
 class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
   late final TextEditingController _sourceController;
   bool _saving = false;
+  String? _lintError;
+  DateTime _lastEditTs = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
     _sourceController = TextEditingController(text: widget.record.luaSource);
+    _sourceController.addListener(_onChanged);
+    // Initial lint
+    _scheduleLint();
   }
 
   @override
   void dispose() {
+    _sourceController.removeListener(_onChanged);
     _sourceController.dispose();
     super.dispose();
+  }
+
+  void _onChanged() {
+    _lastEditTs = DateTime.now();
+    _scheduleLint();
+  }
+
+  void _scheduleLint() async {
+    final DateTime ts = _lastEditTs;
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (!mounted || ts != _lastEditTs) return; // Debounced
+    final String src = _sourceController.text;
+    // Fail-fast: empty script is an error in runner; report here too
+    if (src.trim().isEmpty) {
+      setState(() => _lintError = 'Script is empty');
+      return;
+    }
+    final String? out = (RustScriptBridge(const RustBridgeLoader())).luaLint(script: src);
+    if (out == null || out.trim().isEmpty) {
+      if (!mounted) return;
+      setState(() => _lintError = 'Linter unavailable');
+      return;
+    }
+    try {
+      final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
+      final bool ok = (obj['ok'] as bool?) ?? false;
+      if (!mounted) return;
+      if (ok) {
+        setState(() => _lintError = null);
+      } else {
+        final List<dynamic> errs = (obj['errors'] as List<dynamic>? ?? const <dynamic>[]);
+        final String msg = errs.isNotEmpty ? ((errs.first as Map<String, dynamic>)['message'] as String? ?? 'Invalid script') : 'Invalid script';
+        setState(() => _lintError = msg);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _lintError = 'Invalid linter output');
+    }
   }
 
   Future<void> _save() async {
@@ -384,10 +428,21 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
               children: <Widget>[
                 TextButton.icon(
                   onPressed: () {
-                    showDialog<void>(
+                    showDialog<String?>(
                       context: context,
                       builder: (_) => const IntegrationsHelpDialog(),
-                    );
+                    ).then((String? snippet) {
+                      if (snippet == null || snippet.isEmpty) return;
+                      final TextEditingController c = _sourceController;
+                      final int baseOffset = c.selection.baseOffset;
+                      final int extentOffset = c.selection.extentOffset;
+                      final bool hasSel = baseOffset >= 0 && extentOffset >= 0 && baseOffset != extentOffset;
+                      final String before = hasSel ? c.text.replaceRange(baseOffset, extentOffset, '') : c.text;
+                      final int insertPos = hasSel ? baseOffset : (c.selection.baseOffset >= 0 ? c.selection.baseOffset : before.length);
+                      final String updated = before.substring(0, insertPos) + snippet + before.substring(insertPos);
+                      c.text = updated;
+                      c.selection = TextSelection.collapsed(offset: insertPos + snippet.length);
+                    });
                   },
                   icon: const Icon(Icons.extension),
                   label: const Text('Integrations'),
@@ -404,13 +459,23 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
               ),
               keyboardType: TextInputType.multiline,
             ),
+            if (_lintError != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _lintError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
           ],
         ),
       ),
       actions: <Widget>[
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
         FilledButton(
-          onPressed: _saving ? null : _save,
+          onPressed: _saving || _lintError != null ? null : _save,
           child: _saving
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Text('Save'),

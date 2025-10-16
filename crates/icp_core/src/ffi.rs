@@ -243,6 +243,19 @@ pub unsafe extern "C" fn icp_lua_exec(
 }
 
 /// # Safety
+/// - `script` must be null or a valid, null-terminated C string.
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_lua_lint(script: *const c_char) -> *mut c_char {
+    if script.is_null() {
+        return null_c_string();
+    }
+    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
+    let json = lua_engine::lint_lua(script_s);
+    CString::new(json).unwrap().into_raw()
+}
+
+/// # Safety
 /// - `canister_id`, `method`, and `label` must be either null or valid, null-terminated
 ///   C strings.
 #[no_mangle]

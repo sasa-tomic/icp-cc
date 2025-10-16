@@ -79,6 +79,7 @@ abstract class ScriptBridge {
   });
 
   String? luaExec({required String script, String? jsonArg});
+  String? luaLint({required String script});
 }
 
 class RustScriptBridge implements ScriptBridge {
@@ -105,6 +106,11 @@ class RustScriptBridge implements ScriptBridge {
   @override
   String? luaExec({required String script, String? jsonArg}) {
     return _bridge.luaExec(script: script, jsonArg: jsonArg);
+  }
+
+  @override
+  String? luaLint({required String script}) {
+    return _bridge.luaLint(script: script);
   }
 }
 

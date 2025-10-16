@@ -27,6 +27,11 @@ class _FakeBridge implements ScriptBridge {
     final result = a + b;
     return json.encode({'ok': true, 'result': result});
   }
+
+  @override
+  String? luaLint({required String script}) {
+    return json.encode({'ok': true, 'errors': []});
+  }
 }
 
 void main() {
