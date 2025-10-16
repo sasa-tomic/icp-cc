@@ -426,15 +426,21 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(Icons.verified_user, size: 72, color: Theme.of(context).colorScheme.primary),
+          Icon(Icons.verified_user, size: 72, color: scheme.primary),
           const SizedBox(height: 16),
-          const Text('No identities yet'),
+          Text('No identities yet', style: textTheme.titleLarge, textAlign: TextAlign.center),
           const SizedBox(height: 8),
-          const Text('Tap "New identity" to generate your first ICP identity.'),
+          Text(
+            'Tap "New identity" to generate your first ICP identity.',
+            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );

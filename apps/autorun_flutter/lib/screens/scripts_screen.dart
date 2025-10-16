@@ -192,15 +192,21 @@ class _EmptyScripts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: const <Widget>[
-          Icon(Icons.code, size: 72),
-          SizedBox(height: 16),
-          Text('No scripts yet'),
-          SizedBox(height: 8),
-          Text('Tap "New script" to add a Lua script.'),
+        children: <Widget>[
+          Icon(Icons.code, size: 72, color: scheme.primary),
+          const SizedBox(height: 16),
+          Text('No scripts yet', style: textTheme.titleLarge, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(
+            'Tap "New script" to add a Lua script.',
+            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
