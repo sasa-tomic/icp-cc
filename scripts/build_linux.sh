@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eEuo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/common.sh"
 ensure_tools
 
