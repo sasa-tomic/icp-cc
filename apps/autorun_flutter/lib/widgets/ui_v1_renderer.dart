@@ -71,7 +71,15 @@ class UiV1Renderer extends StatelessWidget {
           ),
         );
       case 'list':
-        final List<dynamic> items = (props['items'] as List<dynamic>?) ?? const <dynamic>[];
+        final dynamic rawItems = props['items'];
+        final List<dynamic> items;
+        if (rawItems == null) {
+          items = const <dynamic>[];
+        } else if (rawItems is List<dynamic>) {
+          items = rawItems;
+        } else {
+          return _error('List items must be an array');
+        }
         return ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
