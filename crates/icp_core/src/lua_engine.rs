@@ -377,4 +377,80 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["result"].as_i64().unwrap(), 30);
     }
+
+    #[test]
+    fn app_init_view_update_roundtrip() {
+        // Lua app that increments a counter and echoes last message
+        let script = r#"
+            function init(arg)
+              local start =  (arg and arg.start) or 0
+              return { count = start, last = nil }, {}
+            end
+            function view(state)
+              return { type = "column", props = {}, children = {
+                { type = "text", props = { text = tostring(state.count) } }
+              } }
+            end
+            function update(msg, state)
+              local t = (msg and msg.type) or ""
+              if t == "inc" then
+                state.count = (state.count or 0) + 1
+              end
+              state.last = msg
+              return state, {}
+            end
+        "#;
+
+        // init
+        let out = app_init(script, Some("{\"start\":1}"), 100);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(v["ok"].as_bool().unwrap());
+        assert_eq!(v["state"]["count"].as_i64().unwrap(), 1);
+        // view
+        let st = v["state"].to_string();
+        let vo = app_view(script, &st, 100);
+        let vv: serde_json::Value = serde_json::from_str(&vo).unwrap();
+        assert!(vv["ok"].as_bool().unwrap());
+        assert_eq!(vv["ui"]["type"].as_str().unwrap(), "column");
+        // update
+        let upo = app_update(script, "{\"type\":\"inc\"}", &st, 100);
+        let vu: serde_json::Value = serde_json::from_str(&upo).unwrap();
+        assert!(vu["ok"].as_bool().unwrap());
+        assert_eq!(vu["state"]["count"].as_i64().unwrap(), 2);
+        // Effects may serialize as an empty object when empty; accept array or empty object
+        let eff = &vu["effects"];
+        assert!(eff.is_array() || (eff.is_object() && eff.as_object().unwrap().is_empty()));
+    }
+
+    #[test]
+    fn app_init_timeout() {
+        // Busy loop to exhaust instruction budget
+        let script = r#"
+            function init(arg)
+              local i = 0
+              while true do i = i + 1 end
+              return {}, {}
+            end
+            function view(state) return {} end
+            function update(msg, state) return state, {} end
+        "#;
+        let out = app_init(script, None, 1); // tiny budget
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(!v["ok"].as_bool().unwrap());
+        let err = v["error"].as_str().unwrap().to_lowercase();
+        assert!(err.contains("timeout") || err.contains("execution"));
+    }
+
+    #[test]
+    fn app_view_invalid_state_json() {
+        let script = r#"
+            function init(arg) return {}, {} end
+            function view(state) return { type = "text", props = { text = "ok" } } end
+            function update(msg, state) return state, {} end
+        "#;
+        let out = app_view(script, "not-json", 50);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(!v["ok"].as_bool().unwrap());
+        assert!(v["error"].as_str().unwrap().contains("invalid state JSON"));
+    }
 }
