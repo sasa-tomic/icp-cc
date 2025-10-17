@@ -40,6 +40,15 @@ class _FakeBridge implements ScriptBridge {
   String? luaLint({required String script}) {
     return json.encode({'ok': true, 'errors': []});
   }
+
+  @override
+  String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) => null;
+
+  @override
+  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) => null;
+
+  @override
+  String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) => null;
 }
 
 void main() {

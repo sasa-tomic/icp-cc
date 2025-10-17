@@ -15,6 +15,9 @@ class _Symbols {
   static const String favRemove = 'icp_favorites_remove';
   static const String luaExec = 'icp_lua_exec';
   static const String luaLint = 'icp_lua_lint';
+  static const String luaAppInit = 'icp_lua_app_init';
+  static const String luaAppView = 'icp_lua_app_view';
+  static const String luaAppUpdate = 'icp_lua_app_update';
 }
 
 class RustIdentityResult {
@@ -244,6 +247,75 @@ class RustBridgeLoader {
     }
   }
 
+  // ---- TEA-style Lua app ----
+  String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8();
+    final a = jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8();
+    try {
+      final fn = lib.lookupFunction<_LuaAppInitNative, _LuaAppInitDart>(_Symbols.luaAppInit);
+      final res = fn(s.cast(), a.cast(), budgetMs);
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      pkg_ffi.malloc
+        ..free(s)
+        ..free(a);
+    }
+  }
+
+  String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8();
+    final st = stateJson.toNativeUtf8();
+    try {
+      final fn = lib.lookupFunction<_LuaAppViewNative, _LuaAppViewDart>(_Symbols.luaAppView);
+      final res = fn(s.cast(), st.cast(), budgetMs);
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      pkg_ffi.malloc
+        ..free(s)
+        ..free(st);
+    }
+  }
+
+  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8();
+    final m = msgJson.toNativeUtf8();
+    final st = stateJson.toNativeUtf8();
+    try {
+      final fn = lib.lookupFunction<_LuaAppUpdateNative, _LuaAppUpdateDart>(_Symbols.luaAppUpdate);
+      final res = fn(s.cast(), m.cast(), st.cast(), budgetMs);
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      pkg_ffi.malloc
+        ..free(s)
+        ..free(m)
+        ..free(st);
+    }
+  }
+
   int favoritesAdd({required String canisterId, required String method, String? label}) {
     final lib = _open();
     if (lib == null) return -1;
@@ -349,4 +421,38 @@ typedef _FavRemoveNative = ffi.Int32 Function(
 typedef _FavRemoveDart = int Function(
   ffi.Pointer<ffi.Int8>,
   ffi.Pointer<ffi.Int8>,
+);
+
+// Lua app FFI typedefs
+typedef _LuaAppInitNative = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>, // script
+  ffi.Pointer<ffi.Int8>, // json_arg
+  ffi.Uint64, // budget_ms
+);
+typedef _LuaAppInitDart = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+  int,
+);
+typedef _LuaAppViewNative = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>, // script
+  ffi.Pointer<ffi.Int8>, // state_json
+  ffi.Uint64, // budget_ms
+);
+typedef _LuaAppViewDart = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+  int,
+);
+typedef _LuaAppUpdateNative = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>, // script
+  ffi.Pointer<ffi.Int8>, // msg_json
+  ffi.Pointer<ffi.Int8>, // state_json
+  ffi.Uint64, // budget_ms
+);
+typedef _LuaAppUpdateDart = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+  int,
 );
