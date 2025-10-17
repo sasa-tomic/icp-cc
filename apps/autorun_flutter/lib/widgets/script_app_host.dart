@@ -276,7 +276,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
 
   String _truncate(String s, {int max = 160}) {
     if (s.length <= max) return s;
-    return s.substring(0, max - 1) + '…';
+    return '${s.substring(0, max - 1)}…';
   }
 
   Future<void> _dispatch(Map<String, dynamic> msg) async {

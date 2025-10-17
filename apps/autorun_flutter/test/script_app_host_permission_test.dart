@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/widgets/script_app_host.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 
 class _FakeRuntime implements IScriptAppRuntime {
-  int _phase = 0;
   @override
   Future<Map<String, dynamic>> init({required String script, Map<String, dynamic>? initialArg, int budgetMs = 50}) async {
     // Return initial state and an effect that will require permission
@@ -28,7 +26,6 @@ class _FakeRuntime implements IScriptAppRuntime {
   @override
   Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs = 50}) async {
     // After permission, simulate UI render call
-    _phase++;
     return <String, dynamic>{
       'ok': true,
       'state': <String, dynamic>{},
