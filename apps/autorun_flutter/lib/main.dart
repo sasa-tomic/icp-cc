@@ -37,9 +37,9 @@ class IdentityApp extends StatelessWidget {
           elevation: 2,
           showCloseIcon: true,
         ),
-        dialogTheme: DialogTheme(
+        dialogTheme: const DialogThemeData(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.all(Radius.circular(16)),
           ),
         ),
         bottomSheetTheme: const BottomSheetThemeData(
@@ -53,7 +53,7 @@ class IdentityApp extends StatelessWidget {
             borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
-        cardTheme: const CardTheme(
+        cardTheme: const CardThemeData(
           elevation: 1,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -81,9 +81,9 @@ class IdentityApp extends StatelessWidget {
           elevation: 2,
           showCloseIcon: true,
         ),
-        dialogTheme: DialogTheme(
+        dialogTheme: const DialogThemeData(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.all(Radius.circular(16)),
           ),
         ),
         bottomSheetTheme: const BottomSheetThemeData(
@@ -97,7 +97,7 @@ class IdentityApp extends StatelessWidget {
             borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
-        cardTheme: const CardTheme(
+        cardTheme: const CardThemeData(
           elevation: 1,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(12)),
