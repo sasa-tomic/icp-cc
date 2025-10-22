@@ -1,6 +1,7 @@
 ## Fixes and urgent improvements
 
-- Use secure store where possible (Android etc) for storing security-sensistive material such as seed or private key
+- ~~Use secure store where possible (Android etc) for storing security-sensistive material such as seed or private key~~ (COMPLETED: Implemented flutter_secure_storage with Android Keystore/iOS Keychain support)
+- Fix favorites by storing them in flutter instead of from rust and ffi
 
 ## ICP Autorun Marketplace - Future Enhancements
 
