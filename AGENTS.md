@@ -5,10 +5,12 @@
 - Code must FAIL FAST and provide enough details upon failure for troubleshooting. Code may not silently ignore failures and should not have fallbacks or duplicate implementations.
 - When running shell commands, prefix with `cd /absolute/path/ && ` to ensure that you always run the command in the correct directory
 - Every code path must be covered by unit tests.
-- Tests must assert meaningful behavior and avoid overlapping coverage.
-- Check for ANY linting errors with "make test"
+- Write NEW unit tests that cover both the positive and negative path, if there are no existing tests that test the same execution path (check!).
+- Tests that you write MUST ASSERT MEANINGFUL BEHAVIOR and MAY NOT overlap coverage with other tests (check for overlaps!).
+- Check and FIX ANY LINTING warnings and errors with "make test"
 - Run "make test" from the repo root as often as needed to check for any compilation issues. You must fix any warnings or errors before moving on to the next step.
-- Only commit changes after "make test" is clean and you check "git" changes and confirm changes are minimal
+- Only commit changes after "make test" is clean and you check "git diff" changes and confirm made changes are minimal. Reduce changes if possible to make them minimal!
+- WHENEVER you fix any isse you MUST check the rest of the codebase to see if the same or similar issue exists elsewhere and FIX ALL INSTANCES.
 - You MUST STRICTLY adhere to the above rules
 - Use context7 mcp server if applicable to find Up-to-date Docs on APIs and libraries
 - Use zai-mcp-server for vision tasks
