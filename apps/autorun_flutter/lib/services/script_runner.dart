@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../rust/native_bridge.dart';
 import '../models/identity_record.dart';
-import 'identity_repository.dart';
+import 'secure_identity_repository.dart';
 
 class IntegrationInfo {
   const IntegrationInfo({
@@ -147,11 +147,11 @@ class RustScriptBridge implements ScriptBridge {
 }
 
 class ScriptRunner {
-  ScriptRunner(this._bridge, {IdentityRepository? identityRepository})
-      : _identityRepository = identityRepository;
+  ScriptRunner(this._bridge, {SecureIdentityRepository? secureRepository})
+      : _secureRepository = secureRepository;
 
   final ScriptBridge _bridge;
-  final IdentityRepository? _identityRepository;
+  final SecureIdentityRepository? _secureRepository;
 
   /// Catalog of integrations available to Lua scripts.
   /// Extend this list as new helpers are added in [_injectHelpers].
@@ -199,9 +199,9 @@ class ScriptRunner {
 
     // 2. Identity ID reference (takes priority over direct private key)
     if (spec.identityId != null && spec.identityId!.trim().isNotEmpty) {
-      final IdentityRepository? repository = _identityRepository;
+      final SecureIdentityRepository? repository = _secureRepository;
       if (repository == null) {
-        throw Exception('Identity ID specified but no identity repository provided');
+        throw Exception('Identity ID specified but no secure identity repository provided');
       }
 
       try {
@@ -215,7 +215,8 @@ class ScriptRunner {
           throw Exception('Identity with ID "${spec.identityId}" not found');
         }
 
-        return identity.privateKey;
+        // Get private key from secure storage
+        return await repository.getPrivateKey(identity.id);
       } catch (e) {
         throw Exception('Failed to resolve identity "${spec.identityId}": $e');
       }

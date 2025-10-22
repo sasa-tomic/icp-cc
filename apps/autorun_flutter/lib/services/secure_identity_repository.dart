@@ -168,6 +168,17 @@ class SecureIdentityRepository {
     await _secureStorage.deleteAll();
   }
 
+  /// Retrieves a private key from secure storage for cryptographic operations
+  /// Returns null if the identity doesn't exist or private key is not found
+  Future<String?> getPrivateKey(String identityId) async {
+    try {
+      return await _secureStorage.read(key: '$_privateKeyPrefix$identityId');
+    } catch (e) {
+      // Fail fast - don't silently ignore errors
+      throw Exception('Failed to retrieve private key for identity $identityId: $e');
+    }
+  }
+
   /// Migrates data from the old insecure storage to the new secure storage
   Future<void> migrateFromInsecureStorage(
     List<IdentityRecord> insecureIdentities,
