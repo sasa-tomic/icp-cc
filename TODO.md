@@ -1,3 +1,8 @@
+## Fixes and urgent improvements
+
+- Marking as favorites does not seem to work on Android
+- When making a call to a canister, it should be possible to specify the identity with which to make the call (or make an anonymous call)
+
 ## Scripts tab and Lua scripting (planned activities)
 
 - Navigation: add `Scripts` tab to Flutter app (bottom nav + screen scaffold).
