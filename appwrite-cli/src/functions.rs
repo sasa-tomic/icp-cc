@@ -78,15 +78,15 @@ impl FunctionManager {
             Ok(_) => {
                 println!("✅ Function exists: {}", function_id);
                 Ok(true)
-            },
+            }
             Err(e) if e.to_string().to_lowercase().contains("not found") => {
                 println!("❌ Function does not exist: {}", function_id);
                 Ok(false)
-            },
+            }
             Err(e) => {
                 println!("❌ Error checking function {}: {}", function_id, e);
                 Err(e)
-            },
+            }
         }
     }
 
@@ -102,7 +102,7 @@ impl FunctionManager {
             "name": name,
             "runtime": runtime,
             "execute": ["any"],
-            "events": events.unwrap_or_else(|| vec![])
+            "events": events.unwrap_or_default()
         });
 
         match self
@@ -135,7 +135,9 @@ impl FunctionManager {
                 "update_script_stats",
                 "Update Script Stats",
                 "node-18.0",
-                Some(vec!["databases.marketplace_db.collections.scripts.documents.*.create".to_string()]),
+                Some(vec![
+                    "databases.marketplace_db.collections.scripts.documents.*.create".to_string(),
+                ]),
             ),
         ];
 
@@ -171,10 +173,12 @@ impl FunctionManager {
 
         // Create a tar.gz archive of the function
         let archive_path = format!("/tmp/{}.tar.gz", function_id);
-        self.create_function_archive(&function_path, &archive_path).await?;
+        self.create_function_archive(&function_path, &archive_path)
+            .await?;
 
         // Read the archive bytes
-        let archive_bytes = fs::read(&archive_path).await
+        let archive_bytes = fs::read(&archive_path)
+            .await
             .with_context(|| format!("Failed to read archive: {}", archive_path))?;
 
         // Use the correct endpoint for function deployment
@@ -182,15 +186,19 @@ impl FunctionManager {
         println!("📤 Deploying code using endpoint: {}", endpoint);
 
         let form = reqwest::multipart::Form::new()
-            .part("code", reqwest::multipart::Part::bytes(archive_bytes.clone())
-                .file_name(format!("{}.tar.gz", function_id))
-                .mime_str("application/gzip")?)
+            .part(
+                "code",
+                reqwest::multipart::Part::bytes(archive_bytes.clone())
+                    .file_name(format!("{}.tar.gz", function_id))
+                    .mime_str("application/gzip")?,
+            )
             .part("activate", reqwest::multipart::Part::text("true"))
             .part("entrypoint", reqwest::multipart::Part::text("src/main.js"))
             .part("commands", reqwest::multipart::Part::text("npm install"));
 
         let url = format!("{}/{}", self.config.endpoint, endpoint);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("X-Appwrite-Project", &self.config.project_id)
             .header("X-Appwrite-Key", &self.config.api_key)
@@ -207,9 +215,13 @@ impl FunctionManager {
 
         if status.is_success() {
             println!("✅ Code deployed successfully using endpoint: {}", endpoint);
-            return Ok(());
+            Ok(())
         } else {
-            Err(anyhow!("Function deployment failed: {} - {}", status.as_u16(), response_text))
+            Err(anyhow!(
+                "Function deployment failed: {} - {}",
+                status.as_u16(),
+                response_text
+            ))
         }
     }
 
@@ -218,9 +230,11 @@ impl FunctionManager {
 
         let output = Command::new("tar")
             .args([
-                "-czf", output_path,
-                "-C", function_path.parent().unwrap().to_str().unwrap(),
-                function_path.file_name().unwrap().to_str().unwrap()
+                "-czf",
+                output_path,
+                "-C",
+                function_path.parent().unwrap().to_str().unwrap(),
+                function_path.file_name().unwrap().to_str().unwrap(),
             ])
             .output()
             .context("Failed to create function archive with tar")?;
@@ -235,23 +249,20 @@ impl FunctionManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn test_function_execution(&self, function_id: &str) -> Result<()> {
         // Simple test to see if function has code deployed
         let endpoint = format!("functions/{}/executions", function_id);
         let test_data = serde_json::json!({"test": "code_check"});
 
         match self
-            .make_request::<serde_json::Value>(
-                reqwest::Method::POST,
-                &endpoint,
-                Some(test_data),
-            )
+            .make_request::<serde_json::Value>(reqwest::Method::POST, &endpoint, Some(test_data))
             .await
         {
             Ok(_) => Ok(()),
             Err(e) if e.to_string().contains("not found") || e.to_string().contains("404") => {
                 Err(anyhow!("Function code not deployed"))
-            },
+            }
             Err(e) => Err(e),
         }
     }
