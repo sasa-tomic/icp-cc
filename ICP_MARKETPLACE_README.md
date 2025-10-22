@@ -31,6 +31,8 @@ A marketplace solution for Lua scripts that can be used with ICP (Internet Compu
 ### 🔧 Technical Features
 - **Security**: Users should review code before running scripts
 - **Open API**: Public API for third-party integrations
+- **Payment System**: Optional payment processing for premium scripts (currently disabled)
+- **User Reviews**: Rating and review system with verified purchase indicators
 
 ## Project Structure
 
@@ -83,7 +85,14 @@ This separation ensures:
 ### 1. Setup Appwrite Backend
 
 ```bash
-cargo run --bin appwrite-cli -- deploy
+# Build the deployment CLI
+make appwrite-setup
+
+# Deploy to Appwrite
+make appwrite-deploy
+
+# Or deploy with verbose output
+make appwrite-deploy-verbose
 ```
 
 ### 2. Deploy API Server
@@ -99,10 +108,13 @@ cp .env.example .env
 # Edit .env with your Appwrite credentials
 
 # Start development server
-npm run dev
+make appwrite-api-server-dev
 
 # Or start production server
-npm start
+make appwrite-api-server
+
+# Or run tests
+make appwrite-api-server-test
 ```
 
 ### 3. Setup Flutter App
@@ -176,13 +188,21 @@ curl -X POST "http://localhost:3000/v1/scripts/validate" \
   "description": "string",
   "category": "string",
   "tags": ["string"],
+  "authorId": "string",
   "authorName": "string",
+  "price": "float",
   "downloads": "integer",
+  "rating": "float",
+  "reviewCount": "integer",
   "luaSource": "string",
   "iconUrl": "string",
   "screenshots": ["string"],
   "canisterIds": ["string"],
-  "isPublic": "boolean"
+  "version": "string",
+  "compatibility": "string",
+  "isPublic": "boolean",
+  "isApproved": "boolean",
+  "featuredOrder": "integer"
 }
 ```
 

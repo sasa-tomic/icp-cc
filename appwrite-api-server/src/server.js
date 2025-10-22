@@ -487,6 +487,52 @@ app.get('/v1/scripts/canister/:canisterId',
   }
 );
 
+// Get compatible scripts for multiple canister IDs
+app.post('/v1/scripts/compatible',
+  [
+    body('canister_ids').isArray({ min: 1 }).withMessage('Canister IDs array is required'),
+    body('canister_ids.*').custom(value => validateCanisterId(value) ? true : 'Invalid canister ID format'),
+    body('limit').optional().isInt({ min: 1, max: CONFIG.MAX_LIMIT })
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { canister_ids, limit = 50 } = req.body;
+
+      // Build queries for all canister IDs
+      const documents = await databases.listDocuments(
+        CONFIG.DATABASE_ID,
+        CONFIG.SCRIPTS_COLLECTION_ID,
+        [
+          { method: 'equal', attribute: 'isPublic', values: [true] },
+          { method: 'equal', attribute: 'isApproved', values: [true] },
+          { method: 'limit', value: Math.min(limit, CONFIG.MAX_LIMIT) },
+          { method: 'orderDesc', attribute: 'rating' }
+        ]
+      );
+
+      // Filter scripts that match any of the provided canister IDs
+      const compatibleScripts = documents.documents.filter(script => {
+        if (!script.canisterIds || !Array.isArray(script.canisterIds)) {
+          return false;
+        }
+        return script.canisterIds.some(canisterId =>
+          canister_ids.includes(canisterId)
+        );
+      });
+
+      res.json(compatibleScripts);
+
+    } catch (error) {
+      logger.error('Get compatible scripts error:', error);
+      res.status(500).json({
+        error: 'Failed to get compatible scripts',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+);
+
 // Get marketplace statistics
 app.get('/v1/stats', async (req, res) => {
   try {
