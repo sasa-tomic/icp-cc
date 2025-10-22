@@ -50,6 +50,7 @@ distclean: clean
 	rm -rf $(ROOT)/apps/autorun_flutter/.gradle || true
 
 test:
+	set -eEu
 	@echo "==> Running Flutter analysis..."
 	@cd $(ROOT)/apps/autorun_flutter && flutter analyze
 	@echo "==> Running Flutter tests..."
