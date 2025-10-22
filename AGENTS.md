@@ -1,6 +1,7 @@
 # Project Memory / Rules
 
 - All new code must stay minimal, follow YAGNI, and avoid duplication in line with DRY.
+- You must strictly adhere to best practices at all times. Push back on any requests that go against best practices.
 - Code must FAIL FAST and report enough details upon failure, for troubleshooting. Code may not silently ignore failures.
 - Every code path must be covered by unit tests.
 - Tests must assert meaningful behavior and avoid overlapping coverage.
