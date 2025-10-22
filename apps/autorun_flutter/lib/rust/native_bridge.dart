@@ -10,9 +10,6 @@ class _Symbols {
   static const String parseCandid = 'icp_parse_candid';
   static const String callAnonymous = 'icp_call_anonymous';
   static const String callAuthenticated = 'icp_call_authenticated';
-  static const String favList = 'icp_favorites_list';
-  static const String favAdd = 'icp_favorites_add';
-  static const String favRemove = 'icp_favorites_remove';
   static const String luaExec = 'icp_lua_exec';
   static const String luaLint = 'icp_lua_lint';
   static const String luaAppInit = 'icp_lua_app_init';
@@ -192,20 +189,7 @@ class RustBridgeLoader {
     }
   }
 
-  String? favoritesList() {
-    final lib = _open();
-    if (lib == null) return null;
-    final fn = lib.lookupFunction<_NoargToStringNative, _NoargToStringDart>(_Symbols.favList);
-    final res = fn();
-    if (res == ffi.nullptr) return null;
-    try {
-      return res.cast<pkg_ffi.Utf8>().toDartString();
-    } finally {
-      final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-      free(res);
-    }
-  }
-
+  
   String? luaExec({required String script, String? jsonArg}) {
     final lib = _open();
     if (lib == null) return null;
@@ -315,38 +299,6 @@ class RustBridgeLoader {
         ..free(st);
     }
   }
-
-  int favoritesAdd({required String canisterId, required String method, String? label}) {
-    final lib = _open();
-    if (lib == null) return -1;
-    final cid = canisterId.toNativeUtf8();
-    final m = method.toNativeUtf8();
-    final l = label == null ? ffi.nullptr : label.toNativeUtf8();
-    try {
-      final fn = lib.lookupFunction<_FavAddNative, _FavAddDart>(_Symbols.favAdd);
-      return fn(cid.cast(), m.cast(), l.cast());
-    } finally {
-      pkg_ffi.malloc
-        ..free(cid)
-        ..free(m)
-        ..free(l);
-    }
-  }
-
-  int favoritesRemove({required String canisterId, required String method}) {
-    final lib = _open();
-    if (lib == null) return -1;
-    final cid = canisterId.toNativeUtf8();
-    final m = method.toNativeUtf8();
-    try {
-      final fn = lib.lookupFunction<_FavRemoveNative, _FavRemoveDart>(_Symbols.favRemove);
-      return fn(cid.cast(), m.cast());
-    } finally {
-      pkg_ffi.malloc
-        ..free(cid)
-        ..free(m);
-    }
-  }
 }
 
 typedef _GenNative =
@@ -368,8 +320,6 @@ typedef _Str2StrDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
 );
 
-typedef _NoargToStringNative = ffi.Pointer<ffi.Int8> Function();
-typedef _NoargToStringDart = ffi.Pointer<ffi.Int8> Function();
 
 typedef _CallAnonNative = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
@@ -403,25 +353,6 @@ typedef _CallAuthDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
 );
 
-typedef _FavAddNative = ffi.Int32 Function(
-  ffi.Pointer<ffi.Int8>,
-  ffi.Pointer<ffi.Int8>,
-  ffi.Pointer<ffi.Int8>,
-);
-typedef _FavAddDart = int Function(
-  ffi.Pointer<ffi.Int8>,
-  ffi.Pointer<ffi.Int8>,
-  ffi.Pointer<ffi.Int8>,
-);
-
-typedef _FavRemoveNative = ffi.Int32 Function(
-  ffi.Pointer<ffi.Int8>,
-  ffi.Pointer<ffi.Int8>,
-);
-typedef _FavRemoveDart = int Function(
-  ffi.Pointer<ffi.Int8>,
-  ffi.Pointer<ffi.Int8>,
-);
 
 // Lua app FFI typedefs
 typedef _LuaAppInitNative = ffi.Pointer<ffi.Int8> Function(

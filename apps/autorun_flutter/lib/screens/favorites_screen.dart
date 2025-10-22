@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../rust/native_bridge.dart';
-import '../services/favorites_events.dart';
+import '../services/favorites_service.dart';
 import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
@@ -455,12 +455,15 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                           IconButton(
                             tooltip: 'Favorite',
                             icon: const Icon(Icons.favorite_border),
-                            onPressed: () {
+                            onPressed: () async {
                               final cid = _canisterController.text.trim();
                               if (cid.isEmpty) return;
-                              widget.bridge.favoritesAdd(canisterId: cid, method: name);
-                              FavoritesEvents.notifyChanged();
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to favorites')));
+                              try {
+                                await FavoritesService.add(canisterId: cid, method: name);
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to favorites')));
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to add favorite: $e')));
+                              }
                             },
                           ),
                         ],
@@ -696,7 +699,7 @@ class _FavoritesList extends StatefulWidget {
 }
 
 class _FavoritesListState extends State<_FavoritesList> {
-  List<Map<String, dynamic>> _entries = const <Map<String, dynamic>>[];
+  List<FavoriteEntry> _entries = const <FavoriteEntry>[];
   late final VoidCallback _listener;
 
   @override
@@ -713,20 +716,22 @@ class _FavoritesListState extends State<_FavoritesList> {
     super.dispose();
   }
 
-  void _reload() {
-    final jsonStr = widget.bridge.favoritesList();
-    if (jsonStr == null) return;
-    final List<dynamic> arr = json.decode(jsonStr) as List<dynamic>;
-    setState(() {
-      _entries = arr
-          .whereType<Map<String, dynamic>>()
-          .map((e) => {
-                'canister_id': e['canister_id'] as String? ?? '',
-                'method': e['method'] as String? ?? '',
-                'label': e['label'] as String?,
-              })
-          .toList();
-    });
+  void _reload() async {
+    try {
+      final entries = await FavoritesService.list();
+      if (mounted) {
+        setState(() {
+          _entries = entries;
+        });
+      }
+    } catch (e) {
+      // If loading fails, show empty list
+      if (mounted) {
+        setState(() {
+          _entries = [];
+        });
+      }
+    }
   }
 
   @override
@@ -740,18 +745,25 @@ class _FavoritesListState extends State<_FavoritesList> {
       itemCount: _entries.length,
       separatorBuilder: (BuildContext _, int __) => const Divider(height: 1),
       itemBuilder: (BuildContext context, int index) {
-        final e = _entries[index];
-        final cid = e['canister_id'] as String;
-        final method = e['method'] as String;
-        final label = (e['label'] as String?) ?? '';
+        final entry = _entries[index];
+        final cid = entry.canisterId;
+        final method = entry.method;
+        final label = entry.label ?? '';
         return ListTile(
           title: Text(label.isNotEmpty ? label : method),
           subtitle: Text('$cid • $method'),
           trailing: IconButton(
             icon: const Icon(Icons.delete),
             onPressed: () async {
-              widget.bridge.favoritesRemove(canisterId: cid, method: method);
-              FavoritesEvents.notifyChanged();
+              try {
+                await FavoritesService.remove(canisterId: cid, method: method);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to remove favorite: $e')),
+                  );
+                }
+              }
             },
           ),
           onTap: () => widget.onTapEntry(cid, method),
