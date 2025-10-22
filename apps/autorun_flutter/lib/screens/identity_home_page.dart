@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 
 import '../controllers/identity_controller.dart';
 import '../models/identity_record.dart';
-import '../services/identity_repository.dart';
 import '../services/secure_identity_repository.dart';
 import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
@@ -23,7 +22,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   void initState() {
     super.initState();
     _controller = IdentityController(
-      IdentityRepository(),
       secureRepository: SecureIdentityRepository(),
     )..addListener(_onControllerChanged);
     unawaited(_controller.ensureLoaded());
