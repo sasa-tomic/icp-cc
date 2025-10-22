@@ -458,11 +458,16 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                             onPressed: () async {
                               final cid = _canisterController.text.trim();
                               if (cid.isEmpty) return;
+                              final messenger = ScaffoldMessenger.of(context);
                               try {
                                 await FavoritesService.add(canisterId: cid, method: name);
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to favorites')));
+                                if (mounted) {
+                                  messenger.showSnackBar(const SnackBar(content: Text('Added to favorites')));
+                                }
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to add favorite: $e')));
+                                if (mounted) {
+                                  messenger.showSnackBar(SnackBar(content: Text('Failed to add favorite: $e')));
+                                }
                               }
                             },
                           ),
@@ -755,11 +760,12 @@ class _FavoritesListState extends State<_FavoritesList> {
           trailing: IconButton(
             icon: const Icon(Icons.delete),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               try {
                 await FavoritesService.remove(canisterId: cid, method: method);
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(content: Text('Failed to remove favorite: $e')),
                   );
                 }
