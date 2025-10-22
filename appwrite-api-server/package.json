@@ -1,0 +1,42 @@
+{
+  "name": "icp-marketplace-api",
+  "version": "1.0.0",
+  "description": "Public API server for ICP Script Marketplace",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "lint": "eslint src/",
+    "build": "echo 'No build step required for Node.js'"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "compression": "^1.7.4",
+    "express-rate-limit": "^6.10.0",
+    "express-validator": "^7.0.1",
+    "node-appwrite": "^13.0.0",
+    "dotenv": "^16.3.1",
+    "winston": "^3.10.0",
+    "luaparse": "^0.3.1",
+    "validator": "^13.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.6.2",
+    "supertest": "^6.3.3",
+    "eslint": "^8.47.0"
+  },
+  "keywords": [
+    "appwrite",
+    "marketplace",
+    "icp",
+    "scripts",
+    "api",
+    "express"
+  ],
+  "author": "ICP Marketplace Team",
+  "license": "MIT"
+}

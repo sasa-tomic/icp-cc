@@ -3,6 +3,41 @@
 - Marking as favorites does not seem to work on Android
 - When making a call to a canister, it should be possible to specify the identity with which to make the call (or make an anonymous call)
 
+## ICP Autorun Marketplace - Future Enhancements
+
+### Authentication System
+- Add authentication (Google OAuth or similar) required for script uploads
+- Implement user profiles and author attribution
+- Add user registration and login flows
+- Secure API endpoints with authentication middleware
+
+### Input Validation & Sanitization
+- Implement comprehensive input validation for API endpoints
+- Add Lua code syntax validation and security scanning
+- Sanitize user-generated content to prevent XSS attacks
+- Add content filtering and moderation system
+
+### Database Schema Improvements
+- Add missing fields to Scripts collection:
+  - `createdAt`: timestamp for script creation
+  - `updatedAt`: timestamp for last modification
+  - `version`: script versioning support
+  - `isDeleted`: soft delete support
+- Add Users collection for authenticated users
+- Add Reviews collection for future review functionality
+
+### Payment Processing
+- Integrate with icpay.org for script payments
+- Implement purchase tracking and licensing
+- Add support for paid script tiers
+- Create payment history and receipts
+
+### Enhanced Security Features
+- Implement script sandboxing and security scanning
+- Add code review and approval workflow
+- Create security audit logs
+- Implement rate limiting and abuse protection
+
 ## Scripts tab and Lua scripting (planned activities)
 
 - Navigation: add `Scripts` tab to Flutter app (bottom nav + screen scaffold).
