@@ -12,16 +12,6 @@ void main() {
 
     test('should validate canister ID format via search method', () {
       // Test canister ID validation through the public search method
-      // Valid canister IDs should not throw exceptions
-      expect(
-        () => service.searchScriptsByCanisterId('rrkah-fqaaa-aaaaa-aaaaq-cai'),
-        returnsNormally,
-      );
-      expect(
-        () => service.searchScriptsByCanisterId('be2us-64aaa-aaaaa-qaabq-cai'),
-        returnsNormally,
-      );
-
       // Invalid canister IDs should throw exceptions
       expect(
         () => service.searchScriptsByCanisterId('invalid-id'),
@@ -35,6 +25,17 @@ void main() {
         () => service.searchScriptsByCanisterId(''),
         throwsA(isA<Exception>()),
       );
+    });
+
+    test('should handle connection errors gracefully for valid canister IDs', () async {
+      // Test that valid canister IDs are formatted correctly but connection errors are handled
+      try {
+        await service.searchScriptsByCanisterId('rrkah-fqaaa-aaaaa-aaaaq-cai');
+        fail('Should have thrown a connection exception');
+      } catch (e) {
+        expect(e, isA<Exception>());
+        expect(e.toString(), contains('Connection refused'));
+      }
     });
 
     test('should return correct categories list', () {

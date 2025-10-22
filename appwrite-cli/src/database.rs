@@ -5,7 +5,13 @@ use std::time::Duration;
 use super::config::{AppConfig, AttributeType, IndexType};
 
 // Type alias to reduce complexity warnings
-type AttributeDefinition = (&'static str, AttributeType, Option<i32>, bool, Option<serde_json::Value>);
+type AttributeDefinition = (
+    &'static str,
+    AttributeType,
+    Option<i32>,
+    bool,
+    Option<serde_json::Value>,
+);
 
 pub struct DatabaseManager {
     client: reqwest::Client,
