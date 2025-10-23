@@ -1,20 +1,10 @@
 ## Fixes and urgent improvements
 
-## ICP Autorun Marketplace - Future Enhancements
+(none)
 
-### Authentication System
-- Add authentication (Google OAuth or similar) required for script uploads
-- Implement user profiles and author attribution
-- Add user registration and login flows
-- Secure API endpoints with authentication middleware
+## ICP Autorun Marketplace
 
-### Input Validation & Sanitization
-- Implement comprehensive input validation for API endpoints
-- Add Lua code syntax validation and security scanning
-- Sanitize user-generated content to prevent XSS attacks
-- Add content filtering and moderation system
-
-### Database Schema Improvements
+### Database Schema Improvements (now)
 - Add missing fields to Scripts collection:
   - `createdAt`: timestamp for script creation
   - `updatedAt`: timestamp for last modification
@@ -23,15 +13,23 @@
 - Add Users collection for authenticated users
 - Add Reviews collection for future review functionality
 
-### Payment Processing
+### Payment Processing (next)
 - Integrate with icpay.org for script payments
 - Implement purchase tracking and licensing
 - Add support for paid script tiers
 - Create payment history and receipts
 
-### Enhanced Security Features
-- Implement script sandboxing and security scanning
-- Create security audit logs
+### Authentication System (tbd later)
+- Add authentication (Google OAuth or similar) required for script uploads
+- Implement user profiles and author attribution
+- Add user registration and login flows
+- Secure API endpoints with authentication middleware
+
+### Security (tbd later)
+- Implement comprehensive input validation for API endpoints
+- Add Lua code syntax validation and security scanning
+- Sanitize user-generated content to prevent XSS attacks
+- Add content filtering and moderation system
 
 ## Scripts tab and Lua scripting
 
@@ -40,14 +38,16 @@ Design pillars:
 - Fail fast: strict schema validation, clear error messages, hard time/step limits
 - Testability: pure functions (init/view/update) are directly testable
 
-- Security: sandbox Lua (whitelist helpers only).
 - E2E: integration tests covering read→transform→display and read→transform→call.
+- Create security audit logs
 - Add richer UI elements: tables with columns.
 - Support paginated lists and loading states driven by Lua.
 - Add menu to pick common UI elements/actions in the script editor: button, canister method call, message, list.
 - Provide input bindings so button actions can incorporate user-entered values.
 - Validation and error surfaces for action results in the UI container.
 - Theming and layout presets for script UIs.
+- (later) Implement script sandboxing and security scanning
+- (later) Security: sandbox Lua (whitelist helpers only).
 
 Contracts (JSON via FFI):
 - `init(arg) -> state, effects[]`
