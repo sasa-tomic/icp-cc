@@ -28,14 +28,30 @@ class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScr
   String _currentCode = '';
   bool _isCreating = false;
   ScriptTemplate? _selectedTemplate;
+  late List<ScriptTemplate> _availableTemplates;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
+    // Create available templates list (built-in + any provided template not in built-ins)
+    _availableTemplates = List<ScriptTemplate>.from(ScriptTemplates.templates);
+
     // Initialize with template or defaults
-    _selectedTemplate = widget.initialTemplate ?? ScriptTemplates.templates.first;
+    if (widget.initialTemplate != null) {
+      // Find matching template from the templates list to avoid duplicate instances
+      final matchingTemplate = ScriptTemplates.templates.where((t) => t.id == widget.initialTemplate!.id);
+      if (matchingTemplate.isNotEmpty) {
+        _selectedTemplate = matchingTemplate.first;
+      } else {
+        // Add the provided template to available templates if not already present
+        _availableTemplates = [widget.initialTemplate!, ...ScriptTemplates.templates];
+        _selectedTemplate = widget.initialTemplate!;
+      }
+    } else {
+      _selectedTemplate = ScriptTemplates.templates.first;
+    }
     _currentCode = _selectedTemplate!.luaSource;
 
     // Initialize details with template values
@@ -123,13 +139,19 @@ class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScr
         title: const Text('Create New Script'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
+          tabs: [
             Tab(
-              icon: Icon(Icons.code),
+              icon: Semantics(
+                label: 'CODE EDITOR',
+                child: const Icon(Icons.code),
+              ),
               text: 'CODE EDITOR',
             ),
             Tab(
-              icon: Icon(Icons.info_outline),
+              icon: Semantics(
+                label: 'DETAILS',
+                child: const Icon(Icons.info_outline),
+              ),
               text: 'DETAILS',
             ),
           ],
@@ -154,64 +176,86 @@ class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScr
           _buildDetailsTab(),
         ],
       ),
-      floatingActionButton: _selectedTemplate == null
-          ? FloatingActionButton.extended(
-              onPressed: _showTemplateSelection,
-              icon: const Icon(Icons.library_books),
-              label: const Text('Choose Template'),
-            )
-          : null,
     );
   }
 
   Widget _buildCodeEditorTab() {
     return Column(
       children: [
-        // Template selector (collapsed when template is selected)
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: _selectedTemplate != null ? 80 : 120,
+        // Simple template selector
+        Container(
+          margin: const EdgeInsets.all(16),
           child: Card(
-            margin: const EdgeInsets.all(16),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        _selectedTemplate?.title ?? 'Choose a Template',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const Spacer(),
-                      if (_selectedTemplate != null)
-                        TextButton.icon(
-                          onPressed: _showTemplateSelection,
-                          icon: const Icon(Icons.swap_horiz, size: 16),
-                          label: const Text('Change'),
-                                                  ),
-                    ],
+                  Text(
+                    'Template',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<ScriptTemplate>(
+                    initialValue: _selectedTemplate,
+                    decoration: const InputDecoration(
+                      hintText: 'Choose a Template',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    isExpanded: true,
+                    items: _availableTemplates.map((template) {
+                      return DropdownMenuItem<ScriptTemplate>(
+                        value: template,
+                        child: Row(
+                          children: [
+                            Text(
+                              template.emoji,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                template.title,
+                                style: const TextStyle(fontWeight: FontWeight.w500),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: _getLevelColor(template.level),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                template.level.toUpperCase().substring(0, 1),
+                                style: const TextStyle(
+                                  fontSize: 8,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (ScriptTemplate? template) {
+                      if (template != null) {
+                        _onTemplateSelected(template);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
                   if (_selectedTemplate != null) ...[
-                    const SizedBox(height: 4),
                     Text(
                       _selectedTemplate!.description,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _showTemplateSelection,
-                        icon: const Icon(Icons.library_books),
-                        label: const Text('Browse Templates'),
-                      ),
                     ),
                   ],
                 ],
@@ -235,6 +279,19 @@ class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScr
         ),
       ],
     );
+  }
+
+  Color _getLevelColor(String level) {
+    switch (level) {
+      case 'beginner':
+        return Colors.green;
+      case 'intermediate':
+        return Colors.orange;
+      case 'advanced':
+        return Colors.red;
+      default:
+        return Colors.blue;
+    }
   }
 
   Widget _buildDetailsTab() {
@@ -416,317 +473,4 @@ class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScr
         ],
       ),
     );
-  }
-
-  void _showTemplateSelection() {
-    showDialog<ScriptTemplate>(
-      context: context,
-      builder: (_) => _EnhancedTemplateSelectionDialog(
-        onTemplateSelected: _onTemplateSelected,
-        initialTemplate: _selectedTemplate,
-      ),
-    );
-  }
-}
-
-/// Enhanced template selection dialog
-class _EnhancedTemplateSelectionDialog extends StatefulWidget {
-  const _EnhancedTemplateSelectionDialog({
-    required this.onTemplateSelected,
-    this.initialTemplate,
-  });
-
-  final Function(ScriptTemplate) onTemplateSelected;
-  final ScriptTemplate? initialTemplate;
-
-  @override
-  State<_EnhancedTemplateSelectionDialog> createState() => _EnhancedTemplateSelectionDialogState();
-}
-
-class _EnhancedTemplateSelectionDialogState extends State<_EnhancedTemplateSelectionDialog> {
-  String _selectedLevel = 'all';
-  String _searchQuery = '';
-
-  List<ScriptTemplate> get _filteredTemplates {
-    var templates = ScriptTemplates.templates;
-
-    // Filter by level
-    if (_selectedLevel != 'all') {
-      templates = templates.where((t) => t.level == _selectedLevel).toList();
-    }
-
-    // Filter by search query
-    if (_searchQuery.isNotEmpty) {
-      templates = ScriptTemplates.search(_searchQuery);
-    }
-
-    return templates;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      child: Container(
-        width: 900,
-        height: 700,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Icon(Icons.library_books, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  'Choose a Template',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Select a template to get started with your Lua script',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 24),
-
-            // Search and Filter
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search templates...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'all', label: Text('All')),
-                    ButtonSegment(value: 'beginner', label: Text('Beginner')),
-                    ButtonSegment(value: 'intermediate', label: Text('Intermediate')),
-                    ButtonSegment(value: 'advanced', label: Text('Advanced')),
-                  ],
-                  selected: {_selectedLevel},
-                  onSelectionChanged: (Set<String> selection) {
-                    setState(() => _selectedLevel = selection.first);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Template Grid
-            Expanded(
-              child: _filteredTemplates.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.outline),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No templates found',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Try adjusting your search or filters',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        childAspectRatio: 1.8,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
-                      itemCount: _filteredTemplates.length,
-                      itemBuilder: (context, index) {
-                        final template = _filteredTemplates[index];
-                        return _EnhancedTemplateCard(
-                          template: template,
-                          onTap: () {
-                            widget.onTemplateSelected(template);
-                            Navigator.of(context).pop();
-                          },
-                        );
-                      },
-                    ),
-            ),
-
-            // Footer
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton.icon(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                  label: const Text('Cancel'),
-                ),
-                TextButton.icon(
-                  onPressed: () {
-                    // Use default template
-                    final defaultTemplate = ScriptTemplates.templates.firstWhere(
-                      (t) => t.id == 'hello_world',
-                    );
-                    widget.onTemplateSelected(defaultTemplate);
-                    Navigator.of(context).pop();
-                  },
-                  icon: const Icon(Icons.bolt),
-                  label: const Text('Start with Default'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Enhanced template card widget
-class _EnhancedTemplateCard extends StatelessWidget {
-  const _EnhancedTemplateCard({
-    required this.template,
-    required this.onTap,
-  });
-
-  final ScriptTemplate template;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Text(
-                    template.emoji,
-                    style: const TextStyle(fontSize: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          template.title,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _getLevelColor(template.level, colorScheme),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                template.level.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 8,
-                                  color: colorScheme.onPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            if (template.isRecommended) ...[
-                              const SizedBox(width: 6),
-                              Icon(Icons.star, size: 12, color: Colors.amber[600]),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Description
-              Expanded(
-                child: Text(
-                  template.description,
-                  style: Theme.of(context).textTheme.bodySmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-
-              // Tags
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 2,
-                runSpacing: 2,
-                children: template.tags.take(2).map((tag) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      tag,
-                      style: TextStyle(
-                        fontSize: 8,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Color _getLevelColor(String level, ColorScheme colorScheme) {
-    switch (level) {
-      case 'beginner':
-        return Colors.green;
-      case 'intermediate':
-        return Colors.orange;
-      case 'advanced':
-        return Colors.red;
-      default:
-        return colorScheme.primary;
-    }
-  }
-}
+  }}

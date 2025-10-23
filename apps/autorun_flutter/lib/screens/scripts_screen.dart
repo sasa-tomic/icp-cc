@@ -83,13 +83,15 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
         ),
       ),
     );
-    if (!mounted || rec != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Script created successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    if (mounted && rec != null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Script created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
   }
 

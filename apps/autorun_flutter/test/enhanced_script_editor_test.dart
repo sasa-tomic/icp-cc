@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/widgets/enhanced_script_editor.dart';
-import 'package:icp_autorun/widgets/integrations_help.dart';
 void main() {
   group('EnhancedScriptEditor Tests', () {
     late ValueChanged<String> onCodeChanged;
@@ -319,8 +317,7 @@ void main() {
 
         // Mock timer to track debouncing
         Timer? pendingTimer;
-        Zone originalZone = Zone.current;
-
+        
         await runZoned(() async {
           await tester.pumpWidget(
             MaterialApp(
