@@ -1,4 +1,4 @@
-# ICP Identity Manager - Build Guide
+# ICP Autorun - Build Guide
 
 Use the Makefile and scripts in `scripts/` to build native libraries and fail fast if missing.
 

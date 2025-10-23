@@ -1,6 +1,6 @@
-# ICP Identity Manager
+# ICP Autorun
 
-Cross-platform Flutter client that manages Internet Computer identities for Android and desktop targets. It demonstrates how to generate and persist identities that can later be used to talk to canisters through ic4j bindings.
+Cross-platform Flutter client that allows easy scripting and provides a marketplace for scripts for the Internet Computer for Android, iOS, and desktop targets.
 
 ## Current Features
 - Generate Ed25519 or secp256k1 identities backed by 24-word BIP-39 seed phrases.
