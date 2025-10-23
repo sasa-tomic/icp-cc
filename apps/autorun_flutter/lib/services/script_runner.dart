@@ -187,6 +187,52 @@ class ScriptRunner {
       example:
           'return icp_ui_list({\n  items = { { title = "Item A" }, { title = "Item B" } },\n  buttons = { { title = "Refresh", action = { action = "batch", calls = {} } } }\n})',
     ),
+    IntegrationInfo(
+      id: 'icp_result_display',
+      title: 'Enhanced Result Display',
+      description:
+          'Display canister call results with enhanced formatting, copy/export capabilities, and smart data visualization.',
+      example:
+          'return icp_result_display({\n  data = call_result,\n  title = "Query Results",\n  expandable = true,\n  expanded = false\n})',
+    ),
+    IntegrationInfo(
+      id: 'icp_enhanced_list',
+      title: 'Searchable Result List',
+      description:
+          'Display a searchable, filterable list of results with enhanced interaction capabilities.',
+      example:
+          'return icp_enhanced_list({\n  items = processed_items,\n  title = "Transactions",\n  searchable = true\n})',
+    ),
+    IntegrationInfo(
+      id: 'icp_format_icp',
+      title: 'ICP Token Formatter',
+      description:
+          'Format ICP token values from e8s (8 decimals) to human-readable format.',
+      example: 'return icp_message("Balance: " .. icp_format_icp(123456789)) -- "1.23456789 ICP"',
+    ),
+    IntegrationInfo(
+      id: 'icp_format_timestamp',
+      title: 'Timestamp Formatter',
+      description:
+          'Format nanosecond timestamps into human-readable date/time strings.',
+      example: 'return icp_message("Created: " .. icp_format_timestamp(1704067200000000000))',
+    ),
+    IntegrationInfo(
+      id: 'icp_filter_items',
+      title: 'Data Filter',
+      description:
+          'Filter lists of items by field values. Useful for processing canister results.',
+      example:
+          'local filtered = icp_filter_items(transactions, "type", "transfer")\nreturn icp_enhanced_list({ items = filtered })',
+    ),
+    IntegrationInfo(
+      id: 'icp_sort_items',
+      title: 'Data Sorter',
+      description:
+          'Sort lists of items by field values in ascending or descending order.',
+      example:
+          'local sorted = icp_sort_items(transactions, "timestamp", false)\nreturn icp_enhanced_list({ items = sorted })',
+    ),
   ];
 
   /// Resolve identity specification to a private key or null (for anonymous calls).
@@ -575,12 +621,24 @@ class ScriptRunner {
   }
 
   String _injectHelpers(String src) {
-    // Provide minimal helpers the script can call.
-    const String helpers =
+    // Provide enhanced helpers the script can call.
+    final String helpers =
         'function icp_call(spec) spec = spec or {}; spec.action = "call"; return spec end\n'
         'function icp_batch(calls) calls = calls or {}; return { action = "batch", calls = calls } end\n'
         'function icp_message(text) return { action = "message", text = tostring(text or "") } end\n'
-        'function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end\n';
+        'function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end\n'
+        'function icp_result_display(spec) spec = spec or {}; return { action = "ui", ui = { type = "result_display", props = spec } } end\n'
+        'function icp_enhanced_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { enhanced = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end\n'
+        'function icp_section(title, content) return { type = "section", props = { title = title }, children = content and { content } or {} } end\n'
+        'function icp_table(data) return { action = "ui", ui = { type = "result_display", props = { data = data, title = "Table Data" } } } end\n'
+        'function icp_format_number(value, decimals) return tostring(tonumber(value) or 0) end\n'
+        'function icp_format_icp(value, decimals) local v = tonumber(value) or 0; local d = decimals or 8; return tostring(v / math.pow(10, d)) end\n'
+        'function icp_format_timestamp(value) local t = tonumber(value) or 0; return tostring(t) end\n'
+        'function icp_format_bytes(value) local b = tonumber(value) or 0; return tostring(b) end\n'
+        'function icp_truncate(text, maxLen) return tostring(text) end\n'
+        'function icp_filter_items(items, field, value) local filtered = {}; for i, item in ipairs(items) do if string.find(tostring(item[field] or ""), tostring(value), 1, true) then table.insert(filtered, item) end end return filtered end\n'
+        'function icp_sort_items(items, field, ascending) local sorted = {}; for i, item in ipairs(items) do sorted[i] = item end table.sort(sorted, function(a, b) local av = tostring(a[field] or ""); local bv = tostring(b[field] or ""); if ascending then return av < bv else return av > bv end end) return sorted end\n'
+        'function icp_group_by(items, field) local groups = {}; for i, item in ipairs(items) do local key = tostring(item[field] or "unknown"); if not groups[key] then groups[key] = {} end table.insert(groups[key], item) end return groups end\n';
     return '$helpers$src';
   }
 }
