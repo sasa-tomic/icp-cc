@@ -200,7 +200,31 @@ class MockEnhancedBridge implements ScriptBridge {
 
   @override
   String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
-    return json.encode({'ok': true, 'state': {}, 'result': null});
+    // Provide immediate initial UI so the host can render the first frame before calling view().
+    // Match the test script by title substring.
+    String title = 'Demo';
+    if (script.contains('Complete Flow Demo')) {
+      title = 'Complete Flow Demo';
+    } else if (script.contains('Batch Processing Demo')) {
+      title = 'Batch Processing Demo';
+    } else if (script.contains('Error Handling Demo')) {
+      title = 'Error Handling Demo';
+    }
+    return json.encode({
+      'ok': true,
+      'state': <String, dynamic>{},
+      'ui': <String, dynamic>{
+        'type': 'column',
+        'children': <dynamic>[
+          <String, dynamic>{
+            'type': 'section',
+            'props': <String, dynamic>{'title': title},
+            'children': <dynamic>[],
+          }
+        ],
+      },
+      'result': null,
+    });
   }
 
   @override
@@ -208,13 +232,89 @@ class MockEnhancedBridge implements ScriptBridge {
     final state = json.decode(stateJson);
     final msg = json.decode(msgJson);
 
-    // Handle mock updates
-    if (msg['type'] == 'load_data') {
-      state['data'] = _mockCanisterData['ledger']['transactions'];
-    } else if (msg['type'] == 'filter') {
+    // Handle mock updates matching the TEA scripts in this test
+    final String t = (msg['type'] ?? '').toString();
+    if (t == 'load_data') {
+      // Populate raw_data to match the view() expectations
+      state['raw_data'] = _mockCanisterData['ledger']['transactions'];
+      return json.encode({'ok': true, 'state': state, 'result': null});
+    }
+    if (t == 'batch_call') {
+      // Simulate batch canister calls and processing
+      state['batch_results'] = {
+        'gov': {
+          'ok': true,
+          'data': [
+            {'id': 1, 'status': 'active', 'votes': 1000000000},
+            {'id': 2, 'status': 'executed', 'votes': 500000000},
+          ],
+        },
+        'ledger': {
+          'ok': true,
+          'data': [
+            {'id': 'tx1', 'amount': 100000000, 'type': 'transfer'},
+            {'id': 'tx2', 'amount': 50000000, 'type': 'stake'},
+          ],
+        },
+      };
+      final List<dynamic> items = <dynamic>[];
+      for (final dynamic proposal in state['batch_results']['gov']['data']) {
+        items.add({
+          'title': 'Proposal ${proposal['id']}',
+          'subtitle': '${proposal['status']} • ${proposal['votes']} votes',
+          'data': proposal,
+          'category': 'governance',
+        });
+      }
+      for (final dynamic tx in state['batch_results']['ledger']['data']) {
+        items.add({
+          'title': 'Transaction ${tx['id']}',
+          'subtitle': "${tx['type']} • ${formatIcp(tx['amount'] as int)}",
+          'data': tx,
+          'category': 'ledger',
+        });
+      }
+      state['processed_items'] = items;
+      state['last_action'] = 'Executed batch calls and processed results';
+      return json.encode({'ok': true, 'state': state, 'result': null});
+    }
+    if (t == 'load_valid') {
+      state['data_state'] = 'valid';
+      state['error_state'] = null;
+      return json.encode({'ok': true, 'state': state, 'result': null});
+    }
+    if (t == 'trigger_error') {
+      state['error_state'] = 'Simulated error for testing';
+      state['data_state'] = 'error';
+      return json.encode({'ok': true, 'state': state, 'result': null});
+    }
+    if (t == 'load_empty') {
+      state['data_state'] = 'empty';
+      state['error_state'] = null;
+      return json.encode({'ok': true, 'state': state, 'result': null});
+    }
+    if (t == 'transform') {
+      final List<dynamic> raw = (state['raw_data'] as List?) ?? <dynamic>[];
+      final List<dynamic> processed = raw.where((e) => (e['type'] ?? '') == 'transfer').map((tx) => <String, dynamic>{
+        'title': 'Transfer ${tx['id']}',
+        'subtitle': '${tx['type']} • ${formatIcp(tx['amount'] as int)}',
+        'data': tx,
+      }).toList();
+      state['processed_data'] = processed;
+      return json.encode({'ok': true, 'state': state, 'result': null});
+    }
+    if (t == 'enhanced') {
+      // No-op, used only to toggle view mode in script
+      return json.encode({'ok': true, 'state': state, 'result': null});
+    }
+
+    // Legacy/simple flows used in default branch
+    if (t == 'filter') {
       final field = msg['field'];
       final value = msg['value'];
-      state['filtered'] = (state['data'] as List).where((item) => item[field].toString().contains(value)).toList();
+      final List<dynamic> data = (state['data'] as List?) ?? <dynamic>[];
+      state['filtered'] = data.where((item) => item[field].toString().contains(value)).toList();
+      return json.encode({'ok': true, 'state': state, 'result': null});
     }
 
     return json.encode({'ok': true, 'state': state, 'result': null});
@@ -279,12 +379,9 @@ class MockEnhancedBridge implements ScriptBridge {
 
       return json.encode({
         'ok': true,
-        'result': {
-          'action': 'ui',
-          'ui': {
-            'type': 'column',
-            'children': children
-          }
+        'ui': {
+          'type': 'column',
+          'children': children
         }
       });
     }
@@ -334,12 +431,9 @@ class MockEnhancedBridge implements ScriptBridge {
 
       return json.encode({
         'ok': true,
-        'result': {
-          'action': 'ui',
-          'ui': {
-            'type': 'column',
-            'children': children
-          }
+        'ui': {
+          'type': 'column',
+          'children': children
         }
       });
     }
@@ -390,7 +484,7 @@ class MockEnhancedBridge implements ScriptBridge {
           'children': [
             {
               'type': 'result_display',
-              'props': {'data': {}, 'title': 'Empty Result'}
+              'props': {'data': null, 'title': 'Empty Result'}
             }
           ]
         });
@@ -398,12 +492,9 @@ class MockEnhancedBridge implements ScriptBridge {
 
       return json.encode({
         'ok': true,
-        'result': {
-          'action': 'ui',
-          'ui': {
-            'type': 'column',
-            'children': children
-          }
+        'ui': {
+          'type': 'column',
+          'children': children
         }
       });
     }
@@ -418,15 +509,12 @@ class MockEnhancedBridge implements ScriptBridge {
 
     return json.encode({
       'ok': true,
-      'result': {
-        'action': 'ui',
-        'ui': {
-          'type': 'list',
-          'props': {
-            'enhanced': true,
-            'items': items,
-            'title': 'Mock Data View'
-          }
+      'ui': {
+        'type': 'list',
+        'props': {
+          'enhanced': true,
+          'items': items,
+          'title': 'Mock Data View'
         }
       }
     });
@@ -549,6 +637,10 @@ end
           ),
         );
 
+        // Allow async init/view to complete
+        await tester.pump();
+        await tester.pumpAndSettle();
+
         // Verify initial UI state
         expect(find.text('Complete Flow Demo'), findsOneWidget);
         expect(find.text('Load Data'), findsOneWidget);
@@ -569,7 +661,7 @@ end
 
         expect(find.text('Processed Results'), findsOneWidget);
         expect(find.text('Transformed Data'), findsOneWidget);
-        expect(find.text('Searchable'), findsOneWidget); // Enhanced list should be searchable
+        expect(find.byIcon(Icons.search), findsOneWidget); // Enhanced list should be searchable
 
         // Step 3: Verify enhanced display features
         expect(find.text('Transfer tx1'), findsOneWidget);
@@ -686,6 +778,9 @@ end
           ),
         );
 
+        await tester.pump();
+        await tester.pumpAndSettle();
+
         // Initial state
         expect(find.text('Batch Processing Demo'), findsOneWidget);
         expect(find.text('Execute Batch Calls'), findsOneWidget);
@@ -795,6 +890,9 @@ end
             ),
           ),
         );
+
+        await tester.pump();
+        await tester.pumpAndSettle();
 
         expect(find.text('Error Handling Demo'), findsOneWidget);
 
