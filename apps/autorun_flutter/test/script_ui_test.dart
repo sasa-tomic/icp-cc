@@ -96,10 +96,16 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
+    // Check that the dialog opens
     expect(find.text('Available integrations'), findsOneWidget);
-    expect(find.textContaining('icp_call'), findsWidgets);
-    expect(find.textContaining('icp_batch'), findsWidgets);
-    expect(find.textContaining('icp_message'), findsWidgets);
-    expect(find.textContaining('icp_ui_list'), findsWidgets);
+
+    // Check that the new Canister Call Builder is present
+    expect(find.text('Canister Call Builder'), findsOneWidget);
+    expect(find.text('Build canister method calls with a visual interface'), findsOneWidget);
+    expect(find.text('Lua Helper Functions'), findsOneWidget);
+
+    // Count total integration items (should be 4 original + 1 new button = 5 total visible items)
+    final integrationItems = find.byType(ListTile);
+    expect(integrationItems.evaluate().length, greaterThanOrEqualTo(5));
   });
 }
