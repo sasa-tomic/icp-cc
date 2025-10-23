@@ -38,7 +38,9 @@ class DataTransformer {
     if (value == null) return 'null';
 
     try {
-      final num = double.parse(value.toString()) / pow10(decimals);
+      // ICP values are typically stored in e8s (8 decimal places)
+      // First convert from e8s to ICP, then format to requested decimals
+      final num = double.parse(value.toString()) / pow10(8);
       return '${num.toStringAsFixed(decimals)} ICP';
     } catch (_) {
       return '$value ICP';
@@ -56,16 +58,32 @@ class DataTransformer {
         // Assume nanoseconds (ICP format) or milliseconds
         if (value > 1e15) {
           // Likely nanoseconds
-          dateTime = DateTime.fromMillisecondsSinceEpoch(value ~/ 1000000);
-        } else if (value > 1e12) {
+          dateTime = DateTime.fromMillisecondsSinceEpoch(value ~/ 1000000, isUtc: true);
+        } else if (value > 1e14) {
           // Likely microseconds
-          dateTime = DateTime.fromMillisecondsSinceEpoch(value ~/ 1000);
+          dateTime = DateTime.fromMillisecondsSinceEpoch(value ~/ 1000, isUtc: true);
         } else {
           // Assume milliseconds
-          dateTime = DateTime.fromMillisecondsSinceEpoch(value);
+          dateTime = DateTime.fromMillisecondsSinceEpoch(value, isUtc: true);
         }
       } else if (value is String) {
-        dateTime = DateTime.parse(value);
+        try {
+          // Try parsing as integer timestamp first
+          final intTime = int.parse(value);
+          if (intTime > 1e15) {
+            // Likely nanoseconds
+            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime ~/ 1000000, isUtc: true);
+          } else if (intTime > 1e14) {
+            // Likely microseconds
+            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime ~/ 1000, isUtc: true);
+          } else {
+            // Assume milliseconds
+            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime, isUtc: true);
+          }
+        } catch (_) {
+          // If not a number, try parsing as ISO string
+          dateTime = DateTime.parse(value);
+        }
       } else {
         return value.toString();
       }
@@ -153,7 +171,14 @@ class DataTransformer {
   /// Convert hex string to bytes
   static List<int> hexToBytes(String hex) {
     try {
+      // Remove common hex prefixes
+      if (hex.startsWith('0x') || hex.startsWith('0X')) {
+        hex = hex.substring(2);
+      }
+
       hex = hex.replaceAll(RegExp(r'[^0-9a-fA-F]'), '');
+      if (hex.isEmpty) throw FormatException('Invalid hex string');
+
       if (hex.length % 2 != 0) hex = '0$hex';
 
       final bytes = <int>[];
@@ -180,8 +205,8 @@ class DataTransformer {
   static String formatPrincipal(String principal) {
     if (principal.isEmpty) return principal;
 
-    // Basic validation - ICP principals are alphanumeric with hyphens
-    if (RegExp(r'^[a-z0-9-]+$').hasMatch(principal)) {
+    // ICP principals should contain hyphens and be alphanumeric
+    if (RegExp(r'^[a-zA-Z0-9-]+$').hasMatch(principal) && principal.contains('-')) {
       return principal.toLowerCase();
     }
 
@@ -209,10 +234,31 @@ class DataTransformer {
     // Apply sort
     if (sortBy != null) {
       filtered.sort((a, b) {
-        final aValue = a[sortBy]?.toString() ?? '';
-        final bValue = b[sortBy]?.toString() ?? '';
+        final aValue = a[sortBy];
+        final bValue = b[sortBy];
 
-        final comparison = aValue.compareTo(bValue);
+        // Try numeric comparison first
+        if (aValue is num && bValue is num) {
+          final comparison = aValue.compareTo(bValue);
+          return ascending ? comparison : -comparison;
+        }
+
+        // Try parsing as numbers
+        if (aValue != null && bValue != null) {
+          try {
+            final aNum = double.parse(aValue.toString());
+            final bNum = double.parse(bValue.toString());
+            final comparison = aNum.compareTo(bNum);
+            return ascending ? comparison : -comparison;
+          } catch (_) {
+            // Fall back to string comparison if parsing fails
+          }
+        }
+
+        // String comparison as fallback
+        final aStr = aValue?.toString() ?? '';
+        final bStr = bValue?.toString() ?? '';
+        final comparison = aStr.compareTo(bStr);
         return ascending ? comparison : -comparison;
       });
     }
