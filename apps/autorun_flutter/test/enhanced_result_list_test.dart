@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/services.dart';
 import 'package:icp_autorun/widgets/result_display.dart';
 
 void main() {
@@ -105,9 +104,10 @@ void main() {
 
       // Should show filtered count
       expect(find.text('1/3'), findsOneWidget);
-      expect(find.text('Item 1'), findsOneWidget);
-      expect(find.text('Item 2'), findsNothing);
-      expect(find.text('Item 3'), findsNothing);
+      // Look for Item 1 in a ListTile (not in the search field)
+      expect(find.descendant(of: find.byType(ListTile), matching: find.text('Item 1')), findsOneWidget);
+      expect(find.descendant(of: find.byType(ListTile), matching: find.text('Item 2')), findsNothing);
+      expect(find.descendant(of: find.byType(ListTile), matching: find.text('Item 3')), findsNothing);
     });
 
     testWidgets('search is case insensitive', (WidgetTester tester) async {
@@ -156,15 +156,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('1/3'), findsOneWidget);
-      expect(find.text('Item 1'), findsOneWidget);
+      expect(find.descendant(of: find.byType(ListTile), matching: find.text('Item 1')), findsOneWidget);
 
       // Search in custom field
       await tester.enterText(find.byType(TextField), 'transfer');
       await tester.pumpAndSettle();
 
       expect(find.text('2/3'), findsOneWidget);
-      expect(find.text('Item 1'), findsOneWidget);
-      expect(find.text('Item 3'), findsOneWidget);
+      expect(find.descendant(of: find.byType(ListTile), matching: find.text('Item 1')), findsOneWidget);
+      expect(find.descendant(of: find.byType(ListTile), matching: find.text('Item 3')), findsOneWidget);
     });
 
     testWidgets('search shows no results for non-matching term', (WidgetTester tester) async {
@@ -276,7 +276,7 @@ void main() {
       await tester.tap(find.text('View Details'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Item 1'), findsOneWidget); // Dialog title
+      expect(find.descendant(of: find.byType(Dialog), matching: find.text('Item 1')), findsOneWidget); // Dialog title
       expect(find.byType(SelectableText), findsWidgets); // JSON content
       expect(find.text('Close'), findsOneWidget);
     });
@@ -300,7 +300,7 @@ void main() {
       await tester.tap(find.text('View Details'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Item 1'), findsOneWidget);
+      expect(find.descendant(of: find.byType(Dialog), matching: find.text('Item 1')), findsOneWidget);
 
       // Close dialog
       await tester.tap(find.text('Close'));
@@ -377,7 +377,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Copy'), findsOneWidget);
-      expect(find.text('View Details'), findsNothing);
+      expect(find.text('View Details'), findsOneWidget); // Now correctly shows details for all items
     });
 
     testWidgets('handles larger item count efficiently', (WidgetTester tester) async {

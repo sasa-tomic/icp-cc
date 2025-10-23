@@ -15,8 +15,19 @@ class DataTransformer {
 
     // Try to parse as number
     try {
-      final num = double.parse(value.toString());
-      return decimals != null ? num.toStringAsFixed(decimals) : num.toString();
+      final String valueStr = value.toString();
+      final num = double.parse(valueStr);
+
+      if (decimals != null) {
+        return num.toStringAsFixed(decimals);
+      }
+
+      // If the original string represents a whole number, return it without decimal
+      if (num == num.toInt() && !valueStr.contains('.')) {
+        return num.toInt().toString();
+      }
+
+      return num.toString();
     } catch (_) {
       return value.toString();
     }
@@ -28,7 +39,7 @@ class DataTransformer {
 
     try {
       final num = double.parse(value.toString()) / pow10(decimals);
-      return '${num.toStringAsFixed(decimals).replaceAll(RegExp(r'\.?0+$'), '')} ICP';
+      return '${num.toStringAsFixed(decimals)} ICP';
     } catch (_) {
       return '$value ICP';
     }

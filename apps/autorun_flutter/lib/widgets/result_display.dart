@@ -505,11 +505,12 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
               ),
             )
           else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _filteredItems.length,
-              itemBuilder: (context, index) {
+            Expanded(
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _filteredItems.length,
+                itemBuilder: (context, index) {
                 final item = _filteredItems[index];
                 return ListTile(
                   title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
@@ -533,21 +534,21 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
                           ],
                         ),
                       ),
-                      if (item.keys.any((key) => key.contains('data')))
-                        const PopupMenuItem(
-                          value: 'details',
-                          child: Row(
-                            children: [
-                              Icon(Icons.info_outline, size: 16),
-                              SizedBox(width: 8),
-                              Text('View Details'),
-                            ],
-                          ),
+                      const PopupMenuItem(
+                        value: 'details',
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16),
+                            SizedBox(width: 8),
+                            Text('View Details'),
+                          ],
                         ),
+                      ),
                     ],
                   ),
                 );
               },
+              ),
             ),
         ],
       ),
