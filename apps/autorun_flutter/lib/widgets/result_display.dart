@@ -505,48 +505,50 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
               ),
             )
           else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _filteredItems.length,
-              itemBuilder: (context, index) {
-                final item = _filteredItems[index];
-                return ListTile(
-                  title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
-                  subtitle: item['subtitle'] != null
-                      ? Text(
-                          item['subtitle'].toString(),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : null,
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (action) => _handleItemAction(context, action, item),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'copy',
-                        child: Row(
-                          children: [
-                            Icon(Icons.copy, size: 16),
-                            SizedBox(width: 8),
-                            Text('Copy'),
-                          ],
+            Expanded(
+              child: ListView.builder(
+                shrinkWrap: false,
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: _filteredItems.length,
+                itemBuilder: (context, index) {
+                  final item = _filteredItems[index];
+                  return ListTile(
+                    title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
+                    subtitle: item['subtitle'] != null
+                        ? Text(
+                            item['subtitle'].toString(),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : null,
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (action) => _handleItemAction(context, action, item),
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'copy',
+                          child: Row(
+                            children: [
+                              Icon(Icons.copy, size: 16),
+                              SizedBox(width: 8),
+                              Text('Copy'),
+                            ],
+                          ),
                         ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'details',
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, size: 16),
-                            SizedBox(width: 8),
-                            Text('View Details'),
-                          ],
+                        const PopupMenuItem(
+                          value: 'details',
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 16),
+                              SizedBox(width: 8),
+                              Text('View Details'),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
         ],
       ),
