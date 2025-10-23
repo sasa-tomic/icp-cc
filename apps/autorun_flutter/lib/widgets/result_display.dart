@@ -508,7 +508,6 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
             Expanded(
               child: ListView.builder(
                 shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
                 itemCount: _filteredItems.length,
                 itemBuilder: (context, index) {
                 final item = _filteredItems[index];
