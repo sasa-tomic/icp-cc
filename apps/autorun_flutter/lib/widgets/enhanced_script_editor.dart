@@ -162,7 +162,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
                 readOnly: widget.readOnly,
                 maxLines: widget.maxLines,
                 minLines: widget.minLines,
-                expands: true,
+                expands: false,
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 14,
