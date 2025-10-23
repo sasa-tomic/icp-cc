@@ -5,7 +5,7 @@
 - Code must FAIL FAST and provide enough details upon failure for troubleshooting. Code may not silently ignore failures and should not have fallbacks or duplicate implementations.
 - When running shell commands, prefix with `cd /absolute/path/ && ` to ensure that you always run the command in the correct directory
 - Every code path must be covered by unit tests.
-- Write NEW unit tests that cover both the positive and negative path, if there are no existing tests that test the same execution path (check!).
+- WRITE NEW UNIT TESTS that cover both the positive and negative path of the new functionality.
 - Tests that you write MUST ASSERT MEANINGFUL BEHAVIOR and MAY NOT overlap coverage with other tests (check for overlaps!).
 - Check and FIX ANY LINTING warnings and errors with "make test-machine"
 - Run "make test-machine" from the repo root as often as needed to check for any compilation issues. You must fix any warnings or errors before moving on to the next step.
