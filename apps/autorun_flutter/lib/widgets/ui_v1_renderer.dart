@@ -92,19 +92,24 @@ class UiV1Renderer extends StatelessWidget {
         final String title = (props['title'] ?? '').toString();
         return Card(
           margin: const EdgeInsets.all(12),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                if (title.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  ),
-                ...children,
-              ],
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 0),
+            child: IntrinsicHeight(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (title.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+                      ),
+                    ...children,
+                  ],
+                ),
+              ),
             ),
           ),
         );
