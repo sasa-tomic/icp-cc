@@ -52,9 +52,9 @@ distclean: clean
 test:
 	@set -eEu
 	@echo "==> Running Flutter analysis..."
-	@cd $(ROOT)/apps/autorun_flutter && flutter analyze
+	@cd $(ROOT)/apps/autorun_flutter && flutter analyze --quiet
 	@echo "==> Running Flutter tests..."
-	@cd $(ROOT)/apps/autorun_flutter && flutter test --quiet --machine
+	@cd $(ROOT)/apps/autorun_flutter && flutter test --quiet
 	@echo "==> Running Rust linting and tests"
 	@cargo clippy --benches --tests --all-features --quiet
 	@cargo clippy --quiet
