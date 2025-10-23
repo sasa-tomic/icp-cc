@@ -505,7 +505,8 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
               ),
             )
           else
-            Expanded(
+            SizedBox(
+              height: 300, // Fixed height to prevent overflow
               child: ListView.builder(
                 shrinkWrap: false,
                 physics: const AlwaysScrollableScrollPhysics(),
