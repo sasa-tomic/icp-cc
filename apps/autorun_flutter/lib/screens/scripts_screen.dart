@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/script_controller.dart';
 import '../models/script_record.dart';
+import '../models/script_template.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
@@ -74,15 +75,26 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _showCreateSheet() async {
-    // Step 1: let user edit a fresh sample Lua script
+    // Step 1: Let user select a template
+    final ScriptTemplate? template = await showDialog<ScriptTemplate>(
+      context: context,
+      builder: (_) => _ScriptTemplateSelectionDialog(),
+    );
+    if (!mounted || template == null) return;
+
+    // Step 2: let user edit the selected template
     final String? editedSource = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      builder: (context) => _ScriptCreateSheet(controller: _controller),
+      builder: (context) => _ScriptCreateSheet(
+        controller: _controller,
+        initialTemplate: template,
+      ),
     );
     if (!mounted || editedSource == null) return;
-    // Step 2: prompt for details and create the script record
+
+    // Step 3: prompt for details and create the script record
     final ScriptRecord? rec = await showDialog<ScriptRecord>(
       context: context,
       builder: (_) => _NewScriptDetailsDialog(controller: _controller, luaSource: editedSource),
@@ -195,8 +207,12 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
 // Empty state moved to shared widget
 
 class _ScriptCreateSheet extends StatefulWidget {
-  const _ScriptCreateSheet({required this.controller});
+  const _ScriptCreateSheet({
+    required this.controller,
+    this.initialTemplate,
+  });
   final ScriptController controller;
+  final ScriptTemplate? initialTemplate;
 
   @override
   State<_ScriptCreateSheet> createState() => _ScriptCreateSheetState();
@@ -213,10 +229,11 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: 'My first script');
-    _emojiController = TextEditingController(text: '🧪');
+    final template = widget.initialTemplate;
+    _titleController = TextEditingController(text: template?.title ?? 'My first script');
+    _emojiController = TextEditingController(text: template?.emoji ?? '🧪');
     _imageUrlController = TextEditingController();
-    _sourceController = TextEditingController(text: kDefaultSampleLua);
+    _sourceController = TextEditingController(text: template?.luaSource ?? kDefaultSampleLua);
   }
 
   @override
@@ -675,5 +692,295 @@ class _ScriptDetailsDialogState extends State<_ScriptDetailsDialog> {
         FilledButton(onPressed: _isSubmitting ? null : _save, child: const Text('Save')),
       ],
     );
+  }
+}
+
+/// Dialog for selecting a script template when creating a new script
+class _ScriptTemplateSelectionDialog extends StatefulWidget {
+  @override
+  State<_ScriptTemplateSelectionDialog> createState() => _ScriptTemplateSelectionDialogState();
+}
+
+class _ScriptTemplateSelectionDialogState extends State<_ScriptTemplateSelectionDialog> {
+  String _selectedLevel = 'all';
+  String _searchQuery = '';
+
+  List<ScriptTemplate> get _filteredTemplates {
+    var templates = ScriptTemplates.templates;
+
+    // Filter by level
+    if (_selectedLevel != 'all') {
+      templates = templates.where((t) => t.level == _selectedLevel).toList();
+    }
+
+    // Filter by search query
+    if (_searchQuery.isNotEmpty) {
+      templates = ScriptTemplates.search(_searchQuery);
+    }
+
+    return templates;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: 800,
+        height: 600,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(Icons.library_books, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  'Choose a Template',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select a template to get started with your Lua script',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Search and Filter
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search templates...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'all', label: Text('All')),
+                    ButtonSegment(value: 'beginner', label: Text('Beginner')),
+                    ButtonSegment(value: 'intermediate', label: Text('Intermediate')),
+                    ButtonSegment(value: 'advanced', label: Text('Advanced')),
+                  ],
+                  selected: {_selectedLevel},
+                  onSelectionChanged: (Set<String> selection) {
+                    setState(() => _selectedLevel = selection.first);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Template Grid
+            Expanded(
+              child: _filteredTemplates.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.outline),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No templates found',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Try adjusting your search or filters',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                      itemCount: _filteredTemplates.length,
+                      itemBuilder: (context, index) {
+                        final template = _filteredTemplates[index];
+                        return _TemplateCard(
+                          template: template,
+                          onTap: () => Navigator.of(context).pop(template),
+                        );
+                      },
+                    ),
+            ),
+
+            // Footer
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                  label: const Text('Cancel'),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    // Use default template
+                    final defaultTemplate = ScriptTemplates.templates.firstWhere(
+                      (t) => t.id == 'hello_world',
+                    );
+                    Navigator.of(context).pop(defaultTemplate);
+                  },
+                  icon: const Icon(Icons.bolt),
+                  label: const Text('Start with Default'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card widget for displaying a script template
+class _TemplateCard extends StatelessWidget {
+  const _TemplateCard({
+    required this.template,
+    required this.onTap,
+  });
+
+  final ScriptTemplate template;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Text(
+                    template.emoji,
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          template.title,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _getLevelColor(template.level, colorScheme),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                template.level.capitalize(),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: colorScheme.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            if (template.isRecommended) ...[
+                              const SizedBox(width: 8),
+                              Icon(Icons.star, size: 16, color: Colors.amber[600]),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Description
+              Expanded(
+                child: Text(
+                  template.description,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Tags
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: template.tags.take(3).map((tag) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      tag,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getLevelColor(String level, ColorScheme colorScheme) {
+    switch (level) {
+      case 'beginner':
+        return Colors.green;
+      case 'intermediate':
+        return Colors.orange;
+      case 'advanced':
+        return Colors.red;
+      default:
+        return colorScheme.primary;
+    }
+  }
+}
+
+/// Extension to capitalize strings
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1)}";
   }
 }
