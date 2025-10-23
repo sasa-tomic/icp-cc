@@ -1,7 +1,5 @@
 ## Fixes and urgent improvements
 
-✅ COMPLETED: Use secure store (such as system keychain) on Linux, Mac, Windows for storing ALL security-sensistive material such as seed or private key. Remove all ability for storing such sensitive materials in an insecure location.
-
 ## ICP Autorun Marketplace - Future Enhancements
 
 ### Authentication System
@@ -37,31 +35,21 @@
 - Create security audit logs
 - Implement rate limiting and abuse protection
 
-## Scripts tab and Lua scripting (planned activities)
-
-✅ Navigation: add `Scripts` tab to Flutter app (bottom nav + screen scaffold).
-✅ Data model: define `ScriptRecord` (id, title, emoji or imageUrl, script body, createdAt, updatedAt).
-✅ Persistence: implement `ScriptRepository` for local JSON storage with fail-fast IO.
-✅ Scripts UI: list scripts, creation/edit sheet (title + emoji/image picker), delete/rename.
-✅ Script runner: wire Lua engine via `RustBridgeLoader.luaExec`, JSON in/out contract.
-✅ Canister reads: UI to compose canister method calls whose outputs feed the Lua script.
-✅ Output actions: show results in UI or trigger a follow-up canister call with transformed data.
-✅ Tests: unit tests for model/repo, Lua execution plumbing, and navigation/UI flows.
-- Security: sandbox Lua (whitelist helpers only).
-- E2E: integration tests covering read→transform→display and read→transform→call.
-
-
-## Follow-ups: Lua-driven UI (next iterations)
-
-## Redesign: Always-on TEA-style Lua App (v1)
-
-Goal: Replace one-shot script runs with a reactive app model where a Lua script exports `init`, `view`, and `update`. The host renders `view(state)` immediately at startup and after every event, and executes declared effects outside Lua.
+## Scripts tab and Lua scripting
 
 Design pillars:
-- Deterministic, declarative UI: `view(state)` returns a versioned UI schema (UI v1)
 - Untrusted code isolation: Lua is sandboxed; no IO; effects executed by host
 - Fail fast: strict schema validation, clear error messages, hard time/step limits
 - Testability: pure functions (init/view/update) are directly testable
+
+- Security: sandbox Lua (whitelist helpers only).
+- E2E: integration tests covering read→transform→display and read→transform→call.
+- Add richer UI elements: tables with columns.
+- Support paginated lists and loading states driven by Lua.
+- Add menu to pick common UI elements/actions in the script editor: button, canister method call, message, list.
+- Provide input bindings so button actions can incorporate user-entered values.
+- Validation and error surfaces for action results in the UI container.
+- Theming and layout presets for script UIs.
 
 Contracts (JSON via FFI):
 - `init(arg) -> state, effects[]`
@@ -70,12 +58,6 @@ Contracts (JSON via FFI):
 - Msgs: `{ type: string, id?: string, payload?: any }`
 - Effects (executed by host): `icp_call`, `icp_batch` (more later)
 - Host emits results as msgs: `{ type:"effect/result", id, ok, data?|error? }`
-
-UI v1 schema (subset):
-- Containers: `column`, `row`, `section`, `list`
-- Widgets: `text`, `button`, `markdown`
-- Node shape: `{ type, id?, props:{...}, children?:[] }`
-- Events map to msgs, e.g. `props.on_press = { type:"evt/button", id:"refresh" }`
 
 Implementation plan:
 1) Rust core
@@ -100,16 +82,4 @@ Implementation plan:
 5) Testing
    - Rust: unit tests for init/view/update JSON roundtrips and timeouts (DONE)
    - Flutter: widget tests for host loop, event dispatch, effect result handling, and renderer
-
-Non-goals for v1:
-- Rich input widgets and complex layouts (add incrementally in v1.x)
-- Arbitrary Lua access to host UI APIs (keep declarative)
-
-✅ COMPLETED: Add richer UI elements: text fields, toggles, select menus, images.
-- Add richer UI elements: tables with columns.
-- Support paginated lists and loading states driven by Lua.
-- Add menu to pick common UI elements/actions in the script editor: button, canister method call, message, list.
-- Provide input bindings so button actions can incorporate user-entered values.
-- Validation and error surfaces for action results in the UI container.
-- Theming and layout presets for script UIs.
 
