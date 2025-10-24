@@ -4,14 +4,14 @@
 
 ## ICP Autorun Marketplace
 
-### Database Schema Improvements (now)
-- Add missing fields to Scripts collection:
-  - `createdAt`: timestamp for script creation
-  - `updatedAt`: timestamp for last modification
-  - `version`: script versioning support
-  - `isDeleted`: soft delete support
-- Add Users collection for authenticated users
-- Add Reviews collection for future review functionality
+### Database Schema Improvements (completed ✅)
+- ~~Add missing fields to Scripts collection:~~
+  - ~~`createdAt`: timestamp for script creation~~
+  - ~~`updatedAt`: timestamp for last modification~~
+  - ~~`version`: script versioning support~~
+  - ~~`isDeleted`: soft delete support~~
+- ~~Add Users collection for authenticated users~~
+- ~~Add Reviews collection for future review functionality~~
 
 ### Payment Processing (next)
 - Integrate with icpay.org for script payments
