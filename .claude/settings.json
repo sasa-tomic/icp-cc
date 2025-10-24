@@ -5,7 +5,7 @@
         "matcher": "",
         "hooks": [
           {
-            "command": "exit",
+            "command": "/exit",
             "description": "Quit Claude Code after task completion"
           }
         ]
