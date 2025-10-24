@@ -1,11 +1,11 @@
 [package]
-name = "appwrite-cli"
+name = "marketplace-deploy"
 version = "0.1.0"
 edition = "2021"
 description = "CLI tool for setting up ICP Script Marketplace on Appwrite"
 
 [[bin]]
-name = "appwrite-cli"
+name = "marketplace-deploy"
 path = "src/main.rs"
 
 [dependencies]

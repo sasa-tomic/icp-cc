@@ -30,10 +30,10 @@ extract_and_categorize() {
     declare -A categories=(
         ["Common commands"]="^(test|test-machine|clean|distclean)$"
         ["Build commands"]="^(linux|android|macos|ios|windows|all|android-emulator)$"
-        ["Appwrite commands"]="^appwrite-"
+        ["Marketplace commands"]="^marketplace(-|$)"
         ["Flutter commands"]="^flutter"
         ["API Server commands"]="^appwrite-api-server"
-        ["Development stack"]="^(appwrite-dev-stack|appwrite-dev-stop)$"
+        ["Development stack"]="^(marketplace-dev-stack|marketplace-dev-stop)$"
         ["Justfile management"]="^just-"
     )
 
@@ -143,8 +143,8 @@ extract_and_categorize() {
 extract_and_categorize
 
 echo -e "${YELLOW}Examples with arguments:${NC}"
-echo "  just appwrite-deploy -- --dry-run     # Deploy with dry-run"
-echo "  just appwrite-test -- --verbose       # Test with verbose output"
-echo "  just appwrite-local-deploy -- --force # Force deploy to local"
+echo "  just marketplace-deploy -- --dry-run     # Deploy with dry-run"
+echo "  just marketplace-test -- --verbose       # Test with verbose output"
+echo "  just marketplace-local-deploy -- --force # Force deploy to local"
 echo ""
 echo -e "${GREEN}Tip: Run 'just --list' to see all available commands with full details${NC}"

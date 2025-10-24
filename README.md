@@ -71,7 +71,7 @@ just appwrite-dev-stack              # Start complete development environment
 - `justfile`: Modern build configuration (replaces Makefile)
 - `scripts/`: Build and bootstrap helpers
 - `docs/`: Architecture and build documentation
-- `appwrite-cli/`: Deployment tools for Appwrite
+- `marketplace-deploy/`: Deployment tools for Appwrite
 - `appwrite-api-server/`: Node.js API server
 
 ## 🔧 Scripts

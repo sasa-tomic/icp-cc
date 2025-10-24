@@ -47,7 +47,7 @@ icp-cc/
 │   ├── src/server.js                  # API server implementation
 │   ├── .env.example                   # Environment template
 │   └── README.md                      # API documentation
-├── appwrite-cli/                      # Deployment and maintenance
+├── marketplace-deploy/                # Deployment and maintenance
 ├── apps/autorun_flutter/              # Flutter frontend app
 │   ├── lib/
 │   │   ├── models/                    # Data models (JSON serializable, NO Appwrite models)

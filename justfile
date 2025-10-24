@@ -107,39 +107,39 @@ distclean: clean
 # =============================================================================
 
 # Setup Appwrite CLI and build deployment tools
-appwrite-setup:
+marketplace-setup:
     @echo "==> Setting up Appwrite CLI tools"
     npm install -g appwrite-cli || echo "Appwrite CLI already installed or install failed - please install manually"
     @echo "==> Building Rust deployment tool"
-    cd {{root}}/appwrite-cli && cargo build --release
+    cd {{root}}/marketplace-deploy && cargo build --release
 
 # Deploy to Appwrite with flexible arguments
-appwrite +args="":
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- {{args}}
+marketplace +args="":
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- {{args}}
 
 # Deploy to Appwrite with flexible arguments
-# Usage: just appwrite-deploy --target local|prod [additional args]
-appwrite-deploy +args="":
+# Usage: just marketplace-deploy --target local|prod [additional args]
+marketplace-deploy +args="":
     @echo "==> Deploying ICP Script Marketplace to Appwrite"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- deploy {{args}}
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- deploy {{args}}
 
 # Test Appwrite deployment configuration
-# Usage: just appwrite-test --target local|prod [additional args]
-appwrite-test +args="":
+# Usage: just marketplace-test --target local|prod [additional args]
+marketplace-test +args="":
     @echo "==> Testing Appwrite deployment configuration"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- test {{args}}
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- test {{args}}
 
 # Show Appwrite configuration
-# Usage: just appwrite-config --target local|prod
-appwrite-config +args="":
+# Usage: just marketplace-config --target local|prod
+marketplace-config +args="":
     @echo "==> Showing Appwrite configuration"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- config {{args}}
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- config {{args}}
 
 # Initialize Appwrite configuration
-# Usage: just appwrite-init --target local|prod [additional args]
-appwrite-init +args="":
+# Usage: just marketplace-init --target local|prod [additional args]
+marketplace-init +args="":
     @echo "==> Initializing Appwrite configuration"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- init {{args}}
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- init {{args}}
 
 # =============================================================================
 # Appwrite API Server
@@ -173,9 +173,9 @@ appwrite-api-server-dev: appwrite-api-server
 # =============================================================================
 
 # Start local Appwrite development environment
-appwrite-local-up:
+marketplace-local-up:
     @echo "==> Starting local Appwrite development environment"
-    cd {{root}} && docker compose --env-file appwrite-local.env up -d
+    cd {{root}} && docker compose --env-file marketplace-local.env up -d
     @echo "==> Waiting for Appwrite services to be healthy..."
     # Wait up to 120 seconds for services to be healthy, checking every 1 second
     @timeout=120 && elapsed=0 && while [ $${elapsed} -lt $${timeout} ]; do \
@@ -190,49 +190,49 @@ appwrite-local-up:
         elapsed=$$((elapsed + 1)); \
     done; \
     echo "==> ❌ Appwrite failed to become healthy within $${timeout} seconds"; \
-    echo "==> Check logs with: just appwrite-local-logs"; \
+    echo "==> Check logs with: just marketplace-local-logs"; \
     exit 1
 
 # Stop local Appwrite development environment
-appwrite-local-down:
+marketplace-local-down:
     @echo "==> Stopping local Appwrite development environment"
-    cd {{root}} && docker compose --env-file appwrite-local.env  down
+    cd {{root}} && docker compose --env-file marketplace-local.env  down
 
 # Show local Appwrite logs
-appwrite-local-logs:
+marketplace-local-logs:
     @echo "==> Showing local Appwrite logs"
-    cd {{root}} && docker compose --env-file appwrite-local.env logs -f
+    cd {{root}} && docker compose --env-file marketplace-local.env logs -f
 
 # Reset local Appwrite environment (wipes all data)
-appwrite-local-reset:
+marketplace-local-reset:
     @echo "==> Resetting local Appwrite environment (wipes all data)"
-    cd {{root}} && docker compose --env-file appwrite-local.env down -v --remove-orphans
+    cd {{root}} && docker compose --env-file marketplace-local.env down -v --remove-orphans
     cd {{root}} && docker volume prune -f
     cd {{root}} && docker system prune -f
     @echo "==> Local Appwrite environment reset complete"
 
 # Initialize local Appwrite configuration
-appwrite-local-init +args="":
+marketplace-local-init +args="":
     @echo "==> Initializing local Appwrite configuration"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local init {{args}}
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- --target local init {{args}}
 
 # Deploy marketplace to local Appwrite instance
-appwrite-local-deploy +args="--yes":
+marketplace-local-deploy +args="--yes":
     @echo "==> Deploying marketplace to local Appwrite instance"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local -v deploy {{args}}
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- --target local -v deploy {{args}}
 
 # Start complete development stack (Appwrite + API Server)
-appwrite-dev-stack:
+marketplace-dev-stack:
     @echo "==> Starting complete development stack (Appwrite + API Server)"
-    just appwrite-local-up
+    just marketplace-local-up
     sleep 45
     cd {{root}}/appwrite-api-server && APPWRITE_ENDPOINT=http://localhost:48080/v1 npm run dev &
 
 # Stop complete development stack
-appwrite-dev-stop:
+marketplace-dev-stop:
     @echo "==> Stopping complete development stack"
     pkill -f "appwrite-api-server.*npm run dev" || true
-    just appwrite-local-down
+    just marketplace-local-down
 
 # =============================================================================
 # Flutter App Development
