@@ -118,14 +118,28 @@ appwrite +args="":
     cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- {{args}}
 
 # Deploy to Appwrite with flexible arguments
+# Usage: just appwrite-deploy --target local|prod [additional args]
 appwrite-deploy +args="":
     @echo "==> Deploying ICP Script Marketplace to Appwrite"
     cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- deploy {{args}}
 
 # Test Appwrite deployment configuration
+# Usage: just appwrite-test --target local|prod [additional args]
 appwrite-test +args="":
     @echo "==> Testing Appwrite deployment configuration"
     cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- test {{args}}
+
+# Show Appwrite configuration
+# Usage: just appwrite-config --target local|prod
+appwrite-config +args="":
+    @echo "==> Showing Appwrite configuration"
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- config {{args}}
+
+# Initialize Appwrite configuration
+# Usage: just appwrite-init --target local|prod [additional args]
+appwrite-init +args="":
+    @echo "==> Initializing Appwrite configuration"
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- init {{args}}
 
 # =============================================================================
 # Appwrite API Server
@@ -161,11 +175,23 @@ appwrite-api-server-dev: appwrite-api-server
 # Start local Appwrite development environment
 appwrite-local-up:
     @echo "==> Starting local Appwrite development environment"
-    cd {{root}} && docker compose --env-file appwrite-local.env  up -d
-    @echo "==> Waiting for Appwrite to be ready..."
-    sleep 30
-    @echo "==> Appwrite Console: http://localhost:48080"
-    @echo "==> Appwrite API: http://localhost:48080/v1"
+    cd {{root}} && docker compose --env-file appwrite-local.env up -d
+    @echo "==> Waiting for Appwrite services to be healthy..."
+    # Wait up to 120 seconds for services to be healthy, checking every 1 second
+    @timeout=120 && elapsed=0 && while [ $${elapsed} -lt $${timeout} ]; do \
+        if curl -s http://localhost:48080/health >/dev/null 2>&1; then \
+            echo "==> ✅ Appwrite is healthy and ready!"; \
+            echo "==> Appwrite Console: http://localhost:48080"; \
+            echo "==> Appwrite API: http://localhost:48080/v1"; \
+            exit 0; \
+        fi; \
+        echo "==> Waiting for services... ($${elapsed}/$${timeout} seconds)"; \
+        sleep 1; \
+        elapsed=$$((elapsed + 1)); \
+    done; \
+    echo "==> ❌ Appwrite failed to become healthy within $${timeout} seconds"; \
+    echo "==> Check logs with: just appwrite-local-logs"; \
+    exit 1
 
 # Stop local Appwrite development environment
 appwrite-local-down:
@@ -180,8 +206,9 @@ appwrite-local-logs:
 # Reset local Appwrite environment (wipes all data)
 appwrite-local-reset:
     @echo "==> Resetting local Appwrite environment (wipes all data)"
-    cd {{root}} && docker compose --env-file appwrite-local.env down -v
-    docker system prune -f
+    cd {{root}} && docker compose --env-file appwrite-local.env down -v --remove-orphans
+    cd {{root}} && docker volume prune -f
+    cd {{root}} && docker system prune -f
     @echo "==> Local Appwrite environment reset complete"
 
 # Initialize local Appwrite configuration
@@ -193,16 +220,6 @@ appwrite-local-init +args="":
 appwrite-local-deploy +args="--yes":
     @echo "==> Deploying marketplace to local Appwrite instance"
     cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local -v deploy {{args}}
-
-# Test local Appwrite configuration
-appwrite-local-test +args="":
-    @echo "==> Testing local Appwrite configuration"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local test {{args}}
-
-# Show local Appwrite configuration
-appwrite-local-config:
-    @echo "==> Showing local Appwrite configuration"
-    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local config
 
 # Start complete development stack (Appwrite + API Server)
 appwrite-dev-stack:
