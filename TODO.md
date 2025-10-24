@@ -1,6 +1,6 @@
 ## Fixes and urgent improvements
 
-- I'm getting 404 when opening the Marketplace on my phone. Please fix this and add a unit test.
+(none)
 
 ## Update this document (tasks from this section should always stay here)
 
