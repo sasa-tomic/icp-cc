@@ -85,14 +85,17 @@ This separation ensures:
 ### 1. Setup Appwrite Backend
 
 ```bash
+# First install Just (one-time setup)
+./install-just.sh
+
 # Build the deployment CLI
-make appwrite-setup
+just appwrite-setup
 
 # Deploy to Appwrite
-make appwrite-deploy
+just appwrite-deploy
 
-# Or deploy with verbose output
-make appwrite-deploy-verbose
+# Deploy with dry-run (safely test)
+just appwrite-deploy -- --dry-run
 ```
 
 ### 2. Deploy API Server
@@ -108,13 +111,13 @@ cp .env.example .env
 # Edit .env with your Appwrite credentials
 
 # Start development server
-make appwrite-api-server-dev
+just appwrite-api-server
 
 # Or start production server
-make appwrite-api-server
+just appwrite-api-server-prod
 
 # Or run tests
-make appwrite-api-server-test
+just appwrite-api-server-test
 ```
 
 ### 3. Setup Flutter App

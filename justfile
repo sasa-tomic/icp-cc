@@ -1,0 +1,215 @@
+# Justfile for ICP-CC project
+# Modern replacement for Makefile with better features and cross-platform support
+#
+# Install Just: https://just.systems/
+# Usage: just [target] [args...]
+
+# Global settings
+set shell := ["bash", "-euo", "pipefail", "-c"]
+root := `pwd`
+scripts_dir := root + "/scripts"
+
+# Platform detection
+platform := if `uname` == "Darwin" { "macos" } else if `uname` == "Linux" { "linux" } else { "unknown" }
+
+# Default target - show help if no command given
+default:
+    @echo "Justfile for ICP-CC project"
+    @echo ""
+    @echo "Common commands:"
+    @echo "  just                    # Show all available commands"
+    @echo "  just build               # Build current platform"
+    @echo "  just test               # Run all tests"
+    @echo "  just clean              # Clean build artifacts"
+    @echo ""
+    @echo "Appwrite commands:"
+    @echo "  just appwrite-deploy     # Deploy to Appwrite"
+    @echo "  just appwrite-setup      # Setup Appwrite tools"
+    @echo ""
+    @echo "Examples with arguments:"
+    @echo "  just appwrite-deploy -- --dry-run     # Deploy with dry-run"
+    @echo "  just appwrite-test -- --verbose       # Test with verbose output"
+    @echo "  just appwrite-local-deploy -- --force # Force deploy to local"
+    @echo ""
+    @echo "Run 'just --list' to see all available commands"
+
+# =============================================================================
+# Build Targets
+# =============================================================================
+
+# Build all platforms
+all: linux android
+
+# Platform-specific builds
+linux:
+    @echo "==> Building Linux target..."
+    {{scripts_dir}}/build_linux.sh
+    cd {{root}}/apps/autorun_flutter && flutter build linux
+
+android:
+    @echo "==> Building Android target..."
+    {{scripts_dir}}/build_android.sh
+    cd {{root}}/apps/autorun_flutter && flutter build apk
+
+android-emulator:
+    @echo "==> Starting Android emulator..."
+    {{scripts_dir}}/run_android_emulator.sh
+
+macos:
+    @echo "==> Building macOS target..."
+    {{scripts_dir}}/build_macos.sh
+    cd {{root}}/apps/autorun_flutter && flutter build macos
+
+ios:
+    @echo "==> Building iOS target..."
+    {{scripts_dir}}/build_ios.sh
+    cd {{root}}/apps/autorun_flutter && flutter build ios --no-codesign
+
+windows:
+    @echo "==> Building Windows target..."
+    {{scripts_dir}}/build_windows.sh
+    cd {{root}}/apps/autorun_flutter && flutter build windows
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+# Run all tests with analysis and linting
+test:
+    @echo "==> Running Flutter analysis..."
+    cd {{root}}/apps/autorun_flutter && flutter analyze --quiet
+    @echo "==> Running Flutter tests..."
+    cd {{root}}/apps/autorun_flutter && flutter test --quiet
+    @echo "==> Running Rust linting and tests"
+    cargo clippy --benches --tests --all-features --quiet
+    cargo clippy --quiet
+    cargo fmt --all --quiet
+    cargo nextest run
+    @echo "✅ All tests passed!"
+
+# Run tests in machine-readable format (for CI/CD)
+test-machine:
+    @echo "==> Running Flutter analysis..."
+    cd {{root}}/apps/autorun_flutter && flutter analyze --quiet
+    @echo "==> Running Flutter tests..."
+    cd {{root}}/apps/autorun_flutter && flutter test --machine --quiet
+    @echo "==> Running Rust linting and tests"
+    cargo clippy --benches --tests --all-features --quiet
+    cargo clippy --quiet
+    cargo fmt --all --quiet
+    cargo nextest run
+    @echo "✅ All tests passed!"
+
+# =============================================================================
+# Cleanup
+# =============================================================================
+
+# Clean build artifacts
+clean:
+    @echo "==> Cleaning build artifacts..."
+    rm -rf {{root}}/apps/autorun_flutter/android/app/src/main/jniLibs/* || true
+    rm -rf {{root}}/apps/autorun_flutter/build || true
+    rm -f {{root}}/apps/autorun_flutter/build/linux/x64/*/bundle/lib/libicp_core.* || true
+    rm -rf {{root}}/apps/autorun_flutter/linux/flutter/ephemeral || true
+
+# Deep clean including dependencies
+distclean: clean
+    @echo "==> Deep cleaning all artifacts and dependencies..."
+    rm -rf {{root}}/target || true
+    rm -rf {{root}}/apps/autorun_flutter/.dart_tool || true
+    rm -rf {{root}}/apps/autorun_flutter/.gradle || true
+
+# =============================================================================
+# Appwrite Deployment
+# =============================================================================
+
+# Setup Appwrite CLI and build deployment tools
+appwrite-setup:
+    @echo "==> Setting up Appwrite CLI tools"
+    npm install -g appwrite-cli || echo "Appwrite CLI already installed or install failed - please install manually"
+    @echo "==> Building Rust deployment tool"
+    cd {{root}}/appwrite-cli && cargo build --release
+
+# Deploy to Appwrite with flexible arguments
+appwrite-deploy +args="":
+    @echo "==> Deploying ICP Script Marketplace to Appwrite"
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- deploy {{args}}
+
+# Test Appwrite deployment configuration
+appwrite-test +args="":
+    @echo "==> Testing Appwrite deployment configuration"
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- test {{args}}
+
+# =============================================================================
+# Appwrite API Server
+# =============================================================================
+
+# Start API server in development mode (default)
+appwrite-api-server +args="":
+    @echo "==> Starting Appwrite API server (development mode)"
+    cd {{root}}/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && npm run dev {{args}}
+
+# Start API server in production mode
+appwrite-api-server-prod +args="":
+    @echo "==> Starting Appwrite API server (production mode)"
+    cd {{root}}/appwrite-api-server && (npm list --production >/dev/null 2>&1 || npm install) && npm start {{args}}
+
+# Test API server
+appwrite-api-server-test +args="":
+    @echo "==> Testing Appwrite API server"
+    cd {{root}}/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && npm test {{args}}
+
+# Legacy compatibility
+appwrite-api-server-dev: appwrite-api-server
+
+# =============================================================================
+# Local Development Environment
+# =============================================================================
+
+# Start local Appwrite development environment
+appwrite-local-up:
+    @echo "==> Starting local Appwrite development environment"
+    cd {{root}} && docker compose -f docker-compose.dev.yml up -d
+    @echo "==> Waiting for Appwrite to be ready..."
+    sleep 30
+    @echo "==> Appwrite Console: http://localhost"
+    @echo "==> Appwrite API: http://localhost/v1"
+
+# Stop local Appwrite development environment
+appwrite-local-down:
+    @echo "==> Stopping local Appwrite development environment"
+    cd {{root}} && docker compose -f docker-compose.dev.yml down
+
+# Show local Appwrite logs
+appwrite-local-logs:
+    @echo "==> Showing local Appwrite logs"
+    cd {{root}} && docker compose -f docker-compose.dev.yml logs -f
+
+# Reset local Appwrite environment (wipes all data)
+appwrite-local-reset:
+    @echo "==> Resetting local Appwrite environment (wipes all data)"
+    cd {{root}} && docker compose -f docker-compose.dev.yml down -v
+    docker system prune -f
+    @echo "==> Local Appwrite environment reset complete"
+
+# Deploy marketplace to local Appwrite instance
+appwrite-local-deploy +args="--yes":
+    @echo "==> Deploying marketplace to local Appwrite instance"
+    APPWRITE_ENDPOINT=http://localhost/v1 cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- -v deploy {{args}}
+
+# Start complete development stack (Appwrite + API Server)
+appwrite-dev-stack:
+    @echo "==> Starting complete development stack (Appwrite + API Server)"
+    just appwrite-local-up
+    sleep 45
+    cd {{root}}/appwrite-api-server && APPWRITE_ENDPOINT=http://localhost/v1 npm run dev &
+
+# Stop complete development stack
+appwrite-dev-stop:
+    @echo "==> Stopping complete development stack"
+    pkill -f "appwrite-api-server.*npm run dev" || true
+    just appwrite-local-down
+
+# =============================================================================
+# Help and Information
+# =============================================================================

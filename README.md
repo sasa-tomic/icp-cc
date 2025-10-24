@@ -1,40 +1,116 @@
 # ICP Autorun - Build Guide
 
-Use the Makefile and scripts in `scripts/` to build native libraries and fail fast if missing.
+Use Just (modern build tool) and scripts in `scripts/` to build native libraries and fail fast if missing.
 
-Quickstart
-- Linux desktop:
-  - `make linux`
-  - `cd apps/autorun_flutter && flutter run -d linux`
-- Android:
-  - `./scripts/bootstrap.sh` (Linux installs Android SDK/NDK/toolchains and rust targets)
-  - `make android`
-  - `cd apps/autorun_flutter && flutter run -d <your-device-id>`
-- macOS:
-  - `make macos`
-- iOS:
-  - `make ios`
-- Windows:
-  - `make windows`
+## 🚀 Quick Start
 
-Fail-fast bundling
-- Linux/Windows CMake will abort if the native lib is missing with an actionable message.
-- Android Gradle will abort mergeJniLibs if any ABI lib is missing, showing which ones and suggesting `make android`.
+First, install Just (one-time setup):
+```bash
+./install-just.sh
+```
 
-Scripts
-- `scripts/bootstrap.sh`: Installs rustup and Android SDK/NDK on Linux; sets targets.
-- `scripts/build_linux.sh`: Builds `libicp_core.so` and copies into Flutter bundle dirs.
-- `scripts/build_android.sh`: Builds all Android ABIs and copies into `jniLibs/`.
-- `scripts/build_macos.sh`: Builds `libicp_core.dylib` and copies to common output dirs.
-- `scripts/build_ios.sh`: Builds iOS static libs; assemble xcframework as needed.
-- `scripts/build_windows.sh`: Builds `icp_core.dll` and copies into runner dirs.
+Then build for your platform:
 
-Notes
-- For Android, ensure an emulator or device is connected; use `apps/autorun_flutter/tool/run_android.sh` to start a default emulator and run.
+### Platform Builds
+- **Linux desktop**:
+  ```bash
+  just linux
+  cd apps/autorun_flutter && flutter run -d linux
+  ```
+- **Android**:
+  ```bash
+  ./scripts/bootstrap.sh  # Install Android SDK/NDK/toolchains and rust targets
+  just android
+  cd apps/autorun_flutter && flutter run -d <your-device-id>
+  ```
+- **macOS**:
+  ```bash
+  just macos
+  ```
+- **iOS**:
+  ```bash
+  just ios
+  ```
+- **Windows**:
+  ```bash
+  just windows
+  ```
 
-Repo layout
+### Development Commands
+```bash
+just                    # Show all available commands
+just test               # Run all tests with linting
+just clean              # Clean build artifacts
+just all                # Build all platforms
+```
+
+### Appwrite Development
+```bash
+just appwrite-setup                # Install Appwrite CLI and tools
+just appwrite-deploy -- --dry-run   # Deploy with dry-run
+just appwrite-local-deploy -- --force # Deploy to local instance
+just appwrite-dev-stack              # Start complete development environment
+```
+
+## ⚡ Features
+
+### Fail-fast Build System
+- Linux/Windows builds abort if native lib is missing with actionable messages
+- Android builds abort if any ABI lib is missing, showing which ones and suggesting fixes
+
+### Just Benefits
+- **Cross-platform**: Works consistently on Linux, macOS, Windows
+- **Better arguments**: Natural syntax: `just cmd -- --args`
+- **Smart caching**: Intelligent build optimization
+- **Clear errors**: Better error messages and debugging
+
+## 📁 Repository Layout
+
 - `apps/autorun_flutter`: Flutter application
 - `crates/icp_core`: Rust FFI crate (cdylib)
+- `justfile`: Modern build configuration (replaces Makefile)
 - `scripts/`: Build and bootstrap helpers
-- `docs/`: Architecture and build docs
-- For iOS/macOS, additional Xcode project copy phases can be added to auto-embed the dylib/xcframework if desired.
+- `docs/`: Architecture and build documentation
+- `appwrite-cli/`: Deployment tools for Appwrite
+- `appwrite-api-server/`: Node.js API server
+
+## 🔧 Scripts
+
+- `scripts/bootstrap.sh`: Installs rustup and Android SDK/NDK on Linux; sets targets
+- `scripts/build_linux.sh`: Builds `libicp_core.so` and copies into Flutter bundle dirs
+- `scripts/build_android.sh`: Builds all Android ABIs and copies into `jniLibs/`
+- `scripts/build_macos.sh`: Builds `libicp_core.dylib` and copies to common output dirs
+- `scripts/build_ios.sh`: Builds iOS static libs; assemble xcframework as needed
+- `scripts/build_windows.sh`: Builds `icp_core.dll` and copies into runner dirs
+
+## 📖 Help
+
+### Getting Started
+```bash
+just                           # Show help
+just --list                     # List all commands
+just appwrite-deploy -- --help   # Show command-specific help
+```
+
+### Advanced Usage
+- **Parallel builds**: `just all` builds all platforms concurrently when possible
+- **Flexible arguments**: `just appwrite-deploy -- --dry-run --verbose`
+- **Platform detection**: Just automatically detects your OS and architecture
+
+## 📖 Command Reference
+
+| Common Task | Command |
+|-------------|---------|
+| Show help | `just` |
+| Run tests | `just test` |
+| Build Linux | `just linux` |
+| Build Android | `just android` |
+| Clean artifacts | `just clean` |
+| Deploy with dry-run | `just appwrite-deploy -- --dry-run` |
+
+## ⚠️ Notes
+
+- For Android, ensure an emulator or device is connected
+- Use `apps/autorun_flutter/tool/run_android.sh` to start a default emulator and run
+- For iOS/macOS, additional Xcode project copy phases can be added to auto-embed the dylib/xcframework
+- Just provides better error handling and cross-platform compatibility with enhanced features
