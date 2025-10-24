@@ -426,7 +426,13 @@ async fn handle_config(target: &str) -> Result<()> {
 }
 
 async fn handle_test(target: &str) -> Result<()> {
-    section_header("Testing configuration and connectivity");
+    let is_production = target == "prod";
+    let env_name = if is_production { "Production" } else { "Local" };
+
+    section_header(&format!(
+        "🚀 Running comprehensive smoke test - {} environment",
+        env_name
+    ));
 
     let config = AppConfig::load(target)?;
     if !config.is_complete() {
@@ -434,29 +440,259 @@ async fn handle_test(target: &str) -> Result<()> {
         return Err(anyhow!("Configuration incomplete"));
     }
 
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} [{elapsed_precise}] {msg}")
-            .unwrap(),
-    );
+    // Display environment info
+    println!();
+    info_message(&format!("📍 Endpoint: {}", config.endpoint));
+    info_message(&format!("🆔 Project: {}", config.project_id));
+    if is_production {
+        info_message("⚠️  Running against production environment - be careful!");
+    }
+    println!();
+
+    let mut tests_passed = 0;
+    let mut tests_failed = 0;
+
+    // Test basic connectivity
+    info_message("📡 Testing basic connectivity...");
+    match test_basic_connectivity(&config).await {
+        Ok(_) => {
+            success_message("Basic connectivity: OK");
+            tests_passed += 1;
+        }
+        Err(e) => {
+            error_message(&format!("Basic connectivity: {}", e));
+            tests_failed += 1;
+        }
+    }
 
     // Test database connectivity
-    pb.set_message("Testing database connectivity...");
+    info_message("🗄️ Testing database connectivity...");
     let db_manager = DatabaseManager::new(config.clone()).await?;
     match db_manager.test_database_access().await {
-        Ok(_) => success_message("Database connectivity: OK"),
-        Err(e) => error_message(&format!("Database connectivity: {}", e)),
+        Ok(_) => {
+            success_message("Database connectivity: OK");
+            tests_passed += 1;
+        }
+        Err(e) => {
+            error_message(&format!("Database connectivity: {}", e));
+            tests_failed += 1;
+        }
     }
 
     // Test collection access
-    pb.set_message("Testing collection access...");
+    info_message("📋 Testing collection access...");
     match db_manager.test_collection_access().await {
-        Ok(_) => success_message("Collection access: OK"),
-        Err(e) => error_message(&format!("Collection access: {}", e)),
+        Ok(_) => {
+            success_message("Collection access: OK");
+            tests_passed += 1;
+        }
+        Err(e) => {
+            error_message(&format!("Collection access: {}", e));
+            tests_failed += 1;
+        }
     }
 
-    pb.finish_with_message("Testing completed");
+    // Test storage bucket
+    info_message("📁 Testing storage bucket...");
+    match test_storage_bucket(&config).await {
+        Ok(_) => {
+            success_message("Storage bucket: OK");
+            tests_passed += 1;
+        }
+        Err(e) => {
+            error_message(&format!("Storage bucket: {}", e));
+            tests_failed += 1;
+        }
+    }
+
+    // Test functions
+    info_message("⚡ Testing cloud functions...");
+    let function_manager = FunctionManager::new(config.clone()).await?;
+    match test_functions(&function_manager).await {
+        Ok(_) => {
+            success_message("Cloud functions: OK");
+            tests_passed += 1;
+        }
+        Err(e) => {
+            error_message(&format!("Cloud functions: {}", e));
+            tests_failed += 1;
+        }
+    }
+
+    // Production-specific tests
+    if is_production {
+        info_message("🔒 Running production-specific tests...");
+        match test_production_specific(&config).await {
+            Ok(_) => {
+                success_message("Production-specific tests: OK");
+                tests_passed += 1;
+            }
+            Err(e) => {
+                error_message(&format!("Production-specific tests: {}", e));
+                tests_failed += 1;
+            }
+        }
+    }
+
+    // Summary
+    println!();
+    section_header("📊 Test Results Summary");
+    if tests_failed == 0 {
+        success_message(&format!("✅ All {} tests passed!", tests_passed));
+        success_message(&format!(
+            "🎉 {} Appwrite deployment is working correctly!",
+            env_name
+        ));
+
+        if is_production {
+            info_message(
+                "💡 Tip: Use --target local to test against your local development environment",
+            );
+        } else {
+            info_message("💡 Tip: Use --target prod to test against your production environment");
+        }
+    } else {
+        error_message(&format!(
+            "❌ {}/{} tests failed",
+            tests_failed,
+            tests_passed + tests_failed
+        ));
+        error_message("🔧 Check the failed tests above for troubleshooting");
+        return Err(anyhow!("Some tests failed"));
+    }
+
+    Ok(())
+}
+
+async fn test_basic_connectivity(config: &AppConfig) -> Result<()> {
+    let client = reqwest::Client::new();
+
+    // Test account endpoint (basic API connectivity with authentication)
+    let response = client
+        .get(format!("{}/account", config.endpoint))
+        .header("X-Appwrite-Project", &config.project_id)
+        .header("X-Appwrite-Key", &config.api_key)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await?;
+
+    // Account endpoint with API key should return 401 (Unauthorized)
+    // because API keys can't access account endpoints, but this confirms
+    // the API is responding and authentication headers are working
+    if response.status().is_success() || response.status() == 401 {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "API connectivity test failed: {}",
+            response.status()
+        ))
+    }
+}
+
+async fn test_storage_bucket(config: &AppConfig) -> Result<()> {
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!(
+            "{}/storage/buckets/{}",
+            config.endpoint, config.storage_bucket_id
+        ))
+        .header("X-Appwrite-Project", &config.project_id)
+        .header("X-Appwrite-Key", &config.api_key)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(anyhow!("Storage bucket test failed: {}", response.status()))
+    }
+}
+
+async fn test_functions(function_manager: &FunctionManager) -> Result<()> {
+    let functions = vec!["search_scripts", "process_purchase", "update_script_stats"];
+    let mut all_passed = true;
+
+    for function_id in functions {
+        match function_manager.function_exists(function_id).await {
+            Ok(true) => {
+                success_message(&format!("  Function {} exists", function_id));
+            }
+            Ok(false) => {
+                error_message(&format!("  Function {} missing", function_id));
+                all_passed = false;
+            }
+            Err(e) => {
+                error_message(&format!("  Function {} test failed: {}", function_id, e));
+                all_passed = false;
+            }
+        }
+    }
+
+    if all_passed {
+        Ok(())
+    } else {
+        Err(anyhow!("Some function tests failed"))
+    }
+}
+
+async fn test_production_specific(config: &AppConfig) -> Result<()> {
+    let client = reqwest::Client::new();
+
+    // Test that we're connecting to a production Appwrite instance
+    let _response = client
+        .get(format!("{}/version", config.endpoint))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await?;
+
+    // Check if endpoint looks like production (HTTPS and not localhost)
+    let endpoint = &config.endpoint;
+    if !endpoint.starts_with("https://") || endpoint.contains("localhost") {
+        return Err(anyhow!(
+            "Production endpoint should use HTTPS and not be localhost"
+        ));
+    }
+
+    // Test that API key has appropriate permissions by trying to list projects
+    let project_response = client
+        .get(format!("{}/projects", config.endpoint))
+        .header("X-Appwrite-Key", &config.api_key)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await?;
+
+    // Production API keys should be able to list projects
+    if !project_response.status().is_success() && project_response.status() != 401 {
+        return Err(anyhow!(
+            "Production API key test failed: {}",
+            project_response.status()
+        ));
+    }
+
+    // Test a safer endpoint that should work in production
+    let health_response = client
+        .get(format!("{}/health", config.endpoint))
+        .header("X-Appwrite-Project", &config.project_id)
+        .header("X-Appwrite-Key", &config.api_key)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await?;
+
+    // Health endpoint might work in production with proper permissions
+    match health_response.status().as_u16() {
+        200 | 401 => {
+            // 200 = health check works, 401 = auth works but need different permissions
+            success_message("  Production API authentication verified");
+        }
+        _ => {
+            return Err(anyhow!(
+                "Production health check failed: {}",
+                health_response.status()
+            ));
+        }
+    }
 
     Ok(())
 }

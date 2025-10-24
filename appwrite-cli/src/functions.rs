@@ -129,12 +129,12 @@ impl FunctionManager {
 
     pub async fn deploy_all_functions(&self) -> Result<()> {
         let functions = vec![
-            ("search_scripts", "Search Scripts", "node-18.0", None),
-            ("process_purchase", "Process Purchase", "node-18.0", None),
+            ("search_scripts", "Search Scripts", "node-16.0", None),
+            ("process_purchase", "Process Purchase", "node-16.0", None),
             (
                 "update_script_stats",
                 "Update Script Stats",
-                "node-18.0",
+                "node-16.0",
                 Some(vec![
                     "databases.marketplace_db.collections.scripts.documents.*.create".to_string(),
                 ]),
@@ -161,7 +161,7 @@ impl FunctionManager {
     }
 
     async fn deploy_function_code(&self, function_id: &str) -> Result<()> {
-        let function_path = Path::new("appwrite/functions").join(function_id);
+        let function_path = Path::new("../appwrite/functions").join(function_id);
 
         // Check if function directory exists
         if !function_path.exists() {
