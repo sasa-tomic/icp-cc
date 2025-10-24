@@ -2,13 +2,14 @@
 
 (none)
 
-## Update the list of tasks
+## Update this document (tasks from this section should always stay here)
 
 - If some task needs to be broken down into smaller actions, add them all as nested subtasks into this TODO.md document
 - Whenever some task is completed or found to be already done, REMOVE it from this TODO.md document
 - If a whole section is empty, leave a placeholder: `(none)`
 - Check if this document is well organized and structured and if not, reorganize and restructure to IMPROVE it.
 - clarify in this document if some task is particularly complex or difficult to do and try to break it down to smaller tasks
+- Remember: tasks from this section should always stay untouched. All other sections in this document MUST be kept up to date.
 
 ## ICP Autorun Marketplace
 
