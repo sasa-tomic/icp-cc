@@ -178,7 +178,7 @@ appwrite-api-server-dev: appwrite-api-server
 # Start local Appwrite development environment
 appwrite-local-up:
     @echo "==> Starting local Appwrite development environment"
-    cd {{root}} && docker compose -f docker-compose.dev.yml up -d
+    cd {{root}} && docker compose --env-file appwrite-local.env  up -d
     @echo "==> Waiting for Appwrite to be ready..."
     sleep 30
     @echo "==> Appwrite Console: http://localhost:48080"
@@ -187,17 +187,17 @@ appwrite-local-up:
 # Stop local Appwrite development environment
 appwrite-local-down:
     @echo "==> Stopping local Appwrite development environment"
-    cd {{root}} && docker compose -f docker-compose.dev.yml down
+    cd {{root}} && docker compose --env-file appwrite-local.env  down
 
 # Show local Appwrite logs
 appwrite-local-logs:
     @echo "==> Showing local Appwrite logs"
-    cd {{root}} && docker compose -f docker-compose.dev.yml logs -f
+    cd {{root}} && docker compose --env-file appwrite-local.env logs -f
 
 # Reset local Appwrite environment (wipes all data)
 appwrite-local-reset:
     @echo "==> Resetting local Appwrite environment (wipes all data)"
-    cd {{root}} && docker compose -f docker-compose.dev.yml down -v
+    cd {{root}} && docker compose --env-file appwrite-local.env down -v
     docker system prune -f
     @echo "==> Local Appwrite environment reset complete"
 
