@@ -141,32 +141,6 @@ marketplace-init +args="":
     @echo "==> Initializing Appwrite configuration"
     cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- init {{args}}
 
-# =============================================================================
-# Appwrite API Server
-# =============================================================================
-
-# Start API server in development mode (default)
-appwrite-api-server +args="":
-    @echo "==> Starting Appwrite API server (development mode)"
-    cd {{root}}/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && npm run dev {{args}}
-
-# Start API server in local development mode
-appwrite-api-server-local +args="":
-    @echo "==> Starting Appwrite API server (local development mode)"
-    cd {{root}}/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && APPWRITE_ENDPOINT=http://localhost:48080/v1 npm run dev {{args}}
-
-# Start API server in production mode
-appwrite-api-server-prod +args="":
-    @echo "==> Starting Appwrite API server (production mode)"
-    cd {{root}}/appwrite-api-server && (npm list --production >/dev/null 2>&1 || npm install) && npm start {{args}}
-
-# Test API server
-appwrite-api-server-test +args="":
-    @echo "==> Testing Appwrite API server"
-    cd {{root}}/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && npm test {{args}}
-
-# Legacy compatibility
-appwrite-api-server-dev: appwrite-api-server
 
 # =============================================================================
 # Local Development Environment
@@ -221,17 +195,14 @@ marketplace-local-deploy +args="--yes":
     @echo "==> Deploying marketplace to local Appwrite instance"
     cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- --target local -v deploy {{args}}
 
-# Start complete development stack (Appwrite + API Server)
+# Start complete development stack (Appwrite only)
 marketplace-dev-stack:
-    @echo "==> Starting complete development stack (Appwrite + API Server)"
+    @echo "==> Starting Appwrite development environment"
     just marketplace-local-up
-    sleep 45
-    cd {{root}}/appwrite-api-server && APPWRITE_ENDPOINT=http://localhost:48080/v1 npm run dev &
 
 # Stop complete development stack
 marketplace-dev-stop:
-    @echo "==> Stopping complete development stack"
-    pkill -f "appwrite-api-server.*npm run dev" || true
+    @echo "==> Stopping Appwrite development environment"
     just marketplace-local-down
 
 # =============================================================================
@@ -241,12 +212,12 @@ marketplace-dev-stop:
 # Run Flutter app with local development environment
 flutter-local +args="":
     @echo "==> Starting Flutter app with local development environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=MARKETPLACE_API_URL=http://localhost:48080/v1 {{args}}
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=APPWRITE_ENDPOINT=http://localhost:48080/v1 {{args}}
 
 # Run Flutter app with production environment
 flutter-production +args="":
     @echo "==> Starting Flutter app with production environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=MARKETPLACE_API_URL=https://fra.cloud.appwrite.io/v1 {{args}}
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1 {{args}}
 
 # =============================================================================
 # Help and Information
