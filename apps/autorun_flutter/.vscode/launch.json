@@ -7,7 +7,7 @@
             "type": "dart",
             "program": "lib/main.dart",
             "env": {
-                "MARKETPLACE_API_URL": "https://fra.cloud.appwrite.io/v1"
+                "APPWRITE_ENDPOINT": "https://fra.cloud.appwrite.io/v1"
             }
         },
         {
@@ -16,7 +16,7 @@
             "type": "dart",
             "program": "lib/main.dart",
             "env": {
-                "MARKETPLACE_API_URL": "http://localhost:48080/v1"
+                "APPWRITE_ENDPOINT": "http://localhost:48080/v1"
             }
         },
         {
@@ -25,7 +25,7 @@
             "type": "dart",
             "program": "lib/main.dart",
             "env": {
-                "MARKETPLACE_API_URL": "http://localhost:48080/v1"
+                "APPWRITE_ENDPOINT": "http://localhost:48080/v1"
             },
             "flutterMode": "debug"
         }

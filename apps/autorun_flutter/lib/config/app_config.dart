@@ -1,15 +1,15 @@
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
-  static const String _marketplaceApiUrl = String.fromEnvironment(
-    'MARKETPLACE_API_URL',
+  static const String _appwriteEndpoint = String.fromEnvironment(
+    'APPWRITE_ENDPOINT',
     defaultValue: 'https://fra.cloud.appwrite.io/v1',
   );
 
-  static String get marketplaceApiUrl => _marketplaceApiUrl;
+  static String get appwriteEndpoint => _appwriteEndpoint;
 
   static bool get isLocalDevelopment {
-    return _marketplaceApiUrl.contains('localhost') || _marketplaceApiUrl.contains('127.0.0.1');
+    return _appwriteEndpoint.contains('localhost') || _appwriteEndpoint.contains('127.0.0.1');
   }
 
   static bool get isProduction {
@@ -28,7 +28,7 @@ class AppConfig {
   static void debugPrintConfig() {
     if (kDebugMode) {
       debugPrint('=== App Configuration ===');
-      debugPrint('Marketplace API URL: $marketplaceApiUrl');
+      debugPrint('Appwrite Endpoint: $appwriteEndpoint');
       debugPrint('Environment: $environmentName');
       debugPrint('Is Local Development: $isLocalDevelopment');
       debugPrint('==========================');
