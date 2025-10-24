@@ -20,8 +20,8 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            endpoint: "https://fra.cloud.appwrite.io/v1".to_string(),
-            project_id: "68f7fc8b00255b20ed42".to_string(),
+            endpoint: String::new(),
+            project_id: String::new(),
             api_key: String::new(),
             database_id: "marketplace_db".to_string(),
             scripts_collection_id: "scripts".to_string(),
@@ -43,15 +43,15 @@ impl AppConfig {
         }
     }
 
-    pub fn config_path() -> PathBuf {
+    pub fn config_path(target: &str) -> PathBuf {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("icp-marketplace")
-            .join("config.json")
+            .join(format!("{}.json", target))
     }
 
-    pub fn load() -> Result<Self> {
-        let config_path = Self::config_path();
+    pub fn load(target: &str) -> Result<Self> {
+        let config_path = Self::config_path(target);
 
         if !config_path.exists() {
             return Ok(Self::default());
@@ -66,8 +66,8 @@ impl AppConfig {
         Ok(config)
     }
 
-    pub fn save(&self) -> Result<()> {
-        let config_path = Self::config_path();
+    pub fn save(&self, target: &str) -> Result<()> {
+        let config_path = Self::config_path(target);
 
         // Create directory if it doesn't exist
         if let Some(parent) = config_path.parent() {
