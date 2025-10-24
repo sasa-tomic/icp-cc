@@ -2,6 +2,15 @@
 
 ## Active Development Tasks
 
+1. **Create Appwrite Site** - Set up new site with Git integration
+2. **Migrate function code** - Convert functions to site API routes:
+   - `search_scripts` → `/api/search_scripts`
+   - `process_purchase` → `/api/process_purchase`
+   - `update_script_stats` → `/api/update_script_stats`
+3. **Update frontend URLs** - Replace function URLs with relative API routes
+4. **Deploy site** - Use Git-based deployment instead of individual function deployments
+5. **Configure custom domain** - Set up branded domain for production (optional) 
+
 ### Bootstrapping a fresh local appwrite instance
 Bootstrapping a freshly created docker deployment should be fully automated.
 Seems like appwrite-cli can be used to initially set up an instance right after creating the containers, so that user does not have to manually click through the UI to configure the team, project, API keys, etc.

@@ -20,4 +20,7 @@
 - Use web-search-prime if you ever notice that you don't have the correct information on how to use specific library or software
 - Use appwrite-docs and appwrite-api if your task is to write or update an appwrite application to get the latest docs or manage deployments, respectively
 
-- **Local Development with Appwrite**: See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for complete setup guide 
+- **Local Development with Appwrite**: See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for complete setup guide
+- **Appwrite Architecture**: See [docs/appwrite-sites-vs-functions.md](./docs/appwrite-sites-vs-functions.md) for Sites vs Functions decision
+- **Function URLs**: See [docs/appwrite-function-urls.md](./docs/appwrite-function-urls.md) for function endpoint URLs and integration guide
+- **IMPORTANT**: We've determined that Appwrite Sites should be used instead of Functions for our use case. See [docs/appwrite-sites-vs-functions.md](./docs/appwrite-sites-vs-functions.md) for detailed reasoning.
