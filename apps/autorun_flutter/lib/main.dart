@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'rust/native_bridge.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/identity_home_page.dart';
+import 'screens/marketplace_screen.dart';
 import 'screens/scripts_screen.dart';
 
 void main() {
@@ -146,6 +147,7 @@ class _MainHomePageState extends State<MainHomePage> {
         children: <Widget>[
           const ScriptsScreen(),
           FavoritesScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
+          const MarketplaceScreen(),
           const IdentityHomePage(),
         ],
       ),
@@ -154,6 +156,7 @@ class _MainHomePageState extends State<MainHomePage> {
         destinations: const <NavigationDestination>[
           NavigationDestination(icon: Icon(Icons.code), label: 'Scripts'),
           NavigationDestination(icon: Icon(Icons.favorite), label: 'Favorites'),
+          NavigationDestination(icon: Icon(Icons.store), label: 'Marketplace'),
           NavigationDestination(icon: Icon(Icons.verified_user), label: 'Identities'),
         ],
         onDestinationSelected: (int index) {
