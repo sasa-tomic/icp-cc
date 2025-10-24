@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  appwrite:
+    image: appwrite/appwrite:latest
+    container_name: icp-marketplace-appwrite-local
+    ports:
+      - "48080:80"
+    environment:
+      - _APP_ENV=development
+      - _APP_LOCALE=en-US
+      - _APP_CONSOLE_URL=http://localhost:48080
+      - _APP_CONSOLE_WHITELIST_ROOT=localhost
+      - _APP_CONSOLE_WHITELIST_ROOTS=localhost,127.0.0.1
+      - _APP_DOMAIN=http://localhost:48080
+      - _APP_DOMAIN_TARGET=http://localhost:48080
+      - _APP_REDIS_HOST=redis
+      - _APP_REDIS_PORT=6379
+      - _APP_DB_MYSQL_HOST=mariadb
+      - _APP_DB_MYSQL_PORT=3306
+      - _APP_DB_MYSQL_USER=root
+      - _APP_DB_MYSQL_PASSWORD=devpassword
+      - _APP_DB_MYSQL_DB=appwrite
+      - _APP_DB_MYSQL_ROOT_PASSWORD=devpassword
+      - _APP_STORAGE_DEVICE=Local
+      - _APP_STORAGE_S3_BUCKET=appwrite
+      - _APP_STORAGE_S3_REGION=us-east-1
+      - _APP_STORAGE_S3_ACCESS_KEY=appwrite
+      - _APP_STORAGE_S3_SECRET_KEY=appwrite-secret-key
+      - _APP_EXECUTOR_CONNECTION=local
+      - _APP_EXECUTOR_CPU_MAX=0
+      - _APP_EXECUTOR_MEMORY_MAX=0
+      - _APP_EXECUTOR_TIMEOUT=900
+      - _APP_EXECUTOR_CONCURRENCY=1
+      - _APP_FUNCTIONS_CPUS=0
+      - _APP_FUNCTIONS_MEMORY=0
+      - _APP_FUNCTIONS_TIMEOUT=900
+      - _APP_FUNCTIONS_BUILD_CPUS=0
+      - _APP_FUNCTIONS_BUILD_MEMORY=0
+      - _APP_FUNCTIONS_BUILD_TIMEOUT=900
+      - _APP_LOGGING_LEVEL=debug
+      - _APP_LOGGING_CONFIG=
+      - _APP_LOGGING_DRIVER=stdout
+      - _APP_COOKIE_SECRET=supersecretcookie123456789
+    volumes:
+      - appwrite-uploads:/storage/uploads:rw
+      - appwrite-cache:/storage/cache:rw
+      - appwrite-config:/storage/config:rw
+      - appwrite-ssl:/storage/ssl:rw
+      - appwrite-functions:/storage/functions:rw
+    depends_on:
+      - mariadb
+      - redis
+    networks:
+      - appwrite-network
+    restart: unless-stopped
+
+  mariadb:
+    image: mariadb:10.6
+    container_name: icp-marketplace-mariadb-local
+    environment:
+      - MYSQL_ROOT_PASSWORD=devpassword
+      - MYSQL_DATABASE=appwrite
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - appwrite-mariadb:/var/lib/mysql:rw
+    networks:
+      - appwrite-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      timeout: 30s
+      retries: 5
+      interval: 10s
+      start_period: 60s
+
+  redis:
+    image: redis:6.2-alpine
+    container_name: icp-marketplace-redis-local
+    command: redis-server --appendonly yes
+    volumes:
+      - appwrite-redis:/data:rw
+    networks:
+      - appwrite-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 3s
+      retries: 5
+
+volumes:
+  appwrite-uploads:
+  appwrite-cache:
+  appwrite-config:
+  appwrite-ssl:
+  appwrite-functions:
+  appwrite-mariadb:
+  appwrite-redis:
+
+networks:
+  appwrite-network:
+    driver: bridge

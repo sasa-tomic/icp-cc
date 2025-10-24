@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
+import '../config/app_config.dart';
 
 // Flag to control debug output in tests
 bool suppressDebugOutput = false;
@@ -12,10 +13,7 @@ class MarketplaceOpenApiService {
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal();
 
-  final String _baseUrl = String.fromEnvironment(
-    'MARKETPLACE_API_URL',
-    defaultValue: 'https://fra.cloud.appwrite.io/v1',
-  ); // API server URL configurable via environment variable
+  final String _baseUrl = AppConfig.marketplaceApiUrl; // API server URL from configuration
   final Duration _timeout = const Duration(seconds: 30);
   static const int defaultSearchLimit = 20;
 
