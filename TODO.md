@@ -2,14 +2,15 @@
 
 ## Active Development Tasks
 
-1. **Create Appwrite Site** - Set up new site with Git integration
-2. **Migrate function code** - Convert functions to site API routes:
+1. **Create Appwrite Site** ✅ COMPLETED - Set up SvelteKit site with API routes
+2. **Migrate function code** ✅ COMPLETED - Converted all functions to site API routes:
    - `search_scripts` → `/api/search_scripts`
    - `process_purchase` → `/api/process_purchase`
    - `update_script_stats` → `/api/update_script_stats`
+   - `get_marketplace_stats` → `/api/get_marketplace_stats`
 3. **Update frontend URLs** - Replace function URLs with relative API routes
-4. **Deploy site** - Use Git-based deployment instead of individual function deployments
-5. **Configure custom domain** - Set up branded domain for production (optional) 
+4. **Deploy site** - Use Git-based deployment to https://icp-autorun.appwrite.network
+5. **Configure production URL** ✅ COMPLETED - Set up https://icp-autorun.appwrite.network 
 
 ### Bootstrapping a fresh local appwrite instance
 Bootstrapping a freshly created docker deployment should be fully automated.
@@ -35,6 +36,20 @@ Commands:
 ```
 
 ## Marketplace Features (Priority: High)
+
+### Script Downloads & Installation (Priority: High)
+- Create script download functionality
+  - Build script download API endpoint
+  - Add download tracking and analytics: store stats in the DB
+  - Create script installation guides and documentation, with step-by-step guidance
+  - Design one-click download and installation flow
+  - Implement version management and update notifications
+  - Add support for installing locally a particular version of the script
+  - Design rollback mechanism for script updates
+  - Create script preview functionality (code snippets, screenshots, reviews)
+  - Analyze and research if other assets such as images and sound would be good to package with scripts
+  - Maybe add verification of script integrity and checksums: sha256 of each script
+  - Add download history and library management for users
 
 ### Payment Processing Integration
 - Integrate with icpay.org for script payments
