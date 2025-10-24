@@ -1,6 +1,6 @@
 ## Fixes and urgent improvements
 
-(none)
+- I'm getting 404 when opening the Marketplace on my phone. Please fix this and add a unit test.
 
 ## Update this document (tasks from this section should always stay here)
 
@@ -18,8 +18,6 @@
 - Add rust tests with a locally spinned up appwrite that deployment and redeployment works
 
 ## ICP Autorun Marketplace
-
-
 
 ### Payment Processing (Priority: High - Next Phase)
 - Integrate with icpay.org for script payments
