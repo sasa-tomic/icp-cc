@@ -102,7 +102,41 @@ impl FunctionManager {
             "name": name,
             "runtime": runtime,
             "execute": ["any"],
-            "events": events.unwrap_or_default()
+            "events": events.unwrap_or_default(),
+            "variables": [
+                {
+                    "key": "APPWRITE_FUNCTION_ENDPOINT",
+                    "value": &self.config.endpoint
+                },
+                {
+                    "key": "APPWRITE_FUNCTION_PROJECT_ID",
+                    "value": &self.config.project_id
+                },
+                {
+                    "key": "APPWRITE_FUNCTION_API_KEY",
+                    "value": &self.config.api_key
+                },
+                {
+                    "key": "DATABASE_ID",
+                    "value": &self.config.database_id
+                },
+                {
+                    "key": "SCRIPTS_COLLECTION_ID",
+                    "value": &self.config.scripts_collection_id
+                },
+                {
+                    "key": "USERS_COLLECTION_ID",
+                    "value": &self.config.users_collection_id
+                },
+                {
+                    "key": "REVIEWS_COLLECTION_ID",
+                    "value": &self.config.reviews_collection_id
+                },
+                {
+                    "key": "PURCHASES_COLLECTION_ID",
+                    "value": &self.config.purchases_collection_id
+                }
+            ]
         });
 
         match self
