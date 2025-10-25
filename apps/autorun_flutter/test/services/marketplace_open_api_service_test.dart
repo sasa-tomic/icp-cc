@@ -9,7 +9,7 @@ void main() {
     late bool hasRealMarketplace;
 
     setUpAll(() async {
-      // Initialize wrangler for testing
+      // Configure test environment (assumes wrangler is running externally)
       await WranglerManager.initialize();
       
       // Suppress debug output during tests to avoid confusing messages
@@ -31,7 +31,7 @@ void main() {
       // Re-enable debug output after tests
       suppressDebugOutput = false;
       
-      // Cleanup wrangler processes
+      // Cleanup test configuration
       await WranglerManager.cleanup();
     });
 

@@ -5,12 +5,12 @@ import '../test_helpers/wrangler_manager.dart';
 void main() {
   group('Marketplace 404 Error Handling', () {
     setUpAll(() async {
-      // Initialize wrangler for testing
+      // Configure test environment (assumes wrangler is running externally)
       await WranglerManager.initialize();
     });
 
     tearDownAll(() async {
-      // Cleanup wrangler processes
+      // Cleanup test configuration
       await WranglerManager.cleanup();
     });
     test('should handle HTTP 404 gracefully when opening Marketplace', () async {

@@ -12,7 +12,7 @@ void main() {
     late String testScriptId;
 
     setUpAll(() async {
-      // Initialize wrangler for testing
+      // Configure test environment (assumes wrangler is running externally)
       await WranglerManager.initialize();
       
       // Initialize service

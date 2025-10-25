@@ -57,12 +57,8 @@ windows:
 # Testing
 # =============================================================================
 
-# Run all tests with analysis and linting
-test:
-    @echo "==> Running Flutter analysis..."
-    cd {{root}}/apps/autorun_flutter && flutter analyze --quiet
-    @echo "==> Running Flutter tests..."
-    cd {{root}}/apps/autorun_flutter && flutter test --quiet
+# Run tests in machine-readable format (for CI/CD)
+test-machine: test-with-cloudflare
     @echo "==> Running Rust linting and tests"
     cargo clippy --benches --tests --all-features --quiet
     cargo clippy --quiet
@@ -70,18 +66,19 @@ test:
     cargo nextest run
     @echo "✅ All tests passed!"
 
-# Run tests in machine-readable format (for CI/CD)
-test-machine:
+# Run all tests with analysis and linting (alias for test-machine)
+test: test-machine
+
+# Run Flutter tests with Cloudflare Workers
+test-with-cloudflare:
+    @echo "==> Starting Cloudflare Workers for tests..."
+    just cloudflare-test-up
     @echo "==> Running Flutter analysis..."
     cd {{root}}/apps/autorun_flutter && flutter analyze --quiet
     @echo "==> Running Flutter tests..."
     cd {{root}}/apps/autorun_flutter && flutter test --machine --quiet
-    @echo "==> Running Rust linting and tests"
-    cargo clippy --benches --tests --all-features --quiet
-    cargo clippy --quiet
-    cargo fmt --all --quiet
-    cargo nextest run
-    @echo "✅ All tests passed!"
+    @echo "==> Stopping Cloudflare Workers..."
+    just cloudflare-test-down
 
 # =============================================================================
 # Cleanup
@@ -178,6 +175,84 @@ cloudflare-local-down:
     @echo "==> Stopping local Cloudflare Workers development environment"
     @pkill -f "wrangler dev" || echo "No wrangler processes found"
     @echo "==> Cloudflare Workers stopped"
+
+# Start Cloudflare Workers for testing (with PID management)
+cloudflare-test-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Starting Cloudflare Workers for testing"
+    
+    # Check if already running
+    if [ -f /tmp/wrangler-test.pid ]; then
+        if kill -0 "$(cat /tmp/wrangler-test.pid)" 2>/dev/null; then
+            echo "==> Cloudflare Workers already running with PID $(cat /tmp/wrangler-test.pid)"
+            exit 0
+        else
+            echo "==> Stale PID file found, cleaning up..."
+            rm -f /tmp/wrangler-test.pid
+        fi
+    fi
+    
+    # Start wrangler in background and capture PID
+    cd "{{root}}/cloudflare-api"
+    wrangler dev --port 8787 --persist-to .wrangler/state > /tmp/wrangler-test.log 2>&1 &
+    echo $! > /tmp/wrangler-test.pid
+    echo "==> Cloudflare Workers started with PID $(cat /tmp/wrangler-test.pid)"
+    echo "==> Waiting for Cloudflare Workers to be ready..."
+    
+    # Wait up to 45 seconds for server to be ready, checking every 2 seconds
+    timeout=45
+    elapsed=0
+    while [ $elapsed -lt $timeout ]; do
+        if curl -s http://localhost:8787/health >/dev/null 2>&1; then
+            echo "==> ✅ Cloudflare Workers is healthy and ready for tests!"
+            echo "==> API Endpoint: http://localhost:8787"
+            echo "==> Health Check: http://localhost:8787/health"
+            exit 0
+        fi
+        echo "==> Waiting for server... ($elapsed/$timeout seconds)"
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    echo "==> ❌ Cloudflare Workers failed to start within $timeout seconds"
+    echo "==> Check logs with: cat /tmp/wrangler-test.log"
+    exit 1
+
+# Stop Cloudflare Workers for testing (with PID management)
+cloudflare-test-down:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Stopping Cloudflare Workers for testing"
+    
+    if [ -f /tmp/wrangler-test.pid ]; then
+        pid=$(cat /tmp/wrangler-test.pid)
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "==> Stopping Cloudflare Workers with PID $pid"
+            kill -TERM "$pid"
+            sleep 2
+            if kill -0 "$pid" 2>/dev/null; then
+                echo "==> Force killing Cloudflare Workers with PID $pid"
+                kill -KILL "$pid"
+            fi
+            echo "==> ✅ Cloudflare Workers stopped"
+        else
+            echo "==> Cloudflare Workers process $pid not found"
+        fi
+        rm -f /tmp/wrangler-test.pid
+    else
+        echo "==> No Cloudflare Workers PID file found"
+    fi
+    
+    # Clean up any remaining wrangler processes on port 8787
+    pids=$(lsof -ti:8787 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            if ps -p "$pid" -o command= | grep -q "wrangler dev"; then
+                echo "==> Cleaning up additional wrangler process $pid"
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
+        done
+    fi
 
 # Show local Cloudflare Workers logs
 cloudflare-local-logs:
