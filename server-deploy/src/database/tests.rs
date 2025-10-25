@@ -5,7 +5,7 @@ use std::time::Duration;
 
 fn create_test_db_manager() -> crate::database::DatabaseManager {
     let config = AppConfig {
-        endpoint: "https://test.appwrite.io/v1".to_string(),
+        endpoint: "https://test.workers.dev".to_string(),
         project_id: "test-project".to_string(),
         api_key: "test-key".to_string(),
         database_id: "test-db".to_string(),

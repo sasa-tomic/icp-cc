@@ -49,12 +49,10 @@ just clean              # Clean build artifacts
 just all                # Build all platforms
 ```
 
-### Appwrite Development
+### Cloudflare Workers Development
 ```bash
-just appwrite-setup                # Install Appwrite CLI and tools
-just appwrite-deploy -- --dry-run   # Deploy with dry-run
-just appwrite-local-deploy -- --force # Deploy to local instance
-just appwrite-dev-stack              # Start complete development environment
+just cloudflare-dev                 # Start local development server
+just cloudflare-deploy              # Deploy to production
 ```
 
 ## ⚡ Features
@@ -73,11 +71,11 @@ just appwrite-dev-stack              # Start complete development environment
 
 - `apps/autorun_flutter`: Flutter application
 - `crates/icp_core`: Rust FFI crate (cdylib)
+- `cloudflare-api/`: Cloudflare Workers API implementation
 - `justfile`: Modern build configuration (replaces Makefile)
 - `scripts/`: Build and bootstrap helpers
 - `docs/`: Architecture and build documentation
-- `marketplace-deploy/`: Deployment tools for Appwrite
-- `appwrite-api-server/`: Node.js API server
+- `server-deploy/`: Deployment tools for Cloudflare Workers
 
 ## 🔧 Scripts
 
@@ -94,12 +92,12 @@ just appwrite-dev-stack              # Start complete development environment
 ```bash
 just                           # Show help
 just --list                     # List all commands
-just appwrite-deploy -- --help   # Show command-specific help
+just cloudflare-deploy -- --help   # Show command-specific help
 ```
 
 ### Advanced Usage
 - **Parallel builds**: `just all` builds all platforms concurrently when possible
-- **Flexible arguments**: `just appwrite-deploy -- --dry-run --verbose`
+- **Flexible arguments**: `just cloudflare-deploy -- --dry-run --verbose`
 - **Platform detection**: Just automatically detects your OS and architecture
 
 ## 📖 Command Reference
@@ -111,7 +109,7 @@ just appwrite-deploy -- --help   # Show command-specific help
 | Build Linux | `just linux` |
 | Build Android | `just android` |
 | Clean artifacts | `just clean` |
-| Deploy with dry-run | `just appwrite-deploy -- --dry-run` |
+| Deploy with dry-run | `just cloudflare-deploy -- --dry-run` |
 
 ## ⚠️ Notes
 

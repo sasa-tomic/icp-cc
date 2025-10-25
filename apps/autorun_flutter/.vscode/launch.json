@@ -7,7 +7,7 @@
             "type": "dart",
             "program": "lib/main.dart",
             "env": {
-                "APPWRITE_ENDPOINT": "https://icp-autorun.appwrite.network/v1"
+                "CLOUDFLARE_ENDPOINT": "https://icp-autorun.appwrite.network"
             }
         },
         {
@@ -16,7 +16,7 @@
             "type": "dart",
             "program": "lib/main.dart",
             "env": {
-                "APPWRITE_ENDPOINT": "http://localhost:48080/v1"
+                "CLOUDFLARE_ENDPOINT": "http://localhost:8787"
             }
         },
         {
@@ -25,7 +25,7 @@
             "type": "dart",
             "program": "lib/main.dart",
             "env": {
-                "APPWRITE_ENDPOINT": "http://localhost:48080/v1"
+                "CLOUDFLARE_ENDPOINT": "http://localhost:8787"
             },
             "flutterMode": "debug"
         }
