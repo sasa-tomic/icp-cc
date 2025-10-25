@@ -82,26 +82,7 @@ impl AppConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum AttributeType {
-    String,
-    Integer,
-    Float,
-    Boolean,
-    StringArray,
-}
 
-impl AttributeType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AttributeType::String => "string",
-            AttributeType::Integer => "integer",
-            AttributeType::Float => "float",
-            AttributeType::Boolean => "boolean",
-            AttributeType::StringArray => "string",
-        }
-    }
-}
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]

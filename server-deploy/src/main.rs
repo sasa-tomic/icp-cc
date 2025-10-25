@@ -259,7 +259,7 @@ fn update_wrangler_config(
     // Update database configuration
     let updated_content = config_content
         .replace(
-            &format!("\"database_name\": \"icp-marketplace-db\""),
+            "\"database_name\": \"icp-marketplace-db\"",
             &format!("\"database_name\": \"{}\"", database_name),
         )
         .replace(
