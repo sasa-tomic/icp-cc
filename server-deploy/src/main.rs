@@ -274,9 +274,8 @@ fn update_wrangler_config(
 }
 
 fn get_worker_url(worker_name: &str) -> Result<String> {
-    // For now, return a default URL pattern
-    // In a real implementation, you might extract this from wrangler output
-    Ok(format!("https://{}.workers.dev", worker_name))
+    // Return the correct URL pattern for multifold.workers.dev subdomain
+    Ok(format!("https://{}.multifold.workers.dev", worker_name))
 }
 
 async fn handle_init(
@@ -555,7 +554,7 @@ async fn handle_test(target: &str) -> Result<()> {
     let worker_url = if !config.worker_url.is_empty() {
         config.worker_url.clone()
     } else if is_production {
-        format!("https://{}.workers.dev", config.worker_name)
+        format!("https://{}.multifold.workers.dev", config.worker_name)
     } else {
         "http://localhost:8787".to_string()
     };
