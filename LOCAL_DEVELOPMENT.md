@@ -73,7 +73,7 @@ The Flutter app uses environment variable for API endpoint:
 just flutter-local  # Uses http://localhost:48080/v1
 
 # Production
-just flutter-production  # Uses https://fra.cloud.appwrite.io/v1
+just flutter-production  # Uses https://icp-autorun.appwrite.network/v1
 ```
 
 ### 5. Complete Testing Workflow
@@ -152,12 +152,6 @@ Error: Connection refused
 - Solution: Verify Appwrite containers are running
 - Run `docker ps | grep appwrite` to check container status
 
-**Function deployment fails**
-```
-Error: Function directory not found
-```
-- Solution: Check directory permissions
-- Run `chmod -R 755 appwrite/functions/`
 
 **Flutter app can't connect**
 - Solution: Verify local Appwrite is running

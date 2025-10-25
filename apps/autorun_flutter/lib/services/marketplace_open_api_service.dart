@@ -13,7 +13,7 @@ class MarketplaceOpenApiService {
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal();
 
-  final String _baseUrl = AppConfig.appwriteEndpoint; // Appwrite endpoint URL from configuration
+  final String _baseUrl = '${AppConfig.appwriteEndpoint}/api'; // Site API endpoints
   final Duration _timeout = const Duration(seconds: 30);
   static const int defaultSearchLimit = 20;
 
@@ -30,25 +30,34 @@ class MarketplaceOpenApiService {
     int offset = 0,
   }) async {
     try {
-      final uri = Uri.parse('$_baseUrl/scripts/search').replace(queryParameters: {
-        if (query != null && query.isNotEmpty) 'q': query,
-        if (category != null) 'category': category,
-        if (canisterId != null) 'canister_id': canisterId,
-        if (minRating != null) 'min_rating': minRating.toString(),
-        if (maxPrice != null) 'max_price': maxPrice.toString(),
-        'sort_by': sortBy,
-        'sort_order': sortOrder,
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-      });
-
-      final response = await http.get(uri).timeout(_timeout);
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/search_scripts'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'query': query,
+              'category': category,
+              'canisterId': canisterId,
+              'minRating': minRating,
+              'maxPrice': maxPrice,
+              'sortBy': sortBy,
+              'order': sortOrder,
+              'limit': limit,
+              'offset': offset,
+            }),
+          )
+          .timeout(_timeout);
 
       if (response.statusCode != 200) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body);
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Search failed');
+      }
+
+      final data = responseData['data'];
       final scripts = (data['scripts'] as List)
           .map((script) => MarketplaceScript.fromJson(script))
           .toList();
@@ -56,7 +65,7 @@ class MarketplaceOpenApiService {
       return MarketplaceSearchResult(
         scripts: scripts,
         total: data['total'] ?? 0,
-        hasMore: (data['hasMore'] ?? false) as bool,
+        hasMore: data['hasMore'] ?? false,
         offset: offset,
         limit: limit,
       );
@@ -81,7 +90,12 @@ class MarketplaceOpenApiService {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body);
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Failed to get script details');
+      }
+
+      final data = responseData['data'];
       return MarketplaceScript.fromJson(data);
 
     } catch (e) {
@@ -101,7 +115,12 @@ class MarketplaceOpenApiService {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body) as List;
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Failed to get featured scripts');
+      }
+
+      final data = responseData['data'] as List;
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
@@ -121,7 +140,12 @@ class MarketplaceOpenApiService {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body) as List;
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Failed to get trending scripts');
+      }
+
+      final data = responseData['data'] as List;
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
@@ -152,7 +176,12 @@ class MarketplaceOpenApiService {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body) as List;
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Failed to get scripts by category');
+      }
+
+      final data = responseData['data'] as List;
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
@@ -181,7 +210,12 @@ class MarketplaceOpenApiService {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body) as List;
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Failed to get script reviews');
+      }
+
+      final data = responseData['data'] as List;
       return data.map((review) => ScriptReview.fromJson(review)).toList();
 
     } catch (e) {
@@ -266,14 +300,19 @@ class MarketplaceOpenApiService {
   Future<MarketplaceStats> getMarketplaceStats() async {
     try {
       final response = await http
-          .get(Uri.parse('$_baseUrl/stats'))
+          .get(Uri.parse('$_baseUrl/get_marketplace_stats'))
           .timeout(_timeout);
 
       if (response.statusCode != 200) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body);
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Failed to get marketplace stats');
+      }
+
+      final data = responseData['data'];
       return MarketplaceStats.fromJson(data);
 
     } catch (e) {
@@ -312,7 +351,12 @@ class MarketplaceOpenApiService {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body) as List;
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Failed to get compatible scripts');
+      }
+
+      final data = responseData['data'] as List;
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
@@ -336,7 +380,12 @@ class MarketplaceOpenApiService {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body);
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Script validation failed');
+      }
+
+      final data = responseData['data'];
       return ScriptValidationResult.fromJson(data);
 
     } catch (e) {
@@ -388,11 +437,16 @@ class MarketplaceOpenApiService {
           .timeout(_timeout);
 
       if (response.statusCode != 201) {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['error'] ?? 'Upload failed: ${response.reasonPhrase}');
+        final responseData = jsonDecode(response.body);
+        throw Exception(responseData['error'] ?? 'Upload failed: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body);
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Upload failed');
+      }
+
+      final data = responseData['data'];
       return MarketplaceScript.fromJson(data);
 
     } catch (e) {
@@ -439,11 +493,16 @@ class MarketplaceOpenApiService {
           .timeout(_timeout);
 
       if (response.statusCode != 200) {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['error'] ?? 'Update failed: ${response.reasonPhrase}');
+        final responseData = jsonDecode(response.body);
+        throw Exception(responseData['error'] ?? 'Update failed: ${response.reasonPhrase}');
       }
 
-      final data = jsonDecode(response.body);
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Update failed');
+      }
+
+      final data = responseData['data'];
       return MarketplaceScript.fromJson(data);
 
     } catch (e) {
@@ -460,7 +519,13 @@ class MarketplaceOpenApiService {
           .timeout(_timeout);
 
       if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        final responseData = jsonDecode(response.body);
+        throw Exception(responseData['error'] ?? 'Delete failed: ${response.reasonPhrase}');
+      }
+
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Delete failed');
       }
 
       return true;

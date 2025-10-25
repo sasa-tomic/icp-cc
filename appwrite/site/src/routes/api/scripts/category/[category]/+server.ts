@@ -8,52 +8,45 @@ const appwriteClient = new sdk.Client()
 
 const db = new sdk.Databases(appwriteClient);
 
-export const POST: RequestHandler = async ({ request }) => {
+export const GET: RequestHandler = async ({ params, url }) => {
   try {
-    const { query, category, canisterId, minRating, maxPrice, sortBy = 'createdAt', order = 'desc', limit = 20, offset = 0 } = await request.json();
+    const category = params.category;
+    const limit = parseInt(url.searchParams.get('limit') || '20');
+    const offset = parseInt(url.searchParams.get('offset') || '0');
+    const sortBy = url.searchParams.get('sort_by') || 'rating';
+    const sortOrder = url.searchParams.get('sort_order') || 'desc';
 
-    // Import Query from the SDK
+    if (!category) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Category is required'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const { Query } = sdk;
 
-    let queries: any[] = [];
-
-    // Base query for public and approved scripts
-    queries.push(Query.equal('isPublic', true));
-    queries.push(Query.equal('isApproved', true));
-
-    // Full-text search across title, description, and tags
-    if (query) {
-      queries.push(Query.search('title', query));
-      queries.push(Query.search('description', query));
-    }
-
-    // Category filter
-    if (category) {
-      queries.push(Query.equal('category', category));
-    }
-
-    // Canister ID filter - check if script is compatible with specified canister
-    if (canisterId) {
-      queries.push(Query.search('canisterIds', canisterId));
-    }
-
-    // Rating filter
-    if (minRating) {
-      queries.push(Query.greaterThanEqual('rating', minRating));
-    }
-
-    // Price filter
-    if (maxPrice !== undefined) {
-      queries.push(Query.lessThanEqual('price', maxPrice));
-    }
+    // Build queries
+    let queries: any[] = [
+      Query.equal('isPublic', true),
+      Query.equal('isApproved', true),
+      Query.equal('category', category)
+    ];
 
     // Sort order
-    queries.push(Query.orderDesc(sortBy === 'rating' || sortBy === 'downloads' || sortBy === 'createdAt' ? sortBy : 'createdAt'));
+    if (sortOrder === 'desc') {
+      queries.push(Query.orderDesc(sortBy));
+    } else {
+      queries.push(Query.orderAsc(sortBy));
+    }
 
     // Pagination
     queries.push(Query.limit(limit));
     queries.push(Query.offset(offset));
 
+    // Get scripts by category
     const scripts = await db.listDocuments(
       process.env.DATABASE_ID || '',
       process.env.SCRIPTS_COLLECTION_ID || '',
@@ -98,22 +91,18 @@ export const POST: RequestHandler = async ({ request }) => {
 
     return new Response(JSON.stringify({
       success: true,
-      data: {
-        scripts: enrichedScripts,
-        total: scripts.total,
-        hasMore: scripts.documents.length < scripts.total
-      }
+      data: enrichedScripts
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (err: any) {
-    console.error('Search failed:', err.message);
+    console.error('Get scripts by category failed:', err.message);
 
     return new Response(JSON.stringify({
       success: false,
-      error: 'Search failed',
+      error: 'Failed to get scripts by category',
       details: err.message
     }), {
       status: 500,

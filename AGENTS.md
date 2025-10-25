@@ -22,5 +22,5 @@
 
 - **Local Development with Appwrite**: See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for complete setup guide
 - **Appwrite Architecture**: See [docs/appwrite-sites-vs-functions.md](./docs/appwrite-sites-vs-functions.md) for Sites vs Functions decision
-- **Function URLs**: See [docs/appwrite-function-urls.md](./docs/appwrite-function-urls.md) for function endpoint URLs and integration guide
-- **IMPORTANT**: We've determined that Appwrite Sites should be used instead of Functions for our use case. See [docs/appwrite-sites-vs-functions.md](./docs/appwrite-sites-vs-functions.md) for detailed reasoning.
+- **API Endpoints**: See [docs/appwrite-function-urls.md](./docs/appwrite-function-urls.md) for API endpoint URLs and integration guide
+- **IMPORTANT**: We use Appwrite Sites with API routes instead of Functions. See [docs/appwrite-sites-vs-functions.md](./docs/appwrite-sites-vs-functions.md) for detailed reasoning.

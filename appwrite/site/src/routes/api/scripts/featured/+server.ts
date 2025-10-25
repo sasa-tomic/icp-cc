@@ -8,56 +8,24 @@ const appwriteClient = new sdk.Client()
 
 const db = new sdk.Databases(appwriteClient);
 
-export const POST: RequestHandler = async ({ request }) => {
+export const GET: RequestHandler = async ({ url }) => {
   try {
-    const { query, category, canisterId, minRating, maxPrice, sortBy = 'createdAt', order = 'desc', limit = 20, offset = 0 } = await request.json();
+    const limit = parseInt(url.searchParams.get('limit') || '10');
 
-    // Import Query from the SDK
     const { Query } = sdk;
 
-    let queries: any[] = [];
-
-    // Base query for public and approved scripts
-    queries.push(Query.equal('isPublic', true));
-    queries.push(Query.equal('isApproved', true));
-
-    // Full-text search across title, description, and tags
-    if (query) {
-      queries.push(Query.search('title', query));
-      queries.push(Query.search('description', query));
-    }
-
-    // Category filter
-    if (category) {
-      queries.push(Query.equal('category', category));
-    }
-
-    // Canister ID filter - check if script is compatible with specified canister
-    if (canisterId) {
-      queries.push(Query.search('canisterIds', canisterId));
-    }
-
-    // Rating filter
-    if (minRating) {
-      queries.push(Query.greaterThanEqual('rating', minRating));
-    }
-
-    // Price filter
-    if (maxPrice !== undefined) {
-      queries.push(Query.lessThanEqual('price', maxPrice));
-    }
-
-    // Sort order
-    queries.push(Query.orderDesc(sortBy === 'rating' || sortBy === 'downloads' || sortBy === 'createdAt' ? sortBy : 'createdAt'));
-
-    // Pagination
-    queries.push(Query.limit(limit));
-    queries.push(Query.offset(offset));
-
+    // Get featured scripts (high-rated, recent, and public)
     const scripts = await db.listDocuments(
       process.env.DATABASE_ID || '',
       process.env.SCRIPTS_COLLECTION_ID || '',
-      queries
+      [
+        Query.equal('isPublic', true),
+        Query.equal('isApproved', true),
+        Query.greaterThanEqual('rating', 4.0),
+        Query.orderDesc('rating'),
+        Query.orderDesc('createdAt'),
+        Query.limit(limit)
+      ]
     );
 
     // Get author details for each script
@@ -98,22 +66,18 @@ export const POST: RequestHandler = async ({ request }) => {
 
     return new Response(JSON.stringify({
       success: true,
-      data: {
-        scripts: enrichedScripts,
-        total: scripts.total,
-        hasMore: scripts.documents.length < scripts.total
-      }
+      data: enrichedScripts
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (err: any) {
-    console.error('Search failed:', err.message);
+    console.error('Get featured scripts failed:', err.message);
 
     return new Response(JSON.stringify({
       success: false,
-      error: 'Search failed',
+      error: 'Failed to get featured scripts',
       details: err.message
     }), {
       status: 500,

@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 class AppConfig {
   static const String _appwriteEndpoint = String.fromEnvironment(
     'APPWRITE_ENDPOINT',
-    defaultValue: 'https://fra.cloud.appwrite.io/v1',
+    defaultValue: 'https://icp-autorun.appwrite.network',
   );
 
   static String get appwriteEndpoint => _appwriteEndpoint;

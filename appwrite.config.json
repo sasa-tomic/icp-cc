@@ -1,6 +1,6 @@
 {
     "projectId": "68f7fc8b00255b20ed42",
-    "endpoint": "https://fra.cloud.appwrite.io/v1",
+    "endpoint": "https://icp-autorun.appwrite.network/v1",
     "projectName": "icp-marketplace",
     "settings": {
         "services": {
@@ -13,7 +13,6 @@
             "teams": true,
             "users": true,
             "sites": true,
-            "functions": true,
             "graphql": true,
             "messaging": true
         },
@@ -39,64 +38,6 @@
             }
         }
     },
-    "functions": [
-        {
-            "$id": "search_scripts",
-            "execute": [
-                "any"
-            ],
-            "name": "Search Scripts",
-            "enabled": true,
-            "logging": true,
-            "runtime": "node-18.0",
-            "scopes": [],
-            "events": [],
-            "schedule": "",
-            "timeout": 15,
-            "entrypoint": "",
-            "commands": "",
-            "specification": "s-1vcpu-512mb",
-            "path": "functions/Search Scripts"
-        },
-        {
-            "$id": "process_purchase",
-            "execute": [
-                "any"
-            ],
-            "name": "Process Purchase",
-            "enabled": true,
-            "logging": true,
-            "runtime": "node-18.0",
-            "scopes": [],
-            "events": [],
-            "schedule": "",
-            "timeout": 15,
-            "entrypoint": "",
-            "commands": "",
-            "specification": "s-1vcpu-512mb",
-            "path": "functions/Process Purchase"
-        },
-        {
-            "$id": "update_script_stats",
-            "execute": [
-                "any"
-            ],
-            "name": "Update Script Stats",
-            "enabled": true,
-            "logging": true,
-            "runtime": "node-18.0",
-            "scopes": [],
-            "events": [
-                "databases.marketplace_db.collections.scripts.documents.*.create"
-            ],
-            "schedule": "",
-            "timeout": 15,
-            "entrypoint": "",
-            "commands": "",
-            "specification": "s-1vcpu-512mb",
-            "path": "functions/Update Script Stats"
-        }
-    ],
     "tablesDB": [
         {
             "$id": "marketplace_db",

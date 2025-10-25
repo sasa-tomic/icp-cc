@@ -50,15 +50,15 @@ Switching from Functions to Sites provides:
 ## Recommended Architecture
 
 ```
-Appwrite Site (https://your-app.fra.cloud.appwrite.io)
-├── Frontend (React/Vue/etc.)
+Appwrite Site (https://icp-autorun.appwrite.network)
+├── Frontend (SvelteKit)
 ├── API Routes (/api/*)
 └── Static Assets
 ```
 
 Instead of:
 ```
-Appwrite Functions
+Appwrite Functions (Legacy)
 ├── search_scripts (https://search_scripts.fra.cloud.appwrite.io)
 ├── process_purchase (https://process_purchase.fra.cloud.appwrite.io)
 └── update_script_stats (https://update_script_stats.fra.cloud.appwrite.io)
