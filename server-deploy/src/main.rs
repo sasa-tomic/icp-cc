@@ -652,7 +652,7 @@ async fn test_cloudflare_api_endpoints(worker_url: &str) -> Result<()> {
 
     // Test marketplace stats endpoint
     let stats_response = client
-        .get(format!("{}/api/marketplace-stats", worker_url))
+        .get(format!("{}/api/v1/marketplace-stats", worker_url))
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await?;
@@ -668,7 +668,7 @@ async fn test_cloudflare_api_endpoints(worker_url: &str) -> Result<()> {
 
     // Test scripts search endpoint
     let search_response = client
-        .post(format!("{}/api/scripts/search", worker_url))
+        .post(format!("{}/api/v1/scripts/search", worker_url))
         .header("Content-Type", "application/json")
         .body(r#"{"query": "test", "limit": 5}"#)
         .timeout(std::time::Duration::from_secs(10))
@@ -692,7 +692,7 @@ async fn test_database_via_api(worker_url: &str) -> Result<()> {
 
     // Test database access by getting scripts list
     let scripts_response = client
-        .get(format!("{}/api/scripts?limit=1", worker_url))
+        .get(format!("{}/api/v1/scripts?limit=1", worker_url))
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await?;

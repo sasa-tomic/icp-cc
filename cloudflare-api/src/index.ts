@@ -36,28 +36,28 @@ export default {
     try {
       switch (url.pathname) {
         // Scripts endpoints
-        case '/api/scripts':
+        case '/api/v1/scripts':
           return handleScriptsRequest(request, env);
         
-        case '/api/scripts/search':
+        case '/api/v1/scripts/search':
           return handleSearchScriptsRequest(request, env);
         
-        case '/api/scripts/trending':
+        case '/api/v1/scripts/trending':
           return handleTrendingScriptsRequest(request, env);
         
-        case '/api/scripts/featured':
+        case '/api/v1/scripts/featured':
           return handleFeaturedScriptsRequest(request, env);
         
-        case '/api/scripts/compatible':
+        case '/api/v1/scripts/compatible':
           return handleCompatibleScriptsRequest(request, env);
 
-        case '/api/marketplace-stats':
+        case '/api/v1/marketplace-stats':
           return handleMarketplaceStatsRequest(request, env);
 
-        case '/api/update-script-stats':
+        case '/api/v1/update-script-stats':
           return handleUpdateScriptStatsRequest(request, env);
 
-        case '/api/scripts/validate':
+        case '/api/v1/scripts/validate':
           return handleScriptValidationRequest(request, env);
 
         // Health check
@@ -72,10 +72,10 @@ export default {
 
         default:
           // Handle script by ID or category
-          if (url.pathname.startsWith('/api/scripts/')) {
+          if (url.pathname.startsWith('/api/v1/scripts/')) {
             const pathParts = url.pathname.split('/');
-            const id = pathParts[3];
-            const action = pathParts[4];
+            const id = pathParts[4];
+            const action = pathParts[5];
             
             if (id) {
               if (action === 'reviews') {
@@ -84,8 +84,8 @@ export default {
                 } else {
                   return handleReviewsRequest(request, env, id);
                 }
-              } else if (id === 'category' && pathParts[4]) {
-                return handleScriptsByCategoryRequest(request, env, pathParts[4]);
+              } else if (id === 'category' && pathParts[5]) {
+                return handleScriptsByCategoryRequest(request, env, pathParts[5]);
               } else {
                 return handleScriptByIdRequest(request, env, id);
               }
