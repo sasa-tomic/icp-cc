@@ -32,7 +32,7 @@ extract_and_categorize() {
         ["Build commands"]="^(linux|android|macos|ios|windows|all|android-emulator)$"
         ["Marketplace commands"]="^marketplace(-|$)"
         ["Flutter commands"]="^flutter"
-        ["API Server commands"]="^appwrite-api-server"
+        ["API Server commands"]="^server-"
         ["Development stack"]="^(marketplace-dev-stack|marketplace-dev-stop)$"
         ["Justfile management"]="^just-"
     )

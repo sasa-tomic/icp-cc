@@ -84,8 +84,8 @@ if "$INSTALL_DIR/just" --version >/dev/null 2>&1; then
     echo -e "${GREEN}  just                    # Show available commands${NC}"
     echo -e "${GREEN}  just build               # Build current platform${NC}"
     echo -e "${GREEN}  just test               # Run all tests${NC}"
-    echo -e "${GREEN}  just appwrite-deploy     # Deploy to Appwrite${NC}"
-    echo -e "${GREEN}  just appwrite-deploy -- --dry-run    # Deploy with dry-run${NC}"
+    echo -e "${GREEN}  just server-deploy     # Deploy to Cloudflare Workers${NC}"
+    echo -e "${GREEN}  just server-deploy -- --dry-run    # Deploy with dry-run${NC}"
     echo
     echo -e "${BLUE}🚀 You're ready to use Just with ICP-CC!${NC}"
 else
