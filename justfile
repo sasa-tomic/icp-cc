@@ -156,10 +156,10 @@ cloudflare-local-up:
     @echo "==> Waiting for Cloudflare Workers to be ready..."
     # Wait up to 30 seconds for server to be ready, checking every 1 second
     @timeout=30 && elapsed=0 && while [ $elapsed -lt $timeout ]; do \
-        if curl -s http://localhost:8787/health >/dev/null 2>&1; then \
+        if curl -s http://localhost:8787/api/v1/health >/dev/null 2>&1; then \
             echo "==> ✅ Cloudflare Workers is healthy and ready!"; \
             echo "==> API Endpoint: http://localhost:8787"; \
-            echo "==> Health Check: http://localhost:8787/health"; \
+            echo "==> Health Check: http://localhost:8787/api/v1/health"; \
             exit 0; \
         fi; \
         echo "==> Waiting for server... ($elapsed/$timeout seconds)"; \
@@ -204,10 +204,10 @@ cloudflare-test-up:
     timeout=45
     elapsed=0
     while [ $elapsed -lt $timeout ]; do
-        if curl -s http://localhost:8787/health >/dev/null 2>&1; then
+        if curl -s http://localhost:8787/api/v1/health >/dev/null 2>&1; then
             echo "==> ✅ Cloudflare Workers is healthy and ready for tests!"
             echo "==> API Endpoint: http://localhost:8787"
-            echo "==> Health Check: http://localhost:8787/health"
+            echo "==> Health Check: http://localhost:8787/api/v1/health"
             exit 0
         fi
         echo "==> Waiting for server... ($elapsed/$timeout seconds)"
@@ -278,7 +278,7 @@ cloudflare-local-init:
 cloudflare-local-test:
     @echo "==> Testing Cloudflare Workers endpoints"
     @echo "==> Testing health endpoint..."
-    @curl -s http://localhost:8787/health | jq . || echo "Health check failed"
+    @curl -s http://localhost:8787/api/v1/health | jq . || echo "Health check failed"
     @echo "==> Testing marketplace stats..."
     @curl -s http://localhost:8787/api/v1/marketplace-stats | jq . || echo "Stats endpoint failed"
     @echo "==> Testing featured scripts..."

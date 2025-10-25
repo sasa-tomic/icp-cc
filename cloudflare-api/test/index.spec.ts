@@ -4,8 +4,8 @@ import worker from '../src';
 
 describe('ICP Marketplace API worker', () => {
 	describe('Health check', () => {
-		it('/health responds with success message', async () => {
-			const request = new Request('http://example.com/health');
+		it('/api/v1/health responds with success message', async () => {
+			const request = new Request('http://example.com/api/v1/health');
 			const response = await SELF.fetch(request);
 			expect(response.status).toBe(200);
 			const data = await response.json();

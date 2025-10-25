@@ -40,7 +40,7 @@ void main() {
     test('1. Health Check - API must be accessible', () async {
       print('\n--- Test 1: Health Check ---');
       
-      final response = await http.get(Uri.parse('${AppConfig.apiEndpoint}/health'));
+      final response = await http.get(Uri.parse('${AppConfig.apiEndpoint}/api/v1/health'));
       
       expect(response.statusCode, equals(200), reason: 'Health endpoint must return 200');
       
@@ -356,7 +356,7 @@ void main() {
       
       // Test health endpoint performance
       final healthStart = stopwatch.elapsedMilliseconds;
-      final healthResponse = await http.get(Uri.parse('${AppConfig.apiEndpoint}/health'));
+      final healthResponse = await http.get(Uri.parse('${AppConfig.apiEndpoint}/api/v1/health'));
       final healthTime = stopwatch.elapsedMilliseconds - healthStart;
       
       expect(healthResponse.statusCode, equals(200), reason: 'Health endpoint should return 200');
@@ -442,7 +442,7 @@ void main() {
       
       // Add health checks
       for (int i = 0; i < 2; i++) {
-        futures.add(http.get(Uri.parse('${AppConfig.apiEndpoint}/health')));
+        futures.add(http.get(Uri.parse('${AppConfig.apiEndpoint}/api/v1/health')));
       }
       
       // Wait for all to complete

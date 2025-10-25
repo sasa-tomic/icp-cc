@@ -19,7 +19,7 @@ The project uses Wrangler CLI for local Cloudflare Workers development:
 just cloudflare-local-up
 
 # API endpoint: http://localhost:8787
-# Health check: http://localhost:8787/health
+# Health check: http://localhost:8787/api/v1/health
 
 # Stop when done
 just cloudflare-local-down
@@ -124,7 +124,7 @@ just cloudflare-local-down
 ### Local Environment
 - **Cloudflare Workers API**: http://localhost:8787
 - **D1 Database**: Local SQLite database managed by Wrangler
-- **Health Check**: http://localhost:8787/health
+- **Health Check**: http://localhost:8787/api/v1/health
 - **API Endpoints**: http://localhost:8787/api/*
 
 ### Configuration Management
@@ -173,7 +173,7 @@ ps aux | grep wrangler
 just cloudflare-local-logs
 
 # Test API connectivity
-curl http://localhost:8787/health
+curl http://localhost:8787/api/v1/health
 curl http://localhost:8787/api/v1/marketplace-stats
 
 # Check configuration
@@ -230,7 +230,7 @@ cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FR
 ## API Endpoints Reference
 
 ### Available Endpoints
-- `GET /health` - Health check
+- `GET /api/v1/health` - Health check
 - `GET /api/v1/marketplace-stats` - Marketplace statistics
 - `GET /api/v1/scripts/featured` - Featured scripts
 - `GET /api/v1/scripts/trending` - Trending scripts
@@ -241,7 +241,7 @@ cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FR
 ### Testing Endpoints
 ```bash
 # Health check
-curl http://localhost:8787/health
+curl http://localhost:8787/api/v1/health
 
 # Get marketplace stats
 curl http://localhost:8787/api/v1/marketplace-stats

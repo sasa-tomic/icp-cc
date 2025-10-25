@@ -61,7 +61,7 @@ export default {
           return handleScriptValidationRequest(request, env);
 
         // Health check
-        case '/health':
+        case '/api/v1/health':
           return new Response(JSON.stringify({
             success: true,
             message: 'ICP Marketplace API is running',

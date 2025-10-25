@@ -646,7 +646,7 @@ async fn test_worker_connectivity(worker_url: &str) -> Result<()> {
     let client = reqwest::Client::new();
 
     let response = client
-        .get(format!("{}/health", worker_url))
+        .get(format!("{}/api/v1/health", worker_url))
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await?;
