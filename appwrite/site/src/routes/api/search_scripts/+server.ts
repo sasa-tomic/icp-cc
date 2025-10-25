@@ -2,9 +2,9 @@ import * as sdk from 'node-appwrite';
 import type { RequestHandler } from './$types';
 
 const appwriteClient = new sdk.Client()
-  .setEndpoint(process.env.APPWRITE_FUNCTION_ENDPOINT || 'https://icp-autorun.appwrite.network/v1')
-  .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID || '')
-  .setKey(process.env.APPWRITE_FUNCTION_API_KEY || '');
+  .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://icp-autorun.appwrite.network/v1')
+  .setProject(process.env.APPWRITE_PROJECT_ID || '')
+  .setKey(process.env.APPWRITE_API_KEY || '');
 
 const db = new sdk.Databases(appwriteClient);
 

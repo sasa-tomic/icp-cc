@@ -75,9 +75,9 @@ Required environment variables:
 - `USERS_COLLECTION_ID`: Users collection ID
 - `PURCHASES_COLLECTION_ID`: Purchases collection ID
 - `REVIEWS_COLLECTION_ID`: Reviews collection ID
-- `APPWRITE_FUNCTION_ENDPOINT`: Appwrite endpoint URL
-- `APPWRITE_FUNCTION_PROJECT_ID`: Appwrite project ID
-- `APPWRITE_FUNCTION_API_KEY`: Appwrite API key
+- `APPWRITE_ENDPOINT`: Appwrite endpoint URL
+- `APPWRITE_PROJECT_ID`: Appwrite project ID
+- `APPWRITE_API_KEY`: Appwrite API key
 - `PUBLIC_SITE_URL`: Site URL (https://icp-autorun.appwrite.network for production, http://localhost:5173 for local)
 
 ### Site URLs
@@ -87,7 +87,7 @@ Required environment variables:
 
 ## Migration from Functions
 
-This site replaces the previous Appwrite Functions:
+This site provides API endpoints for marketplace functionality:
 
 - `search_scripts` → `/api/search_scripts`
 - `process_purchase` → `/api/process_purchase`

@@ -2,15 +2,25 @@
 
 ## Active Development Tasks
 
-1. **Create Appwrite Site** ✅ COMPLETED - Set up SvelteKit site with API routes
-2. **Migrate function code** ✅ COMPLETED - Converted all functions to site API routes:
-   - `search_scripts` → `/api/search_scripts`
-   - `process_purchase` → `/api/process_purchase`
-   - `update_script_stats` → `/api/update_script_stats`
-   - `get_marketplace_stats` → `/api/get_marketplace_stats`
-3. **Update frontend URLs** - Replace function URLs with relative API routes
-4. **Deploy site** - Use Git-based deployment to https://icp-autorun.appwrite.network
-5. **Configure production URL** ✅ COMPLETED - Set up https://icp-autorun.appwrite.network 
+### Appwrite Sites Deployment Architecture
+The marketplace-deploy tool was only setting up databases, collections, and storage, but NOT deploying the SvelteKit site to Appwrite Sites, causing 404 errors.
+The whole deployment MUST BE FULLY AUTOMATED.
+There MUST BE a successful and meaningful smoke test for the deployment succeeding with 2xx.
+
+1. **Update frontend URLs** - Replace function URLs with relative API routes (HIGH PRIORITY)
+   - Flutter app currently uses old function URLs
+   - Need to update to use `/api/*` endpoints from the deployed site
+   - Test integration between Flutter app and deployed SvelteKit site
+
+2. **Fix local deployment site creation** (MEDIUM PRIORITY)
+   - Site creation API call has "siteId not optional" error in local environment
+   - Need to investigate Appwrite Sites API for local instances
+   - Production deployment works correctly
+
+3. **Add site deployment options** (LOW PRIORITY)
+   - Support for custom domains
+   - Automatic SSL certificate management
+   - Deployment rollback functionality 
 
 ### Bootstrapping a fresh local appwrite instance
 Bootstrapping a freshly created docker deployment should be fully automated.
@@ -228,8 +238,10 @@ Commands:
 - [ ] Create health check endpoints for marketplace services
 - [ ] Set up automated backup and recovery procedures
 
-### Deployment (Ongoing)
-- [ ] Deploy `get_marketplace_stats` function to production Appwrite
+### Deployment Status
+- ✅ **Appwrite Sites Production Deployment COMPLETE** - https://icp-autorun.appwrite.network
+- ✅ **All API endpoints deployed and functional** - `/api/*` routes working
+- ✅ **Automated deployment tool updated** - marketplace-deploy now handles complete infrastructure + site
 - [ ] Implement blue-green deployment strategy for zero downtime
 - [ ] Add rollback procedures for failed deployments
 - [ ] Set up staging environment for testing production features
@@ -253,5 +265,5 @@ Commands:
 
 ---
 
-*Last Updated: 2025-10-24*
-*Status: Security Migration Complete - Development Ready*
+*Last Updated: 2025-10-25*
+*Status: Appwrite Sites Deployment Complete - Frontend Integration Required*

@@ -212,7 +212,6 @@ async fn handle_deploy(
         pb.set_message("Cleaning existing resources...");
         info_message("Cleaning existing resources before redeployment...");
 
-  
         // Clean collections
         if deploy_all || components.contains(&DeployComponents::Collections) {
             // Delete collections if they exist
@@ -326,6 +325,38 @@ async fn handle_deploy(
         info_message(&format!("Storage Bucket: {}", config.storage_bucket_id));
     }
 
+    // Deploy site
+    if deploy_all || components.contains(&DeployComponents::Sites) {
+        if dry_run {
+            pb.set_message("DRY RUN: Would create and deploy site");
+        } else {
+            pb.set_message("Creating Appwrite Site...");
+            db_manager.create_site().await?;
+
+            pb.set_message("Building and deploying SvelteKit site...");
+            // Build the site first
+            let site_dir = std::path::Path::new("../appwrite/site");
+            if site_dir.exists() {
+                let output = std::process::Command::new("npm")
+                    .args(["run", "build"])
+                    .current_dir(site_dir)
+                    .output()
+                    .map_err(|e| anyhow!("Failed to build site: {}", e))?;
+
+                if !output.status.success() {
+                    return Err(anyhow!("Site build failed: {}", String::from_utf8_lossy(&output.stderr)));
+                }
+
+                // Deploy the site
+                db_manager.deploy_site().await?;
+            } else {
+                return Err(anyhow!("Site directory not found: ../appwrite/site"));
+            }
+        }
+        pb.tick();
+        info_message("Site: ICP Script Marketplace (SvelteKit)");
+    }
+
     pb.finish_with_message("Deployment completed!");
 
     if !dry_run {
@@ -375,6 +406,9 @@ async fn handle_clean(yes: bool, target: &str) -> Result<()> {
     db_manager
         .delete_storage_bucket(&config.storage_bucket_id)
         .await?;
+
+    info_message("Deleting Appwrite Site...");
+    db_manager.delete_site().await?;
 
     success_message("Cleanup completed");
 
@@ -489,8 +523,21 @@ async fn handle_test(target: &str) -> Result<()> {
         }
     }
 
+    // Test Appwrite Site
+    info_message("🌐 Testing Appwrite Site...");
+    match db_manager.test_site_access().await {
+        Ok(_) => {
+            success_message("Appwrite Site: OK");
+            tests_passed += 1;
+        }
+        Err(e) => {
+            error_message(&format!("Appwrite Site: {}", e));
+            tests_failed += 1;
+        }
+    }
+
     // Test API endpoints (Sites)
-    info_message("🌐 Testing API endpoints...");
+    info_message("🔗 Testing API endpoints...");
     match test_api_endpoints(&config).await {
         Ok(_) => {
             success_message("API endpoints: OK");
@@ -597,31 +644,48 @@ async fn test_api_endpoints(config: &AppConfig) -> Result<()> {
     let client = reqwest::Client::new();
 
     // Test the marketplace stats endpoint
-    let stats_url = format!("{}/api/get_marketplace_stats", config.endpoint.replace("/v1", ""));
+    let stats_url = format!(
+        "{}/api/get_marketplace_stats",
+        config.endpoint.replace("/v1", "")
+    );
 
-    match client.get(&stats_url).timeout(std::time::Duration::from_secs(10)).send().await {
+    match client
+        .get(&stats_url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
         Ok(_response) => {
             success_message("  Marketplace stats endpoint accessible");
         }
         Err(e) => {
             // For testing purposes, we'll consider this a warning since the site may not be deployed yet
-            info_message(&format!("  Marketplace stats endpoint: {} (site may not be deployed yet)", e));
+            info_message(&format!(
+                "  Marketplace stats endpoint: {} (site may not be deployed yet)",
+                e
+            ));
         }
     }
 
     // Test the search scripts endpoint
     let search_url = format!("{}/api/search_scripts", config.endpoint.replace("/v1", ""));
 
-    match client.post(&search_url)
+    match client
+        .post(&search_url)
         .header("Content-Type", "application/json")
         .body(r#"{"query": "test"}"#)
         .timeout(std::time::Duration::from_secs(10))
-        .send().await {
+        .send()
+        .await
+    {
         Ok(_response) => {
             success_message("  Search scripts endpoint accessible");
         }
         Err(e) => {
-            info_message(&format!("  Search scripts endpoint: {} (site may not be deployed yet)", e));
+            info_message(&format!(
+                "  Search scripts endpoint: {} (site may not be deployed yet)",
+                e
+            ));
         }
     }
 
