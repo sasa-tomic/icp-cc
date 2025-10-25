@@ -220,15 +220,7 @@ cloudflare-local-config:
     @echo "==> Environment: development"
     @cd {{root}}/cloudflare-api && wrangler whoami
 
-# Start complete development stack (Cloudflare Workers only)
-cloudflare-dev-stack:
-    @echo "==> Starting Cloudflare Workers development environment"
-    just cloudflare-local-up
 
-# Stop complete development stack
-cloudflare-dev-stop:
-    @echo "==> Stopping Cloudflare Workers development environment"
-    just cloudflare-local-down
 
 # =============================================================================
 # Flutter App Development
