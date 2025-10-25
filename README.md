@@ -4,7 +4,12 @@ Use Just (modern build tool) and scripts in `scripts/` to build native libraries
 
 ## 🚀 Quick Start
 
-First, install Just (one-time setup):
+First, install all dependencies for local development (one-time setup):
+```bash
+./scripts/bootstrap.sh
+```
+
+Then install Just (one-time setup):
 ```bash
 ./install-just.sh
 ```
