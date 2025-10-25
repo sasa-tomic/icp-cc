@@ -41,3 +41,7 @@ apps/**/android/app/src/main/jniLibs/
 # OS-specific cruft
 **/.DS_Store
 **/Thumbs.db
+
+# Cloudflare Workers
+cloudflare-api/wrangler.log
+cloudflare-api/.wrangler/
