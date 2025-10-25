@@ -600,7 +600,7 @@ async fn test_api_endpoints(config: &AppConfig) -> Result<()> {
     let stats_url = format!("{}/api/get_marketplace_stats", config.endpoint.replace("/v1", ""));
 
     match client.get(&stats_url).timeout(std::time::Duration::from_secs(10)).send().await {
-        Ok(response) => {
+        Ok(_response) => {
             success_message("  Marketplace stats endpoint accessible");
         }
         Err(e) => {
@@ -617,7 +617,7 @@ async fn test_api_endpoints(config: &AppConfig) -> Result<()> {
         .body(r#"{"query": "test"}"#)
         .timeout(std::time::Duration::from_secs(10))
         .send().await {
-        Ok(response) => {
+        Ok(_response) => {
             success_message("  Search scripts endpoint accessible");
         }
         Err(e) => {
