@@ -152,18 +152,18 @@ marketplace-local-up:
     cd {{root}} && docker compose --env-file marketplace-local.env up -d
     @echo "==> Waiting for Appwrite services to be healthy..."
     # Wait up to 120 seconds for services to be healthy, checking every 1 second
-    @timeout=120 && elapsed=0 && while [ $${elapsed} -lt $${timeout} ]; do \
+    @timeout=120 && elapsed=0 && while [ $elapsed -lt $timeout ]; do \
         if curl -s http://localhost:48080/health >/dev/null 2>&1; then \
             echo "==> ✅ Appwrite is healthy and ready!"; \
             echo "==> Appwrite Console: http://localhost:48080"; \
             echo "==> Appwrite API: http://localhost:48080/v1"; \
             exit 0; \
         fi; \
-        echo "==> Waiting for services... ($${elapsed}/$${timeout} seconds)"; \
+        echo "==> Waiting for services... ($elapsed/$timeout seconds)"; \
         sleep 1; \
-        elapsed=$$((elapsed + 1)); \
+        elapsed=$((elapsed + 1)); \
     done; \
-    echo "==> ❌ Appwrite failed to become healthy within $${timeout} seconds"; \
+    echo "==> ❌ Appwrite failed to become healthy within $timeout seconds"; \
     echo "==> Check logs with: just marketplace-local-logs"; \
     exit 1
 
