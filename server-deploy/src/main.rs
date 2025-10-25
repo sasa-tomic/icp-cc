@@ -194,8 +194,15 @@ async fn handle_bootstrap(
 
     // Deploy Worker
     info_message(&format!("Deploying Cloudflare Worker: {}", worker_name));
-    let deploy_output = std::process::Command::new("wrangler")
-        .args(["deploy"])
+    let mut deploy_cmd = std::process::Command::new("wrangler");
+    deploy_cmd.args(["deploy"]);
+
+    // Set environment variable based on target
+    if target == "prod" {
+        deploy_cmd.args(["--var", "ENVIRONMENT:production"]);
+    }
+
+    let deploy_output = deploy_cmd
         .current_dir(&cloudflare_dir)
         .output()
         .map_err(|e| anyhow!("Failed to deploy Worker: {}", e))?;
@@ -368,8 +375,15 @@ async fn handle_deploy(
             pb.set_message("DRY RUN: Would deploy Cloudflare Worker");
         } else {
             pb.set_message("Deploying Cloudflare Worker...");
-            let deploy_output = std::process::Command::new("wrangler")
-                .args(["deploy"])
+            let mut deploy_cmd = std::process::Command::new("wrangler");
+            deploy_cmd.args(["deploy"]);
+
+            // Set environment variable based on target
+            if target == "prod" {
+                deploy_cmd.args(["--var", "ENVIRONMENT:production"]);
+            }
+
+            let deploy_output = deploy_cmd
                 .current_dir(&cloudflare_dir)
                 .output()
                 .map_err(|e| anyhow!("Failed to deploy Worker: {}", e))?;

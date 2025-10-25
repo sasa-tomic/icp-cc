@@ -4,6 +4,7 @@ import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../test_helpers/wrangler_manager.dart';
 
 void main() {
   group('Comprehensive End-to-End Integration Tests', () {
@@ -11,6 +12,9 @@ void main() {
     late String testScriptId;
 
     setUpAll(() async {
+      // Initialize wrangler for testing
+      await WranglerManager.initialize();
+      
       // Initialize service
       apiService = MarketplaceOpenApiService();
       
@@ -22,12 +26,14 @@ void main() {
       print('API Provider: ${AppConfig.apiProvider}');
       print('Environment: ${AppConfig.environmentName}');
       print('Is Local Development: ${AppConfig.isLocalDevelopment}');
+      print('Wrangler Endpoint: ${WranglerManager.apiEndpoint}');
       print('=====================================');
     });
 
     tearDownAll(() async {
       // Cleanup
       suppressDebugOutput = false;
+      await WranglerManager.cleanup();
       print('=== E2E Test Cleanup ===');
     });
 

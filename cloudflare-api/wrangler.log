@@ -8,34 +8,17 @@ env.ENVIRONMENT ("development")           Environment Variable      local
 
 ❓ Your types might be out of date. Re-run `wrangler types` to ensure your types are correct.
 ⎔ Starting local server...
-[wrangler:info] Ready on http://localhost:8787
-[wrangler:info] GET /health 200 OK (12ms)
-[wrangler:info] GET /api/marketplace-stats 200 OK (97ms)
+[wrangler:info] Ready on http://localhost:34523
+[wrangler:info] GET /health 200 OK (21ms)
+[wrangler:info] GET /health 200 OK (3ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (48ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (28ms)
+[wrangler:info] GET /api/v1/marketplace-stats 200 OK (87ms)
 Marketplace stats generated successfully
-[wrangler:info] POST /api/scripts/search 200 OK (37ms)
-[wrangler:info] GET /health 200 OK (5ms)
-Marketplace stats generated successfully
-[wrangler:info] GET /api/marketplace-stats 200 OK (75ms)
-[wrangler:info] POST /api/scripts/search 200 OK (32ms)
-[wrangler:info] GET /api/scripts 200 OK (31ms)
-Marketplace stats generated successfully
-[wrangler:info] GET /api/marketplace-stats 200 OK (58ms)
-[wrangler:info] POST /api/scripts/search 200 OK (17ms)
-[wrangler:info] GET /api/scripts/featured 200 OK (18ms)
-[wrangler:info] GET /api/scripts/trending 200 OK (39ms)
-[wrangler:info] GET /api/marketplace-stats 200 OK (81ms)
-Marketplace stats generated successfully
-[wrangler:info] POST /api/scripts/search 200 OK (25ms)
-[wrangler:info] GET /api/scripts/featured 200 OK (26ms)
-Marketplace stats generated successfully
-[wrangler:info] GET /api/marketplace-stats 200 OK (47ms)
-[wrangler:info] POST /api/scripts/search 200 OK (22ms)
-[wrangler:info] POST /api/scripts/search 200 OK (23ms)
-Marketplace stats generated successfully
-[wrangler:info] GET /api/marketplace-stats 200 OK (48ms)
-[wrangler:info] POST /api/scripts/search 200 OK (25ms)
-[wrangler:info] POST /api/scripts/search 200 OK (24ms)
-[wrangler:info] POST /api/scripts/search 200 OK (27ms)
-[wrangler:info] POST /api/scripts/search 200 OK (22ms)
-[wrangler:info] POST /api/scripts/search 200 OK (26ms)
-[wrangler:info] POST /api/scripts/search 200 OK (38ms)
+[wrangler:info] POST /api/v1/scripts/validate 200 OK (9ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (38ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (32ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (22ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (29ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (26ms)
+[wrangler:info] POST /api/v1/scripts/search 200 OK (21ms)

@@ -9,7 +9,7 @@ export async function handleScriptValidationRequest(request: Request, env: Env):
   try {
     const { lua_source } = await request.json();
 
-    if (!lua_source || typeof lua_source !== 'string') {
+    if (lua_source === undefined || lua_source === null || typeof lua_source !== 'string') {
       return JsonResponse.error('lua_source is required and must be a string', 400);
     }
 

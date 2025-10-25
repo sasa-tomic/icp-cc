@@ -2,6 +2,8 @@
 
 ## Immediate Tasks (Ready to Start)
 
+- Adjust the prod build of the flutter app to use API endpoint (prefix): https://icp-mp.kalaj.org/api/v1/
+
 ### Production Deployment (Priority: HIGH)
 - [ ] Set up Cloudflare account and authenticate with wrangler
 - [ ] Create production D1 database and run migrations
