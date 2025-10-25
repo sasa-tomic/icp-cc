@@ -103,113 +103,132 @@ distclean: clean
     rm -rf {{root}}/apps/autorun_flutter/.gradle || true
 
 # =============================================================================
-# Appwrite Deployment
+# Cloudflare Workers Deployment
 # =============================================================================
 
-# Setup Appwrite CLI and build deployment tools
-marketplace-setup:
-    @echo "==> Setting up Appwrite CLI tools"
-    npm install -g appwrite-cli || echo "Appwrite CLI already installed or install failed - please install manually"
+# Setup Cloudflare CLI and build deployment tools
+server-setup:
+    @echo "==> Setting up Cloudflare Workers tools"
+    npm install -g wrangler || echo "Wrangler CLI already installed or install failed - please install manually"
     @echo "==> Building Rust deployment tool"
-    cd {{root}}/marketplace-deploy && cargo build --release
+    cd {{root}}/server-deploy && cargo build --release
 
-# Deploy to Appwrite with flexible arguments
-marketplace +args="":
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- {{args}}
+# Deploy to Cloudflare with flexible arguments
+server +args="":
+    cd {{root}}/server-deploy && cargo run --bin server-deploy -- {{args}}
 
-# Deploy to Appwrite with flexible arguments
-# Usage: just marketplace-deploy --target local|prod [additional args]
-marketplace-deploy +args="":
-    @echo "==> Deploying ICP Script Marketplace to Appwrite"
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- deploy {{args}}
+# Deploy to Cloudflare with flexible arguments
+# Usage: just server-deploy --target local|prod [additional args]
+server-deploy +args="":
+    @echo "==> Deploying ICP Script Marketplace to Cloudflare Workers"
+    cd {{root}}/server-deploy && cargo run --bin server-deploy -- deploy {{args}}
 
-# Test Appwrite deployment configuration
-# Usage: just marketplace-test --target local|prod [additional args]
-marketplace-test +args="":
-    @echo "==> Testing Appwrite deployment configuration"
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- test {{args}}
+# Test Cloudflare deployment configuration
+# Usage: just server-test --target local|prod [additional args]
+server-test +args="":
+    @echo "==> Testing Cloudflare deployment configuration"
+    cd {{root}}/server-deploy && cargo run --bin server-deploy -- test {{args}}
 
-# Show Appwrite configuration
-# Usage: just marketplace-config --target local|prod
-marketplace-config +args="":
-    @echo "==> Showing Appwrite configuration"
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- config {{args}}
+# Show Cloudflare configuration
+# Usage: just server-config --target local|prod
+server-config +args="":
+    @echo "==> Showing Cloudflare configuration"
+    cd {{root}}/server-deploy && cargo run --bin server-deploy -- config {{args}}
 
-# Bootstrap fresh Appwrite instance
-# Usage: just marketplace-bootstrap --target local|prod [additional args]
-marketplace-bootstrap +args="":
-    @echo "==> Bootstrapping fresh Appwrite instance"
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- bootstrap {{args}}
+# Bootstrap fresh Cloudflare instance
+# Usage: just server-bootstrap --target local|prod [additional args]
+server-bootstrap +args="":
+    @echo "==> Bootstrapping fresh Cloudflare Workers instance"
+    cd {{root}}/server-deploy && cargo run --bin server-deploy -- bootstrap {{args}}
 
-# Initialize Appwrite configuration
-# Usage: just marketplace-init --target local|prod [additional args]
-marketplace-init +args="":
-    @echo "==> Initializing Appwrite configuration"
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- init {{args}}
+# Initialize Cloudflare configuration
+# Usage: just server-init --target local|prod [additional args]
+server-init +args="":
+    @echo "==> Initializing Cloudflare configuration"
+    cd {{root}}/server-deploy && cargo run --bin server-deploy -- init {{args}}
 
 
 # =============================================================================
 # Local Development Environment
 # =============================================================================
 
-# Start local Appwrite development environment
-marketplace-local-up:
-    @echo "==> Starting local Appwrite development environment"
-    cd {{root}} && docker compose --env-file marketplace-local.env up -d
-    @echo "==> Waiting for Appwrite services to be healthy..."
-    # Wait up to 120 seconds for services to be healthy, checking every 1 second
-    @timeout=120 && elapsed=0 && while [ $elapsed -lt $timeout ]; do \
-        if curl -s http://localhost:48080/health >/dev/null 2>&1; then \
-            echo "==> ✅ Appwrite is healthy and ready!"; \
-            echo "==> Appwrite Console: http://localhost:48080"; \
-            echo "==> Appwrite API: http://localhost:48080/v1"; \
+# Start local Cloudflare Workers development environment
+cloudflare-local-up:
+    @echo "==> Starting local Cloudflare Workers development environment"
+    cd {{root}}/cloudflare-api && wrangler dev --port 8787 --persist-to .wrangler/state &
+    @echo "==> Waiting for Cloudflare Workers to be ready..."
+    # Wait up to 30 seconds for server to be ready, checking every 1 second
+    @timeout=30 && elapsed=0 && while [ $elapsed -lt $timeout ]; do \
+        if curl -s http://localhost:8787/health >/dev/null 2>&1; then \
+            echo "==> ✅ Cloudflare Workers is healthy and ready!"; \
+            echo "==> API Endpoint: http://localhost:8787"; \
+            echo "==> Health Check: http://localhost:8787/health"; \
             exit 0; \
         fi; \
-        echo "==> Waiting for services... ($elapsed/$timeout seconds)"; \
+        echo "==> Waiting for server... ($elapsed/$timeout seconds)"; \
         sleep 1; \
         elapsed=$((elapsed + 1)); \
     done; \
-    echo "==> ❌ Appwrite failed to become healthy within $timeout seconds"; \
-    echo "==> Check logs with: just marketplace-local-logs"; \
+    echo "==> ❌ Cloudflare Workers failed to start within $timeout seconds"; \
+    echo "==> Check logs with: just cloudflare-local-logs"; \
     exit 1
 
-# Stop local Appwrite development environment
-marketplace-local-down:
-    @echo "==> Stopping local Appwrite development environment"
-    cd {{root}} && docker compose --env-file marketplace-local.env  down
+# Stop local Cloudflare Workers development environment
+cloudflare-local-down:
+    @echo "==> Stopping local Cloudflare Workers development environment"
+    @pkill -f "wrangler dev" || echo "No wrangler processes found"
+    @echo "==> Cloudflare Workers stopped"
 
-# Show local Appwrite logs
-marketplace-local-logs:
-    @echo "==> Showing local Appwrite logs"
-    cd {{root}} && docker compose --env-file marketplace-local.env logs -f
+# Show local Cloudflare Workers logs
+cloudflare-local-logs:
+    @echo "==> Showing recent Cloudflare Workers logs"
+    @echo "==> Use 'wrangler dev' directly to see live logs"
+    @echo "==> Or check: cd cloudflare-api && wrangler dev --port 8787"
 
-# Reset local Appwrite environment (wipes all data)
-marketplace-local-reset:
-    @echo "==> Resetting local Appwrite environment (wipes all data)"
-    cd {{root}} && docker compose --env-file marketplace-local.env down -v --remove-orphans
-    cd {{root}} && docker volume prune -f
-    cd {{root}} && docker system prune -f
-    @echo "==> Local Appwrite environment reset complete"
+# Reset local Cloudflare Workers environment (wipes all data)
+cloudflare-local-reset:
+    @echo "==> Resetting local Cloudflare Workers environment (wipes all data)"
+    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;" || echo "Database already empty"
+    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM reviews;" || echo "Database already empty"
+    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM script_stats;" || echo "Database already empty"
+    @echo "==> Local Cloudflare Workers environment reset complete"
 
-# Initialize local Appwrite configuration
-marketplace-local-init +args="":
-    @echo "==> Initializing local Appwrite configuration"
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- --target local init {{args}}
+# Initialize local Cloudflare Workers database
+cloudflare-local-init:
+    @echo "==> Initializing local Cloudflare Workers database"
+    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql
+    @echo "==> Database initialized successfully"
 
-# Deploy marketplace to local Appwrite instance
-marketplace-local-deploy +args="--yes":
-    @echo "==> Deploying marketplace to local Appwrite instance"
-    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- --target local -v deploy {{args}}
+# Test local Cloudflare Workers endpoints
+cloudflare-local-test:
+    @echo "==> Testing Cloudflare Workers endpoints"
+    @echo "==> Testing health endpoint..."
+    @curl -s http://localhost:8787/health | jq . || echo "Health check failed"
+    @echo "==> Testing marketplace stats..."
+    @curl -s http://localhost:8787/api/marketplace-stats | jq . || echo "Stats endpoint failed"
+    @echo "==> Testing featured scripts..."
+    @curl -s http://localhost:8787/api/scripts/featured | jq . || echo "Featured scripts failed"
+    @echo "==> Testing search endpoint..."
+    @curl -s -X POST -H "Content-Type: application/json" -d '{"query":"test","limit":5}' http://localhost:8787/api/scripts/search | jq . || echo "Search endpoint failed"
+    @echo "==> ✅ All endpoint tests completed"
 
-# Start complete development stack (Appwrite only)
-marketplace-dev-stack:
-    @echo "==> Starting Appwrite development environment"
-    just marketplace-local-up
+# Show local Cloudflare Workers configuration
+cloudflare-local-config:
+    @echo "==> Local Cloudflare Workers Configuration"
+    @echo "==> API Endpoint: http://localhost:8787"
+    @echo "==> Database: icp-marketplace-db (local D1)"
+    @echo "==> Environment: development"
+    @cd {{root}}/cloudflare-api && wrangler whoami
+
+# Start complete development stack (Cloudflare Workers only)
+cloudflare-dev-stack:
+    @echo "==> Starting Cloudflare Workers development environment"
+    just cloudflare-local-up
 
 # Stop complete development stack
-marketplace-dev-stop:
-    @echo "==> Stopping Appwrite development environment"
-    just marketplace-local-down
+cloudflare-dev-stop:
+    @echo "==> Stopping Cloudflare Workers development environment"
+    just cloudflare-local-down
 
 # =============================================================================
 # Flutter App Development
@@ -217,13 +236,18 @@ marketplace-dev-stop:
 
 # Run Flutter app with local development environment
 flutter-local +args="":
-    @echo "==> Starting Flutter app with local development environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=APPWRITE_ENDPOINT=http://localhost:48080/v1 {{args}}
+    @echo "==> Starting Flutter app with local Cloudflare Workers environment"
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=USE_CLOUDFLARE=true --dart-define=CLOUDFLARE_ENDPOINT=http://localhost:8787 {{args}}
 
 # Run Flutter app with production environment
 flutter-production +args="":
     @echo "==> Starting Flutter app with production environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=APPWRITE_ENDPOINT=https://icp-autorun.appwrite.network/v1 {{args}}
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=USE_CLOUDFLARE=true --dart-define=CLOUDFLARE_ENDPOINT=https://icp-autorun.appwrite.network {{args}}
+
+# Run Flutter app with legacy Appwrite (for backward compatibility)
+flutter-appwrite +args="":
+    @echo "==> Starting Flutter app with Appwrite environment (legacy)"
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=USE_CLOUDFLARE=false --dart-define=APPWRITE_ENDPOINT=https://icp-autorun.appwrite.network/v1 {{args}}
 
 # =============================================================================
 # Help and Information
