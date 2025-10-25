@@ -1,11 +1,11 @@
 [package]
-name = "marketplace-deploy"
+name = "server-deploy"
 version = "0.1.0"
 edition = "2021"
-description = "CLI tool for setting up ICP Script Marketplace on Appwrite"
+description = "CLI tool for setting up ICP Script Marketplace on Cloudflare Workers"
 
 [[bin]]
-name = "marketplace-deploy"
+name = "server-deploy"
 path = "src/main.rs"
 
 [dependencies]

@@ -3,9 +3,21 @@
 ## Immediate Tasks (Ready to Start)
 
 ### Environment Setup & Configuration
-- [ ] Fix modified `marketplace-local.env` file - either commit changes or reset to clean state
 - [ ] Run `just test-machine` to ensure all tests are passing
-- [ ] Update git status and commit TODO.md cleanup changes
+- [ ] Update git status and commit any remaining changes
+
+### Cloudflare Workers Migration (COMPLETED ✅)
+- [x] Set up Cloudflare Workers development environment with wrangler
+- [x] Analyze existing Appwrite API endpoints and functionality
+- [x] Create Cloudflare D1 database schema equivalent to Appwrite collections
+- [x] Migrate scripts API endpoints to Cloudflare Workers
+- [x] Migrate search functionality to Cloudflare Workers
+- [x] Migrate all other API endpoints to Cloudflare Workers
+- [x] Set up local development with wrangler and D1 database
+- [x] Rename marketplace-deploy to server-deploy and update for Cloudflare
+- [x] Test all migrated endpoints and ensure compatibility
+- [x] Update Flutter app configuration to use local Cloudflare Workers endpoint
+- [x] Verify local API integration (health, stats, search endpoints working)
 
 ### Quick Wins
 - [x] Add appwrite-cli bootstrap automation to marketplace-deploy tool
@@ -14,24 +26,23 @@
 
 ## Active Development Tasks
 
-### Bootstrapping a Fresh Local Appwrite Instance (Priority: High)
-Bootstrapping a freshly created docker deployment should be fully automated.
-The appwrite-cli can be used to initially set up an instance right after creating containers, eliminating manual UI configuration for team, project, API keys, etc.
+### Bootstrapping a Fresh Local Cloudflare Workers Instance (Priority: High)
+Bootstrapping a fresh Cloudflare Workers deployment should be fully automated.
+The wrangler CLI can be used to initially set up an instance, eliminating manual configuration for D1 database, Workers, and deployment.
 
 Available automation commands:
-- `appwrite init project` - Create new project
-- `appwrite init team` - Create team
-- `appwrite init site` - Create site
-- `appwrite init function` - Create functions
-- `appwrite init collection` - Create database collections
-- `appwrite init bucket` - Create storage buckets
+- `wrangler d1 create` - Create D1 database
+- `wrangler deploy` - Deploy Worker
+- `wrangler d1 execute` - Run database migrations
+- `wrangler secret put` - Set environment variables
 
 **Implementation Tasks:**
-- [ ] Integrate appwrite-cli automation into marketplace-deploy tool
-- [ ] Add automatic team and project creation after container startup
-- [ ] Configure API keys and permissions programmatically
-- [ ] Test bootstrap process with fresh docker environment
-- [ ] Add bootstrap command to justfile (`just marketplace-bootstrap`)
+- [ ] Implement `server-deploy bootstrap` command with wrangler automation
+- [ ] Add automatic D1 database creation and migration
+- [ ] Configure Worker deployment programmatically
+- [ ] Test bootstrap process with fresh Cloudflare environment
+- [ ] Add bootstrap command to justfile (`just server-bootstrap`)
+- [ ] Update LOCAL_DEVELOPMENT.md with Cloudflare Workers setup instructions
 
 ## Marketplace Features
 
@@ -225,8 +236,12 @@ Available automation commands:
 - [ ] Set up automated backup and recovery procedures
 
 ### Deployment Status
-- **Current**: Production deployment at https://icp-autorun.appwrite.network with all `/api/*` routes functional
-- **Infrastructure**: Automated deployment tool (marketplace-deploy) handles complete infrastructure + site deployment
+- **Previous**: Production deployment at https://icp-autorun.appwrite.network with all `/api/*` routes functional
+- **Current**: ✅ Migration to Cloudflare Workers COMPLETED with D1 database
+- **Local Development**: ✅ Running on http://localhost:8787 with all endpoints functional
+- **Infrastructure**: Automated deployment tool (server-deploy) handles complete infrastructure + worker deployment
+- [ ] Implement `server-deploy bootstrap` command for fresh environment setup
+- [ ] Deploy to production Cloudflare Workers environment
 - [ ] Implement blue-green deployment strategy for zero downtime
 - [ ] Add rollback procedures for failed deployments
 - [ ] Set up staging environment for testing production features
@@ -250,4 +265,4 @@ Available automation commands:
 
 ---
 
-*Last Updated: 2025-10-25*
+*Last Updated: 2025-10-25 - Cloudflare Workers Migration Completed*

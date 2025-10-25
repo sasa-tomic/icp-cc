@@ -2185,26 +2185,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "marketplace-deploy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "colored",
- "dialoguer",
- "dirs 5.0.1",
- "env_logger",
- "indicatif",
- "log",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3295,6 +3275,26 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "server-deploy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "colored",
+ "dialoguer",
+ "dirs 5.0.1",
+ "env_logger",
+ "indicatif",
+ "log",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
