@@ -1,0 +1,14 @@
+{
+  "name": "opencode-auto-exit-plugin",
+  "version": "1.0.0",
+  "description": "OpenCode plugin that automatically exits when a prompt is provided via CLI",
+  "type": "module",
+  "main": "auto-exit.js",
+  "types": "auto-exit.ts",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.0.0"
+  },
+  "keywords": ["opencode", "plugin", "auto-exit", "cli"],
+  "author": "",
+  "license": "MIT"
+}

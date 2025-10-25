@@ -8,7 +8,7 @@
 - [ ] Update git status and commit TODO.md cleanup changes
 
 ### Quick Wins
-- [ ] Add appwrite-cli bootstrap automation to marketplace-deploy tool
+- [x] Add appwrite-cli bootstrap automation to marketplace-deploy tool
 - [ ] Create basic script download API endpoint structure
 - [ ] Add input validation to existing API endpoints
 
