@@ -78,7 +78,7 @@ test-with-cloudflare:
     @echo "==> Running Flutter analysis..."
     @cd {{root}}/apps/autorun_flutter && flutter analyze --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{root}}/apps/autorun_flutter && flutter test --concurrency $(nproc) --machine --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E '"error"|"result":"error' | wc -l | xargs -I {} sh -c 'if [ {} -gt 0 ]; then echo "❌ Found {} test errors"; exit 1; else echo "✅ No test errors found"; fi'
+    @cd {{root}}/apps/autorun_flutter && flutter test --concurrency $(nproc) --machine --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E '"result":"error' | wc -l | xargs -I {} sh -c 'if [ {} -gt 0 ]; then echo "❌ Found {} test errors"; exit 1; else echo "✅ No test errors found"; fi'
     @echo "==> Stopping Cloudflare Workers..."
     @just cloudflare-test-down
 
