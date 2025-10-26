@@ -182,107 +182,229 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
 
   Widget _buildToolbar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.topRight,
+          colors: [
+            Theme.of(context).colorScheme.surfaceContainerHighest,
+            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+          ],
+        ),
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
         ),
         border: Border(
           bottom: BorderSide(
             color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            width: 1,
           ),
         ),
       ),
       child: Row(
         children: [
-          // Language indicator
+          // Language indicator with modern design
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.secondary,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: Text(
-              widget.language.toUpperCase(),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.code_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  widget.language.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 20),
+
+          // Theme selector with enhanced design
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                width: 1,
               ),
             ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Theme selector
-          DropdownButton<String>(
-            value: _selectedTheme,
-            underline: const SizedBox(),
-            isDense: true,
-            items: _themes.keys.map((theme) {
-              return DropdownMenuItem<String>(
-                value: theme,
-                child: Text(
-                  theme.replaceAll('-', ' ').split(' ').map((word) =>
-                    word[0].toUpperCase() + word.substring(1)
-                  ).join(' '),
-                  style: const TextStyle(fontSize: 11),
-                ),
-              );
-            }).toList(),
-            onChanged: (String? theme) {
-              if (theme != null) {
-                setState(() => _selectedTheme = theme);
-              }
-            },
-          ),
-
-          const SizedBox(width: 16),
-
-          // Line count
-          Text(
-            'Lines: $_currentLineCount',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            child: DropdownButton<String>(
+              value: _selectedTheme,
+              underline: const SizedBox(),
+              isDense: true,
+              icon: Icon(
+                Icons.palette_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              items: _themes.keys.map((theme) {
+                return DropdownMenuItem<String>(
+                  value: theme,
+                  child: Text(
+                    theme.replaceAll('-', ' ').split(' ').map((word) =>
+                      word[0].toUpperCase() + word.substring(1)
+                    ).join(' '),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? theme) {
+                if (theme != null) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _selectedTheme = theme);
+                }
+              },
             ),
           ),
 
           const Spacer(),
 
-          // Actions
+          // Stats section
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Lines: $_currentLineCount',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Chars: ${_controller.text.length}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(width: 20),
+
+          // Actions with enhanced design
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.showIntegrations) ...[
-                Tooltip(
-                  message: 'Code snippets & integrations',
-                  child: IconButton(
-                    onPressed: _showIntegrationsHelp,
-                    icon: const Icon(Icons.extension, size: 20),
-                    visualDensity: VisualDensity.compact,
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Tooltip(
+                    message: 'Code snippets & integrations',
+                    child: IconButton(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        _showIntegrationsHelp();
+                      },
+                      icon: Icon(
+                        Icons.extension_rounded,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
               ],
 
-              Tooltip(
-                message: 'Format code',
-                child: IconButton(
-                  onPressed: _formatCode,
-                  icon: const Icon(Icons.format_align_left, size: 20),
-                  visualDensity: VisualDensity.compact,
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Tooltip(
+                  message: 'Format code',
+                  child: IconButton(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _formatCode();
+                    },
+                    icon: Icon(
+                      Icons.format_align_left_rounded,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ),
 
-              Tooltip(
-                message: 'Copy code',
-                child: IconButton(
-                  onPressed: _copyCode,
-                  icon: const Icon(Icons.copy, size: 20),
-                  visualDensity: VisualDensity.compact,
+              const SizedBox(width: 8),
+
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Tooltip(
+                  message: 'Copy code',
+                  child: IconButton(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _copyCode();
+                    },
+                    icon: Icon(
+                      Icons.copy_rounded,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.tertiary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ),
             ],
@@ -293,58 +415,126 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
   }
 
   Widget _buildStatusBar() {
+    final hasError = _lintError != null;
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: _lintError != null
-            ? Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
+        gradient: hasError
+            ? LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.8),
+                  Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.4),
+                ],
+              )
+            : LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                ],
+              ),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(8),
-          bottomRight: Radius.circular(8),
+          bottomLeft: Radius.circular(16),
+          bottomRight: Radius.circular(16),
         ),
         border: Border(
           top: BorderSide(
-            color: _lintError != null
+            color: hasError
                 ? Theme.of(context).colorScheme.error.withValues(alpha: 0.3)
                 : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            width: 1,
           ),
         ),
       ),
       child: Row(
         children: [
-          // Status indicator
-          Icon(
-            _lintError != null ? Icons.error_outline : Icons.check_circle_outline,
-            size: 16,
-            color: _lintError != null
-                ? Theme.of(context).colorScheme.error
-                : Theme.of(context).colorScheme.primary,
+          // Status indicator with animation
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: hasError
+                  ? Theme.of(context).colorScheme.error
+                  : Theme.of(context).colorScheme.primary,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: (hasError
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.primary)
+                      .withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              hasError ? Icons.error_rounded : Icons.check_circle_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
 
           // Status text
           Expanded(
-            child: Text(
-              _lintError ?? 'Code is valid',
-              style: TextStyle(
-                fontSize: 12,
-                color: _lintError != null
-                    ? Theme.of(context).colorScheme.error
-                    : Theme.of(context).colorScheme.primary,
-                fontWeight: _lintError != null ? FontWeight.w500 : FontWeight.normal,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  hasError ? 'Syntax Error' : 'Code Valid',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: hasError
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.primary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                if (hasError) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _lintError ?? '',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
             ),
           ),
 
-          // Word count
-          Text(
-            'Chars: ${_controller.text.length}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          // Additional stats
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  '${_controller.text.length} chars',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

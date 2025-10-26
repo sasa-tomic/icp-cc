@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../rust/native_bridge.dart';
 import '../services/favorites_service.dart';
@@ -10,6 +11,7 @@ import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
+import '../widgets/empty_state.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key, required this.bridge, required this.onOpenClient});
@@ -21,31 +23,141 @@ class FavoritesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Favorites'),
+        title: const Text('Canister Explorer'),
         actions: <Widget>[
-          IconButton(
-            onPressed: () => onOpenClient(),
-            tooltip: 'Canister client',
-            icon: const Icon(Icons.cloud),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              onPressed: () {
+                HapticFeedback.mediumImpact();
+                onOpenClient();
+              },
+              tooltip: 'Open Canister Client',
+              icon: Icon(
+                Icons.cloud_rounded,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          Text('Well-known canisters', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _WellKnownList(onSelect: (cid, method) {
-            onOpenClient(initialCanisterId: cid, initialMethodName: method);
-          }),
-          const SizedBox(height: 16),
-          Text('Your favorites', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _FavoritesList(
-            bridge: bridge,
-            onTapEntry: (cid, method) {
-              onOpenClient(initialCanisterId: cid, initialMethodName: method);
-            },
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // Well-known canisters section
+              _buildSectionHeader(
+                context,
+                title: 'Popular Canisters',
+                subtitle: 'Quick access to essential ICP services',
+                icon: Icons.star_rounded,
+              ),
+              const SizedBox(height: 16),
+              _WellKnownList(onSelect: (cid, method) {
+                HapticFeedback.lightImpact();
+                onOpenClient(initialCanisterId: cid, initialMethodName: method);
+              }),
+              
+              const SizedBox(height: 32),
+              
+              // Favorites section
+              _buildSectionHeader(
+                context,
+                title: 'Your Favorites',
+                subtitle: 'Your saved canister methods for quick access',
+                icon: Icons.favorite_rounded,
+              ),
+              const SizedBox(height: 16),
+              _FavoritesList(
+                bridge: bridge,
+                onTapEntry: (cid, method) {
+                  HapticFeedback.lightImpact();
+                  onOpenClient(initialCanisterId: cid, initialMethodName: method);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: Theme.of(context).colorScheme.primary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -680,17 +792,95 @@ class _WellKnownList extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _items.length,
-      separatorBuilder: (BuildContext _, int __) => const Divider(height: 1),
+      separatorBuilder: (BuildContext _, int __) => const SizedBox(height: 12),
       itemBuilder: (BuildContext context, int index) {
         final e = _items[index];
-        return ListTile(
-          leading: const Icon(Icons.star_border),
-          title: Text(e['label'] ?? ''),
-          subtitle: Text('${e['cid']} • ${e['method']}'),
-          onTap: () => onSelect(e['cid'] ?? '', e['method'] ?? ''),
+        return Card(
+          elevation: 2,
+          shadowColor: Colors.black.withValues(alpha: 0.1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: InkWell(
+            onTap: () => onSelect(e['cid'] ?? '', e['method'] ?? ''),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                          Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _getIconForCanister(e['label'] ?? ''),
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          e['label'] ?? '',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            e['method'] ?? '',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
+  }
+
+  IconData _getIconForCanister(String label) {
+    switch (label.toLowerCase()) {
+      case 'nns registry':
+        return Icons.dns_rounded;
+      case 'nns governance':
+        return Icons.how_to_vote_rounded;
+      case 'nns ledger':
+        return Icons.account_balance_rounded;
+      default:
+        return Icons.star_rounded;
+    }
   }
 }
 
@@ -742,37 +932,138 @@ class _FavoritesListState extends State<_FavoritesList> {
   @override
   Widget build(BuildContext context) {
     if (_entries.isEmpty) {
-      return const Text('No favorites yet');
+      return EmptyState(
+        icon: Icons.favorite_border_rounded,
+        title: 'No Favorites Yet',
+        subtitle: 'Save your frequently used canister methods for quick access',
+      );
     }
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _entries.length,
-      separatorBuilder: (BuildContext _, int __) => const Divider(height: 1),
+      separatorBuilder: (BuildContext _, int __) => const SizedBox(height: 12),
       itemBuilder: (BuildContext context, int index) {
         final entry = _entries[index];
         final cid = entry.canisterId;
         final method = entry.method;
         final label = entry.label ?? '';
-        return ListTile(
-          title: Text(label.isNotEmpty ? label : method),
-          subtitle: Text('$cid • $method'),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await FavoritesService.remove(canisterId: cid, method: method);
-              } catch (e) {
-                if (mounted) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Failed to remove favorite: $e')),
-                  );
-                }
-              }
-            },
+        
+        return Card(
+          elevation: 2,
+          shadowColor: Colors.black.withValues(alpha: 0.1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          onTap: () => widget.onTapEntry(cid, method),
+          child: InkWell(
+            onTap: () => widget.onTapEntry(cid, method),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.red.withValues(alpha: 0.2),
+                          Colors.pink.withValues(alpha: 0.1),
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      color: Colors.red,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label.isNotEmpty ? label : method,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          cid,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            method,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline_rounded,
+                          color: Colors.red.shade400,
+                          size: 20,
+                        ),
+                        onPressed: () async {
+                          HapticFeedback.mediumImpact();
+                          final messenger = ScaffoldMessenger.of(context);
+                          try {
+                            await FavoritesService.remove(canisterId: cid, method: method);
+                            if (mounted) {
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: const Text('Favorite removed'),
+                                  backgroundColor: Colors.red.shade500,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Failed to remove favorite: $e')),
+                              );
+                            }
+                          }
+                        },
+                        tooltip: 'Remove favorite',
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
