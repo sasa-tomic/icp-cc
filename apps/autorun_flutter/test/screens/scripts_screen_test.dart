@@ -29,7 +29,7 @@ void main() {
         expect(find.text('My Scripts'), findsOneWidget);
         expect(find.text('Marketplace'), findsOneWidget);
         expect(find.byType(FloatingActionButton), findsOneWidget);
-        expect(find.text('New script'), findsOneWidget);
+        expect(find.text('New Script'), findsOneWidget);
         expect(find.byIcon(Icons.add), findsOneWidget);
       });
 
@@ -52,7 +52,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
 
         // Initially on My Scripts tab
-        expect(find.text('New script'), findsOneWidget);
+        expect(find.text('New Script'), findsOneWidget);
         expect(find.byIcon(Icons.add), findsOneWidget);
 
         // Switch to Marketplace tab
@@ -69,7 +69,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
 
         // Should show Scripts FAB again
-        expect(find.text('New script'), findsOneWidget);
+        expect(find.text('New Script'), findsOneWidget);
         expect(find.byIcon(Icons.add), findsOneWidget);
       });
     });
@@ -83,7 +83,7 @@ void main() {
 
         // Assert - My Scripts tab is default
         expect(find.byType(FloatingActionButton), findsOneWidget);
-        expect(find.text('New script'), findsOneWidget);
+        expect(find.text('New Script'), findsOneWidget);
         expect(find.byIcon(Icons.add), findsOneWidget);
       });
 
