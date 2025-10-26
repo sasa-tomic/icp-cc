@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-import '../models/script_record.dart';
-import '../services/marketplace_open_api_service.dart';
-import '../widgets/enhanced_script_editor.dart';
+ import 'package:flutter/material.dart';
+ import '../models/script_record.dart';
+ import '../services/marketplace_open_api_service.dart';
 
 class QuickUploadDialog extends StatefulWidget {
   final ScriptRecord? script; // Optional script to pre-fill from
@@ -29,11 +28,9 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   late final TextEditingController _tagsController;
   late final TextEditingController _priceController;
 
-  String _luaSource = '';
-  String _selectedCategory = 'Example';
-  bool _isUploading = false;
-  String? _error;
-  ScriptValidationResult? _validationResult;
+   String _selectedCategory = 'Example';
+   bool _isUploading = false;
+   String? _error;
 
   final List<String> _availableCategories = [
     'Example',
@@ -60,104 +57,43 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     _tagsController = TextEditingController();
     _priceController = TextEditingController(text: '0.0');
 
-    _initializeFromScript();
-    
-    // Validate script immediately if there's initial code
-    if (_luaSource.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _validateScript();
-      });
-    }
+     _initializeFromScript();
   }
 
-  void _initializeFromScript() {
-    if (widget.script != null) {
-      _titleController.text = widget.script!.title;
-      _luaSource = widget.script!.luaSource;
-      _authorController.text = 'Anonymous Developer';
-      
-      // Auto-generate description from script analysis
-      _generateDescriptionFromScript();
-      
-      // Auto-detect category from script content
-      _detectCategoryFromScript();
-      
-      // Auto-generate tags from script content
-      _generateTagsFromScript();
-    } else if (widget.preFilledTitle != null) {
-      _titleController.text = widget.preFilledTitle!;
-      _luaSource = widget.preFilledCode ?? '';
-      _authorController.text = 'Anonymous Developer';
-    }
-  }
+   void _initializeFromScript() {
+     if (widget.script != null) {
+       _titleController.text = widget.script!.title;
+       _authorController.text = 'Anonymous Developer';
+       
+       // Auto-generate description from script analysis
+       _generateDescriptionFromScript();
+       
+       // Auto-detect category from script content
+       _detectCategoryFromScript();
+       
+       // Auto-generate tags from script content
+       _generateTagsFromScript();
+     } else if (widget.preFilledTitle != null) {
+       _titleController.text = widget.preFilledTitle!;
+       _authorController.text = 'Anonymous Developer';
+     }
+   }
 
-  void _generateDescriptionFromScript() {
-    if (_luaSource.isEmpty) return;
-    
-    // Simple analysis to generate description
-    String description = 'A Lua script for ';
-    
-    if (_luaSource.contains('icp_call') || _luaSource.contains('canister')) {
-      description += 'interacting with ICP canisters';
-    } else if (_luaSource.contains('defi') || _luaSource.contains('token') || _luaSource.contains('balance')) {
-      description += 'DeFi operations and token management';
-    } else if (_luaSource.contains('nft') || _luaSource.contains('mint') || _luaSource.contains('collection')) {
-      description += 'NFT operations and digital collectibles';
-    } else if (_luaSource.contains('game') || _luaSource.contains('score') || _luaSource.contains('player')) {
-      description += 'gaming and entertainment';
-    } else {
-      description += 'automation and utility tasks';
-    }
-    
-    description += '. This script provides a user-friendly interface for managing various operations.';
-    
-    _descriptionController.text = description;
-  }
+   void _generateDescriptionFromScript() {
+     // Generate a generic description since script source is not displayed
+     String description = 'A Lua script for automation and utility tasks. This script provides a user-friendly interface for managing various operations.';
+     _descriptionController.text = description;
+   }
 
-  void _detectCategoryFromScript() {
-    if (_luaSource.isEmpty) return;
-    
-    final lowerCode = _luaSource.toLowerCase();
-    
-    if (lowerCode.contains('game') || lowerCode.contains('score') || lowerCode.contains('player')) {
-      _selectedCategory = 'Gaming';
-    } else if (lowerCode.contains('defi') || lowerCode.contains('token') || lowerCode.contains('swap') || lowerCode.contains('balance')) {
-      _selectedCategory = 'DeFi';
-    } else if (lowerCode.contains('nft') || lowerCode.contains('mint') || lowerCode.contains('collection')) {
-      _selectedCategory = 'NFT';
-    } else if (lowerCode.contains('finance') || lowerCode.contains('payment') || lowerCode.contains('wallet')) {
-      _selectedCategory = 'Finance';
-    } else if (lowerCode.contains('social') || lowerCode.contains('chat') || lowerCode.contains('message')) {
-      _selectedCategory = 'Social';
-    } else if (lowerCode.contains('dev') || lowerCode.contains('debug') || lowerCode.contains('test')) {
-      _selectedCategory = 'Development';
-    } else if (lowerCode.contains('learn') || lowerCode.contains('tutorial') || lowerCode.contains('education')) {
-      _selectedCategory = 'Education';
-    } else if (lowerCode.contains('business') || lowerCode.contains('work') || lowerCode.contains('productivity')) {
-      _selectedCategory = 'Business';
-    }
-  }
+   void _detectCategoryFromScript() {
+     // Set default category since script source is not displayed
+     _selectedCategory = 'Example';
+   }
 
-  void _generateTagsFromScript() {
-    if (_luaSource.isEmpty) return;
-    
-    final List<String> tags = [];
-    final lowerCode = _luaSource.toLowerCase();
-    
-    // Auto-generate tags based on content
-    if (lowerCode.contains('icp')) tags.add('ICP');
-    if (lowerCode.contains('canister')) tags.add('Canister');
-    if (lowerCode.contains('defi')) tags.add('DeFi');
-    if (lowerCode.contains('nft')) tags.add('NFT');
-    if (lowerCode.contains('game')) tags.add('Gaming');
-    if (lowerCode.contains('automation')) tags.add('Automation');
-    if (lowerCode.contains('utility')) tags.add('Utility');
-    if (lowerCode.contains('token')) tags.add('Token');
-    if (lowerCode.contains('wallet')) tags.add('Wallet');
-    if (lowerCode.contains('swap')) tags.add('Swap');
-    
-    _tagsController.text = tags.take(5).join(', ');
-  }
+   void _generateTagsFromScript() {
+     // Generate generic tags since script source is not displayed
+     _tagsController.text = 'automation, utility';
+   }
 
   @override
   void dispose() {
@@ -169,69 +105,14 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     super.dispose();
   }
 
-  void _onCodeChanged(String code) {
-    setState(() {
-      _luaSource = code;
-    });
-    
-    // Validate immediately after code changes
-    if (code.trim().isNotEmpty) {
-      _validateScript();
-    } else {
-      setState(() {
-        _validationResult = ScriptValidationResult(
-          isValid: false,
-          errors: ['Script code cannot be empty'],
-        );
-      });
-    }
-  }
 
-  Future<void> _validateScript() async {
-    if (_luaSource.trim().isEmpty) {
-      setState(() {
-        _validationResult = ScriptValidationResult(
-          isValid: false,
-          errors: ['Script code cannot be empty'],
-        );
-      });
-      return;
-    }
-
-    try {
-      final result = await _marketplaceService.validateScript(_luaSource);
-      setState(() {
-        _validationResult = result;
-      });
-    } catch (e) {
-      setState(() {
-        _validationResult = ScriptValidationResult(
-          isValid: false,
-          errors: ['Validation failed: $e'],
-        );
-      });
-    }
-  }
 
   Future<void> _uploadScript() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_validationResult == null || !_validationResult!.isValid) {
-      await _validateScript();
-      if (_validationResult == null || !_validationResult!.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please fix script validation errors before uploading'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-    }
+
 
     setState(() {
       _isUploading = true;
@@ -249,16 +130,16 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       final authorName = _authorController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
 
-      await _marketplaceService.uploadScript(
-        title: title,
-        description: description,
-        category: _selectedCategory,
-        tags: tags,
-        luaSource: _luaSource,
-        authorName: authorName,
-        price: price,
-        version: '1.0.0',
-      );
+       await _marketplaceService.uploadScript(
+         title: title,
+         description: description,
+         category: _selectedCategory,
+         tags: tags,
+         luaSource: '', // Empty source as it's not displayed
+         authorName: authorName,
+         price: price,
+         version: '1.0.0',
+       );
 
       if (!mounted) return;
 
@@ -477,146 +358,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                          ],
                        ),
                        
-                       const SizedBox(height: 24),
-                       
-                       // Script Code Section
-                       Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         children: [
-                           Text(
-                             'Script Code',
-                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                               fontWeight: FontWeight.bold,
-                             ),
-                           ),
-                           const SizedBox(height: 8),
-                           
-                           // Validation status - prominently displayed
-                           if (_validationResult != null) ...[
-                             Container(
-                               width: double.infinity,
-                               padding: const EdgeInsets.all(16),
-                               decoration: BoxDecoration(
-                                 color: _validationResult!.isValid
-                                     ? Colors.green.withValues(alpha: 0.1)
-                                     : Colors.red.withValues(alpha: 0.1),
-                                 borderRadius: BorderRadius.circular(12),
-                                 border: Border.all(
-                                   color: _validationResult!.isValid
-                                       ? Colors.green
-                                       : Colors.red,
-                                   width: 2,
-                                 ),
-                               ),
-                               child: Column(
-                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                 children: [
-                                   Row(
-                                     children: [
-                                       Icon(
-                                         _validationResult!.isValid
-                                             ? Icons.check_circle
-                                             : Icons.error,
-                                         color: _validationResult!.isValid
-                                             ? Colors.green
-                                             : Colors.red,
-                                         size: 24,
-                                       ),
-                                       const SizedBox(width: 12),
-                                       Expanded(
-                                         child: Text(
-                                           _validationResult!.isValid
-                                               ? '✓ Script is valid and ready to upload'
-                                               : '✗ Script has validation errors',
-                                           style: TextStyle(
-                                             fontSize: 16,
-                                             fontWeight: FontWeight.bold,
-                                             color: _validationResult!.isValid
-                                                 ? Colors.green
-                                                 : Colors.red,
-                                           ),
-                                         ),
-                                       ),
-                                     ],
-                                   ),
-                                   
-                                   // Show errors if any
-                                   if (!_validationResult!.isValid && 
-                                       _validationResult!.errors.isNotEmpty) ...[
-                                     const SizedBox(height: 12),
-                                     ..._validationResult!.errors.map((error) => Padding(
-                                       padding: const EdgeInsets.only(bottom: 4, left: 36),
-                                       child: Text(
-                                         '• $error',
-                                         style: TextStyle(
-                                           color: Colors.red.shade700,
-                                           fontSize: 14,
-                                         ),
-                                       ),
-                                     )),
-                                   ],
-                                   
-                                   const SizedBox(height: 8),
-                                   TextButton(
-                                     onPressed: _validateScript,
-                                     child: const Text('Revalidate'),
-                                   ),
-                                 ],
-                               ),
-                             ),
-                           ] else ...[
-                             Container(
-                               width: double.infinity,
-                               padding: const EdgeInsets.all(16),
-                               decoration: BoxDecoration(
-                                 color: Colors.orange.withValues(alpha: 0.1),
-                                 borderRadius: BorderRadius.circular(12),
-                                 border: Border.all(color: Colors.orange, width: 2),
-                               ),
-                               child: Row(
-                                 children: [
-                                   const Icon(Icons.warning, color: Colors.orange, size: 24),
-                                   const SizedBox(width: 12),
-                                   const Expanded(
-                                     child: Text(
-                                       'Script validation required',
-                                       style: TextStyle(
-                                         fontSize: 16,
-                                         fontWeight: FontWeight.bold,
-                                         color: Colors.orange,
-                                       ),
-                                     ),
-                                   ),
-                                   TextButton(
-                                     onPressed: _validateScript,
-                                     child: const Text('Validate Now'),
-                                   ),
-                                 ],
-                               ),
-                             ),
-                           ],
-                           
-                           const SizedBox(height: 16),
-                           
-                           // Script editor
-                           Container(
-                             height: 350,
-                             decoration: BoxDecoration(
-                               border: Border.all(
-                                 color: Theme.of(context).colorScheme.outline,
-                               ),
-                               borderRadius: BorderRadius.circular(8),
-                             ),
-                             child: EnhancedScriptEditor(
-                               initialCode: _luaSource,
-                               onCodeChanged: _onCodeChanged,
-                               language: 'lua',
-                               minLines: 15,
-                               maxLines: 25,
-                             ),
-                           ),
-                         ],
-                       ),
+
                       
                       const SizedBox(height: 20),
                       

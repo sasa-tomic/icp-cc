@@ -30,21 +30,28 @@ class MarketplaceOpenApiService {
     int offset = 0,
   }) async {
     try {
+      final url = '$_baseUrl/scripts/search';
+      
+      // Build request body, only including non-null values
+      final requestBody = <String, dynamic>{
+        'sortBy': sortBy,
+        'order': sortOrder,
+        'limit': limit,
+        'offset': offset,
+      };
+      
+      // Only add optional parameters if they're not null
+      if (query != null) requestBody['query'] = query;
+      if (category != null) requestBody['category'] = category;
+      if (canisterId != null) requestBody['canisterId'] = canisterId;
+      if (minRating != null) requestBody['minRating'] = minRating;
+      if (maxPrice != null) requestBody['maxPrice'] = maxPrice;
+      
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/scripts/search'),
+            Uri.parse(url),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'query': query,
-              'category': category,
-              'canisterId': canisterId,
-              'minRating': minRating,
-              'maxPrice': maxPrice,
-              'sortBy': sortBy,
-              'order': sortOrder,
-              'limit': limit,
-              'offset': offset,
-            }),
+            body: jsonEncode(requestBody),
           )
           .timeout(_timeout);
 
@@ -645,10 +652,10 @@ class MarketplaceStats {
 
   factory MarketplaceStats.fromJson(Map<String, dynamic> json) {
     return MarketplaceStats(
-      totalScripts: json['total_scripts'] ?? 0,
-      totalAuthors: json['total_authors'] ?? 0,
-      totalDownloads: json['total_downloads'] ?? 0,
-      averageRating: (json['average_rating'] ?? 0.0).toDouble(),
+      totalScripts: json['totalScripts'] ?? json['total_scripts'] ?? 0,
+      totalAuthors: json['totalAuthors'] ?? json['total_authors'] ?? 0,
+      totalDownloads: json['totalDownloads'] ?? json['total_downloads'] ?? 0,
+      averageRating: (json['averageRating'] ?? json['average_rating'] ?? 0.0).toDouble(),
     );
   }
 }
