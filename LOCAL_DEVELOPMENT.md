@@ -4,6 +4,9 @@ This guide covers setting up and running the ICP Script Marketplace with local C
 
 ## Quick Start
 
+Install dependencies with `scripts/bootstrap.sh`
+Install just-build with `./install-just.sh`
+
 1. **Start local Cloudflare Workers**: `just cloudflare-local-up`
 2. **Initialize database**: `just cloudflare-local-init`
 3. **Run Flutter app locally**: `just flutter-local`
