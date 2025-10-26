@@ -232,5 +232,108 @@ void main() {
       // Check that the TextFormField is rendered
       expect(find.byType(TextFormField), findsOneWidget);
     });
+
+    testWidgets('filters out false values in children array', (WidgetTester tester) async {
+      // Test case that verifies false values are filtered out (not causing errors)
+      // This simulates the conditional UI expression pattern: condition and {...}
+      final ui = {
+        'type': 'column',
+        'children': [
+          {
+            'type': 'text',
+            'props': {'text': 'Before conditional'},
+          },
+          false, // This simulates condition and {...} when condition is false
+          {
+            'type': 'text',
+            'props': {'text': 'After conditional'},
+          },
+        ],
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      // Should render the valid nodes without errors
+      expect(find.text('Before conditional'), findsOneWidget);
+      expect(find.text('After conditional'), findsOneWidget);
+      
+      // Should not show error for false values (they're filtered out)
+      expect(find.text('UI node missing type'), findsNothing);
+    });
+
+    testWidgets('filters out null values in children array', (WidgetTester tester) async {
+      // Test case that ensures null values are handled gracefully
+      final ui = {
+        'type': 'column',
+        'children': [
+          {
+            'type': 'text',
+            'props': {'text': 'Before null'},
+          },
+          null, // This should be ignored gracefully
+          {
+            'type': 'text',
+            'props': {'text': 'After null'},
+          },
+        ],
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      // Should render the valid nodes without errors
+      expect(find.text('Before null'), findsOneWidget);
+      expect(find.text('After null'), findsOneWidget);
+      
+      // Should not show error for null values
+      expect(find.text('UI node missing type'), findsNothing);
+    });
+
+    testWidgets('handles empty string type', (WidgetTester tester) async {
+      // Test case for empty type field
+      final ui = {
+        'type': '',
+        'props': {'text': 'Empty type test'},
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      // Should render the error message for empty type
+      expect(find.text('UI node missing type'), findsOneWidget);
+    });
+
+    testWidgets('handles Map without type field', (WidgetTester tester) async {
+      // Test case that actually triggers the "UI node missing type" error
+      // This happens when a Map is passed but missing the type field
+      final ui = {
+        'type': 'column',
+        'children': [
+          {
+            'type': 'text',
+            'props': {'text': 'Before invalid node'},
+          },
+          {
+            // Missing 'type' field - this should trigger the error
+            'props': {'text': 'This node has no type'},
+          },
+          {
+            'type': 'text',
+            'props': {'text': 'After invalid node'},
+          },
+        ],
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      // Should render the error message for missing type
+      expect(find.text('UI node missing type'), findsOneWidget);
+      
+      // Should still render the valid nodes
+      expect(find.text('Before invalid node'), findsOneWidget);
+      expect(find.text('After invalid node'), findsOneWidget);
+    });
   });
 }

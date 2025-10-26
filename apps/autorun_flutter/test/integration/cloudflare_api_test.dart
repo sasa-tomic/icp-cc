@@ -66,7 +66,17 @@ void main() {
 
     test('should validate script using Cloudflare Workers', () async {
       try {
-        final result = await apiService.validateScript('print("Hello World")');
+        final result = await apiService.validateScript('''function init(arg)
+  return {}, {}
+end
+
+function view(state)
+  return {type = "text", props = {text = "Hello World"}}
+end
+
+function update(msg, state)
+  return state, {}
+end''');
         print('Validation result: ${result.isValid}');
         expect(result.isValid, isTrue);
       } catch (e) {
@@ -82,21 +92,29 @@ void main() {
         const testCategory = 'Utilities';
         const testTags = ['test', 'upload', 'automation'];
         const testLuaSource = '''-- Test Upload Script
-print("Hello from uploaded script!")
+function init(arg)
+  return {
+    message = "Hello from uploaded script!"
+  }, {}
+end
+
+function view(state)
+  return {
+    type = "text",
+    props = {
+      text = state.message
+    }
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end
 
 -- Simple automation function
 function greet(name)
     return "Hello, " .. name .. "!"
-end
-
--- Test the function
-local message = greet("World")
-print(message)
-
-return {
-    greet = greet,
-    message = message
-}''';
+end''';
         const testAuthorName = 'Test Author';
         const testVersion = '1.0.0';
         const testPrice = 0.0;

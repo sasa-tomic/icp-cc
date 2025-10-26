@@ -92,8 +92,8 @@ void main() {
         expect(script.luaSource, isNotEmpty, reason: 'Script Lua source must not be empty');
         expect(script.authorName, isNotEmpty, reason: 'Author name must not be empty');
         expect(script.authorId, isNotEmpty, reason: 'Author ID must not be empty');
-        expect(script.createdAt, isNotEmpty, reason: 'Created date must not be empty');
-        expect(script.updatedAt, isNotEmpty, reason: 'Updated date must not be empty');
+        expect(script.createdAt, isNotNull, reason: 'Created date must not be null');
+        expect(script.updatedAt, isNotNull, reason: 'Updated date must not be null');
         
         // Validate numeric fields
         expect(script.downloads, isA<int>(), reason: 'Downloads must be integer');
@@ -158,13 +158,17 @@ void main() {
       
       // Test valid Lua code
       final validLuaCode = '''
-        function hello()
-          print("Hello, World!")
-          return "success"
-        end
-        
-        return hello()
-      ''';
+function init(arg)
+  return {}, {}
+end
+
+function view(state)
+  return {type = "text", props = {text = "Hello, World!"}}
+end
+
+function update(msg, state)
+  return state, {}
+end''';
       
       final validationResult = await apiService.validateScript(validLuaCode);
       
@@ -206,8 +210,8 @@ void main() {
         expect(category, matches(RegExp(r'^[A-Za-z\s]+$')), reason: 'Category must contain only letters and spaces');
       }
       
-      // Check for required categories
-      final requiredCategories = ['All', 'Example', 'Uncategorized', 'Gaming', 'Finance', 'DeFi', 'NFT', 'Social', 'Utilities', 'Development', 'Education', 'Entertainment', 'Business'];
+      // Check for required categories (excluding "All" which is added by UI layer)
+      final requiredCategories = ['Example', 'Uncategorized', 'Gaming', 'Finance', 'DeFi', 'NFT', 'Social', 'Utilities', 'Development', 'Education', 'Entertainment', 'Business'];
       for (final required in requiredCategories) {
         expect(categories, contains(required), reason: 'Must contain required category: $required');
       }

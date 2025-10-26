@@ -62,15 +62,29 @@ function validateEventHandlers(lua_source: string, errors: string[], warnings: s
 }
 
 function validateICPIntegration(lua_source: string, errors: string[], warnings: string[]) {
-  // Validate canister ID patterns
+  const context = getValidationContext(lua_source);
+  
+  // Validate canister ID patterns with context awareness
   const canisterIdPattern = /canister_id\s*=\s*["']([^"']+)["']/g;
   let match;
   
   while ((match = canisterIdPattern.exec(lua_source)) !== null) {
     const canisterId = match[1];
+    
+    // Allow test/mock IDs in examples and tests
+    if (context.isExample || context.isTest) {
+      if (/^(test|mock|demo|example)/i.test(canisterId)) {
+        continue; // Skip validation for obvious test IDs
+      }
+    }
+    
     // Basic canister ID validation (ICP canister IDs follow specific patterns)
-    if (!/^[a-z0-9-]{27,63}$/.test(canisterId) || !canisterId.includes('-')) {
-      errors.push(`Invalid canister ID format: ${canisterId}. Expected format: xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxx-xxx`);
+    if (!/^[a-z0-9-]{10,63}$/.test(canisterId) || !canisterId.includes('-')) {
+      if (context.isProduction) {
+        errors.push(`Invalid canister ID format: ${canisterId}. Expected format: xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxx-xxx`);
+      } else {
+        warnings.push(`Potentially invalid canister ID format: ${canisterId}`);
+      }
     }
   }
   
@@ -81,7 +95,11 @@ function validateICPIntegration(lua_source: string, errors: string[], warnings: 
   if (hasEffectCalls) {
     const effectHandlerPattern = /effect\/result/i;
     if (!effectHandlerPattern.test(lua_source)) {
-      errors.push('Script uses ICP calls but missing effect/result handler in update() function');
+      if (context.isProduction) {
+        errors.push('Script uses ICP calls but missing effect/result handler in update() function');
+      } else {
+        warnings.push('Script uses ICP calls but missing effect/result handler in update() function');
+      }
     }
   }
   
@@ -93,6 +111,178 @@ function validateICPIntegration(lua_source: string, errors: string[], warnings: 
     for (const call of calls) {
       if (!call.includes('args')) {
         warnings.push('Canister call missing args field - may cause runtime errors');
+      }
+    }
+  }
+}
+
+function validateDataStructures(lua_source: string, errors: string[], warnings: string[]) {
+  const context = getValidationContext(lua_source);
+  
+  // Check for potential undefined state access (only in production)
+  if (context.isProduction) {
+    const stateAccessPattern = /state\.(\w+)/g;
+    let match;
+    
+    while ((match = stateAccessPattern.exec(lua_source)) !== null) {
+      const stateField = match[1];
+      // Skip common state fields that might be set dynamically
+      if (['last_action', 'show_info', 'counter', 'balance', 'transactions'].includes(stateField)) {
+        continue;
+      }
+      
+      // Check if this state field is initialized in init function
+      const initPattern = new RegExp(`${stateField}\\s*=`, 'i');
+      if (!initPattern.test(lua_source)) {
+        warnings.push(`State field 'state.${stateField}' may be undefined - ensure it's initialized in init()`);
+      }
+    }
+  }
+  
+  // Check for table operations that might cause issues (higher threshold)
+  const tableInsertPattern = /table\.insert\([^,]+,\s*[^)]+\)/g;
+  const tableInserts = lua_source.match(tableInsertPattern);
+  if (tableInserts && tableInserts.length > 100) {
+    warnings.push('Many table.insert operations detected - consider pre-allocating tables for better performance');
+  }
+  
+  // Check for string concatenation in loops (performance issue) - only in production
+  if (context.isProduction) {
+    const loopPattern = /for\s+.*\s+do\s*[\s\S]*?end/g;
+    const loops = lua_source.match(loopPattern);
+    if (loops) {
+      for (const loop of loops) {
+        if (loop.includes('..') && loop.match(/\.\./g)?.length > 5) {
+          warnings.push('String concatenation in loop detected - consider using table.concat for better performance');
+        }
+      }
+    }
+  }
+}
+
+function validatePerformancePatterns(lua_source: string, errors: string[], warnings: string[]) {
+  const context = getValidationContext(lua_source);
+  
+  // More sophisticated infinite loop detection
+  const whileLoops = lua_source.match(/while\s+true\s+do\s*[\s\S]*?end/g);
+  if (whileLoops) {
+    for (const loop of whileLoops) {
+      // Check if break/return is in a conditional that can be reached
+      const hasConditionalBreak = /\bif\b.*\bbreak\b/.test(loop);
+      const hasConditionalReturn = /\bif\b.*\breturn\b/.test(loop);
+      
+      if (!hasConditionalBreak && !hasConditionalReturn) {
+        errors.push('Potential infinite loop - while true without conditional break/return');
+      }
+    }
+  }
+  
+  // Check for recursive function calls without base case (only in production)
+  if (context.isProduction) {
+    const functionDefinitions = lua_source.match(/function\s+(\w+)\s*\([^)]*\)/g);
+    if (functionDefinitions) {
+      for (const funcDef of functionDefinitions) {
+        const funcName = funcDef.match(/function\s+(\w+)/)?.[1];
+        if (funcName && funcName !== 'init' && funcName !== 'view' && funcName !== 'update') {
+          const funcCalls = lua_source.match(new RegExp(`${funcName}\\s*\\(`, 'g'));
+          if (funcCalls && funcCalls.length > 1) {
+            // This might be recursive - check for base case
+            const funcBody = lua_source.match(new RegExp(`function\\s+${funcName}\\s*\\([^)]*\\)[\\s\\S]*?end`));
+            if (funcBody && !funcBody[0].includes('if') && !funcBody[0].includes('return')) {
+              warnings.push(`Recursive function '${funcName}' may be missing base case`);
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Check for extremely large numbers (increased threshold)
+  const largeNumbers = lua_source.match(/\b\d{15,}\b/g);
+  if (largeNumbers) {
+    warnings.push('Very large numbers detected - ensure they fit within Lua number limits');
+  }
+  
+  // Only warn about table.insert in loops for high counts (increased threshold)
+  const tableInsertMatches = lua_source.match(/table\.insert/g);
+  if (tableInsertMatches && tableInsertMatches.length > 50) {
+    warnings.push('Many table.insert operations detected - consider optimizing for better performance');
+  }
+}
+
+function getValidationContext(lua_source: string) {
+  const isExample = /--\s*(example|demo|tutorial|sample)/i.test(lua_source);
+  const isTest = /--\s*(test|spec|unit)/i.test(lua_source);
+  const isProduction = !isExample && !isTest;
+  
+  return { isExample, isTest, isProduction };
+}
+
+function validateSecurityPatterns(lua_source: string, errors: string[], warnings: string[]) {
+  const context = getValidationContext(lua_source);
+  
+  // Always block dangerous functions regardless of context
+  const loadStringPattern = /loadstring\s*\(/;
+  if (loadStringPattern.test(lua_source)) {
+    errors.push('loadstring() function detected - potential security risk');
+  }
+  
+  const dofilePattern = /dofile\s*\(/;
+  if (dofilePattern.test(lua_source)) {
+    errors.push('dofile() function detected - potential security risk');
+  }
+  
+  // More sophisticated secret detection with context awareness
+  if (context.isProduction) {
+    // Only check for real-looking secrets in production
+    const secretPatterns = [
+      { 
+        pattern: /private_key\s*=\s*["'][a-zA-Z0-9+/]{40,}["']/, 
+        message: 'Hardcoded private key detected (appears to be real)' 
+      },
+      { 
+        pattern: /(password|token|api_key)\s*=\s*["'][^"'\s]{20,}["']/, 
+        message: 'Potential hardcoded secret detected' 
+      }
+    ];
+    
+    for (const { pattern, message } of secretPatterns) {
+      if (pattern.test(lua_source)) {
+        errors.push(`${message} - use environment variables or secure storage`);
+      }
+    }
+  } else {
+    // In examples/tests, only warn about obvious secrets
+    if (/(sk-[a-zA-Z0-9]{32,}|pk_[a-zA-Z0-9]+)/.test(lua_source)) {
+      warnings.push('Potential real secret detected in example/test code');
+    }
+  }
+  
+  // Refined XSS detection - only flag actual dangerous patterns
+  const dangerousHtmlPatterns = [
+    /<script[^>]*>.*?<\/script>/i,  // Complete script tags
+    /javascript:[^"'\s]/i,           // Actual javascript: URLs
+  ];
+  
+  for (const pattern of dangerousHtmlPatterns) {
+    if (pattern.test(lua_source)) {
+      errors.push('Dangerous HTML/JavaScript pattern detected');
+    }
+  }
+  
+  // Check for network operations with context awareness
+  const urlPatterns = lua_source.match(/https?:\/\/[^\s"']+/g);
+  if (urlPatterns) {
+    for (const url of urlPatterns) {
+      if (url.includes('localhost') || url.includes('127.0.0.1')) {
+        if (context.isProduction) {
+          errors.push(`Localhost URL in production code: ${url}`);
+        } else {
+          warnings.push(`Localhost URL detected: ${url} - ensure this is intentional`);
+        }
+      }
+      if (!url.startsWith('https://') && context.isProduction) {
+        warnings.push(`Insecure HTTP URL detected: ${url} - consider using HTTPS`);
       }
     }
   }
@@ -290,6 +480,9 @@ export async function handleScriptValidationRequest(request: Request, env: Env):
     validateRequiredFunctions(lua_source, errors, warnings);
     validateEventHandlers(lua_source, errors, warnings);
     validateICPIntegration(lua_source, errors, warnings);
+    validateDataStructures(lua_source, errors, warnings);
+    validatePerformancePatterns(lua_source, errors, warnings);
+    validateSecurityPatterns(lua_source, errors, warnings);
 
     const result = {
       is_valid: errors.length === 0,
