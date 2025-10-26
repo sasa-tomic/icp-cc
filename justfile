@@ -311,7 +311,7 @@ flutter-local +args="":
 # Run Flutter app with production environment
 flutter-production +args="":
     @echo "==> Starting Flutter app with production environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=CLOUDFLARE_ENDPOINT=https://icp-marketplace-api.workers.dev {{args}}
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=CLOUDFLARE_ENDPOINT=https://icp-mp.kalaj.org {{args}}
 
 # =============================================================================
 # Help and Information
