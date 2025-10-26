@@ -2,12 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../test_helpers/wrangler_manager.dart';
 
 void main() {
   group('ScriptsScreen', () {
     setUpAll(() async {
       // Mock SharedPreferences for tests
       SharedPreferences.setMockInitialValues({});
+      
+      // Configure test environment for Cloudflare Workers
+      await WranglerManager.initialize();
+    });
+
+    tearDownAll(() async {
+      // Cleanup test configuration
+      await WranglerManager.cleanup();
     });
 
     Widget createWidget() {
