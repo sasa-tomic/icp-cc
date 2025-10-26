@@ -55,7 +55,7 @@ class MarketplaceOpenApiService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode < 200 || response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -91,7 +91,7 @@ class MarketplaceOpenApiService {
           .get(Uri.parse('$_baseUrl/scripts/$scriptId'))
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         if (response.statusCode == 404) {
           throw Exception('Script not found');
         }
@@ -125,7 +125,7 @@ class MarketplaceOpenApiService {
           .get(Uri.parse('$_baseUrl/scripts/featured?limit=$limit'))
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -153,7 +153,7 @@ class MarketplaceOpenApiService {
           .get(Uri.parse('$_baseUrl/scripts/trending?limit=$limit'))
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -192,7 +192,7 @@ class MarketplaceOpenApiService {
 
       final response = await http.get(uri).timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -229,7 +229,7 @@ class MarketplaceOpenApiService {
 
       final response = await http.get(uri).timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -332,7 +332,7 @@ class MarketplaceOpenApiService {
           .get(Uri.parse('$_baseUrl/marketplace-stats'))
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -380,7 +380,7 @@ class MarketplaceOpenApiService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -414,7 +414,7 @@ class MarketplaceOpenApiService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
@@ -477,7 +477,7 @@ class MarketplaceOpenApiService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode != 201) {
+      if (response.statusCode < 200 || response.statusCode > 299) {
         if (response.body.isEmpty) {
           throw Exception('Upload failed: ${response.reasonPhrase}');
         }
@@ -575,7 +575,7 @@ class MarketplaceOpenApiService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         final responseData = jsonDecode(response.body);
         throw Exception(responseData['error'] ?? 'Update failed: ${response.reasonPhrase}');
       }
@@ -607,7 +607,7 @@ class MarketplaceOpenApiService {
           .delete(Uri.parse('$_baseUrl/scripts/$scriptId'))
           .timeout(_timeout);
 
-      if (response.statusCode != 200) {
+      if (response.statusCode > 299) {
         final responseData = jsonDecode(response.body);
         throw Exception(responseData['error'] ?? 'Delete failed: ${response.reasonPhrase}');
       }

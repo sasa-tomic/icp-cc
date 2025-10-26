@@ -104,7 +104,7 @@ void main() {
       ));
       
       await tester.pump(const Duration(milliseconds: 100)); // Wait for animation
-      await tester.tap(find.byType(ModernCard));
+      await tester.tap(find.byType(ModernCard), warnIfMissed: false);
       await tester.pump();
       
       expect(tapped, isTrue);
@@ -271,7 +271,7 @@ void main() {
       ));
       
       await tester.pump(const Duration(milliseconds: 100)); // Wait for animation
-      await tester.tap(find.byType(ModernFloatingActionButton));
+      await tester.tap(find.byType(ModernFloatingActionButton), warnIfMissed: false);
       await tester.pump();
       
       expect(pressed, isTrue);
