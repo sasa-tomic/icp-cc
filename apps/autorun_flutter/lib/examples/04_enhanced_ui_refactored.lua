@@ -234,15 +234,7 @@ function render_transactions_section(state)
     props = {
       title = string.format("Transactions (%d items)", #filtered_transactions)
     },
-    children = {
-      -- Use the enhanced list component for rich display
-      icp_enhanced_list({
-        items = format_transactions_for_display(filtered_transactions),
-        title = "Transaction List",
-        searchable = true,
-        on_item_select = { type = "select_transaction" }
-      })
-    ]
+    children = format_transactions_for_ui(filtered_transactions)
   }
 end
 
@@ -260,15 +252,20 @@ function render_statistics_section(state)
     props = { title = "Statistics" },
     children = {
       {
-        type = "result_display",
+        type = "text",
         props = {
-          data = stats,
-          title = "Transaction Summary",
-          expandable = true,
-          expanded = false
+          text = "Total Transactions: " .. stats["Total Transactions"],
+          style = "strong"
+        }
+      },
+      {
+        type = "text",
+        props = {
+          text = "Total Amount: " .. stats["Total Amount"],
+          style = "subtitle"
         }
       }
-    ]
+    }
   }
 end
 
@@ -331,7 +328,70 @@ function filter_by_amount_range(transactions, min_amount, max_amount)
 end
 
 function sort_transactions(transactions, sort_config)
-  return icp_sort_items(transactions, sort_config.field, sort_config.ascending)
+  -- Simple bubble sort implementation for demonstration
+  local sorted = {}
+  for i, item in ipairs(transactions) do
+    table.insert(sorted, item)
+  end
+  
+  local compare = function(a, b)
+    if sort_config.field == "timestamp" then
+      return sort_config.ascending and (a.timestamp < b.timestamp) or (a.timestamp > b.timestamp)
+    elseif sort_config.field == "amount" then
+      return sort_config.ascending and (a.amount < b.amount) or (a.amount > b.amount)
+    elseif sort_config.field == "type" then
+      return sort_config.ascending and (a.type < b.type) or (a.type > b.type)
+    else
+      return false
+    end
+  end
+  
+  -- Simple sort
+  for i = 1, #sorted do
+    for j = i + 1, #sorted do
+      if compare(sorted[j], sorted[i]) then
+        local temp = sorted[i]
+        sorted[i] = sorted[j]
+        sorted[j] = temp
+      end
+    end
+  end
+  
+  return sorted
+end
+
+function format_transactions_for_ui(transactions)
+  local ui_elements = {}
+
+  for i, transaction in ipairs(transactions) do
+    table.insert(ui_elements, {
+      type = "section",
+      props = {
+        title = transaction.title
+      },
+      children = {
+        {
+          type = "text",
+          props = {
+            text = format_transaction_subtitle(transaction),
+            style = "subtitle"
+          }
+        },
+        {
+          type = "button",
+          props = {
+            label = "Select",
+            on_press = {
+              type = "select_transaction",
+              item = { data = transaction }
+            }
+          }
+        }
+      }
+    })
+  end
+
+  return ui_elements
 end
 
 function format_transactions_for_display(transactions)
@@ -350,9 +410,9 @@ end
 
 function format_transaction_subtitle(transaction)
   return string.format("%s • %s • %s",
-    icp_format_timestamp(transaction.timestamp),
+    format_timestamp(transaction.timestamp),
     transaction.type,
-    icp_format_icp(transaction.amount)
+    format_icp(transaction.amount)
   )
 end
 
@@ -375,8 +435,8 @@ function calculate_statistics(transactions)
   -- Format statistics for display
   local stats = {
     ["Total Transactions"] = #transactions,
-    ["Total Amount"] = icp_format_icp(total_amount),
-    ["Average Amount"] = icp_format_icp(average_amount),
+    ["Total Amount"] = format_icp(total_amount),
+    ["Average Amount"] = format_icp(average_amount),
     ["Date Range"] = format_date_range(transactions)
   }
 
@@ -397,8 +457,8 @@ function format_date_range(transactions)
   local latest = transactions[1]
 
   return string.format("%s to %s",
-    icp_format_timestamp(earliest.timestamp),
-    icp_format_timestamp(latest.timestamp)
+    format_timestamp(earliest.timestamp),
+    format_timestamp(latest.timestamp)
   )
 end
 
@@ -538,4 +598,23 @@ function select_weighted_transaction_type(types)
   end
 
   return types[1]  -- Fallback
+end
+
+--==============================================================================
+-- HELPER FUNCTIONS FOR ICP-SPECIFIC FUNCTIONALITY
+-- Simple implementations for demonstration purposes
+--==============================================================================
+
+function format_timestamp(timestamp)
+  -- Simple timestamp formatting (nanoseconds to readable date)
+  if not timestamp then return "Unknown time" end
+  local seconds = math.floor(timestamp / 1000000000)
+  return os.date("%Y-%m-%d %H:%M:%S", seconds)
+end
+
+function format_icp(amount_e8s)
+  -- Convert from e8s (10^-8) to ICP
+  if not amount_e8s then return "0 ICP" end
+  local icp = amount_e8s / 100000000
+  return string.format("%.8f ICP", icp)
 end

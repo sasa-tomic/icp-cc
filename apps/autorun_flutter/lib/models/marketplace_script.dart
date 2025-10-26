@@ -19,7 +19,6 @@ class MarketplaceScript {
   final String? compatibility;
   final String? version;
   final bool isPublic;
-  final bool isApproved;
   final DateTime createdAt;
   final DateTime updatedAt;
   final MarketplaceAuthor? author;
@@ -45,7 +44,6 @@ class MarketplaceScript {
     this.compatibility,
     this.version,
     this.isPublic = true,
-    this.isApproved = false,
     required this.createdAt,
     required this.updatedAt,
     this.author,
@@ -80,10 +78,9 @@ class MarketplaceScript {
       compatibility: json['compatibility'] as String?,
       version: json['version'] as String?,
       isPublic: _parseBool(json['isPublic'] ?? json['is_public'] ?? true),
-      isApproved: _parseBool(json['isApproved'] ?? json['is_approved'] ?? false),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? json['created_at'] as String? ?? json['\$createdAt'] as String? ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? json['updated_at'] as String? ?? json['\$updatedAt'] as String? ?? '') ?? DateTime.now(),
-      author: json['author'] != null
+      author: json['author'] is Map<String, dynamic>
           ? MarketplaceAuthor.fromJson(json['author'] as Map<String, dynamic>)
           : null,
     );
@@ -111,7 +108,6 @@ class MarketplaceScript {
       'compatibility': compatibility,
       'version': version,
       'isPublic': isPublic,
-      'isApproved': isApproved,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'author': author?.toJson(),
@@ -139,7 +135,6 @@ class MarketplaceScript {
     String? compatibility,
     String? version,
     bool? isPublic,
-    bool? isApproved,
     DateTime? createdAt,
     DateTime? updatedAt,
     MarketplaceAuthor? author,
@@ -165,7 +160,6 @@ class MarketplaceScript {
       compatibility: compatibility ?? this.compatibility,
       version: version ?? this.version,
       isPublic: isPublic ?? this.isPublic,
-      isApproved: isApproved ?? this.isApproved,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       author: author ?? this.author,

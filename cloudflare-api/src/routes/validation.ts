@@ -39,38 +39,72 @@ export async function handleScriptValidationRequest(request: Request, env: Env):
       }
     }
 
-    // Check for basic Lua syntax errors (simple checks)
+    // Check for basic Lua syntax errors (improved checks)
     const lines = lua_source.split('\n');
     let openBraces = 0;
     let openParens = 0;
     let openBrackets = 0;
+    let inString = false;
+    let stringChar = '';
+    let inComment = false;
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
+      const line = lines[i];
       
-      // Skip comments and empty lines
-      if (line.startsWith('--') || line === '') continue;
-
-      // Count brackets
-      for (const char of line) {
-        if (char === '{') openBraces++;
-        else if (char === '}') openBraces--;
-        else if (char === '(') openParens++;
-        else if (char === ')') openParens--;
-        else if (char === '[') openBrackets++;
-        else if (char === ']') openBrackets--;
+      // Reset comment state for each line
+      inComment = false;
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        const prevChar = j > 0 ? line[j - 1] : '';
+        
+        // Handle comments
+        if (!inString && !inComment && char === '-' && prevChar === '-') {
+          inComment = true;
+          break; // Skip rest of line
+        }
+        
+        // Handle strings
+        if (!inComment) {
+          if (!inString && (char === '"' || char === "'")) {
+            inString = true;
+            stringChar = char;
+          } else if (inString && char === stringChar && prevChar !== '\\') {
+            inString = false;
+            stringChar = '';
+          }
+        }
+        
+        // Count brackets only when not in strings or comments
+        if (!inString && !inComment) {
+          if (char === '{') openBraces++;
+          else if (char === '}') openBraces--;
+          else if (char === '(') openParens++;
+          else if (char === ')') openParens--;
+          else if (char === '[') openBrackets++;
+          else if (char === ']') openBrackets--;
+          
+          // Check for immediate unmatched closing
+          if (openBraces < 0) {
+            errors.push(`Unmatched closing brace on line ${i + 1}`);
+            openBraces = 0;
+          }
+          if (openParens < 0) {
+            errors.push(`Unmatched closing parenthesis on line ${i + 1}`);
+            openParens = 0;
+          }
+          if (openBrackets < 0) {
+            errors.push(`Unmatched closing bracket on line ${i + 1}`);
+            openBrackets = 0;
+          }
+        }
       }
-
-      // Check for unclosed brackets at end of line
-      if (openBraces < 0) errors.push(`Unmatched closing brace on line ${i + 1}`);
-      if (openParens < 0) errors.push(`Unmatched closing parenthesis on line ${i + 1}`);
-      if (openBrackets < 0) errors.push(`Unmatched closing bracket on line ${i + 1}`);
     }
 
     // Check for unclosed brackets at end of file
-    if (openBraces > 0) errors.push(`${openBraces} unclosed brace(s)`);
-    if (openParens > 0) errors.push(`${openParens} unclosed parenthesis(es)`);
-    if (openBrackets > 0) errors.push(`${openBrackets} unclosed bracket(s)`);
+    if (openBraces > 0) errors.push(`${openBraces} unclosed brace(s) at end of file`);
+    if (openParens > 0) errors.push(`${openParens} unclosed parenthesis(es) at end of file`);
+    if (openBrackets > 0) errors.push(`${openBrackets} unclosed bracket(s) at end of file`);
 
     // Check for common Lua patterns
     if (!/function\s+\w+/.test(lua_source) && !/local\s+function\s+\w+/.test(lua_source)) {

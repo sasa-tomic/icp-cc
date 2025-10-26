@@ -103,7 +103,6 @@ void main() {
         
         // Validate boolean fields
         expect(script.isPublic, isA<bool>(), reason: 'isPublic must be boolean');
-        expect(script.isApproved, isA<bool>(), reason: 'isApproved must be boolean');
         
         // Validate list fields
         expect(script.tags, isA<List<String>>(), reason: 'Tags must be string list');
@@ -131,7 +130,6 @@ void main() {
         expect(script.id, isNotEmpty, reason: 'Featured script ID must not be empty');
         expect(script.title, isNotEmpty, reason: 'Featured script title must not be empty');
         expect(script.isPublic, isTrue, reason: 'Featured scripts must be public');
-        expect(script.isApproved, isTrue, reason: 'Featured scripts must be approved');
       }
       
       print('✅ Found ${featuredScripts.length} featured scripts');
@@ -150,7 +148,6 @@ void main() {
         expect(script.title, isNotEmpty, reason: 'Trending script title must not be empty');
         expect(script.downloads, greaterThanOrEqualTo(0), reason: 'Trending scripts should have downloads >= 0');
         expect(script.isPublic, isTrue, reason: 'Trending scripts must be public');
-        expect(script.isApproved, isTrue, reason: 'Trending scripts must be approved');
       }
       
       print('✅ Found ${trendingScripts.length} trending scripts');
@@ -660,7 +657,6 @@ void main() {
         
         // Required boolean fields
         expect(script.isPublic, isA<bool>(), reason: 'isPublic must be boolean');
-        expect(script.isApproved, isA<bool>(), reason: 'isApproved must be boolean');
         
         // Required list fields
         expect(script.tags, isA<List<String>>(), reason: 'Tags must be list');
