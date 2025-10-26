@@ -158,7 +158,7 @@ void main() {
       expect(source, contains('get_transactions'));
 
       // Should handle async responses
-      expect(source, contains('effect_result'));
+      expect(source, contains('effect/result'));
       expect(source, contains('handle_icp_response'));
 
       // Should use ICP formatting helpers
