@@ -181,7 +181,8 @@ test-with-cloudflare:
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | grep -E "(info •|warning •|error •)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --concurrency $(nproc) --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(FAIL|ERROR)" && { echo "❌ Flutter tests failed!"; exit 1; } || echo "✅ All Flutter tests passed"
+    @cd {{flutter_dir}} && flutter test --concurrency $(nproc) --quiet 2>&1 > {{logs_dir}}/test-output.log
+    @if [ $? -ne 0 ]; then { grep -iE "(FAIL|ERROR)" {{logs_dir}}/test-output.log ; echo "❌ Flutter tests failed!"; exit 1; }; else echo "✅ All Flutter tests passed"; fi
     @echo "==> Stopping Cloudflare Workers..."
     @just cloudflare-test-down
 
