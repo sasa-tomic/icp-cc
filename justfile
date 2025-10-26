@@ -21,11 +21,19 @@ cloudflare_health_url := "http://localhost:" + cloudflare_port + "/api/v1/health
 cloudflare_test_pid := "/tmp/wrangler-test.pid"
 
 # =============================================================================
+# Default Target
+# =============================================================================
+
+# Default target - show help
+default:
+   @{{scripts_dir}}/dynamic-just-help.sh
+
+# =============================================================================
 # Utility Functions
 # =============================================================================
 
 # Wait for Cloudflare Workers to be healthy
-_wait-for-cloudflare timeout:
+wait-for-cloudflare-internal timeout="30":
     #!/usr/bin/env bash
     set -euo pipefail
     timeout_val="{{timeout}}"
@@ -81,10 +89,6 @@ _stop-cloudflare-workers:
 # =============================================================================
 # Main Targets
 # =============================================================================
-
-# Default target - show dynamic help
-default:
-    @{{scripts_dir}}/dynamic-just-help.sh
 
 # =============================================================================
 # Build Targets
@@ -253,7 +257,7 @@ server-init +args="":
 cloudflare-local-up:
     @echo "==> Starting local Cloudflare Workers development environment"
     cd {{cloudflare_dir}} && wrangler dev --port {{cloudflare_port}} --persist-to .wrangler/state &
-    @just _wait-for-cloudflare 30
+    @just wait-for-cloudflare-internal 30
 
 # Stop local Cloudflare Workers development environment
 cloudflare-local-down:
