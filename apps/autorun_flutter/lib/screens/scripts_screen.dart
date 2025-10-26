@@ -405,7 +405,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     if (uploaded == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Script submitted for review!'),
+          content: Text('Script published successfully!'),
           backgroundColor: Colors.green,
         ),
       );

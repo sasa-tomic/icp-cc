@@ -465,7 +465,6 @@ class MarketplaceOpenApiService {
               'compatibility': compatibility,
               'price': price,
               'is_public': true,
-              'is_approved': false, // Requires admin approval
             }),
           )
           .timeout(_timeout);
@@ -485,7 +484,7 @@ class MarketplaceOpenApiService {
         // Script was created but is not yet approved (not public)
         // Return a basic script object with the upload info
         return MarketplaceScript(
-          id: 'pending-approval-${DateTime.now().millisecondsSinceEpoch}',
+          id: 'script-${DateTime.now().millisecondsSinceEpoch}',
           title: title,
           description: description,
           category: category,

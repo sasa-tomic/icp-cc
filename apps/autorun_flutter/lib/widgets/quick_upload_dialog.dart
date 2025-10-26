@@ -262,7 +262,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Script uploaded successfully! It will be reviewed before being published.'),
+          content: Text('Script published successfully!'),
           backgroundColor: Colors.green,
         ),
       );
