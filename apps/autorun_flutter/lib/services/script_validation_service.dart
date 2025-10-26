@@ -34,7 +34,7 @@ class ScriptValidationService {
   factory ScriptValidationService() => _instance;
   ScriptValidationService._internal();
 
-  final String _baseUrl = '${AppConfig.apiEndpoint}/api/v1';
+  String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1';
   final Duration _timeout = const Duration(seconds: 10);
 
   Future<ValidationResult> validateScript(String luaSource) async {
