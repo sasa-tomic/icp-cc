@@ -98,6 +98,7 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
     String? emoji,
     String? imageUrl,
     String? luaSourceOverride,
+    Map<String, dynamic>? metadata,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -108,6 +109,7 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
             #emoji: emoji,
             #imageUrl: imageUrl,
             #luaSourceOverride: luaSourceOverride,
+            #metadata: metadata,
           },
         ),
         returnValue: _i4.Future<_i2.ScriptRecord>.value(_FakeScriptRecord_0(
@@ -120,6 +122,7 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
               #emoji: emoji,
               #imageUrl: imageUrl,
               #luaSourceOverride: luaSourceOverride,
+              #metadata: metadata,
             },
           ),
         )),
@@ -264,6 +267,12 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
           Invocation.getter(#updatedAt),
         ),
       ) as DateTime);
+
+  @override
+  Map<String, dynamic> get metadata => (super.noSuchMethod(
+        Invocation.getter(#metadata),
+        returnValue: <String, dynamic>{},
+      ) as Map<String, dynamic>);
 
   @override
   Map<String, dynamic> toJson() => (super.noSuchMethod(

@@ -191,6 +191,7 @@ class ScriptController extends ChangeNotifier {
     String? emoji,
     String? imageUrl,
     String? luaSourceOverride,
+    Map<String, dynamic>? metadata,
   }) async {
     if (title.trim().isEmpty) {
       throw ArgumentError('title is required');
@@ -217,6 +218,7 @@ class ScriptController extends ChangeNotifier {
         luaSource: defaultLua,
         createdAt: now,
         updatedAt: now,
+        metadata: metadata ?? {},
       );
       _scripts.add(record);
       await _repository.persistScripts(_scripts);

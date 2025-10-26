@@ -9,6 +9,7 @@ class ScriptRecord {
     required this.luaSource,
     required this.createdAt,
     required this.updatedAt,
+    this.metadata = const {},
   }) : assert(emoji == null || emoji.isNotEmpty),
        assert(imageUrl == null || imageUrl.isNotEmpty);
 
@@ -19,6 +20,7 @@ class ScriptRecord {
   final String luaSource; // The Lua script source code
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Map<String, dynamic> metadata; // Additional metadata for marketplace integration
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
@@ -28,6 +30,7 @@ class ScriptRecord {
     'luaSource': luaSource,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'metadata': metadata,
   };
 
   factory ScriptRecord.fromJson(Map<String, dynamic> json) {
@@ -48,6 +51,7 @@ class ScriptRecord {
       luaSource: luaSource,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      metadata: Map<String, dynamic>.from(json['metadata'] as Map? ?? {}),
     );
   }
 
