@@ -480,48 +480,56 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     final scripts = _controller.scripts;
     
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          // Tab bar
-          Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(icon: Icon(Icons.code), text: 'My Scripts'),
-                Tab(icon: Icon(Icons.store), text: 'Marketplace'),
-              ],
-              labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
-              indicatorColor: Theme.of(context).colorScheme.primary,
-            ),
+          Column(
+            children: [
+              // Tab bar
+              Container(
+                color: Theme.of(context).colorScheme.surface,
+                child: TabBar(
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(icon: Icon(Icons.code), text: 'My Scripts'),
+                    Tab(icon: Icon(Icons.store), text: 'Marketplace'),
+                  ],
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  indicatorColor: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              // Tab content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildMyScriptsTab(scripts),
+                    _buildMarketplaceTab(),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // Tab content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildMyScriptsTab(scripts),
-                _buildMarketplaceTab(),
-              ],
-            ),
+          // Positioned FAB above navigation bar
+          Positioned(
+            right: 16,
+            bottom: 120, // Position well above navigation bar
+            child: _tabController.index == 0 
+              ? AnimatedFab(
+                  heroTag: 'scripts_fab',
+                  onPressed: _controller.isBusy ? null : _showCreateSheet,
+                  icon: const Icon(Icons.add_rounded),
+                  label: 'New Script',
+                )
+              : AnimatedFab(
+                  heroTag: 'marketplace_fab',
+                  onPressed: () => _showUploadScriptDialog(context),
+                  icon: const Icon(Icons.upload_rounded),
+                  label: 'Upload Script',
+                ),
           ),
         ],
       ),
-      floatingActionButton: _tabController.index == 0 
-        ? AnimatedFab(
-            heroTag: 'scripts_fab',
-            onPressed: _controller.isBusy ? null : _showCreateSheet,
-            icon: const Icon(Icons.add_rounded),
-            label: 'New Script',
-          )
-        : AnimatedFab(
-            heroTag: 'marketplace_fab',
-            onPressed: () => _showUploadScriptDialog(context),
-            icon: const Icon(Icons.upload_rounded),
-            label: 'Upload Script',
-          ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
     );
   }
 
@@ -546,7 +554,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         return RefreshIndicator(
           onRefresh: _controller.refresh,
           child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 140, top: 8),
+            padding: const EdgeInsets.only(bottom: 32, top: 8),
             itemCount: scripts.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
@@ -793,7 +801,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           return false;
         },
         child: GridView.builder(
-          padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 140),
+          padding: const EdgeInsets.all(16.0),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             childAspectRatio: 0.75,
