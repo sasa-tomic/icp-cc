@@ -328,8 +328,10 @@ class MarketplaceOpenApiService {
   // Get marketplace statistics (public data)
   Future<MarketplaceStats> getMarketplaceStats() async {
     try {
+      final url = '$_baseUrl/marketplace-stats';
+      if (!suppressDebugOutput) debugPrint('GET request URL: $url');
       final response = await http
-          .get(Uri.parse('$_baseUrl/marketplace-stats'))
+          .get(Uri.parse(url))
           .timeout(_timeout);
 
       if (response.statusCode > 299) {
@@ -455,37 +457,57 @@ class MarketplaceOpenApiService {
     double price = 0.0,
   }) async {
     try {
+      final requestBodyMap = <String, dynamic>{
+        'title': title,
+        'description': description,
+        'category': category,
+        'tags': tags,
+        'lua_source': luaSource,
+        'author_name': authorName,
+        'canister_ids': canisterIds ?? [],
+        'screenshots': screenshots ?? [],
+        'version': version ?? '1.0.0',
+        'price': price,
+        'is_public': true,
+      };
+      
+      // Only include non-null optional fields
+      if (iconUrl != null) {
+        requestBodyMap['icon_url'] = iconUrl;
+      }
+      if (compatibility != null) {
+        requestBodyMap['compatibility'] = compatibility;
+      }
+      
+      final requestBody = jsonEncode(requestBodyMap);
+      
+      if (!suppressDebugOutput) {
+        debugPrint('Upload request URL: $_baseUrl/scripts');
+        debugPrint('Request body: $requestBody');
+      }
+      
       final response = await http
           .post(
             Uri.parse('$_baseUrl/scripts'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'title': title,
-              'description': description,
-              'category': category,
-              'tags': tags,
-              'lua_source': luaSource,
-              'author_name': authorName,
-              'canister_ids': canisterIds ?? [],
-              'icon_url': iconUrl,
-              'screenshots': screenshots ?? [],
-              'version': version ?? '1.0.0',
-              'compatibility': compatibility,
-              'price': price,
-              'is_public': true,
-            }),
+            body: requestBody,
           )
           .timeout(_timeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
+        if (!suppressDebugOutput) {
+          debugPrint('Upload failed with status: ${response.statusCode}');
+          debugPrint('Response body: ${response.body}');
+          debugPrint('Reason phrase: "${response.reasonPhrase}"');
+        }
         if (response.body.isEmpty) {
-          throw Exception('Upload failed: ${response.reasonPhrase}');
+          throw Exception('Upload failed: HTTP $response.statusCode $response.reasonPhrase');
         }
         try {
           final responseData = jsonDecode(response.body);
-          throw Exception(responseData['error'] ?? 'Upload failed: ${response.reasonPhrase}');
+          throw Exception(responseData['error'] ?? 'Upload failed: HTTP $response.statusCode $response.reasonPhrase');
         } catch (e) {
-          throw Exception('Upload failed: ${response.reasonPhrase}');
+          throw Exception('Upload failed: HTTP $response.statusCode $response.reasonPhrase');
         }
       }
 

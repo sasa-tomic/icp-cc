@@ -48,9 +48,20 @@ export class JsonResponse {
 export class DatabaseService {
   constructor(private env: Env) {}
 
+  private getDatabase(): D1Database {
+    // If TEST_DB_NAME is specified, use dynamic database selection
+    if (this.env.TEST_DB_NAME) {
+      const testDbName = `TEST_${this.env.TEST_DB_NAME.toUpperCase()}`;
+      return (this.env as any)[testDbName] || this.env.DB;
+    }
+    return this.env.DB;
+  }
+
   async getScriptWithDetails(scriptId: string): Promise<Script | null> {
+    const db = this.getDatabase();
+    
     // Get script
-    const script = await this.env.DB.prepare(`
+    const script = await db.prepare(`
       SELECT * FROM scripts 
       WHERE id = ? AND is_public = 1
     `).bind(scriptId).first();
@@ -60,7 +71,7 @@ export class DatabaseService {
     // Get author
     let author: Author | undefined;
     try {
-      const authorData = await this.env.DB.prepare(`
+      const authorData = await db.prepare(`
         SELECT * FROM users WHERE id = ?
       `).bind(script.author_id).first();
 
@@ -85,7 +96,7 @@ export class DatabaseService {
     }
 
     // Get reviews
-    const reviews = await this.env.DB.prepare(`
+    const reviews = await db.prepare(`
       SELECT * FROM reviews 
       WHERE script_id = ? 
       ORDER BY created_at DESC 
@@ -111,10 +122,12 @@ export class DatabaseService {
   }
 
   async enrichScripts(scripts: any[]): Promise<Script[]> {
+    const db = this.getDatabase();
+    
     return Promise.all(scripts.map(async (script: any) => {
       let author: Author;
       try {
-        const authorData = await this.env.DB.prepare(`
+        const authorData = await db.prepare(`
           SELECT * FROM users WHERE id = ?
         `).bind(script.author_id).first();
 
@@ -160,6 +173,7 @@ export class DatabaseService {
     limit?: number;
     offset?: number;
   }): Promise<{ scripts: Script[]; total: number }> {
+    const db = this.getDatabase();
     const {
       query,
       category,
@@ -221,14 +235,14 @@ export class DatabaseService {
     const orderClause = `${dbSortBy} ${order.toUpperCase()}`;
 
     // Get total count
-    const countResult = await this.env.DB.prepare(`
+    const countResult = await db.prepare(`
       SELECT COUNT(*) as total FROM scripts WHERE ${whereClause}
     `).bind(...bindings).first();
 
     const total = countResult?.total || 0;
 
     // Get scripts
-    const scriptsResult = await this.env.DB.prepare(`
+    const scriptsResult = await db.prepare(`
       SELECT * FROM scripts 
       WHERE ${whereClause} 
       ORDER BY ${orderClause} 

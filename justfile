@@ -173,18 +173,20 @@ _flutter-tests:
 
 # Run Flutter tests with Cloudflare Workers (includes Lua validation)
 test-with-cloudflare:
+    @echo "==> Cleaning up any existing test databases..."
+    @{{scripts_dir}}/test_db_manager.sh cleanup
     @echo "==> Starting Cloudflare Workers for tests..."
-    @just cloudflare-test-up
+    @just cloudflare-test-up-dynamic
     @echo "==> Validating Lua example scripts..."
     @{{scripts_dir}}/validation/validate_lua.sh 2>&1 | tee -a {{logs_dir}}/test-output.log || { echo "❌ Lua script validation failed!"; exit 1; }
     @echo "==> Running Flutter analysis..."
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | grep -E "(info •|warning •|error •)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --concurrency=$(nproc) --timeout=360s --quiet 2>&1 | sed 's/.*\r//' > {{logs_dir}}/test-output.log
+    @cd {{flutter_dir}} && flutter test --concurrency=1 --timeout=360s --quiet 2>&1 | sed 's/.*\r//' > {{logs_dir}}/test-output.log
     @if [ $? -ne 0 ]; then { grep -iE "(FAIL|ERROR)" {{logs_dir}}/test-output.log ; echo "❌ Flutter tests failed!"; exit 1; }; else echo "✅ All Flutter tests passed"; fi
     @echo "==> Stopping Cloudflare Workers..."
-    @just cloudflare-test-down
+    @just cloudflare-test-down-dynamic
 
 # =============================================================================
 # Cleanup
@@ -267,11 +269,11 @@ cloudflare-local-down:
     @pkill -f "wrangler dev" || echo "No wrangler processes found"
     @echo "==> Cloudflare Workers stopped"
 
-# Start Cloudflare Workers for testing (with PID management)
+# Start Cloudflare Workers for testing (with PID management) - LEGACY
 cloudflare-test-up:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "==> Starting Cloudflare Workers for testing"
+    echo "==> Starting Cloudflare Workers for tests (LEGACY)"
     
     # Check if already running
     if [ -f "{{cloudflare_test_pid}}" ]; then
@@ -318,10 +320,68 @@ cloudflare-test-up:
     echo "==> Check logs with: cat /tmp/wrangler-test.log"
     exit 1
 
+# Start Cloudflare Workers for testing with dynamic database
+cloudflare-test-up-dynamic:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Starting Cloudflare Workers for tests with test database"
+    
+    # Setup test environment
+    TEST_DB_NAME=$({{scripts_dir}}/test_db_manager.sh create "default")
+    export TEST_DB_NAME
+    
+    echo "==> Using test database: $TEST_DB_NAME"
+    
+    # Check if already running
+    if [ -f "{{cloudflare_test_pid}}" ]; then
+        if kill -0 "$(cat {{cloudflare_test_pid}})" 2>/dev/null; then
+            echo "==> Cloudflare Workers already running with PID $(cat {{cloudflare_test_pid}})"
+        else
+            echo "==> Stale PID file found, cleaning up..."
+            rm -f "{{cloudflare_test_pid}}"
+        fi
+    fi
+    
+    # Start wrangler in background with test database environment variable
+    cd "{{cloudflare_dir}}"
+    TEST_DB_NAME="default" wrangler dev --port {{cloudflare_port}} --persist-to .wrangler/state --var="TEST_DB_NAME:default" > /tmp/wrangler-test.log 2>&1 &
+    echo $! > "{{cloudflare_test_pid}}"
+    echo "==> Cloudflare Workers started with PID $(cat {{cloudflare_test_pid}})"
+    echo "==> Waiting for Cloudflare Workers to be ready..."
+    
+    # Wait up to 45 seconds for server to be ready, checking every 2 seconds
+    timeout=45
+    elapsed=0
+    while [ $elapsed -lt $timeout ]; do
+        if curl -s "{{cloudflare_health_url}}" >/dev/null 2>&1; then
+            echo "==> ✅ Cloudflare Workers is healthy and ready for tests!"
+            echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
+            echo "==> Health Check: {{cloudflare_health_url}}"
+            echo "==> Test Database: icp-marketplace-test"
+            echo "==> ✅ Test environment setup complete"
+            
+            exit 0
+        fi
+        echo "==> Waiting for server... ($elapsed/$timeout seconds)"
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    echo "==> ❌ Cloudflare Workers failed to start within $timeout seconds"
+    echo "==> Check logs with: cat /tmp/wrangler-test.log"
+    exit 1
+
 # Stop Cloudflare Workers for testing (with PID management)
 cloudflare-test-down:
     @echo "==> Stopping Cloudflare Workers for testing"
     @just _stop-cloudflare-workers
+
+# Stop Cloudflare Workers for testing with dynamic database cleanup
+cloudflare-test-down-dynamic:
+    @echo "==> Stopping local Cloudflare Workers development environment"
+    @just _stop-cloudflare-workers
+    @echo "==> Cleaning up test database..."
+    @{{scripts_dir}}/test_db_manager.sh cleanup
+    @echo "==> Cloudflare Workers stopped and test database cleaned up"
 
 # Show local Cloudflare Workers logs
 cloudflare-local-logs:

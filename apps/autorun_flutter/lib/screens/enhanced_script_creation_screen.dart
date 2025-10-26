@@ -269,6 +269,7 @@ class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScr
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: EnhancedScriptEditor(
+              key: ValueKey(_selectedTemplate?.id ?? 'default'),
               initialCode: _currentCode,
               onCodeChanged: _onCodeChanged,
               language: 'lua',

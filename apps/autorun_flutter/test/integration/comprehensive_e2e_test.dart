@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/config/app_config.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../test_helpers/wrangler_manager.dart';
+import '../test_helpers/http_test_helper.dart';
 
 void main() {
   group('Comprehensive End-to-End Integration Tests', () {
@@ -40,11 +40,11 @@ void main() {
     test('1. Health Check - API must be accessible', () async {
       print('\n--- Test 1: Health Check ---');
       
-      final response = await http.get(Uri.parse('${AppConfig.apiEndpoint}/api/v1/health'));
+      final responseResult = await HttpTestHelper.get('${AppConfig.apiEndpoint}/api/v1/health');
       
-      expect(response.statusCode, equals(200), reason: 'Health endpoint must return 200');
+      expect(responseResult.response.statusCode, equals(200), reason: 'Health endpoint must return 200');
       
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(responseResult.response.body);
       expect(data['success'], isTrue, reason: 'Health check must return success=true');
       expect(data['message'], isNotEmpty, reason: 'Health check must have a message');
       expect(data['environment'], equals('development'), reason: 'Must be development environment');
@@ -357,10 +357,10 @@ end''';
       
       // Test health endpoint performance
       final healthStart = stopwatch.elapsedMilliseconds;
-      final healthResponse = await http.get(Uri.parse('${AppConfig.apiEndpoint}/api/v1/health'));
+      final healthResponseResult = await HttpTestHelper.get('${AppConfig.apiEndpoint}/api/v1/health');
       final healthTime = stopwatch.elapsedMilliseconds - healthStart;
       
-      expect(healthResponse.statusCode, equals(200), reason: 'Health endpoint should return 200');
+      expect(healthResponseResult.response.statusCode, equals(200), reason: 'Health endpoint should return 200');
       expect(healthTime, lessThan(1000), reason: 'Health endpoint should respond within 1 second');
       
       // Test search performance
@@ -470,7 +470,7 @@ end''';
       
       // Add health checks
       for (int i = 0; i < 2; i++) {
-        futures.add(http.get(Uri.parse('${AppConfig.apiEndpoint}/api/v1/health')));
+        futures.add(HttpTestHelper.get('${AppConfig.apiEndpoint}/api/v1/health'));
       }
       
       // Wait for all to complete
@@ -490,8 +490,8 @@ end''';
       
       // Verify health responses are valid
       for (int i = 8; i < 10; i++) {
-        final response = results[i] as http.Response;
-        expect(response.statusCode, equals(200), reason: 'Health response $i should be 200');
+        final responseResult = results[i] as HttpRequestResult;
+        expect(responseResult.response.statusCode, equals(200), reason: 'Health response $i should be 200');
       }
       
       print('✅ Concurrent requests handled successfully');

@@ -1,6 +1,7 @@
 export interface Env {
   DB: D1Database;
   ENVIRONMENT: string;
+  TEST_DB_NAME?: string;
 }
 
 export interface Script {
