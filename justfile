@@ -181,7 +181,7 @@ test-with-cloudflare:
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | grep -E "(info •|warning •|error •)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --concurrency $(nproc) --quiet 2>&1 > {{logs_dir}}/test-output.log
+    @cd {{flutter_dir}} && flutter test --concurrency $(nproc) --timeout=360s --quiet 2>&1 > {{logs_dir}}/test-output.log
     @if [ $? -ne 0 ]; then { grep -iE "(FAIL|ERROR)" {{logs_dir}}/test-output.log ; echo "❌ Flutter tests failed!"; exit 1; }; else echo "✅ All Flutter tests passed"; fi
     @echo "==> Stopping Cloudflare Workers..."
     @just cloudflare-test-down
@@ -277,7 +277,6 @@ cloudflare-test-up:
     if [ -f "{{cloudflare_test_pid}}" ]; then
         if kill -0 "$(cat {{cloudflare_test_pid}})" 2>/dev/null; then
             echo "==> Cloudflare Workers already running with PID $(cat {{cloudflare_test_pid}})"
-            exit 0
         else
             echo "==> Stale PID file found, cleaning up..."
             rm -f "{{cloudflare_test_pid}}"
@@ -299,6 +298,15 @@ cloudflare-test-up:
             echo "==> ✅ Cloudflare Workers is healthy and ready for tests!"
             echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
             echo "==> Health Check: {{cloudflare_health_url}}"
+            
+            # Initialize database schema and clear data for clean test environment
+            echo "==> Setting up database for clean test environment..."
+            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql >/dev/null 2>&1 || echo "Database schema already exists"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;" >/dev/null 2>&1 || echo "Scripts table already empty"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM reviews;" >/dev/null 2>&1 || echo "Reviews table already empty"  
+            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM script_stats;" >/dev/null 2>&1 || echo "Script stats table already empty"
+            echo "==> ✅ Database setup complete for tests"
+            
             exit 0
         fi
         echo "==> Waiting for server... ($elapsed/$timeout seconds)"

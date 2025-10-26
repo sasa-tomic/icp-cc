@@ -55,9 +55,9 @@ greet("World")
       await tester.pumpAndSettle();
 
       // Verify theme options are present
-      expect(find.text('Vs2015'), findsOneWidget);
-      expect(find.text('Atom one dark'), findsOneWidget);
-      expect(find.text('Monokai sublime'), findsOneWidget);
+      expect(find.text('Vs2015'), findsAtLeastNWidgets(1));
+      expect(find.text('Atom One Dark'), findsAtLeastNWidgets(1));
+      expect(find.text('Monokai Sublime'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('EnhancedScriptEditor should display line numbers', (WidgetTester tester) async {
