@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/marketplace_script.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
@@ -8,7 +9,8 @@ import '../widgets/marketplace_search_bar.dart';
 import '../widgets/script_card.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/error_display.dart';
-import 'script_upload_screen.dart';
+import '../widgets/script_details_dialog.dart';
+import '../widgets/quick_upload_dialog.dart';
 import 'download_history_screen.dart';
 
 class MarketplaceScreen extends StatefulWidget {
@@ -227,14 +229,28 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         _downloadedScriptIds.add(script.id);
       });
 
+      // Show success feedback with more options
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('"${script.title}" downloaded successfully!'),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '"${script.title}" added to your library!',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
           action: SnackBarAction(
-            label: 'View',
+            label: 'View Script',
+            textColor: Colors.white,
             onPressed: () {
-              // Navigate to scripts tab
+              // Navigate to scripts tab and scroll to new script
               DefaultTabController.of(context).animateTo(0);
             },
           ),
@@ -455,12 +471,74 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             }
 
             final script = _scripts[index];
-            return ScriptCard(
-              script: script,
-              onTap: () => _showScriptDetails(context, script),
-              onDownload: script.price == 0 ? () => _downloadScript(script) : null,
-              isDownloading: _downloadingScriptIds.contains(script.id),
-              isDownloaded: _downloadedScriptIds.contains(script.id),
+            final isDownloading = _downloadingScriptIds.contains(script.id);
+            final isDownloaded = _downloadedScriptIds.contains(script.id);
+            
+            return Stack(
+              children: [
+                ScriptCard(
+                  script: script,
+                  onTap: () => _showScriptDetails(context, script),
+                  onDownload: script.price == 0 ? () => _downloadScript(script) : null,
+                  isDownloading: isDownloading,
+                  isDownloaded: isDownloaded,
+                  onQuickPreview: () => _showQuickPreview(context, script),
+                  onShare: () => _shareScript(context, script),
+                ),
+                // Download progress overlay
+                if (isDownloading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Downloading...',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                // Downloaded indicator
+                if (isDownloaded && !isDownloading)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+              ],
             );
           },
         ),
@@ -534,18 +612,21 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   void _showScriptDetails(BuildContext context, MarketplaceScript script) {
-    Navigator.pushNamed(
-      context,
-      '/script_details',
-      arguments: script,
+    showDialog(
+      context: context,
+      builder: (context) => ScriptDetailsDialog(
+        script: script,
+        onDownload: script.price == 0 ? () => _downloadScript(script) : null,
+        isDownloading: _downloadingScriptIds.contains(script.id),
+        isDownloaded: _downloadedScriptIds.contains(script.id),
+      ),
     );
   }
 
   void _showUploadScriptDialog(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => const ScriptUploadScreen(),
-      ),
+    showDialog(
+      context: context,
+      builder: (context) => const QuickUploadDialog(),
     );
   }
 
@@ -555,6 +636,33 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         builder: (context) => const DownloadHistoryScreen(),
       ),
     );
+  }
+
+  void _showQuickPreview(BuildContext context, MarketplaceScript script) {
+    showDialog(
+      context: context,
+      builder: (context) => ScriptDetailsDialog(
+        script: script,
+        onDownload: script.price == 0 ? () => _downloadScript(script) : null,
+        isDownloading: _downloadingScriptIds.contains(script.id),
+        isDownloaded: _downloadedScriptIds.contains(script.id),
+      ),
+    );
+  }
+
+  void _shareScript(BuildContext context, MarketplaceScript script) {
+    // For now, just copy the script URL to clipboard
+    // In a real implementation, you would generate a shareable link
+    final shareUrl = 'https://icp-marketplace.com/scripts/${script.id}';
+    
+    Clipboard.setData(ClipboardData(text: shareUrl)).then((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Script link copied to clipboard!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    });
   }
 
   @override
