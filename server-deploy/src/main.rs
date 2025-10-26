@@ -9,6 +9,65 @@ mod utils;
 use config::{AppConfig, DeployComponents};
 use utils::{error_message, info_message, section_header, success_message};
 
+/// Run all database migration files in order
+fn run_all_migrations(cloudflare_dir: &std::path::Path, database_name: &str) -> Result<()> {
+    let migrations_dir = cloudflare_dir.join("migrations");
+    
+    // Check if migrations directory exists
+    if !migrations_dir.exists() {
+        info_message("No migrations directory found, skipping migrations");
+        return Ok(());
+    }
+
+    // Discover all .sql files in migrations directory and sort them by filename
+    let mut migrations: Vec<std::path::PathBuf> = std::fs::read_dir(&migrations_dir)
+        .map_err(|e| anyhow!("Failed to read migrations directory: {}", e))?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            if path.extension()? == "sql" {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Sort migrations by filename to ensure consistent order
+    migrations.sort();
+
+    if migrations.is_empty() {
+        info_message("No SQL migration files found, skipping migrations");
+        return Ok(());
+    }
+
+    info_message(&format!("Found {} migration files", migrations.len()));
+
+    for migration_path in &migrations {
+        let migration_file = migration_path.to_string_lossy();
+        println!("🔄 Applying migration: {}", migration_path.file_name().unwrap().to_string_lossy());
+        info_message(&format!("Applying migration: {}", migration_file));
+        
+        let migrate_output = std::process::Command::new("wrangler")
+            .args(["d1", "execute", database_name, "--file", &migration_file])
+            .current_dir(cloudflare_dir)
+            .output()
+            .map_err(|e| anyhow!("Failed to run migration {}: {}", migration_file, e))?;
+
+        if !migrate_output.status.success() {
+            return Err(anyhow!(
+                "Migration {} failed: {}",
+                migration_file,
+                String::from_utf8_lossy(&migrate_output.stderr)
+            ));
+        } else {
+            println!("✅ Migration completed successfully: {}", migration_path.file_name().unwrap().to_string_lossy());
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Parser)]
 #[command(
     name = "server-deploy",
@@ -171,24 +230,9 @@ async fn handle_bootstrap(
 
     // Run database migrations
     info_message("Running database migrations...");
-    let migrate_output = std::process::Command::new("wrangler")
-        .args([
-            "d1",
-            "execute",
-            &database_name,
-            "--file",
-            "migrations/0001_initial_schema.sql",
-        ])
-        .current_dir(&cloudflare_dir)
-        .output()
-        .map_err(|e| anyhow!("Failed to run migrations: {}", e))?;
-
-    if !migrate_output.status.success() {
-        return Err(anyhow!(
-            "Database migrations failed: {}",
-            String::from_utf8_lossy(&migrate_output.stderr)
-        ));
-    }
+    println!("🔄 Starting database migration process for bootstrap...");
+    run_all_migrations(&cloudflare_dir, &database_name)?;
+    println!("✅ All database migrations completed successfully");
 
     success_message("Database migrations completed");
 
@@ -405,24 +449,9 @@ async fn handle_deploy(
             pb.set_message("DRY RUN: Would run database migrations");
         } else {
             pb.set_message("Running database migrations...");
-            let migrate_output = std::process::Command::new("wrangler")
-                .args([
-                    "d1",
-                    "execute",
-                    &config.database_name,
-                    "--file",
-                    "migrations/0001_initial_schema.sql",
-                ])
-                .current_dir(&cloudflare_dir)
-                .output()
-                .map_err(|e| anyhow!("Failed to run migrations: {}", e))?;
-
-            if !migrate_output.status.success() {
-                return Err(anyhow!(
-                    "Database migrations failed: {}",
-                    String::from_utf8_lossy(&migrate_output.stderr)
-                ));
-            }
+            println!("🔄 Starting database migration process for deployment...");
+            run_all_migrations(&cloudflare_dir, &config.database_name)?;
+            println!("✅ All database migrations completed successfully");
         }
         pb.tick();
         info_message(&format!("Database: {}", config.database_name));

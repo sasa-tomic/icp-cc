@@ -74,6 +74,8 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
     ).run();
 
     const script = await db.getScriptWithDetails(scriptId);
+    
+    console.log('Script created successfully:', { scriptId, title, isPublic: is_public });
 
     return JsonResponse.success(script, 201);
   } catch (err: any) {
