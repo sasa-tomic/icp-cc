@@ -5,7 +5,7 @@ import 'rust/native_bridge.dart';
 import 'config/app_config.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
-import 'screens/favorites_screen.dart';
+import 'screens/bookmarks_screen.dart';
 import 'screens/identity_home_page.dart';
 import 'screens/scripts_screen.dart';
 
@@ -77,7 +77,7 @@ class _MainHomePageState extends State<MainHomePage> {
           index: _currentIndex,
           children: <Widget>[
             const ScriptsScreen(),
-            FavoritesScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
+            BookmarksScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
             const IdentityHomePage(),
           ],
         ),
@@ -99,9 +99,9 @@ class _MainHomePageState extends State<MainHomePage> {
           label: 'Scripts',
         ),
         ModernNavigationItem(
-          icon: Icons.favorite_border_rounded,
-          activeIcon: Icons.favorite_rounded,
-          label: 'Favorites',
+          icon: Icons.bookmark_border_rounded,
+          activeIcon: Icons.bookmark_rounded,
+          label: 'Bookmarks',
         ),
         ModernNavigationItem(
           icon: Icons.verified_user_outlined,

@@ -30,7 +30,7 @@ void main() {
         expect(find.text('Marketplace'), findsOneWidget);
         expect(find.byType(FloatingActionButton), findsOneWidget);
         expect(find.text('New Script'), findsOneWidget);
-        expect(find.byIcon(Icons.add), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsOneWidget);
       });
 
       testWidgets('should show loading state initially', (WidgetTester tester) async {
@@ -53,7 +53,7 @@ void main() {
 
         // Initially on My Scripts tab
         expect(find.text('New Script'), findsOneWidget);
-        expect(find.byIcon(Icons.add), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsOneWidget);
 
         // Switch to Marketplace tab
         await tester.tap(find.text('Marketplace'));
@@ -70,7 +70,7 @@ void main() {
 
         // Should show Scripts FAB again
         expect(find.text('New Script'), findsOneWidget);
-        expect(find.byIcon(Icons.add), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsOneWidget);
       });
     });
 
@@ -84,7 +84,7 @@ void main() {
         // Assert - My Scripts tab is default
         expect(find.byType(FloatingActionButton), findsOneWidget);
         expect(find.text('New Script'), findsOneWidget);
-        expect(find.byIcon(Icons.add), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsOneWidget);
       });
 
       testWidgets('should show Marketplace FAB on Marketplace tab', (WidgetTester tester) async {

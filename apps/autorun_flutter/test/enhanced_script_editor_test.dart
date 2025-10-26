@@ -131,7 +131,7 @@ void main() {
       );
 
       // Verify integrations button is present
-      expect(find.byIcon(Icons.extension), findsOneWidget);
+      expect(find.byIcon(Icons.extension_rounded), findsOneWidget);
     });
 
     testWidgets('should hide integrations button when disabled', (WidgetTester tester) async {
@@ -166,8 +166,8 @@ void main() {
       );
 
       // Verify action buttons are present
-      expect(find.byIcon(Icons.format_align_left), findsOneWidget);
-      expect(find.byIcon(Icons.copy), findsOneWidget);
+      expect(find.byIcon(Icons.format_align_left_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.copy_rounded), findsOneWidget);
     });
 
     testWidgets('should show initial valid status', (WidgetTester tester) async {
@@ -186,8 +186,8 @@ void main() {
       );
 
       // Verify valid status is shown initially
-      expect(find.text('Code is valid'), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+      expect(find.text('Code Valid'), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     });
 
     testWidgets('should show empty script error for empty code', (WidgetTester tester) async {
@@ -208,7 +208,7 @@ void main() {
 
       // Verify empty script error is shown
       expect(find.text('Script is empty'), findsOneWidget);
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      expect(find.byIcon(Icons.error_rounded), findsOneWidget);
     });
 
     testWidgets('should be in readonly mode when specified', (WidgetTester tester) async {
@@ -263,7 +263,7 @@ void main() {
       );
 
       // Verify copy button is present
-      expect(find.byIcon(Icons.copy), findsOneWidget);
+      expect(find.byIcon(Icons.copy_rounded), findsOneWidget);
     });
 
     testWidgets('should update line count when code changes', (WidgetTester tester) async {
@@ -304,7 +304,7 @@ void main() {
       );
 
       // Tap format button
-      await tester.tap(find.byIcon(Icons.format_align_left));
+      await tester.tap(find.byIcon(Icons.format_align_left_rounded));
       await tester.pumpAndSettle();
 
       // Verify placeholder snackbar is shown
@@ -394,8 +394,8 @@ void main() {
         );
 
         // Check for toolbar buttons
-        expect(find.byIcon(Icons.copy), findsOneWidget);
-        expect(find.byIcon(Icons.format_align_left), findsOneWidget);
+        expect(find.byIcon(Icons.copy_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.format_align_left_rounded), findsOneWidget);
       });
     });
 

@@ -1,5 +1,5 @@
 pub mod canister_client;
-pub mod favorites;
+
 pub mod ffi;
 pub mod identity;
 pub mod lua_engine;

@@ -207,7 +207,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
         children: [
           // Language indicator with modern design
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -236,7 +236,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
                 Text(
                   widget.language.toUpperCase(),
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 0.5,
@@ -246,11 +246,11 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
             ),
           ),
 
-          const SizedBox(width: 20),
+          const SizedBox(width: 8),
 
           // Theme selector with enhanced design
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
@@ -276,7 +276,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
                       word[0].toUpperCase() + word.substring(1)
                     ).join(' '),
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -306,7 +306,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
                 child: Text(
                   'Lines: $_currentLineCount',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
@@ -322,7 +322,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
                 child: Text(
                   'Chars: ${_controller.text.length}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onSecondaryContainer,
                   ),
@@ -331,7 +331,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
             ],
           ),
 
-          const SizedBox(width: 20),
+          const SizedBox(width: 12),
 
           // Actions with enhanced design
           Row(
