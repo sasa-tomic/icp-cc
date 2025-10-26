@@ -59,17 +59,13 @@ windows:
 # Testing
 # =============================================================================
 
-# Run tests in machine-readable format (for CI/CD)
-test-machine: test-with-cloudflare
+test: test-with-cloudflare
     @echo "==> Running Rust linting and tests"
     cargo clippy --benches --tests --all-features --quiet
     cargo clippy --quiet
     cargo fmt --all --quiet
     cargo nextest run
     @echo "✅ All tests passed!"
-
-# Run all tests with analysis and linting (alias for test-machine)
-test: test-machine
 
 # Run Flutter tests with Cloudflare Workers
 test-with-cloudflare:
