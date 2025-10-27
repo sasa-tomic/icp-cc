@@ -57,7 +57,17 @@
       "Bash(npm test:*)",
       "Bash(git commit:*)"
     ],
-    "deny": [],
+    "deny": [ "Read(.envrc)", "Read(~/.aws/**)" ],
     "ask": []
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "network": {
+      "allowLocalBinding": false
+    },
+    "ignoreViolations": {
+      "*": ["/tmp", "/dev", "/proc", "/sys"]
+    }
   }
 }

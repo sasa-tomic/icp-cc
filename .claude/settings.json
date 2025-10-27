@@ -1,17 +1,5 @@
 {
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "command": "/exit",
-            "description": "Quit Claude Code after task completion"
-          }
-        ]
-      }
-    ]
-  },
+  "hooks": {},
   "includeCoAuthoredBy": false,
   "env": {
     "DISABLE_TELEMETRY": "1",
