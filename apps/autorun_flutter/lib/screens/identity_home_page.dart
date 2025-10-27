@@ -228,19 +228,21 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.surface,
-              Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
-            ],
+      body: SafeArea(
+        top: false, // AppBar already handles top safe area
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.surface,
+                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+              ],
+            ),
           ),
-        ),
-        child: Builder(
-          builder: (BuildContext context) {
+          child: Builder(
+            builder: (BuildContext context) {
             if (showLoading) {
               return Center(
                 child: Column(
@@ -283,7 +285,12 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             return RefreshIndicator(
               onRefresh: _controller.refresh,
               child: ListView.separated(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 20,
+                  bottom: 20 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
+                ),
                 itemCount: identities.length,
                 separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 16),
                 itemBuilder: (BuildContext context, int index) {
@@ -451,6 +458,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             );
           },
         ),
+        ),
       ),
       floatingActionButton: AnimatedFab(
         heroTag: 'identities_fab',
@@ -537,9 +545,16 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
   @override
   Widget build(BuildContext context) {
     final EdgeInsets viewInsets = MediaQuery.of(context).viewInsets;
-    return Padding(
-      padding: EdgeInsets.only(bottom: viewInsets.bottom),
-      child: Form(
+     final safeAreaPadding = MediaQuery.of(context).padding;
+     
+     return Padding(
+       padding: EdgeInsets.only(
+         bottom: viewInsets.bottom + safeAreaPadding.bottom,
+         left: 24,
+         right: 24,
+         top: 24,
+       ),
+       child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(24),
