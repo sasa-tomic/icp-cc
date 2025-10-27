@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../rust/native_bridge.dart';
 
 class ValidationResult {
   final bool isValid;
@@ -27,6 +28,16 @@ class ValidationResult {
       characterCount: data['character_count'] as int? ?? 0,
     );
   }
+
+  factory ValidationResult.fromRustJson(Map<String, dynamic> json) {
+    return ValidationResult(
+      isValid: json['is_valid'] as bool? ?? false,
+      errors: (json['syntax_errors'] as List<dynamic>?)?.cast<String>() ?? [],
+      warnings: (json['warnings'] as List<dynamic>?)?.cast<String>() ?? [],
+      lineCount: json['line_count'] as int? ?? 0,
+      characterCount: json['character_count'] as int? ?? 0,
+    );
+  }
 }
 
 class ScriptValidationService {
@@ -38,6 +49,49 @@ class ScriptValidationService {
   final Duration _timeout = const Duration(seconds: 10);
 
   Future<ValidationResult> validateScript(String luaSource) async {
+    // Try Rust validation first (more accurate and faster)
+    try {
+      final rustResult = await _validateWithRust(luaSource);
+      if (rustResult != null) {
+        return rustResult;
+      }
+    } catch (e) {
+      // Fall back to server validation if Rust fails
+      print('Rust validation failed, falling back to server: $e');
+    }
+
+    // Fallback to server validation (TypeScript)
+    return await _validateWithServer(luaSource);
+  }
+
+  Future<ValidationResult?> _validateWithRust(String luaSource) async {
+    try {
+      // Determine context
+      final isExample = luaSource.contains(RegExp(r'--\s*(example|demo|tutorial|sample)', caseSensitive: false));
+      final isTest = luaSource.contains(RegExp(r'--\s*(test|spec|unit)', caseSensitive: false));
+      final isProduction = !isExample && !isTest;
+
+      // Call Rust validation via FFI
+      final rustBridge = NativeBridge();
+      final resultJson = rustBridge.validateLuaComprehensive(
+        script: luaSource,
+        isExample: isExample,
+        isTest: isTest,
+        isProduction: isProduction,
+      );
+
+      if (resultJson.isNotEmpty) {
+        final Map<String, dynamic> jsonResult = json.decode(resultJson) as Map<String, dynamic>;
+        return ValidationResult.fromRustJson(jsonResult);
+      }
+    } catch (e) {
+      // Return null to trigger fallback
+      return null;
+    }
+    return null;
+  }
+
+  Future<ValidationResult> _validateWithServer(String luaSource) async {
     try {
       final response = await http
           .post(

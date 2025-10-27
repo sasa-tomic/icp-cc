@@ -12,6 +12,7 @@ class _Symbols {
   static const String callAuthenticated = 'icp_call_authenticated';
   static const String luaExec = 'icp_lua_exec';
   static const String luaLint = 'icp_lua_lint';
+  static const String luaValidateComprehensive = 'icp_lua_validate_comprehensive';
   static const String luaAppInit = 'icp_lua_app_init';
   static const String luaAppView = 'icp_lua_app_view';
   static const String luaAppUpdate = 'icp_lua_app_update';
@@ -231,6 +232,37 @@ class RustBridgeLoader {
     }
   }
 
+  String? validateLuaComprehensive({
+    required String script,
+    bool isExample = false,
+    bool isTest = false,
+    bool isProduction = false,
+  }) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8();
+    try {
+      final fn = lib.lookupFunction<_LuaValidateComprehensiveNative, _LuaValidateComprehensiveDart>(
+        _Symbols.luaValidateComprehensive,
+      );
+      final res = fn(
+        s.cast(),
+        isExample ? 1 : 0,
+        isTest ? 1 : 0,
+        isProduction ? 1 : 0,
+      );
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      pkg_ffi.malloc.free(s);
+    }
+  }
+
   // ---- TEA-style Lua app ----
   String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
     final lib = _open();
@@ -301,6 +333,34 @@ class RustBridgeLoader {
   }
 }
 
+// Convenience wrapper class for easier access
+class NativeBridge {
+  final RustBridgeLoader _loader = const RustBridgeLoader();
+
+  String validateLuaComprehensive({
+    required String script,
+    bool isExample = false,
+    bool isTest = false,
+    bool isProduction = false,
+  }) {
+    return _loader.validateLuaComprehensive(
+      script: script,
+      isExample: isExample,
+      isTest: isTest,
+      isProduction: isProduction,
+    ) ?? '';
+  }
+
+  // Other convenience methods can be added here as needed
+  String? luaExec({required String script, String? jsonArg}) {
+    return _loader.luaExec(script: script, jsonArg: jsonArg);
+  }
+
+  String? luaLint({required String script}) {
+    return _loader.luaLint(script: script);
+  }
+}
+
 typedef _GenNative =
     ffi.Pointer<ffi.Int8> Function(ffi.Int32, ffi.Pointer<ffi.Int8>);
 typedef _GenDart = ffi.Pointer<ffi.Int8> Function(int, ffi.Pointer<ffi.Int8>);
@@ -318,6 +378,19 @@ typedef _Str2StrNative = ffi.Pointer<ffi.Int8> Function(
 typedef _Str2StrDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
   ffi.Pointer<ffi.Int8>,
+);
+
+typedef _LuaValidateComprehensiveNative = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>, // script
+  ffi.Int32, // is_example
+  ffi.Int32, // is_test
+  ffi.Int32, // is_production
+);
+typedef _LuaValidateComprehensiveDart = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>,
+  int,
+  int,
+  int,
 );
 
 
