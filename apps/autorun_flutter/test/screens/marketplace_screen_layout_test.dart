@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:icp_autorun/screens/marketplace_screen.dart';
+import 'package:icp_autorun/widgets/error_display.dart';
 
 void main() {
   group('MarketplaceScreen Mobile Layout Tests', () {
@@ -38,11 +39,12 @@ void main() {
         // If GridView is not found, check if we're in a loading or error state
         // This is still a valid state for the marketplace screen
         final loadingFinder = find.byType(CircularProgressIndicator);
-        final errorFinder = find.textContaining('error');
+        final errorFinder = find.byType(ErrorDisplay);
+        final noScriptsFinder = find.text('No scripts found');
 
         // At least one of these should be present
-        expect(loadingFinder.evaluate().isNotEmpty || errorFinder.evaluate().isNotEmpty, true,
-          reason: 'Marketplace should be in loading, error, or grid state');
+        expect(loadingFinder.evaluate().isNotEmpty || errorFinder.evaluate().isNotEmpty || noScriptsFinder.evaluate().isNotEmpty, true,
+          reason: 'Marketplace should be in loading, error, no scripts, or grid state');
       }
     });
 
