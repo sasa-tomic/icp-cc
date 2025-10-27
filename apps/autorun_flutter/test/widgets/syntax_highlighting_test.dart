@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
-import '../../lib/widgets/enhanced_script_editor.dart';
+import '../../lib/widgets/script_editor.dart';
 
 void main() {
   group('Syntax Highlighting Tests', () {
-    testWidgets('EnhancedScriptEditor should initialize with CodeController', (WidgetTester tester) async {
+    testWidgets('ScriptEditor should initialize with CodeController', (WidgetTester tester) async {
       const testCode = '''
 -- Simple Lua test
 local function greet(name)
@@ -18,7 +18,7 @@ greet("World")
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: (code) {},
               language: 'lua',
@@ -32,13 +32,13 @@ greet("World")
       expect(find.byType(CodeTheme), findsOneWidget);
     });
 
-    testWidgets('EnhancedScriptEditor should handle theme switching', (WidgetTester tester) async {
+    testWidgets('ScriptEditor should handle theme switching', (WidgetTester tester) async {
       const testCode = 'print("Hello World")';
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: (code) {},
               language: 'lua',
@@ -60,7 +60,7 @@ greet("World")
       expect(find.text('Monokai Sublime'), findsAtLeastNWidgets(1));
     });
 
-    testWidgets('EnhancedScriptEditor should display line numbers', (WidgetTester tester) async {
+    testWidgets('ScriptEditor should display line numbers', (WidgetTester tester) async {
       const testCode = '''
 local x = 1
 local y = 2
@@ -70,7 +70,7 @@ print(x + y)
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: (code) {},
               language: 'lua',

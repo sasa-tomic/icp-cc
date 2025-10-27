@@ -66,7 +66,7 @@ class MockEnhancedBridge implements ScriptBridge {
   String? luaExec({required String script, String? jsonArg}) {
     final arg = jsonArg != null ? json.decode(jsonArg) : null;
 
-    // Mock TEA-style execution for enhanced output actions
+    // Mock TEA-style execution for advanced output actions
     if (script.contains('init') && script.contains('view') && script.contains('update')) {
       return _mockTeaExecution(script, arg);
     }
@@ -85,7 +85,7 @@ class MockEnhancedBridge implements ScriptBridge {
       });
     }
 
-    if (script.contains('icp_enhanced_list')) {
+    if (script.contains('icp_searchable_list')) {
       return json.encode({
         'ok': true,
         'result': {
@@ -93,7 +93,7 @@ class MockEnhancedBridge implements ScriptBridge {
           'ui': {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': arg?['items'] ?? [{'title': 'Mock Item'}],
               'title': arg?['title'] ?? 'Mock Results'
             }
@@ -154,7 +154,7 @@ class MockEnhancedBridge implements ScriptBridge {
           'ui': {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': items,
               'title': 'Formatted Transactions'
             }
@@ -295,7 +295,7 @@ class MockEnhancedBridge implements ScriptBridge {
       state['processed_data'] = processed;
       return json.encode({'ok': true, 'state': state, 'result': null});
     }
-    if (t == 'enhanced') {
+    if (t == 'searchable') {
       // No-op, used only to toggle view mode in script
       return json.encode({'ok': true, 'state': state, 'result': null});
     }
@@ -502,7 +502,7 @@ class MockEnhancedBridge implements ScriptBridge {
               'children': [
                 {'type': 'button', 'props': {'label': 'Load Data', 'on_press': {'type': 'load_data'}}},
                 {'type': 'button', 'props': {'label': 'Transform', 'on_press': {'type': 'transform'}}},
-                {'type': 'button', 'props': {'label': 'View Enhanced', 'on_press': {'type': 'enhanced'}}},
+                {'type': 'button', 'props': {'label': 'View Searchable', 'on_press': {'type': 'searchable'}}},
               ]
             }
           ]
@@ -531,10 +531,9 @@ class MockEnhancedBridge implements ScriptBridge {
             {
               'type': 'list',
               'props': {
-                'enhanced': true,
+                'searchable': true,
                 'items': state['processed_data'],
-                'title': 'Transformed Data',
-                'searchable': true
+                'title': 'Transformed Data'
               }
             }
           ]
@@ -583,10 +582,9 @@ class MockEnhancedBridge implements ScriptBridge {
             {
               'type': 'list',
               'props': {
-                'enhanced': true,
+                'searchable': true,
                 'items': state['processed_items'],
-                'title': 'Combined Data View',
-                'searchable': true
+                'title': 'Combined Data View'
               }
             }
           ]
@@ -711,10 +709,9 @@ class MockEnhancedBridge implements ScriptBridge {
           {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': state['initial_data'],
-              'title': 'Raw Proposal Data',
-              'searchable': true
+              'title': 'Raw Proposal Data'
             }
           }
         ]
@@ -733,10 +730,9 @@ class MockEnhancedBridge implements ScriptBridge {
           {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': state['analysis_result']['high_priority'],
-              'title': 'High Priority Proposals',
-              'searchable': true
+              'title': 'High Priority Proposals'
             }
           }
         ]
@@ -783,10 +779,9 @@ class MockEnhancedBridge implements ScriptBridge {
           {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': state['market_data'],
-              'title': 'Current Market Prices',
-              'searchable': true
+              'title': 'Current Market Prices'
             }
           }
         ]
@@ -805,10 +800,9 @@ class MockEnhancedBridge implements ScriptBridge {
           {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': state['analysis']['signals'],
-              'title': 'Generated Trading Signals',
-              'searchable': true
+              'title': 'Generated Trading Signals'
             }
           }
         ]
@@ -858,10 +852,9 @@ class MockEnhancedBridge implements ScriptBridge {
           {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': state['service_status'],
-              'title': 'Service Health Check',
-              'searchable': true
+              'title': 'Service Health Check'
             }
           }
         ]
@@ -880,10 +873,9 @@ class MockEnhancedBridge implements ScriptBridge {
           {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': state['call_attempts'],
-              'title': 'Conditional Call Log',
-              'searchable': true
+              'title': 'Conditional Call Log'
             }
           }
         ]
@@ -958,7 +950,7 @@ function view(state)
 
   if state.processed_data and #state.processed_data > 0 then
     table.insert(children, { type = "section", props = { title = "Processed Results" }, children = {
-      icp_enhanced_list({ items = state.processed_data, title = "Transformed Data", searchable = true })
+      icp_searchable_list({ items = state.processed_data, title = "Transformed Data", searchable = true })
     }})
   end
 
@@ -1038,7 +1030,7 @@ end
         expect(find.text('Complete Flow Demo'), findsOneWidget);
         expect(find.text('Load Data'), findsOneWidget);
         expect(find.text('Transform'), findsOneWidget);
-        expect(find.text('View Enhanced'), findsOneWidget);
+        expect(find.text('View Searchable'), findsOneWidget);
 
         // Step 1: Load Data (Read)
         await tester.tap(find.text('Load Data'));
@@ -1123,7 +1115,7 @@ function view(state)
 
   if state.processed_items and #state.processed_items > 0 then
     table.insert(children, { type = "section", props = { title = "Processed Results" }, children = {
-      icp_enhanced_list({ items = state.processed_items, title = "Combined Data View", searchable = true })
+      icp_searchable_list({ items = state.processed_items, title = "Combined Data View", searchable = true })
     }})
   end
 
@@ -1342,7 +1334,7 @@ function view(state)
   -- Show initial data
   if state.initial_data and #state.initial_data > 0 then
     table.insert(children, { type = "section", props = { title = "Initial Proposals" }, children = {
-      icp_enhanced_list({
+      icp_searchable_list({
         items = state.initial_data,
         title = "Raw Proposal Data",
         searchable = true
@@ -1354,7 +1346,7 @@ function view(state)
   if state.analysis_result and state.analysis_result.high_priority then
     table.insert(children, { type = "section", props = { title = "Analysis Results" }, children = {
       { type = "text", props = { text = "High priority proposals found: " .. #state.analysis_result.high_priority } },
-      icp_enhanced_list({
+      icp_searchable_list({
         items = state.analysis_result.high_priority,
         title = "High Priority Proposals",
         searchable = true
@@ -1521,7 +1513,7 @@ function view(state)
 
   if state.market_data and #state.market_data > 0 then
     table.insert(children, { type = "section", props = { title = "Market Data" }, children = {
-      icp_enhanced_list({
+      icp_searchable_list({
         items = state.market_data,
         title = "Current Market Prices",
         searchable = true
@@ -1532,7 +1524,7 @@ function view(state)
   if state.analysis and state.analysis.signals then
     table.insert(children, { type = "section", props = { title = "Analysis & Signals" }, children = {
       { type = "text", props = { text = "Trading signals detected: " .. #state.analysis.signals } },
-      icp_enhanced_list({
+      icp_searchable_list({
         items = state.analysis.signals,
         title = "Generated Trading Signals",
         searchable = true
@@ -1708,7 +1700,7 @@ function view(state)
 
   if state.service_status and #state.service_status > 0 then
     table.insert(children, { type = "section", props = { title = "Service Status" }, children = {
-      icp_enhanced_list({
+      icp_searchable_list({
         items = state.service_status,
         title = "Service Health Check",
         searchable = true
@@ -1719,7 +1711,7 @@ function view(state)
   if state.call_attempts and #state.call_attempts > 0 then
     table.insert(children, { type = "section", props = { title = "Call Attempts" }, children = {
       { type = "text", props = { text = "Total attempts: " .. #state.call_attempts } },
-      icp_enhanced_list({
+      icp_searchable_list({
         items = state.call_attempts,
         title = "Conditional Call Log",
         searchable = true
@@ -1744,7 +1736,7 @@ function view(state)
   if state.retry_queue and #state.retry_queue > 0 then
     table.insert(children, { type = "section", props = { title = "Retry Queue" }, children = {
       { type = "text", props = { text = "Queued for retry: " .. #state.retry_queue } },
-      icp_enhanced_list({
+      icp_searchable_list({
         items = state.retry_queue,
         title = "Pending Retries",
         searchable = true

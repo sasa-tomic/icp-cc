@@ -13,7 +13,7 @@ import '../services/download_history_service.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/modern_empty_state.dart';
 import '../widgets/script_app_host.dart';
-import '../widgets/enhanced_script_editor.dart';
+import '../widgets/script_editor.dart';
 import '../widgets/quick_upload_dialog.dart';
 import '../widgets/marketplace_search_bar.dart';
 import '../widgets/script_card.dart';
@@ -24,7 +24,7 @@ import '../widgets/animated_fab.dart';
 
 
 import '../widgets/page_transitions.dart';
-import 'enhanced_script_creation_screen.dart';
+import 'script_creation_screen.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -353,10 +353,10 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   }
 
   Future<void> _showCreateSheet() async {
-    // Use enhanced creation screen with custom transition
+    // Use script creation screen with custom transition
     final ScriptRecord? rec = await Navigator.of(context).push<ScriptRecord>(
       CustomPageRoute.scaleFade(
-        EnhancedScriptCreationScreen(
+        ScriptCreationScreen(
           controller: _controller,
         ),
       ),
@@ -630,7 +630,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                   onTap: () {
                     showDialog<void>(
                       context: context,
-                      builder: (_) => _EnhancedScriptEditorDialog(controller: _controller, record: rec),
+                                builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
                     );
                   },
                   trailing: Row(
@@ -684,7 +684,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                             case 2:
                               showDialog<void>(
                                 context: context,
-                                builder: (_) => _EnhancedScriptEditorDialog(controller: _controller, record: rec),
+                      builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
                               );
                               break;
                             case 3:
@@ -913,19 +913,19 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
 
 
 
-// Legacy script creation components replaced by enhanced versions
+  // Legacy script creation components replaced by improved versions
 
 /// Enhanced script editor dialog with syntax highlighting and improved UX
-class _EnhancedScriptEditorDialog extends StatefulWidget {
-  const _EnhancedScriptEditorDialog({required this.controller, required this.record});
+class _ScriptEditorDialog extends StatefulWidget {
+  const _ScriptEditorDialog({required this.controller, required this.record});
   final ScriptController controller;
   final ScriptRecord record;
 
   @override
-  State<_EnhancedScriptEditorDialog> createState() => _EnhancedScriptEditorDialogState();
+  State<_ScriptEditorDialog> createState() => _ScriptEditorDialogState();
 }
 
-class _EnhancedScriptEditorDialogState extends State<_EnhancedScriptEditorDialog> {
+class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
   bool _saving = false;
   late final ValueNotifier<String> _codeNotifier;
 
@@ -1037,7 +1037,7 @@ class _EnhancedScriptEditorDialogState extends State<_EnhancedScriptEditorDialog
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: EnhancedScriptEditor(
+                child: ScriptEditor(
                   initialCode: widget.record.luaSource,
                   onCodeChanged: _onCodeChanged,
                   language: 'lua',

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Demo script to show enhanced static validation capabilities
+# Demo script to show improved static validation capabilities
 API_URL="http://localhost:8787/api/v1/scripts/validate"
 
-echo "🔍 Enhanced Static Validation Demo"
+echo "🔍 Improved Static Validation Demo"
 echo "=================================="
 echo
 

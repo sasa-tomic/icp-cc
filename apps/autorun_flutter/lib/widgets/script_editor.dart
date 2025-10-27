@@ -10,9 +10,9 @@ import 'package:highlight/languages/lua.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/integrations_help.dart';
 
-/// Enhanced script editor with syntax highlighting, live linting, and improved UX
-class EnhancedScriptEditor extends StatefulWidget {
-  const EnhancedScriptEditor({
+/// Script editor with syntax highlighting, live linting, and improved UX
+class ScriptEditor extends StatefulWidget {
+  const ScriptEditor({
     super.key,
     required this.initialCode,
     required this.onCodeChanged,
@@ -32,10 +32,10 @@ class EnhancedScriptEditor extends StatefulWidget {
   final int? maxLines;
 
   @override
-  State<EnhancedScriptEditor> createState() => _EnhancedScriptEditorState();
+  State<ScriptEditor> createState() => _ScriptEditorState();
 }
 
-class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
+class _ScriptEditorState extends State<ScriptEditor> {
   late final CodeController _controller;
   String? _lintError;
   Timer? _lintDebouncer;
@@ -50,7 +50,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
   };
 
   @override
-  void didUpdateWidget(EnhancedScriptEditor oldWidget) {
+  void didUpdateWidget(ScriptEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Update controller text when initialCode changes
     if (oldWidget.initialCode != widget.initialCode && 
@@ -264,7 +264,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
 
           const SizedBox(width: 8),
 
-          // Theme selector with enhanced design
+          // Theme selector with modern design
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -349,7 +349,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
 
           const SizedBox(width: 12),
 
-          // Actions with enhanced design
+          // Actions with modern design
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -558,7 +558,7 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
   }
 
   void _formatCode() {
-    // Basic formatting - could be enhanced with proper Lua formatter
+    // Basic formatting - could be improved with proper Lua formatter
     final code = _controller.text;
     // For now, just trigger a change
     _controller.text = code;

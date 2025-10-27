@@ -116,4 +116,4 @@ just cloudflare-deploy -- --help   # Show command-specific help
 - For Android, ensure an emulator or device is connected
 - Use `apps/autorun_flutter/tool/run_android.sh` to start a default emulator and run
 - For iOS/macOS, additional Xcode project copy phases can be added to auto-embed the dylib/xcframework
-- Just provides better error handling and cross-platform compatibility with enhanced features
+- Just provides better error handling and cross-platform compatibility with improved features

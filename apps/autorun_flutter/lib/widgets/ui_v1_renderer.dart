@@ -5,8 +5,8 @@ import 'result_display.dart';
 
 typedef UiEventHandler = void Function(Map<String, dynamic> msg);
 
-/// Convert mixed-type list items to Map format for EnhancedResultList
-List<Map<String, dynamic>> _normalizeItemsForEnhancedList(List<dynamic> items) {
+/// Convert mixed-type list items to Map format for SearchableResultList
+List<Map<String, dynamic>> _normalizeItemsForSearchableList(List<dynamic> items) {
   return items.map((item) {
     if (item is Map<String, dynamic>) {
       return item;
@@ -337,21 +337,33 @@ class UiV1Renderer extends StatelessWidget {
           return _error('List items must be an array');
         }
 
-        // Check if we should use the enhanced list view
-        final bool enhanced = (props['enhanced'] as bool?) ?? false;
-        final bool searchable = (props['searchable'] as bool?) ?? true;
+        // Check if we should use the searchable list view
+        final bool searchable = (props['searchable'] as bool?) ?? (props['enhanced'] as bool?) ?? false;
         final String title = (props['title'] ?? 'Results').toString();
 
-        if (enhanced) {
-          return EnhancedResultList(
-            items: _normalizeItemsForEnhancedList(items),
+        if (searchable) {
+          return SearchableResultList(
+            items: _normalizeItemsForSearchableList(items),
             title: title,
             searchable: searchable,
             onEvent: onEvent,
           );
         }
 
-        return ListView.separated(
+        return Card(
+          margin: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: items.length,
@@ -381,6 +393,9 @@ class UiV1Renderer extends StatelessWidget {
             }
             return ListTile(title: Text(item.toString()));
           },
+        ),
+            ],
+          ),
         );
       case 'result_display':
         final dynamic data = props['data'];

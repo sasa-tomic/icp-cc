@@ -6,13 +6,13 @@ import 'package:mockito/annotations.dart';
 import 'package:icp_autorun/controllers/script_controller.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/models/script_template.dart';
-import 'package:icp_autorun/screens/enhanced_script_creation_screen.dart';
+import 'package:icp_autorun/screens/script_creation_screen.dart';
 
-import 'enhanced_script_creation_screen_test.mocks.dart';
+import 'script_creation_screen_test.mocks.dart';
 
 @GenerateMocks([ScriptController, ScriptRecord])
 void main() {
-  group('EnhancedScriptCreationScreen Tests', () {
+  group('ScriptCreationScreen Tests', () {
     late MockScriptController mockController;
     late ScriptTemplate testTemplate;
 
@@ -42,7 +42,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
             ),
           ),
@@ -50,7 +50,7 @@ void main() {
       );
 
       // Verify screen is rendered
-      expect(find.byType(EnhancedScriptCreationScreen), findsOneWidget);
+      expect(find.byType(ScriptCreationScreen), findsOneWidget);
       expect(find.byType(TabBar), findsOneWidget);
 
       // Verify default tabs
@@ -72,7 +72,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
               initialTemplate: testTemplate,
             ),
@@ -97,7 +97,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
             ),
           ),
@@ -120,7 +120,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
             ),
           ),
@@ -150,7 +150,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
             ),
           ),
@@ -181,7 +181,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
               initialTemplate: testTemplate,
             ),
@@ -214,7 +214,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
               initialTemplate: testTemplate,
             ),
@@ -242,7 +242,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
             ),
           ),
@@ -277,7 +277,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
               initialTemplate: testTemplate,
             ),
@@ -313,7 +313,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
               initialTemplate: testTemplate,
             ),
@@ -345,7 +345,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
               initialTemplate: testTemplate,
             ),
@@ -377,7 +377,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
             ),
           ),
@@ -404,7 +404,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptCreationScreen(
+            body: ScriptCreationScreen(
               controller: mockController,
               initialTemplate: testTemplate,
             ),
@@ -421,7 +421,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Screen should be closed (no longer in widget tree)
-      expect(find.byType(EnhancedScriptCreationScreen), findsNothing);
+      expect(find.byType(ScriptCreationScreen), findsNothing);
     });
 
     group('Template Selection Dialog', () {
@@ -436,7 +436,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptCreationScreen(
+              body: ScriptCreationScreen(
                 controller: mockController,
               ),
             ),
@@ -466,7 +466,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptCreationScreen(
+              body: ScriptCreationScreen(
                 controller: mockController,
               ),
             ),
@@ -491,7 +491,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptCreationScreen(
+              body: ScriptCreationScreen(
                 controller: mockController,
               ),
             ),
@@ -510,7 +510,7 @@ void main() {
     group('Error Handling', () {
       testWidgets('should handle null controller gracefully', (WidgetTester tester) async {
         expect(
-          () => EnhancedScriptCreationScreen(
+          () => ScriptCreationScreen(
             controller: mockController, // Mock controller should work fine
           ),
           returnsNormally,
@@ -530,7 +530,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptCreationScreen(
+              body: ScriptCreationScreen(
                 controller: mockController,
               ),
             ),
@@ -538,7 +538,7 @@ void main() {
         );
 
         // Should not crash
-        expect(find.byType(EnhancedScriptCreationScreen), findsOneWidget);
+        expect(find.byType(ScriptCreationScreen), findsOneWidget);
       });
     });
   });

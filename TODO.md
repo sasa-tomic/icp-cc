@@ -201,7 +201,7 @@
   - Add accessibility testing for generated UI
 
 #### Rust Lua Engine Test Coverage (Priority: HIGH)
-- **MOTIVATION**: Recent bug showed `icp_enhanced_list` function missing from Rust engine, causing runtime errors. Only 1/13 helper functions had test coverage.
+- **MOTIVATION**: Recent bug showed `icp_searchable_list` function missing from Rust engine, causing runtime errors. Only 1/13 helper functions had test coverage.
 - ✅ Add tests for remaining action helpers: `icp_call`, `icp_batch`, `icp_message`, `icp_ui_list`, `icp_result_display`, `icp_section`, `icp_table`
 - ✅ Add tests for formatting helpers: `icp_format_number`, `icp_format_icp`, `icp_format_timestamp`, `icp_format_bytes`, `icp_truncate`
 - ✅ Add tests for data manipulation helpers: `icp_filter_items`, `icp_sort_items`

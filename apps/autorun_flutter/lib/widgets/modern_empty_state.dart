@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../theme/app_design_system.dart';
 import '../theme/modern_components.dart';
 
-/// Modern empty state widget with enhanced animations and design
+/// Modern empty state widget with smooth animations and design
 class ModernEmptyState extends StatefulWidget {
   const ModernEmptyState({
     super.key,
@@ -314,7 +314,7 @@ class _ModernEmptyStateState extends State<ModernEmptyState>
   }
 }
 
-/// Modern loading indicator with enhanced animations
+/// Modern loading indicator with smooth animations
 class ModernLoadingIndicator extends StatefulWidget {
   const ModernLoadingIndicator({
     super.key,

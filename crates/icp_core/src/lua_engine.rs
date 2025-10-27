@@ -56,7 +56,7 @@ function icp_batch(calls) calls = calls or {}; return { action = "batch", calls 
 function icp_message(spec) spec = spec or {}; return { action = "message", text = tostring(spec.text or ""), type = tostring(spec.type or "info") } end
 function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end
 function icp_result_display(spec) spec = spec or {}; return { action = "ui", ui = { type = "result_display", props = spec } } end
-function icp_enhanced_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { enhanced = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end
+function icp_searchable_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { searchable = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end
 function icp_section(spec) spec = spec or {}; return { action = "ui", ui = { type = "section", props = { title = spec.title or "", content = spec.content or "" } } } end
 function icp_table(data) return { action = "ui", ui = { type = "table", props = data } } end
 function icp_format_number(value, decimals) return tostring(tonumber(value) or 0) end
@@ -582,7 +582,7 @@ mod tests {
     }
 
     #[test]
-    fn icp_enhanced_list_function_works() {
+    fn icp_searchable_list_function_works() {
         let script = r#"
             function init(arg)
                 return {
@@ -594,7 +594,7 @@ mod tests {
             end
 
             function view(state)
-                return icp_enhanced_list({
+                return icp_searchable_list({
                     items = state.items,
                     title = "Recent Transactions",
                     searchable = true
@@ -617,10 +617,10 @@ mod tests {
         let vv: serde_json::Value = serde_json::from_str(&vo).unwrap();
         assert!(vv["ok"].as_bool().unwrap());
 
-        // Check that the enhanced list structure is correct
+        // Check that the searchable list structure is correct
         let ui = &vv["ui"]["ui"];
         assert_eq!(ui["type"].as_str().unwrap(), "list");
-        assert!(ui["props"]["enhanced"].as_bool().unwrap());
+        assert!(ui["props"]["searchable"].as_bool().unwrap());
         assert_eq!(
             ui["props"]["title"].as_str().unwrap(),
             "Recent Transactions"
@@ -1245,7 +1245,7 @@ mod tests {
                 table.insert(results, type(icp_message))
                 table.insert(results, type(icp_ui_list))
                 table.insert(results, type(icp_result_display))
-                table.insert(results, type(icp_enhanced_list))
+                table.insert(results, type(icp_searchable_list))
                 table.insert(results, type(icp_section))
                 table.insert(results, type(icp_table))
                 

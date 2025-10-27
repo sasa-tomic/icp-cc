@@ -502,7 +502,7 @@ function render_results_section(state)
     type = "section",
     props = { title = "Results" },
     children = {
-      icp_enhanced_list({
+      icp_searchable_list({
         items = results,
         title = "Query Results",
         searchable = false
@@ -616,14 +616,14 @@ end''',
     ),
 
     ScriptTemplate(
-      id: 'enhanced_ui',
-      title: 'Enhanced UI Demo',
+      id: 'advanced_ui',
+      title: 'Advanced UI Demo',
       description: 'Advanced UI with filtering, sorting, statistics, and complex data visualization.',
       emoji: '🎨',
       level: 'advanced',
-      luaSource: '''-- Enhanced UI Example - Refactored for Clarity
--- This script demonstrates advanced UI features with better organization
--- Shows advanced data filtering, sorting, and statistics calculation
+luaSource: '''-- Advanced UI Example - Refactored for Clarity
+ -- This script demonstrates advanced UI features with better organization
+ -- Shows advanced data filtering, sorting, and statistics calculation
 
 function init(arg)
   return {
@@ -828,8 +828,8 @@ function render_transactions_section(state)
       title = string.format("Transactions (%d items)", #filtered_transactions)
     },
     children = {
-      -- Use the enhanced list component for rich display
-      icp_enhanced_list({
+      -- Use the searchable list component for rich display
+      icp_searchable_list({
         items = format_transactions_for_display(filtered_transactions),
         title = "Transaction List",
         searchable = true

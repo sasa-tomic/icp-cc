@@ -186,4 +186,4 @@ While making validation safer, we maintained all critical security protections:
 - ✅ Gradual strictness based on context
 - ✅ Migration path for existing scripts
 
-The enhanced validation now provides **robust security** while being **developer-friendly** and **contextually appropriate**.
+The improved validation now provides **robust security** while being **developer-friendly** and **contextually appropriate**.
