@@ -1,6 +1,6 @@
 use crate::{
     canister_client::{self, MethodKind},
-    generate_ed25519_identity, generate_secp256k1_identity, lua_engine,
+    generate_ed25519_identity, generate_secp256k1_identity, lua_engine, ValidationContext,
 };
 use serde_json::json;
 use std::ffi::{CStr, CString};
@@ -245,6 +245,41 @@ pub unsafe extern "C" fn icp_lua_lint(script: *const c_char) -> *mut c_char {
     }
     let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
     let json = lua_engine::lint_lua(script_s);
+    CString::new(json).unwrap().into_raw()
+}
+
+/// # Safety
+/// - `script` must be null or a valid, null-terminated C string.
+/// - `is_example`, `is_test`, and `is_production` must be 0 (false) or 1 (true).
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_lua_validate_comprehensive(
+    script: *const c_char,
+    is_example: i32,
+    is_test: i32,
+    is_production: i32,
+) -> *mut c_char {
+    if script.is_null() {
+        return null_c_string();
+    }
+    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
+
+    let context = ValidationContext {
+        is_example: is_example != 0,
+        is_test: is_test != 0,
+        is_production: is_production != 0,
+    };
+
+    let result = lua_engine::validate_lua_comprehensive(script_s, Some(context));
+    let json = json!({
+        "is_valid": result.is_valid,
+        "syntax_errors": result.syntax_errors,
+        "warnings": result.warnings,
+        "line_count": result.line_count,
+        "character_count": result.character_count
+    })
+    .to_string();
+
     CString::new(json).unwrap().into_raw()
 }
 

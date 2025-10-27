@@ -355,7 +355,10 @@ fn update_wrangler_config(
         );
 
     std::fs::write(&config_path, updated_content)?;
-    success_message(&format!("Updated {} with database configuration", config_file));
+    success_message(&format!(
+        "Updated {} with database configuration",
+        config_file
+    ));
 
     Ok(())
 }
