@@ -3,9 +3,9 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "rm -rf .wrangler/state/v3/d1/miniflare-D1DatabaseObject/* && wrangler dev",
-		"start": "rm -rf .wrangler/state/v3/d1/miniflare-D1DatabaseObject/* && wrangler dev",
+		"deploy": "wrangler deploy --config wrangler.prod.jsonc",
+		"dev": "rm -rf .wrangler/state/v3/d1/miniflare-D1DatabaseObject/* && wrangler dev --config wrangler.local.jsonc",
+		"start": "rm -rf .wrangler/state/v3/d1/miniflare-D1DatabaseObject/* && wrangler dev --config wrangler.local.jsonc",
 		"test": "vitest",
 		"cf-typegen": "wrangler types"
 	},
