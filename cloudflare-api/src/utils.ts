@@ -48,22 +48,22 @@ export class JsonResponse {
 export class DatabaseService {
   constructor(private env: Env) {}
 
-  private getDatabase(): D1Database {
+  getDatabase(): D1Database {
     // If TEST_DB_NAME is specified, use dynamic database selection
     if (this.env.TEST_DB_NAME) {
-      const testDbName = `TEST_${this.env.TEST_DB_NAME.toUpperCase()}`;
-      return (this.env as any)[testDbName] || this.env.DB;
+      // Use TEST_DB binding for test environment
+      return (this.env as any).TEST_DB || this.env.DB;
     }
     return this.env.DB;
   }
 
-  async getScriptWithDetails(scriptId: string): Promise<Script | null> {
+  async getScriptWithDetails(scriptId: string, includePrivate = false): Promise<Script | null> {
     const db = this.getDatabase();
     
     // Get script
     const script = await db.prepare(`
       SELECT * FROM scripts 
-      WHERE id = ? AND is_public = 1
+      WHERE id = ? ${includePrivate ? '' : 'AND is_public = 1'}
     `).bind(scriptId).first();
 
     if (!script) return null;
@@ -172,6 +172,7 @@ export class DatabaseService {
     order?: string;
     limit?: number;
     offset?: number;
+    isPublic?: boolean;
   }): Promise<{ scripts: Script[]; total: number }> {
     const db = this.getDatabase();
     const {
@@ -183,7 +184,8 @@ export class DatabaseService {
       sortBy = 'created_at',
       order = 'desc',
       limit = 20,
-      offset = 0
+      offset = 0,
+      isPublic
     } = params;
 
     // Map camelCase to snake_case for database columns
@@ -203,7 +205,7 @@ export class DatabaseService {
 
     const dbSortBy = columnMapping[sortBy] || sortBy;
 
-    let whereConditions = ['is_public = 1'];
+    let whereConditions = isPublic !== false ? ['is_public = 1'] : [];
     let bindings: any[] = [];
 
     if (query) {

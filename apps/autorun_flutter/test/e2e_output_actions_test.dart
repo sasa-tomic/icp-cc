@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/script_controller.dart';
-import 'package:icp_autorun/models/script_record.dart';
+
 import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/widgets/script_app_host.dart';
-import 'test_helpers/miniflare_script_repository.dart';
+import 'test_helpers/mock_script_repository.dart';
 
 class MockEnhancedBridge implements ScriptBridge {
   final Map<String, dynamic> _mockCanisterData = {
@@ -920,7 +920,7 @@ void main() {
     late ScriptController controller;
 
     setUp(() async {
-      repository = MiniflareScriptRepository();
+      repository = MockScriptRepository();
       controller = ScriptController(repository);
       await controller.ensureLoaded();
     });

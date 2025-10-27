@@ -2,23 +2,37 @@ import { Env } from './types';
 import { JsonResponse, DatabaseService } from '../utils';
 
 export async function handleSearchScriptsRequest(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') {
+  if (request.method !== 'GET' && request.method !== 'POST') {
     return JsonResponse.error('Method not allowed', 405);
   }
 
   try {
     const db = new DatabaseService(env);
-    const {
-      query,
-      category,
-      canisterId,
-      minRating,
-      maxPrice,
-      sortBy = 'created_at',
-      order = 'desc',
-      limit = 20,
-      offset = 0
-    } = await request.json();
+    let query, category, canisterId, minRating, maxPrice, sortBy, order, limit, offset;
+
+    if (request.method === 'GET') {
+      const url = new URL(request.url);
+      query = url.searchParams.get('q');
+      category = url.searchParams.get('category');
+      canisterId = url.searchParams.get('canisterId');
+      minRating = url.searchParams.get('minRating') != null ? parseFloat(url.searchParams.get('minRating')!) : undefined;
+      maxPrice = url.searchParams.get('maxPrice') != null ? parseFloat(url.searchParams.get('maxPrice')!) : undefined;
+      sortBy = url.searchParams.get('sortBy') || 'created_at';
+      order = url.searchParams.get('order') || 'desc';
+      limit = parseInt(url.searchParams.get('limit') || '20');
+      offset = parseInt(url.searchParams.get('offset') || '0');
+    } else {
+      const body = await request.json();
+      query = body.query;
+      category = body.category;
+      canisterId = body.canisterId;
+      minRating = body.minRating;
+      maxPrice = body.maxPrice;
+      sortBy = body.sortBy || 'created_at';
+      order = body.order || 'desc';
+      limit = body.limit || 20;
+      offset = body.offset || 0;
+    }
 
     const { scripts, total } = await db.searchScripts({
       query,

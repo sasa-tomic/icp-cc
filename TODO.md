@@ -2,65 +2,9 @@
 
 ## Immediate Tasks (Ready to Start)
 
-- ✅ Adjust the prod build of the flutter app to use API endpoint (prefix): https://icp-mp.kalaj.org/api/v1/
-
 ### Production Deployment (Priority: HIGH)
-- [ ] Set up Cloudflare account and authenticate with wrangler
-- [ ] Create production D1 database and run migrations
-- [ ] Configure production environment variables and secrets
-- [ ] Deploy Cloudflare Workers to production
-- [ ] Update Flutter app with production API endpoint
-- [ ] Test production deployment end-to-end
-- [ ] Set up custom domain and SSL certificates
-- [ ] Configure monitoring and error tracking
-- [ ] Set up backup and disaster recovery procedures
-
-
-
-
-
-### Quick Wins
-
-- [ ] Add download analytics and history tracking
-- [ ] Implement script file download mechanism
 
 ## Production Readiness Checklist (Priority: CRITICAL)
-
-### Infrastructure & Deployment
-- [ ] **Cloudflare Account Setup**: Create Cloudflare account, authenticate wrangler CLI
-- [ ] **Production Database**: Create production D1 database with proper migrations
-- [ ] **Environment Configuration**: Set production environment variables and secrets
-- [ ] **Worker Deployment**: Deploy Cloudflare Workers to production environment
-- [ ] **Domain Configuration**: Set up custom domain (icp-marketplace.com or similar)
-- [ ] **SSL/TLS**: Configure SSL certificates and HTTPS
-- [ ] **CDN Setup**: Configure Cloudflare CDN for static assets
-
-### Security & Compliance
-- ✅ **Input Validation**: Comprehensive input validation already implemented
-- [ ] **Rate Limiting**: Implement rate limiting to prevent abuse
-- [ ] **CORS Configuration**: Set proper CORS headers for production domain
-- [ ] **Security Headers**: Add security headers (CSP, HSTS, etc.)
-- [ ] **API Authentication**: Implement API key authentication for admin endpoints
-- [ ] **Data Privacy**: Ensure GDPR/CCPA compliance for user data
-
-### Monitoring & Observability
-- [ ] **Error Tracking**: Set up error monitoring (Sentry, Cloudflare analytics)
-- [ ] **Performance Monitoring**: Configure APM and performance metrics
-- [ ] **Logging**: Set up structured logging for production debugging
-- [ ] **Health Checks**: Implement comprehensive health check endpoints
-- [ ] **Alerting**: Set up alerts for downtime, errors, performance issues
-
-### Backup & Disaster Recovery
-- [ ] **Database Backups**: Configure automated D1 database backups
-- [ ] **Backup Testing**: Regularly test backup restoration procedures
-- [ ] **Incident Response**: Create incident response runbooks
-- [ ] **Rollback Plan**: Document rollback procedures for deployments
-
-### Testing & Quality Assurance
-- [ ] **Load Testing**: Perform load testing for expected traffic
-- [ ] **Security Testing**: Conduct security audit and penetration testing
-- [ ] **Cross-browser Testing**: Test Flutter app on all target platforms
-- [ ] **Integration Testing**: Full end-to-end testing with production data
 
 ### Documentation & Operations
 - [ ] **Deployment Guide**: Create step-by-step production deployment guide
@@ -75,16 +19,12 @@
   - Add source badges (Local/Marketplace) to distinguish script origins
   - Implement unified search across both local and marketplace scripts
   - Add smart filtering by source, category, tags, and usage frequency
-  - Create batch operations for managing multiple scripts simultaneously
   - Design unified script cards with consistent actions and information
 
 ### Seamless Publishing Workflow (Priority: High)  
 - ✅ Add "Publish to Marketplace" directly from local scripts
   - [ ] Auto-populate marketplace metadata from local script analysis
-  - ✅ Create pre-filled templates based on script content and patterns
-  - [ ] Implement one-click publishing for simple scripts with minimal metadata
   - [ ] Design progressive disclosure for advanced publishing options
-  - ✅ Add real-time validation and compatibility checking before publishing
 
 ### Enhanced Discovery and Recommendations (Priority: Medium)
 - Implement smart suggestions based on user behavior and script patterns
@@ -98,8 +38,6 @@
 - Enhance template system with marketplace integration
   - Mix marketplace templates with built-in templates in creation flow
   - Add "Based on your scripts" suggestions when creating new scripts
-  - Implement real-time validation and ICP canister compatibility checking
-  - Create preview mode to test scripts before saving locally
   - Add AI-powered suggestions for script improvements and optimizations
 
 ### Script Version Management (Priority: Medium)
@@ -128,8 +66,6 @@
 
 ### Quick Actions Integration (Priority: High)
 - ✅ Add marketplace actions directly to scripts tab
-  - ✅ "Download to Local" one-click action from marketplace cards
-  - ✅ "Publish to Marketplace" from local script context menu
   - [ ] "Check for Updates" for downloaded marketplace scripts
   - [ ] "View in Marketplace" for local scripts with published versions
   - [ ] "Share Script" with marketplace link generation
@@ -152,19 +88,18 @@
 
 ## Marketplace Features
 
+### Security & Compliance
+- [ ] **API Authentication**: Implement API key authentication for admin endpoints
+
 ### Script Downloads & Installation (Priority: High)
 - ✅ Enhance existing script retrieval with file download functionality
-  - ✅ Add actual file download mechanism (currently JSON-only)
-  - ✅ Implement download analytics and history tracking
   - [ ] Create script installation guides and documentation, with step-by-step guidance
-  - ✅ Design one-click download and installation flow
   - [ ] Implement version management and update notifications
   - [ ] Add support for installing locally a particular version of script
   - [ ] Design rollback mechanism for script updates
   - [ ] Create script preview functionality (code snippets, screenshots, reviews)
   - [ ] Analyze and research if other assets such as images and sound would be good to package with scripts
   - [ ] Add verification of script integrity and checksums: sha256 of each script
-  - ✅ Add download history and library management for users
 
 ### Payment Processing Integration (Priority: Medium)
 - Integrate with icpay.org for script payments
@@ -204,6 +139,10 @@
   - Implement automated content classification
 
 ## Scripts tab and Lua scripting
+
+### Testing & Quality Assurance
+- [ ] **Cross-browser Testing**: Test Flutter app on all target platforms
+- [ ] **Integration Testing**: Full end-to-end testing with production data
 
 ### Design Principles
 - **Untrusted code isolation**: Lua is sandboxed; no IO; effects executed by host
@@ -371,21 +310,23 @@
 
 ## Infrastructure & Operations
 
+### Backup & Disaster Recovery
+- [ ] **Database Backups**: Configure automated D1 database backups
+- [ ] **Backup Testing**: Regularly test backup restoration procedures
+- [ ] **Rollback Plan**: Document rollback procedures for deployments
+
 ### Monitoring & Observability (Priority: Medium)
 - [ ] Implement comprehensive logging for function execution
 - [ ] Add performance monitoring and alerting
 - [ ] Create health check endpoints for marketplace services
 - [ ] Set up automated backup and recovery procedures
 
-### Deployment Status
-- **Local Development**: ✅ Running on http://localhost:8787 with all endpoints functional
-- **Infrastructure**: Automated deployment tool (server-deploy) handles complete infrastructure + worker deployment
-- **Production**: 🚀 READY FOR DEPLOYMENT - See Production Readiness Checklist above
-
-- [ ] Deploy to production Cloudflare Workers environment
-- [ ] Implement blue-green deployment strategy for zero downtime
-- [ ] Add rollback procedures for failed deployments
-- [ ] Set up staging environment for testing production features
+### Monitoring & Observability
+- [ ] **Error Tracking**: Set up error monitoring (Sentry, Cloudflare analytics)
+- [ ] **Performance Monitoring**: Configure APM and performance metrics
+- [ ] **Logging**: Set up structured logging for production debugging
+- [ ] **Health Checks**: Implement comprehensive health check endpoints
+- [ ] **Alerting**: Set up alerts for downtime, errors, performance issues
 
 ---
 

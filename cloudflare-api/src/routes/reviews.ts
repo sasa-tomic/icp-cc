@@ -34,7 +34,8 @@ export async function handleReviewsRequest(request: Request, env: Env, scriptId:
       `;
     }
 
-    const reviews = await db.env.DB.prepare(query).bind(...bindings).all();
+    const database = db.getDatabase();
+    const reviews = await database.prepare(query).bind(...bindings).all();
 
     return JsonResponse.success(reviews.results);
   } catch (err: any) {
@@ -64,7 +65,8 @@ export async function handleCreateReviewRequest(request: Request, env: Env, scri
     const reviewId = crypto.randomUUID();
 
     // Check if user already reviewed this script
-    const existingReview = await db.env.DB.prepare(`
+    const database = db.getDatabase();
+    const existingReview = await database.prepare(`
       SELECT id FROM reviews WHERE script_id = ? AND user_id = ?
     `).bind(scriptId, userId).first();
 
@@ -73,15 +75,15 @@ export async function handleCreateReviewRequest(request: Request, env: Env, scri
     }
 
     // Create review
-    await db.env.DB.prepare(`
+    await database.prepare(`
       INSERT INTO reviews (id, script_id, user_id, rating, comment, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(reviewId, scriptId, userId, rating, comment, now, now).run();
 
     // Update script rating and review count
-    await updateScriptStats(db.env.DB, scriptId);
+    await updateScriptStats(database, scriptId);
 
-    const review = await db.env.DB.prepare(`
+    const review = await database.prepare(`
       SELECT * FROM reviews WHERE id = ?
     `).bind(reviewId).first();
 

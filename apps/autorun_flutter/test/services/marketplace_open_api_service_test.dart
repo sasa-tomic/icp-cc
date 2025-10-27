@@ -263,7 +263,7 @@ void main() {
         
         final foundInSearch = bySearch.scripts.firstWhere(
           (s) => s.id == 'consistency-test',
-          orElse: () => byId!,
+          orElse: () => byId ?? bySearch.scripts.first,
         );
         
         expect(byId!.title, equals(foundInSearch.title));

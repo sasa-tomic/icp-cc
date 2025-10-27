@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
@@ -11,7 +13,7 @@ class MiniflareTestHelper {
   static Future<bool> isMiniflareRunning({String? baseUrl}) async {
     try {
       final response = await http.get(
-        Uri.parse('${baseUrl ?? defaultBaseUrl}/health'),
+        Uri.parse('${baseUrl ?? defaultBaseUrl}/api/v1/health'),
       ).timeout(const Duration(seconds: 5));
       
       return response.statusCode == 200;
@@ -41,7 +43,7 @@ class MiniflareTestHelper {
   /// Create a test repository with proper error handling for tests
   static MiniflareScriptRepository createTestRepository({
     String? baseUrl,
-    bool failSilently = true,
+    bool failSilently = false, // Changed default to false for e2e tests
   }) {
     return MiniflareScriptRepository(
       baseUrl: baseUrl ?? defaultBaseUrl,
@@ -100,12 +102,16 @@ class _SilentFailHttpClient extends http.BaseClient {
     try {
       return await _inner.send(request);
     } catch (e) {
-      // Return a mock successful response for tests
+      // Return a mock successful response with empty data for tests
+      final responseBody = '{"success": true, "data": {"scripts": []}}';
       return http.StreamedResponse(
-        Stream.empty(),
+        Stream.value(utf8.encode(responseBody)),
         200,
         request: request,
-        headers: {'content-type': 'application/json'},
+        headers: {
+          'content-type': 'application/json',
+          'content-length': responseBody.length.toString(),
+        },
       );
     }
   }

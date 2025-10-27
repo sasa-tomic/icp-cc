@@ -3,7 +3,9 @@ import { CorsHandler } from './utils';
 import { 
   handleScriptsRequest, 
   handleScriptByIdRequest,
-  handleScriptsByCategoryRequest
+  handleScriptsByCategoryRequest,
+  handleScriptsCountRequest,
+  handlePublishScriptRequest
 } from './routes/scripts';
 import { 
   handleSearchScriptsRequest,
@@ -60,6 +62,9 @@ export default {
         case '/api/v1/scripts/validate':
           return handleScriptValidationRequest(request, env);
 
+        case '/api/v1/scripts/count':
+          return handleScriptsCountRequest(request, env);
+
         // Health check
         case '/api/v1/health':
           return new Response(JSON.stringify({
@@ -83,6 +88,12 @@ export default {
                   return handleCreateReviewRequest(request, env, id);
                 } else {
                   return handleReviewsRequest(request, env, id);
+                }
+              } else if (action === 'publish') {
+                if (request.method === 'POST') {
+                  return handlePublishScriptRequest(request, env, id);
+                } else {
+                  return JsonResponse.error('Method not allowed', 405);
                 }
               } else if (id === 'category' && pathParts[5]) {
                 return handleScriptsByCategoryRequest(request, env, pathParts[5]);
