@@ -26,13 +26,34 @@ void main() {
         final source = template.luaSource;
         
         // Find all return statements
-        final returnMatches = RegExp(r'return\s+(.*)').allMatches(source);
+        final returnMatches = RegExp(r'return\s+(.*?)(?=\n|$)').allMatches(source);
         
         for (final match in returnMatches) {
           final returnExpr = match.group(1)!;
           
+          // Skip multi-line table returns that start with { (they're valid Lua syntax)
+          final trimmedReturn = returnExpr.trim();
+          if (trimmedReturn.startsWith('{') && !trimmedReturn.endsWith('}')) {
+            continue; // Skip multi-line table declarations
+          }
+          
+          // Skip multi-return statements (they're valid Lua syntax)
+          if (trimmedReturn.contains(',') && 
+              (trimmedReturn.contains('state') || trimmedReturn.endsWith('{}'))) {
+            continue; // Skip multi-return statements
+          }
+          
+          // Skip function calls with opening braces (they're valid Lua syntax)
+          if (trimmedReturn.contains('(') && trimmedReturn.contains('{') && !trimmedReturn.contains('}')) {
+            continue; // Skip function calls with table arguments
+          }
+          
+          // Skip string.format calls (they're valid Lua syntax for multi-line strings)
+          if (trimmedReturn.contains('string.format') && trimmedReturn.endsWith(',')) {
+            continue; // Skip string.format multi-line calls
+          }
+          
           // Return should not end with hanging comma unless it's a valid multi-return (like init function)
-          final trimmedReturn = returnExpr.trimRight();
           if (trimmedReturn.endsWith(',') && !trimmedReturn.contains('{}')) {
             // Check if this looks like a multi-return statement (common in init functions)
             final hasMultipleValues = trimmedReturn.contains(',') && 
