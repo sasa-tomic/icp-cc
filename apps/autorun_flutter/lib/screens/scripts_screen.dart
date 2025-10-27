@@ -857,12 +857,12 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           return false;
         },
         child:         GridView.builder(
-          padding: EdgeInsets.all(MediaQuery.of(context).size.width < 380 ? 12.0 : 16.0),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: MediaQuery.of(context).size.width < 380 ? 1 : 2,
-            childAspectRatio: MediaQuery.of(context).size.width < 380 ? 1.2 : 0.75,
-            crossAxisSpacing: MediaQuery.of(context).size.width < 380 ? 12.0 : 16.0,
-            mainAxisSpacing: MediaQuery.of(context).size.width < 380 ? 12.0 : 16.0,
+          padding: const EdgeInsets.all(16.0),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 1,
+            childAspectRatio: 1.2,
+            crossAxisSpacing: 16.0,
+            mainAxisSpacing: 16.0,
           ),
           itemCount: _marketplaceScripts.length + (_hasMore ? 1 : 0),
           itemBuilder: (context, index) {
