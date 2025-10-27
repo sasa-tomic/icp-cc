@@ -94,6 +94,125 @@ describe('ICP Marketplace API worker', () => {
 		});
 	});
 
+	describe('Script validation', () => {
+		it('/api/v1/scripts/validate rejects non-POST requests', async () => {
+			const request = new Request('http://example.com/api/v1/scripts/validate');
+			const response = await SELF.fetch(request);
+			expect(response.status).toBe(405);
+			const data = await response.json();
+			expect(data.success).toBe(false);
+			expect(data.error).toBe('Method not allowed');
+		});
+
+		it('/api/v1/scripts/validate rejects empty script', async () => {
+			const request = new Request('http://example.com/api/v1/scripts/validate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ lua_source: '' })
+			});
+			const response = await SELF.fetch(request);
+			const data = await response.json();
+			expect(response.status).toBe(200);
+			expect(data.success).toBe(true);
+			expect(data.data.is_valid).toBe(false);
+			expect(data.data.errors).toContain('Lua source cannot be empty');
+		});
+
+		it('/api/v1/scripts/validate accepts valid script', async () => {
+			const validScript = `
+function init()
+	return { counter = 0 }
+end
+
+function view(state)
+	return {
+		type = "column",
+		children = {
+			{ type = "text", text = "Counter: " .. state.counter },
+			{ type = "button", text = "Increment", on_press = { type = "increment" } }
+		}
+	}
+end
+
+function update(msg, state)
+	if msg.type == "increment" then
+		state.counter = state.counter + 1
+	end
+	return state
+end
+			`;
+
+			const request = new Request('http://example.com/api/v1/scripts/validate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ lua_source: validScript })
+			});
+			const response = await SELF.fetch(request);
+			const data = await response.json();
+			expect(response.status).toBe(200);
+			expect(data.success).toBe(true);
+			expect(data.data.is_valid).toBe(true);
+			expect(data.data.errors).toHaveLength(0);
+		});
+
+		it('/api/v1/scripts/validate detects security issues', async () => {
+			const dangerousScript = `
+function init()
+	return {}
+end
+
+function view(state)
+	return { type = "text", text = "Hello" }
+end
+
+function update(msg, state)
+	loadstring("print('dangerous')")
+	return state
+end
+			`;
+
+			const request = new Request('http://example.com/api/v1/scripts/validate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ lua_source: dangerousScript })
+			});
+			const response = await SELF.fetch(request);
+			const data = await response.json();
+			expect(response.status).toBe(200);
+			expect(data.success).toBe(true);
+			expect(data.data.is_valid).toBe(false);
+			expect(data.data.errors.some(e => e.includes('loadstring'))).toBe(true);
+		});
+
+		it('/api/v1/scripts/validate detects syntax errors', async () => {
+			const syntaxErrorScript = `
+function init()
+	return { counter = 0
+end  -- Missing closing brace
+
+function view(state)
+	return { type = "text", text = "Hello" }
+end
+
+function update(msg, state)
+	return state
+end
+			`;
+
+			const request = new Request('http://example.com/api/v1/scripts/validate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ lua_source: syntaxErrorScript })
+			});
+			const response = await SELF.fetch(request);
+			const data = await response.json();
+			expect(response.status).toBe(200);
+			expect(data.success).toBe(true);
+			expect(data.data.is_valid).toBe(false);
+			expect(data.data.errors.length > 0).toBe(true);
+		});
+	});
+
 	describe('Error handling', () => {
 		it('returns 404 for unknown endpoints', async () => {
 			const request = new Request('http://example.com/unknown');
