@@ -10,7 +10,11 @@ use config::{AppConfig, DeployComponents};
 use utils::{error_message, info_message, section_header, success_message};
 
 /// Run all database migration files in order
-fn run_all_migrations(cloudflare_dir: &std::path::Path, database_name: &str) -> Result<()> {
+fn run_all_migrations(
+    cloudflare_dir: &std::path::Path,
+    database_name: &str,
+    target: &str,
+) -> Result<()> {
     let migrations_dir = cloudflare_dir.join("migrations");
 
     // Check if migrations directory exists
@@ -51,8 +55,22 @@ fn run_all_migrations(cloudflare_dir: &std::path::Path, database_name: &str) -> 
         );
         info_message(&format!("Applying migration: {}", migration_file));
 
+        let config_file = if target == "local" {
+            "wrangler.local.jsonc"
+        } else {
+            "wrangler.prod.jsonc"
+        };
+
         let migrate_output = std::process::Command::new("wrangler")
-            .args(["d1", "execute", database_name, "--file", &migration_file])
+            .args([
+                "d1",
+                "execute",
+                database_name,
+                "--file",
+                &migration_file,
+                "--config",
+                config_file,
+            ])
             .current_dir(cloudflare_dir)
             .output()
             .map_err(|e| anyhow!("Failed to run migration {}: {}", migration_file, e))?;
@@ -237,7 +255,7 @@ async fn handle_bootstrap(
     // Run database migrations
     info_message("Running database migrations...");
     println!("🔄 Starting database migration process for bootstrap...");
-    run_all_migrations(&cloudflare_dir, &database_name)?;
+    run_all_migrations(&cloudflare_dir, &database_name, target)?;
     println!("✅ All database migrations completed successfully");
 
     success_message("Database migrations completed");
@@ -245,10 +263,15 @@ async fn handle_bootstrap(
     // Deploy Worker
     info_message(&format!("Deploying Cloudflare Worker: {}", worker_name));
     let mut deploy_cmd = std::process::Command::new("wrangler");
-    deploy_cmd.args(["deploy"]);
 
-    // Set environment variable based on target
-    if target == "prod" {
+    // Use different commands for local vs production
+    if target == "local" {
+        // For local development, we don't deploy - we start dev server
+        info_message("For local development, use 'wrangler dev --config wrangler.local.jsonc' to start the development server");
+        success_message("Local environment is ready for development!");
+        return Ok(());
+    } else {
+        deploy_cmd.args(["deploy"]);
         deploy_cmd.args(["--var", "ENVIRONMENT:production"]);
     }
 
@@ -423,15 +446,16 @@ async fn handle_deploy(
     if deploy_all || components.contains(&DeployComponents::Worker) {
         if dry_run {
             pb.set_message("DRY RUN: Would deploy Cloudflare Worker");
+        } else if target == "local" {
+            pb.set_message("Starting local development server...");
+            info_message("For local development, use 'wrangler dev --config wrangler.local.jsonc --port 8787'");
+            info_message("Local development server configuration is ready!");
         } else {
             pb.set_message("Deploying Cloudflare Worker...");
             let mut deploy_cmd = std::process::Command::new("wrangler");
             deploy_cmd.args(["deploy"]);
-
-            // Set environment variable based on target
-            if target == "prod" {
-                deploy_cmd.args(["--var", "ENVIRONMENT:production"]);
-            }
+            deploy_cmd.args(["--config", "wrangler.prod.jsonc"]);
+            deploy_cmd.args(["--var", "ENVIRONMENT:production"]);
 
             let deploy_output = deploy_cmd
                 .current_dir(&cloudflare_dir)
@@ -456,7 +480,7 @@ async fn handle_deploy(
         } else {
             pb.set_message("Running database migrations...");
             println!("🔄 Starting database migration process for deployment...");
-            run_all_migrations(&cloudflare_dir, &config.database_name)?;
+            run_all_migrations(&cloudflare_dir, &config.database_name, target)?;
             println!("✅ All database migrations completed successfully");
         }
         pb.tick();
