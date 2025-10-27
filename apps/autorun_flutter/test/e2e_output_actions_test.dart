@@ -8,7 +8,7 @@ import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/widgets/script_app_host.dart';
 import 'test_helpers/mock_script_repository.dart';
 
-class MockEnhancedBridge implements ScriptBridge {
+class MockCanisterBridge implements ScriptBridge {
   final Map<String, dynamic> _mockCanisterData = {
     'governance': {
       'proposals': [
@@ -674,7 +674,7 @@ class MockEnhancedBridge implements ScriptBridge {
       'ui': {
         'type': 'list',
         'props': {
-          'enhanced': true,
+          'searchable': true,
           'items': items,
           'title': 'Mock Data View'
         }
@@ -918,9 +918,9 @@ void main() {
     });
 
     group('Read → Transform → Display Flow Tests', () {
-      testWidgets('complete flow: canister call → data transformation → enhanced display', (WidgetTester tester) async {
+      testWidgets('complete flow: canister call → data transformation → searchable display', (WidgetTester tester) async {
         // Create a test script that demonstrates the complete flow
-        const enhancedScript = '''
+        const searchableScript = '''
 function init(arg)
   return {
     raw_data = {},
@@ -936,7 +936,7 @@ function view(state)
       { type = "row", children = {
         { type = "button", props = { label = "Load Data", on_press = { type = "load_data" } } },
         { type = "button", props = { label = "Transform", on_press = { type = "transform" } } },
-        { type = "button", props = { label = "View Enhanced", on_press = { type = "enhanced" } } },
+        { type = "button", props = { label = "View Searchable", on_press = { type = "searchable" } } },
       } }
     } }
   }
@@ -994,9 +994,9 @@ function update(msg, state)
     return state, {}
   end
 
-  if t == "enhanced" then
+  if t == "searchable" then
     if state.processed_data then
-      state.last_action = "Showing enhanced view"
+      state.last_action = "Showing searchable view"
     end
     return state, {}
   end
@@ -1008,15 +1008,15 @@ end
 
         // Create and save the script
         final script = await controller.createScript(
-          title: 'Enhanced Flow Test',
-          luaSourceOverride: enhancedScript,
+          title: 'Searchable Flow Test',
+          luaSourceOverride: searchableScript,
         );
 
         // Build the widget tree
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              runtime: ScriptAppRuntime(MockCanisterBridge()),
               script: script.luaSource,
             ),
           ),
@@ -1046,9 +1046,9 @@ end
 
         expect(find.text('Processed Results'), findsOneWidget);
         expect(find.text('Transformed Data'), findsOneWidget);
-        expect(find.byIcon(Icons.search), findsOneWidget); // Enhanced list should be searchable
+        expect(find.byIcon(Icons.search), findsOneWidget); // Searchable list should be searchable
 
-        // Step 3: Verify enhanced display features
+        // Step 3: Verify searchable display features
         expect(find.text('Transfer tx1'), findsOneWidget);
         expect(find.text('Transfer tx3'), findsOneWidget); // Only transfers, no stakes
         expect(find.textContaining('ICP'), findsWidgets); // Formatted amounts
@@ -1064,7 +1064,7 @@ end
 
       testWidgets('batch canister calls with data transformation', (WidgetTester tester) async {
         const batchScript = '''
--- Batch canister calls with enhanced result processing
+-- Batch canister calls with searchable result processing
 local function process_batch_results(results)
   local items = {}
 
@@ -1157,7 +1157,7 @@ end
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              runtime: ScriptAppRuntime(MockCanisterBridge()),
               script: script.luaSource,
             ),
           ),
@@ -1270,7 +1270,7 @@ end
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              runtime: ScriptAppRuntime(MockCanisterBridge()),
               script: script.luaSource,
             ),
           ),
@@ -1444,7 +1444,7 @@ end
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              runtime: ScriptAppRuntime(MockCanisterBridge()),
               script: script.luaSource,
             ),
           ),
@@ -1481,7 +1481,7 @@ end
         expect(find.text('Vote data retrieved successfully'), findsOneWidget);
         expect(find.text('Follow-up Canister Calls'), findsOneWidget);
 
-        // Test search functionality in the enhanced list
+        // Test search functionality in the searchable list
         expect(find.byIcon(Icons.search), findsNWidgets(2));
         // Use the second search icon (for High Priority Proposals)
         await tester.tap(find.byIcon(Icons.search).at(1), warnIfMissed: false);
@@ -1636,7 +1636,7 @@ end
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              runtime: ScriptAppRuntime(MockCanisterBridge()),
               script: script.luaSource,
             ),
           ),
@@ -1884,7 +1884,7 @@ end
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              runtime: ScriptAppRuntime(MockCanisterBridge()),
               script: script.luaSource,
             ),
           ),

@@ -191,7 +191,7 @@ class ScriptRunner {
       id: 'icp_result_display',
       title: 'Result Display',
       description:
-          'Display canister call results with enhanced formatting, copy/export capabilities, and smart data visualization.',
+          'Display canister call results with improved formatting, copy/export capabilities, and smart data visualization.',
       example:
           'return icp_result_display({\n  data = call_result,\n  title = "Query Results",\n  expandable = true,\n  expanded = false\n})',
     ),
@@ -621,7 +621,7 @@ class ScriptRunner {
   }
 
   String _injectHelpers(String src) {
-    // Provide enhanced helpers the script can call.
+    // Provide searchable helpers the script can call.
     final String helpers =
         'function icp_call(spec) spec = spec or {}; spec.action = "call"; return spec end\n'
         'function icp_batch(calls) calls = calls or {}; return { action = "batch", calls = calls } end\n'

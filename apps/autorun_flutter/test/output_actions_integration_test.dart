@@ -17,8 +17,8 @@ void main() {
       expect(helpers, contains('icp_sort_items'));
     });
 
-    test('enhanced UI widgets are available and properly exported', () {
-      // Test that the enhanced UI widgets can be instantiated
+    test('searchable UI widgets are available and properly exported', () {
+      // Test that the searchable UI widgets can be instantiated
       expect(ResultDisplay, isA<Type>());
       expect(UiV1Renderer, isA<Type>());
     });
@@ -26,7 +26,7 @@ void main() {
     test('integration catalog includes helper descriptions and examples', () {
       final catalog = ScriptRunner.integrationCatalog;
 
-      // Check for enhanced result display helper
+      // Check for searchable result display helper
       final resultDisplayHelper = catalog.firstWhere((info) => info.id == 'icp_result_display');
       expect(resultDisplayHelper.title, equals('Result Display'));
       expect(resultDisplayHelper.description, contains('formatting'));
@@ -52,7 +52,7 @@ void main() {
       final helpers = catalog.where((info) => info.id.startsWith('icp_')).toList();
       expect(helpers.length, greaterThan(8)); // Should have many icp_ helpers
 
-      // Should include all the new enhanced output helpers
+      // Should include all the new searchable output helpers
       final helperIds = helpers.map((info) => info.id).toList();
       expect(helperIds, contains('icp_result_display'));
       expect(helperIds, contains('icp_searchable_list'));
@@ -80,7 +80,7 @@ void main() {
 
     test('UI renderer supports new widget types', () {
       // Test that the UI renderer includes the new widget types
-      // This validates that the UI renderer has been extended to support enhanced widgets
+      // This validates that the UI renderer has been extended to support searchable widgets
       final renderer = UiV1Renderer(
         ui: const {'type': 'result_display', 'props': {}},
         onEvent: (event) {},
@@ -88,9 +88,9 @@ void main() {
 
       expect(renderer, isA<UiV1Renderer>());
 
-      // Test that the enhanced list renderer can be instantiated
+      // Test that the searchable list renderer can be instantiated
       final listRenderer = UiV1Renderer(
-        ui: const {'type': 'list', 'props': {'enhanced': true, 'items': []}},
+        ui: const {'type': 'list', 'props': {'searchable': true, 'items': []}},
         onEvent: (event) {},
       );
 

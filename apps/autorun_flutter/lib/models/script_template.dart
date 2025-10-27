@@ -664,7 +664,7 @@ end
 function render_header_section()
   return {
     type = "section",
-    props = { title = "Enhanced UI Demo" },
+    props = { title = "Searchable UI Demo" },
     children = {
       {
         type = "text",
