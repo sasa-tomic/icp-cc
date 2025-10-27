@@ -51,7 +51,10 @@
       "Bash(appwrite sites get:*)",
       "Bash(appwrite projects list:*)",
       "Bash(./target/release/marketplace-deploy:*)",
-      "Bash(appwrite clients list:*)"
+      "Bash(appwrite clients list:*)",
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []
