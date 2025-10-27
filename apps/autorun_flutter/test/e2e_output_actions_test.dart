@@ -6,22 +6,7 @@ import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/widgets/script_app_host.dart';
-
-class MockScriptRepository extends ScriptRepository {
-  final Map<String, ScriptRecord> _scripts = {};
-
-  @override
-  Future<List<ScriptRecord>> loadScripts() async {
-    return _scripts.values.toList();
-  }
-
-  @override
-  Future<void> persistScripts(List<ScriptRecord> scripts) async {
-    for (final script in scripts) {
-      _scripts[script.id] = script;
-    }
-  }
-}
+import 'test_helpers/miniflare_script_repository.dart';
 
 class MockEnhancedBridge implements ScriptBridge {
   final Map<String, dynamic> _mockCanisterData = {
@@ -935,7 +920,7 @@ void main() {
     late ScriptController controller;
 
     setUp(() async {
-      repository = MockScriptRepository();
+      repository = MiniflareScriptRepository();
       controller = ScriptController(repository);
       await controller.ensureLoaded();
     });

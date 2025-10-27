@@ -260,7 +260,7 @@ server-init +args="":
 # Start local Cloudflare Workers development environment
 cloudflare-local-up:
     @echo "==> Starting local Cloudflare Workers development environment"
-    cd {{cloudflare_dir}} && wrangler dev --port {{cloudflare_port}} --persist-to .wrangler/state &
+    cd {{cloudflare_dir}} && wrangler dev --config wrangler.local.jsonc --port {{cloudflare_port}} --persist-to .wrangler/state &
     @just wait-for-cloudflare-internal 30
 
 # Stop local Cloudflare Workers development environment
@@ -287,7 +287,7 @@ cloudflare-test-up:
     
     # Start wrangler in background and capture PID
     cd "{{cloudflare_dir}}"
-    wrangler dev --port {{cloudflare_port}} --persist-to .wrangler/state > /tmp/wrangler-test.log 2>&1 &
+    wrangler dev --config wrangler.local.jsonc --port {{cloudflare_port}} --persist-to .wrangler/state > /tmp/wrangler-test.log 2>&1 &
     echo $! > "{{cloudflare_test_pid}}"
     echo "==> Cloudflare Workers started with PID $(cat {{cloudflare_test_pid}})"
     echo "==> Waiting for Cloudflare Workers to be ready..."
@@ -303,11 +303,11 @@ cloudflare-test-up:
             
             # Initialize database schema and clear data for clean test environment
             echo "==> Setting up database for clean test environment..."
-            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql >/dev/null 2>&1 || echo "Database schema already exists"
-            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;" >/dev/null 2>&1 || echo "Scripts table already empty"
-            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM reviews;" >/dev/null 2>&1 || echo "Reviews table already empty"  
-            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM purchases;" >/dev/null 2>&1 || echo "Purchases table already empty"
-            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM users;" >/dev/null 2>&1 || echo "Users table already empty"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --file=migrations/0001_initial_schema.sql >/dev/null 2>&1 || echo "Database schema already exists"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM scripts;" >/dev/null 2>&1 || echo "Scripts table already empty"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM reviews;" >/dev/null 2>&1 || echo "Reviews table already empty"  
+            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM purchases;" >/dev/null 2>&1 || echo "Purchases table already empty"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM users;" >/dev/null 2>&1 || echo "Users table already empty"
             echo "==> ✅ Database setup complete for tests"
             
             exit 0
@@ -344,7 +344,7 @@ cloudflare-test-up-dynamic:
     
     # Start wrangler in background with test database environment variable
     cd "{{cloudflare_dir}}"
-    TEST_DB_NAME="default" wrangler dev --port {{cloudflare_port}} --persist-to .wrangler/state --var="TEST_DB_NAME:default" > /tmp/wrangler-test.log 2>&1 &
+    TEST_DB_NAME="default" wrangler dev --config wrangler.local.jsonc --port {{cloudflare_port}} --persist-to .wrangler/state --var="TEST_DB_NAME:default" > /tmp/wrangler-test.log 2>&1 &
     echo $! > "{{cloudflare_test_pid}}"
     echo "==> Cloudflare Workers started with PID $(cat {{cloudflare_test_pid}})"
     echo "==> Waiting for Cloudflare Workers to be ready..."
@@ -392,15 +392,15 @@ cloudflare-local-logs:
 # Reset local Cloudflare Workers environment (wipes all data)
 cloudflare-local-reset:
     @echo "==> Resetting local Cloudflare Workers environment (wipes all data)"
-    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;" || echo "Database already empty"
-    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --command="DELETE FROM reviews;" || echo "Database already empty"
-    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --command="DELETE FROM script_stats;" || echo "Database already empty"
+    cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM scripts;" || echo "Database already empty"
+    cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM reviews;" || echo "Database already empty"
+    cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM script_stats;" || echo "Database already empty"
     @echo "==> Local Cloudflare Workers environment reset complete"
 
 # Initialize local Cloudflare Workers database
 cloudflare-local-init:
     @echo "==> Initializing local Cloudflare Workers database"
-    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql
+    cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --file=migrations/0001_initial_schema.sql
     @echo "==> Database initialized successfully"
 
 # Test local Cloudflare Workers endpoints
@@ -420,7 +420,7 @@ cloudflare-local-test:
 cloudflare-local-config:
     @echo "==> Local Cloudflare Workers Configuration"
     @echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
-    @echo "==> Database: icp-marketplace-db (local D1)"
+    @echo "==> Database: icp-marketplace-test (local D1)"
     @echo "==> Environment: development"
     @cd {{cloudflare_dir}} && wrangler whoami
 
