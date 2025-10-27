@@ -58,33 +58,35 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isCompactScreen = screenWidth < 360; // Very narrow screens
     
     return SafeArea(
       child: Container(
         margin: EdgeInsets.only(
-          left: AppDesignSystem.spacing20,
-          right: AppDesignSystem.spacing20,
-          bottom: bottomPadding > 0 ? bottomPadding : AppDesignSystem.spacing20,
-          top: AppDesignSystem.spacing20,
+          left: isCompactScreen ? AppDesignSystem.spacing12 : AppDesignSystem.spacing16,
+          right: isCompactScreen ? AppDesignSystem.spacing12 : AppDesignSystem.spacing16,
+          bottom: bottomPadding > 0 ? bottomPadding.clamp(8, 20) : (isCompactScreen ? AppDesignSystem.spacing12 : AppDesignSystem.spacing16),
+          top: isCompactScreen ? AppDesignSystem.spacing12 : AppDesignSystem.spacing16,
         ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppDesignSystem.spacing8,
-          vertical: AppDesignSystem.spacing12,
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompactScreen ? AppDesignSystem.spacing4 : AppDesignSystem.spacing8,
+          vertical: isCompactScreen ? AppDesignSystem.spacing8 : AppDesignSystem.spacing12,
         ),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(AppDesignSystem.radius24),
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(isCompactScreen ? AppDesignSystem.radius20 : AppDesignSystem.radius24),
           boxShadow: [
-            ...AppDesignSystem.shadowMedium,
+            ...AppDesignSystem.shadowLight,
             BoxShadow(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-              blurRadius: 30,
-              offset: const Offset(0, 5),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 2),
             ),
           ],
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
             width: 1,
           ),
         ),
@@ -100,6 +102,7 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
               isActive: isActive,
               index: index,
               animation: isActive ? _slideAnimation : null,
+              isCompactScreen: isCompactScreen,
             );
           }).toList(),
         ),
@@ -112,6 +115,7 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
     required bool isActive,
     required int index,
     Animation<double>? animation,
+    bool isCompactScreen = false,
   }) {
     return GestureDetector(
       onTap: () {
@@ -121,15 +125,15 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
       child: AnimatedContainer(
         duration: AppDesignSystem.durationNormal,
         curve: AppDesignSystem.curveEaseInOut,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppDesignSystem.spacing16,
-          vertical: AppDesignSystem.spacing8,
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompactScreen ? AppDesignSystem.spacing8 : AppDesignSystem.spacing12,
+          vertical: isCompactScreen ? AppDesignSystem.spacing4 : AppDesignSystem.spacing8,
         ),
         decoration: BoxDecoration(
           color: isActive
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppDesignSystem.radius16),
+          borderRadius: BorderRadius.circular(isCompactScreen ? AppDesignSystem.radius12 : AppDesignSystem.radius16),
           border: isActive
               ? Border.all(
                   color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
@@ -148,15 +152,15 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
                 color: isActive
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.onSurfaceVariant,
-                size: 24,
+                size: isCompactScreen ? 20 : 24,
               ),
             ),
-            const SizedBox(height: AppDesignSystem.spacing4),
+            SizedBox(height: isCompactScreen ? AppDesignSystem.spacing2 : AppDesignSystem.spacing4),
             AnimatedDefaultTextStyle(
               duration: AppDesignSystem.durationNormal,
               curve: AppDesignSystem.curveEaseInOut,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: isCompactScreen ? 9 : 11,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                 color: isActive
                     ? Theme.of(context).colorScheme.primary
