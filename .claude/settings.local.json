@@ -61,7 +61,7 @@
     "ask": []
   },
   "sandbox": {
-    "enabled": true,
+    "enabled": false,
     "autoAllowBashIfSandboxed": true,
     "network": {
       "allowLocalBinding": false
