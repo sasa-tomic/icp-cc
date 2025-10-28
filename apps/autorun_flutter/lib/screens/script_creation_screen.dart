@@ -52,6 +52,8 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
     } else {
       _selectedTemplate = ScriptTemplates.templates.first;
     }
+
+    // Load template code synchronously
     _currentCode = _selectedTemplate!.luaSource;
 
     // Initialize details with template values
@@ -72,7 +74,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
   void _onTemplateSelected(ScriptTemplate template) {
     setState(() {
       _selectedTemplate = template;
-      _currentCode = template.luaSource;
+      _currentCode = template.luaSource; // Sync access - no async needed
 
       // Update details controllers
       _titleController.text = template.title;

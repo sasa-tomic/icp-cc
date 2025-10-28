@@ -26,7 +26,6 @@ void main() {
         description: 'A test template for unit testing',
         emoji: '🧪',
         level: 'beginner',
-        luaSource: 'function init()\n  return {}\nend\n\nfunction view(state)\n  return {}\nend\n\nfunction update(msg, state)\n  return state\nend',
         tags: ['test', 'unit'],
       );
     });

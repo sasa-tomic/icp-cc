@@ -802,12 +802,15 @@ fn validate_ui_nodes(script: &str, result: &mut ValidationResult) {
     let lines: Vec<&str> = script.lines().collect();
     for line in &lines {
         if line.contains("type = ") {
-            // Extract type value
+            // Extract type value - look for type = "something" pattern
             if let Some(start) = line.find("type = ") {
                 let type_part = &line[start + 7..];
-                if let Some(end) = type_part.find('"') {
-                    if let Some(value_start) = type_part[..end].rfind('"') {
-                        let type_value = &type_part[value_start + 1..end];
+                // Skip whitespace after "type ="
+                let trimmed_part = type_part.trim_start();
+                // Check if it starts with a quote and strip it
+                if let Some(content) = trimmed_part.strip_prefix('"') {
+                    if let Some(end_quote) = content.find('"') {
+                        let type_value = &content[..end_quote];
                         if !type_value.is_empty() && !valid_types.contains(&type_value) {
                             result.warnings.push(format!(
                                 "Unknown UI node type: \"{}\" - valid types are: {}",
@@ -2107,5 +2110,157 @@ end
         for item in items {
             assert_eq!(item.as_str().unwrap(), "function");
         }
+    }
+
+    #[test]
+    fn test_validate_ui_nodes_catches_conditional_rendering_issues() {
+        // Test 1: Script with problematic conditional rendering pattern
+        let problematic_script = r#"
+function init(arg)
+  return { show_info = false }, {}
+end
+
+function view(state)
+  return {
+    type = "column",
+    children = {
+      { type = "text", props = { text = "Always visible" } },
+      -- This pattern causes the "UI node missing type" error
+      (state.show_info and { props = { title = "Conditional" } }) or nil,
+      { type = "text", props = { text = "Also visible" } }
+    }
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end
+"#;
+
+        let result = validate_lua_comprehensive(problematic_script, None);
+        assert!(!result.is_valid);
+        assert!(result
+            .syntax_errors
+            .iter()
+            .any(|e| e.contains("Conditional UI expression missing type field")));
+
+        // Test 2: Script with missing type field in return statement
+        let missing_type_script = r#"
+function init(arg)
+  return {}, {}
+end
+
+function view(state)
+  return {
+    type = "column",
+    children = {
+      { type = "text", props = { text = "Valid node" } },
+      -- Missing type field - this causes UI node missing type error
+      { props = { text = "Invalid node" } }
+    }
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end
+"#;
+
+        let result = validate_lua_comprehensive(missing_type_script, None);
+        assert!(!result.is_valid);
+        assert!(result
+            .syntax_errors
+            .iter()
+            .any(|e| e.contains("UI node missing type field")));
+
+        // Test 3: Script with empty type value
+        let empty_type_script = r#"
+function init(arg)
+  return {}, {}
+end
+
+function view(state)
+  return { type = "", props = { text = "Empty type" } }
+end
+
+function update(msg, state)
+  return state, {}
+end
+"#;
+
+        let result = validate_lua_comprehensive(empty_type_script, None);
+        assert!(!result.is_valid);
+        assert!(result
+            .syntax_errors
+            .iter()
+            .any(|e| e.contains("UI node with empty type found")));
+
+        // Test 4: Valid script should pass validation
+        let valid_script = r#"
+function init(arg)
+  return { show_info = true }, {}
+end
+
+function view(state)
+  local children = {
+    { type = "text", props = { text = "Always visible" } }
+  }
+
+  -- Proper conditional rendering - only add node if condition is met
+  if state.show_info then
+    table.insert(children, {
+      type = "section",
+      props = { title = "Conditional Section" },
+      children = {
+        { type = "text", props = { text = "Conditional content" } }
+      }
+    })
+  end
+
+  table.insert(children, { type = "text", props = { text = "Also visible" } })
+
+  return {
+    type = "column",
+    children = children
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end
+"#;
+
+        let result = validate_lua_comprehensive(valid_script, None);
+        assert!(result.is_valid);
+        assert!(result.syntax_errors.is_empty());
+    }
+
+    #[test]
+    fn test_validate_ui_nodes_unknown_type_warnings() {
+        // Test script with unknown UI node types should generate warnings, not errors
+        let unknown_type_script = r#"
+function init(arg)
+  return {}, {}
+end
+
+function view(state)
+  return {
+    type = "unknown_widget_type",
+    props = { text = "Unknown widget" }
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end
+"#;
+
+        let result = validate_lua_comprehensive(unknown_type_script, None);
+        assert!(result.is_valid); // Should still be valid, just with warnings
+        assert!(!result.warnings.is_empty());
+        assert!(result
+            .warnings
+            .iter()
+            .any(|w| w.contains("Unknown UI node type") && w.contains("unknown_widget_type")));
     }
 }

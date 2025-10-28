@@ -34,15 +34,22 @@ end
 -- Creates the complete user interface
 --==============================================================================
 function view(state)
+  local children = {
+    render_header_section(),
+    render_controls_section(state),
+    render_status_section(state),
+    render_transactions_section(state)
+  }
+
+  -- Only add statistics section if there's data to show
+  local stats_section = render_statistics_section(state)
+  if stats_section then
+    table.insert(children, stats_section)
+  end
+
   return {
     type = "column",
-    children = {
-      render_header_section(),
-      render_controls_section(state),
-      render_status_section(state),
-      render_transactions_section(state),
-      render_statistics_section(state)
-    }
+    children = children
   }
 end
 

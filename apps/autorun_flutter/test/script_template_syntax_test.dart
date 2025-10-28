@@ -3,16 +3,17 @@ import 'package:icp_autorun/models/script_template.dart';
 
 /// Focused syntax tests that would have caught the original advanced UI issue
 void main() {
+
   group('Script Template Syntax Tests', () {
-    
+
     test('Advanced UI template should not have syntax errors', () {
       final template = ScriptTemplates.getById('advanced_ui')!;
       final source = template.luaSource;
-      
+
       // This would have caught the original bracket mismatch
       expect(_hasBalancedBrackets(source), true,
              reason: 'Template has unbalanced brackets');
-      
+
       // This would have caught the icp_searchable_list misuse
       final usages = _findICPSearchableListUsage(source);
       for (final usage in usages) {
@@ -77,7 +78,7 @@ void main() {
     test('All templates should use ICP helpers in correct contexts', () {
       for (final template in ScriptTemplates.templates) {
         final source = template.luaSource;
-        
+
         // Check icp_searchable_list usage
         final searchableListUsage = _findICPSearchableListUsage(source);
         for (final usage in searchableListUsage) {
