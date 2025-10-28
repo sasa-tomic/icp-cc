@@ -17,7 +17,7 @@ export async function handleSearchScriptsRequest(request: Request, env: Env): Pr
       canisterId = url.searchParams.get('canisterId');
       minRating = url.searchParams.get('minRating') != null ? parseFloat(url.searchParams.get('minRating')!) : undefined;
       maxPrice = url.searchParams.get('maxPrice') != null ? parseFloat(url.searchParams.get('maxPrice')!) : undefined;
-      sortBy = url.searchParams.get('sortBy') || 'created_at';
+      sortBy = url.searchParams.get('sortBy') || 'createdAt';
       order = url.searchParams.get('order') || 'desc';
       limit = parseInt(url.searchParams.get('limit') || '20');
       offset = parseInt(url.searchParams.get('offset') || '0');
@@ -28,7 +28,7 @@ export async function handleSearchScriptsRequest(request: Request, env: Env): Pr
       canisterId = body.canisterId;
       minRating = body.minRating;
       maxPrice = body.maxPrice;
-      sortBy = body.sortBy || 'created_at';
+      sortBy = body.sortBy || 'createdAt';
       order = body.order || 'desc';
       limit = body.limit || 20;
       offset = body.offset || 0;

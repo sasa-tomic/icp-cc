@@ -1034,7 +1034,6 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
    @override
    Widget build(BuildContext context) {
      final screenSize = MediaQuery.of(context).size;
-     final safeAreaPadding = MediaQuery.of(context).padding;
      final isCompactScreen = screenSize.width < 400;
 
      return Dialog(

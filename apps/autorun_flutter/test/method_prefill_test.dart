@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/main.dart';
+import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'test_helpers/wrangler_manager.dart';
 
 void main() {
+  setUpAll(() async {
+    // Initialize test environment with Cloudflare Workers endpoint
+    suppressDebugOutput = true; // Suppress debug output during tests
+    try {
+      await WranglerManager.initialize();
+    } catch (e) {
+      // If the service isn't available, skip these tests
+      print('Warning: Cloudflare Workers not available, skipping method prefill tests: $e');
+    }
+  });
   testWidgets('prefills method when selecting a well-known canister', (tester) async {
     await tester.pumpWidget(const IdentityApp());
     // Navigate to Bookmarks screen first

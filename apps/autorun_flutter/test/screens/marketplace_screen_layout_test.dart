@@ -3,9 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:icp_autorun/screens/marketplace_screen.dart';
 import 'package:icp_autorun/widgets/error_display.dart';
+import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import '../test_helpers/wrangler_manager.dart';
 
 void main() {
   group('MarketplaceScreen Mobile Layout Tests', () {
+    setUpAll(() async {
+      // Initialize test environment with Cloudflare Workers endpoint
+      suppressDebugOutput = true; // Suppress debug output during tests
+      try {
+        await WranglerManager.initialize();
+      } catch (e) {
+        // If the service isn't available, skip these tests
+        print('Warning: Cloudflare Workers not available, skipping marketplace tests: $e');
+      }
+    });
     testWidgets('should display single column grid layout on mobile', (WidgetTester tester) async {
       // Arrange
       await tester.pumpWidget(
