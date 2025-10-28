@@ -228,41 +228,72 @@ class ScriptCard extends StatelessWidget {
                       children: [
                         // Author with avatar-like design
                         Expanded(
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: context.colors.primary.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    script.authorName.isNotEmpty 
-                                        ? script.authorName[0].toUpperCase()
-                                        : 'A',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: context.colors.primary,
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: context.colors.primary.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        script.authorName.isNotEmpty
+                                            ? script.authorName[0].toUpperCase()
+                                            : 'A',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: context.colors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      script.authorName,
+                                      style: context.textStyles.bodySmall.copyWith(
+                                        color: context.colors.onSurfaceVariant,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              // Author identity (principal) - show if available
+                              if (script.authorId.isNotEmpty && script.authorId != 'anonymous')
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 26),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: context.colors.primaryContainer.withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: context.colors.primary.withValues(alpha: 0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      script.authorId.length >= 5
+                                          ? '${script.authorId.substring(0, 5)}...'
+                                          : script.authorId,
+                                      style: context.textStyles.bodySmall.copyWith(
+                                        color: context.colors.onPrimaryContainer,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 9,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  script.authorName,
-                                  style: context.textStyles.bodySmall.copyWith(
-                                    color: context.colors.onSurfaceVariant,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 11,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
                             ],
                           ),
                         ),

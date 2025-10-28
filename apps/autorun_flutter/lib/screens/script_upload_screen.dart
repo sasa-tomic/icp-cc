@@ -1,6 +1,11 @@
  import 'package:flutter/material.dart';
  import '../services/marketplace_open_api_service.dart';
  import '../widgets/error_display.dart';
+import '../services/script_signature_service.dart';
+import '../controllers/identity_controller.dart';
+import '../models/identity_record.dart';
+import '../services/secure_identity_repository.dart';
+import '../utils/principal.dart';
 
 class PreFilledUploadData {
   final String title;
@@ -26,6 +31,7 @@ class ScriptUploadScreen extends StatefulWidget {
 class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final MarketplaceOpenApiService _marketplaceService = MarketplaceOpenApiService();
+  late final IdentityController _identityController;
 
   // Form controllers
   final TextEditingController _titleController = TextEditingController();
@@ -40,7 +46,9 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   final TextEditingController _compatibilityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController(text: '0.0');
 
-
+  // Identity management
+  IdentityRecord? _selectedIdentity;
+  List<IdentityRecord> _identities = [];
 
    bool _isUploading = false;
    String? _error;
@@ -64,16 +72,22 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   @override
   void initState() {
     super.initState();
-    
+
+    // Initialize identity controller
+    _identityController = IdentityController(
+      secureRepository: SecureIdentityRepository(),
+    )..addListener(_onIdentitiesChanged);
+    _identityController.ensureLoaded();
+
      // Pre-fill data if provided
      if (widget.preFilledData != null) {
        _titleController.text = widget.preFilledData!.title;
        _authorController.text = widget.preFilledData!.authorName;
      }
-    
+
     // Set default category
     _categoryController.text = 'Example';
-    
+
     // Set default author if not pre-filled
     if (_authorController.text.isEmpty) {
       _authorController.text = 'Anonymous Developer';
@@ -82,18 +96,21 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _authorController.dispose();
-    _categoryController.dispose();
-    _tagsController.dispose();
-    _canisterIdsController.dispose();
-    _iconUrlController.dispose();
-    _screenshotsController.dispose();
-    _versionController.dispose();
-    _compatibilityController.dispose();
-    _priceController.dispose();
+    _identityController.removeListener(_onIdentitiesChanged);
+    _identityController.dispose();
     super.dispose();
+  }
+
+  void _onIdentitiesChanged() {
+    if (mounted) {
+      setState(() {
+        _identities = List.from(_identityController.identities);
+        // Clear selected identity if it no longer exists
+        if (_selectedIdentity != null && !_identities.contains(_selectedIdentity)) {
+          _selectedIdentity = null;
+        }
+      });
+    }
   }
 
 
@@ -103,7 +120,13 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
       return;
     }
 
-
+    // Check if identity is selected
+    if (_selectedIdentity == null) {
+      setState(() {
+        _error = 'Please select an identity to sign the script';
+      });
+      return;
+    }
 
     setState(() {
       _isUploading = true;
@@ -140,8 +163,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
           : _compatibilityController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
 
-       // Generate a default Lua script since API requires non-empty lua_source
-       final defaultLuaSource = '''-- Default Script for $title
+      // Generate a default Lua script since API requires non-empty lua_source
+      final defaultLuaSource = '''-- Default Script for $title
 function init(arg)
   return {
     message = "Hello from $title!",
@@ -161,7 +184,7 @@ function view(state)
         }
       },
       {
-        type = "text", 
+        type = "text",
         props = {
           text = state.description,
           style = "body"
@@ -175,21 +198,37 @@ function update(msg, state)
   return state, {}
 end''';
 
-       // Upload script
-       await _marketplaceService.uploadScript(
-         title: title,
-         description: description,
-         category: category,
-         tags: tags,
-         luaSource: defaultLuaSource,
-         authorName: authorName,
-         canisterIds: canisterIds.isEmpty ? null : canisterIds,
-         iconUrl: iconUrl,
-         screenshots: screenshots.isEmpty ? null : screenshots,
-         version: version,
-         compatibility: compatibility,
-         price: price,
-       );
+      // Sign the script upload
+      final signature = await ScriptSignatureService.signScriptUpload(
+        authorIdentity: _selectedIdentity!,
+        title: title,
+        description: description,
+        category: category,
+        luaSource: defaultLuaSource,
+        version: version,
+        tags: tags,
+        compatibility: compatibility,
+      );
+
+      final authorPrincipal = PrincipalUtils.textFromRecord(_selectedIdentity!);
+
+      // Upload script with signature
+      await _marketplaceService.uploadScript(
+        title: title,
+        description: description,
+        category: category,
+        tags: tags,
+        luaSource: defaultLuaSource,
+        authorName: authorName,
+        canisterIds: canisterIds.isEmpty ? null : canisterIds,
+        iconUrl: iconUrl,
+        screenshots: screenshots.isEmpty ? null : screenshots,
+        version: version,
+        compatibility: compatibility,
+        price: price,
+        authorPrincipal: authorPrincipal,
+        signature: signature,
+      );
 
       if (!mounted) return;
 
@@ -325,6 +364,104 @@ end''';
                         return null;
                       },
                     ),
+
+                    const SizedBox(height: 16),
+
+                    // Identity Selection Section
+                    _buildSectionHeader('Author Identity (Required)'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Select an identity to sign this script. This proves you are the author.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _selectedIdentity == null
+                            ? Theme.of(context).colorScheme.error
+                            : Theme.of(context).colorScheme.outline,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<IdentityRecord>(
+                          value: _selectedIdentity,
+                          isExpanded: true,
+                          hint: Text(
+                            'Select an identity...',
+                            style: TextStyle(
+                              color: _selectedIdentity == null
+                                ? Theme.of(context).colorScheme.error
+                                : null,
+                            ),
+                          ),
+                          items: _identities.map((identity) {
+                            final principal = PrincipalUtils.textFromRecord(identity);
+                            final shortPrincipal = principal.length >= 5 ? principal.substring(0, 5) : principal;
+                            return DropdownMenuItem<IdentityRecord>(
+                              value: identity,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          identity.label,
+                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          '$shortPrincipal... (${keyAlgorithmToString(identity.algorithm)})',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (IdentityRecord? value) {
+                            setState(() {
+                              _selectedIdentity = value;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    if (_selectedIdentity == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, left: 12),
+                        child: Text(
+                          'Identity is required for script signing',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
 
                     const SizedBox(height: 24),
 
