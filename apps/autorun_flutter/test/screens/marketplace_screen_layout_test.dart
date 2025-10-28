@@ -33,8 +33,8 @@ void main() {
           reason: 'Marketplace should use single column layout for mobile devices');
 
         // Verify appropriate aspect ratio for mobile cards
-        expect(gridDelegate.childAspectRatio, equals(1.2),
-          reason: 'Card aspect ratio should be optimized for mobile viewing');
+        expect(gridDelegate.childAspectRatio, equals(1.0),
+          reason: 'Card aspect ratio should be optimized for compact mobile viewing');
       } else {
         // If GridView is not found, check if we're in a loading or error state
         // This is still a valid state for the marketplace screen

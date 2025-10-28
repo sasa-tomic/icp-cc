@@ -182,99 +182,97 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
   Widget _buildCodeEditorTab() {
     return Column(
       children: [
-        // Simple template selector
+        // Compact template selector
         Container(
-          margin: const EdgeInsets.all(16),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Template',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<ScriptTemplate>(
-                    initialValue: _selectedTemplate,
-                    decoration: const InputDecoration(
-                      hintText: 'Choose a Template',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    isExpanded: true,
-                    items: _availableTemplates.map((template) {
-                      return DropdownMenuItem<ScriptTemplate>(
-                        value: template,
-                        child: Row(
-                          children: [
-                            Text(
-                              template.emoji,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                template.title,
-                                style: const TextStyle(fontWeight: FontWeight.w500),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: _getLevelColor(template.level),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                template.level.toUpperCase().substring(0, 1),
-                                style: const TextStyle(
-                                  fontSize: 8,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (ScriptTemplate? template) {
-                      if (template != null) {
-                        _onTemplateSelected(template);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  if (_selectedTemplate != null) ...[
-                    Text(
-                      _selectedTemplate!.description,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ],
-              ),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
             ),
+          ),
+          child: Row(
+            children: [
+              Text(
+                'Template:',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<ScriptTemplate>(
+                  value: _selectedTemplate,
+                  decoration: const InputDecoration(
+                    hintText: 'Choose template',
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  isExpanded: true,
+                  dropdownColor: Theme.of(context).colorScheme.surface,
+                  items: _availableTemplates.map((template) {
+                    return DropdownMenuItem<ScriptTemplate>(
+                      value: template,
+                      child: Row(
+                        children: [
+                          Text(
+                            template.emoji,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              template.title,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: _getLevelColor(template.level),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              template.level.toUpperCase().substring(0, 1),
+                              style: const TextStyle(
+                                fontSize: 7,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (ScriptTemplate? template) {
+                    if (template != null) {
+                      _onTemplateSelected(template);
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
         ),
 
-        // Improved code editor
+        // Maximized code editor
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: ScriptEditor(
               key: ValueKey(_selectedTemplate?.id ?? 'default'),
               initialCode: _currentCode,
               onCodeChanged: _onCodeChanged,
               language: 'lua',
               showIntegrations: true,
-              minLines: 20,
+              minLines: 25,
             ),
           ),
         ),

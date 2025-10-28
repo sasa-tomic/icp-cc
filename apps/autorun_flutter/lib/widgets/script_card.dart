@@ -43,7 +43,7 @@ class ScriptCard extends StatelessWidget {
           children: [
             // Script icon/image with overlay actions
             Expanded(
-              flex: 3,
+              flex: 2,
               child: Stack(
                 children: [
                   Container(
@@ -133,8 +133,8 @@ class ScriptCard extends StatelessWidget {
                   
                   // Quick action overlay
                   Positioned(
-                    top: AppDesignSystem.spacing12,
-                    right: AppDesignSystem.spacing12,
+                    top: AppDesignSystem.spacing8,
+                    right: AppDesignSystem.spacing8,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -160,9 +160,9 @@ class ScriptCard extends StatelessWidget {
                               tooltip: 'Quick Preview',
                             ),
                           ),
-                        
-                        const SizedBox(width: AppDesignSystem.spacing8),
-                        
+
+                        const SizedBox(width: AppDesignSystem.spacing4),
+
                         // Share button
                         if (onShare != null)
                           Container(
@@ -194,9 +194,9 @@ class ScriptCard extends StatelessWidget {
 
             // Script information
             Expanded(
-              flex: 4,
+              flex: 3,
               child: Padding(
-                padding: const EdgeInsets.all(AppDesignSystem.spacing16),
+                padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.spacing16, vertical: AppDesignSystem.spacing12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -204,14 +204,14 @@ class ScriptCard extends StatelessWidget {
                     Text(
                       script.title,
                       style: context.textStyles.heading5.copyWith(
-                        fontSize: 16,
-                        height: 1.2,
+                        fontSize: 15,
+                        height: 1.1,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
 
-                    const SizedBox(height: AppDesignSystem.spacing8),
+                    const SizedBox(height: AppDesignSystem.spacing4),
 
                     // Category with modern chip
                     ModernChip(
@@ -283,7 +283,7 @@ class ScriptCard extends StatelessWidget {
                       ],
                     ),
 
-                    const SizedBox(height: AppDesignSystem.spacing12),
+                    const SizedBox(height: AppDesignSystem.spacing8),
 
                     // Rating and downloads
                     Row(
@@ -315,7 +315,7 @@ class ScriptCard extends StatelessWidget {
                     ),
 
                     // Action buttons
-                    const SizedBox(height: AppDesignSystem.spacing12),
+                    const SizedBox(height: AppDesignSystem.spacing8),
                     
                     // Prominent download button for free scripts
                     if (onDownload != null && script.price == 0)

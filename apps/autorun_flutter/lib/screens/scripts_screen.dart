@@ -860,7 +860,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           padding: const EdgeInsets.all(16.0),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 1,
-            childAspectRatio: 1.2,
+            childAspectRatio: 1.0,
             crossAxisSpacing: 16.0,
             mainAxisSpacing: 16.0,
           ),
@@ -1036,31 +1036,24 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
      final screenSize = MediaQuery.of(context).size;
      final safeAreaPadding = MediaQuery.of(context).padding;
      final isCompactScreen = screenSize.width < 400;
-     
+
      return Dialog(
-       insetPadding: EdgeInsets.symmetric(
-         horizontal: isCompactScreen ? 8 + safeAreaPadding.left : 16 + safeAreaPadding.left,
-         vertical: isCompactScreen ? 16 + safeAreaPadding.top : 24 + safeAreaPadding.top,
-       ),
+       insetPadding: EdgeInsets.zero,
        child: Container(
-         width: screenSize.width * (isCompactScreen ? 0.95 : 0.9),
-         height: screenSize.height * (isCompactScreen ? 0.85 : 0.8),
-         constraints: BoxConstraints(
-           minWidth: isCompactScreen ? screenSize.width * 0.8 : 800,
-           minHeight: isCompactScreen ? 400 : 600,
-           maxWidth: screenSize.width - (isCompactScreen ? 16 : 32 + safeAreaPadding.horizontal),
-           maxHeight: screenSize.height - (isCompactScreen ? 32 : 48 + safeAreaPadding.vertical),
-         ),
+         width: screenSize.width,
+         height: screenSize.height,
+         color: Theme.of(context).colorScheme.surface,
         child: Column(
           children: [
-             // Header
+             // Compact Header
              Container(
-               padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
+               padding: EdgeInsets.symmetric(horizontal: isCompactScreen ? 12 : 16, vertical: 8),
                decoration: BoxDecoration(
                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
-                 borderRadius: const BorderRadius.only(
-                   topLeft: Radius.circular(12),
-                   topRight: Radius.circular(12),
+                 border: Border(
+                   bottom: BorderSide(
+                     color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                   ),
                  ),
                ),
                child: Row(
@@ -1068,101 +1061,64 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
                    Icon(
                      Icons.edit,
                      color: Theme.of(context).colorScheme.primary,
-                     size: isCompactScreen ? 20 : 24,
+                     size: isCompactScreen ? 18 : 20,
                    ),
-                   SizedBox(width: isCompactScreen ? 8 : 12),
+                   const SizedBox(width: 8),
                    Expanded(
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         Text(
-                           'Edit Script',
-                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                 fontWeight: FontWeight.bold,
-                                 fontSize: isCompactScreen ? 18 : 22,
-                               ),
-                         ),
-                         Text(
-                           widget.record.title,
-                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                 fontSize: isCompactScreen ? 12 : 14,
-                               ),
-                           overflow: TextOverflow.ellipsis,
-                           maxLines: 1,
-                         ),
-                       ],
+                     child: Text(
+                       widget.record.title,
+                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                             fontWeight: FontWeight.w600,
+                             fontSize: isCompactScreen ? 14 : 16,
+                           ),
+                       overflow: TextOverflow.ellipsis,
+                       maxLines: 1,
                      ),
                    ),
-                   IconButton(
-                     onPressed: () => Navigator.of(context).pop(),
-                     icon: const Icon(Icons.close),
-                     iconSize: isCompactScreen ? 20 : 24,
-                   ),
-                 ],
-               ),
-             ),
-
-             // Editor
-             Expanded(
-               child: Padding(
-                 padding: EdgeInsets.all(isCompactScreen ? 8 : 16),
-                 child: ScriptEditor(
-                   initialCode: widget.record.luaSource,
-                   onCodeChanged: _onCodeChanged,
-                   language: 'lua',
-                   showIntegrations: !isCompactScreen,
-                   minLines: isCompactScreen ? 15 : 25,
-                 ),
-               ),
-             ),
-
-             // Footer with actions
-             Container(
-               padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
-               decoration: BoxDecoration(
-                 color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.3),
-                 border: Border(
-                   top: BorderSide(
-                     color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                   ),
-                 ),
-               ),
-               child: Row(
-                 mainAxisAlignment: MainAxisAlignment.end,
-                 children: [
                    if (!isCompactScreen) ...[
                      TextButton(
                        onPressed: () => Navigator.of(context).pop(),
                        child: const Text('Cancel'),
                      ),
-                     const SizedBox(width: 12),
                    ],
                    FilledButton.icon(
                      onPressed: _saving ? null : _save,
                      icon: _saving
                          ? SizedBox(
-                             width: isCompactScreen ? 14 : 16,
-                             height: isCompactScreen ? 14 : 16,
+                             width: 14,
+                             height: 14,
                              child: CircularProgressIndicator(strokeWidth: 2),
                            )
-                         : Icon(Icons.save, size: isCompactScreen ? 18 : 20),
-                     label: Text(isCompactScreen ? 'Save' : 'Save Changes'),
+                         : const Icon(Icons.save, size: 16),
+                     label: const Text('Save'),
                      style: FilledButton.styleFrom(
-                       padding: EdgeInsets.symmetric(
-                         horizontal: isCompactScreen ? 12 : 16,
-                         vertical: isCompactScreen ? 8 : 12,
-                       ),
+                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                      ),
                    ),
                    if (isCompactScreen) ...[
                      const SizedBox(width: 8),
-                     TextButton(
+                     IconButton(
                        onPressed: () => Navigator.of(context).pop(),
-                       child: const Text('Cancel'),
+                       icon: const Icon(Icons.close),
+                       iconSize: 18,
+                       visualDensity: VisualDensity.compact,
                      ),
                    ],
                  ],
+               ),
+             ),
+
+             // Maximized Editor
+             Expanded(
+               child: Padding(
+                 padding: EdgeInsets.all(isCompactScreen ? 4 : 8),
+                 child: ScriptEditor(
+                   initialCode: widget.record.luaSource,
+                   onCodeChanged: _onCodeChanged,
+                   language: 'lua',
+                   showIntegrations: !isCompactScreen,
+                   minLines: isCompactScreen ? 20 : 30,
+                 ),
                ),
              ),
           ],
