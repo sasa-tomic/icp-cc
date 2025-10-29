@@ -69,6 +69,10 @@ class MiniflareScriptRepository extends ScriptRepository {
       'tags': script.metadata['tags'] ?? [],
       'lua_source': script.luaSource,
       'author_name': script.metadata['authorName'] ?? 'Anonymous',
+      'author_id': script.metadata['authorId'] ?? 'test-author-id',
+      'author_principal': script.metadata['authorPrincipal'] ?? 'test-author-principal',
+      'author_public_key': script.metadata['authorPublicKey'] ?? 'test-public-key',
+      'upload_signature': script.metadata['uploadSignature'] ?? 'test-signature',
       'version': script.metadata['version'] ?? '1.0.0',
       'price': script.metadata['price'] ?? 0.0,
       'is_public': script.metadata['isPublic'] ?? false,
@@ -146,8 +150,20 @@ class MiniflareScriptRepository extends ScriptRepository {
 
   Future<void> deleteScript(String id) async {
     try {
-      final response = await _client.delete(Uri.parse('$baseUrl/api/v1/scripts/$id'));
-      
+      // The backend now requires signature and author_principal for deletion
+      final deleteData = {
+        'signature': 'test-delete-signature',
+        'author_principal': 'test-author-principal',
+      };
+
+      final response = await _client.delete(
+        Uri.parse('$baseUrl/api/v1/scripts/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(deleteData),
+      );
+
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Failed to delete script $id: ${response.statusCode}');
       }
@@ -287,33 +303,44 @@ class MiniflareScriptRepository extends ScriptRepository {
       final checkResponse = await _client.get(
         Uri.parse('$baseUrl/api/v1/scripts/${script.id}?includePrivate=true'),
       );
-      
-      final response = checkResponse.statusCode == 200
-        ? await _client.put(
-            Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode(_scriptToApiJson(script)),
-          )
-        : await _client.post(
-            Uri.parse('$baseUrl/api/v1/scripts'),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode(_scriptToApiJson(script)),
-          );
-      
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
-      }
-      
-      // If creating a new script, return the generated ID from response
-      if (checkResponse.statusCode != 200) {
+
+      if (checkResponse.statusCode == 200) {
+        // For updates, include signature data for verification
+        final updateData = _scriptToApiJson(script);
+        updateData['signature'] = 'test-update-signature';
+        updateData['author_principal'] = 'test-author-principal';
+
+        final response = await _client.put(
+          Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(updateData),
+        );
+
+        if (response.statusCode != 200 && response.statusCode != 201) {
+          throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
+        }
+
+        return script.id;
+      } else {
+        // For new scripts, create without signature verification
+        final response = await _client.post(
+          Uri.parse('$baseUrl/api/v1/scripts'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(_scriptToApiJson(script)),
+        );
+
+        if (response.statusCode != 200 && response.statusCode != 201) {
+          throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
+        }
+
+        // Return the generated ID from response
         final responseData = json.decode(response.body);
         if (responseData['success'] == true && responseData['data'] != null) {
           return responseData['data']['id'] as String;
         }
+
+        return script.id;
       }
-      
-      // If updating, return the original ID
-      return script.id;
     } catch (e) {
       // For e2e tests, fail if server is not available
       throw Exception('Failed to save script: $e');

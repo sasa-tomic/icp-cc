@@ -30,7 +30,10 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
       version = '1.0.0',
       compatibility,
       price = 0.0,
-      is_public = true
+      is_public = true,
+      author_principal,
+      author_public_key,
+      signature
     } = await request.json();
 
     // Validate required fields
@@ -42,7 +45,7 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
     }
 
     const now = new Date().toISOString();
-    
+
     // Calculate SHA256 hash of the script content + timestamp to ensure uniqueness
     const timestamp = Date.now().toString();
     const scriptContent = `${title}|${description}|${category}|${lua_source}|${author_name}|${version}|${timestamp}`;
@@ -53,13 +56,27 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
     const scriptId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     const database = db.getDatabase();
-    
+
+    // TODO: Implement signature verification if provided
+    if (signature && author_principal && author_public_key) {
+      console.log('Signature verification requested for script creation:', {
+        scriptId,
+        authorPrincipal: author_principal,
+        signature: signature?.substring(0, 20) + '...',
+        hasPublicKey: !!author_public_key
+      });
+
+      // In a production implementation, you would verify the signature here
+      // For now, we'll store the signature and public key for later verification
+    }
+
     await database.prepare(`
       INSERT INTO scripts (
         id, title, description, category, tags, lua_source, author_name, author_id,
-        canister_ids, icon_url, screenshots, version, compatibility, price,
-        is_public, downloads, rating, review_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        author_principal, author_public_key, upload_signature, canister_ids, icon_url,
+        screenshots, version, compatibility, price, is_public, downloads, rating,
+        review_count, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       scriptId,
       title,
@@ -69,6 +86,9 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
       lua_source,
       author_name,
       'anonymous', // In a real app, this would come from authentication
+      author_principal || null,
+      author_public_key || null,
+      signature || null,
       JSON.stringify(canister_ids || []),
       icon_url || null,
       JSON.stringify(screenshots || []),
@@ -84,8 +104,8 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
     ).run();
 
     const script = await db.getScriptWithDetails(scriptId, true);
-    
-    console.log('Script created successfully:', { scriptId, title, isPublic: is_public });
+
+    console.log('Script created successfully:', { scriptId, title, isPublic: is_public, hasSignature: !!signature });
 
     return JsonResponse.success(script, 201);
   } catch (err: any) {
@@ -135,7 +155,7 @@ export async function handleScriptByIdRequest(request: Request, env: Env, id: st
     case 'PUT':
       return updateScript(id, request, db);
     case 'DELETE':
-      return deleteScript(id, db);
+      return deleteScript(id, request, db);
     default:
       return JsonResponse.error('Method not allowed', 405);
   }
@@ -256,7 +276,47 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
     const updateData = await request.json();
     const now = new Date().toISOString();
 
-    // Build dynamic update query
+    // Check if signature and author_principal are provided
+    if (!updateData.signature || !updateData.author_principal) {
+      return JsonResponse.error('Signature and author_principal are required for script updates', 401);
+    }
+
+    // Get the existing script to verify ownership
+    const database = db.getDatabase();
+    const existingScript = await database.prepare(`
+      SELECT author_principal, author_public_key FROM scripts WHERE id = ?
+    `).bind(id).first();
+
+    if (!existingScript) {
+      return JsonResponse.error('Script not found', 404);
+    }
+
+    // Verify that the author_principal matches the existing script's author
+    if (updateData.author_principal !== existingScript.author_principal) {
+      return JsonResponse.error('Author principal does not match script author', 403);
+    }
+
+    // TODO: Implement proper signature verification using stored public key
+    if (existingScript.author_public_key) {
+      console.log('Signature verification requested for script update:', {
+        scriptId: id,
+        authorPrincipal: updateData.author_principal,
+        hasStoredPublicKey: !!existingScript.author_public_key,
+        signature: updateData.signature?.substring(0, 20) + '...'
+      });
+
+      // In a production implementation, you would:
+      // 1. Create the canonical payload for verification
+      // 2. Verify the signature using the stored public key
+      // 3. Only proceed if verification succeeds
+
+      // For now, we'll log the verification request and proceed
+      console.log('Signature verification would be performed here with stored public key');
+    } else {
+      console.warn('No public key stored for script, cannot verify signature:', id);
+    }
+
+    // Build dynamic update query (excluding signature from database update)
     const updateFields = [];
     const bindings = [];
 
@@ -267,16 +327,21 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
       } else if (key === 'is_public') {
         updateFields.push(`${key} = ?`);
         bindings.push(value ? 1 : 0);
-      } else if (key !== 'id' && key !== 'created_at') {
+      } else if (key !== 'id' && key !== 'created_at' && key !== 'signature' && key !== 'timestamp') {
         updateFields.push(`${key} = ?`);
         bindings.push(value);
       }
     });
 
+    // Update author_principal if provided
+    if (updateData.author_principal) {
+      updateFields.push('author_principal = ?');
+      bindings.push(updateData.author_principal);
+    }
+
     updateFields.push('updated_at = ?');
     bindings.push(now, id);
 
-    const database = db.getDatabase();
     await database.prepare(`
       UPDATE scripts SET ${updateFields.join(', ')} WHERE id = ?
     `).bind(...bindings).run();
@@ -294,13 +359,54 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
   }
 }
 
-async function deleteScript(id: string, db: DatabaseService): Promise<Response> {
+async function deleteScript(id: string, request: Request, db: DatabaseService): Promise<Response> {
   try {
     if (!id) {
       return JsonResponse.error('Script ID is required', 400);
     }
 
+    const deleteData = await request.json();
+
+    // Check if signature and author_principal are provided
+    if (!deleteData.signature || !deleteData.author_principal) {
+      return JsonResponse.error('Signature and author_principal are required for script deletion', 401);
+    }
+
+    // Get the existing script to verify ownership
     const database = db.getDatabase();
+    const existingScript = await database.prepare(`
+      SELECT author_principal, author_public_key FROM scripts WHERE id = ?
+    `).bind(id).first();
+
+    if (!existingScript) {
+      return JsonResponse.error('Script not found', 404);
+    }
+
+    // Verify that the author_principal matches the existing script's author
+    if (deleteData.author_principal !== existingScript.author_principal) {
+      return JsonResponse.error('Author principal does not match script author', 403);
+    }
+
+    // TODO: Implement proper signature verification using stored public key
+    if (existingScript.author_public_key) {
+      console.log('Signature verification requested for script deletion:', {
+        scriptId: id,
+        authorPrincipal: deleteData.author_principal,
+        hasStoredPublicKey: !!existingScript.author_public_key,
+        signature: deleteData.signature?.substring(0, 20) + '...'
+      });
+
+      // In a production implementation, you would:
+      // 1. Create the canonical payload for verification
+      // 2. Verify the signature using the stored public key
+      // 3. Only proceed if verification succeeds
+
+      // For now, we'll log the verification request and proceed
+      console.log('Signature verification would be performed here with stored public key');
+    } else {
+      console.warn('No public key stored for script, cannot verify signature:', id);
+    }
+
     const result = await database.prepare(`
       DELETE FROM scripts WHERE id = ?
     `).bind(id).run();

@@ -466,6 +466,7 @@ class MarketplaceOpenApiService {
     String? compatibility,
     double price = 0.0,
     String? authorPrincipal,
+    String? authorPublicKey,
     String? signature,
   }) async {
     try {
@@ -492,6 +493,9 @@ class MarketplaceOpenApiService {
       }
       if (authorPrincipal != null) {
         requestBodyMap['author_principal'] = authorPrincipal;
+      }
+      if (authorPublicKey != null) {
+        requestBodyMap['author_public_key'] = authorPublicKey;
       }
       if (signature != null) {
         requestBodyMap['signature'] = signature;

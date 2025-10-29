@@ -227,6 +227,7 @@ end''';
         compatibility: compatibility,
         price: price,
         authorPrincipal: authorPrincipal,
+        authorPublicKey: _selectedIdentity!.publicKey,
         signature: signature,
       );
 

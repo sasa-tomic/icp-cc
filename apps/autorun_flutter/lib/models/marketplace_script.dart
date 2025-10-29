@@ -6,6 +6,9 @@ class MarketplaceScript {
   final List<String> tags;
   final String authorId;
   final String authorName;
+  final String? authorPrincipal;
+  final String? authorPublicKey;
+  final String? uploadSignature;
   final double price;
   final String currency;
   final int downloads;
@@ -31,6 +34,9 @@ class MarketplaceScript {
     this.tags = const [],
     required this.authorId,
     required this.authorName,
+    this.authorPrincipal,
+    this.authorPublicKey,
+    this.uploadSignature,
     this.price = 0.0,
     this.currency = 'USD',
     this.downloads = 0,
@@ -65,6 +71,9 @@ class MarketplaceScript {
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       authorId: json['authorId'] as String? ?? json['author_id'] as String? ?? '',
       authorName: json['authorName'] as String? ?? json['author_name'] as String? ?? '',
+      authorPrincipal: json['authorPrincipal'] as String? ?? json['author_principal'] as String?,
+      authorPublicKey: json['authorPublicKey'] as String? ?? json['author_public_key'] as String?,
+      uploadSignature: json['uploadSignature'] as String? ?? json['upload_signature'] as String?,
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       currency: json['currency'] as String? ?? 'USD',
       downloads: json['downloads'] as int? ?? 0,

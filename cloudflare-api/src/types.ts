@@ -13,6 +13,9 @@ export interface Script {
   luaSource: string;
   authorName: string;
   authorId: string;
+  authorPrincipal?: string; // ICP principal of the script author
+  authorPublicKey?: string; // Public key for signature verification
+  uploadSignature?: string; // Signature of the initial upload payload
   canisterIds?: string[];
   iconUrl?: string;
   screenshots?: string[];
@@ -20,7 +23,6 @@ export interface Script {
   compatibility?: string;
   price: number;
   isPublic: boolean;
-  isApproved: boolean;
   downloads: number;
   rating: number;
   reviewCount: number;
