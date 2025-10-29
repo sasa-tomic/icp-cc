@@ -164,7 +164,7 @@ class MiniflareScriptRepository extends ScriptRepository {
         body: json.encode(deleteData),
       );
 
-      if (response.statusCode != 200 && response.statusCode != 204) {
+      if (response.statusCode != 200 && response.statusCode != 204 && response.statusCode != 404) {
         throw Exception('Failed to delete script $id: ${response.statusCode}');
       }
     } catch (e) {
