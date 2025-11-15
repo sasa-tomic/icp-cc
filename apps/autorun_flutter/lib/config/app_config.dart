@@ -8,9 +8,9 @@ class AppConfig {
   );
 
   static String get apiEndpoint {
-    // Check if we're in test mode and WranglerManager is available
-    if (_isTestMode && _wranglerManagerEndpoint != null) {
-      return _wranglerManagerEndpoint!;
+    // Check if we're in test mode and an API service override is available
+    if (_isTestMode && _testServiceEndpoint != null) {
+      return _testServiceEndpoint!;
     }
     return _cloudflareEndpoint;
   }
@@ -23,12 +23,12 @@ class AppConfig {
            kDebugMode && Platform.script.path.contains('test');
   }
   
-  // This will be set by WranglerManager during tests
-  static String? _wranglerManagerEndpoint;
+  // This will be set by ApiServiceManager during tests
+  static String? _testServiceEndpoint;
   
   static void setTestEndpoint(String endpoint) {
     if (_isTestMode) {
-      _wranglerManagerEndpoint = endpoint;
+      _testServiceEndpoint = endpoint;
     }
   }
 

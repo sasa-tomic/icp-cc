@@ -22,7 +22,7 @@ This setup is specifically tailored for the ICP-CC project, providing:
 - **Flutter SDK** - With web support for the Flutter app
 - **Internet Computer SDK** - dfx for ICP development
 - **Pocket IC** - Local ICP testing
-- **Cloudflare Wrangler** - For Workers API development
+- **Cloudflare tunnel tooling** - For Workers API development via secure tunnel
 - **Just build system** - Modern build tool used by ICP-CC project
 - **Node.js 22** - For Cloudflare Workers and frontend tooling
 - **Claude Code** - Installed globally
@@ -78,7 +78,7 @@ This setup is specifically tailored for the ICP-CC project, providing:
 ### Development Tools
 - **Rust** - Latest stable with wasm32 target
 - **Flutter SDK** - Latest stable with web support enabled
-- **Node.js 22** - With npm and Cloudflare Wrangler
+- **Node.js 22** - With npm and cloudflared CLI
 - **Python 3** - With UV package manager
 - **Just** - Modern build system
 - **Claude Code** - Installed globally via npm
@@ -87,7 +87,7 @@ This setup is specifically tailored for the ICP-CC project, providing:
 - **Internet Computer SDK** - dfx for ICP development
 - **Pocket IC** - Local ICP testing environment
 - **Cargo tools** - make, nextest, wasm-pack
-- **Cloudflare Wrangler** - For Workers API development
+- **Cloudflare tunnel tooling** - For Workers API development via secure tunnel
 - **Project dependencies** - Pre-built and cached
 
 ### Safety Features

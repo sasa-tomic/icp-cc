@@ -2,9 +2,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:icp_autorun/config/app_config.dart';
 
-/// Test configuration for external API service (Poem-based)
-/// This assumes the API server is managed externally (e.g., via justfile)
-class WranglerManager {
+/// Test configuration for the externally managed API service.
+/// The API is provided by the local container + Cloudflare tunnel pipeline
+/// started via `just api-up`, so the test harness must fail fast when the
+/// service is missing.
+class ApiServiceManager {
   static const String _portFilePath = '/tmp/icp-api.port';
   static bool _isConfigured = false;
   static String? _cachedEndpoint;

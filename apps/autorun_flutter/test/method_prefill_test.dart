@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/main.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
-import 'test_helpers/wrangler_manager.dart';
+import 'test_helpers/api_service_manager.dart';
 
 void main() {
   setUpAll(() async {
-    // Initialize test environment with Cloudflare Workers endpoint
+    // Initialize test environment with the local API service endpoint
     suppressDebugOutput = true; // Suppress debug output during tests
     try {
-      await WranglerManager.initialize();
+      await ApiServiceManager.initialize();
     } catch (e) {
       // If the service isn't available, skip these tests
-      debugPrint('Warning: Cloudflare Workers not available, skipping method prefill tests: $e');
+      debugPrint('Warning: Local API service not available, skipping method prefill tests: $e');
     }
   });
   testWidgets('prefills method when selecting a well-known canister', (tester) async {
