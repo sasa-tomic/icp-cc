@@ -176,7 +176,6 @@ pub struct JsonResponse;
 
 impl JsonResponse {
     pub fn success<T: serde::Serialize>(data: T, _status: u16) -> Response {
-        // Create ApiResponse and manually serialize to avoid double-encoding
         let api_response = ApiResponse {
             success: true,
             data: Some(data),
@@ -184,19 +183,10 @@ impl JsonResponse {
             details: None,
         };
         
-        // Serialize to JSON string ourselves
-        let json_string = match serde_json::to_string(&api_response) {
-            Ok(s) => s,
-            Err(_) => return Response::error("Failed to serialize response", 500).unwrap(),
-        };
-        
-        // Create response with the JSON string as body, NOT using from_json
-        match Response::ok(json_string) {
-            Ok(mut response) => {
-                let _ = response.headers_mut().set("Content-Type", "application/json");
-                CorsHandler::add_headers(response)
-            }
-            Err(_) => Response::error("Failed to create response", 500).unwrap(),
+        // Pass the STRUCT to from_json, not a JSON string
+        match Response::from_json(&api_response) {
+            Ok(response) => CorsHandler::add_headers(response),
+            Err(_) => Response::error("Failed to serialize response", 500).unwrap(),
         }
     }
 
@@ -208,17 +198,9 @@ impl JsonResponse {
             details: None,
         };
         
-        let json_string = match serde_json::to_string(&api_response) {
-            Ok(s) => s,
-            Err(_) => return Response::error("Failed to serialize error response", 500).unwrap(),
-        };
-        
-        match Response::ok(json_string) {
-            Ok(mut response) => {
-                let _ = response.headers_mut().set("Content-Type", "application/json");
-                CorsHandler::add_headers(response)
-            }
-            Err(_) => Response::error("Failed to create error response", 500).unwrap(),
+        match Response::from_json(&api_response) {
+            Ok(response) => CorsHandler::add_headers(response),
+            Err(_) => Response::error("Failed to serialize error response", 500).unwrap(),
         }
     }
 
@@ -230,17 +212,9 @@ impl JsonResponse {
             details: Some(details.to_string()),
         };
         
-        let json_string = match serde_json::to_string(&api_response) {
-            Ok(s) => s,
-            Err(_) => return Response::error("Failed to serialize error response", 500).unwrap(),
-        };
-        
-        match Response::ok(json_string) {
-            Ok(mut response) => {
-                let _ = response.headers_mut().set("Content-Type", "application/json");
-                CorsHandler::add_headers(response)
-            }
-            Err(_) => Response::error("Failed to create error response", 500).unwrap(),
+        match Response::from_json(&api_response) {
+            Ok(response) => CorsHandler::add_headers(response),
+            Err(_) => Response::error("Failed to serialize error response", 500).unwrap(),
         }
     }
 }
