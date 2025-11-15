@@ -86,6 +86,16 @@ pub fn execute_lua_json(script: &str, json_arg: Option<&str>) -> Result<String, 
             .map_err(|e| LuaExecError::Lua(e.to_string()))?;
     }
 
+    // Provide a messages accumulator for icp_emit_message helper
+    {
+        let msgs = lua
+            .create_sequence_from::<Vec<String>>(vec![])
+            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
+        lua.globals()
+            .set("__icp_messages", msgs)
+            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
+    }
+
     // Execute the script; capture a returned value or use nil
     let chunk = lua.load(script);
     let result: LuaValue = chunk
@@ -101,11 +111,51 @@ pub fn execute_lua_json(script: &str, json_arg: Option<&str>) -> Result<String, 
             .map_err(|e| LuaExecError::Lua(e.to_string()))?
     };
 
+    // Extract any emitted messages
+    let mut messages: Vec<String> = Vec::new();
+    if let Ok(tbl) = lua.globals().get::<LuaTable>("__icp_messages") {
+        let len = tbl.raw_len();
+        for i in 1..=len {
+            if let Ok(LuaValue::String(s)) = tbl.raw_get(i) {
+                match s.to_str() {
+                    Ok(ss) => messages.push(ss.to_string()),
+                    Err(_) => messages.push(String::new()),
+                }
+            }
+        }
+    }
+
     let response = serde_json::json!({
         "ok": true,
         "result": json_value,
+        "messages": messages,
     });
     Ok(response.to_string())
+}
+
+/// Lint a Lua script without executing it.
+/// Returns a JSON string: { ok: boolean, errors: [ { message } ] }
+pub fn lint_lua(script: &str) -> String {
+    let lua = match create_sandboxed_lua() {
+        Ok(l) => l,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "errors": [{"message": e.to_string()}]})
+                .to_string()
+        }
+    };
+    let chunk = lua.load(script);
+    let compile_res = chunk.into_function();
+    match compile_res {
+        Ok(_) => serde_json::json!({"ok": true, "errors": []}).to_string(),
+        Err(e) => {
+            let msg = e.to_string();
+            serde_json::json!({
+                "ok": false,
+                "errors": [{"message": msg}],
+            })
+            .to_string()
+        }
+    }
 }
 
 #[cfg(test)]
