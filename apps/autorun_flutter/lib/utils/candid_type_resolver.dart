@@ -6,9 +6,8 @@
 /// - For records, it also resolves field types recursively and reconstructs
 ///   a `record { name : T; ... }` string with resolved types
 class CandidTypeResolver {
-  CandidTypeResolver(this._candidSource) : _aliases = _extractAliases(_candidSource);
+  CandidTypeResolver(String candidSource) : _aliases = _extractAliases(candidSource);
 
-  final String _candidSource;
   final Map<String, String> _aliases;
 
   /// Resolve a list of arg type strings using aliases from Candid.
@@ -93,24 +92,32 @@ class CandidTypeResolver {
         continue;
       }
       // Skip whitespace
-      while (j < noComments.length && _isWhitespace(noComments.codeUnitAt(j))) j++;
+      while (j < noComments.length && _isWhitespace(noComments.codeUnitAt(j))) {
+        j++;
+      }
       // Parse identifier
       final int startName = j;
-      while (j < noComments.length && _isIdentChar(noComments.codeUnitAt(j))) j++;
+      while (j < noComments.length && _isIdentChar(noComments.codeUnitAt(j))) {
+        j++;
+      }
       if (j == startName) {
         i = j;
         continue;
       }
       final String name = noComments.substring(startName, j);
       // Skip spaces to '='
-      while (j < noComments.length && _isWhitespace(noComments.codeUnitAt(j))) j++;
+      while (j < noComments.length && _isWhitespace(noComments.codeUnitAt(j))) {
+        j++;
+      }
       if (j >= noComments.length || noComments[j] != '=') {
         i = j;
         continue;
       }
       j++; // after '='
       // Skip spaces after '='
-      while (j < noComments.length && _isWhitespace(noComments.codeUnitAt(j))) j++;
+      while (j < noComments.length && _isWhitespace(noComments.codeUnitAt(j))) {
+        j++;
+      }
       // Read until semicolon at top-level (balanced braces/parens/angles)
       final int startExpr = j;
       int depthCurl = 0, depthParen = 0, depthAngle = 0;

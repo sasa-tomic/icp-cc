@@ -24,7 +24,7 @@ void main() {
       const RecordFieldSpec(name: 'length', icType: 'nat64'),
     ];
     final rec = buildRecordLiteral(fields: fields, rawValues: <String>['10', '25']);
-    expect(rec.replaceAll(RegExp('\n|\r|\s+'), ' ').trim(),
+    expect(rec.replaceAll(RegExp(r'\n|\r|\s+'), ' ').trim(),
         'record { start = 10 : nat64; length = 25 : nat64 }');
   });
 
