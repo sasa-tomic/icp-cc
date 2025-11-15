@@ -56,7 +56,7 @@ log_error() {
 # Show usage
 show_help() {
     cat << EOF
-Claude Code and Happy Coder Docker Wrapper - Safe containerized environment for ICP-CC
+AI coding agent Docker Wrapper - Safe containerized environment for ICP-CC
 
 USAGE:
     $0 [OPTIONS] TOOL [COMMAND]
@@ -71,11 +71,13 @@ OPTIONS:
 TOOLS:
     claude              Run Claude Code (with dangerously-skip-permissions)
     happy               Run Happy Coder
+    codex               Run Codex
     bash OR shell       Run a plain bash shell
 
 EXAMPLES:
     $0 claude                        # Start Claude Code with dangerously-skip-permissions
     $0 happy                         # Start Happy Coder
+    $0 codex                         # Start Codex
     $0 bash                          # Start a bash shell
     $0 claude --rebuild              # Rebuild image and run Claude Code
     $0 claude "just test"            # Run ICP-CC tests in container with Claude Code
@@ -119,7 +121,7 @@ while [[ $# -gt 0 ]]; do
             COMPOSE_FILE="$2"
             shift 2
             ;;
-        claude|happy|shell|bash)
+        claude|happy|codex|shell|bash)
             if [[ -z "$TOOL" ]]; then
                 TOOL="$1"
                 shift
@@ -136,7 +138,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             if [[ -z "$TOOL" ]]; then
-                log_error "Must specify a tool: claude or happy"
+                log_error "Must specify a tool: claude, happy, codex, bash"
                 show_help
                 exit 1
             fi
@@ -152,7 +154,7 @@ check_requirements() {
 
     # Check if tool is specified
     if [[ -z "$TOOL" ]]; then
-        log_error "Must specify a tool: claude, happy, bash, or shell"
+        log_error "Must specify a tool: claude, happy, codex, bash, or shell"
         show_help
         exit 1
     fi
@@ -208,6 +210,10 @@ run_tool() {
             happy)
                 tool_command="happy --yolo"
                 log_info "Starting Happy Coder..."
+                ;;
+            codex)
+                tool_command="codex --yolo"
+                log_info "Starting Codex..."
                 ;;
             bash|shell)
                 tool_command="bash"

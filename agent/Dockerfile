@@ -69,8 +69,7 @@ RUN mkdir -p ~/.npm-global \
     && echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.profile \
     && export PATH=~/.npm-global/bin:$PATH \
     && npm install -g @anthropic-ai/claude-code happy-coder \
-    && npm install -g wrangler \
-    && npm install -g @openai/codex
+    && npm install -g wrangler @openai/codex
 
 # Install Flutter SDK for ICP-CC project
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \
