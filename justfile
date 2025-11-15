@@ -135,6 +135,12 @@ marketplace-config +args="":
     @echo "==> Showing Appwrite configuration"
     cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- config {{args}}
 
+# Bootstrap fresh Appwrite instance
+# Usage: just marketplace-bootstrap --target local|prod [additional args]
+marketplace-bootstrap +args="":
+    @echo "==> Bootstrapping fresh Appwrite instance"
+    cd {{root}}/marketplace-deploy && cargo run --bin marketplace-deploy -- bootstrap {{args}}
+
 # Initialize Appwrite configuration
 # Usage: just marketplace-init --target local|prod [additional args]
 marketplace-init +args="":

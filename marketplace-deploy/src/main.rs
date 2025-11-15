@@ -3,10 +3,12 @@ use clap::{Parser, Subcommand};
 use dialoguer::{Confirm, Input};
 use indicatif::{ProgressBar, ProgressStyle};
 
+mod bootstrap;
 mod config;
 mod database;
 mod utils;
 
+use bootstrap::{BootstrapConfig, BootstrapManager};
 use config::{AppConfig, DeployComponents};
 use database::DatabaseManager;
 use utils::{
@@ -53,6 +55,24 @@ enum Commands {
         #[arg(long)]
         api_key: Option<String>,
     },
+    /// Bootstrap fresh Appwrite instance with team, project, API keys, and site
+    Bootstrap {
+        /// Team name for the bootstrap
+        #[arg(long, default_value = "ICP Marketplace Team")]
+        team_name: String,
+
+        /// Project name for the bootstrap
+        #[arg(long, default_value = "ICP Script Marketplace")]
+        project_name: String,
+
+        /// Site name for the bootstrap
+        #[arg(long, default_value = "icp-marketplace")]
+        site_name: String,
+
+        /// Skip confirmation prompts
+        #[arg(long)]
+        yes: bool,
+    },
     /// Deploy complete marketplace infrastructure
     Deploy {
         /// Only deploy specific components
@@ -87,6 +107,12 @@ async fn main() -> Result<()> {
             project_id,
             api_key,
         } => handle_init(project_id, api_key, &cli.target).await,
+        Commands::Bootstrap {
+            team_name,
+            project_name,
+            site_name,
+            yes,
+        } => handle_bootstrap(team_name, project_name, site_name, yes, &cli.target).await,
         Commands::Deploy { components, clean } => {
             handle_deploy(cli.yes, components, cli.dry_run, clean, &cli.target).await
         }
@@ -94,6 +120,72 @@ async fn main() -> Result<()> {
         Commands::Config => handle_config(&cli.target).await,
         Commands::Test => handle_test(&cli.target).await,
     }
+}
+
+async fn handle_bootstrap(
+    team_name: String,
+    project_name: String,
+    site_name: String,
+    yes: bool,
+    target: &str,
+) -> Result<()> {
+    section_header(&format!("Bootstrapping Appwrite Instance ({})", target));
+
+    // Confirm bootstrap operation
+    if !yes {
+        let confirm = dialoguer::Confirm::new()
+            .with_prompt("This will create a new team, project, API key, and site. Continue?")
+            .default(false)
+            .interact()?;
+
+        if !confirm {
+            error_message("Bootstrap cancelled");
+            return Ok(());
+        }
+    }
+
+    // Create bootstrap configuration
+    let bootstrap_config = BootstrapConfig {
+        team_name,
+        project_name,
+        site_name,
+        api_key_scopes: BootstrapConfig::default().api_key_scopes,
+    };
+
+    // Load existing config or create default
+    let config = AppConfig::load(target).unwrap_or_else(|_| {
+        let default_endpoint = match target {
+            "local" => "http://localhost:48080/v1".to_string(),
+            "prod" => "https://icp-autorun.appwrite.network/v1".to_string(),
+            _ => "https://cloud.appwrite.io/v1".to_string(),
+        };
+        AppConfig::new("placeholder".to_string(), "placeholder".to_string(), default_endpoint)
+    });
+
+    // Create bootstrap manager
+    let bootstrap_manager = BootstrapManager::new(config.clone(), Some(bootstrap_config));
+
+    // Run bootstrap process
+    match bootstrap_manager.bootstrap().await {
+        Ok(result) => {
+            success_message("Bootstrap completed successfully!");
+            info_message(&format!("Team ID: {}", result.team_id));
+            info_message(&format!("Project ID: {}", result.project_id));
+            info_message(&format!("Site ID: {}", result.site_id));
+            
+            // Update configuration with new project ID and API key
+            bootstrap_manager.update_config(&result, target)?;
+            
+            success_message("Configuration updated with bootstrap results");
+            success_message("You can now run 'marketplace-deploy deploy' to set up the marketplace infrastructure");
+        }
+        Err(e) => {
+            error_message(&format!("Bootstrap failed: {}", e));
+            return Err(e);
+        }
+    }
+
+    Ok(())
 }
 
 async fn handle_init(
