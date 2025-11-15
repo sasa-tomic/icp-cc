@@ -1,46 +1,39 @@
 # ICP Script Marketplace - TODO
 
+## Immediate Tasks (Ready to Start)
+
+### Environment Setup & Configuration
+- [ ] Fix modified `marketplace-local.env` file - either commit changes or reset to clean state
+- [ ] Run `just test-machine` to ensure all tests are passing
+- [ ] Update git status and commit TODO.md cleanup changes
+
+### Quick Wins
+- [ ] Add appwrite-cli bootstrap automation to marketplace-deploy tool
+- [ ] Create basic script download API endpoint structure
+- [ ] Add input validation to existing API endpoints
+
 ## Active Development Tasks
 
-### ✅ Appwrite Sites Deployment Architecture - COMPLETED
-The marketplace-deploy tool was successfully updated to handle complete Appwrite Sites deployment.
-The whole deployment IS NOW FULLY AUTOMATED.
-There IS a successful and meaningful smoke test for the deployment succeeding with 2xx.
-
-1. **Update frontend URLs** - ✅ COMPLETED
-   - Flutter app already uses `/api/*` endpoints from deployed site
-   - Integration between Flutter app and deployed SvelteKit site confirmed working
-
-2. **Fix local deployment site creation** - ✅ COMPLETED
-   - Site creation API call fixed with proper siteId, framework, and buildRuntime parameters
-   - Appwrite Sites API for local instances now working correctly
-   - Production deployment works correctly
-   - Added comprehensive error reporting and debugging output 
-
-### Bootstrapping a fresh local appwrite instance
+### Bootstrapping a Fresh Local Appwrite Instance (Priority: High)
 Bootstrapping a freshly created docker deployment should be fully automated.
-Seems like appwrite-cli can be used to initially set up an instance right after creating the containers, so that user does not have to manually click through the UI to configure the team, project, API keys, etc.
-```bash
-❯ npx appwrite-cli init --help
-Usage: appwrite init [options] [command]
+The appwrite-cli can be used to initially set up an instance right after creating containers, eliminating manual UI configuration for team, project, API keys, etc.
 
-The init command provides a convenient wrapper for creating and initializing projects, functions, collections, buckets, teams, and messaging-topics in  Appwrite.
+Available automation commands:
+- `appwrite init project` - Create new project
+- `appwrite init team` - Create team
+- `appwrite init site` - Create site
+- `appwrite init function` - Create functions
+- `appwrite init collection` - Create database collections
+- `appwrite init bucket` - Create storage buckets
 
-Options:
-  -h, --help              display help for command
+**Implementation Tasks:**
+- [ ] Integrate appwrite-cli automation into marketplace-deploy tool
+- [ ] Add automatic team and project creation after container startup
+- [ ] Configure API keys and permissions programmatically
+- [ ] Test bootstrap process with fresh docker environment
+- [ ] Add bootstrap command to justfile (`just marketplace-bootstrap`)
 
-Commands:
-  project [options]       Init a new Appwrite project
-  function|functions      Init a new Appwrite function
-  site|sites              Init a new Appwrite site
-  bucket|buckets          Init a new Appwrite bucket
-  team|teams              Init a new Appwrite team
-  collection|collections  Init a new Appwrite collection
-  table|tables            Init a new Appwrite table
-  topic|topics            Init a new Appwrite topic
-```
-
-## Marketplace Features (Priority: High)
+## Marketplace Features
 
 ### Script Downloads & Installation (Priority: High)
 - Create script download functionality
@@ -56,7 +49,7 @@ Commands:
   - Maybe add verification of script integrity and checksums: sha256 of each script
   - Add download history and library management for users
 
-### Payment Processing Integration
+### Payment Processing Integration (Priority: Medium)
 - Integrate with icpay.org for script payments
   - Research icpay.org API documentation and integration requirements
   - Implement payment gateway client library
@@ -175,7 +168,6 @@ Commands:
   - Provide migration shim for old `return icp_ui_list(...)` (optional)
 
 **Phase 5: Testing (Ongoing)**
-- Rust: unit tests for init/view/update JSON roundtrips and timeouts ✅ DONE
 - Flutter: widget tests for host loop, event dispatch, effect result handling, and renderer
   - Add integration tests for complete Lua app lifecycle
   - Create performance tests for complex scripts
@@ -183,7 +175,6 @@ Commands:
 
 ### Testing & Quality Assurance (Ongoing)
 #### Comprehensive Testing Strategy
-- Rust: unit tests for init/view/update JSON roundtrips and timeouts ✅ DONE
 - Flutter: widget tests for host loop, event dispatch, effect result handling, and renderer
   - Add integration tests for complete Lua app lifecycle
   - Create performance tests for complex scripts
@@ -234,11 +225,8 @@ Commands:
 - [ ] Set up automated backup and recovery procedures
 
 ### Deployment Status
-- ✅ **Appwrite Sites Production Deployment COMPLETE** - https://icp-autorun.appwrite.network
-- ✅ **All API endpoints deployed and functional** - `/api/*` routes working
-- ✅ **Automated deployment tool FULLY UPDATED** - marketplace-deploy now handles complete infrastructure + site deployment
-- ✅ **Local deployment site creation FIXED** - Site creation with proper parameters now working
-- ✅ **Complete smoke test passing** - All 6 tests passing for both local and production environments
+- **Current**: Production deployment at https://icp-autorun.appwrite.network with all `/api/*` routes functional
+- **Infrastructure**: Automated deployment tool (marketplace-deploy) handles complete infrastructure + site deployment
 - [ ] Implement blue-green deployment strategy for zero downtime
 - [ ] Add rollback procedures for failed deployments
 - [ ] Set up staging environment for testing production features
@@ -263,4 +251,3 @@ Commands:
 ---
 
 *Last Updated: 2025-10-25*
-*Status: ✅ MARKETPLACE DEPLOYMENT FULLY AUTOMATED - ALL COMPONENTS WORKING*
