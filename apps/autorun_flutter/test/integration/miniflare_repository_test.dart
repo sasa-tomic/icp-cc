@@ -11,15 +11,13 @@ void main() {
     final List<String> createdScriptIds = [];
 
     setUpAll(() async {
-      // Setup test environment
-      await MiniflareTestHelper.setupMiniflareTestEnvironment(
-        requireServer: false, // Allow tests to run in offline mode
-      );
+      // Setup test environment - REQUIRE server for e2e tests
+      await MiniflareTestHelper.setupMiniflareTestEnvironment();
     });
 
     setUp(() async {
       // Create a fresh repository for each test
-      repository = MiniflareTestHelper.createTestRepository(failSilently: false);
+      repository = MiniflareTestHelper.createTestRepository();
     });
 
     tearDown(() async {
@@ -273,34 +271,19 @@ void main() {
     });
 
     group('Error Handling', () {
-      test('should handle server unavailability gracefully', () async {
-        // Arrange - Use a non-existent server with silent fail client
+      test('should handle actual server errors appropriately', () async {
+        // Arrange - Use a non-existent server URL to test real error handling
         final offlineRepository = MiniflareTestHelper.createTestRepository(
           baseUrl: 'http://localhost:9999',
-          failSilently: true,
         );
 
-        // Act & Assert - Should not throw exceptions
-        expect(offlineRepository.loadScripts(), completes);
-        expect(offlineRepository.getAllScripts(), completes);
-        expect(offlineRepository.getScriptById('nonexistent'), completes);
-        expect(offlineRepository.searchScripts('test'), completes);
-        expect(offlineRepository.getScriptsByCategory('test'), completes);
-        expect(offlineRepository.getPublicScripts(), completes);
-        expect(offlineRepository.getScriptsCount(), completes);
+        // Act & Assert - Should throw real network errors, not mock responses
+        expect(offlineRepository.getAllScripts(), throwsException);
+        expect(offlineRepository.getScriptById('nonexistent'), throwsException);
+        expect(offlineRepository.searchScripts('test'), throwsException);
 
         // Cleanup
         offlineRepository.dispose();
-      });
-
-      test('should handle persistence errors gracefully', () async {
-        // Arrange
-        final testScript = MiniflareScriptRepositoryTestExtensions.createTestScript();
-
-        // Act & Assert - Should not throw exceptions even if server is unavailable
-        expect(repository.persistScripts([testScript]), completes);
-        expect(repository.saveScript(testScript), completes);
-        expect(repository.deleteScript('nonexistent'), completes);
       });
     });
   });

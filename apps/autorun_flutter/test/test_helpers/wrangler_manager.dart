@@ -30,13 +30,9 @@ class WranglerManager {
     
     // Set the test endpoint in AppConfig so tests use the correct port
     AppConfig.setTestEndpoint(endpoint);
-    
-    // Skip service verification in sandbox environment
-    if (!Platform.environment.containsKey('SANDBOX_DISABLED')) {
-      await _verifyServiceRunning();
-    } else {
-      debugPrint('⚠️  Skipping service verification in sandbox environment');
-    }
+
+    // Always verify service is running for e2e tests - NO FALLBACKS
+    await _verifyServiceRunning();
     
     _isConfigured = true;
     debugPrint('✅ Test environment configured successfully');

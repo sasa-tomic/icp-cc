@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -44,30 +42,26 @@ class MiniflareTestHelper {
   /// Create a test repository with proper error handling for tests
   static MiniflareScriptRepository createTestRepository({
     String? baseUrl,
-    bool failSilently = false, // Changed default to false for e2e tests
   }) {
     return MiniflareScriptRepository(
       baseUrl: baseUrl ?? defaultBaseUrl,
-      client: failSilently ? _SilentFailHttpClient() : http.Client(),
+      client: http.Client(), // Always use real HTTP client for e2e tests
     );
   }
 
   /// Setup test environment with Miniflare checks
   static Future<void> setupMiniflareTestEnvironment({
     String? baseUrl,
-    bool requireServer = false,
+    bool requireServer = true, // Changed default to true for e2e tests
   }) async {
     final isRunning = await isMiniflareRunning(baseUrl: baseUrl);
-    
-    if (!isRunning && requireServer) {
+
+    if (!isRunning) {
       throw Exception(
         'Miniflare server is not running at ${baseUrl ?? defaultBaseUrl}. '
-        'Start it with: npm run dev in the cloudflare-api directory',
+        'Start it with: npm run dev in the cloudflare-api directory. '
+        'E2E tests MUST NOT run in offline mode or use mocks/fallbacks.',
       );
-    }
-    
-    if (!isRunning) {
-      debugPrint('Warning: Miniflare server not available. Tests will run in offline mode.');
     }
   }
 
@@ -90,37 +84,6 @@ class MiniflareTestHelper {
       // Silently ignore cleanup errors
       debugPrint('Warning: Failed to cleanup test data: $e');
     }
-  }
-}
-
-/// HTTP client that fails silently for network errors
-/// Used in tests to avoid test failures when Miniflare is not available
-class _SilentFailHttpClient extends http.BaseClient {
-  final http.Client _inner = http.Client();
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    try {
-      return await _inner.send(request);
-    } catch (e) {
-      // Return a mock successful response with empty data for tests
-      final responseBody = '{"success": true, "data": {"scripts": []}}';
-      return http.StreamedResponse(
-        Stream.value(utf8.encode(responseBody)),
-        200,
-        request: request,
-        headers: {
-          'content-type': 'application/json',
-          'content-length': responseBody.length.toString(),
-        },
-      );
-    }
-  }
-
-  @override
-  void close() {
-    _inner.close();
-    super.close();
   }
 }
 
