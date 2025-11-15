@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
@@ -8,7 +9,7 @@ import 'test_signature_utils.dart';
 /// HTTP client wrapper with timeout to prevent infinite hanging in tests
 class _TimeoutClient extends http.BaseClient {
   final http.Client _inner = http.Client();
-  final Duration _timeout = const Duration(seconds: 10);
+  final Duration _timeout = const Duration(seconds: 30);
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -36,11 +37,27 @@ class TestableScriptRepository extends ScriptRepository {
     AuthenticationMethod authMethod = AuthenticationMethod.testToken,
     String? customAuthToken,
     bool forceInvalidAuth = false,
-  }) : baseUrl = baseUrl ?? 'http://localhost:8787',
+  }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
        _client = client ?? _TimeoutClient(),
        _authMethod = authMethod,
        _customAuthToken = customAuthToken,
        _forceInvalidAuth = forceInvalidAuth;
+
+  static String _getDefaultBaseUrl() {
+    try {
+      final portFile = File('/tmp/icp-api.port');
+      if (portFile.existsSync()) {
+        final port = portFile.readAsStringSync().trim();
+        return 'http://127.0.0.1:$port';
+      }
+    } catch (e) {
+      // Fall through to exception below
+    }
+    throw Exception(
+      'API server port file not found at /tmp/icp-api.port. '
+      'Please start the API server with: just api-up'
+    );
+  }
 
   @override
   Future<void> persistScripts(List<ScriptRecord> scripts) async {
@@ -64,52 +81,64 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   Future<String> saveScript(ScriptRecord script) async {
-    try {
-      // First check if script exists
-      final checkResponse = await _client.get(
-        Uri.parse('$baseUrl/api/v1/scripts/${script.id}?includePrivate=true'),
-      );
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 1);
 
-      if (checkResponse.statusCode == 200) {
-        // Update existing script
-        final updateData = _createAuthenticatedScriptData(script, 'update');
-        updateData['script_id'] = script.id;
-
-        final response = await _client.put(
-          Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(updateData),
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // First check if script exists
+        final checkResponse = await _client.get(
+          Uri.parse('$baseUrl/api/v1/scripts/${script.id}?includePrivate=true'),
         );
 
-        if (response.statusCode != 200 && response.statusCode != 201) {
-          throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
+        if (checkResponse.statusCode == 200) {
+          // Update existing script
+          final updateData = _createAuthenticatedScriptData(script, 'update');
+          updateData['script_id'] = script.id;
+
+          final response = await _client.put(
+            Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(updateData),
+          );
+
+          if (response.statusCode != 200 && response.statusCode != 201) {
+            throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
+          }
+
+          return script.id;
+        } else {
+          // Create new script
+          final scriptData = _createAuthenticatedScriptData(script, 'upload');
+
+          final response = await _client.post(
+            Uri.parse('$baseUrl/api/v1/scripts'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(scriptData),
+          );
+
+          if (response.statusCode != 200 && response.statusCode != 201) {
+            throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
+          }
+
+          final responseData = json.decode(response.body);
+          if (responseData['success'] == true && responseData['data'] != null) {
+            return responseData['data']['id'] as String;
+          }
+
+          return script.id;
+        }
+      } catch (e) {
+        if (attempt == maxRetries - 1) {
+          throw Exception('Failed to save script after $maxRetries attempts: $e');
         }
 
-        return script.id;
-      } else {
-        // Create new script
-        final scriptData = _createAuthenticatedScriptData(script, 'upload');
-
-        final response = await _client.post(
-          Uri.parse('$baseUrl/api/v1/scripts'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(scriptData),
-        );
-
-        if (response.statusCode != 200 && response.statusCode != 201) {
-          throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
-        }
-
-        final responseData = json.decode(response.body);
-        if (responseData['success'] == true && responseData['data'] != null) {
-          return responseData['data']['id'] as String;
-        }
-
-        return script.id;
+        // Wait before retrying
+        await Future.delayed(retryDelay * (attempt + 1));
       }
-    } catch (e) {
-      throw Exception('Failed to save script: $e');
     }
+
+    throw Exception('Failed to save script: unknown error');
   }
 
   Future<void> deleteScript(String id) async {

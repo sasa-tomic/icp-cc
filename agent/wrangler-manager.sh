@@ -151,6 +151,33 @@ start_wrangler() {
         sleep 2
     fi
 
+    # Aggressive cleanup with pkill and verification
+    log_info "Performing aggressive cleanup of wrangler processes..."
+
+    # First attempt: Graceful shutdown with pkill
+    pkill -f "wrangler dev" || true
+    pkill -f "workerd" || true
+
+    # Check for 5 seconds with pgrep every second
+    local count=0
+    while [ $count -lt 5 ]; do
+        if ! pgrep -f "wrangler dev" >/dev/null 2>&1 && ! pgrep -f "workerd" >/dev/null 2>&1; then
+            log_info "All wrangler processes terminated gracefully"
+            break
+        fi
+        log_info "Waiting for processes to terminate... ($((count + 1))/5)"
+        sleep 1
+        count=$((count + 1))
+    done
+
+    # Second attempt: Force kill with pkill -9 if still running
+    if pgrep -f "wrangler dev" >/dev/null 2>&1 || pgrep -f "workerd" >/dev/null 2>&1; then
+        log_warning "Some processes still running, using force kill..."
+        pkill -9 -f "wrangler dev" || true
+        pkill -9 -f "workerd" || true
+        sleep 1
+    fi
+
     # Additional cleanup: Check for any processes using the port
     if command -v lsof >/dev/null 2>&1; then
         local port_pids=$(lsof -ti ":$WRANGLER_PORT" 2>/dev/null || true)
@@ -163,8 +190,15 @@ start_wrangler() {
         fi
     fi
 
+    # Final verification
+    if pgrep -f "wrangler dev" >/dev/null 2>&1 || pgrep -f "workerd" >/dev/null 2>&1; then
+        log_error "❌ Failed to terminate all wrangler processes"
+        return 1
+    fi
+
     # Final cleanup: Remove any stale PID file
     rm -f "$WRANGLER_PID_FILE"
+    log_info "Cleanup completed successfully"
 
     # Port check now redundant due to cleanup above, but keep as safety net
     if command -v lsof >/dev/null 2>&1; then

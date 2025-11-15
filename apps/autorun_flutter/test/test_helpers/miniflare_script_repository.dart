@@ -1,10 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
 import 'test_signature_utils.dart';
 
-/// Repository implementation that uses a real Miniflare deployment
+/// Repository implementation that uses a real API server deployment
 /// for end-to-end testing instead of in-memory mocks.
 class MiniflareScriptRepository extends ScriptRepository {
   final String baseUrl;
@@ -13,8 +14,24 @@ class MiniflareScriptRepository extends ScriptRepository {
   MiniflareScriptRepository({
     String? baseUrl,
     http.Client? client,
-  }) : baseUrl = baseUrl ?? 'http://localhost:8787',
+  }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
        _client = client ?? http.Client();
+
+  static String _getDefaultBaseUrl() {
+    try {
+      final portFile = File('/tmp/icp-api.port');
+      if (portFile.existsSync()) {
+        final port = portFile.readAsStringSync().trim();
+        return 'http://127.0.0.1:$port';
+      }
+    } catch (e) {
+      // Fall through to exception below
+    }
+    throw Exception(
+      'API server port file not found at /tmp/icp-api.port. '
+      'Please start the API server with: just api-up'
+    );
+  }
 
   @override
   Future<List<ScriptRecord>> loadScripts() async {

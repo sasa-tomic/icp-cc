@@ -21,7 +21,9 @@ echo ""
 # Function to extract and categorize targets
 extract_and_categorize() {
     local all_targets
+    # Extract only recipe targets (lines with target:), excluding variable assignments (lines with :=)
     all_targets=$(grep -E "^[a-zA-Z][a-zA-Z0-9_-]*[^:]*:" "${JUSTFILE}" | \
+                  grep -v ":=" | \
                   sed 's/^\([a-zA-Z][a-zA-Z0-9_-]*\).*/\1/' | \
                   grep -v "^default$" | \
                   sort -u)
@@ -30,11 +32,9 @@ extract_and_categorize() {
     declare -A categories=(
         ["Common commands"]="^(test|clean|distclean)$"
         ["Build commands"]="^(linux|android|macos|ios|windows|all|android-emulator)$"
-        ["Marketplace commands"]="^marketplace(-|$)"
+        ["API Server commands"]="^api-"
         ["Flutter commands"]="^flutter"
-        ["API Server commands"]="^server-"
-        ["Development stack"]="^(marketplace-dev-stack|marketplace-dev-stop)$"
-        ["Justfile management"]="^just-"
+        ["Testing commands"]="^(rust-tests|flutter-tests|test-with-api)$"
     )
 
     # Track which targets have been categorized
@@ -47,7 +47,7 @@ extract_and_categorize() {
 
         for target in $all_targets; do
             # Skip internal variables and already categorized targets
-            if [[ "$target" =~ ^(platform|root|scripts_dir|set)$ ]]; then
+            if [[ "$target" =~ ^(platform|root|scripts_dir|logs_dir|flutter_dir|api_dir|api_pid_file|api_port_file|set)$ ]]; then
                 continue
             fi
 
@@ -97,7 +97,7 @@ extract_and_categorize() {
 
     # Find uncategorized targets
     for target in $all_targets; do
-        if [[ "$target" =~ ^(platform|root|scripts_dir|set)$ ]]; then
+        if [[ "$target" =~ ^(platform|root|scripts_dir|logs_dir|flutter_dir|api_dir|api_pid_file|api_port_file|set)$ ]]; then
             continue
         fi
 
@@ -142,9 +142,10 @@ extract_and_categorize() {
 # Generate dynamic help
 extract_and_categorize
 
-echo -e "${YELLOW}Examples with arguments:${NC}"
-echo "  just marketplace-deploy -- --dry-run     # Deploy with dry-run"
-echo "  just marketplace-test -- --verbose       # Test with verbose output"
-echo "  just marketplace-local-deploy -- --force # Force deploy to local"
+echo -e "${YELLOW}Examples:${NC}"
+echo "  just api-up              # Start API server on random port"
+echo "  just api-up 8080         # Start API server on port 8080"
+echo "  just flutter-local       # Run Flutter app (auto-detects API port)"
+echo "  just test                # Run all tests"
 echo ""
 echo -e "${GREEN}Tip: Run 'just --list' to see all available commands with full details${NC}"

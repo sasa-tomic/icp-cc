@@ -64,7 +64,7 @@ class CandidService {
       final response = await http.get(
         url,
         headers: {'User-Agent': 'ICP-Autorun-Flutter/1.0'},
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 && response.body.isNotEmpty) {
         return response.body;

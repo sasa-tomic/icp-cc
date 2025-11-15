@@ -14,7 +14,7 @@ class MarketplaceOpenApiService {
   MarketplaceOpenApiService._internal();
 
   String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1'; // API endpoints
-  final Duration _timeout = const Duration(seconds: 30);
+  final Duration _timeout = const Duration(seconds: 45);
   static const int defaultSearchLimit = 20;
 
   // Search scripts with advanced filtering

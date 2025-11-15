@@ -10,16 +10,14 @@ root := `pwd`
 scripts_dir := root + "/scripts"
 logs_dir := root + "/logs"
 flutter_dir := root + "/apps/autorun_flutter"
-cloudflare_dir := root + "/cloudflare-api"
-agent_dir := root + "/agent"
+api_dir := root + "/poem-backend"
 
 # Platform detection
 platform := if `uname` == "Darwin" { "macos" } else if `uname` == "Linux" { "linux" } else { "unknown" }
 
-# Cloudflare configuration
-cloudflare_port := "8787"
-cloudflare_health_url := "http://localhost:" + cloudflare_port + "/api/v1/health"
-cloudflare_test_pid := "/tmp/wrangler-test.pid"
+# API server configuration
+api_port_file := "/tmp/icp-api.port"
+api_pid_file := "/tmp/icp-api.pid"
 
 # =============================================================================
 # Default Target
@@ -30,66 +28,179 @@ default:
    @{{scripts_dir}}/dynamic-just-help.sh
 
 # =============================================================================
-# Utility Functions
+# API Server Management
 # =============================================================================
 
-# Wait for Cloudflare Workers to be healthy
-wait-for-cloudflare-internal timeout="30":
+# Start the Poem API server in background (optionally specify port)
+api-up port="0":
     #!/usr/bin/env bash
     set -euo pipefail
-    timeout_val="{{timeout}}"
-    elapsed=0
-    while [ $elapsed -lt $timeout_val ]; do
-        if timeout 5 curl -s "{{cloudflare_health_url}}" >/dev/null 2>&1; then
-            echo "==> ✅ Cloudflare Workers is healthy and ready!"
-            echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
-            echo "==> Health Check: {{cloudflare_health_url}}"
+    echo "==> Starting ICP Marketplace API server"
+
+    # Check if already running
+    if [ -f "{{api_pid_file}}" ]; then
+        pid=$(cat "{{api_pid_file}}")
+        if kill -0 "$pid" 2>/dev/null; then
+            api_port=$(cat "{{api_port_file}}")
+            echo "==> API server already running with PID $pid on port $api_port"
             exit 0
         fi
-        echo "==> Waiting for server... ($elapsed/$timeout_val seconds)"
+    fi
+
+    # Determine port to use (0 = auto-assign, or use specified port)
+    PORT={{port}}
+
+    # Start server in background with port specification
+    cd {{api_dir}} && PORT=$PORT cargo run --release > {{logs_dir}}/api-server.log 2>&1 &
+    echo $! > {{api_pid_file}}
+
+    # Wait for server to start and extract the actual port from logs
+    echo "==> Waiting for API server to start..."
+    timeout=30
+    elapsed=0
+    api_port=""
+    while [ $elapsed -lt $timeout ]; do
+        if [ -f "{{logs_dir}}/api-server.log" ]; then
+            # Extract port from log line like "listening addr=socket://127.0.0.1:8080"
+            # Look for the "listening" line specifically
+            api_port=$(grep -oP 'listening.*?127\.0\.0\.1:\K\d+' {{logs_dir}}/api-server.log | tail -1 || true)
+            if [ -n "$api_port" ]; then
+                echo "$api_port" > {{api_port_file}}
+                # Test if server is responding
+                if timeout 5 curl -s "http://127.0.0.1:$api_port/api/v1/health" >/dev/null 2>&1; then
+                    echo "==> ✅ API server is healthy and ready!"
+                    echo "==> API Endpoint: http://127.0.0.1:$api_port"
+                    echo "==> Health Check: http://127.0.0.1:$api_port/api/v1/health"
+                    echo "==> Server logs: {{logs_dir}}/api-server.log"
+                    exit 0
+                fi
+            fi
+        fi
         sleep 1
         elapsed=$((elapsed + 1))
     done
-    echo "==> ❌ Cloudflare Workers failed to start within $timeout_val seconds"
+    echo "==> ❌ API server failed to start within $timeout seconds"
+    echo "==> Check logs at: {{logs_dir}}/api-server.log"
     exit 1
 
-# Stop Cloudflare Workers by PID or port
-_stop-cloudflare-workers:
+# Stop the API server
+api-down:
     #!/usr/bin/env bash
     set -euo pipefail
+    echo "==> Stopping API server"
 
-    # Stop by PID if file exists
-    if [ -f "{{cloudflare_test_pid}}" ]; then
-        pid=$(cat "{{cloudflare_test_pid}}")
+    if [ -f "{{api_pid_file}}" ]; then
+        pid=$(cat "{{api_pid_file}}")
         if kill -0 "$pid" 2>/dev/null; then
-            echo "==> Stopping Cloudflare Workers with PID $pid"
+            echo "==> Stopping API server with PID $pid"
             kill -TERM "$pid"
             sleep 2
             if kill -0 "$pid" 2>/dev/null; then
-                echo "==> Force killing Cloudflare Workers with PID $pid"
+                echo "==> Force killing API server"
                 kill -KILL "$pid"
             fi
-            echo "==> ✅ Cloudflare Workers stopped"
+            echo "==> ✅ API server stopped"
         else
-            echo "==> Cloudflare Workers process $pid not found"
+            echo "==> API server process not found"
         fi
-        rm -f "{{cloudflare_test_pid}}"
+        rm -f "{{api_pid_file}}"
+        rm -f "{{api_port_file}}"
+    else
+        echo "==> No API server PID file found"
     fi
 
-    # Clean up any remaining wrangler processes on the port
-    pids=$(lsof -ti:{{cloudflare_port}} 2>/dev/null || true)
-    if [ -n "$pids" ]; then
-        for pid in $pids; do
-            if ps -p "$pid" -o command= | grep -q "wrangler dev"; then
-                echo "==> Cleaning up additional wrangler process $pid"
+    # Clean up any remaining processes on the port if we know it
+    if [ -f "{{api_port_file}}" ]; then
+        api_port=$(cat "{{api_port_file}}")
+        pids=$(lsof -ti:$api_port 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                echo "==> Cleaning up process $pid on port $api_port"
                 kill -TERM "$pid" 2>/dev/null || true
-            fi
-        done
+            done
+        fi
     fi
 
-# =============================================================================
-# Main Targets
-# =============================================================================
+# Restart the API server
+api-restart: api-down api-up
+
+# Show API server logs
+api-logs:
+    @tail -f {{logs_dir}}/api-server.log
+
+# Test API endpoints
+api-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Testing API endpoints"
+
+    # Get the API port
+    if [ ! -f "{{api_port_file}}" ]; then
+        echo "❌ API server not running (no port file found)"
+        exit 1
+    fi
+    api_port=$(cat "{{api_port_file}}")
+
+    # Check if jq is available
+    if command -v jq >/dev/null 2>&1; then
+        JQ_CMD="jq ."
+    else
+        JQ_CMD="cat"
+        echo "==> Note: jq not installed, showing raw JSON"
+    fi
+
+    echo "==> Testing health endpoint..."
+    if curl -s "http://127.0.0.1:$api_port/api/v1/health" | $JQ_CMD; then
+        echo "✅ Health check passed"
+    else
+        echo "❌ Health check failed"
+    fi
+
+    echo "==> Testing marketplace stats..."
+    if curl -s "http://127.0.0.1:$api_port/api/v1/marketplace-stats" | $JQ_CMD; then
+        echo "✅ Stats endpoint passed"
+    else
+        echo "❌ Stats endpoint failed"
+    fi
+
+    echo "==> Testing scripts listing..."
+    if curl -s "http://127.0.0.1:$api_port/api/v1/scripts" | $JQ_CMD; then
+        echo "✅ Scripts listing passed"
+    else
+        echo "❌ Scripts listing failed"
+    fi
+
+    echo "==> ✅ All endpoint tests completed"
+
+# Build API server in release mode
+api-build:
+    @echo "==> Building API server (release mode)"
+    cd {{api_dir}} && cargo build --release
+    @echo "==> ✅ API server built successfully"
+
+# Run API server in foreground (for development)
+api-dev:
+    @echo "==> Starting API server in development mode"
+    cd {{api_dir}} && cargo run
+
+# Reset API database (development only)
+api-reset:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Resetting API database"
+
+    # Get the API port
+    if [ ! -f "{{api_port_file}}" ]; then
+        echo "❌ API server not running (no port file found)"
+        exit 1
+    fi
+    api_port=$(cat "{{api_port_file}}")
+
+    if command -v jq >/dev/null 2>&1; then
+        curl -X POST -s "http://127.0.0.1:$api_port/api/dev/reset-database" | jq .
+    else
+        curl -X POST -s "http://127.0.0.1:$api_port/api/dev/reset-database"
+    fi
 
 # =============================================================================
 # Build Targets
@@ -141,7 +252,6 @@ windows:
     {{scripts_dir}}/build_windows.sh
     cd {{flutter_dir}} && flutter build windows
 
-
 # =============================================================================
 # Testing
 # =============================================================================
@@ -149,12 +259,12 @@ windows:
 test:
     @echo "==> Running tests (output saved to logs/test-output.log)"
     @mkdir -p {{logs_dir}}
-    @just _rust-tests
-    @just _flutter-tests
+    @just rust-tests
+    @just flutter-tests
     @echo "✅ All tests passed! Full output saved to logs/test-output.log"
 
 # Internal Rust testing target
-_rust-tests:
+rust-tests:
     @echo "==> Rust linting and tests..."
     @cargo clippy --benches --tests --all-features --quiet 2>&1 | tee {{logs_dir}}/test-output.log
     @if grep -E "(error|warning)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust clippy found issues!"; exit 1; fi
@@ -163,34 +273,27 @@ _rust-tests:
     @if grep -E "(error|warning)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust formatting issues found!"; exit 1; fi
     @echo "✅ No formatting issues found"
     @cargo nextest run 2>&1 | tee -a {{logs_dir}}/test-output.log
-    @if grep -E "\bFAILED\b|\berror\b:\s" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust tests failed!"; exit 1; fi
+    @if grep -E "\\bFAILED\\b|\\berror\\b:\\s" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust tests failed!"; exit 1; fi
     @echo "✅ All Rust tests passed"
 
-
-
 # Internal Flutter testing target
-_flutter-tests:
-    @echo "==> Running Flutter tests with Cloudflare Workers..."
-    @just test-with-cloudflare
+flutter-tests:
+    @echo "==> Running Flutter tests with API server..."
+    @just test-with-api
 
-# Run Flutter tests with Cloudflare Workers
-test-with-cloudflare:
-    @echo "==> Running Flutter analysis..."
-    @echo "==> Cleaning up any existing test databases..."
-    @{{scripts_dir}}/test_db_manager.sh cleanup
-    @echo "==> Starting Cloudflare Workers for tests..."
-    @just cloudflare-test-up
-    @echo "==> Generating Cloudflare Workers types..."
-    @just cloudflare-types
+# Run Flutter tests with API server
+test-with-api:
+    @echo "==> Starting API server for tests..."
+    @just api-up
     @echo "==> Running Flutter analysis..."
     @cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log
     @if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi
     @echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
     @cd {{flutter_dir}} && flutter test --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log
-    @if grep -qiE "FAILED:|ERROR:|Some tests failed\." {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi
+    @if grep -qiE "FAILED:|ERROR:|Some tests failed\\." {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi
     @echo "✅ All Flutter tests passed"
-    @just cloudflare-test-down
+    @just api-down
 
 # =============================================================================
 # Cleanup
@@ -203,6 +306,7 @@ clean:
     rm -rf {{flutter_dir}}/build || true
     rm -f {{flutter_dir}}/build/linux/x64/*/bundle/lib/libicp_core.* || true
     rm -rf {{flutter_dir}}/linux/flutter/ephemeral || true
+    rm -rf {{api_dir}}/target/debug || true
 
 # Deep clean including dependencies
 distclean: clean
@@ -210,187 +314,32 @@ distclean: clean
     rm -rf {{root}}/target || true
     rm -rf {{flutter_dir}}/.dart_tool || true
     rm -rf {{flutter_dir}}/.gradle || true
-
-# =============================================================================
-# Cloudflare Workers Deployment
-# =============================================================================
-
-# Setup Cloudflare CLI and build deployment tools
-server-setup:
-    @echo "==> Setting up Cloudflare Workers tools"
-    @if command -v wrangler >/dev/null 2>&1; then \
-        echo "==> ✅ Wrangler CLI already installed"; \
-    else \
-        echo "==> Installing Wrangler CLI..."; \
-        npm install -g wrangler || { echo "❌ Failed to install Wrangler CLI. Please install manually: npm install -g wrangler"; exit 1; }; \
-    fi
-    @echo "==> Building Rust deployment tool"
-    cd {{root}}/server-deploy && cargo build --release
-
-# Deploy to Cloudflare with flexible arguments
-server +args="":
-    cd {{root}}/server-deploy && cargo run --bin server-deploy -- {{args}}
-
-# Deploy to Cloudflare with flexible arguments
-# Usage: just server-deploy --target local|prod [additional args]
-server-deploy +args="":
-    @echo "==> Deploying ICP Script Marketplace to Cloudflare Workers"
-    cd {{root}}/server-deploy && cargo run --bin server-deploy -- deploy {{args}}
-
-# Test Cloudflare deployment configuration
-# Usage: just server-test --target local|prod [additional args]
-server-test +args="":
-    @echo "==> Testing Cloudflare deployment configuration"
-    cd {{root}}/server-deploy && cargo run --bin server-deploy -- test {{args}}
-
-# Show Cloudflare configuration
-# Usage: just server-config --target local|prod
-server-config +args="":
-    @echo "==> Showing Cloudflare configuration"
-    cd {{root}}/server-deploy && cargo run --bin server-deploy -- config {{args}}
-
-# Bootstrap fresh Cloudflare instance
-# Usage: just server-bootstrap --target local|prod [additional args]
-server-bootstrap +args="":
-    @echo "==> Bootstrapping fresh Cloudflare Workers instance"
-    cd {{root}}/server-deploy && cargo run --bin server-deploy -- bootstrap {{args}}
-
-# Initialize Cloudflare configuration
-# Usage: just server-init --target local|prod [additional args]
-server-init +args="":
-    @echo "==> Initializing Cloudflare configuration"
-    cd {{root}}/server-deploy && cargo run --bin server-deploy -- init {{args}}
-
-
-# =============================================================================
-# Local Development Environment
-# =============================================================================
-
-# Start Cloudflare Workers for testing with process management
-cloudflare-test-up:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "==> Starting Cloudflare Workers for tests"
-
-    # Setup test environment
-    echo "==> Setting up test database..."
-    TEST_DB_NAME=$({{scripts_dir}}/test_db_manager.sh create "default")
-    export TEST_DB_NAME
-    echo "==> Using test database: $TEST_DB_NAME"
-
-    # Use wrangler manager script for fail-fast process management
-    exec {{agent_dir}}/wrangler-manager.sh start
-
-# Stop Cloudflare Workers process and cleanup test database
-cloudflare-test-down:
-    @echo "==> Stopping Cloudflare Workers process..."
-    @{{agent_dir}}/wrangler-manager.sh stop || echo "⚠️  Wrangler process was not running"
-    @echo "==> Cleaning up test database..."
-    @{{scripts_dir}}/test_db_manager.sh cleanup
-    @echo "==> Cloudflare Workers process stopped and test database cleaned up"
-
-# Show local Cloudflare Workers process logs
-cloudflare-local-logs:
-    @if [[ -f "/.dockerenv" ]]; then \
-        echo "==> Showing Cloudflare Workers process logs"; \
-        {{agent_dir}}/wrangler-manager.sh logs; \
-    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
-        echo "==> Showing Cloudflare Workers process logs from container"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent ./agent/wrangler-manager.sh logs; \
-    else \
-        echo "❌ Neither container nor Docker available - cannot show logs"; \
-        exit 1; \
-    fi
-
-# Reset local Cloudflare Workers environment (wipes all data)
-cloudflare-local-reset:
-    @if [[ -f "/.dockerenv" ]]; then \
-        echo "==> Resetting local Cloudflare Workers environment (wipes all data)"; \
-        cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM scripts;" || echo "Database already empty"; \
-        cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM reviews;" || echo "Database already empty"; \
-        cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM script_stats;" || echo "Database already empty"; \
-        echo "==> Local Cloudflare Workers environment reset complete"; \
-    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
-        echo "==> Resetting local Cloudflare Workers environment (wipes all data)"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM scripts;"' || echo "Database already empty"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM reviews;"' || echo "Database already empty"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM script_stats;"' || echo "Database already empty"; \
-        echo "==> Local Cloudflare Workers environment reset complete"; \
-    else \
-        echo "❌ Neither container nor Docker available - cannot reset database"; \
-        exit 1; \
-    fi
-
-# Initialize local Cloudflare Workers database
-cloudflare-local-init:
-    @if [[ -f "/.dockerenv" ]]; then \
-        echo "==> Initializing local Cloudflare Workers database"; \
-        cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --file=migrations/0001_initial_schema.sql; \
-        echo "==> Database initialized successfully"; \
-    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
-        echo "==> Initializing local Cloudflare Workers database"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --file=migrations/0001_initial_schema.sql'; \
-        echo "==> Database initialized successfully"; \
-    else \
-        echo "❌ Neither container nor Docker available - cannot initialize database"; \
-        exit 1; \
-    fi
-
-# Test local Cloudflare Workers endpoints
-cloudflare-local-test:
-    @echo "==> Testing Cloudflare Workers endpoints"
-    @echo "==> Testing health endpoint..."
-    @curl -s {{cloudflare_health_url}} | jq . || echo "Health check failed"
-    @echo "==> Testing marketplace stats..."
-    @curl -s http://localhost:{{cloudflare_port}}/api/v1/marketplace-stats | jq . || echo "Stats endpoint failed"
-    @echo "==> Testing featured scripts..."
-    @curl -s http://localhost:{{cloudflare_port}}/api/v1/scripts/featured | jq . || echo "Featured scripts failed"
-    @echo "==> Testing search endpoint..."
-    @curl -s -X POST -H "Content-Type: application/json" -d '{"query":"test","limit":5}' http://localhost:{{cloudflare_port}}/api/v1/scripts/search | jq . || echo "Search endpoint failed"
-    @echo "==> ✅ All endpoint tests completed"
-
-# Generate Cloudflare Workers types
-cloudflare-types:
-    @if command -v wrangler >/dev/null 2>&1; then \
-        echo "==> Generating Cloudflare Workers types..."; \
-        cd {{cloudflare_dir}} && wrangler types --config wrangler.local.jsonc; \
-        echo "==> ✅ Types generated successfully"; \
-    elif [[ -f "/.dockerenv" ]]; then \
-        echo "==> Generating Cloudflare Workers types..."; \
-        cd {{cloudflare_dir}} && wrangler types --config wrangler.local.jsonc; \
-        echo "==> ✅ Types generated successfully"; \
-    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
-        echo "==> Generating Cloudflare Workers types..."; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler types --config wrangler.local.jsonc'; \
-        echo "==> ✅ Types generated successfully"; \
-    else \
-        echo "❌ Neither wrangler nor Docker available - cannot generate types"; \
-        exit 1; \
-    fi
-
-# Show local Cloudflare Workers configuration
-cloudflare-local-config:
-    @echo "==> Local Cloudflare Workers Configuration"
-    @echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
-    @echo "==> Database: icp-marketplace-test (local D1)"
-    @echo "==> Environment: development"
-    @cd {{cloudflare_dir}} && wrangler whoami
-
-
+    rm -rf {{api_dir}}/target || true
 
 # =============================================================================
 # Flutter App Development
 # =============================================================================
 
-# Run Flutter app with local development environment
+# Run Flutter app with local API server
 flutter-local +args="":
-    @echo "==> Starting Flutter app with local Cloudflare Workers environment"
-    cd {{flutter_dir}} && flutter run -d chrome --dart-define=USE_CLOUDFLARE=true --dart-define=CLOUDFLARE_ENDPOINT=http://localhost:{{cloudflare_port}} {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Starting Flutter app with local API server"
+
+    # Get the API port
+    if [ ! -f "{{api_port_file}}" ]; then
+        echo "❌ API server not running. Start it with: just api-up"
+        exit 1
+    fi
+    api_port=$(cat "{{api_port_file}}")
+
+    echo "==> Using API endpoint: http://127.0.0.1:$api_port"
+    cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=http://127.0.0.1:$api_port {{args}}
 
 # Run Flutter app with production environment
 flutter-production +args="":
     @echo "==> Starting Flutter app with production environment"
-    cd {{flutter_dir}} && flutter run -d chrome --dart-define=CLOUDFLARE_ENDPOINT=https://icp-mp.kalaj.org {{args}}
+    cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=https://api.icp-marketplace.example.com {{args}}
 
 # =============================================================================
 # Help and Information

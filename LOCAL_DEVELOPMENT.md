@@ -1,268 +1,291 @@
-# Local Development with Cloudflare Workers
+# Local Development with Poem API Server
 
-This guide covers setting up and running the ICP Script Marketplace with local Cloudflare Workers and D1 database for development and testing.
+This guide covers setting up and running the ICP Script Marketplace with the local Poem-based API server for development and testing.
 
 ## Quick Start
 
 Install dependencies with `scripts/bootstrap.sh`
 Install just-build with `./install-just.sh`
 
-1. **Start local Cloudflare Workers**: `just cloudflare-local-up`
-2. **Initialize database**: `just cloudflare-local-init`
+1. **Start local API server**: `just api-up`
+2. **Run Flutter tests**: `just test`
 3. **Run Flutter app locally**: `just flutter-local`
 
 ## Detailed Setup
 
-### 1. Local Cloudflare Workers Environment
+### 1. Local API Server Environment
 
-The project uses Wrangler CLI for local Cloudflare Workers development:
+The project uses a Rust-based Poem API server for local development:
 
 ```bash
-# Start local Cloudflare Workers
-just cloudflare-local-up
+# Start local API server (auto-assigns random port)
+just api-up
 
-# API endpoint: http://localhost:8787
-# Health check: http://localhost:8787/api/v1/health
+# The server will start on a random port and save it to /tmp/icp-api.port
+# Example output:
+#   ==> ✅ API server is healthy and ready!
+#   ==> API Endpoint: http://127.0.0.1:45123
+#   ==> Health Check: http://127.0.0.1:45123/api/v1/health
 
 # Stop when done
-just cloudflare-local-down
+just api-down
+
+# Restart the server
+just api-restart
 
 # View logs
-just cloudflare-local-logs
+just api-logs
 
-# Reset database (wipes all data)
-just cloudflare-local-reset
+# Test API endpoints
+just api-test
+
+# Reset database (wipes all data, development only)
+just api-reset
 ```
 
 ### 2. Database Setup
 
-Cloudflare Workers uses D1 database (SQLite-based):
+The API server uses SQLite database:
 
 ```bash
-# Initialize database with migrations
-just cloudflare-local-init
+# Database is automatically initialized on first startup
+# No manual setup required!
 
-# Run database migrations manually
-cd cloudflare-api && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql
-
-# View database contents
-cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="SELECT * FROM scripts LIMIT 10"
+# To reset the database:
+just api-reset
 ```
 
-### 3. Server-Deploy CLI Tool
-
-The `server-deploy` CLI tool manages Cloudflare Workers deployment:
+### 3. Building the API Server
 
 ```bash
-# Local development
-server-deploy --target local <command>
+# Build in release mode for better performance
+just api-build
 
-# Production deployment
-server-deploy --target prod <command>
+# Run in development mode (foreground, with auto-reload)
+just api-dev
 ```
-
-Available commands:
-- `bootstrap` - Set up fresh Cloudflare environment
-- `deploy` - Deploy Workers and database migrations
-- `config` - Show current configuration
-- `test` - Test API connectivity
-- `clean` - Clean up resources
 
 ### 4. Flutter App Configuration
 
-The Flutter app automatically uses Cloudflare Workers:
+The Flutter app automatically uses the API server via the port file:
 
 ```bash
-# Local development (default)
-just flutter-local  # Uses http://localhost:8787
+# Local development (uses dynamic port from /tmp/icp-api.port)
+just flutter-local
 
-# Production
-just flutter-production  # Uses production Cloudflare Workers endpoint
+# For production
+just flutter-production
 ```
 
-Environment variables:
-- `USE_CLOUDFLARE=true` (default) - Use Cloudflare Workers
-- `CLOUDFLARE_ENDPOINT=http://localhost:8787` - Local endpoint
-- `CLOUDFLARE_ENDPOINT=<production-url>` - Production endpoint
+The test helpers automatically read the port from `/tmp/icp-api.port`, so no manual configuration is needed.
 
 ### 5. Complete Testing Workflow
 
 ```bash
-# 1. Start local Cloudflare Workers
-just cloudflare-local-up
+# 1. Start local API server
+just api-up
 
-# 2. Initialize database
-just cloudflare-local-init
+# 2. Run all tests (Rust + Flutter)
+just test
 
-# 3. Test API endpoints
-just cloudflare-local-test
-
-# 4. Run Flutter app
+# 3. Run Flutter app for manual testing
 just flutter-local
 
-# 5. Clean up when done
-just cloudflare-local-down
+# 4. Clean up when done
+just api-down
 ```
 
 ## Available Commands
 
-### Cloudflare Workers Management
-- `just cloudflare-local-up` - Start local Cloudflare Workers server
-- `just cloudflare-local-down` - Stop local Cloudflare Workers server
-- `just cloudflare-local-logs` - Show server logs
-- `just cloudflare-local-reset` - Reset D1 database (deletes all data)
+### API Server Management
+- `just api-up [port]` - Start API server (port=0 for random, default)
+- `just api-down` - Stop API server
+- `just api-restart` - Restart API server
+- `just api-logs` - Show server logs
+- `just api-test` - Test all API endpoints
+- `just api-reset` - Reset database (development only)
+- `just api-build` - Build server in release mode
+- `just api-dev` - Run server in development mode (foreground)
 
-### CLI Commands (Local)
-- `just cloudflare-local-init` - Initialize D1 database with migrations
-- `just cloudflare-local-test` - Test local API endpoints
-- `just cloudflare-local-config` - Show local configuration
-- `server-deploy bootstrap` - Bootstrap fresh Cloudflare environment
+### Testing
+- `just test` - Run all tests (starts API server automatically)
+- `just rust-tests` - Run only Rust tests
+- `just flutter-tests` - Run only Flutter tests (with API server)
 
 ### Flutter App
-- `just flutter-local` - Run Flutter app with local Cloudflare Workers endpoint
+- `just flutter-local` - Run Flutter app with local API server
 - `just flutter-production` - Run Flutter app with production endpoint
 
 ## Architecture
 
 ### Local Environment
-- **Cloudflare Workers API**: http://localhost:8787
-- **D1 Database**: Local SQLite database managed by Wrangler
-- **Health Check**: http://localhost:8787/api/v1/health
-- **API Endpoints**: http://localhost:8787/api/*
+- **Poem API Server**: http://127.0.0.1:[random-port] (port stored in `/tmp/icp-api.port`)
+- **SQLite Database**: `poem-backend/data/dev.db`
+- **Health Check**: `http://127.0.0.1:[port]/api/v1/health`
+- **API Endpoints**: `http://127.0.0.1:[port]/api/*`
 
-### Configuration Management
-- **Target Switching**: `--target` flag automatically switches endpoints
-- **Config File**: Stored in `~/.config/icp-marketplace/config.json`
-- **Environment Detection**: Flutter app detects local vs production automatically
-- **Database Migrations**: Managed through `cloudflare-api/migrations/` directory
+### Dynamic Port Allocation
+- Server binds to port 0 by default, which assigns a random available port
+- Actual port is logged and saved to `/tmp/icp-api.port`
+- Flutter tests automatically read the port file
+- No port conflicts with other services!
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Workers server not starting**
+**API server not starting**
 ```
-Error: Port 8787 already in use
+Error: Failed to bind to address
 ```
-- Solution: Kill existing process or use different port
-- Run `lsof -ti:8787 | xargs kill -9` to kill process
+- Solution: Check logs at `logs/api-server.log`
+- Run `just api-down` to clean up any stale processes
 
-**Database connection errors**
+**Port file not found**
 ```
-Error: D1 database binding not found
+Error: API server port file not found at /tmp/icp-api.port
 ```
-- Solution: Ensure database is initialized
-- Run `just cloudflare-local-init` to create database
+- Solution: Start the API server with `just api-up`
+- Verify it's running with `just api-test`
 
 **Connection refused**
 ```
 Error: Connection refused
 ```
-- Solution: Verify Cloudflare Workers server is running
-- Run `ps aux | grep wrangler` to check server status
+- Solution: Verify API server is running
+- Check `just api-logs` for errors
+- Restart with `just api-restart`
 
-**Flutter app can't connect**
-- Solution: Verify local Cloudflare Workers is running
-- Check API endpoint configuration in `AppConfig`
-- Ensure firewall allows port 8787
+**Tests failing**
+- Solution: Ensure API server is running (`just api-up`)
+- Check server logs: `just api-logs`
+- Try resetting database: `just api-reset`
 
 ### Debugging Commands
 
 ```bash
-# Check server status
-ps aux | grep wrangler
-
-# Check server logs
-just cloudflare-local-logs
+# Check if server is running
+cat /tmp/icp-api.port
 
 # Test API connectivity
-curl http://localhost:8787/api/v1/health
-curl http://localhost:8787/api/v1/marketplace-stats
+just api-test
 
-# Check configuration
-just cloudflare-local-config
+# Or manually test endpoints
+API_PORT=$(cat /tmp/icp-api.port)
+curl http://127.0.0.1:$API_PORT/api/v1/health
+curl http://127.0.0.1:$API_PORT/api/v1/marketplace-stats
 
-# Test all endpoints
-just cloudflare-local-test
+# Check server logs
+just api-logs
+
+# Check full test output
+cat logs/test-output.log
 ```
 
 ## Development Tips
 
-### Environment Switching
-- Use `--target local` for local development
-- Use `--target prod` (default) for production deployment
-- CLI automatically updates configuration file
+### Fast Iteration
+- Use `just api-dev` for development with live updates
+- API server starts quickly (2-3 seconds in release mode)
+- No build step needed between code changes in dev mode
 
 ### Testing Strategy
-1. Test features locally first
-2. Deploy to production when stable
-3. Use separate databases for isolation
+1. Write failing tests first (TDD)
+2. Run `just test` frequently
+3. Check `logs/test-output.log` for detailed errors
+4. Use `just api-reset` to clean test data between runs
 
 ### Performance Considerations
-- Local development is faster than production
+- Release builds are much faster: `just api-build`
+- SQLite is optimized for fast local operations
 - No network latency for API calls
-- D1 database is optimized for fast local operations
+- Dynamic ports prevent conflicts
 
 ## Security Notes
 
-- Local Cloudflare Workers instance is not secured
+- Local API server is not secured
 - Use only for development/testing
 - Don't commit production secrets
-- Reset database regularly to clean test data
+- Database resets are only available in development mode
 
 ## Data Management
 
 ### Backup Local Data
 ```bash
-# Export D1 database
-cd cloudflare-api && wrangler d1 export icp-marketplace-db --output=backup.sql
+# SQLite database is at poem-backend/data/dev.db
+cp poem-backend/data/dev.db poem-backend/data/backup.db
 
-# Restore D1 database
-cd cloudflare-api && wrangler d1 import icp-marketplace-db --input=backup.sql
+# Restore from backup
+cp poem-backend/data/backup.db poem-backend/data/dev.db
+just api-restart
 ```
 
 ### Reset Environment
 ```bash
-# Complete reset (wipes all data)
-just cloudflare-local-reset
+# Reset database via API
+just api-reset
 
-# Or manually
-cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;"
+# Or manually delete the database
+just api-down
+rm poem-backend/data/dev.db
+just api-up
 ```
 
 ## API Endpoints Reference
 
 ### Available Endpoints
 - `GET /api/v1/health` - Health check
+- `GET /api/v1/ping` - Simple ping test
 - `GET /api/v1/marketplace-stats` - Marketplace statistics
-- `GET /api/v1/scripts/featured` - Featured scripts
-- `GET /api/v1/scripts/trending` - Trending scripts
-- `POST /api/v1/scripts/search` - Search scripts
-- `GET /api/v1/scripts/{id}` - Get script details
-- `GET /api/v1/scripts/category/{category}` - Scripts by category
+- `GET /api/v1/scripts` - List all public scripts (query: limit, offset, category)
+- `GET /api/v1/scripts/:id` - Get script by ID
+- `GET /api/v1/scripts/count` - Get total scripts count
+- `POST /api/dev/reset-database` - Reset database (development only)
 
 ### Testing Endpoints
 ```bash
+# Get the current port
+API_PORT=$(cat /tmp/icp-api.port)
+
 # Health check
-curl http://localhost:8787/api/v1/health
+curl http://127.0.0.1:$API_PORT/api/v1/health | jq .
 
 # Get marketplace stats
-curl http://localhost:8787/api/v1/marketplace-stats
+curl http://127.0.0.1:$API_PORT/api/v1/marketplace-stats | jq .
 
-# Search scripts
-curl -X POST -H "Content-Type: application/json" \
-  -d '{"query":"test","limit":5}' \
-  http://localhost:8787/api/v1/scripts/search
+# List scripts
+curl http://127.0.0.1:$API_PORT/api/v1/scripts | jq .
+
+# Get scripts count
+curl http://127.0.0.1:$API_PORT/api/v1/scripts/count | jq .
 ```
 
 ## Integration with CI/CD
 
-The target system makes it easy to integrate local testing into CI/CD pipelines:
+The justfile makes it easy to integrate local testing into CI/CD pipelines:
 
 ```bash
 # In CI pipeline
-just cloudflare-local-up
-just cloudflare-local-init
-# Run tests
-just cloudflare-local-down
+just api-up
+just test
+just api-down
 ```
+
+The tests automatically start/stop the API server, so you can also just run:
+
+```bash
+just test
+```
+
+## Migration from Cloudflare Workers
+
+This project previously used Cloudflare Workers. The Poem-based API server provides:
+
+✅ **No port conflicts** - random port allocation
+✅ **Faster startup** - 2-3 seconds vs 10+ seconds
+✅ **Better debugging** - standard Rust tooling
+✅ **Simpler setup** - no wrangler/node dependencies
+✅ **Type safety** - compile-time guarantees
+✅ **Cleaner architecture** - easier to test and maintain
+
+For legacy Cloudflare Workers documentation, see `cloudflare-api/README.md`.

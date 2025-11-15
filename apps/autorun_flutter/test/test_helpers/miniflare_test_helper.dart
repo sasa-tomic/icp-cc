@@ -1,19 +1,30 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
 import 'miniflare_script_repository.dart';
 
-/// Test helper utilities for Miniflare integration testing
+/// Test helper utilities for API server integration testing
 class MiniflareTestHelper {
-  static const String defaultBaseUrl = 'http://localhost:8787';
+  static String get defaultBaseUrl {
+    final portFile = File('/tmp/icp-api.port');
+    if (!portFile.existsSync()) {
+      throw Exception(
+        'API server port file not found at /tmp/icp-api.port. '
+        'Please start the API server with: just api-up'
+      );
+    }
+    final port = portFile.readAsStringSync().trim();
+    return 'http://127.0.0.1:$port';
+  }
   
   /// Check if Miniflare server is running and available
   static Future<bool> isMiniflareRunning({String? baseUrl}) async {
     try {
       final response = await http.get(
         Uri.parse('${baseUrl ?? defaultBaseUrl}/'),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 10));
 
       // Any response (including 404) means the server is running
       return response.statusCode >= 200 && response.statusCode < 500;
@@ -50,7 +61,7 @@ class MiniflareTestHelper {
     );
   }
 
-  /// Setup test environment with Miniflare checks
+  /// Setup test environment with API server checks
   static Future<void> setupMiniflareTestEnvironment({
     String? baseUrl,
     bool requireServer = true, // Changed default to true for e2e tests
@@ -59,8 +70,8 @@ class MiniflareTestHelper {
 
     if (!isRunning) {
       throw Exception(
-        'Miniflare server is not running at ${baseUrl ?? defaultBaseUrl}. '
-        'Start it with: npm run dev in the cloudflare-api directory. '
+        'API server is not running at ${baseUrl ?? defaultBaseUrl}. '
+        'Start it with: just api-up. '
         'E2E tests MUST NOT run in offline mode or use mocks/fallbacks.',
       );
     }

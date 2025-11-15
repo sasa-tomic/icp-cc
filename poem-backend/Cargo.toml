@@ -1,0 +1,35 @@
+[workspace]
+
+[package]
+name = "icp-marketplace-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+poem = "3.0"
+tokio = { version = "1.0", features = ["full"] }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Time/UUID handling
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+
+# Config
+dotenv = "0.15"
+
+[dev-dependencies]
+tokio-test = "0.4"

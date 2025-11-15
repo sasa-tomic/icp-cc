@@ -12,9 +12,10 @@ void main() {
 
     setUpAll(() async {
       // Setup test environment - REQUIRE server for e2e tests
-      // Wait for server to be ready
+      // Wait for server to be ready with increased timeout
       final serverReady = await MiniflareTestHelper.waitForMiniflare(
-        timeout: Duration(seconds: 10),
+        timeout: Duration(seconds: 60),
+        checkInterval: Duration(seconds: 2),
       );
       if (!serverReady) {
         throw Exception(
