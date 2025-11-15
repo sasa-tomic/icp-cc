@@ -245,8 +245,9 @@ class MarketplaceOpenApiService {
   bool _isValidCanisterId(String canisterId) {
     // Basic validation for ICP canister ID format
     // Supports both 5-5-5-5-3 and 5-5-5-5-5-5 formats
-    final regex = RegExp(r'^[a-z0-9]{5}(-[a-z0-9]{5}){4,5}$');
-    return regex.hasMatch(canisterId);
+    final regex55553 = RegExp(r'^[a-z0-9]{5}(-[a-z0-9]{5}){3}-[a-z0-9]{3}$');
+    final regex555555 = RegExp(r'^[a-z0-9]{5}(-[a-z0-9]{5}){5}$');
+    return regex55553.hasMatch(canisterId) || regex555555.hasMatch(canisterId);
   }
 
   // Search scripts by canister ID (specific functionality for ICP integration)
@@ -373,34 +374,30 @@ class MarketplaceOpenApiService {
   // Validate script syntax (service that checks if Lua code is valid)
   Future<ScriptValidationResult> validateScript(String luaSource) async {
     try {
-      // For now, do basic client-side validation since Cloudflare endpoint doesn't exist yet
-      final errors = <String>[];
-      final warnings = <String>[];
-      
-      // Basic Lua syntax validation
-      if (luaSource.trim().isEmpty) {
-        errors.add('Lua source cannot be empty');
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/scripts/validate'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'lua_source': luaSource,
+            }),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
-      
-      // Check for potentially dangerous functions
-      final dangerousPatterns = [
-        r'os\.execute',
-        r'io\.open',
-        r'dofile',
-        r'loadfile',
-        r'require',
-      ];
-      
-      for (final pattern in dangerousPatterns) {
-        if (RegExp(pattern).hasMatch(luaSource)) {
-          warnings.add('Potentially dangerous function detected: $pattern');
-        }
+
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(responseData['error'] ?? 'Validation failed');
       }
-      
+
+      final data = responseData['data'];
       return ScriptValidationResult(
-        isValid: errors.isEmpty,
-        errors: errors,
-        warnings: warnings,
+        isValid: data['is_valid'] ?? false,
+        errors: List<String>.from(data['errors'] ?? []),
+        warnings: List<String>.from(data['warnings'] ?? []),
       );
 
     } catch (e) {

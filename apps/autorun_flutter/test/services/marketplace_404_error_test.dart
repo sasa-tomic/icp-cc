@@ -1,8 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import '../test_helpers/wrangler_manager.dart';
 
 void main() {
   group('Marketplace 404 Error Handling', () {
+    setUpAll(() async {
+      // Initialize wrangler for testing
+      await WranglerManager.initialize();
+    });
+
+    tearDownAll(() async {
+      // Cleanup wrangler processes
+      await WranglerManager.cleanup();
+    });
     test('should handle HTTP 404 gracefully when opening Marketplace', () async {
       final service = MarketplaceOpenApiService();
 

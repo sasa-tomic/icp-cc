@@ -82,8 +82,6 @@ impl AppConfig {
     }
 }
 
-
-
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum IndexType {

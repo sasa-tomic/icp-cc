@@ -1,15 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import '../test_helpers/wrangler_manager.dart';
 
 void main() {
   group('Cloudflare Workers API Integration Tests', () {
     late MarketplaceOpenApiService apiService;
 
-    setUpAll(() {
+    setUpAll(() async {
+      // Initialize wrangler for testing
+      await WranglerManager.initialize();
+      
       // Configure for local Cloudflare Workers testing
       AppConfig.debugPrintConfig();
       apiService = MarketplaceOpenApiService();
+    });
+
+    tearDownAll(() async {
+      // Cleanup wrangler processes
+      await WranglerManager.cleanup();
     });
 
     test('should get marketplace stats from Cloudflare Workers', () async {

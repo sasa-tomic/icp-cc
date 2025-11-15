@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
+import '../test_helpers/wrangler_manager.dart';
 
 void main() {
   group('MarketplaceOpenApiService', () {
@@ -8,6 +9,9 @@ void main() {
     late bool hasRealMarketplace;
 
     setUpAll(() async {
+      // Initialize wrangler for testing
+      await WranglerManager.initialize();
+      
       // Suppress debug output during tests to avoid confusing messages
       suppressDebugOutput = true;
 
@@ -23,9 +27,12 @@ void main() {
       }
     });
 
-    tearDownAll(() {
+    tearDownAll(() async {
       // Re-enable debug output after tests
       suppressDebugOutput = false;
+      
+      // Cleanup wrangler processes
+      await WranglerManager.cleanup();
     });
 
     setUp(() {
@@ -110,15 +117,12 @@ void main() {
     });
 
     test('should handle script validation correctly', () async {
-      final result = await service.validateScript('invalid lua syntax here');
+      final result = await service.validateScript('function test() unclosed brace {');
 
       expect(result.isValid, isFalse);
       expect(result.errors, isA<List<String>>());
-      // Should either have validation errors or connection errors
-      if (result.errors.isEmpty) {
-        // If no validation errors, the service is working and syntax is actually valid
-        expect(result.warnings, isA<List<String>>());
-      }
+      expect(result.errors.isNotEmpty, isTrue);
+      expect(result.warnings, isA<List<String>>());
     });
 
     group('Search functionality', () {
