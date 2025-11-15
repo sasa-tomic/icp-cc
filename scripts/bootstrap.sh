@@ -31,7 +31,8 @@ sudo apt-get install -y --no-install-recommends \
   "${JAVA_PKG}" curl unzip zip ca-certificates \
   libstdc++6 libgcc-s1 \
   android-sdk-platform-tools-common \
-  build-essential pkg-config git # provides udev rules for adb on Debian/Ubuntu
+  build-essential pkg-config git \
+  libgtk-3-dev libwebkit2gtk-4.1-dev libglib2.0-dev libjson-glib-dev libsecret-1-dev libayatana-appindicator3-dev # provides udev rules for adb on Debian/Ubuntu
 
 mkdir -p "${SDK_ROOT}"
 

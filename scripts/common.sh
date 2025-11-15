@@ -18,6 +18,31 @@ ensure_tools() {
     echo "ERROR: cargo not found on PATH (install Rust toolchain)." >&2
     exit 2
   fi
+  # Check for Linux Flutter build tools when on Linux
+  if [[ "$(uname)" == "Linux" ]]; then
+    if ! command -v cmake >/dev/null 2>&1; then
+      echo "ERROR: cmake is required for Linux Flutter builds." >&2
+      echo "Install with: sudo apt install cmake" >&2
+      exit 2
+    fi
+    if ! command -v ninja >/dev/null 2>&1; then
+      echo "ERROR: ninja is required for Linux Flutter builds." >&2
+      echo "Install with: sudo apt install ninja-build" >&2
+      exit 2
+    fi
+    if ! command -v g++ >/dev/null 2>&1 && ! command -v clang++ >/dev/null 2>&1; then
+      echo "ERROR: C++ compiler (g++ or clang++) is required for Linux Flutter builds." >&2
+      echo "Install with: sudo apt install build-essential" >&2
+      exit 2
+    fi
+    # Check for GTK development libraries
+    if ! pkg-config --exists gtk+-3.0; then
+      echo "ERROR: GTK+ 3.0 development libraries are required for Linux Flutter builds." >&2
+      echo "Install with:" >&2
+      echo "sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libglib2.0-dev libjson-glib-dev libsecret-1-dev libayatana-appindicator3-dev" >&2
+      exit 2
+    fi
+  fi
 }
 
 ensure_rust_targets_android() {
