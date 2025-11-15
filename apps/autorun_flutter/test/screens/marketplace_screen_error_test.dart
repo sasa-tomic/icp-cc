@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('MarketplaceScreen Error Formatting', () {
+  group('ScriptsScreen Marketplace Error Formatting', () {
     test('should format HTTP 404 error with user-friendly message', () {
-      // Simulate the error formatting
+      // Simulate error formatting from the integrated marketplace functionality
       final error = 'Exception: HTTP 404: Not Found';
       final result = _testFormatErrorMessage(error);
 
@@ -43,14 +43,14 @@ void main() {
   });
 }
 
-// Helper function to test the private error formatting logic
+// Helper function to test error formatting logic from ScriptsScreen
 String _testFormatErrorMessage(String error) {
   // Provide user-friendly messages for common errors
   if (error.contains('HTTP 404') || error.contains('Not Found')) {
     return 'Marketplace is currently unavailable\n\nThe script marketplace server is not responding. This may be due to maintenance or deployment issues. Please try again later.\n\nTechnical details: $error';
   }
   if (error.contains('Connection refused') || error.contains('Network is unreachable')) {
-    return 'Network connection failed\n\nUnable to connect to the marketplace. Please check your internet connection and try again.\n\nTechnical details: $error';
+    return 'Network connection failed\n\nUnable to connect to marketplace. Please check your internet connection and try again.\n\nTechnical details: $error';
   }
   if (error.contains('Connection timeout')) {
     return 'Connection timeout\n\nThe marketplace is taking too long to respond. Please check your connection and try again.\n\nTechnical details: $error';

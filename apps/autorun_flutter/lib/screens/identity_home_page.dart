@@ -7,6 +7,7 @@ import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
 import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/animated_fab.dart';
 
 class IdentityHomePage extends StatefulWidget {
   const IdentityHomePage({super.key});
@@ -205,84 +206,260 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Identities'),
+        title: const Text('Identity Manager'),
         actions: <Widget>[
-          IconButton(
-            onPressed: _controller.isBusy ? null : _controller.refresh,
-            tooltip: 'Reload',
-            icon: const Icon(Icons.refresh),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              onPressed: _controller.isBusy ? null : () {
+                HapticFeedback.lightImpact();
+                _controller.refresh();
+              },
+              tooltip: 'Refresh identities',
+              icon: Icon(
+                Icons.refresh_rounded,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
         ],
       ),
-      body: Builder(
-        builder: (BuildContext context) {
-          if (showLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (identities.isEmpty) {
-            return const EmptyState(
-              icon: Icons.verified_user,
-              title: 'No identities yet',
-              subtitle: 'Tap "New identity" to generate your first ICP identity.',
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+            ],
+          ),
+        ),
+        child: Builder(
+          builder: (BuildContext context) {
+            if (showLoading) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.verified_user_rounded,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Loading Identities...',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const CircularProgressIndicator(),
+                  ],
+                ),
+              );
+            }
+            if (identities.isEmpty) {
+              return EmptyState(
+                icon: Icons.verified_user_rounded,
+                title: 'No Identities Yet',
+                subtitle: 'Create your first ICP identity to start interacting with the Internet Computer blockchain',
+                action: _showCreationSheet,
+                actionLabel: 'Create Identity',
+              );
+            }
+            return RefreshIndicator(
+              onRefresh: _controller.refresh,
+              child: ListView.separated(
+                padding: const EdgeInsets.all(20),
+                itemCount: identities.length,
+                separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 16),
+                itemBuilder: (BuildContext context, int index) {
+                  final IdentityRecord record = identities[index];
+                  final String principalText = PrincipalUtils.textFromRecord(record);
+                  final String principalPrefix = principalText.length >= 8 ? principalText.substring(0, 8) : principalText;
+                  
+                  return Hero(
+                    tag: 'identity_${record.id}',
+                    child: Card(
+                      elevation: 4,
+                      shadowColor: Colors.black.withValues(alpha: 0.1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _copyToClipboard('Principal', PrincipalUtils.textFromRecord(record));
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
+                            children: [
+                              // Avatar with gradient
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Theme.of(context).colorScheme.primary,
+                                      Theme.of(context).colorScheme.secondary,
+                                    ],
+                                  ),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    record.label.isNotEmpty 
+                                        ? record.label.substring(0, 2).toUpperCase()
+                                        : '#',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              
+                              const SizedBox(width: 20),
+                              
+                              // Identity info
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      record.label,
+                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 18,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '$principalPrefix...',
+                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 11,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _subtitleFor(record),
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              // Action menu
+                              PopupMenuButton<_IdentityAction>(
+                                onSelected: (_IdentityAction action) {
+                                  HapticFeedback.selectionClick();
+                                  _handleAction(action, record);
+                                },
+                                icon: Icon(
+                                  Icons.more_vert_rounded,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                itemBuilder: (BuildContext context) => <PopupMenuEntry<_IdentityAction>>[
+                                  PopupMenuItem<_IdentityAction>(
+                                    value: _IdentityAction.showDetails,
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.info_outline_rounded, size: 20),
+                                        const SizedBox(width: 12),
+                                        const Text('Show details'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem<_IdentityAction>(
+                                    value: _IdentityAction.rename,
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit_rounded, size: 20),
+                                        const SizedBox(width: 12),
+                                        const Text('Rename'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuDivider(),
+                                  PopupMenuItem<_IdentityAction>(
+                                    value: _IdentityAction.delete,
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                                        const SizedBox(width: 12),
+                                        const Text('Delete', style: TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             );
-          }
-          return RefreshIndicator(
-            onRefresh: _controller.refresh,
-            child: ListView.separated(
-              padding: const EdgeInsets.only(bottom: 96, top: 8),
-              itemCount: identities.length,
-              separatorBuilder: (BuildContext context, int index) => const Divider(height: 1),
-              itemBuilder: (BuildContext context, int index) {
-                final IdentityRecord record = identities[index];
-                final String principalText = PrincipalUtils.textFromRecord(record);
-                final String principalPrefix = principalText.length >= 5 ? principalText.substring(0, 5) : principalText;
-                return Dismissible(
-                  key: ValueKey<String>(record.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: const <Widget>[
-                        Icon(Icons.delete),
-                        SizedBox(width: 8),
-                        Text('Delete'),
-                      ],
-                    ),
-                  ),
-                  confirmDismiss: (_) async {
-                    await _confirmAndDelete(record);
-                    return false;
-                  },
-                  child: ListTile(
-                    title: Text(record.label),
-                    subtitle: Text('$principalPrefix • ${_subtitleFor(record)}'),
-                    leading: CircleAvatar(
-                      child: Text(record.label.isNotEmpty ? record.label.substring(0, 1).toUpperCase() : '#'),
-                    ),
-                    onTap: () => _copyToClipboard('Principal', PrincipalUtils.textFromRecord(record)),
-                    trailing: PopupMenuButton<_IdentityAction>(
-                      onSelected: (_IdentityAction action) => _handleAction(action, record),
-                      itemBuilder: (BuildContext context) => <PopupMenuEntry<_IdentityAction>>[
-                        const PopupMenuItem<_IdentityAction>(value: _IdentityAction.showDetails, child: Text('Show details')),
-                        const PopupMenuItem<_IdentityAction>(value: _IdentityAction.rename, child: Text('Rename')),
-                        const PopupMenuItem<_IdentityAction>(value: _IdentityAction.delete, child: Text('Delete')),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-        },
+          },
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: AnimatedFab(
         heroTag: 'identities_fab',
-        onPressed: _controller.isBusy ? null : _showCreationSheet,
-        icon: const Icon(Icons.add),
-        label: const Text('New identity'),
+        onPressed: _controller.isBusy ? null : () {
+          HapticFeedback.mediumImpact();
+          _showCreationSheet();
+        },
+        icon: const Icon(Icons.add_rounded),
+        label: 'New Identity',
       ),
     );
   }
