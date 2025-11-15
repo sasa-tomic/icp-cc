@@ -13,11 +13,14 @@
 
 ## Appwrite deployment
 
-- Add the ability to emulate Appwrite or to spin up Appwrite locally for tests
+- Add the ability to emulate Appwrite or to spin up Appwrite locally (e.g. with docker) for tests
+- Deploy the latest code to the prod appwrite and fix any issues that may arrise
+- Add rust tests with a locally spinned up appwrite that deployment and redeployment works
 
 ## ICP Autorun Marketplace
 
 - For script search functionality, run tests against a real marketplace instance so that we don't get errors in tests. Also update tests to not ignore these failures - we need to detect if there is incompatibility or a bug
+- Marketplace in app currently seems to be using localhost, and it should instead be using the production instance on appwrite.io - investigate and set the correct URL
 
 ### Payment Processing (Priority: High - Next Phase)
 - Integrate with icpay.org for script payments
