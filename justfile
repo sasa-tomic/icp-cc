@@ -63,10 +63,10 @@ test:
     @echo "==> Running Rust linting and tests"
     @echo "==> Full test output will be saved to logs/test-output.log"
     @mkdir -p logs
-    @cargo clippy --benches --tests --all-features --quiet 2>&1 | tee logs/test-output.log | grep -E "(error|warning)" || true
-    @cargo clippy --quiet 2>&1 | tee -a logs/test-output.log | grep -E "(error|warning)" || true
-    @cargo fmt --all --quiet 2>&1 | tee -a logs/test-output.log | grep -E "(error|warning)" || true
-    @cargo nextest run 2>&1 | tee -a logs/test-output.log | grep -E "(error|FAILED|Summary)" || true
+    @cargo clippy --benches --tests --all-features --quiet 2>&1 | tee logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust clippy found issues!"; exit 1; } || echo "✅ No clippy issues found"
+    @cargo clippy --quiet 2>&1 | tee -a logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust clippy found issues!"; exit 1; } || echo "✅ No clippy issues found"
+    @cargo fmt --all --quiet 2>&1 | tee -a logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust formatting issues found!"; exit 1; } || echo "✅ No formatting issues found"
+    @cargo nextest run 2>&1 | tee -a logs/test-output.log | grep -E "(error|FAILED|Summary)" || echo "✅ Rust tests completed"
     @echo "==> Running Flutter tests with Cloudflare Workers..."
     @just test-with-cloudflare || { echo "❌ Tests failed! Check logs/test-output.log for details"; exit 1; }
     @echo "✅ All tests passed! Full output saved to logs/test-output.log"
@@ -76,9 +76,9 @@ test-with-cloudflare:
     @echo "==> Starting Cloudflare Workers for tests..."
     @just cloudflare-test-up
     @echo "==> Running Flutter analysis..."
-    @cd {{root}}/apps/autorun_flutter && flutter analyze --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E "(error|warning)" || true
+    @cd {{root}}/apps/autorun_flutter && flutter analyze --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{root}}/apps/autorun_flutter && flutter test --concurrency $(nproc) --machine --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E '"error"|"result":"error' | wc -l | xargs -I {} echo "Found {} test errors" || echo "No test errors found"
+    @cd {{root}}/apps/autorun_flutter && flutter test --concurrency $(nproc) --machine --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E '"error"|"result":"error' | wc -l | xargs -I {} sh -c 'if [ {} -gt 0 ]; then echo "❌ Found {} test errors"; exit 1; else echo "✅ No test errors found"; fi'
     @echo "==> Stopping Cloudflare Workers..."
     @just cloudflare-test-down
 
