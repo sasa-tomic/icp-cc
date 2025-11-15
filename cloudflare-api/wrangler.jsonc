@@ -28,7 +28,7 @@
 		"ENVIRONMENT": "production"
 	},
 	"routes": [
-		{ "pattern": "icp-mp.kalaj.org/*", "zone_name": "kalaj.org" }
+		{ "pattern": "icp-mp.kalaj.org", "zone_name": "kalaj.org", "custom_domain": true }
 	],
 	"workers_dev": true
 	/**
