@@ -28,7 +28,7 @@ extract_and_categorize() {
 
     # Define categories and their patterns (order matters!)
     declare -A categories=(
-        ["Common commands"]="^(test|test-machine|clean|distclean)$"
+        ["Common commands"]="^(test|clean|distclean)$"
         ["Build commands"]="^(linux|android|macos|ios|windows|all|android-emulator)$"
         ["Marketplace commands"]="^marketplace(-|$)"
         ["Flutter commands"]="^flutter"
