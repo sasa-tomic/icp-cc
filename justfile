@@ -93,10 +93,11 @@ api-up port="0":
     api_port=""
     while [ $elapsed -lt $timeout ]; do
         if [ -f "{{logs_dir}}/api-server.log" ]; then
-            # Extract port from log line like "listening addr=socket://127.0.0.1:8080"
+            # Extract port from log line like "listening addr=socket://[::]:38039"
             # Look for the "listening" line specifically
             # Use -a to treat binary files (with ANSI codes) as text
-            api_port=$(grep -aoP 'listening.*?127\.0\.0\.1:\K\d+' {{logs_dir}}/api-server.log | tail -1 || true)
+            # Handle both IPv4 and IPv6 addresses
+            api_port=$(grep -aoP 'listening.*?(\[::\]|127\.0\.0\.1):\K\d+' {{logs_dir}}/api-server.log | tail -1 || true)
             if [ -n "$api_port" ]; then
                 echo "$api_port" > {{api_port_file}}
                 # Test if server is responding
