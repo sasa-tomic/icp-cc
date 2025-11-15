@@ -31,9 +31,7 @@
 
 ### Enhanced Security Features
 - Implement script sandboxing and security scanning
-- Add code review and approval workflow
 - Create security audit logs
-- Implement rate limiting and abuse protection
 
 ## Scripts tab and Lua scripting
 
