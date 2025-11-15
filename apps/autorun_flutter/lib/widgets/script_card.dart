@@ -10,6 +10,8 @@ class ScriptCard extends StatelessWidget {
   final VoidCallback? onDownload;
   final bool isDownloading;
   final bool isDownloaded;
+  final VoidCallback? onQuickPreview;
+  final VoidCallback? onShare;
 
   const ScriptCard({
     super.key,
@@ -20,6 +22,8 @@ class ScriptCard extends StatelessWidget {
     this.onDownload,
     this.isDownloading = false,
     this.isDownloaded = false,
+    this.onQuickPreview,
+    this.onShare,
   });
 
   @override
@@ -36,47 +40,93 @@ class ScriptCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Script icon/image
+            // Script icon/image with overlay actions
             Expanded(
               flex: 3,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Theme.of(context).colorScheme.primaryContainer,
-                      Theme.of(context).colorScheme.secondaryContainer,
-                    ],
-                  ),
-                ),
-                child: script.iconUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: script.iconUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Center(
-                          child: Icon(
-                            Icons.code,
-                            size: 48,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Center(
-                          child: Icon(
-                            Icons.code_off,
-                            size: 48,
-                            color: Colors.grey[400],
-                          ),
-                        ),
-                      )
-                    : Center(
-                        child: Icon(
-                          Icons.code,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Theme.of(context).colorScheme.primaryContainer,
+                          Theme.of(context).colorScheme.secondaryContainer,
+                        ],
                       ),
+                    ),
+                    child: script.iconUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: script.iconUrl!,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Center(
+                              child: Icon(
+                                Icons.code,
+                                size: 48,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Center(
+                              child: Icon(
+                                Icons.code_off,
+                                size: 48,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Icon(
+                              Icons.code,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                  ),
+                  
+                  // Quick action overlay
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Quick preview button
+                        if (onQuickPreview != null)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.visibility, size: 16, color: Colors.white),
+                              onPressed: onQuickPreview,
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                              tooltip: 'Quick Preview',
+                            ),
+                          ),
+                        
+                        // Share button
+                        if (onShare != null)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.share, size: 16, color: Colors.white),
+                              onPressed: onShare,
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                              tooltip: 'Share',
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -223,52 +273,93 @@ class ScriptCard extends StatelessWidget {
                     ),
 
                     // Action buttons
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        // Download button
-                        if (onDownload != null)
-                          IconButton(
-                            icon: isDownloading
-                                ? SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Theme.of(context).colorScheme.primary,
-                                    ),
-                                  )
-                                : Icon(
-                                    isDownloaded ? Icons.download_done : Icons.download,
-                                    color: isDownloaded 
-                                        ? Colors.green 
-                                        : Theme.of(context).colorScheme.primary,
-                                    size: 20,
+                    const SizedBox(height: 8),
+                    
+                    // Prominent download button for free scripts
+                    if (onDownload != null && script.price == 0)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: isDownloading ? null : onDownload,
+                          icon: isDownloading
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Theme.of(context).colorScheme.onPrimary,
                                   ),
-                            onPressed: isDownloading ? null : onDownload,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: isDownloaded ? 'Downloaded' : 'Download script',
+                                )
+                              : Icon(
+                                  isDownloaded ? Icons.check_circle : Icons.download,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            isDownloading 
+                                ? 'Downloading...' 
+                                : isDownloaded 
+                                    ? 'Downloaded ✓' 
+                                    : 'Download FREE',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        
-                        // Favorite button (if provided)
-                        if (onFavorite != null) ...[
-                          const SizedBox(width: 4),
-                          IconButton(
-                            icon: Icon(
-                              isFavorite ? Icons.favorite : Icons.favorite_border,
-                              color: isFavorite ? Colors.red : Colors.grey[600],
-                              size: 20,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: isDownloaded 
+                                ? Colors.green 
+                                : Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      )
+                    else if (onDownload != null && script.price > 0)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: isDownloading ? null : onDownload,
+                          icon: isDownloading
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                )
+                              : Icon(
+                                  isDownloaded ? Icons.check_circle : Icons.shopping_cart,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            isDownloading 
+                                ? 'Processing...' 
+                                : isDownloaded 
+                                    ? 'Purchased ✓' 
+                                    : '\$${script.price.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      )
+                    else
+                      // Small action buttons for other cases
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          // Favorite button (if provided)
+                          if (onFavorite != null) ...[
+                            IconButton(
+                              icon: Icon(
+                                isFavorite ? Icons.favorite : Icons.favorite_border,
+                                color: isFavorite ? Colors.red : Colors.grey[600],
+                                size: 20,
+                              ),
+                              onPressed: onFavorite,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
                             ),
-                            onPressed: onFavorite,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
-                          ),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
                   ],
                 ),
               ),

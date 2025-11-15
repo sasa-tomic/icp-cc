@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../controllers/script_controller.dart';
 import '../models/script_record.dart';
@@ -10,8 +11,8 @@ import '../rust/native_bridge.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/script_app_host.dart';
 import '../widgets/enhanced_script_editor.dart';
+import '../widgets/quick_upload_dialog.dart';
 import 'enhanced_script_creation_screen.dart';
-import 'script_upload_screen.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -98,19 +99,96 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
+  bool _isPublishedToMarketplace(ScriptRecord record) {
+    // Check if script has marketplace metadata
+    return record.metadata.containsKey('marketplace_id');
+  }
+
   Future<void> _publishToMarketplace(ScriptRecord record) async {
-    // Navigate to upload screen with pre-filled data
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => ScriptUploadScreen(
-          preFilledData: PreFilledUploadData(
-            title: record.title,
-            luaSource: record.luaSource,
-            authorName: 'Anonymous Developer', // Default author
-          ),
+    // Show quick upload dialog with pre-filled data
+    final bool? uploaded = await showDialog<bool>(
+      context: context,
+      builder: (context) => QuickUploadDialog(
+        script: record,
+      ),
+    );
+    
+    if (uploaded == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Script submitted for review!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _viewInMarketplace(ScriptRecord record) {
+    // Navigate to marketplace tab and potentially filter for this script
+    DefaultTabController.of(context).animateTo(2); // Marketplace tab
+    
+    // Show a snackbar to indicate the action
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Navigate to marketplace to find "${record.title}"'),
+        action: SnackBarAction(
+          label: 'Go to Marketplace',
+          onPressed: () {
+            DefaultTabController.of(context).animateTo(2);
+          },
         ),
       ),
     );
+  }
+
+  Future<void> _duplicateScript(ScriptRecord record) async {
+    try {
+      final newScript = await _controller.createScript(
+        title: '${record.title} (Copy)',
+        emoji: record.emoji,
+        imageUrl: record.imageUrl,
+        luaSourceOverride: record.luaSource,
+      );
+      
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Script duplicated as "${newScript.title}"'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () {
+              // Scroll to the new script (implementation depends on your list view)
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to duplicate script: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportScript(ScriptRecord record) async {
+    // For now, just copy the source code to clipboard
+    // In a real implementation, you might want to export as a file
+    await Clipboard.setData(ClipboardData(text: record.luaSource));
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Script source code copied to clipboard'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   @override
@@ -162,8 +240,52 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
                     return false;
                   },
                   child: ListTile(
-                    leading: CircleAvatar(child: Text((rec.emoji ?? '📜').characters.first)),
-                    title: Text(rec.title),
+                    leading: Stack(
+                      children: [
+                        CircleAvatar(child: Text((rec.emoji ?? '📜').characters.first)),
+                        if (_isPublishedToMarketplace(rec))
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(
+                                Icons.cloud_upload,
+                                size: 10,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    title: Row(
+                      children: [
+                        Expanded(child: Text(rec.title)),
+                        if (_isPublishedToMarketplace(rec))
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              'Published',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     subtitle: Text('Updated ${rec.updatedAt.toLocal()}'),
                     onTap: () {
                       showDialog<void>(
@@ -174,18 +296,43 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
+                        // Quick action buttons
                         IconButton(
-                          tooltip: 'Run',
+                          tooltip: 'Run Script',
                           icon: const Icon(Icons.play_arrow),
                           onPressed: () => _runScript(rec),
                         ),
+                        
+                        // Quick publish button for scripts not yet published
+                        if (!_isPublishedToMarketplace(rec))
+                          IconButton(
+                            tooltip: 'Publish to Marketplace',
+                            icon: const Icon(Icons.cloud_upload),
+                            onPressed: () => _publishToMarketplace(rec),
+                          ),
+                        
+                        // More actions menu
                         PopupMenuButton<int>(
-                          tooltip: 'More',
-                          itemBuilder: (BuildContext context) => const <PopupMenuEntry<int>>[
-                            PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
-                            PopupMenuItem<int>(value: 2, child: Text('Publish to Marketplace')),
-                            PopupMenuItem<int>(value: 3, child: Text('Delete')),
-                          ],
+                          tooltip: 'More Actions',
+                          itemBuilder: (BuildContext context) {
+                            final List<PopupMenuEntry<int>> items = [
+                              const PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
+                              const PopupMenuItem<int>(value: 2, child: Text('Edit code…')),
+                            ];
+                            
+                            if (!_isPublishedToMarketplace(rec)) {
+                              items.add(const PopupMenuItem<int>(value: 3, child: Text('Publish to Marketplace')));
+                            } else {
+                              items.add(const PopupMenuItem<int>(value: 4, child: Text('View in Marketplace')));
+                            }
+                            
+                            items.add(const PopupMenuItem<int>(value: 5, child: Text('Duplicate')));
+                            items.add(const PopupMenuItem<int>(value: 6, child: Text('Export')));
+                            items.add(const PopupMenuDivider());
+                            items.add(const PopupMenuItem<int>(value: 7, child: Text('Delete')));
+                            
+                            return items;
+                          },
                           onSelected: (int value) {
                             switch (value) {
                               case 1:
@@ -195,9 +342,24 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
                                 );
                                 break;
                               case 2:
-                                _publishToMarketplace(rec);
+                                showDialog<void>(
+                                  context: context,
+                                  builder: (_) => _EnhancedScriptEditorDialog(controller: _controller, record: rec),
+                                );
                                 break;
                               case 3:
+                                _publishToMarketplace(rec);
+                                break;
+                              case 4:
+                                _viewInMarketplace(rec);
+                                break;
+                              case 5:
+                                _duplicateScript(rec);
+                                break;
+                              case 6:
+                                _exportScript(rec);
+                                break;
+                              case 7:
                                 _confirmAndDeleteScript(rec);
                                 break;
                             }
