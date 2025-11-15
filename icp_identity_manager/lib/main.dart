@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'controllers/identity_controller.dart';
 import 'models/identity_record.dart';
 import 'services/identity_repository.dart';
+import 'utils/principal.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -98,6 +99,14 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                   value: keyAlgorithmToString(record.algorithm),
                 ),
                 _DialogSection(
+                  label: 'Principal',
+                  value: PrincipalUtils.textFromRecord(record),
+                  onCopy: () => _copyToClipboard(
+                    'Principal',
+                    PrincipalUtils.textFromRecord(record),
+                  ),
+                ),
+                _DialogSection(
                   label: 'Seed phrase',
                   value: record.mnemonic,
                   onCopy: () =>
@@ -155,6 +164,9 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         break;
       case _IdentityAction.copyPublicKey:
         _copyToClipboard('Public key', record.publicKey);
+        break;
+      case _IdentityAction.copyPrincipal:
+        _copyToClipboard('Principal', PrincipalUtils.textFromRecord(record));
         break;
     }
   }
@@ -220,6 +232,10 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                           const PopupMenuItem<_IdentityAction>(
                             value: _IdentityAction.copyPublicKey,
                             child: Text('Copy public key'),
+                          ),
+                          const PopupMenuItem<_IdentityAction>(
+                            value: _IdentityAction.copyPrincipal,
+                            child: Text('Copy principal'),
                           ),
                         ],
                   ),
@@ -447,4 +463,5 @@ enum _IdentityAction {
   copyMnemonic,
   copyPrivateKey,
   copyPublicKey,
+  copyPrincipal,
 }
