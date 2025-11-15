@@ -465,6 +465,8 @@ class MarketplaceOpenApiService {
     String? version,
     String? compatibility,
     double price = 0.0,
+    String? authorPrincipal,
+    String? signature,
   }) async {
     try {
       final requestBodyMap = <String, dynamic>{
@@ -480,13 +482,19 @@ class MarketplaceOpenApiService {
         'price': price,
         'is_public': true,
       };
-      
+
       // Only include non-null optional fields
       if (iconUrl != null) {
         requestBodyMap['icon_url'] = iconUrl;
       }
       if (compatibility != null) {
         requestBodyMap['compatibility'] = compatibility;
+      }
+      if (authorPrincipal != null) {
+        requestBodyMap['author_principal'] = authorPrincipal;
+      }
+      if (signature != null) {
+        requestBodyMap['signature'] = signature;
       }
       
       final requestBody = jsonEncode(requestBodyMap);
@@ -584,6 +592,8 @@ class MarketplaceOpenApiService {
     String? version,
     String? compatibility,
     double? price,
+    String? authorPrincipal,
+    String? signature,
   }) async {
     try {
       final body = <String, dynamic>{};
@@ -598,6 +608,8 @@ class MarketplaceOpenApiService {
       if (version != null) body['version'] = version;
       if (compatibility != null) body['compatibility'] = compatibility;
       if (price != null) body['price'] = price;
+      if (authorPrincipal != null) body['author_principal'] = authorPrincipal;
+      if (signature != null) body['signature'] = signature;
 
       final response = await http
           .put(
@@ -633,10 +645,20 @@ class MarketplaceOpenApiService {
   }
 
   // Delete a script
-  Future<bool> deleteScript(String scriptId) async {
+  Future<bool> deleteScript(String scriptId, {String? authorPrincipal, String? signature}) async {
     try {
+      final body = <String, dynamic>{
+        'action': 'delete',
+      };
+      if (authorPrincipal != null) body['author_principal'] = authorPrincipal;
+      if (signature != null) body['signature'] = signature;
+
       final response = await http
-          .delete(Uri.parse('$_baseUrl/scripts/$scriptId'))
+          .post(
+            Uri.parse('$_baseUrl/scripts/$scriptId/delete'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
           .timeout(_timeout);
 
       if (response.statusCode > 299) {
