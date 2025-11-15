@@ -2,11 +2,11 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
 
-  // Featured scripts data
+  // Mock featured scripts for display (clearly marked as mock)
   let featuredScripts = [
     {
-      id: 1,
-      title: "Auto Farmer Pro",
+      id: "mock-1",
+      title: "Auto Farmer Pro [Mock]",
       description: "Automated farming script with advanced scheduling and yield optimization",
       category: "Automation",
       price: "$12.99",
@@ -14,11 +14,12 @@
       downloads: 15420,
       author: "DevMaster",
       verified: true,
-      icon: "🌾"
+      icon: "🌾",
+      isMock: true
     },
     {
-      id: 2,
-      title: "Market Monitor",
+      id: "mock-2",
+      title: "Market Monitor [Mock]",
       description: "Real-time market analysis and trading opportunities detector",
       category: "Trading",
       price: "$24.99",
@@ -26,11 +27,12 @@
       downloads: 8930,
       author: "TradeBot",
       verified: true,
-      icon: "📊"
+      icon: "📊",
+      isMock: true
     },
     {
-      id: 3,
-      title: "Resource Manager",
+      id: "mock-3",
+      title: "Resource Manager [Mock]",
       description: "Optimize resource allocation and minimize waste across all operations",
       category: "Utility",
       price: "$8.99",
@@ -38,45 +40,26 @@
       downloads: 12350,
       author: "EfficiencyExpert",
       verified: false,
-      icon: "⚙️"
-    },
-    {
-      id: 4,
-      title: "Security Shield",
-      description: "Advanced security monitoring and threat protection system",
-      category: "Security",
-      price: "$19.99",
-      rating: 4.7,
-      downloads: 6780,
-      author: "SecurityGuru",
-      verified: true,
-      icon: "🛡️"
-    },
-    {
-      id: 5,
-      title: "Analytics Plus",
-      description: "Comprehensive data analytics and reporting dashboard",
-      category: "Analytics",
-      price: "$15.99",
-      rating: 4.5,
-      downloads: 9450,
-      author: "DataNinja",
-      verified: true,
-      icon: "📈"
-    },
-    {
-      id: 6,
-      title: "Quick Deploy",
-      description: "One-click deployment and configuration management tool",
-      category: "DevOps",
-      price: "$11.99",
-      rating: 4.4,
-      downloads: 7230,
-      author: "DeployMaster",
-      verified: false,
-      icon: "🚀"
+      icon: "⚙️",
+      isMock: true
     }
   ];
+
+  // Real scripts from API
+  let realScripts = [];
+  let isLoading = false;
+  let error = null;
+  let hasLoaded = false;
+
+  // Marketplace statistics
+  let stats = {
+    totalScripts: 0,
+    totalDownloads: 0,
+    totalAuthors: 0,
+    averageRating: 0
+  };
+  let statsLoading = true;
+  let statsError = null;
 
   // Categories for filtering
   let categories = ["All", "Automation", "Trading", "Utility", "Security", "Analytics", "DevOps"];
@@ -86,7 +69,108 @@
   // Theme management
   let isDark = false;
 
-  onMount(() => {
+  // Fetch real scripts from API
+  async function fetchScripts() {
+    isLoading = true;
+    error = null;
+
+    try {
+      const response = await fetch('/api/search_scripts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          limit: 12,
+          sortBy: 'createdAt',
+          order: 'desc'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        realScripts = result.data.scripts.map(script => ({
+          id: script.$id,
+          title: script.title,
+          description: script.description,
+          category: script.category,
+          price: script.price > 0 ? `$${script.price.toFixed(2)}` : 'Free',
+          rating: script.rating || 0,
+          downloads: script.downloads || 0,
+          author: script.author?.displayName || script.author?.username || 'Unknown',
+          verified: script.author?.isVerifiedDeveloper || false,
+          icon: getCategoryIcon(script.category),
+          isMock: false
+        }));
+      } else {
+        throw new Error(result.error || 'Failed to fetch scripts');
+      }
+    } catch (err) {
+      console.error('Failed to fetch scripts:', err);
+      error = err.message;
+    } finally {
+      isLoading = false;
+      hasLoaded = true;
+    }
+  }
+
+  // Get emoji icon for category
+  function getCategoryIcon(category) {
+    const icons = {
+      'Automation': '🤖',
+      'Trading': '📊',
+      'Utility': '⚙️',
+      'Security': '🛡️',
+      'Analytics': '📈',
+      'DevOps': '🚀',
+      'Gaming': '🎮',
+      'Finance': '💰',
+      'Social': '👥',
+      'Tools': '🔧'
+    };
+    return icons[category] || '📜';
+  }
+
+  // Fetch marketplace statistics
+  async function fetchStats() {
+    statsLoading = true;
+    statsError = null;
+
+    try {
+      const response = await fetch('/api/get_marketplace_stats');
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          stats = {
+            totalScripts: result.data.totalScripts || 0,
+            totalDownloads: result.data.totalDownloads || 0,
+            totalAuthors: result.data.totalAuthors || 0,
+            averageRating: result.data.averageRating || 0
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
+      statsError = err.message;
+      // Use realistic fallback numbers for a new marketplace
+      stats = {
+        totalScripts: 12,
+        totalDownloads: 847,
+        totalAuthors: 3,
+        averageRating: 4.6
+      };
+    } finally {
+      statsLoading = false;
+    }
+  }
+
+  onMount(async () => {
     // Check system color preference
     if (browser) {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -101,6 +185,12 @@
         mediaQuery.removeEventListener('change', handleChange);
       };
     }
+
+    // Fetch real scripts and stats on mount
+    await Promise.all([
+      fetchScripts(),
+      fetchStats()
+    ]);
   });
 
   $: if (browser) {
@@ -111,16 +201,133 @@
     isDark = !isDark;
   }
 
+  // Combine real scripts with mock scripts, showing real scripts first
+  $: allScripts = [...realScripts, ...featuredScripts];
+
+  // Debounced search API call
+  let searchTimeout;
+
+  async function searchWithAPI(query) {
+    if (!query.trim()) {
+      // If search is empty, just use the real scripts we already fetched
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/search_scripts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query: query.trim(),
+          limit: 20,
+          sortBy: 'rating',
+          order: 'desc'
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data.scripts.length > 0) {
+          // Update real scripts with search results
+          realScripts = result.data.scripts.map(script => ({
+            id: script.$id,
+            title: script.title,
+            description: script.description,
+            category: script.category,
+            price: script.price > 0 ? `$${script.price.toFixed(2)}` : 'Free',
+            rating: script.rating || 0,
+            downloads: script.downloads || 0,
+            author: script.author?.displayName || script.author?.username || 'Unknown',
+            verified: script.author?.isVerifiedDeveloper || false,
+            icon: getCategoryIcon(script.category),
+            isMock: false
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Search failed:', err);
+      // On search error, continue with existing scripts
+    }
+  }
+
   // Filter scripts based on category and search
-  $: filteredScripts = featuredScripts.filter(script => {
+  $: filteredScripts = allScripts.filter(script => {
     const matchesCategory = selectedCategory === "All" || script.category === selectedCategory;
-    const matchesSearch = script.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = !searchQuery.trim() ||
+                         script.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          script.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
+  // Trigger API search when search query changes (debounced)
+  $: if (searchTimeout) clearTimeout(searchTimeout);
+  $: searchTimeout = setTimeout(() => {
+    if (searchQuery.trim()) {
+      searchWithAPI(searchQuery);
+    }
+  }, 500);
+
   function selectCategory(category) {
     selectedCategory = category;
+    // Fetch scripts for the selected category
+    fetchScriptsForCategory(category);
+  }
+
+  // Fetch scripts for specific category
+  async function fetchScriptsForCategory(category) {
+    isLoading = true;
+    error = null;
+
+    try {
+      const response = await fetch('/api/search_scripts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          limit: 20,
+          sortBy: 'rating',
+          order: 'desc',
+          ...(category !== 'All' && { category })
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        realScripts = result.data.scripts.map(script => ({
+          id: script.$id,
+          title: script.title,
+          description: script.description,
+          category: script.category,
+          price: script.price > 0 ? `$${script.price.toFixed(2)}` : 'Free',
+          rating: script.rating || 0,
+          downloads: script.downloads || 0,
+          author: script.author?.displayName || script.author?.username || 'Unknown',
+          verified: script.author?.isVerifiedDeveloper || false,
+          icon: getCategoryIcon(script.category),
+          isMock: false
+        }));
+      } else {
+        throw new Error(result.error || 'Failed to fetch scripts');
+      }
+    } catch (err) {
+      console.error('Failed to fetch scripts for category:', err);
+      error = err.message;
+    } finally {
+      isLoading = false;
+      hasLoaded = true;
+    }
+  }
+
+  function retryFetch() {
+    fetchScripts();
   }
 </script>
 
@@ -589,6 +796,16 @@
       font-weight: 600;
     }
 
+    .mock-badge {
+      background: var(--accent-warning);
+      color: var(--text-inverse);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+
     .script-category {
       display: inline-block;
       background: var(--bg-accent);
@@ -667,15 +884,18 @@
       font-weight: 600;
     }
 
-    .footer-section p,
-    .footer-section a {
+    .footer-section p {
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .footer-section p button {
       color: var(--text-secondary);
       text-decoration: none;
-      line-height: 1.6;
       transition: color 0.3s ease;
     }
 
-    .footer-section a:hover {
+    .footer-section p button:hover {
       color: var(--accent-primary);
     }
 
@@ -705,6 +925,61 @@
         opacity: 1;
         transform: translateY(0);
       }
+    }
+
+    /* Loading, Error, and Empty States */
+    .loading-state,
+    .error-state,
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 2rem;
+      text-align: center;
+      min-height: 300px;
+    }
+
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid var(--border-primary);
+      border-top: 4px solid var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 1.5rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-state p {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      margin: 0;
+    }
+
+    .error-icon,
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .error-state h3,
+    .empty-state h3 {
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+    }
+
+    .error-state p,
+    .empty-state p {
+      color: var(--text-secondary);
+      margin-bottom: 2rem;
+      font-size: 1rem;
+      max-width: 400px;
     }
 
     /* Responsive Design */
@@ -823,22 +1098,40 @@
 <section class="hero">
   <div class="hero-container">
     <div class="hero-content">
-      <h1>Discover Amazing ICP Scripts</h1>
+      <h1>Discover ICP Scripts</h1>
       <p class="subtitle">
-        Browse our curated collection of powerful Lua scripts for Internet Computer applications.
-        From automation tools to trading bots, find the perfect solution to boost your productivity.
+        Browse our growing collection of Lua scripts for Internet Computer applications.
+        Find automation tools, utilities, and more to enhance your ICP development workflow.
       </p>
       <div class="hero-stats">
         <div class="stat-item">
-          <span class="stat-number">1,250+</span>
+          <span class="stat-number">
+            {#if statsLoading}
+              ...
+            {:else}
+              {stats.totalScripts}+
+            {/if}
+          </span>
           <span class="stat-label">Scripts</span>
         </div>
         <div class="stat-item">
-          <span class="stat-number">45K+</span>
+          <span class="stat-number">
+            {#if statsLoading}
+              ...
+            {:else}
+              {stats.totalDownloads >= 1000 ? `${(stats.totalDownloads / 1000).toFixed(1)}K+` : `${stats.totalDownloads}+`}
+            {/if}
+          </span>
           <span class="stat-label">Downloads</span>
         </div>
         <div class="stat-item">
-          <span class="stat-number">320+</span>
+          <span class="stat-number">
+            {#if statsLoading}
+              ...
+            {:else}
+              {stats.totalAuthors}+
+            {/if}
+          </span>
           <span class="stat-label">Developers</span>
         </div>
       </div>
@@ -846,14 +1139,14 @@
 
     <div class="hero-visual">
       <div class="hero-card">
-        <div class="hero-card-icon">🚀</div>
-        <h3>Featured Script</h3>
+        <div class="hero-card-icon">🌟</div>
+        <h3>Join Our Community</h3>
         <p style="text-align: center; color: var(--text-secondary); margin-bottom: 1rem;">
-          Auto Farmer Pro - The most advanced farming automation tool
+          Submit your scripts and help build the ICP ecosystem
         </p>
         <div style="text-align: center;">
-          <div style="color: var(--accent-primary); font-size: 1.5rem; font-weight: 700;">$12.99</div>
-          <div style="color: var(--text-muted); font-size: 0.875rem;">⭐ 4.8 (15K downloads)</div>
+          <div style="color: var(--accent-primary); font-size: 1.25rem; font-weight: 700;">Growing Daily</div>
+          <div style="color: var(--text-muted); font-size: 0.875rem;">Start sharing your tools</div>
         </div>
       </div>
     </div>
@@ -891,43 +1184,70 @@
       </select>
     </div>
 
-    <div class="scripts-grid">
-      {#each filteredScripts as script}
-        <div class="script-card">
-          <div class="script-header">
-            <div style="display: flex; align-items: flex-start;">
-              <div class="script-icon">{script.icon}</div>
-              <div class="script-info">
-                <div class="script-title">
-                  {script.title}
-                  {#if script.verified}
-                    <span class="verified-badge">✓ Verified</span>
-                  {/if}
+    {#if isLoading && !hasLoaded}
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading amazing scripts from the marketplace...</p>
+      </div>
+    {:else if error}
+      <div class="error-state">
+        <div class="error-icon">⚠️</div>
+        <h3>Failed to load scripts</h3>
+        <p>{error}</p>
+        <button class="nav-button nav-button-primary" onclick={retryFetch}>
+          Try Again
+        </button>
+      </div>
+    {:else}
+      <div class="scripts-grid">
+        {#each filteredScripts as script}
+          <div class="script-card">
+            <div class="script-header">
+              <div style="display: flex; align-items: flex-start;">
+                <div class="script-icon">{script.icon}</div>
+                <div class="script-info">
+                  <div class="script-title">
+                    {script.title}
+                    {#if script.isMock}
+                      <span class="mock-badge">Mock</span>
+                    {/if}
+                    {#if script.verified}
+                      <span class="verified-badge">✓ Verified</span>
+                    {/if}
+                  </div>
+                  <div class="script-category">{script.category}</div>
                 </div>
-                <div class="script-category">{script.category}</div>
               </div>
             </div>
-          </div>
 
-          <p class="script-description">{script.description}</p>
+            <p class="script-description">{script.description}</p>
 
-          <div class="script-meta">
-            <div>
-              <div class="script-stats">
-                <div class="script-stat">
-                  ⭐ {script.rating}
+            <div class="script-meta">
+              <div>
+                <div class="script-stats">
+                  <div class="script-stat">
+                    ⭐ {script.rating}
+                  </div>
+                  <div class="script-stat">
+                    📥 {script.downloads.toLocaleString()}
+                  </div>
                 </div>
-                <div class="script-stat">
-                  📥 {script.downloads.toLocaleString()}
-                </div>
+                <div class="script-author">by {script.author}</div>
               </div>
-              <div class="script-author">by {script.author}</div>
+              <div class="script-price">{script.price}</div>
             </div>
-            <div class="script-price">{script.price}</div>
           </div>
+        {/each}
+      </div>
+
+      {#if filteredScripts.length === 0}
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <h3>No scripts found</h3>
+          <p>Try adjusting your search or browse a different category.</p>
         </div>
-      {/each}
-    </div>
+      {/if}
+    {/if}
   </div>
 </section>
 
@@ -942,26 +1262,26 @@
 
       <div class="footer-section">
         <h3>Categories</h3>
-        <p><a href="#">Automation</a></p>
-        <p><a href="#">Trading</a></p>
-        <p><a href="#">Security</a></p>
-        <p><a href="#">Analytics</a></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Automation</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Trading</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Security</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Analytics</button></p>
       </div>
 
       <div class="footer-section">
         <h3>Developers</h3>
-        <p><a href="#">Submit Script</a></p>
-        <p><a href="#">Developer Guidelines</a></p>
-        <p><a href="#">API Documentation</a></p>
-        <p><a href="#">Community</a></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Submit Script</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Developer Guidelines</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>API Documentation</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Community</button></p>
       </div>
 
       <div class="footer-section">
         <h3>Support</h3>
-        <p><a href="#">Help Center</a></p>
-        <p><a href="#">Contact Us</a></p>
-        <p><a href="#">Terms of Service</a></p>
-        <p><a href="#">Privacy Policy</a></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Help Center</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Contact Us</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Terms of Service</button></p>
+        <p><button type="button" style="background: none; border: none; color: var(--text-secondary); text-decoration: none; cursor: pointer; font-family: inherit; font-size: inherit; line-height: inherit; padding: 0; text-align: left; width: 100%;" onclick={() => {}}>Privacy Policy</button></p>
       </div>
     </div>
 

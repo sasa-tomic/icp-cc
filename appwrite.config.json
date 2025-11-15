@@ -1,0 +1,183 @@
+{
+    "projectId": "68f7fc8b00255b20ed42",
+    "endpoint": "https://fra.cloud.appwrite.io/v1",
+    "projectName": "icp-marketplace",
+    "settings": {
+        "services": {
+            "account": true,
+            "avatars": true,
+            "databases": true,
+            "locale": true,
+            "health": true,
+            "storage": true,
+            "teams": true,
+            "users": true,
+            "sites": true,
+            "functions": true,
+            "graphql": true,
+            "messaging": true
+        },
+        "auth": {
+            "methods": {
+                "jwt": true,
+                "phone": true,
+                "invites": true,
+                "anonymous": true,
+                "email-otp": true,
+                "magic-url": true,
+                "email-password": true
+            },
+            "security": {
+                "duration": 31536000,
+                "limit": 0,
+                "sessionsLimit": 10,
+                "passwordHistory": 0,
+                "passwordDictionary": false,
+                "personalDataCheck": false,
+                "sessionAlerts": false,
+                "mockNumbers": []
+            }
+        }
+    },
+    "functions": [
+        {
+            "$id": "search_scripts",
+            "execute": [
+                "any"
+            ],
+            "name": "Search Scripts",
+            "enabled": true,
+            "logging": true,
+            "runtime": "node-18.0",
+            "scopes": [],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "entrypoint": "",
+            "commands": "",
+            "specification": "s-1vcpu-512mb",
+            "path": "functions/Search Scripts"
+        },
+        {
+            "$id": "process_purchase",
+            "execute": [
+                "any"
+            ],
+            "name": "Process Purchase",
+            "enabled": true,
+            "logging": true,
+            "runtime": "node-18.0",
+            "scopes": [],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "entrypoint": "",
+            "commands": "",
+            "specification": "s-1vcpu-512mb",
+            "path": "functions/Process Purchase"
+        },
+        {
+            "$id": "update_script_stats",
+            "execute": [
+                "any"
+            ],
+            "name": "Update Script Stats",
+            "enabled": true,
+            "logging": true,
+            "runtime": "node-18.0",
+            "scopes": [],
+            "events": [
+                "databases.marketplace_db.collections.scripts.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 15,
+            "entrypoint": "",
+            "commands": "",
+            "specification": "s-1vcpu-512mb",
+            "path": "functions/Update Script Stats"
+        }
+    ],
+    "tablesDB": [
+        {
+            "$id": "marketplace_db",
+            "name": "ICP Script Marketplace Database",
+            "enabled": true
+        }
+    ],
+    "tables": [
+        {
+            "$id": "scripts",
+            "$permissions": [
+                "create(\"any\")",
+                "read(\"any\")",
+                "update(\"any\")",
+                "delete(\"any\")"
+            ],
+            "databaseId": "marketplace_db",
+            "name": "Scripts",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [],
+            "indexes": []
+        },
+        {
+            "$id": "users",
+            "$permissions": [
+                "create(\"any\")",
+                "read(\"any\")",
+                "update(\"any\")",
+                "delete(\"any\")"
+            ],
+            "databaseId": "marketplace_db",
+            "name": "Users",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [],
+            "indexes": []
+        },
+        {
+            "$id": "reviews",
+            "$permissions": [
+                "create(\"any\")",
+                "read(\"any\")",
+                "update(\"any\")",
+                "delete(\"any\")"
+            ],
+            "databaseId": "marketplace_db",
+            "name": "Reviews",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [],
+            "indexes": []
+        },
+        {
+            "$id": "purchases",
+            "$permissions": [
+                "create(\"any\")",
+                "read(\"any\")",
+                "update(\"any\")",
+                "delete(\"any\")"
+            ],
+            "databaseId": "marketplace_db",
+            "name": "Purchases",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [],
+            "indexes": []
+        }
+    ],
+    "buckets": [
+        {
+            "$id": "scripts_files",
+            "$permissions": [],
+            "fileSecurity": false,
+            "name": "Scripts Files",
+            "enabled": true,
+            "maximumFileSize": 10485760,
+            "allowedFileExtensions": [],
+            "compression": "none",
+            "encryption": true,
+            "antivirus": true
+        }
+    ]
+}
