@@ -138,6 +138,7 @@ void main() {
           'Short description');
       await tester.enterText(
           find.widgetWithText(TextFormField, 'Author Name *'), 'Author');
+      await tester.pumpAndSettle();
 
       when(
         () => marketplaceService.uploadScript(
@@ -177,11 +178,20 @@ void main() {
       // Just verify dialog opens without crashing when no identity is active
       expect(find.byType(QuickUploadDialog), findsOneWidget);
 
-      // When no identity is active, the submit button should be disabled
+      // Click Next to go to code preview step
+      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
+      expect(nextButton, findsOneWidget);
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      // Now on step 1, verify the submit button exists
       final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
       expect(submitButton, findsOneWidget);
       final button = tester.widget<FilledButton>(submitButton);
       expect(button.onPressed, isNotNull);
+
+      // Verify upload was never called (we didn't click submit)
       verifyNever(() => marketplaceService.uploadScript(
             title: any(named: 'title'),
             description: any(named: 'description'),
@@ -210,6 +220,7 @@ void main() {
           'Short description');
       await tester.enterText(
           find.widgetWithText(TextFormField, 'Author Name *'), 'Author');
+      await tester.pumpAndSettle();
 
       when(
         () => marketplaceService.uploadScript(
@@ -251,6 +262,13 @@ void main() {
 
       // Identity is already active through IdentityScope
 
+      // Click Next to go to code preview step
+      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      // Now on step 1, find and click submit button
       final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
       await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);

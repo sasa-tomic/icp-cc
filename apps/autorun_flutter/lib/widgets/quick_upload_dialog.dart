@@ -10,6 +10,7 @@ import '../widgets/identity_scope.dart';
 import '../widgets/identity_switcher_sheet.dart';
 import '../widgets/identity_profile_sheet.dart';
 import '../models/identity_profile.dart';
+import '../widgets/script_editor.dart';
 import 'error_display.dart';
 
 class QuickUploadDialog extends StatefulWidget {
@@ -46,6 +47,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   String _selectedCategory = 'Example';
   bool _isUploading = false;
   String? _error;
+  int _currentStep = 0; // 0 = form, 1 = code preview
 
   final List<String> _availableCategories = [
     'Example',
@@ -118,6 +120,57 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     _tagsController.text = 'automation, utility';
   }
 
+  String _generateLuaSource() {
+    if (widget.script != null) {
+      return widget.script!.luaSource;
+    }
+    if (widget.preFilledCode != null) {
+      return widget.preFilledCode!;
+    }
+    // Generate default Lua script
+    final title = _titleController.text.isNotEmpty
+        ? _titleController.text
+        : 'Untitled Script';
+    final description = _descriptionController.text.isNotEmpty
+        ? _descriptionController.text
+        : 'A script for automation tasks';
+
+    return '''-- $title
+-- $description
+
+function app_init()
+  return {
+    title = "$title",
+    description = "$description"
+  }
+end
+
+function app_view(state)
+  return icp.message("Hello from $title!")
+end
+
+function app_update(state, action, params)
+  return state
+end''';
+  }
+
+  void _goToCodePreview() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() {
+      _currentStep = 1;
+      _error = null;
+    });
+  }
+
+  void _goBackToForm() {
+    setState(() {
+      _currentStep = 0;
+      _error = null;
+    });
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -129,10 +182,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   }
 
   Future<void> _uploadScript() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
+    // Validation is done in _goToCodePreview() before reaching this step
     final IdentityController controller =
         _identityController(context, listen: false);
     final IdentityRecord? identity = controller.activeIdentity;
@@ -315,21 +365,22 @@ end''';
 
             // Form content
             Expanded(
-              child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_error != null) ...[
-                        ErrorDisplay(
-                          error: _error!,
-                          onRetry: _isUploading ? null : _uploadScript,
-                          retryText: 'Retry upload',
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+              child: _currentStep == 0
+                  ? Form(
+                      key: _formKey,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_error != null) ...[
+                              ErrorDisplay(
+                                error: _error!,
+                                onRetry: _isUploading ? null : _uploadScript,
+                                retryText: 'Retry upload',
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                       // Basic Information Section
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -449,40 +500,115 @@ end''';
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 20),
-
-                      // Upload button
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          key: const Key('quick-upload-submit'),
-                          onPressed: _isUploading ? null : _uploadScript,
-                          icon: _isUploading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.upload),
-                          label: Text(_isUploading
-                              ? 'Uploading...'
-                              : 'Upload to Marketplace'),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
-              ),
+              )
+                  : _buildCodePreview(),
+            ),
+
+            // Action buttons
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: _currentStep == 0
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        key: const Key('quick-upload-next'),
+                        onPressed: _goToCodePreview,
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text('Next: Review Code'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isUploading ? null : _goBackToForm,
+                            icon: const Icon(Icons.arrow_back),
+                            label: const Text('Back'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            key: const Key('quick-upload-submit'),
+                            onPressed: _isUploading ? null : _uploadScript,
+                            icon: _isUploading
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.upload),
+                            label: Text(_isUploading
+                                ? 'Uploading...'
+                                : 'Upload to Marketplace'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCodePreview() {
+    final luaSource = _generateLuaSource();
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_error != null) ...[
+            ErrorDisplay(
+              error: _error!,
+              onRetry: _isUploading ? null : _uploadScript,
+              retryText: 'Retry upload',
+            ),
+            const SizedBox(height: 16),
+          ],
+          Text(
+            'Review Generated Code',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'This is the Lua code that will be uploaded to the marketplace. Review it before publishing.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ScriptEditor(
+              initialCode: luaSource,
+              onCodeChanged: (_) {}, // Read-only, ignore changes
+              language: 'lua',
+              readOnly: true,
+              showIntegrations: false,
+              minLines: 10,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,30 +1,8 @@
-# Build stage
-# Cloudflare Containers require linux/amd64 architecture
-FROM --platform=linux/amd64 rust:1.91 as builder
-WORKDIR /app
+# Simplified Dockerfile - Binary is built natively and injected
+# Run: ./scripts/build-docker-binary.sh before docker build
+# Or use: just docker-build
 
-# Install musl target and toolchain for static binary
-RUN rustup target add x86_64-unknown-linux-musl && \
-    apt-get update && \
-    apt-get install -y musl-tools musl-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy Cargo files
-COPY Cargo.toml Cargo.lock ./
-
-# Create dummy main.rs to cache dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release --target x86_64-unknown-linux-musl
-RUN rm -rf src
-
-# Copy source code
-COPY src ./src
-
-# Build the application
-RUN cargo build --release --target x86_64-unknown-linux-musl
-
-# Runtime stage
-FROM --platform=linux/amd64 debian:bookworm-slim
+FROM --platform=linux/amd64 debian:trixie-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -38,11 +16,12 @@ RUN useradd -r -s /bin/false appuser
 # Create data directory with proper permissions
 RUN mkdir -p /data && chown appuser:appuser /data
 
-# Copy binary from builder stage
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/icp-marketplace-api /usr/local/bin/api-server
+# Copy pre-built binary (must be built with ./scripts/build-docker-binary.sh)
+COPY target/docker/icp-marketplace-api /usr/local/bin/api-server
 
 # Set permissions
-RUN chown appuser:appuser /usr/local/bin/api-server
+RUN chown appuser:appuser /usr/local/bin/api-server && \
+    chmod +x /usr/local/bin/api-server
 
 # Switch to non-root user
 USER appuser

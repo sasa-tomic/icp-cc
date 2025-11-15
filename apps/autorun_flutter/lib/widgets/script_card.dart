@@ -137,6 +137,54 @@ class ScriptCard extends StatelessWidget {
                     ),
                   ),
                   
+                  // Downloaded badge (top-left)
+                  if (isDownloaded)
+                    Positioned(
+                      top: AppDesignSystem.spacing8,
+                      left: AppDesignSystem.spacing8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppDesignSystem.spacing12,
+                          vertical: AppDesignSystem.spacing4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade600.withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(AppDesignSystem.radius16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Downloaded',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   // Quick action overlay
                   Positioned(
                     top: AppDesignSystem.spacing8,

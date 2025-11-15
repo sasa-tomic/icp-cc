@@ -438,15 +438,22 @@ docker-logs-dev:
 # View Docker logs (default to dev)
 docker-logs: docker-logs-dev
 
+# --- Build Commands ---
+
+# Build Docker binary natively (required before docker build)
+docker-build:
+    @echo "==> Building Docker binary natively"
+    cd {{api_dir}} && ./scripts/build-docker-binary.sh
+
 # --- Rebuild Commands ---
 
 # Rebuild and restart production Docker containers
-docker-rebuild-prod:
+docker-rebuild-prod: docker-build
     @echo "==> Rebuilding and restarting production Docker containers"
     cd {{api_dir}} && export $$(cat .env | xargs) && {{compose_prod}} up -d --build
 
 # Rebuild and restart development Docker containers
-docker-rebuild-dev:
+docker-rebuild-dev: docker-build
     @echo "==> Rebuilding and restarting development Docker containers"
     cd {{api_dir}} && {{compose_dev}} up -d --build
 
