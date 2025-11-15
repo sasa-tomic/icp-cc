@@ -179,7 +179,12 @@ export class DatabaseService {
       'isPublic': 'is_public',
       'authorId': 'author_id',
       'canisterIds': 'canister_ids',
-      'reviewCount': 'review_count'
+      'reviewCount': 'review_count',
+      'downloads': 'downloads',
+      'rating': 'rating',
+      'price': 'price',
+      'title': 'title',
+      'category': 'category'
     };
 
     const dbSortBy = columnMapping[sortBy] || sortBy;

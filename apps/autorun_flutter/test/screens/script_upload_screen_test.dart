@@ -118,7 +118,7 @@ void main() {
 
         // Assert
         expect(find.text('Category'), findsOneWidget);
-        expect(find.text('Utilities'), findsOneWidget); // Default selection
+        expect(find.text('Example'), findsOneWidget); // Default selection
       });
     });
 

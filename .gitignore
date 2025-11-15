@@ -49,3 +49,4 @@ cloudflare-api/.wrangler/
 # Test output logs
 logs/
 test-output.log
+cloudflare-api/wrangler.log
