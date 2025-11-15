@@ -12,6 +12,7 @@ import '../utils/candid_type_resolver.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/bookmark_composer.dart';
 
 class BookmarksScreen extends StatelessWidget {
   const BookmarksScreen({super.key, required this.bridge, required this.onOpenClient});
@@ -78,8 +79,11 @@ class BookmarksScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 _WellKnownList(onSelect: (cid, method) {
                   HapticFeedback.lightImpact();
-                  onOpenClient(initialCanisterId: cid, initialMethodName: method);
-                }),
+                  onOpenClient(
+                    initialCanisterId: cid,
+                    initialMethodName: method?.isNotEmpty == true ? method : null,
+                  );
+                }, onBookmark: (entry) => _bookmarkWellKnown(context, entry)),
                 
                 const SizedBox(height: 32),
                 
@@ -89,6 +93,19 @@ class BookmarksScreen extends StatelessWidget {
                   title: 'Your Bookmarks',
                   subtitle: 'Your saved canister methods for quick access',
                   icon: Icons.bookmark_rounded,
+                ),
+                const SizedBox(height: 16),
+                BookmarkComposer(
+                  onSave: BookmarksService.add,
+                  onSaved: (cid, method, label) {
+                    final messenger = ScaffoldMessenger.of(context);
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Saved ${label ?? method} to bookmarks'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 _BookmarksList(
@@ -175,6 +192,30 @@ class BookmarksScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _bookmarkWellKnown(BuildContext context, WellKnownCanister entry) {
+    final messenger = ScaffoldMessenger.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    return BookmarksService.add(
+      canisterId: entry.canisterId,
+      method: entry.method ?? 'http_request',
+      label: entry.label,
+    ).then((_) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Bookmarked ${entry.label}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }).catchError((Object e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to bookmark ${entry.label}: $e'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
+    });
   }
 }
 
@@ -631,7 +672,9 @@ IconButton(
           const SizedBox(height: 8),
           _WellKnownList(onSelect: (cid, method) {
             _canisterController.text = cid;
-            _methodController.text = method;
+            if ((method ?? '').isNotEmpty) {
+              _methodController.text = method!;
+            }
           }),
           const SizedBox(height: 16),
           Text('Bookmarks', style: Theme.of(context).textTheme.titleMedium),
@@ -809,114 +852,201 @@ class _ArgsEditorState extends State<_ArgsEditor> {
   }
 }
 
-class _WellKnownList extends StatelessWidget {
-  const _WellKnownList({required this.onSelect});
-  final void Function(String canisterId, String method) onSelect;
+class WellKnownCanister {
+  const WellKnownCanister({
+    required this.label,
+    required this.canisterId,
+    required this.description,
+    required this.icon,
+    this.method,
+  });
 
-  static const List<Map<String, String>> _items = <Map<String, String>>[
-    // NNS Registry
-    {'label': 'NNS Registry', 'cid': 'rwlgt-iiaaa-aaaaa-aaaaa-cai', 'method': 'get_value'},
-    // NNS Governance
-    {'label': 'NNS Governance', 'cid': 'rrkah-fqaaa-aaaaa-aaaaq-cai', 'method': 'get_neuron_ids'},
-    // NNS Ledger
-    {'label': 'NNS Ledger', 'cid': 'ryjl3-tyaaa-aaaaa-aaaba-cai', 'method': 'account_balance_dfx'},
+  final String label;
+  final String canisterId;
+  final String description;
+  final IconData icon;
+  final String? method;
+}
+
+class _WellKnownList extends StatelessWidget {
+  const _WellKnownList({required this.onSelect, this.onBookmark});
+  final void Function(String canisterId, String? method) onSelect;
+  final Future<void> Function(WellKnownCanister entry)? onBookmark;
+
+  static const List<WellKnownCanister> _items = <WellKnownCanister>[
+    WellKnownCanister(
+      label: 'NNS Registry',
+      canisterId: 'rwlgt-iiaaa-aaaaa-aaaaa-cai',
+      method: 'get_value',
+      description: 'Authoritative lookup for subnet + node records',
+      icon: Icons.dns_rounded,
+    ),
+    WellKnownCanister(
+      label: 'NNS Governance',
+      canisterId: 'rrkah-fqaaa-aaaaa-aaaaq-cai',
+      method: 'get_neuron_ids',
+      description: 'Manage neurons and follow governance proposals',
+      icon: Icons.how_to_vote_rounded,
+    ),
+    WellKnownCanister(
+      label: 'NNS Ledger',
+      canisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      method: 'account_balance_dfx',
+      description: 'Check ICP balances directly on the ledger',
+      icon: Icons.account_balance_wallet_rounded,
+    ),
+    WellKnownCanister(
+      label: 'Canlista Registry',
+      canisterId: 'k7gat-daaaa-aaaae-qaahq-cai',
+      method: 'http_request',
+      description: 'Community-maintained catalog of IC canisters',
+      icon: Icons.list_alt_rounded,
+    ),
+    WellKnownCanister(
+      label: 'Cyql Projects',
+      canisterId: 'n7ib3-4qaaa-aaaai-qagnq-cai',
+      method: 'http_request',
+      description: 'Curated feed of active Internet Computer dapps',
+      icon: Icons.explore_rounded,
+    ),
+    WellKnownCanister(
+      label: 'ICLighthouse',
+      canisterId: '637g5-siaaa-aaaaj-aasja-cai',
+      method: 'http_request',
+      description: 'Realtime explorer with subnet level insights',
+      icon: Icons.lightbulb_rounded,
+    ),
+    WellKnownCanister(
+      label: 'Kinic Search',
+      canisterId: '74iy7-xqaaa-aaaaf-qagra-cai',
+      method: 'http_request',
+      description: 'Native IC search engine for dapps and content',
+      icon: Icons.search_rounded,
+    ),
+    WellKnownCanister(
+      label: 'Canistergeek',
+      canisterId: 'cusyh-iyaaa-aaaah-qcpba-cai',
+      method: 'http_request',
+      description: 'Monitor cycles, memory and performance at a glance',
+      icon: Icons.analytics_rounded,
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width < 420 ? 1 : (width > 880 ? 3 : 2);
+    final childAspectRatio = width > 880 ? 3.5 : (width < 420 ? 3.0 : 2.6);
+
+    return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _items.length,
-      separatorBuilder: (BuildContext _, int __) => const SizedBox(height: 8),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: childAspectRatio,
+      ),
       itemBuilder: (BuildContext context, int index) {
-        final e = _items[index];
-        return Card(
-          elevation: 2,
-          shadowColor: Colors.black.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: InkWell(
-            onTap: () => onSelect(e['cid'] ?? '', e['method'] ?? ''),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
+        final entry = _items[index];
+        return _WellKnownCard(
+          entry: entry,
+          onTap: () => onSelect(entry.canisterId, entry.method),
+          onBookmark: onBookmark == null
+              ? null
+              : () => unawaited(onBookmark!(entry)),
+        );
+      },
+    );
+  }
+}
+
+class _WellKnownCard extends StatelessWidget {
+  const _WellKnownCard({required this.entry, required this.onTap, this.onBookmark});
+
+  final WellKnownCanister entry;
+  final VoidCallback onTap;
+  final VoidCallback? onBookmark;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      elevation: 2,
+      borderRadius: BorderRadius.circular(16),
+      color: theme.colorScheme.surface,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                          Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
-                        ],
-                      ),
-                      shape: BoxShape.circle,
+                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(
-                      _getIconForCanister(e['label'] ?? ''),
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 20,
-                    ),
+                    child: Icon(entry.icon, color: theme.colorScheme.primary, size: 20),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          e['label'] ?? '',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
+                          entry.label,
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(8),
+                        Text(
+                          entry.description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                          child: Text(
-                            e['method'] ?? '',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10,
-                            ),
-                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                  if (onBookmark != null)
+                    IconButton(
+                      tooltip: 'Bookmark',
+                      icon: Icon(Icons.bookmark_add_outlined, color: theme.colorScheme.primary),
+                      onPressed: onBookmark,
+                      visualDensity: VisualDensity.compact,
+                    ),
                 ],
               ),
-            ),
+              if ((entry.method ?? '').isNotEmpty) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    entry.method!,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
-  }
-
-  IconData _getIconForCanister(String label) {
-    switch (label.toLowerCase()) {
-      case 'nns registry':
-        return Icons.dns_rounded;
-      case 'nns governance':
-        return Icons.how_to_vote_rounded;
-      case 'nns ledger':
-        return Icons.account_balance_rounded;
-      default:
-        return Icons.star_rounded;
-    }
   }
 }
 
@@ -971,7 +1101,7 @@ class _BookmarksListState extends State<_BookmarksList> {
       return EmptyState(
         icon: Icons.bookmark_border_rounded,
         title: 'No Bookmarks Yet',
-        subtitle: 'Save your frequently used canister methods for quick access',
+        subtitle: 'Use the Add Bookmark form above or tap a popular canister to save it here.',
       );
     }
     return ListView.separated(

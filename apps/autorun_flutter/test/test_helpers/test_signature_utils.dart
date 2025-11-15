@@ -61,7 +61,7 @@ class TestSignatureUtils {
 
       final signatureBase64 = base64.encode(signatureBytes);
 
-      debugPrint('Generated test signature: ${signatureBase64.substring(0, 20)}...');
+      // debugPrint('Generated test signature: ${signatureBase64.substring(0, 20)}...');
       return signatureBase64;
     } catch (error) {
       debugPrint('Failed to generate test signature: $error');

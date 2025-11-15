@@ -41,6 +41,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
   Timer? _lintDebouncer;
   int _currentLineCount = 1;
   String _selectedTheme = 'vs2015';
+  bool _showLineNumbers = false;
 
   // Available themes
   static const Map<String, Map<String, TextStyle>> _themes = {
@@ -276,67 +277,94 @@ class _ScriptEditorState extends State<ScriptEditor> {
           const Spacer(),
 
           // Stats and actions
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Line count
-              Text(
-                'Lines: $_currentLineCount',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Character count
-              Text(
-                'Chars: ${_controller.text.length}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Action buttons
-              if (widget.showIntegrations) ...[
-                Tooltip(
-                  message: 'Code snippets',
-                  child: IconButton(
-                    onPressed: _showIntegrationsHelp,
-                    icon: Icon(Icons.extension_rounded),
-                    iconSize: 18,
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.all(4),
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Line count
+                  Text(
+                    'Lines: $_currentLineCount',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-              ],
-              Tooltip(
-                message: 'Format code',
-                child: IconButton(
-                  onPressed: _formatCode,
-                  icon: Icon(Icons.format_align_left_rounded),
-                  iconSize: 18,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                ),
+                  const SizedBox(width: 12),
+
+                  // Character count
+                  Text(
+                    'Chars: ${_controller.text.length}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Line #',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Switch.adaptive(
+                        key: const Key('lineNumberSwitch'),
+                        value: _showLineNumbers,
+                        onChanged: (value) => setState(() => _showLineNumbers = value),
+                        activeTrackColor: Theme.of(context).colorScheme.primary,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Action buttons
+                  if (widget.showIntegrations) ...[
+                    Tooltip(
+                      message: 'Code snippets',
+                      child: IconButton(
+                        onPressed: _showIntegrationsHelp,
+                        icon: Icon(Icons.extension_rounded),
+                        iconSize: 18,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Tooltip(
+                    message: 'Format code',
+                    child: IconButton(
+                      onPressed: _formatCode,
+                      icon: Icon(Icons.format_align_left_rounded),
+                      iconSize: 18,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(4),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message: 'Copy code',
+                    child: IconButton(
+                      onPressed: _copyCode,
+                      icon: Icon(Icons.copy_rounded),
+                      iconSize: 18,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(4),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Tooltip(
-                message: 'Copy code',
-                child: IconButton(
-                  onPressed: _copyCode,
-                  icon: Icon(Icons.copy_rounded),
-                  iconSize: 18,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -438,7 +466,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
           gutterStyle: GutterStyle(
             showErrors: true,
             showFoldingHandles: true,
-            showLineNumbers: true,
+            showLineNumbers: _showLineNumbers,
           ),
           textStyle: const TextStyle(
             fontSize: 14,

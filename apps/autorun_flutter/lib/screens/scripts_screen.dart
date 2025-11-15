@@ -37,6 +37,11 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   late final ScriptController _controller;
   late final TabController _tabController;
   final ScriptAppRuntime _appRuntime = ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
+  void _handleTabChange() {
+    if (!mounted) return;
+    // Force rebuild so the floating action button swaps when switching tabs
+    setState(() {});
+  }
   
   // Marketplace properties
   final MarketplaceOpenApiService _marketplaceService = MarketplaceOpenApiService();
@@ -62,7 +67,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(_handleTabChange);
     _controller = ScriptController(ScriptRepository())..addListener(_onChanged);
     _controller.ensureLoaded();
     _initializeMarketplace();
@@ -73,7 +79,9 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController
+      ..removeListener(_handleTabChange)
+      ..dispose();
     _searchController.dispose();
     _controller
       ..removeListener(_onChanged)
@@ -313,15 +321,6 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     );
   }
 
-  void _showUploadScriptDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const QuickUploadDialog(),
-    );
-  }
-
-  
-
   Future<void> _runScript(ScriptRecord record) async {
     // Launch persistent app host for TEA-style scripts
     if (!mounted) return;
@@ -513,23 +512,17 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
             ],
           ),
           // Positioned FAB above navigation bar with better spacing
-          Positioned(
-            right: 16,
-            bottom: MediaQuery.of(context).padding.bottom + 90, // Better spacing from navigation bar
-            child: _tabController.index == 0 
-              ? AnimatedFab(
-                  heroTag: 'scripts_fab',
-                  onPressed: _controller.isBusy ? null : _showCreateSheet,
-                  icon: const Icon(Icons.add_rounded),
-                  label: 'New Script',
-                )
-              : AnimatedFab(
-                  heroTag: 'marketplace_fab',
-                  onPressed: () => _showUploadScriptDialog(context),
-                  icon: const Icon(Icons.upload_rounded),
-                  label: 'Upload Script',
-                ),
-          ),
+          if (_tabController.index == 0)
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 90, // Better spacing from navigation bar
+              child: AnimatedFab(
+                heroTag: 'scripts_fab',
+                onPressed: _controller.isBusy ? null : _showCreateSheet,
+                icon: const Icon(Icons.add_rounded),
+                label: 'New Script',
+              ),
+            ),
         ],
       ),
     );

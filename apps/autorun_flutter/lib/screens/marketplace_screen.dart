@@ -10,7 +10,6 @@ import '../widgets/script_card.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/error_display.dart';
 import '../widgets/script_details_dialog.dart';
-import '../widgets/quick_upload_dialog.dart';
 import 'download_history_screen.dart';
 
 class MarketplaceScreen extends StatefulWidget {
@@ -353,10 +352,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showUploadScriptDialog(context),
-        child: const Icon(Icons.add),
-      ),
     );
   }
 
@@ -622,13 +617,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         isDownloading: _downloadingScriptIds.contains(script.id),
         isDownloaded: _downloadedScriptIds.contains(script.id),
       ),
-    );
-  }
-
-  void _showUploadScriptDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const QuickUploadDialog(),
     );
   }
 
