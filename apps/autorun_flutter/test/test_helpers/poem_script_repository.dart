@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
-import 'test_signature_utils.dart';
+import 'package:icp_autorun/services/script_signature_service.dart';
+import 'package:icp_autorun/utils/principal.dart';
+import 'test_identity_factory.dart';
 
 /// Repository implementation that uses the Poem API server for end-to-end tests.
 class PoemScriptRepository extends ScriptRepository {
@@ -60,12 +62,11 @@ class PoemScriptRepository extends ScriptRepository {
   Future<void> persistScripts(List<ScriptRecord> scripts) async {
     try {
       for (final script in scripts) {
-        // Use simplified authorization token for persistScripts
-        final baseScriptData = _scriptToApiJson(script);
+        // Use real signatures for persistScripts
+        final baseScriptData = await _scriptToApiJson(script);
 
-        // Create the final script data with simple auth token
+        // Create the final script data
         final scriptData = Map<String, dynamic>.from(baseScriptData);
-        scriptData['signature'] = 'test-auth-token';
         scriptData['action'] = 'upload';
 
 
@@ -90,9 +91,26 @@ class PoemScriptRepository extends ScriptRepository {
 
 
 
-  Map<String, dynamic> _scriptToApiJson(ScriptRecord script) {
+  Future<Map<String, dynamic>> _scriptToApiJson(ScriptRecord script) async {
     // Always generate a fresh timestamp for the API request
     final timestamp = DateTime.now().toUtc().toIso8601String();
+
+    // Get test identity for signing
+    final identity = await TestIdentityFactory.getEd25519Identity();
+    final principal = PrincipalUtils.textFromRecord(identity);
+
+    // Generate real cryptographic signature
+    final signature = await ScriptSignatureService.signScriptUpload(
+      authorIdentity: identity,
+      title: script.title,
+      description: script.metadata['description'] ?? '',
+      category: script.metadata['category'] ?? 'Development',
+      luaSource: script.luaSource,
+      version: (script.metadata['version'] ?? '1.0.0').toString(),
+      tags: (script.metadata['tags'] as List<dynamic>? ?? const [])
+          .map((tag) => tag.toString())
+          .toList(),
+    );
 
     return {
       'title': script.title,
@@ -104,10 +122,10 @@ class PoemScriptRepository extends ScriptRepository {
       'lua_source': script.luaSource,
       'author_name': script.metadata['authorName'] ?? 'Anonymous',
       'author_id': script.metadata['authorId'] ?? 'test-author-id',
-      'author_principal': script.metadata['authorPrincipal'] ?? '2vxsx-fae',
-      'author_public_key': script.metadata['authorPublicKey'] ?? 'test-public-key-for-icp-compatibility',
-      'upload_signature': script.metadata['uploadSignature'] ?? 'test-signature',
-      'signature': script.metadata['signature'] ?? 'test-signature',
+      'author_principal': principal,
+      'author_public_key': identity.publicKey,
+      'upload_signature': signature,
+      'signature': signature,
       'timestamp': timestamp,
       'version': (script.metadata['version'] ?? '1.0.0').toString(),
       'price': script.metadata['price'] ?? 0.0,
@@ -203,7 +221,20 @@ class PoemScriptRepository extends ScriptRepository {
   Future<void> deleteScript(String id) async {
     try {
       // Generate proper signature for script deletion
-      final deleteData = TestSignatureUtils.createTestDeleteRequest(id);
+      final identity = await TestIdentityFactory.getEd25519Identity();
+      final principal = PrincipalUtils.textFromRecord(identity);
+      final signature = await ScriptSignatureService.signScriptDeletion(
+        authorIdentity: identity,
+        scriptId: id,
+      );
+
+      final deleteData = {
+        'script_id': id,
+        'author_principal': principal,
+        'author_public_key': identity.publicKey,
+        'signature': signature,
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+      };
 
       final response = await _client.delete(
         Uri.parse('$baseUrl/api/v1/scripts/$id'),
@@ -301,19 +332,25 @@ class PoemScriptRepository extends ScriptRepository {
 
   Future<String> publishScript(ScriptRecord script) async {
     try {
-      final updatedScript = ScriptRecord(
-        id: script.id,
-        title: script.title,
-        luaSource: script.luaSource,
-        metadata: {...script.metadata, 'isPublic': true},
-        createdAt: script.createdAt,
-        updatedAt: DateTime.now(),
+      // Generate proper signature for publish
+      final identity = await TestIdentityFactory.getEd25519Identity();
+      final principal = PrincipalUtils.textFromRecord(identity);
+      final signature = await ScriptSignatureService.signScriptUpdate(
+        authorIdentity: identity,
+        scriptId: script.id,
+        updates: {'is_public': true},
       );
 
       final response = await _client.post(
         Uri.parse('$baseUrl/api/v1/scripts/${script.id}/publish'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode(_scriptToApiJson(updatedScript)),
+        body: json.encode({
+          'is_public': true,
+          'author_principal': principal,
+          'author_public_key': identity.publicKey,
+          'signature': signature,
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -373,8 +410,11 @@ class PoemScriptRepository extends ScriptRepository {
       );
 
       if (checkResponse.statusCode == 200) {
-        // Generate proper signature for script update using test utilities
-        final updateData = TestSignatureUtils.createTestUpdateRequest(script.id, updates: {
+        // Generate proper signature for script update
+        final identity = await TestIdentityFactory.getEd25519Identity();
+        final principal = PrincipalUtils.textFromRecord(identity);
+
+        final updates = {
           'title': script.title,
           'description': script.metadata['description'] ?? '',
           'category': script.metadata['category'] ?? 'Development',
@@ -385,7 +425,22 @@ class PoemScriptRepository extends ScriptRepository {
           'version': (script.metadata['version'] ?? '1.0.0').toString(),
           'price': script.metadata['price'] ?? 0.0,
           'is_public': script.metadata['isPublic'] ?? false,
-        });
+        };
+
+        final signature = await ScriptSignatureService.signScriptUpdate(
+          authorIdentity: identity,
+          scriptId: script.id,
+          updates: updates,
+        );
+
+        final updateData = {
+          ...updates,
+          'script_id': script.id,
+          'author_principal': principal,
+          'author_public_key': identity.publicKey,
+          'signature': signature,
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
+        };
 
         if (!updateData.containsKey('version')) {
           throw Exception('Update payload missing version for ${script.id}');
@@ -411,12 +466,11 @@ class PoemScriptRepository extends ScriptRepository {
         _assertSuccessfulMutation(response, 'update script ${script.id}');
         return script.id;
       } else {
-        // Use simplified authorization token
-        final baseScriptData = _scriptToApiJson(script);
+        // Create script if it doesn't exist
+        final baseScriptData = await _scriptToApiJson(script);
 
-        // Create the final script data with simple auth token
+        // Create the final script data
         final scriptData = Map<String, dynamic>.from(baseScriptData);
-        scriptData['signature'] = 'test-auth-token';
         scriptData['action'] = 'upload';
 
 

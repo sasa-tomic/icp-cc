@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
+import 'package:icp_autorun/models/identity_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
-import 'test_signature_utils.dart';
+import 'package:icp_autorun/services/script_signature_service.dart';
+import 'package:icp_autorun/utils/principal.dart';
+import 'test_identity_factory.dart';
 
 /// HTTP client wrapper with timeout to prevent infinite hanging in tests
 class _TimeoutClient extends http.BaseClient {
@@ -30,6 +33,7 @@ class TestableScriptRepository extends ScriptRepository {
   final AuthenticationMethod _authMethod;
   final String? _customAuthToken;
   final bool _forceInvalidAuth;
+  final KeyAlgorithm _signatureAlgorithm;
 
   TestableScriptRepository({
     String? baseUrl,
@@ -37,11 +41,13 @@ class TestableScriptRepository extends ScriptRepository {
     AuthenticationMethod authMethod = AuthenticationMethod.testToken,
     String? customAuthToken,
     bool forceInvalidAuth = false,
+    KeyAlgorithm signatureAlgorithm = KeyAlgorithm.ed25519,
   }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
        _client = client ?? _TimeoutClient(),
        _authMethod = authMethod,
        _customAuthToken = customAuthToken,
-       _forceInvalidAuth = forceInvalidAuth;
+       _forceInvalidAuth = forceInvalidAuth,
+       _signatureAlgorithm = signatureAlgorithm;
 
   static String _getDefaultBaseUrl() {
     try {
@@ -65,7 +71,7 @@ class TestableScriptRepository extends ScriptRepository {
 
     try {
       for (final script in scripts) {
-        final scriptData = _createAuthenticatedScriptData(script, 'upload');
+        final scriptData = await _createAuthenticatedScriptData(script, 'upload');
 
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
@@ -99,7 +105,7 @@ class TestableScriptRepository extends ScriptRepository {
 
         if (checkResponse.statusCode == 200) {
           // Update existing script
-          final updateData = _createAuthenticatedScriptData(script, 'update');
+          final updateData = await _createAuthenticatedScriptData(script, 'update');
           updateData['script_id'] = script.id;
 
           final response = await _client.put(
@@ -120,7 +126,7 @@ class TestableScriptRepository extends ScriptRepository {
           return script.id;
         } else {
           // Create new script
-          final scriptData = _createAuthenticatedScriptData(script, 'upload');
+          final scriptData = await _createAuthenticatedScriptData(script, 'upload');
 
           final response = await _client.post(
             Uri.parse('$baseUrl/api/v1/scripts'),
@@ -169,7 +175,7 @@ class TestableScriptRepository extends ScriptRepository {
     _ensureValidAuthentication('delete script $id');
 
     try {
-      final deleteData = _createAuthenticatedDeleteData(id);
+      final deleteData = await _createAuthenticatedDeleteData(id);
 
       final response = await _client.delete(
         Uri.parse('$baseUrl/api/v1/scripts/$id'),
@@ -189,7 +195,7 @@ class TestableScriptRepository extends ScriptRepository {
     }
   }
 
-  Map<String, dynamic> _createAuthenticatedScriptData(ScriptRecord script, String action) {
+  Future<Map<String, dynamic>> _createAuthenticatedScriptData(ScriptRecord script, String action) async {
     final timestamp = DateTime.now().toIso8601String();
     
     final baseScriptData = {
@@ -219,11 +225,46 @@ class TestableScriptRepository extends ScriptRepository {
         break;
 
       case AuthenticationMethod.realSignature:
-        final payload = {
-          'action': action,
-          ...baseScriptData,
-        };
-        scriptData['signature'] = TestSignatureUtils.generateTestSignature(payload);
+        // Use real cryptographic signature (Ed25519 or secp256k1)
+        final identity = await TestIdentityFactory.getIdentity(_signatureAlgorithm);
+        final principal = PrincipalUtils.textFromRecord(identity);
+
+        // Update with real principal and public key
+        scriptData['author_principal'] = principal;
+        scriptData['author_public_key'] = identity.publicKey;
+
+        // Create signature based on the action type
+        final String signature;
+        if (action == 'upload') {
+          signature = await ScriptSignatureService.signScriptUpload(
+            authorIdentity: identity,
+            title: scriptData['title'],
+            description: scriptData['description'],
+            category: scriptData['category'],
+            luaSource: scriptData['lua_source'],
+            version: scriptData['version'],
+            tags: List<String>.from(scriptData['tags'] ?? []),
+          );
+        } else if (action == 'update') {
+          signature = await ScriptSignatureService.signScriptUpdate(
+            authorIdentity: identity,
+            scriptId: scriptData['script_id'] ?? '',
+            updates: scriptData,
+          );
+        } else {
+          // Default to upload signature for unknown actions
+          signature = await ScriptSignatureService.signScriptUpload(
+            authorIdentity: identity,
+            title: scriptData['title'],
+            description: scriptData['description'],
+            category: scriptData['category'],
+            luaSource: scriptData['lua_source'],
+            version: scriptData['version'],
+            tags: List<String>.from(scriptData['tags'] ?? []),
+          );
+        }
+
+        scriptData['signature'] = signature;
         break;
 
       case AuthenticationMethod.invalidToken:
@@ -247,7 +288,7 @@ class TestableScriptRepository extends ScriptRepository {
     return scriptData;
   }
 
-  Map<String, dynamic> _createAuthenticatedDeleteData(String id) {
+  Future<Map<String, dynamic>> _createAuthenticatedDeleteData(String id) async {
     final timestamp = DateTime.now().toIso8601String();
     
     final baseDeleteData = {
@@ -262,13 +303,21 @@ class TestableScriptRepository extends ScriptRepository {
         break;
 
       case AuthenticationMethod.realSignature:
-        final payload = {
-          'action': 'delete',
-          'script_id': id,
-          'author_principal': '2vxsx-fae',
-          'timestamp': timestamp,
-        };
-        baseDeleteData['signature'] = TestSignatureUtils.generateTestSignature(payload);
+        // Use real cryptographic signature (Ed25519 or secp256k1)
+        final identity = await TestIdentityFactory.getIdentity(_signatureAlgorithm);
+        final principal = PrincipalUtils.textFromRecord(identity);
+
+        // Update with real principal and public key
+        baseDeleteData['author_principal'] = principal;
+        baseDeleteData['author_public_key'] = identity.publicKey;
+
+        // Create signature using ScriptSignatureService
+        final signature = await ScriptSignatureService.signScriptDeletion(
+          authorIdentity: identity,
+          scriptId: id,
+        );
+
+        baseDeleteData['signature'] = signature;
         break;
 
       case AuthenticationMethod.invalidToken:

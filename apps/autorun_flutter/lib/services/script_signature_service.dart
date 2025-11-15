@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
-import 'package:collection/collection.dart';
 import '../models/identity_record.dart';
 import '../utils/principal.dart';
 
@@ -139,12 +138,12 @@ class ScriptSignatureService {
         return base64Encode(signature.bytes);
 
       case KeyAlgorithm.secp256k1:
-        // For secp256k1, use HMAC-SHA256 as a fallback approach
-        // This is not ideal for production but works for demonstration
-        final algorithm = Hmac.sha256();
-        final secretKey = SecretKey(privateKeyBytes);
-        final mac = await algorithm.calculateMac(payloadBytes, secretKey: secretKey);
-        return base64Encode(mac.bytes);
+        // TODO: Implement proper secp256k1 ECDSA signature using Rust FFI
+        // For now, throw to indicate this needs Rust bridge implementation
+        // The elliptic Dart package doesn't provide the right signing API
+        throw UnimplementedError(
+          'secp256k1 signatures require Rust FFI bridge - use Ed25519 for now'
+        );
     }
   }
 
@@ -168,35 +167,16 @@ class ScriptSignatureService {
   }
 
   /// Verify a signature against a payload and public key
+  /// Note: Verification is done on the server side
   static Future<bool> verifySignature({
     required String signature,
     required Map<String, dynamic> payload,
     required String publicKeyB64,
     required KeyAlgorithm algorithm,
   }) async {
-    try {
-      final canonicalJson = _canonicalJsonEncode(payload);
-      final payloadBytes = utf8.encode(canonicalJson);
-      final signatureBytes = base64Decode(signature);
-      final publicKeyBytes = base64Decode(publicKeyB64);
-
-      switch (algorithm) {
-        case KeyAlgorithm.ed25519:
-          // TODO: Implement Ed25519 verification with correct API
-          // For now, return false to ensure we don't accept unverified signatures
-          return false;
-
-        case KeyAlgorithm.secp256k1:
-          // For secp256k1, verify HMAC
-          final hmacAlgorithm = Hmac.sha256();
-          final secretKey = SecretKey(publicKeyBytes);
-          final mac = await hmacAlgorithm.calculateMac(payloadBytes, secretKey: secretKey);
-          return const ListEquality().equals(mac.bytes, signatureBytes);
-      }
-    } catch (e) {
-      // Fail fast on any errors
-      return false;
-    }
+    // Verification is done on the server side using proper cryptographic libraries
+    // This client-side stub is kept for potential future local verification
+    return false;
   }
 
   /// Get the author's principal for display (first 5 characters)

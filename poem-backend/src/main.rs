@@ -1,3 +1,6 @@
+use base64::{engine::general_purpose, Engine as _};
+use ed25519_dalek::{Signature as Ed25519Signature, Verifier, VerifyingKey as Ed25519VerifyingKey};
+use k256::ecdsa::{Signature as Secp256k1Signature, VerifyingKey as Secp256k1VerifyingKey};
 use poem::{
     get, handler,
     http::StatusCode,
@@ -8,6 +11,7 @@ use poem::{
     EndpointExt, IntoResponse, Response, Route, Server,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sqlx::{sqlite::SqlitePool, FromRow};
 use std::{env, net::TcpListener as StdTcpListener, sync::Arc};
 
@@ -85,6 +89,9 @@ struct UpdateScriptRequest {
     signature: Option<String>,
     timestamp: Option<String>,
     script_id: Option<String>,
+    author_principal: Option<String>,
+    author_public_key: Option<String>,
+    action: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,6 +99,7 @@ struct UpdateScriptRequest {
 struct DeleteScriptRequest {
     script_id: Option<String>,
     author_principal: Option<String>,
+    author_public_key: Option<String>,
     signature: Option<String>,
     timestamp: Option<String>,
 }
@@ -145,7 +153,102 @@ fn error_response(status: StatusCode, error: &str) -> Response {
         .into_response()
 }
 
-/// Validates authentication signature
+/// Verifies an Ed25519 signature (ICP standard)
+fn verify_ed25519_signature(
+    signature_b64: &str,
+    payload: &[u8],
+    public_key_b64: &str,
+) -> Result<(), String> {
+    // Decode signature
+    let signature_bytes = general_purpose::STANDARD
+        .decode(signature_b64)
+        .map_err(|e| format!("Invalid Ed25519 signature encoding: {}", e))?;
+
+    let signature = Ed25519Signature::from_slice(&signature_bytes)
+        .map_err(|e| format!("Invalid Ed25519 signature format: {}", e))?;
+
+    // Decode public key
+    let public_key_bytes = general_purpose::STANDARD
+        .decode(public_key_b64)
+        .map_err(|e| format!("Invalid Ed25519 public key encoding: {}", e))?;
+
+    let verifying_key = Ed25519VerifyingKey::from_bytes(
+        public_key_bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| "Invalid Ed25519 public key length".to_string())?,
+    )
+    .map_err(|e| format!("Invalid Ed25519 public key: {}", e))?;
+
+    // Verify signature
+    verifying_key
+        .verify(payload, &signature)
+        .map_err(|e| format!("Ed25519 signature verification failed: {}", e))?;
+
+    Ok(())
+}
+
+/// Verifies a secp256k1 ECDSA signature (ICP standard)
+fn verify_secp256k1_signature(
+    signature_b64: &str,
+    payload: &[u8],
+    public_key_b64: &str,
+) -> Result<(), String> {
+    // Decode signature
+    let signature_bytes = general_purpose::STANDARD
+        .decode(signature_b64)
+        .map_err(|e| format!("Invalid secp256k1 signature encoding: {}", e))?;
+
+    let signature = Secp256k1Signature::from_slice(&signature_bytes)
+        .map_err(|e| format!("Invalid secp256k1 signature format: {}", e))?;
+
+    // Decode public key
+    let public_key_bytes = general_purpose::STANDARD
+        .decode(public_key_b64)
+        .map_err(|e| format!("Invalid secp256k1 public key encoding: {}", e))?;
+
+    let verifying_key = Secp256k1VerifyingKey::from_sec1_bytes(&public_key_bytes)
+        .map_err(|e| format!("Invalid secp256k1 public key: {}", e))?;
+
+    // For secp256k1, ICP uses SHA-256 hash of the message
+    let mut hasher = Sha256::new();
+    hasher.update(payload);
+    let message_hash = hasher.finalize();
+
+    // Verify signature
+    verifying_key
+        .verify(&message_hash, &signature)
+        .map_err(|e| format!("secp256k1 signature verification failed: {}", e))?;
+
+    Ok(())
+}
+
+/// Creates canonical JSON payload for signature verification
+/// Keys must be sorted alphabetically for deterministic output
+fn create_canonical_payload(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut sorted_keys: Vec<&String> = map.keys().collect();
+            sorted_keys.sort();
+
+            let mut result = String::from("{");
+            for (i, key) in sorted_keys.iter().enumerate() {
+                if i > 0 {
+                    result.push(',');
+                }
+                result.push('"');
+                result.push_str(key);
+                result.push_str("\":");
+                result.push_str(&create_canonical_payload(&map[*key]));
+            }
+            result.push('}');
+            result
+        }
+        _ => serde_json::to_string(value).unwrap_or_default(),
+    }
+}
+
+/// Validates authentication signature with real cryptographic verification
 fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Box<Response>> {
     match signature {
         None => {
@@ -164,18 +267,276 @@ fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Bo
                 "Invalid authentication signature",
             )))
         }
-        Some(sig) if !is_development() && sig != "test-auth-token" => {
-            tracing::warn!(
-                "{} rejected: signature validation not implemented",
-                operation
-            );
-            Err(Box::new(error_response(
+        Some(_) => Ok(()), // Signature present, verification happens in specific handlers
+    }
+}
+
+/// Verifies script upload signature
+fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<Response>> {
+    let signature = match &req.signature {
+        Some(sig) => sig,
+        None => {
+            return Err(Box::new(error_response(
                 StatusCode::UNAUTHORIZED,
-                "Invalid authentication signature",
+                "Missing signature for verification",
             )))
         }
-        Some(_) => Ok(()),
+    };
+
+    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_public_key for signature verification",
+        ))
+    })?;
+
+    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_principal for signature verification",
+        ))
+    })?;
+
+    // Reconstruct the payload that was signed
+    let mut payload = serde_json::json!({
+        "action": "upload",
+        "title": &req.title,
+        "description": &req.description,
+        "category": &req.category,
+        "lua_source": &req.lua_source,
+        "version": req.version.as_deref().unwrap_or("1.0.0"),
+        "author_principal": author_principal,
+    });
+
+    // Add optional fields
+    if let Some(ref timestamp) = req.timestamp {
+        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
     }
+    if let Some(ref tags) = req.tags {
+        let mut sorted_tags = tags.clone();
+        sorted_tags.sort();
+        payload["tags"] = serde_json::json!(sorted_tags);
+    }
+
+    // Create canonical JSON
+    let canonical_json = create_canonical_payload(&payload);
+    let payload_bytes = canonical_json.as_bytes();
+
+    // Try Ed25519 first, then secp256k1
+    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    tracing::warn!("Signature verification failed for script upload");
+    Err(Box::new(error_response(
+        StatusCode::UNAUTHORIZED,
+        "Invalid authentication signature",
+    )))
+}
+
+/// Verifies script deletion signature
+fn verify_script_deletion_signature(
+    req: &DeleteScriptRequest,
+    script_id: &str,
+) -> Result<(), Box<Response>> {
+    let signature = match &req.signature {
+        Some(sig) => sig,
+        None => {
+            return Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Missing signature for verification",
+            )))
+        }
+    };
+
+    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_public_key for signature verification",
+        ))
+    })?;
+
+    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_principal for signature verification",
+        ))
+    })?;
+
+    // Reconstruct the payload
+    let mut payload = serde_json::json!({
+        "action": "delete",
+        "script_id": script_id,
+        "author_principal": author_principal,
+    });
+
+    if let Some(ref timestamp) = req.timestamp {
+        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
+    }
+
+    let canonical_json = create_canonical_payload(&payload);
+    let payload_bytes = canonical_json.as_bytes();
+
+    // Try both signature types
+    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    tracing::warn!("Signature verification failed for script deletion");
+    Err(Box::new(error_response(
+        StatusCode::UNAUTHORIZED,
+        "Invalid authentication signature",
+    )))
+}
+
+/// Verifies script update signature
+fn verify_script_update_signature(
+    req: &UpdateScriptRequest,
+    script_id: &str,
+) -> Result<(), Box<Response>> {
+    let signature = match &req.signature {
+        Some(sig) => sig,
+        None => {
+            return Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Missing signature for verification",
+            )))
+        }
+    };
+
+    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_public_key for signature verification",
+        ))
+    })?;
+
+    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_principal for signature verification",
+        ))
+    })?;
+
+    // Reconstruct the payload that was signed
+    let mut payload = serde_json::json!({
+        "action": "update",
+        "script_id": script_id,
+        "author_principal": author_principal,
+    });
+
+    // Add all update fields that were signed
+    if let Some(ref title) = req.title {
+        payload["title"] = serde_json::Value::String(title.clone());
+    }
+    if let Some(ref description) = req.description {
+        payload["description"] = serde_json::Value::String(description.clone());
+    }
+    if let Some(ref category) = req.category {
+        payload["category"] = serde_json::Value::String(category.clone());
+    }
+    if let Some(ref lua_source) = req.lua_source {
+        payload["lua_source"] = serde_json::Value::String(lua_source.clone());
+    }
+    if let Some(ref version) = req.version {
+        payload["version"] = serde_json::Value::String(version.clone());
+    }
+    if let Some(ref tags) = req.tags {
+        let mut sorted_tags = tags.clone();
+        sorted_tags.sort();
+        payload["tags"] = serde_json::json!(sorted_tags);
+    }
+    if let Some(ref timestamp) = req.timestamp {
+        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
+    }
+
+    // Create canonical JSON
+    let canonical_json = create_canonical_payload(&payload);
+    let payload_bytes = canonical_json.as_bytes();
+
+    // Try Ed25519 first, then secp256k1
+    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    tracing::warn!("Signature verification failed for script update");
+    Err(Box::new(error_response(
+        StatusCode::UNAUTHORIZED,
+        "Invalid authentication signature",
+    )))
+}
+
+/// Verifies script publish signature
+fn verify_script_publish_signature(
+    req: &UpdateScriptRequest,
+    script_id: &str,
+) -> Result<(), Box<Response>> {
+    let signature = match &req.signature {
+        Some(sig) => sig,
+        None => {
+            return Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Missing signature for verification",
+            )))
+        }
+    };
+
+    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_public_key for signature verification",
+        ))
+    })?;
+
+    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_principal for signature verification",
+        ))
+    })?;
+
+    // Reconstruct the payload that was signed for publish
+    let mut payload = serde_json::json!({
+        "action": "update",
+        "script_id": script_id,
+        "is_public": true,
+        "author_principal": author_principal,
+    });
+
+    if let Some(ref timestamp) = req.timestamp {
+        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
+    }
+
+    // Create canonical JSON
+    let canonical_json = create_canonical_payload(&payload);
+    let payload_bytes = canonical_json.as_bytes();
+
+    // Try Ed25519 first, then secp256k1
+    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
+        return Ok(());
+    }
+
+    tracing::warn!("Signature verification failed for script publish");
+    Err(Box::new(error_response(
+        StatusCode::UNAUTHORIZED,
+        "Invalid authentication signature",
+    )))
 }
 
 /// Validates principal and public key fields for authentication
@@ -401,6 +762,11 @@ async fn create_script(
         return *response;
     }
 
+    // Verify cryptographic signature if not using test token
+    if let Err(response) = verify_script_upload_signature(&req) {
+        return *response;
+    }
+
     // Generate ID if not provided
     let script_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -471,6 +837,11 @@ async fn update_script(
         req.signature.as_deref(),
         &format!("Script update for {}", script_id),
     ) {
+        return *response;
+    }
+
+    // Verify cryptographic signature if not using test token
+    if let Err(response) = verify_script_update_signature(&req, &script_id) {
         return *response;
     }
 
@@ -606,6 +977,11 @@ async fn delete_script(
         return *response;
     }
 
+    // Verify cryptographic signature if not using test token
+    if let Err(response) = verify_script_deletion_signature(&req, &script_id) {
+        return *response;
+    }
+
     match sqlx::query("DELETE FROM scripts WHERE id = ?1")
         .bind(&script_id)
         .execute(&state.pool)
@@ -736,6 +1112,11 @@ async fn publish_script(
         req.signature.as_deref(),
         &format!("Script publish for {}", script_id),
     ) {
+        return *response;
+    }
+
+    // Verify cryptographic signature if not using test token
+    if let Err(response) = verify_script_publish_signature(&req, &script_id) {
         return *response;
     }
 

@@ -2,8 +2,8 @@
 
 ## Immediate Tasks (Ready to Start)
 
-- Adjust the UI to align it closely with fantastic UX on mobile devices that typically have narrow screen - much taller than wide.
-- Make the script size more compact in the marketplace. We are now consuming a lot of vertical space for each script.
+- Add support in the app and the backend API to fully support signing and verification with ed25519-dalek
+- Add support in the app and the backend API to fully support signing and verification with secp256k1
 - Extend the UI to support script re-uploading from "My scripts"
 - Extend the UI to support script deletion in the "Marketplace" tab (server would do the request signature checking)
 
