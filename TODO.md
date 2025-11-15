@@ -19,7 +19,7 @@
 
 ## ICP Autorun Marketplace
 
-- Marketplace in app currently seems to be using localhost, and it should instead be using the production instance on appwrite.io - investigate and set the correct URL
+
 
 ### Payment Processing (Priority: High - Next Phase)
 - Integrate with icpay.org for script payments

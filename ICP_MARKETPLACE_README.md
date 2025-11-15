@@ -129,7 +129,7 @@ flutter pub get
 flutter pub add http cached_network_image
 
 # Update lib/services/marketplace_open_api_service.dart with your API endpoint
-# (default: http://localhost:3000/v1)
+# (default: https://fra.cloud.appwrite.io/v1)
 
 # Run the app
 flutter run
@@ -140,7 +140,7 @@ flutter run
 Update the API server URL in `apps/autorun_flutter/lib/services/marketplace_open_api_service.dart`:
 
 ```dart
-final String _baseUrl = 'https://your-api-domain.com/v1'; // Update this
+final String _baseUrl = 'https://fra.cloud.appwrite.io/v1'; // Production Appwrite endpoint
 ```
 
 ## API Documentation
@@ -165,16 +165,16 @@ final String _baseUrl = 'https://your-api-domain.com/v1'; // Update this
 
 ```bash
 # Search gaming scripts
-curl "http://localhost:3000/v1/scripts/search?category=Gaming&min_rating=4"
+curl "https://fra.cloud.appwrite.io/v1/scripts/search?category=Gaming&min_rating=4"
 
 # Find scripts for a specific canister
-curl "http://localhost:3000/v1/scripts/canister/rrkah-fqaaa-aaaaa-aaaaq-cai"
+curl "https://fra.cloud.appwrite.io/v1/scripts/canister/rrkah-fqaaa-aaaaa-aaaaq-cai"
 
 # Get script details
-curl "http://localhost:3000/v1/scripts/script_123"
+curl "https://fra.cloud.appwrite.io/v1/scripts/script_123"
 
 # Validate Lua code
-curl -X POST "http://localhost:3000/v1/scripts/validate" \
+curl -X POST "https://fra.cloud.appwrite.io/v1/scripts/validate" \
   -H "Content-Type: application/json" \
   -d '{"lua_source": "print(\"Hello, ICP!\")"}'
 ```
