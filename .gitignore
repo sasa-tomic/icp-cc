@@ -45,3 +45,7 @@ apps/**/android/app/src/main/jniLibs/
 # Cloudflare Workers
 cloudflare-api/wrangler.log
 cloudflare-api/.wrangler/
+
+# Test output logs
+logs/
+test-output.log
