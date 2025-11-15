@@ -74,11 +74,18 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _showCreateSheet() async {
-    final ScriptRecord? rec = await showModalBottomSheet<ScriptRecord>(
+    // Step 1: let user edit a fresh sample Lua script
+    final String? editedSource = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       builder: (context) => _ScriptCreateSheet(controller: _controller),
+    );
+    if (!mounted || editedSource == null) return;
+    // Step 2: prompt for details and create the script record
+    final ScriptRecord? rec = await showDialog<ScriptRecord>(
+      context: context,
+      builder: (_) => _NewScriptDetailsDialog(controller: _controller, luaSource: editedSource),
     );
     if (!mounted || rec == null) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Script created')));
@@ -199,14 +206,16 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
   late final TextEditingController _titleController;
   late final TextEditingController _emojiController;
   late final TextEditingController _imageUrlController;
+  late final TextEditingController _sourceController;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController();
-    _emojiController = TextEditingController();
+    _titleController = TextEditingController(text: 'My first script');
+    _emojiController = TextEditingController(text: '🧪');
     _imageUrlController = TextEditingController();
+    _sourceController = TextEditingController(text: kDefaultSampleLua);
   }
 
   @override
@@ -214,21 +223,22 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
     _titleController.dispose();
     _emojiController.dispose();
     _imageUrlController.dispose();
+    _sourceController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (_isSubmitting) return;
-    if (!_formKey.currentState!.validate()) return;
+    // Only validate that the Lua source is non-empty (fail-fast)
+    if (_sourceController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lua source cannot be empty')));
+      return;
+    }
     setState(() => _isSubmitting = true);
     try {
-      final rec = await widget.controller.createScript(
-        title: _titleController.text.trim(),
-        emoji: _emojiController.text.trim().isEmpty ? null : _emojiController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isEmpty ? null : _imageUrlController.text.trim(),
-      );
+      // Return only the edited source; details are collected after Save
       if (!mounted) return;
-      Navigator.of(context).pop(rec);
+      Navigator.of(context).pop<String>(_sourceController.text);
     } catch (error, stackTrace) {
       debugPrint('Failed to create script: $error\n$stackTrace');
       if (mounted) {
@@ -250,7 +260,18 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
           padding: const EdgeInsets.all(24),
           shrinkWrap: true,
           children: <Widget>[
-            Text('Create a new script', style: Theme.of(context).textTheme.titleLarge),
+            Text('New script', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _sourceController,
+              minLines: 8,
+              maxLines: 16,
+              decoration: const InputDecoration(
+                labelText: 'Lua source (edit first, Save to continue)',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.multiline,
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _titleController,
@@ -258,11 +279,7 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
                 labelText: 'Title',
                 border: OutlineInputBorder(),
               ),
-              textInputAction: TextInputAction.next,
-              validator: (String? value) {
-                if ((value ?? '').trim().isEmpty) return 'Title is required';
-                return null;
-              },
+              enabled: false,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -272,7 +289,7 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
                 hintText: 'e.g. 🔍',
                 border: OutlineInputBorder(),
               ),
-              textInputAction: TextInputAction.next,
+              enabled: false,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -282,7 +299,7 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
                 hintText: 'local:// or https:// path',
                 border: OutlineInputBorder(),
               ),
-              textInputAction: TextInputAction.done,
+              enabled: false,
             ),
             const SizedBox(height: 8),
             const Text(
@@ -295,7 +312,7 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
               icon: _isSubmitting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.bolt),
-              label: const Text('Create script'),
+              label: const Text('Save'),
             ),
           ],
         ),
@@ -467,6 +484,106 @@ class _ScriptDetailsDialog extends StatefulWidget {
 
   @override
   State<_ScriptDetailsDialog> createState() => _ScriptDetailsDialogState();
+}
+
+class _NewScriptDetailsDialog extends StatefulWidget {
+  const _NewScriptDetailsDialog({required this.controller, required this.luaSource});
+  final ScriptController controller;
+  final String luaSource;
+
+  @override
+  State<_NewScriptDetailsDialog> createState() => _NewScriptDetailsDialogState();
+}
+
+class _NewScriptDetailsDialogState extends State<_NewScriptDetailsDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleController;
+  late final TextEditingController _emojiController;
+  late final TextEditingController _imageUrlController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: 'My first script');
+    _emojiController = TextEditingController(text: '🧪');
+    _imageUrlController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _emojiController.dispose();
+    _imageUrlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_isSubmitting) return;
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+    try {
+      final rec = await widget.controller.createScript(
+        title: _titleController.text.trim(),
+        emoji: _emojiController.text.trim().isEmpty ? null : _emojiController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isEmpty ? null : _imageUrlController.text.trim(),
+        luaSourceOverride: widget.luaSource,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(rec);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Script details'),
+      content: Form(
+        key: _formKey,
+        child: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+                textInputAction: TextInputAction.next,
+                validator: (v) => (v ?? '').trim().isEmpty ? 'Title is required' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _emojiController,
+                decoration: const InputDecoration(labelText: 'Emoji (optional)', border: OutlineInputBorder()),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _imageUrlController,
+                decoration: const InputDecoration(labelText: 'Image URL (optional)', border: OutlineInputBorder()),
+                textInputAction: TextInputAction.done,
+              ),
+              const SizedBox(height: 8),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Provide either an emoji or an image URL', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(onPressed: _isSubmitting ? null : _save, child: const Text('Save')),
+      ],
+    );
+  }
 }
 
 class _ScriptDetailsDialogState extends State<_ScriptDetailsDialog> {
