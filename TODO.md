@@ -59,7 +59,7 @@ Implementation plan:
    - Provide migration shim for old `return icp_ui_list(...)` (optional)
 
 5) Testing
-   - Rust: unit tests for init/view/update JSON roundtrips and timeouts
+   - Rust: unit tests for init/view/update JSON roundtrips and timeouts (DONE)
    - Flutter: widget tests for host loop, event dispatch, effect result handling, and renderer
 
 Non-goals for v1:
