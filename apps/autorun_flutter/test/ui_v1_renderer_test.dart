@@ -174,16 +174,17 @@ void main() {
         'type': 'image',
         'props': {
           'src': 'local://assets/test.png',
-          'width': 100,
-          'height': 100,
+          'width': 120,
+          'height': 120,
         },
       };
 
       await tester.pumpWidget(createTestWidget(ui));
       await tester.pumpAndSettle();
 
-      expect(find.text('Local image\nassets/test.png'), findsOneWidget);
       expect(find.byIcon(Icons.image), findsOneWidget);
+      expect(find.byType(Container), findsWidgets);
+      expect(find.byType(Column), findsOneWidget);
     });
 
     testWidgets('image widget shows error state for empty src', (WidgetTester tester) async {

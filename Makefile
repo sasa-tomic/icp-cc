@@ -50,19 +50,16 @@ distclean: clean
 	rm -rf $(ROOT)/apps/autorun_flutter/.gradle || true
 
 test:
-	@set -euo pipefail
-	@echo "==> Running Flutter analysis and tests"
-	cd $(ROOT)/apps/autorun_flutter && flutter analyze && flutter test
+	@echo "==> Running Flutter analysis..."
+	@cd $(ROOT)/apps/autorun_flutter && flutter analyze
+	@echo "==> Running Flutter tests..."
+	@cd $(ROOT)/apps/autorun_flutter && flutter test
 	@echo "==> Running Rust linting and tests"
-	cargo clippy --benches --tests --all-features
-	cargo clippy
-	cargo fmt --all
-	@if cargo nextest --help >/dev/null 2>&1; then \
-	  cargo nextest run ; \
-	else \
-	  echo "cargo-nextest not found; running cargo test" ; \
-	  cargo test ; \
-	fi
+	cargo clippy --benches --tests --all-features --quiet
+	cargo clippy --quiet
+	cargo fmt --all --quiet
+	cargo nextest run
+	@echo "✅ All tests passed!"
 
 # Appwrite deployment targets
 appwrite-setup:

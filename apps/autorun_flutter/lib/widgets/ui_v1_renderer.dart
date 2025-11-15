@@ -205,12 +205,20 @@ class UiV1Renderer extends StatelessWidget {
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.image, size: 32, color: Colors.grey),
-                  const SizedBox(height: 4),
-                  Text('Local image\n${src.substring(7)}',
-                       textAlign: TextAlign.center,
-                       style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  Icon(Icons.image, size: 32, color: Colors.grey),
+                  SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      'Local image\n${src.substring(7)}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
