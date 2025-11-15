@@ -48,6 +48,30 @@ fn install_json_stdlib(lua: &Lua) -> Result<(), LuaError> {
     Ok(())
 }
 
+fn install_helper_functions(lua: &Lua) -> Result<(), LuaError> {
+    // Install helper functions that match the Flutter side
+    let helpers = r#"
+function icp_call(spec) spec = spec or {}; spec.action = "call"; return spec end
+function icp_batch(calls) calls = calls or {}; return { action = "batch", calls = calls } end
+function icp_message(text) return { action = "message", text = tostring(text or "") } end
+function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end
+function icp_result_display(spec) spec = spec or {}; return { action = "ui", ui = { type = "result_display", props = spec } } end
+function icp_enhanced_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { enhanced = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end
+function icp_section(title, content) return { type = "section", props = { title = title }, children = content and { content } or {} } end
+function icp_table(data) return { action = "ui", ui = { type = "result_display", props = { data = data, title = "Table Data" } } } end
+function icp_format_number(value, decimals) return tostring(tonumber(value) or 0) end
+function icp_format_icp(value, decimals) local v = tonumber(value) or 0; local d = decimals or 8; return tostring(v / math.pow(10, d)) end
+function icp_format_timestamp(value) local t = tonumber(value) or 0; return tostring(t) end
+function icp_format_bytes(value) local b = tonumber(value) or 0; return tostring(b) end
+function icp_truncate(text, maxLen) return tostring(text) end
+function icp_filter_items(items, field, value) local filtered = {}; for i, item in ipairs(items) do if string.find(tostring(item[field] or ""), tostring(value), 1, true) then table.insert(filtered, item) end end return filtered end
+function icp_sort_items(items, field, ascending) local sorted = {}; for i, item in ipairs(items) do sorted[i] = item end table.sort(sorted, function(a, b) local av = tostring(a[field] or ""); local bv = tostring(b[field] or ""); if ascending then return av < bv else return av > bv end end) return sorted end
+"#;
+
+    lua.load(helpers).exec()?;
+    Ok(())
+}
+
 /// Execute a Lua chunk and return a JSON string per result value.
 /// - Input `script`: Lua source code executed in a sandboxed environment.
 /// - Input `json_arg`: optional JSON value bound to global `arg` inside Lua.
@@ -257,6 +281,9 @@ pub fn app_view(script: &str, state_json: &str, budget_ms: u64) -> String {
     if let Err(e) = install_json_stdlib(&lua) {
         return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
     }
+    if let Err(e) = install_helper_functions(&lua) {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
     let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
     if let Err(e) = lua.load(script).exec() {
         return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
@@ -293,6 +320,9 @@ pub fn app_update(script: &str, msg_json: &str, state_json: &str, budget_ms: u64
         Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
     };
     if let Err(e) = install_json_stdlib(&lua) {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
+    if let Err(e) = install_helper_functions(&lua) {
         return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
     }
     let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
@@ -548,5 +578,53 @@ mod tests {
         assert_eq!(arr[0]["kind"].as_str().unwrap(), "icp_batch");
         let items = arr[0]["items"].as_array().unwrap();
         assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn icp_enhanced_list_function_works() {
+        let script = r#"
+            function init(arg)
+                return {
+                    items = {
+                        {id = 1, name = "Transaction 1", amount = "100"},
+                        {id = 2, name = "Transaction 2", amount = "200"}
+                    }
+                }, {}
+            end
+
+            function view(state)
+                return icp_enhanced_list({
+                    items = state.items,
+                    title = "Recent Transactions",
+                    searchable = true
+                })
+            end
+
+            function update(msg, state)
+                return state, {}
+            end
+        "#;
+
+        // init
+        let out = app_init(script, None, 100);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(v["ok"].as_bool().unwrap());
+
+        // view
+        let st = v["state"].to_string();
+        let vo = app_view(script, &st, 100);
+        let vv: serde_json::Value = serde_json::from_str(&vo).unwrap();
+        assert!(vv["ok"].as_bool().unwrap());
+
+        // Check that the enhanced list structure is correct
+        let ui = &vv["ui"]["ui"];
+        assert_eq!(ui["type"].as_str().unwrap(), "list");
+        assert!(ui["props"]["enhanced"].as_bool().unwrap());
+        assert_eq!(
+            ui["props"]["title"].as_str().unwrap(),
+            "Recent Transactions"
+        );
+        assert!(ui["props"]["searchable"].as_bool().unwrap());
+        assert_eq!(ui["props"]["items"].as_array().unwrap().len(), 2);
     }
 }
