@@ -175,22 +175,22 @@ _flutter-tests:
 
 # Run Flutter tests with Cloudflare Workers
 test-with-cloudflare:
-    echo "==> Running Flutter analysis..."; \
-    echo "==> Cleaning up any existing test databases..."; \
-    {{scripts_dir}}/test_db_manager.sh cleanup; \
-    echo "==> Starting Cloudflare Workers for tests..."; \
-    just cloudflare-test-up; \
-    echo "==> Generating Cloudflare Workers types..."; \
-    just cloudflare-types; \
-    echo "==> Running Flutter analysis..."; \
-    cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log; \
-    if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi; \
-    echo "✅ No Flutter analysis issues found"; \
-    echo "==> Running Flutter tests..."; \
-    cd {{flutter_dir}} && flutter test test/services test/screens test/widgets --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log; \
-    if grep -qiE "FAILED:|ERROR:|Some tests failed\." {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi; \
-    echo "✅ All Flutter tests passed"; \
-    just cloudflare-test-down; \
+    @echo "==> Running Flutter analysis..."
+    @echo "==> Cleaning up any existing test databases..."
+    @{{scripts_dir}}/test_db_manager.sh cleanup
+    @echo "==> Starting Cloudflare Workers for tests..."
+    @just cloudflare-test-up
+    @echo "==> Generating Cloudflare Workers types..."
+    @just cloudflare-types
+    @echo "==> Running Flutter analysis..."
+    @cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi
+    @echo "✅ No Flutter analysis issues found"
+    @echo "==> Running Flutter tests..."
+    @cd {{flutter_dir}} && flutter test --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @if grep -qiE "FAILED:|ERROR:|Some tests failed\." {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi
+    @echo "✅ All Flutter tests passed"
+    @just cloudflare-test-down
 
 # =============================================================================
 # Cleanup
