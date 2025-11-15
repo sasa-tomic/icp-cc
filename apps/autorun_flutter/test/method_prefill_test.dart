@@ -5,13 +5,13 @@ import 'package:icp_autorun/main.dart';
 void main() {
   testWidgets('prefills method when selecting a well-known canister', (tester) async {
     await tester.pumpWidget(const IdentityApp());
-    // Navigate to Favorites screen first
-    await tester.tap(find.byIcon(Icons.favorite));
+    // Navigate to Bookmarks screen first
+    await tester.tap(find.byIcon(Icons.bookmark_border_rounded));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(seconds: 1)); // Give more time for content to load
 
-    // Tap a well-known canister entry (NNS Registry) on the Favorites screen
-    expect(find.text('Well-known canisters'), findsWidgets);
+    // Tap a well-known canister entry (NNS Registry) on the Bookmarks screen
+    expect(find.text('Popular Canisters'), findsWidgets);
     await tester.tap(find.text('NNS Registry').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));

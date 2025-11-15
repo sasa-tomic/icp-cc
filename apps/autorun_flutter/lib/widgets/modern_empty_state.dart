@@ -201,22 +201,28 @@ class _ModernEmptyStateState extends State<ModernEmptyState>
                     opacity: _contentFadeAnimation,
                     child: Column(
                       children: [
-                        Text(
-                          widget.title,
-                          style: context.textStyles.heading3.copyWith(
-                            color: context.colors.onSurface,
+                        Semantics(
+                          label: widget.title,
+                          child: Text(
+                            widget.title,
+                            style: context.textStyles.heading3.copyWith(
+                              color: context.colors.onSurface,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                         
                         const SizedBox(height: AppDesignSystem.spacing12),
                         
-                        Text(
-                          widget.subtitle,
-                          style: context.textStyles.bodyLarge.copyWith(
-                            color: context.colors.onSurfaceVariant,
+                        Semantics(
+                          label: widget.subtitle,
+                          child: Text(
+                            widget.subtitle,
+                            style: context.textStyles.bodyLarge.copyWith(
+                              color: context.colors.onSurfaceVariant,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
@@ -238,13 +244,17 @@ class _ModernEmptyStateState extends State<ModernEmptyState>
                       scale: _actionScaleAnimation,
                       child: Column(
                         children: [
-                          ModernButton(
-                            onPressed: widget.action,
-                            variant: ModernButtonVariant.primary,
-                            size: ModernButtonSize.large,
-                            fullWidth: false,
-                            icon: const Icon(Icons.add_rounded, color: Colors.white),
-                            child: Text(widget.actionLabel!),
+                          Semantics(
+                            label: widget.actionLabel!,
+                            button: true,
+                            child: ModernButton(
+                              onPressed: widget.action,
+                              variant: ModernButtonVariant.primary,
+                              size: ModernButtonSize.large,
+                              fullWidth: false,
+                              icon: const Icon(Icons.add_rounded, color: Colors.white),
+                              child: Text(widget.actionLabel!),
+                            ),
                           ),
                           
                           if (widget.secondaryAction != null && widget.secondaryActionLabel != null) ...[

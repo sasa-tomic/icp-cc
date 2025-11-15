@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../rust/native_bridge.dart';
-import '../services/favorites_service.dart';
+import '../services/bookmarks_service.dart';
 import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
@@ -13,8 +13,8 @@ import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
 import '../widgets/empty_state.dart';
 
-class FavoritesScreen extends StatelessWidget {
-  const FavoritesScreen({super.key, required this.bridge, required this.onOpenClient});
+class BookmarksScreen extends StatelessWidget {
+  const BookmarksScreen({super.key, required this.bridge, required this.onOpenClient});
 
   final RustBridgeLoader bridge;
   final Future<void> Function({String? initialCanisterId, String? initialMethodName}) onOpenClient;
@@ -76,15 +76,15 @@ class FavoritesScreen extends StatelessWidget {
               
               const SizedBox(height: 32),
               
-              // Favorites section
+              // Bookmarks section
               _buildSectionHeader(
                 context,
-                title: 'Your Favorites',
+                title: 'Your Bookmarks',
                 subtitle: 'Your saved canister methods for quick access',
-                icon: Icons.favorite_rounded,
+                icon: Icons.bookmark_rounded,
               ),
               const SizedBox(height: 16),
-              _FavoritesList(
+              _BookmarksList(
                 bridge: bridge,
                 onTapEntry: (cid, method) {
                   HapticFeedback.lightImpact();
@@ -564,25 +564,25 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                               });
                             },
                           ),
-                          IconButton(
-                            tooltip: 'Favorite',
-                            icon: const Icon(Icons.favorite_border),
-                            onPressed: () async {
-                              final cid = _canisterController.text.trim();
-                              if (cid.isEmpty) return;
-                              final messenger = ScaffoldMessenger.of(context);
-                              try {
-                                await FavoritesService.add(canisterId: cid, method: name);
-                                if (mounted) {
-                                  messenger.showSnackBar(const SnackBar(content: Text('Added to favorites')));
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  messenger.showSnackBar(SnackBar(content: Text('Failed to add favorite: $e')));
-                                }
-                              }
-                            },
-                          ),
+IconButton(
+                             tooltip: 'Bookmark',
+                             icon: const Icon(Icons.bookmark_border),
+                             onPressed: () async {
+                               final cid = _canisterController.text.trim();
+                               if (cid.isEmpty) return;
+                               final messenger = ScaffoldMessenger.of(context);
+                               try {
+                                 await BookmarksService.add(canisterId: cid, method: name);
+                                 if (mounted) {
+                                   messenger.showSnackBar(const SnackBar(content: Text('Added to bookmarks')));
+                                 }
+                               } catch (e) {
+                                 if (mounted) {
+                                   messenger.showSnackBar(SnackBar(content: Text('Failed to add bookmark: $e')));
+                                 }
+                               }
+                             },
+                           ),
                         ],
                       ),
                     );
@@ -598,9 +598,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
             _methodController.text = method;
           }),
           const SizedBox(height: 16),
-          Text('Favorites', style: Theme.of(context).textTheme.titleMedium),
+          Text('Bookmarks', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          _FavoritesList(
+          _BookmarksList(
             bridge: widget.bridge,
             onTapEntry: (cid, method) {
               _canisterController.text = cid;
@@ -884,17 +884,17 @@ class _WellKnownList extends StatelessWidget {
   }
 }
 
-class _FavoritesList extends StatefulWidget {
-  const _FavoritesList({required this.bridge, required this.onTapEntry});
+class _BookmarksList extends StatefulWidget {
+  const _BookmarksList({required this.bridge, required this.onTapEntry});
   final RustBridgeLoader bridge;
   final void Function(String canisterId, String method) onTapEntry;
 
   @override
-  State<_FavoritesList> createState() => _FavoritesListState();
+  State<_BookmarksList> createState() => _BookmarksListState();
 }
 
-class _FavoritesListState extends State<_FavoritesList> {
-  List<FavoriteEntry> _entries = const <FavoriteEntry>[];
+class _BookmarksListState extends State<_BookmarksList> {
+  List<BookmarkEntry> _entries = const <BookmarkEntry>[];
   late final VoidCallback _listener;
 
   @override
@@ -902,18 +902,18 @@ class _FavoritesListState extends State<_FavoritesList> {
     super.initState();
     _reload();
     _listener = _reload;
-    FavoritesEvents.listenable.addListener(_listener);
+    BookmarksEvents.listenable.addListener(_listener);
   }
 
   @override
   void dispose() {
-    FavoritesEvents.listenable.removeListener(_listener);
+    BookmarksEvents.listenable.removeListener(_listener);
     super.dispose();
   }
 
   void _reload() async {
     try {
-      final entries = await FavoritesService.list();
+      final entries = await BookmarksService.list();
       if (mounted) {
         setState(() {
           _entries = entries;
@@ -933,8 +933,8 @@ class _FavoritesListState extends State<_FavoritesList> {
   Widget build(BuildContext context) {
     if (_entries.isEmpty) {
       return EmptyState(
-        icon: Icons.favorite_border_rounded,
-        title: 'No Favorites Yet',
+        icon: Icons.bookmark_border_rounded,
+        title: 'No Bookmarks Yet',
         subtitle: 'Save your frequently used canister methods for quick access',
       );
     }
@@ -967,15 +967,15 @@ class _FavoritesListState extends State<_FavoritesList> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Colors.red.withValues(alpha: 0.2),
-                          Colors.pink.withValues(alpha: 0.1),
+                          Colors.blue.withValues(alpha: 0.2),
+                          Colors.indigo.withValues(alpha: 0.1),
                         ],
                       ),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.favorite_rounded,
-                      color: Colors.red,
+                      Icons.bookmark_rounded,
+                      color: Colors.blue,
                       size: 20,
                     ),
                   ),
@@ -1033,24 +1033,24 @@ class _FavoritesListState extends State<_FavoritesList> {
                           HapticFeedback.mediumImpact();
                           final messenger = ScaffoldMessenger.of(context);
                           try {
-                            await FavoritesService.remove(canisterId: cid, method: method);
+                            await BookmarksService.remove(canisterId: cid, method: method);
                             if (mounted) {
                               messenger.showSnackBar(
                                 SnackBar(
-                                  content: const Text('Favorite removed'),
-                                  backgroundColor: Colors.red.shade500,
+                                  content: const Text('Bookmark removed'),
+                                  backgroundColor: Colors.blue.shade500,
                                 ),
                               );
                             }
                           } catch (e) {
                             if (mounted) {
                               messenger.showSnackBar(
-                                SnackBar(content: Text('Failed to remove favorite: $e')),
+                                SnackBar(content: Text('Failed to remove bookmark: $e')),
                               );
                             }
                           }
                         },
-                        tooltip: 'Remove favorite',
+                        tooltip: 'Remove bookmark',
                       ),
                       const SizedBox(width: 4),
                       Icon(

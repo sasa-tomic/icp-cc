@@ -441,71 +441,74 @@ class ModernChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: AppDesignSystem.durationFast,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppDesignSystem.spacing12,
-        vertical: AppDesignSystem.spacing8,
-      ),
-      decoration: BoxDecoration(
-        gradient: selected
-            ? LinearGradient(
-                colors: [
-                  color ?? Theme.of(context).colorScheme.primary,
-                  (color ?? Theme.of(context).colorScheme.primary).withValues(alpha: 0.8),
-                ],
-              )
-            : null,
-        color: selected
-            ? null
-            : backgroundColor ?? Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppDesignSystem.radius20),
-        border: Border.all(
-          color: selected
-              ? Colors.transparent
-              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-          width: 1,
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: AppDesignSystem.durationFast,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDesignSystem.spacing12,
+          vertical: AppDesignSystem.spacing8,
         ),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: (color ?? Theme.of(context).colorScheme.primary).withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            icon!,
-            const SizedBox(width: AppDesignSystem.spacing8),
-          ],
-          Text(
-            label,
-            style: AppDesignSystem.caption.copyWith(
-              color: selected
-                  ? Colors.white
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? LinearGradient(
+                  colors: [
+                    color ?? Theme.of(context).colorScheme.primary,
+                    (color ?? Theme.of(context).colorScheme.primary).withValues(alpha: 0.8),
+                  ],
+                )
+              : null,
+          color: selected
+              ? null
+              : backgroundColor ?? Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppDesignSystem.radius20),
+          border: Border.all(
+            color: selected
+                ? Colors.transparent
+                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            width: 1,
           ),
-          if (onDeleted != null) ...[
-            const SizedBox(width: AppDesignSystem.spacing8),
-            GestureDetector(
-              onTap: onDeleted,
-              child: Icon(
-                Icons.close_rounded,
-                size: 14,
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: (color ?? Theme.of(context).colorScheme.primary).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              icon!,
+              const SizedBox(width: AppDesignSystem.spacing8),
+            ],
+            Text(
+              label,
+              style: AppDesignSystem.caption.copyWith(
                 color: selected
-                    ? Colors.white.withValues(alpha: 0.8)
+                    ? Colors.white
                     : Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
               ),
             ),
+            if (onDeleted != null) ...[
+              const SizedBox(width: AppDesignSystem.spacing8),
+              GestureDetector(
+                onTap: onDeleted,
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 14,
+                  color: selected
+                      ? Colors.white.withValues(alpha: 0.8)
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

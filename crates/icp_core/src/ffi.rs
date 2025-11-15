@@ -1,6 +1,6 @@
 use crate::{
     canister_client::{self, MethodKind},
-    favorites as fav, generate_ed25519_identity, generate_secp256k1_identity, lua_engine,
+    generate_ed25519_identity, generate_secp256k1_identity, lua_engine,
 };
 use serde_json::json;
 use std::ffi::{CStr, CString};
@@ -204,17 +204,10 @@ pub unsafe extern "C" fn icp_call_authenticated(
     }
 }
 
-// Favorites
+// Bookmarks
 /// # Safety
 /// - The returned pointer, when non-null, points to a heap-allocated C string owned by Rust
 ///   and must be freed by calling `icp_free_string` exactly once.
-#[no_mangle]
-pub unsafe extern "C" fn icp_favorites_list() -> *mut c_char {
-    let entries = fav::list().unwrap_or_default();
-    let json = serde_json::to_string(&entries).unwrap_or_else(|_| "[]".to_string());
-    CString::new(json).unwrap().into_raw()
-}
-
 // ---- Lua scripting FFI ----
 /// # Safety
 /// - `script` and `json_arg` must be null or valid, null-terminated C strings.
@@ -314,80 +307,4 @@ pub unsafe extern "C" fn icp_lua_app_update(
     let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
     let out = lua_engine::app_update(s, m, st, budget_ms);
     CString::new(out).unwrap().into_raw()
-}
-
-/// # Safety
-/// - `canister_id`, `method`, and `label` must be either null or valid, null-terminated
-///   C strings.
-#[no_mangle]
-pub unsafe extern "C" fn icp_favorites_add(
-    canister_id: *const c_char,
-    method: *const c_char,
-    label: *const c_char,
-) -> i32 {
-    let cid = if canister_id.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(canister_id).to_str().unwrap_or("")
-    };
-    let m = if method.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(method).to_str().unwrap_or("")
-    };
-    let l = if label.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(label).to_str().unwrap_or("").to_string())
-    };
-
-    // Validate inputs
-    if cid.is_empty() || m.is_empty() {
-        return -2; // Invalid input error
-    }
-
-    let entry = fav::FavoriteEntry {
-        canister_id: cid.to_string(),
-        method: m.to_string(),
-        label: l,
-    };
-    match fav::add(entry) {
-        Ok(()) => 0,
-        Err(e) => {
-            eprintln!("Favorites add error: {}", e);
-            -1 // General error
-        }
-    }
-}
-
-/// # Safety
-/// - `canister_id` and `method` must be either null or valid, null-terminated C strings.
-#[no_mangle]
-pub unsafe extern "C" fn icp_favorites_remove(
-    canister_id: *const c_char,
-    method: *const c_char,
-) -> i32 {
-    let cid = if canister_id.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(canister_id).to_str().unwrap_or("")
-    };
-    let m = if method.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(method).to_str().unwrap_or("")
-    };
-
-    // Validate inputs
-    if cid.is_empty() || m.is_empty() {
-        return -2; // Invalid input error
-    }
-
-    match fav::remove(cid, m) {
-        Ok(()) => 0,
-        Err(e) => {
-            eprintln!("Favorites remove error: {}", e);
-            -1 // General error
-        }
-    }
 }

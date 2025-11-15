@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
-class FavoriteEntry {
-  FavoriteEntry({
+class BookmarkEntry {
+  BookmarkEntry({
     required this.canisterId,
     required this.method,
     this.label,
   });
 
-  factory FavoriteEntry.fromJson(Map<String, dynamic> json) {
-    return FavoriteEntry(
+  factory BookmarkEntry.fromJson(Map<String, dynamic> json) {
+    return BookmarkEntry(
       canisterId: json['canister_id'] as String,
       method: json['method'] as String,
       label: json['label'] as String?,
@@ -33,7 +33,7 @@ class FavoriteEntry {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is FavoriteEntry &&
+    return other is BookmarkEntry &&
         other.canisterId == canisterId &&
         other.method == method;
   }
@@ -42,17 +42,17 @@ class FavoriteEntry {
   int get hashCode => canisterId.hashCode ^ method.hashCode;
 }
 
-class FavoritesService {
-  static const String _fileName = 'icp_favorites.json';
-  static List<FavoriteEntry> _cachedFavorites = [];
+class BookmarksService {
+  static const String _fileName = 'icp_bookmarks.json';
+  static List<BookmarkEntry> _cachedBookmarks = [];
   static bool _isCacheDirty = true;
 
-  static Future<List<FavoriteEntry>> list() async {
+  static Future<List<BookmarkEntry>> list() async {
     if (_isCacheDirty) {
       await _loadFromStorage();
       _isCacheDirty = false;
     }
-    return List.unmodifiable(_cachedFavorites);
+    return List.unmodifiable(_cachedBookmarks);
   }
 
   static Future<void> add({
@@ -60,32 +60,32 @@ class FavoritesService {
     required String method,
     String? label,
   }) async {
-    final newEntry = FavoriteEntry(
+    final newEntry = BookmarkEntry(
       canisterId: canisterId,
       method: method,
       label: label,
     );
 
     // Remove existing entry with same canisterId and method
-    _cachedFavorites.removeWhere((entry) =>
+    _cachedBookmarks.removeWhere((entry) =>
         entry.canisterId == canisterId && entry.method == method);
 
     // Add new entry
-    _cachedFavorites.add(newEntry);
+    _cachedBookmarks.add(newEntry);
 
     await _saveToStorage();
-    FavoritesEvents.notifyChanged();
+    BookmarksEvents.notifyChanged();
   }
 
   static Future<void> remove({
     required String canisterId,
     required String method,
   }) async {
-    _cachedFavorites.removeWhere((entry) =>
+    _cachedBookmarks.removeWhere((entry) =>
         entry.canisterId == canisterId && entry.method == method);
 
     await _saveToStorage();
-    FavoritesEvents.notifyChanged();
+    BookmarksEvents.notifyChanged();
   }
 
   static Future<void> _loadFromStorage() async {
@@ -97,17 +97,17 @@ class FavoritesService {
         final jsonString = await file.readAsString();
         if (jsonString.isNotEmpty) {
           final List<dynamic> jsonList = json.decode(jsonString) as List<dynamic>;
-          _cachedFavorites = jsonList
+          _cachedBookmarks = jsonList
               .whereType<Map<String, dynamic>>()
-              .map((json) => FavoriteEntry.fromJson(json))
+              .map((json) => BookmarkEntry.fromJson(json))
               .toList();
           return;
         }
       }
-      _cachedFavorites = [];
+      _cachedBookmarks = [];
     } catch (e) {
       // If loading fails, start with empty list
-      _cachedFavorites = [];
+      _cachedBookmarks = [];
     }
   }
 
@@ -117,12 +117,12 @@ class FavoritesService {
       final file = File('${directory.path}/$_fileName');
 
       final jsonString = json.encode(
-        _cachedFavorites.map((entry) => entry.toJson()).toList(),
+        _cachedBookmarks.map((entry) => entry.toJson()).toList(),
       );
       await file.writeAsString(jsonString);
     } catch (e) {
       // Fail-fast: rethrow the error to make it visible
-      throw Exception('Failed to save favorites: $e');
+      throw Exception('Failed to save bookmarks: $e');
     }
   }
 
@@ -131,7 +131,7 @@ class FavoritesService {
   }
 }
 
-class FavoritesEvents {
+class BookmarksEvents {
   static final _notifier = ValueNotifier<int>(0);
 
   static ValueNotifier<int> get listenable => _notifier;
