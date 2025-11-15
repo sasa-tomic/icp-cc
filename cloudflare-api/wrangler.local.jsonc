@@ -20,6 +20,11 @@
 			"binding": "DB",
 			"database_name": "icp-marketplace-db",
 			"database_id": "4efecfb3-c6a5-42fb-a3b5-83eea3e215dc"
+		},
+		{
+			"binding": "TEST_DB",
+			"database_name": "icp-marketplace-test",
+			"database_id": "a74f720b-1402-4e54-bc54-3a5472a147ae"
 		}
 	],
 	"vars": {

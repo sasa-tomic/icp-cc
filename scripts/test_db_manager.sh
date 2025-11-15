@@ -40,9 +40,9 @@ create_test_db() {
     cd "$CLOUDFLARE_DIR"
     
     # Create the local database using miniflare
-    wrangler d1 execute "$db_name" --command="SELECT 1" --local 2>/dev/null || {
+    wrangler d1 execute "$db_name" --command="SELECT 1" --local --config wrangler.local.jsonc 2>/dev/null || {
         log_info "Initializing local test database: $db_name"
-        wrangler d1 execute "$db_name" --file=migrations/0001_initial_schema.sql --local
+        wrangler d1 execute "$db_name" --file=migrations/0001_initial_schema.sql --local --config wrangler.local.jsonc
     }
     
     # Use a fixed ID for local testing
@@ -59,10 +59,10 @@ delete_test_db() {
     
     cd "$CLOUDFLARE_DIR"
     # For local databases, we just clean the data
-    wrangler d1 execute "$db_name" --command="DELETE FROM scripts;" --local 2>/dev/null || log_warn "Database $db_name not found or already empty"
-    wrangler d1 execute "$db_name" --command="DELETE FROM reviews;" --local 2>/dev/null || log_warn "Reviews table already empty"
-    wrangler d1 execute "$db_name" --command="DELETE FROM purchases;" --local 2>/dev/null || log_warn "Purchases table already empty"
-    wrangler d1 execute "$db_name" --command="DELETE FROM users;" --local 2>/dev/null || log_warn "Users table already empty"
+    wrangler d1 execute "$db_name" --command="DELETE FROM scripts;" --local --config wrangler.local.jsonc 2>/dev/null || log_warn "Database $db_name not found or already empty"
+    wrangler d1 execute "$db_name" --command="DELETE FROM reviews;" --local --config wrangler.local.jsonc 2>/dev/null || log_warn "Reviews table already empty"
+    wrangler d1 execute "$db_name" --command="DELETE FROM purchases;" --local --config wrangler.local.jsonc 2>/dev/null || log_warn "Purchases table already empty"
+    wrangler d1 execute "$db_name" --command="DELETE FROM users;" --local --config wrangler.local.jsonc 2>/dev/null || log_warn "Users table already empty"
 }
 
 # Function to initialize database schema
@@ -71,7 +71,7 @@ init_db_schema() {
     log_info "Initializing schema for database: $db_name"
     
     cd "$CLOUDFLARE_DIR"
-    wrangler d1 execute "$db_name" --file=migrations/0001_initial_schema.sql --local
+    wrangler d1 execute "$db_name" --file=migrations/0001_initial_schema.sql --local --config wrangler.local.jsonc
 }
 
 # Function to clean up all test databases
