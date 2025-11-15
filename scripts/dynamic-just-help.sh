@@ -28,21 +28,35 @@ extract_and_categorize() {
                   grep -v "^default$" | \
                   sort -u)
 
-    # Define categories and their patterns (order matters!)
-    declare -A categories=(
-        ["Common commands"]="^(test|clean|distclean)$"
-        ["Build commands"]="^(linux|android|macos|ios|windows|all|android-emulator)$"
-        ["API Server commands"]="^api-"
-        ["Flutter commands"]="^flutter"
-        ["Testing commands"]="^(rust-tests|flutter-tests|test-with-api)$"
+    # Define categories and their patterns (order matters - use arrays!)
+    local category_names=(
+        "Quick Start"
+        "API Server (Local)"
+        "Flutter Builds"
+        "Flutter Development"
+        "Docker Deployment"
+        "Docker Logs & Status"
+        "Docker Rebuild"
+        "Testing (Internal)"
+    )
+
+    declare -A category_patterns=(
+        ["Quick Start"]="^(all|test|clean|distclean)$"
+        ["API Server (Local)"]="^api-"
+        ["Flutter Builds"]="^(linux|android|macos|ios|windows|android-emulator)$"
+        ["Flutter Development"]="^flutter-(local|production)$"
+        ["Docker Deployment"]="^docker-(deploy|up|down)-(prod|dev)$"
+        ["Docker Logs & Status"]="^docker-(logs|status)-(prod|dev)$"
+        ["Docker Rebuild"]="^docker-rebuild-(prod|dev)$"
+        ["Testing (Internal)"]="^(rust-tests|flutter-tests)$"
     )
 
     # Track which targets have been categorized
     local categorized_targets=()
     local uncategorized_targets=()
 
-    for category in "${!categories[@]}"; do
-        local pattern="${categories[$category]}"
+    for category in "${category_names[@]}"; do
+        local pattern="${category_patterns[$category]}"
         local category_targets=()
 
         for target in $all_targets; do
@@ -142,10 +156,16 @@ extract_and_categorize() {
 # Generate dynamic help
 extract_and_categorize
 
-echo -e "${YELLOW}Examples:${NC}"
-echo "  just api-up              # Start API server on random port"
-echo "  just api-up 8080         # Start API server on port 8080"
-echo "  just flutter-local       # Run Flutter app (auto-detects API port)"
-echo "  just test                # Run all tests"
+echo -e "${YELLOW}Quick Examples:${NC}"
+echo "  just test                      # Run all tests"
+echo "  just api-up                    # Start local API server (port 8080)"
+echo "  just docker-deploy-dev         # Deploy API to Docker (port 58000)"
+echo "  just docker-deploy-prod        # Deploy to production with CF Tunnel"
+echo "  just flutter-local             # Run Flutter app with local API"
 echo ""
-echo -e "${GREEN}Tip: Run 'just --list' to see all available commands with full details${NC}"
+echo -e "${GREEN}Environment Ports:${NC}"
+echo "  8080  - Local API (just api-up)"
+echo "  58000 - Docker Dev API"
+echo "  58100 - Docker Prod API (local testing)"
+echo ""
+echo -e "${GREEN}Tip: Run 'just --list' to see all targets with descriptions${NC}"

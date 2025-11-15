@@ -28,7 +28,39 @@ default:
    @{{scripts_dir}}/dynamic-just-help.sh
 
 # =============================================================================
-# API Server Management
+# Quick Start / Common Commands
+# =============================================================================
+
+# Build all platforms
+all: linux android
+
+# Run all tests (Rust + Flutter)
+test:
+    @echo "==> Running tests (output saved to logs/test-output.log)"
+    @mkdir -p {{logs_dir}}
+    @just rust-tests
+    @just flutter-tests
+    @echo "✅ All tests passed! Full output saved to logs/test-output.log"
+
+# Clean build artifacts
+clean:
+    @echo "==> Cleaning build artifacts..."
+    rm -rf {{flutter_dir}}/android/app/src/main/jniLibs/* || true
+    rm -rf {{flutter_dir}}/build || true
+    rm -f {{flutter_dir}}/build/linux/x64/*/bundle/lib/libicp_core.* || true
+    rm -rf {{flutter_dir}}/linux/flutter/ephemeral || true
+    rm -rf {{api_dir}}/target/debug || true
+
+# Deep clean including dependencies
+distclean: clean
+    @echo "==> Deep cleaning all artifacts and dependencies..."
+    rm -rf {{root}}/target || true
+    rm -rf {{flutter_dir}}/.dart_tool || true
+    rm -rf {{flutter_dir}}/.gradle || true
+    rm -rf {{api_dir}}/target || true
+
+# =============================================================================
+# API Server Management (Local Cargo)
 # =============================================================================
 
 # Start the Poem API server in background (optionally specify port)
@@ -216,13 +248,10 @@ api-reset:
     fi
 
 # =============================================================================
-# Build Targets
+# Flutter App Builds
 # =============================================================================
 
-# Build all platforms
-all: linux android
-
-# Platform-specific builds
+# Platform-specific builds (Flutter)
 linux:
     @echo "==> Building Linux target..."
     {{scripts_dir}}/build_linux.sh
@@ -266,15 +295,8 @@ windows:
     cd {{flutter_dir}} && flutter build windows
 
 # =============================================================================
-# Testing
+# Testing (Internal)
 # =============================================================================
-
-test:
-    @echo "==> Running tests (output saved to logs/test-output.log)"
-    @mkdir -p {{logs_dir}}
-    @just rust-tests
-    @just flutter-tests
-    @echo "✅ All tests passed! Full output saved to logs/test-output.log"
 
 # Internal Rust testing target
 rust-tests:
@@ -304,27 +326,6 @@ flutter-tests:
     @just api-down
 
 # =============================================================================
-# Cleanup
-# =============================================================================
-
-# Clean build artifacts
-clean:
-    @echo "==> Cleaning build artifacts..."
-    rm -rf {{flutter_dir}}/android/app/src/main/jniLibs/* || true
-    rm -rf {{flutter_dir}}/build || true
-    rm -f {{flutter_dir}}/build/linux/x64/*/bundle/lib/libicp_core.* || true
-    rm -rf {{flutter_dir}}/linux/flutter/ephemeral || true
-    rm -rf {{api_dir}}/target/debug || true
-
-# Deep clean including dependencies
-distclean: clean
-    @echo "==> Deep cleaning all artifacts and dependencies..."
-    rm -rf {{root}}/target || true
-    rm -rf {{flutter_dir}}/.dart_tool || true
-    rm -rf {{flutter_dir}}/.gradle || true
-    rm -rf {{api_dir}}/target || true
-
-# =============================================================================
 # Flutter App Development
 # =============================================================================
 
@@ -350,12 +351,14 @@ flutter-production +args="":
     cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=https://api.icp-marketplace.example.com {{args}}
 
 # =============================================================================
-# Docker Deployment
+# Docker Deployment (API Server)
 # =============================================================================
 
 # Compose file selection
 compose_prod := "docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 compose_dev := "docker compose -f docker-compose.yml -f docker-compose.dev.yml"
+
+# --- Main Deployment Commands ---
 
 # Deploy to production with Docker Compose and Cloudflare Tunnel
 docker-deploy-prod:
@@ -369,6 +372,8 @@ docker-deploy-dev:
 
 # Default deploy (use prod)
 docker-deploy: docker-deploy-prod
+
+# --- Container Management ---
 
 # Start production Docker containers
 docker-up-prod:
@@ -395,6 +400,8 @@ docker-down:
     @echo "==> Stopping all Docker containers"
     cd {{api_dir}} && {{compose_prod}} down && {{compose_dev}} down
 
+# --- Logs & Status ---
+
 # View production Docker logs
 docker-logs-prod:
     @echo "==> Viewing production Docker logs (Ctrl+C to stop)"
@@ -408,6 +415,8 @@ docker-logs-dev:
 # View Docker logs (default to dev)
 docker-logs: docker-logs-dev
 
+# --- Rebuild Commands ---
+
 # Rebuild and restart production Docker containers
 docker-rebuild-prod:
     @echo "==> Rebuilding and restarting production Docker containers"
@@ -417,6 +426,8 @@ docker-rebuild-prod:
 docker-rebuild-dev:
     @echo "==> Rebuilding and restarting development Docker containers"
     cd {{api_dir}} && {{compose_dev}} up -d --build
+
+# --- Status Commands ---
 
 # Check production Docker container status
 docker-status-prod:
