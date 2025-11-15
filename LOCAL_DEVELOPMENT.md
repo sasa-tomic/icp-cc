@@ -1,180 +1,195 @@
-# Local Development with Appwrite
+# Local Development with Cloudflare Workers
 
-This guide covers setting up and running the ICP Script Marketplace with a local Appwrite instance for development and testing.
+This guide covers setting up and running the ICP Script Marketplace with local Cloudflare Workers and D1 database for development and testing.
 
 ## Quick Start
 
-1. **Start local Appwrite instance**: `just appwrite-local-up`
-2. **Initialize local configuration**: `just appwrite-local-init --project-id <ID> --api-key <KEY>`
-3. **Deploy marketplace locally**: `just appwrite-local-deploy`
-4. **Run Flutter app locally**: `just flutter-local`
+1. **Start local Cloudflare Workers**: `just cloudflare-local-up`
+2. **Initialize database**: `just cloudflare-local-init`
+3. **Run Flutter app locally**: `just flutter-local`
+
+## Migration Status: ✅ COMPLETED
+
+The migration from Appwrite to Cloudflare Workers has been completed successfully. All API endpoints are now running on Cloudflare Workers with D1 database.
+
+- **Previous**: Appwrite Functions with PostgreSQL
+- **Current**: Cloudflare Workers with D1 database
+- **API Endpoints**: Fully migrated and functional
+- **Flutter App**: Configured to use Cloudflare Workers by default
 
 ## Detailed Setup
 
-### 1. Local Appwrite Instance
+### 1. Local Cloudflare Workers Environment
 
-The project includes a Docker Compose setup for running Appwrite locally:
+The project uses Wrangler CLI for local Cloudflare Workers development:
 
 ```bash
-# Start local Appwrite
-just appwrite-local-up
+# Start local Cloudflare Workers
+just cloudflare-local-up
 
-# Access console at: http://localhost:48080/console
-# API endpoint: http://localhost:48080/v1
+# API endpoint: http://localhost:8787
+# Health check: http://localhost:8787/health
 
 # Stop when done
-just appwrite-local-down
+just cloudflare-local-down
 
 # View logs
-just appwrite-local-logs
+just cloudflare-local-logs
 
-# Reset environment (wipes all data)
-just appwrite-local-reset
+# Reset database (wipes all data)
+just cloudflare-local-reset
 ```
 
-### 2. Initial Project Setup
+### 2. Database Setup
 
-The local Appwrite instance requires manual project creation:
+Cloudflare Workers uses D1 database (SQLite-based):
 
-1. Open http://localhost:48080/console in browser
-2. Create account or sign in
-3. Create new project named "ICP Marketplace Local"
-4. Note the Project ID and generate an API key
-5. Initialize local configuration:
-   ```bash
-   just appwrite-local-init --project-id <YOUR_PROJECT_ID> --api-key <YOUR_API_KEY>
-   ```
+```bash
+# Initialize database with migrations
+just cloudflare-local-init
 
-### 3. CLI Target System
+# Run database migrations manually
+cd cloudflare-api && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql
 
-The custom Appwrite CLI supports `--target` flag for seamless switching between environments:
+# View database contents
+cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="SELECT * FROM scripts LIMIT 10"
+```
+
+### 3. Server-Deploy CLI Tool
+
+The `server-deploy` CLI tool manages Cloudflare Workers deployment:
 
 ```bash
 # Local development
-marketplace-deploy --target local <command>
+server-deploy --target local <command>
 
-# Production (default)
-marketplace-deploy --target prod <command>
+# Production deployment
+server-deploy --target prod <command>
 ```
 
 Available commands:
-- `init` - Initialize configuration
-- `deploy` - Deploy marketplace infrastructure
+- `bootstrap` - Set up fresh Cloudflare environment
+- `deploy` - Deploy Workers and database migrations
 - `config` - Show current configuration
-- `test` - Test connectivity
+- `test` - Test API connectivity
 - `clean` - Clean up resources
 
 ### 4. Flutter App Configuration
 
-The Flutter app uses environment variable for API endpoint:
+The Flutter app automatically uses Cloudflare Workers:
 
 ```bash
-# Local development
-just flutter-local  # Uses http://localhost:48080/v1
+# Local development (default)
+just flutter-local  # Uses http://localhost:8787
 
 # Production
-just flutter-production  # Uses https://icp-autorun.appwrite.network/v1
+just flutter-production  # Uses production Cloudflare Workers endpoint
 ```
+
+Environment variables:
+- `USE_CLOUDFLARE=true` (default) - Use Cloudflare Workers
+- `CLOUDFLARE_ENDPOINT=http://localhost:8787` - Local endpoint
+- `CLOUDFLARE_ENDPOINT=<production-url>` - Production endpoint
 
 ### 5. Complete Testing Workflow
 
 ```bash
-# 1. Start local Appwrite
-just appwrite-local-up
+# 1. Start local Cloudflare Workers
+just cloudflare-local-up
 
-# 2. Initialize and deploy
-just appwrite-local-init --project-id <ID> --api-key <KEY>
-just appwrite-local-deploy
+# 2. Initialize database
+just cloudflare-local-init
 
-# 3. Test configuration
-just appwrite-local-test
+# 3. Test API endpoints
+just cloudflare-local-test
 
 # 4. Run Flutter app
 just flutter-local
 
 # 5. Clean up when done
-just appwrite-local-down
+just cloudflare-local-down
 ```
 
 ## Available Commands
 
-### Appwrite Instance Management
-- `just appwrite-local-up` - Start local Appwrite containers
-- `just appwrite-local-down` - Stop local Appwrite containers
-- `just appwrite-local-logs` - Show container logs
-- `just appwrite-local-reset` - Reset environment (deletes all data)
+### Cloudflare Workers Management
+- `just cloudflare-local-up` - Start local Cloudflare Workers server
+- `just cloudflare-local-down` - Stop local Cloudflare Workers server
+- `just cloudflare-local-logs` - Show server logs
+- `just cloudflare-local-reset` - Reset D1 database (deletes all data)
 
 ### CLI Commands (Local)
-- `just appwrite-local-init` - Initialize local configuration
-- `just appwrite-local-deploy` - Deploy to local Appwrite
-- `just appwrite-local-test` - Test local configuration
-- `just appwrite-local-config` - Show local configuration
+- `just cloudflare-local-init` - Initialize D1 database with migrations
+- `just cloudflare-local-test` - Test local API endpoints
+- `just cloudflare-local-config` - Show local configuration
+- `server-deploy bootstrap` - Bootstrap fresh Cloudflare environment
 
 ### Flutter App
-- `just flutter-local` - Run Flutter app with local endpoint
+- `just flutter-local` - Run Flutter app with local Cloudflare Workers endpoint
 - `just flutter-production` - Run Flutter app with production endpoint
 
 ## Architecture
 
 ### Local Environment
-- **Appwrite Console**: http://localhost:48080/console
-- **Appwrite API**: http://localhost:48080/v1
-- **Docker Network**: Internal containers communicate via Docker network
-- **Data Persistence**: Volumes maintain data between restarts
+- **Cloudflare Workers API**: http://localhost:8787
+- **D1 Database**: Local SQLite database managed by Wrangler
+- **Health Check**: http://localhost:8787/health
+- **API Endpoints**: http://localhost:8787/api/*
 
 ### Configuration Management
 - **Target Switching**: `--target` flag automatically switches endpoints
 - **Config File**: Stored in `~/.config/icp-marketplace/config.json`
 - **Environment Detection**: Flutter app detects local vs production automatically
+- **Database Migrations**: Managed through `cloudflare-api/migrations/` directory
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Project not found error**
+**Workers server not starting**
 ```
-HTTP 404 - Not Found: Project with the requested ID could not be found
+Error: Port 8787 already in use
 ```
-- Solution: Create project in local Appwrite console first
-- Ensure correct project ID in configuration
+- Solution: Kill existing process or use different port
+- Run `lsof -ti:8787 | xargs kill -9` to kill process
 
-**Permission denied errors**
+**Database connection errors**
 ```
-HTTP 401 - Unauthorized: User missing scope
+Error: D1 database binding not found
 ```
-- Solution: Check API key permissions
-- Ensure API key has required scopes for operations
+- Solution: Ensure database is initialized
+- Run `just cloudflare-local-init` to create database
 
 **Connection refused**
 ```
 Error: Connection refused
 ```
-- Solution: Verify Appwrite containers are running
-- Run `docker ps | grep appwrite` to check container status
-
+- Solution: Verify Cloudflare Workers server is running
+- Run `ps aux | grep wrangler` to check server status
 
 **Flutter app can't connect**
-- Solution: Verify local Appwrite is running
-- Check API endpoint configuration
-- Ensure firewall allows port 48080
+- Solution: Verify local Cloudflare Workers is running
+- Check API endpoint configuration in `AppConfig`
+- Ensure firewall allows port 8787
 
 ### Debugging Commands
 
 ```bash
-# Check container status
-docker ps | grep appwrite
+# Check server status
+ps aux | grep wrangler
 
-# Check container logs
-docker logs appwrite
+# Check server logs
+just cloudflare-local-logs
 
 # Test API connectivity
-curl http://localhost:48080/v1/health
+curl http://localhost:8787/health
+curl http://localhost:8787/api/marketplace-stats
 
 # Check configuration
-just appwrite-local-config
+just cloudflare-local-config
 
-# Test configuration
-just appwrite-local-test
+# Test all endpoints
+just cloudflare-local-test
 ```
 
 ## Development Tips
@@ -187,40 +202,63 @@ just appwrite-local-test
 ### Testing Strategy
 1. Test features locally first
 2. Deploy to production when stable
-3. Use different project IDs for isolation
+3. Use separate databases for isolation
 
 ### Performance Considerations
 - Local development is faster than production
 - No network latency for API calls
-- Can test with realistic data volumes
+- D1 database is optimized for fast local operations
 
 ## Security Notes
 
-- Local Appwrite instance is not secured
+- Local Cloudflare Workers instance is not secured
 - Use only for development/testing
-- Don't commit production API keys
-- Reset environment regularly to clean test data
+- Don't commit production secrets
+- Reset database regularly to clean test data
 
 ## Data Management
 
 ### Backup Local Data
 ```bash
-# Export database
-docker exec appwrite-mariadb mysqldump -u root -p marketplace_db > backup.sql
+# Export D1 database
+cd cloudflare-api && wrangler d1 export icp-marketplace-db --output=backup.sql
 
-# Restore database
-docker exec -i appwrite-mariadb mysql -u root -p marketplace_db < backup.sql
+# Restore D1 database
+cd cloudflare-api && wrangler d1 import icp-marketplace-db --input=backup.sql
 ```
 
 ### Reset Environment
 ```bash
 # Complete reset (wipes all data)
-just appwrite-local-reset
+just cloudflare-local-reset
 
 # Or manually
-docker compose down -v
-docker system prune -f
-just appwrite-local-up
+cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;"
+```
+
+## API Endpoints Reference
+
+### Available Endpoints
+- `GET /health` - Health check
+- `GET /api/marketplace-stats` - Marketplace statistics
+- `GET /api/scripts/featured` - Featured scripts
+- `GET /api/scripts/trending` - Trending scripts
+- `POST /api/scripts/search` - Search scripts
+- `GET /api/scripts/{id}` - Get script details
+- `GET /api/scripts/category/{category}` - Scripts by category
+
+### Testing Endpoints
+```bash
+# Health check
+curl http://localhost:8787/health
+
+# Get marketplace stats
+curl http://localhost:8787/api/marketplace-stats
+
+# Search scripts
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"query":"test","limit":5}' \
+  http://localhost:8787/api/scripts/search
 ```
 
 ## Integration with CI/CD
@@ -229,8 +267,8 @@ The target system makes it easy to integrate local testing into CI/CD pipelines:
 
 ```bash
 # In CI pipeline
-just appwrite-local-up
-just appwrite-local-deploy
+just cloudflare-local-up
+just cloudflare-local-init
 # Run tests
-just appwrite-local-down
+just cloudflare-local-down
 ```
