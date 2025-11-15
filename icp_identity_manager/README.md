@@ -40,10 +40,25 @@ Run the deterministic identity tests (including the DFX-derived reference) with:
 flutter test
 ```
 
+### Android APK Builds
+Build a debug APK for smoke-testing on devices or emulators (requires JDK 17 or newer):
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export PATH="$JAVA_HOME/bin:$PATH"
+flutter build apk --debug
+```
+The APK is written to `build/app/outputs/flutter-apk/app-debug.apk` and can be installed with `adb install build/app/outputs/flutter-apk/app-debug.apk`.
+
+For a release-signed artifact (after configuring your keystore), run the same environment exports followed by:
+```bash
+flutter build apk --release
+```
+The release build lands alongside the debug artifact under `build/app/outputs/flutter-apk/`.
+
 ## Next Steps
 1. Integrate with `ic4j-agent` to sign and submit canister calls using the stored Ed25519 key material.
 2. Add secure storage options (KeyStore/Keychain on mobile, OS keyrings on desktop) before shipping sensitive data.
-3. Extend the identity generator to support additional algorithms (e.g. secp256k1) and hardware-backed keys.
+3. Extend the identity generator to support additional algorithms (e.g. Ed448) and hardware-backed keys.
 4. Wire rename/delete affordances into the UI and add import flows for existing seed phrases.
 
 ## Limitations
