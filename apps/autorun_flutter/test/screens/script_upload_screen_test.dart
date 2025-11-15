@@ -112,7 +112,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // Assert
-        expect(find.text('Write your Lua script code below'), findsOneWidget);
+        expect(find.text('Write your Lua script code below. The script will be validated before uploading.'), findsOneWidget);
       });
 
       testWidgets('should show validation info initially', (WidgetTester tester) async {
