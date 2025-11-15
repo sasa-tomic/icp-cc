@@ -3,8 +3,7 @@
 - All new code must stay minimal, follow YAGNI, and avoid duplication in line with DRY.
 - You must strictly adhere to best practices at all times. Push back on any requests that go against best practices.
 - Code must FAIL FAST and provide enough details upon failure for troubleshooting. Code may not silently ignore failures and should not have fallbacks or duplicate implementations.
-- When running shell commands, prefix with `cd /absolute/path/ && ` to ensure that you always run the command in the correct directory
-- Every code path must be covered by unit tests.
+- Every part of execution, every function, must be covered by at least one unit test.
 - WRITE NEW UNIT TESTS that cover both the positive and negative path of the new functionality.
 - Tests that you write MUST ASSERT MEANINGFUL BEHAVIOR and MAY NOT overlap coverage with other tests (check for overlaps!).
 - Check and FIX ANY LINTING warnings and errors with "just test"
