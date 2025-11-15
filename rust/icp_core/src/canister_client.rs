@@ -2,6 +2,7 @@ use candid::types::{FuncMode, TypeEnv, TypeInner};
 use candid::{IDLArgs, Principal};
 use candid_parser::{check_prog, IDLProg};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -90,9 +91,13 @@ fn parse_idl_args_bytes(arg_candid: &str) -> Result<Vec<u8>, CanisterClientError
             .map_err(|e| CanisterClientError::CandidParse(format!("base64 args decode: {e}")))?;
         return Ok(bytes);
     }
-    Err(CanisterClientError::CandidParse(
-        "only empty () or base64:<blob> supported for args".into(),
-    ))
+    // Try to parse textual Candid args using candid_parser, e.g. "(42, \"hello\")"
+    match candid_parser::parse_idl_args(s) {
+        Ok(vargs) => vargs
+            .to_bytes()
+            .map_err(|e| CanisterClientError::CandidParse(format!("encode args: {e}"))),
+        Err(e) => Err(CanisterClientError::CandidParse(format!("args parse: {e}"))),
+    }
 }
 
 fn parse_principal(canister_id: &str) -> Result<Principal, CanisterClientError> {
@@ -175,7 +180,12 @@ pub fn call_anonymous(
         .map_err(|e| CanisterClientError::Net(format!("call: {e}")))?;
     let decoded = IDLArgs::from_bytes(&out)
         .map_err(|e| CanisterClientError::CandidParse(format!("decode: {e}")))?;
-    Ok(decoded.to_string())
+    let candid_text = decoded.to_string();
+    let response = json!({
+        "ok": true,
+        "result_candid": candid_text,
+    });
+    Ok(response.to_string())
 }
 
 pub fn call_authenticated(
@@ -235,5 +245,30 @@ pub fn call_authenticated(
         .map_err(|e| CanisterClientError::Net(format!("call: {e}")))?;
     let decoded = IDLArgs::from_bytes(&out)
         .map_err(|e| CanisterClientError::CandidParse(format!("decode: {e}")))?;
-    Ok(decoded.to_string())
+    let candid_text = decoded.to_string();
+    let response = json!({
+        "ok": true,
+        "result_candid": candid_text,
+    });
+    Ok(response.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_args_empty_and_textual() {
+        // Empty
+        let b = parse_idl_args_bytes("()").expect("empty args ok");
+        let args = IDLArgs::from_bytes(&b).expect("decode empty");
+        assert_eq!(args.to_string(), "()");
+
+        // Single nat and text
+        let b = parse_idl_args_bytes("(42, \"hi\")").expect("textual args ok");
+        let args = IDLArgs::from_bytes(&b).expect("decode textual");
+        // Parser may annotate default number types; accept either annotated or unannotated form
+        let s = args.to_string();
+        assert!(s == "(42, \"hi\")" || s == "(42 : int, \"hi\")", "got {s}");
+    }
 }
