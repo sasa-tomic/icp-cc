@@ -521,6 +521,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
             icon: const Icon(Icons.upload_rounded),
             label: 'Upload Script',
           ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
     );
   }
 
@@ -545,7 +546,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         return RefreshIndicator(
           onRefresh: _controller.refresh,
           child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 96, top: 8),
+            padding: const EdgeInsets.only(bottom: 140, top: 8),
             itemCount: scripts.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
@@ -792,7 +793,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           return false;
         },
         child: GridView.builder(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 140),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             childAspectRatio: 0.75,

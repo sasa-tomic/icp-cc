@@ -28,6 +28,17 @@ linux:
     @echo "==> Building Linux target..."
     {{scripts_dir}}/build_linux.sh
     cd {{root}}/apps/autorun_flutter && flutter build linux
+    @if [ -n "${DISPLAY:-}" ]; then \
+        echo "==> DISPLAY is set, running the built app..."; \
+        if [ -f {{root}}/apps/autorun_flutter/build/linux/x64/release/bundle/icp_autorun ]; then \
+            {{root}}/apps/autorun_flutter/build/linux/x64/release/bundle/icp_autorun; \
+        else \
+            echo "ERROR: Built executable not found at expected path"; \
+            exit 1; \
+        fi; \
+    else \
+        echo "==> DISPLAY not set, skipping app execution"; \
+    fi
 
 android:
     @echo "==> Building Android target..."
