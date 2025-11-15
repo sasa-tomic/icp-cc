@@ -109,6 +109,32 @@ fn idl_args_to_json(args: &IDLArgs) -> serde_json::Value {
     }
 }
 
+fn try_decode_with_types(
+    canister_id: &str,
+    method: &str,
+    host: Option<&str>,
+    out: &[u8],
+) -> Option<serde_json::Value> {
+    // Best-effort: fetch candid and decode with known return types to preserve field names
+    let did = fetch_candid(canister_id, host).ok()?;
+    let prog: IDLProg = did.parse::<IDLProg>().ok()?;
+    let mut env = TypeEnv::new();
+    let actor_opt = check_prog(&mut env, &prog).ok()?;
+    let actor = actor_opt?;
+    let svc = env.as_service(&actor).ok()?;
+    for (name, ty) in svc.iter() {
+        if name == method {
+            if let TypeInner::Func(f) = ty.as_ref() {
+                // Decode with method return types
+                if let Ok(args) = IDLArgs::from_bytes_with_types(out, &env, &f.rets) {
+                    return Some(idl_args_to_json(&args));
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn parse_candid_interface(candid_source: &str) -> Result<ParsedInterface, CanisterClientError> {
     // Parse Candid using official parser and type checker
     let prog: IDLProg = candid_source
@@ -220,9 +246,9 @@ pub fn call_anonymous(
 
     let canister = Principal::from_text(canister_id)
         .map_err(|_| CanisterClientError::InvalidCanisterId(canister_id.to_string()))?;
-    let host = host.unwrap_or("https://ic0.app");
+    let host_url = host.unwrap_or("https://ic0.app");
     let agent = Agent::builder()
-        .with_url(host)
+        .with_url(host_url)
         .build()
         .map_err(|e| CanisterClientError::Net(format!("build agent: {e}")))?;
     let arg_bytes = parse_idl_args_bytes(arg_candid)?;
@@ -252,9 +278,13 @@ pub fn call_anonymous(
     let out = rt
         .block_on(fut)
         .map_err(|e| CanisterClientError::Net(format!("call: {e}")))?;
-    let decoded = IDLArgs::from_bytes(&out)
-        .map_err(|e| CanisterClientError::CandidParse(format!("decode: {e}")))?;
-    let json_value = idl_args_to_json(&decoded);
+    let json_value = try_decode_with_types(canister_id, method, host, &out)
+        .or_else(|| {
+            IDLArgs::from_bytes(&out)
+                .ok()
+                .map(|args| idl_args_to_json(&args))
+        })
+        .ok_or_else(|| CanisterClientError::CandidParse("decode failed".into()))?;
     let response = json!({
         "ok": true,
         "result": json_value,
@@ -275,7 +305,7 @@ pub fn call_authenticated(
 
     let canister = Principal::from_text(canister_id)
         .map_err(|_| CanisterClientError::InvalidCanisterId(canister_id.to_string()))?;
-    let host = host.unwrap_or("https://ic0.app");
+    let host_url = host.unwrap_or("https://ic0.app");
 
     let priv_bytes = base64::engine::general_purpose::STANDARD
         .decode(ed25519_private_key_b64)
@@ -286,7 +316,7 @@ pub fn call_authenticated(
     let identity = BasicIdentity::from_raw_key(&key);
 
     let agent = Agent::builder()
-        .with_url(host)
+        .with_url(host_url)
         .with_identity(identity)
         .build()
         .map_err(|e| CanisterClientError::Net(format!("build agent: {e}")))?;
@@ -317,9 +347,13 @@ pub fn call_authenticated(
     let out = rt
         .block_on(fut)
         .map_err(|e| CanisterClientError::Net(format!("call: {e}")))?;
-    let decoded = IDLArgs::from_bytes(&out)
-        .map_err(|e| CanisterClientError::CandidParse(format!("decode: {e}")))?;
-    let json_value = idl_args_to_json(&decoded);
+    let json_value = try_decode_with_types(canister_id, method, host, &out)
+        .or_else(|| {
+            IDLArgs::from_bytes(&out)
+                .ok()
+                .map(|args| idl_args_to_json(&args))
+        })
+        .ok_or_else(|| CanisterClientError::CandidParse("decode failed".into()))?;
     let response = json!({
         "ok": true,
         "result": json_value,
