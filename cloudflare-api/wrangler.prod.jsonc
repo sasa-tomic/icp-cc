@@ -1,0 +1,32 @@
+/**
+ * Production configuration for ICP Script Marketplace
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "icp-marketplace-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-10-24",
+	"compatibility_flags": [
+		"global_fetch_strictly_public"
+	],
+
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "icp-marketplace-db",
+			"database_id": "4efecfb3-c6a5-42fb-a3b5-83eea3e215dc"
+		}
+	],
+	"vars": {
+		"ENVIRONMENT": "production"
+	},
+	"routes": [
+		{ "pattern": "icp-mp.kalaj.org", "zone_name": "kalaj.org", "custom_domain": true }
+	],
+	"workers_dev": true
+}

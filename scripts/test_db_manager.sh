@@ -39,13 +39,16 @@ create_test_db() {
     
     cd "$CLOUDFLARE_DIR"
     
-    # Create the database
-    wrangler d1 create "$db_name"
+    # Create the local database using miniflare
+    wrangler d1 execute "$db_name" --command="SELECT 1" --local 2>/dev/null || {
+        log_info "Initializing local test database: $db_name"
+        wrangler d1 execute "$db_name" --file=migrations/0001_initial_schema.sql --local
+    }
     
-    # Get database ID
-    local db_id=$(wrangler d1 info "$db_name" --json | jq -r '.uuid')
+    # Use a fixed ID for local testing
+    local db_id="local-test-db"
     
-    log_info "Created database: $db_name (ID: $db_id)"
+    log_info "Created local database: $db_name (ID: $db_id)"
     echo "$db_id"
 }
 
@@ -55,7 +58,11 @@ delete_test_db() {
     log_info "Deleting test database: $db_name"
     
     cd "$CLOUDFLARE_DIR"
-    wrangler d1 delete "$db_name" || log_warn "Database $db_name not found or already deleted"
+    # For local databases, we just clean the data
+    wrangler d1 execute "$db_name" --command="DELETE FROM scripts;" --local 2>/dev/null || log_warn "Database $db_name not found or already empty"
+    wrangler d1 execute "$db_name" --command="DELETE FROM reviews;" --local 2>/dev/null || log_warn "Reviews table already empty"
+    wrangler d1 execute "$db_name" --command="DELETE FROM purchases;" --local 2>/dev/null || log_warn "Purchases table already empty"
+    wrangler d1 execute "$db_name" --command="DELETE FROM users;" --local 2>/dev/null || log_warn "Users table already empty"
 }
 
 # Function to initialize database schema
@@ -64,7 +71,7 @@ init_db_schema() {
     log_info "Initializing schema for database: $db_name"
     
     cd "$CLOUDFLARE_DIR"
-    wrangler d1 execute "$db_name" --file=migrations/0001_initial_schema.sql
+    wrangler d1 execute "$db_name" --file=migrations/0001_initial_schema.sql --local
 }
 
 # Function to clean up all test databases
@@ -73,14 +80,8 @@ cleanup_all_test_dbs() {
     
     cd "$CLOUDFLARE_DIR"
     
-    # List all databases and filter test databases
-    local test_dbs=$(wrangler d1 list --json | jq -r '.[] | select(.name | startswith("icp-marketplace-test")) | .name')
-    
-    for db in $test_dbs; do
-        if [ -n "$db" ]; then
-            delete_test_db "$db"
-        fi
-    done
+    # For local testing, just clean the standard test database
+    delete_test_db "icp-marketplace-test"
     
     log_info "Cleanup completed"
 }
@@ -92,16 +93,11 @@ setup_test_env() {
     
     log_info "Setting up test environment for: $test_name"
     
-    # Check if test database exists, create if not
+    # Always create/initialize local test database
     local db_id=""
-    if ! wrangler d1 info "$db_name" >/dev/null 2>&1; then
-        log_info "Creating test database: $db_name"
-        db_id=$(create_test_db "$db_name")
-        init_db_schema "$db_name"
-    else
-        log_info "Using existing test database: $db_name"
-        db_id=$(wrangler d1 info "$db_name" --json | jq -r '.uuid')
-    fi
+    log_info "Creating test database: $db_name"
+    db_id=$(create_test_db "$db_name")
+    init_db_schema "$db_name"
     
     # Export environment variables for the test
     export TEST_DB_NAME="$test_name"
