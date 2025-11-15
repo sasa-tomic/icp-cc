@@ -37,4 +37,17 @@ void main() {
     expect(args.contains('record'), true);
     expect(args.startsWith('(') && args.endsWith(')'), true);
   });
+
+  test('buildRecordFromDynamic supports list and map', () {
+    final fields = <RecordFieldSpec>[
+      const RecordFieldSpec(name: 'start', icType: 'nat64'),
+      const RecordFieldSpec(name: 'length', icType: 'nat64'),
+    ];
+    final rec1 = buildRecordFromDynamic(fields: fields, value: <int>[0, 10]);
+    expect(rec1.contains('start') && rec1.contains('length'), true);
+    final rec2 = buildRecordFromDynamic(fields: fields, value: <String, dynamic>{'start': 0, 'length': 10});
+    expect(rec2.contains('start') && rec2.contains('length'), true);
+    final rec3 = buildRecordFromDynamic(fields: fields, value: <String, dynamic>{'0': 0, '1': 10});
+    expect(rec3.contains('start') && rec3.contains('length'), true);
+  });
 }

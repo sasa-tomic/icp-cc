@@ -1,11 +1,14 @@
 use base64::Engine as _;
 use candid::types::value::{IDLField, IDLValue, VariantValue};
 use candid::types::Label;
+use candid::types::{Field, Type};
 use candid::types::{FuncMode, TypeEnv, TypeInner};
 use candid::{IDLArgs, Principal};
+use candid::{Int as CandidInt, Nat as CandidNat, Principal as CanisterPrincipal};
 use candid_parser::{check_prog, IDLProg};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::vec::Vec as StdVec;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -177,6 +180,235 @@ pub fn parse_candid_interface(candid_source: &str) -> Result<ParsedInterface, Ca
     Ok(ParsedInterface { methods })
 }
 
+fn json_to_idl_value(
+    v: &serde_json::Value,
+    _env: &TypeEnv,
+    ty: &Type,
+) -> Result<IDLValue, CanisterClientError> {
+    use candid::types::TypeInner::*;
+    Ok(match ty.as_ref() {
+        Null | Reserved | Empty => IDLValue::Null,
+        Bool => IDLValue::Bool(
+            v.as_bool()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected bool".into()))?,
+        ),
+        Text => IDLValue::Text(
+            v.as_str()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected text".into()))?
+                .to_string(),
+        ),
+        Nat => match v {
+            serde_json::Value::Number(n) => {
+                let u = n
+                    .as_u64()
+                    .ok_or_else(|| CanisterClientError::CandidParse("expected nat".into()))?;
+                IDLValue::Nat(CandidNat::from(u))
+            }
+            serde_json::Value::String(s) => {
+                let n = CandidNat::parse(s.as_bytes())
+                    .map_err(|_| CanisterClientError::CandidParse("invalid nat".into()))?;
+                IDLValue::Nat(n)
+            }
+            _ => return Err(CanisterClientError::CandidParse("invalid nat".into())),
+        },
+        Int => match v {
+            serde_json::Value::Number(n) => {
+                let i = n
+                    .as_i64()
+                    .ok_or_else(|| CanisterClientError::CandidParse("expected int".into()))?;
+                IDLValue::Int(CandidInt::from(i))
+            }
+            serde_json::Value::String(s) => {
+                let i = CandidInt::parse(s.as_bytes())
+                    .map_err(|_| CanisterClientError::CandidParse("invalid int".into()))?;
+                IDLValue::Int(i)
+            }
+            _ => return Err(CanisterClientError::CandidParse("invalid int".into())),
+        },
+        Nat8 => IDLValue::Nat8(
+            v.as_u64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected nat8".into()))?
+                as u8,
+        ),
+        Nat16 => IDLValue::Nat16(
+            v.as_u64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected nat16".into()))?
+                as u16,
+        ),
+        Nat32 => IDLValue::Nat32(
+            v.as_u64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected nat32".into()))?
+                as u32,
+        ),
+        Nat64 => IDLValue::Nat64(
+            v.as_u64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected nat64".into()))?,
+        ),
+        Int8 => IDLValue::Int8(
+            v.as_i64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected int8".into()))?
+                as i8,
+        ),
+        Int16 => IDLValue::Int16(
+            v.as_i64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected int16".into()))?
+                as i16,
+        ),
+        Int32 => IDLValue::Int32(
+            v.as_i64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected int32".into()))?
+                as i32,
+        ),
+        Int64 => IDLValue::Int64(
+            v.as_i64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected int64".into()))?,
+        ),
+        Float32 => IDLValue::Float32(
+            v.as_f64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected float32".into()))?
+                as f32,
+        ),
+        Float64 => IDLValue::Float64(
+            v.as_f64()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected float64".into()))?,
+        ),
+        Principal => {
+            let s = v.as_str().ok_or_else(|| {
+                CanisterClientError::CandidParse("expected principal text".into())
+            })?;
+            let p = CanisterPrincipal::from_text(s)
+                .map_err(|_| CanisterClientError::CandidParse("invalid principal".into()))?;
+            IDLValue::Principal(p)
+        }
+        Opt(inner) => {
+            if v.is_null() {
+                IDLValue::None
+            } else {
+                IDLValue::Opt(Box::new(json_to_idl_value(v, _env, inner)?))
+            }
+        }
+        Vec(inner) => {
+            let arr = v
+                .as_array()
+                .ok_or_else(|| CanisterClientError::CandidParse("expected array".into()))?;
+            let vals = arr
+                .iter()
+                .map(|x| json_to_idl_value(x, _env, inner))
+                .collect::<Result<StdVec<_>, _>>()?;
+            IDLValue::Vec(vals)
+        }
+        Record(fs) => {
+            let mut out: StdVec<IDLField> = StdVec::new();
+            match v {
+                serde_json::Value::Object(map) => {
+                    for Field { id, ty: fty } in fs {
+                        let key = label_to_string(id);
+                        let vv = map.get(&key).ok_or_else(|| {
+                            CanisterClientError::CandidParse(format!("missing field {key}"))
+                        })?;
+                        out.push(IDLField {
+                            id: id.as_ref().clone(),
+                            val: json_to_idl_value(vv, _env, fty)?,
+                        });
+                    }
+                }
+                serde_json::Value::Array(arr) => {
+                    if arr.len() != fs.len() {
+                        return Err(CanisterClientError::CandidParse(
+                            "record arity mismatch".into(),
+                        ));
+                    }
+                    for (i, Field { id, ty: fty }) in fs.iter().enumerate() {
+                        out.push(IDLField {
+                            id: id.as_ref().clone(),
+                            val: json_to_idl_value(&arr[i], _env, fty)?,
+                        });
+                    }
+                }
+                _ => {
+                    return Err(CanisterClientError::CandidParse(
+                        "expected object/array for record".into(),
+                    ))
+                }
+            }
+            IDLValue::Record(out)
+        }
+        // Minimal support: variants and functions are not mapped from JSON here
+        Variant(_) | Func(_) | Service(_) => {
+            return Err(CanisterClientError::CandidParse(
+                "unsupported candid type in JSON args".into(),
+            ))
+        }
+        Unknown | Knot(_) | Var(_) | Class(_, _) | Future => {
+            return Err(CanisterClientError::CandidParse(
+                "unsupported candid type in JSON args".into(),
+            ))
+        }
+    })
+}
+
+fn build_args_from_json(
+    canister_id: &str,
+    method: &str,
+    host: Option<&str>,
+    json_args: &str,
+) -> Result<Vec<u8>, CanisterClientError> {
+    // Fetch candid and locate method arg types
+    let did = fetch_candid(canister_id, host)?;
+    let prog: IDLProg = did
+        .parse::<IDLProg>()
+        .map_err(|e| CanisterClientError::CandidParse(format!("parse: {e}")))?;
+    let mut env = TypeEnv::new();
+    let actor = check_prog(&mut env, &prog)
+        .map_err(|e| CanisterClientError::CandidParse(format!("typecheck: {e}")))?
+        .ok_or_else(|| CanisterClientError::CandidParse("no service/actor found".into()))?;
+    let svc = env
+        .as_service(&actor)
+        .map_err(|e| CanisterClientError::CandidParse(format!("service: {e}")))?;
+    let mut arg_tys: Option<Vec<Type>> = None;
+    for (name, ty) in svc.iter() {
+        if name == method {
+            if let TypeInner::Func(f) = ty.as_ref() {
+                arg_tys = Some(f.args.clone());
+            }
+            break;
+        }
+    }
+    let arg_tys =
+        arg_tys.ok_or_else(|| CanisterClientError::CandidParse("method not found".into()))?;
+
+    let parsed_json: serde_json::Value = if json_args.trim().is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_str(json_args)
+            .map_err(|e| CanisterClientError::CandidParse(format!("json parse: {e}")))?
+    };
+
+    let values: Vec<IDLValue> = if arg_tys.is_empty() {
+        Vec::new()
+    } else if arg_tys.len() == 1 {
+        let v = json_to_idl_value(&parsed_json, &env, &arg_tys[0])?;
+        vec![v]
+    } else {
+        let arr = parsed_json.as_array().ok_or_else(|| {
+            CanisterClientError::CandidParse("expected JSON array for multiple args".into())
+        })?;
+        if arr.len() != arg_tys.len() {
+            return Err(CanisterClientError::CandidParse(
+                "args arity mismatch".into(),
+            ));
+        }
+        let mut vs = Vec::with_capacity(arg_tys.len());
+        for (i, t) in arg_tys.iter().enumerate() {
+            vs.push(json_to_idl_value(&arr[i], &env, t)?);
+        }
+        vs
+    };
+    IDLArgs::new(&values)
+        .to_bytes()
+        .map_err(|e| CanisterClientError::CandidParse(format!("encode args: {e}")))
+}
+
 fn parse_idl_args_bytes(arg_candid: &str) -> Result<Vec<u8>, CanisterClientError> {
     let s = arg_candid.trim();
     if s.is_empty() || s == "()" {
@@ -251,7 +483,24 @@ pub fn call_anonymous(
         .with_url(host_url)
         .build()
         .map_err(|e| CanisterClientError::Net(format!("build agent: {e}")))?;
-    let arg_bytes = parse_idl_args_bytes(arg_candid)?;
+    // Accept either textual candid or JSON (when starts with '[' or '{' or 'null' or scalar JSON)
+    let arg_bytes = if arg_candid.trim_start().starts_with('[')
+        || arg_candid.trim_start().starts_with('{')
+        || arg_candid.trim_start().starts_with('n')
+        || arg_candid.trim_start().starts_with('"')
+        || arg_candid.trim_start().starts_with('t')
+        || arg_candid.trim_start().starts_with('f')
+        || arg_candid
+            .trim_start()
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit() || c == '-')
+            .unwrap_or(false)
+    {
+        build_args_from_json(canister_id, method, host, arg_candid)?
+    } else {
+        parse_idl_args_bytes(arg_candid)?
+    };
 
     let fut = async {
         // Ensure root key is fetched before making certified requests.
@@ -321,7 +570,23 @@ pub fn call_authenticated(
         .build()
         .map_err(|e| CanisterClientError::Net(format!("build agent: {e}")))?;
 
-    let arg_bytes = parse_idl_args_bytes(arg_candid)?;
+    let arg_bytes = if arg_candid.trim_start().starts_with('[')
+        || arg_candid.trim_start().starts_with('{')
+        || arg_candid.trim_start().starts_with('n')
+        || arg_candid.trim_start().starts_with('"')
+        || arg_candid.trim_start().starts_with('t')
+        || arg_candid.trim_start().starts_with('f')
+        || arg_candid
+            .trim_start()
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit() || c == '-')
+            .unwrap_or(false)
+    {
+        build_args_from_json(canister_id, method, host, arg_candid)?
+    } else {
+        parse_idl_args_bytes(arg_candid)?
+    };
     let fut = async {
         // Ensure root key is fetched before making certified requests.
         agent.fetch_root_key().await?;

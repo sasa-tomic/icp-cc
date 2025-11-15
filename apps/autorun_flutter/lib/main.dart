@@ -9,7 +9,7 @@ import 'rust/native_bridge.dart';
 import 'models/identity_record.dart';
 import 'services/identity_repository.dart';
 import 'utils/principal.dart';
-import 'utils/candid_args.dart';
+// candid_args.dart no longer used directly in UI; JSON-only args are supported
 import 'services/favorites_events.dart';
 import 'utils/json_format.dart';
 
@@ -714,15 +714,14 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
   final TextEditingController _methodController = TextEditingController();
   final TextEditingController _identityKeyController = TextEditingController();
   int _selectedKind = 0; // 0=query,1=update,2=comp
-  List<TextEditingController> _argControllers = <TextEditingController>[];
+  // JSON-only args input
+  final TextEditingController _jsonArgsController = TextEditingController();
   String? _resultJson;
   String? _candidRaw;
   List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
   bool _isFetching = false;
 
-  // Structured support for single-record argument (e.g., ledger query_blocks)
-  List<RecordFieldSpec> _recordSpecs = const <RecordFieldSpec>[];
-  List<TextEditingController> _recordControllers = <TextEditingController>[];
+  // Record/positional arg editors removed; JSON-only input is used
 
   @override
   void dispose() {
@@ -730,12 +729,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
     _hostController.dispose();
     _methodController.dispose();
     _identityKeyController.dispose();
-    for (final c in _argControllers) {
-      c.dispose();
-    }
-    for (final c in _recordControllers) {
-      c.dispose();
-    }
+    _jsonArgsController.dispose();
     super.dispose();
   }
 
@@ -756,30 +750,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
     }
   }
 
-  void _setRecordSpecsFromArgTypes(List<String> argTypes) {
-    // If exactly one argument and it's a record, parse fields and show dedicated inputs
-    _recordSpecs = const <RecordFieldSpec>[];
-    for (final c in _recordControllers) {
-      c.dispose();
-    }
-    _recordControllers = <TextEditingController>[];
-    if (argTypes.length == 1) {
-      final String t = argTypes.first.toLowerCase();
-      if (t.contains('record')) {
-        final specs = parseRecordType(argTypes.first);
-        if (specs.isNotEmpty) {
-          _recordSpecs = specs;
-          _recordControllers = List<TextEditingController>.generate(
-              specs.length, (_) => TextEditingController());
-          // Hide generic arg list when using structured record inputs
-          for (final c in _argControllers) {
-            c.dispose();
-          }
-          _argControllers = <TextEditingController>[];
-        }
-      }
-    }
-  }
+  // Record alias resolution removed along with record-specific editors
 
   Future<void> _fetchAndParse() async {
     final String cid = _canisterController.text.trim();
@@ -828,24 +799,15 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
               );
         }
         if (selected != null) {
-          final List<String> args = (selected['args'] as List<dynamic>).cast<String>();
-          for (final c in _argControllers) {
-            c.dispose();
-          }
-          _argControllers = List<TextEditingController>.generate(args.length, (_) => TextEditingController());
           final String kind = (selected['kind'] as String).toLowerCase();
           _selectedKind = kind.contains('update')
               ? 1
               : (kind.contains('composite') ? 2 : 0);
-          _setRecordSpecsFromArgTypes(args);
-        } else if (_methods.isNotEmpty && _argControllers.isEmpty) {
+        } else if (_methods.isNotEmpty) {
           // Fallback to the first method as a hint when nothing preset matches
-          final List<String> args = (_methods.first['args'] as List<dynamic>).cast<String>();
-          _argControllers = List<TextEditingController>.generate(args.length, (_) => TextEditingController());
           if (_methodController.text.trim().isEmpty) {
             _methodController.text = (_methods.first['name'] as String?) ?? '';
           }
-          _setRecordSpecsFromArgTypes(args);
         }
       });
     } catch (e) {
@@ -894,16 +856,6 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
               border: OutlineInputBorder(),
             ),
             textInputAction: TextInputAction.next,
-    onChanged: (_) {
-      // Clear record specs if user edits method name
-      setState(() {
-        _recordSpecs = const <RecordFieldSpec>[];
-        for (final c in _recordControllers) {
-          c.dispose();
-        }
-        _recordControllers = <TextEditingController>[];
-      });
-    },
           ),
           const SizedBox(height: 8),
           InputDecorator(
@@ -924,79 +876,18 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
             ),
           ),
           const SizedBox(height: 12),
-          if (_recordSpecs.isNotEmpty) ...<Widget>[
-            Text('Record arguments', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _recordSpecs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (BuildContext context, int index) {
-                final spec = _recordSpecs[index];
-                return TextField(
-                  controller: _recordControllers[index],
-                  decoration: InputDecoration(
-                    labelText: '${spec.name} (${spec.icType})',
-                    hintText: spec.icType.toLowerCase().startsWith('nat') || spec.icType.toLowerCase().startsWith('int')
-                        ? 'e.g. 0'
-                        : (spec.icType.toLowerCase() == 'text' ? 'e.g. hello' : 'Candid literal'),
-                    border: const OutlineInputBorder(),
-                  ),
-                  minLines: 1,
-                  maxLines: 3,
-                );
-              },
+          Text('Arguments (JSON only)', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _jsonArgsController,
+            decoration: const InputDecoration(
+              labelText: 'Args JSON',
+              hintText: '[] for multiple args; object/array/scalar for single arg',
+              border: OutlineInputBorder(),
             ),
-          ]
-          else if (_argControllers.isEmpty)
-            OutlinedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Add argument field'),
-              onPressed: () => setState(() => _argControllers.add(TextEditingController())),
-            )
-          else ...<Widget>[
-            Text('Arguments', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _argControllers.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (BuildContext context, int index) {
-                return Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: TextField(
-                        controller: _argControllers[index],
-                        decoration: InputDecoration(
-                          labelText: 'Arg ${index + 1} (Candid literal)',
-                          hintText: 'e.g. 42 or "hello" or vec {1;2}',
-                          border: const OutlineInputBorder(),
-                        ),
-                        minLines: 1,
-                        maxLines: 3,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle_outline),
-                      onPressed: () => setState(() => _argControllers.removeAt(index)),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add argument'),
-                onPressed: () => setState(() => _argControllers.add(TextEditingController())),
-              ),
-            ),
-          ],
+            minLines: 1,
+            maxLines: 8,
+          ),
           const SizedBox(height: 12),
           ExpansionTile(
             title: const Text('Authenticated (optional)'),
@@ -1054,12 +945,7 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter canister and method')));
                 return;
               }
-              final String args = _recordSpecs.isNotEmpty
-                  ? composeSingleRecordArg(
-                      fields: _recordSpecs,
-                      rawValues: _recordControllers.map((e) => e.text).toList(),
-                    )
-                  : composeCandidArgs(_argControllers.map((e) => e.text).toList());
+              final String args = _jsonArgsController.text.trim();
               final String? host = _hostController.text.trim().isEmpty ? null : _hostController.text.trim();
               final String key = _identityKeyController.text.trim();
               String? out;
@@ -1133,17 +1019,10 @@ class _CanisterClientSheetState extends State<_CanisterClientSheet> {
                             icon: const Icon(Icons.input),
                             onPressed: () {
                               _methodController.text = name;
-                              // Reset args count to match signature as hint
-                              final int count = args.length;
                               setState(() {
-                                for (final c in _argControllers) {
-                                  c.dispose();
-                                }
-                                _argControllers = List<TextEditingController>.generate(count, (_) => TextEditingController());
                                 _selectedKind = kind.toLowerCase().contains('update')
                                     ? 1
                                     : (kind.toLowerCase().contains('composite') ? 2 : 0);
-                                _setRecordSpecsFromArgTypes(args);
                               });
                             },
                           ),
