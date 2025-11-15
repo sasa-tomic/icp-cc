@@ -49,10 +49,12 @@ just clean              # Clean build artifacts
 just all                # Build all platforms
 ```
 
-### Cloudflare Workers Development
+### API Server Development
 ```bash
-just cloudflare-dev                 # Start local development server
-just cloudflare-deploy              # Deploy to production
+just api-up             # Start local API server
+just api-down           # Stop local API server
+just api-test           # Test API endpoints
+just api-logs           # View server logs
 ```
 
 ## ⚡ Features
@@ -71,11 +73,11 @@ just cloudflare-deploy              # Deploy to production
 
 - `apps/autorun_flutter`: Flutter application
 - `crates/icp_core`: Rust FFI crate (cdylib)
-- `cloudflare-api/`: Cloudflare Workers API implementation
+- `poem-backend/`: Poem-based API server implementation
 - `justfile`: Modern build configuration (replaces Makefile)
 - `scripts/`: Build and bootstrap helpers
 - `docs/`: Architecture and build documentation
-- `server-deploy/`: Deployment tools for Cloudflare Workers
+- `server-deploy/`: Deployment tools
 
 ## 🔧 Scripts
 

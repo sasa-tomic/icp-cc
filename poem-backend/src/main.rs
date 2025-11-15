@@ -1,7 +1,11 @@
 use poem::{
-    delete, get, handler, listener::TcpListener, middleware::Cors, post, put,
+    get, handler,
+    http::StatusCode,
+    listener::TcpListener,
+    middleware::Cors,
+    post,
     web::{Data, Json, Path, Query},
-    EndpointExt, Route, Server, http::StatusCode, IntoResponse, Response,
+    EndpointExt, IntoResponse, Response, Route, Server,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePool, FromRow};
@@ -23,6 +27,17 @@ struct Script {
     updated_at: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+struct Review {
+    id: String,
+    script_id: String,
+    user_id: String,
+    rating: i32,
+    comment: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct ScriptsQuery {
     limit: Option<i32>,
@@ -33,6 +48,7 @@ struct ScriptsQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct CreateScriptRequest {
     title: String,
     description: String,
@@ -53,6 +69,7 @@ struct CreateScriptRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct UpdateScriptRequest {
     title: Option<String>,
     description: Option<String>,
@@ -68,6 +85,7 @@ struct UpdateScriptRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct DeleteScriptRequest {
     script_id: Option<String>,
     author_principal: Option<String>,
@@ -79,6 +97,28 @@ struct DeleteScriptRequest {
 struct SearchQuery {
     q: String,
     limit: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReviewsQuery {
+    limit: Option<i32>,
+    offset: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateReviewRequest {
+    #[serde(rename = "userId")]
+    user_id: String,
+    rating: i32,
+    comment: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateStatsRequest {
+    #[serde(rename = "scriptId")]
+    script_id: String,
+    #[serde(rename = "incrementDownloads")]
+    increment_downloads: Option<i32>,
 }
 
 struct AppState {
@@ -119,7 +159,7 @@ async fn get_scripts(
              FROM scripts
              WHERE category = ?1 AND is_public = 1
              ORDER BY created_at DESC
-             LIMIT ?2 OFFSET ?3"
+             LIMIT ?2 OFFSET ?3",
         )
         .bind(category)
         .bind(limit)
@@ -131,7 +171,7 @@ async fn get_scripts(
              FROM scripts
              WHERE is_public = 1
              ORDER BY created_at DESC
-             LIMIT ?1 OFFSET ?2"
+             LIMIT ?1 OFFSET ?2",
         )
         .bind(limit)
         .bind(offset)
@@ -306,7 +346,7 @@ async fn create_script(
     match sqlx::query(
         "INSERT INTO scripts (id, title, description, category, lua_source, author_name,
          is_public, rating, downloads, review_count, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0.0, 0, 0, ?8, ?9)"
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0.0, 0, 0, ?8, ?9)",
     )
     .bind(&script_id)
     .bind(&req.title)
@@ -360,7 +400,10 @@ async fn update_script(
         && req.signature.as_deref() == Some("test-auth-token");
 
     if !is_test_auth && req.signature.is_none() {
-        tracing::warn!("Script update rejected for {}: missing signature", script_id);
+        tracing::warn!(
+            "Script update rejected for {}: missing signature",
+            script_id
+        );
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
@@ -472,7 +515,10 @@ async fn delete_script(
         && req.signature.as_deref() == Some("test-auth-token");
 
     if !is_test_auth && req.signature.is_none() {
-        tracing::warn!("Script deletion rejected for {}: missing signature", script_id);
+        tracing::warn!(
+            "Script deletion rejected for {}: missing signature",
+            script_id
+        );
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
@@ -536,7 +582,7 @@ async fn search_scripts(
          FROM scripts
          WHERE (title LIKE ?1 OR description LIKE ?1 OR category LIKE ?1) AND is_public = 1
          ORDER BY created_at DESC
-         LIMIT ?2"
+         LIMIT ?2",
     )
     .bind(&search_term)
     .bind(limit)
@@ -544,7 +590,11 @@ async fn search_scripts(
     .await
     {
         Ok(scripts) => {
-            tracing::debug!("Search for '{}' returned {} results", params.q, scripts.len());
+            tracing::debug!(
+                "Search for '{}' returned {} results",
+                params.q,
+                scripts.len()
+            );
             Json(serde_json::json!({
                 "success": true,
                 "data": {
@@ -578,7 +628,7 @@ async fn get_scripts_by_category(
                 rating, downloads, review_count, created_at, updated_at
          FROM scripts
          WHERE category = ?1 AND is_public = 1
-         ORDER BY created_at DESC"
+         ORDER BY created_at DESC",
     )
     .bind(&category)
     .fetch_all(&state.pool)
@@ -617,7 +667,10 @@ async fn publish_script(
         && req.signature.as_deref() == Some("test-auth-token");
 
     if !is_test_auth && req.signature.is_none() {
-        tracing::warn!("Script publish rejected for {}: missing signature", script_id);
+        tracing::warn!(
+            "Script publish rejected for {}: missing signature",
+            script_id
+        );
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
@@ -681,6 +734,344 @@ async fn publish_script(
 }
 
 #[handler]
+async fn get_reviews(
+    Path(script_id): Path<String>,
+    Query(params): Query<ReviewsQuery>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    let limit = params.limit.unwrap_or(20);
+    let offset = params.offset.unwrap_or(0);
+
+    match sqlx::query_as::<_, Review>(
+        "SELECT id, script_id, user_id, rating, comment, created_at, updated_at
+         FROM reviews
+         WHERE script_id = ?1
+         ORDER BY created_at DESC
+         LIMIT ?2 OFFSET ?3",
+    )
+    .bind(&script_id)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(reviews) => {
+            let total: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM reviews WHERE script_id = ?1")
+                    .bind(&script_id)
+                    .fetch_one(&state.pool)
+                    .await
+                    .unwrap_or(0);
+
+            Json(serde_json::json!({
+                "success": true,
+                "data": {
+                    "reviews": reviews,
+                    "total": total,
+                    "hasMore": (offset + limit) < total as i32
+                }
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to get reviews for script {}: {}", script_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to get reviews"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn create_review(
+    Path(script_id): Path<String>,
+    Json(req): Json<CreateReviewRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    // Validate rating
+    if req.rating < 1 || req.rating > 5 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Rating must be between 1 and 5"
+            })),
+        )
+            .into_response();
+    }
+
+    // Check if script exists
+    let script_exists: Option<i64> =
+        sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1")
+            .bind(&script_id)
+            .fetch_optional(&state.pool)
+            .await
+            .unwrap_or(None);
+
+    if script_exists.unwrap_or(0) == 0 {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Script not found"
+            })),
+        )
+            .into_response();
+    }
+
+    // Check if user already reviewed this script
+    let existing_review: Option<i64> =
+        sqlx::query_scalar("SELECT COUNT(*) FROM reviews WHERE script_id = ?1 AND user_id = ?2")
+            .bind(&script_id)
+            .bind(&req.user_id)
+            .fetch_optional(&state.pool)
+            .await
+            .unwrap_or(None);
+
+    if existing_review.unwrap_or(0) > 0 {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "You have already reviewed this script"
+            })),
+        )
+            .into_response();
+    }
+
+    let review_id = format!("{}_{}", script_id, req.user_id);
+    let now = chrono::Utc::now().to_rfc3339();
+
+    match sqlx::query(
+        "INSERT INTO reviews (id, script_id, user_id, rating, comment, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    )
+    .bind(&review_id)
+    .bind(&script_id)
+    .bind(&req.user_id)
+    .bind(req.rating)
+    .bind(&req.comment)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(_) => {
+            // Update script rating and review count
+            let avg_rating: Option<f64> =
+                sqlx::query_scalar("SELECT AVG(rating) FROM reviews WHERE script_id = ?1")
+                    .bind(&script_id)
+                    .fetch_one(&state.pool)
+                    .await
+                    .ok();
+
+            let review_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM reviews WHERE script_id = ?1")
+                    .bind(&script_id)
+                    .fetch_one(&state.pool)
+                    .await
+                    .unwrap_or(0);
+
+            sqlx::query("UPDATE scripts SET rating = ?1, review_count = ?2 WHERE id = ?3")
+                .bind(avg_rating.unwrap_or(0.0))
+                .bind(review_count)
+                .bind(&script_id)
+                .execute(&state.pool)
+                .await
+                .ok();
+
+            tracing::info!(
+                "Created review for script {} by user {}",
+                script_id,
+                req.user_id
+            );
+
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "success": true,
+                    "data": {
+                        "id": review_id,
+                        "script_id": script_id,
+                        "user_id": req.user_id,
+                        "rating": req.rating,
+                        "comment": req.comment,
+                        "created_at": now
+                    }
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to create review: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to create review: {}", e)
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
+    match sqlx::query_as::<_, Script>(
+        "SELECT id, title, description, category, lua_source, author_name, is_public,
+                rating, downloads, review_count, created_at, updated_at
+         FROM scripts
+         WHERE is_public = 1 AND rating >= 4.0
+         ORDER BY downloads DESC
+         LIMIT 20",
+    )
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(scripts) => Json(serde_json::json!({
+            "success": true,
+            "data": scripts
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get trending scripts: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to get trending scripts"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn get_featured_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
+    match sqlx::query_as::<_, Script>(
+        "SELECT id, title, description, category, lua_source, author_name, is_public,
+                rating, downloads, review_count, created_at, updated_at
+         FROM scripts
+         WHERE is_public = 1 AND rating >= 4.5
+         ORDER BY rating DESC
+         LIMIT 10",
+    )
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(scripts) => Json(serde_json::json!({
+            "success": true,
+            "data": scripts
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get featured scripts: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to get featured scripts"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn get_compatible_scripts(
+    Query(_params): Query<ScriptsQuery>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    // For now, return all public scripts sorted by rating
+    // In the future, this could filter by canister compatibility
+    match sqlx::query_as::<_, Script>(
+        "SELECT id, title, description, category, lua_source, author_name, is_public,
+                rating, downloads, review_count, created_at, updated_at
+         FROM scripts
+         WHERE is_public = 1
+         ORDER BY rating DESC
+         LIMIT 20",
+    )
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(scripts) => Json(serde_json::json!({
+            "success": true,
+            "data": scripts
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get compatible scripts: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to get compatible scripts"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn update_script_stats(
+    Json(req): Json<UpdateStatsRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    if let Some(increment) = req.increment_downloads {
+        if increment > 0 {
+            match sqlx::query("UPDATE scripts SET downloads = downloads + ?1 WHERE id = ?2")
+                .bind(increment)
+                .bind(&req.script_id)
+                .execute(&state.pool)
+                .await
+            {
+                Ok(_) => {
+                    tracing::info!("Updated download count for script: {}", req.script_id);
+                    Json(serde_json::json!({
+                        "success": true,
+                        "message": "Stats updated successfully"
+                    }))
+                    .into_response()
+                }
+                Err(e) => {
+                    tracing::error!("Failed to update stats for script {}: {}", req.script_id, e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({
+                            "success": false,
+                            "error": "Failed to update stats"
+                        })),
+                    )
+                        .into_response()
+                }
+            }
+        } else {
+            Json(serde_json::json!({
+                "success": true,
+                "message": "No stats to update"
+            }))
+            .into_response()
+        }
+    } else {
+        Json(serde_json::json!({
+            "success": true,
+            "message": "No stats to update"
+        }))
+        .into_response()
+    }
+}
+
+#[handler]
 async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
     if env::var("ENVIRONMENT").unwrap_or_default() != "development" {
         return (
@@ -724,18 +1115,18 @@ async fn main() -> Result<(), std::io::Error> {
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive(tracing::Level::INFO.into()),
         )
-        .with_target(false)  // Don't show target module
-        .with_thread_ids(false)  // Don't show thread IDs
-        .with_line_number(false)  // Don't show line numbers
-        .compact()  // Use compact format for cleaner output
+        .with_target(false) // Don't show target module
+        .with_thread_ids(false) // Don't show thread IDs
+        .with_line_number(false) // Don't show line numbers
+        .compact() // Use compact format for cleaner output
         .init();
 
     // Load environment variables
     dotenv::dotenv().ok();
 
     // Database setup
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:./data/dev.db".to_string());
+    let database_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/dev.db".to_string());
 
     tracing::info!("Connecting to database: {}", database_url);
 
@@ -766,6 +1157,29 @@ async fn main() -> Result<(), std::io::Error> {
     .await
     .expect("Failed to create scripts table");
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS reviews (
+            id TEXT PRIMARY KEY,
+            script_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+            comment TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("Failed to create reviews table");
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_reviews_script_id ON reviews(script_id)")
+        .execute(&pool)
+        .await
+        .expect("Failed to create reviews index");
+
     tracing::info!("Database initialized successfully");
 
     let state = Arc::new(AppState { pool });
@@ -777,10 +1191,24 @@ async fn main() -> Result<(), std::io::Error> {
         .at("/api/v1/scripts", get(get_scripts).post(create_script))
         .at("/api/v1/scripts/count", get(get_scripts_count))
         .at("/api/v1/scripts/search", get(search_scripts))
-        .at("/api/v1/scripts/category/:category", get(get_scripts_by_category))
-        .at("/api/v1/scripts/:id", get(get_script).put(update_script).delete(delete_script))
+        .at("/api/v1/scripts/trending", get(get_trending_scripts))
+        .at("/api/v1/scripts/featured", get(get_featured_scripts))
+        .at("/api/v1/scripts/compatible", get(get_compatible_scripts))
+        .at(
+            "/api/v1/scripts/category/:category",
+            get(get_scripts_by_category),
+        )
+        .at(
+            "/api/v1/scripts/:id",
+            get(get_script).put(update_script).delete(delete_script),
+        )
         .at("/api/v1/scripts/:id/publish", post(publish_script))
+        .at(
+            "/api/v1/scripts/:id/reviews",
+            get(get_reviews).post(create_review),
+        )
         .at("/api/v1/marketplace-stats", get(get_marketplace_stats))
+        .at("/api/v1/update-script-stats", post(update_script_stats))
         .at("/api/dev/reset-database", post(reset_database))
         .with(Cors::new())
         .data(state);
@@ -792,9 +1220,9 @@ async fn main() -> Result<(), std::io::Error> {
     tracing::info!("Starting server on http://{}", addr);
 
     // Bind once to get the actual address (important for port 0 -> random port)
-    let std_listener = StdTcpListener::bind(&addr)
-        .expect("Failed to bind to address");
-    let actual_addr = std_listener.local_addr()
+    let std_listener = StdTcpListener::bind(&addr).expect("Failed to bind to address");
+    let actual_addr = std_listener
+        .local_addr()
         .expect("Failed to get local address");
 
     // Log the actual listening address for external tools to parse

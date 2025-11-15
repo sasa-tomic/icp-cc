@@ -44,13 +44,8 @@ apps/**/android/app/src/main/jniLibs/
 **/.DS_Store
 **/Thumbs.db
 
-# Cloudflare Workers
-cloudflare-api/wrangler.log
-cloudflare-api/.wrangler/
-
 # Test output logs
 logs/
 test-output.log
-cloudflare-api/wrangler.log
 target/
 node_modules/

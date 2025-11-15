@@ -287,5 +287,3 @@ This project previously used Cloudflare Workers. The Poem-based API server provi
 ✅ **Simpler setup** - no wrangler/node dependencies
 ✅ **Type safety** - compile-time guarantees
 ✅ **Cleaner architecture** - easier to test and maintain
-
-For legacy Cloudflare Workers documentation, see `cloudflare-api/README.md`.
