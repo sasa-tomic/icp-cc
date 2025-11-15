@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:bip39/bip39.dart' as bip39;
+import 'dart:convert';
 
 import 'controllers/identity_controller.dart';
+import 'rust/native_bridge.dart';
 import 'models/identity_record.dart';
 import 'services/identity_repository.dart';
 import 'utils/principal.dart';
@@ -38,6 +40,10 @@ class IdentityHomePage extends StatefulWidget {
 
 class _IdentityHomePageState extends State<IdentityHomePage> {
   late final IdentityController _controller;
+  final RustBridgeLoader _bridge = const RustBridgeLoader();
+  final TextEditingController _canisterController = TextEditingController();
+  final TextEditingController _methodController = TextEditingController();
+  String? _lastResult;
 
   @override
   void initState() {
@@ -52,6 +58,8 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     _controller
       ..removeListener(_onControllerChanged)
       ..dispose();
+    _canisterController.dispose();
+    _methodController.dispose();
     super.dispose();
   }
 
@@ -268,6 +276,11 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             tooltip: 'Reload identities',
             icon: const Icon(Icons.refresh),
           ),
+          IconButton(
+            onPressed: () => _showCanisterClientSheet(),
+            tooltip: 'Canister client',
+            icon: const Icon(Icons.cloud),
+          ),
         ],
       ),
       body: Builder(
@@ -369,6 +382,128 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     ).toUpperCase();
     return '$algorithm • $timestamp';
   }
+  Future<void> _showCanisterClientSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            shrinkWrap: true,
+            children: <Widget>[
+              Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _canisterController,
+                decoration: const InputDecoration(
+                  labelText: 'Canister ID',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _methodController,
+                      decoration: const InputDecoration(
+                        labelText: 'Method name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () async {
+                      final cid = _canisterController.text.trim();
+                      if (cid.isEmpty) return;
+                      final did = await _bridge.fetchCandid(canisterId: cid);
+                      if (!mounted) return;
+                      await showDialog<void>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Candid (raw)'),
+                          content: SingleChildScrollView(child: SelectableText(did ?? 'Failed to fetch.')),
+                          actions: <Widget>[
+                            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+                          ],
+                        ),
+                      );
+                    },
+                    child: const Text('Fetch Candid'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: FilledButton.tonal(
+                      onPressed: () async {
+                        final cid = _canisterController.text.trim();
+                        final method = _methodController.text.trim();
+                        if (cid.isEmpty || method.isEmpty) return;
+                        final out = _bridge.callAnonymous(
+                          canisterId: cid,
+                          method: method,
+                          kind: 0, // Query by default
+                          args: '()',
+                          host: null,
+                        );
+                        setState(() => _lastResult = out);
+                      },
+                      child: const Text('Call anonymous (query) ()'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: () async {
+                      final cid = _canisterController.text.trim();
+                      final method = _methodController.text.trim();
+                      if (cid.isEmpty || method.isEmpty) return;
+                      _bridge.favoritesAdd(canisterId: cid, method: method);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to favorites')));
+                    },
+                    icon: const Icon(Icons.favorite_border),
+                    label: const Text('Save favorite'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (_lastResult != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text('Last result', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    SelectableText(_lastResult!),
+                  ],
+                ),
+              const SizedBox(height: 16),
+              Text('Well-known canisters', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              _WellKnownList(onSelect: (cid, method) {
+                _canisterController.text = cid;
+                _methodController.text = method;
+              }),
+              const SizedBox(height: 16),
+              Text('Favorites', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              _FavoritesList(bridge: _bridge, onTapEntry: (cid, method) {
+                _canisterController.text = cid;
+                _methodController.text = method;
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
 }
 
 class _IdentityCreationSheet extends StatefulWidget {
@@ -549,6 +684,105 @@ class _EmptyState extends StatelessWidget {
           const Text('Tap "New identity" to generate your first ICP identity.'),
         ],
       ),
+    );
+  }
+}
+
+class _FavoritesList extends StatefulWidget {
+  const _FavoritesList({required this.bridge, required this.onTapEntry});
+  final RustBridgeLoader bridge;
+  final void Function(String canisterId, String method) onTapEntry;
+
+  @override
+  State<_FavoritesList> createState() => _FavoritesListState();
+}
+
+class _WellKnownList extends StatelessWidget {
+  const _WellKnownList({required this.onSelect});
+  final void Function(String canisterId, String method) onSelect;
+
+  static const List<Map<String, String>> _items = <Map<String, String>>[
+    // NNS Governance
+    {'label': 'NNS Governance', 'cid': 'rrkah-fqaaa-aaaaa-aaaaq-cai', 'method': 'get_neuron_ids'},
+    // NNS Registry
+    {'label': 'NNS Registry', 'cid': 'rhnmp-oyaaa-aaaaa-aaaca-cai', 'method': 'get_value'},
+    // NNS Ledger
+    {'label': 'NNS Ledger', 'cid': 'ryjl3-tyaaa-aaaaa-aaaba-cai', 'method': 'account_balance_dfx'},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _items.length,
+      separatorBuilder: (BuildContext _, int __) => const Divider(height: 1),
+      itemBuilder: (BuildContext context, int index) {
+        final e = _items[index];
+        return ListTile(
+          leading: const Icon(Icons.star_border),
+          title: Text(e['label'] ?? ''),
+          subtitle: Text('${e['cid']} • ${e['method']}'),
+          onTap: () => onSelect(e['cid'] ?? '', e['method'] ?? ''),
+        );
+      },
+    );
+  }
+}
+
+class _FavoritesListState extends State<_FavoritesList> {
+  List<Map<String, dynamic>> _entries = const <Map<String, dynamic>>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    final jsonStr = widget.bridge.favoritesList();
+    if (jsonStr == null) return;
+    final List<dynamic> arr = json.decode(jsonStr) as List<dynamic>;
+    setState(() {
+      _entries = arr
+          .whereType<Map<String, dynamic>>()
+          .map((e) => {
+                'canister_id': e['canister_id'] as String? ?? '',
+                'method': e['method'] as String? ?? '',
+                'label': e['label'] as String?,
+              })
+          .toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_entries.isEmpty) {
+      return const Text('No favorites yet');
+    }
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _entries.length,
+      separatorBuilder: (BuildContext _, int __) => const Divider(height: 1),
+      itemBuilder: (BuildContext context, int index) {
+        final e = _entries[index];
+        final cid = e['canister_id'] as String;
+        final method = e['method'] as String;
+        final label = (e['label'] as String?) ?? '';
+        return ListTile(
+          title: Text(label.isNotEmpty ? label : method),
+          subtitle: Text('$cid • $method'),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () async {
+              widget.bridge.favoritesRemove(canisterId: cid, method: method);
+              _reload();
+            },
+          ),
+          onTap: () => widget.onTapEntry(cid, method),
+        );
+      },
     );
   }
 }
