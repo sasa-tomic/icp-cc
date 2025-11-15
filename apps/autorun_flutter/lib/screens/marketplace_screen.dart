@@ -86,7 +86,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = _formatErrorMessage(e.toString());
       });
     } finally {
       setState(() {
@@ -97,6 +97,21 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         }
       });
     }
+  }
+
+  String _formatErrorMessage(String error) {
+    // Provide user-friendly messages for common errors
+    if (error.contains('HTTP 404') || error.contains('Not Found')) {
+      return 'Marketplace is currently unavailable\n\nThe script marketplace server is not responding. This may be due to maintenance or deployment issues. Please try again later.\n\nTechnical details: $error';
+    }
+    if (error.contains('Connection refused') || error.contains('Network is unreachable')) {
+      return 'Network connection failed\n\nUnable to connect to the marketplace. Please check your internet connection and try again.\n\nTechnical details: $error';
+    }
+    if (error.contains('Connection timeout')) {
+      return 'Connection timeout\n\nThe marketplace is taking too long to respond. Please check your connection and try again.\n\nTechnical details: $error';
+    }
+    // Return the original error for other cases
+    return error;
   }
 
   Future<void> _loadCategories() async {
