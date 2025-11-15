@@ -90,6 +90,179 @@ class UiV1Renderer extends StatelessWidget {
             child: Text(label),
           ),
         );
+      case 'text_field':
+        final String label = (props['label'] ?? '').toString();
+        final String value = (props['value'] ?? '').toString();
+        final String placeholder = (props['placeholder'] ?? '').toString();
+        final bool enabled = (props['enabled'] as bool?) ?? true;
+        final bool obscure = (props['obscure'] as bool?) ?? false;
+        final String? keyboardType = props['keyboard_type'] as String?;
+        final Map<String, dynamic>? onChange = props['on_change'] as Map<String, dynamic>?;
+        final Map<String, dynamic>? onSubmit = props['on_submit'] as Map<String, dynamic>?;
+
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: TextFormField(
+            initialValue: value,
+            enabled: enabled,
+            obscureText: obscure,
+            keyboardType: _getKeyboardType(keyboardType),
+            decoration: InputDecoration(
+              labelText: label.isEmpty ? null : label,
+              hintText: placeholder.isEmpty ? null : placeholder,
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: onChange != null ? (newValue) {
+              final msg = Map<String, dynamic>.from(onChange);
+              msg['value'] = newValue;
+              onEvent(msg);
+            } : null,
+            onFieldSubmitted: onSubmit != null ? (newValue) {
+              final msg = Map<String, dynamic>.from(onSubmit);
+              msg['value'] = newValue;
+              onEvent(msg);
+            } : null,
+          ),
+        );
+      case 'toggle':
+        final String label = (props['label'] ?? '').toString();
+        final bool value = (props['value'] as bool?) ?? false;
+        final bool enabled = (props['enabled'] as bool?) ?? true;
+        final Map<String, dynamic>? onChange = props['on_change'] as Map<String, dynamic>?;
+
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: [
+              Expanded(child: Text(label)),
+              Switch(
+                value: value,
+                onChanged: enabled && onChange != null ? (newValue) {
+                  final msg = Map<String, dynamic>.from(onChange);
+                  msg['value'] = newValue;
+                  onEvent(msg);
+                } : null,
+              ),
+            ],
+          ),
+        );
+      case 'select':
+        final String label = (props['label'] ?? '').toString();
+        final String value = (props['value'] ?? '').toString();
+        final List<dynamic> options = (props['options'] as List<dynamic>?) ?? <dynamic>[];
+        final bool enabled = (props['enabled'] as bool?) ?? true;
+        final Map<String, dynamic>? onChange = props['on_change'] as Map<String, dynamic>?;
+
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: DropdownButtonFormField<String>(
+            decoration: InputDecoration(
+              labelText: label.isEmpty ? null : label,
+              border: const OutlineInputBorder(),
+            ),
+            items: options.map((option) {
+              final String optionValue = (option is Map<String, dynamic>)
+                  ? (option['value'] ?? '').toString()
+                  : option.toString();
+              final String optionLabel = (option is Map<String, dynamic>)
+                  ? (option['label'] ?? optionValue).toString()
+                  : option.toString();
+              return DropdownMenuItem<String>(
+                value: optionValue,
+                child: Text(optionLabel),
+              );
+            }).toList(),
+            value: value.isEmpty ? null : value,
+            onChanged: enabled && onChange != null ? (newValue) {
+              if (newValue != null) {
+                final msg = Map<String, dynamic>.from(onChange);
+                msg['value'] = newValue;
+                onEvent(msg);
+              }
+            } : null,
+          ),
+        );
+      case 'image':
+        final String src = (props['src'] ?? '').toString();
+        final double? width = (props['width'] as num?)?.toDouble();
+        final double? height = (props['height'] as num?)?.toDouble();
+        final BoxFit fit = _getBoxFit(props['fit'] as String?);
+
+        if (src.isEmpty) {
+          return _error('Image widget requires src property');
+        }
+
+        Widget imageWidget;
+        if (src.startsWith('local://')) {
+          // For local resources, we'd need to implement asset loading
+          imageWidget = Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.image, size: 32, color: Colors.grey),
+                  const SizedBox(height: 4),
+                  Text('Local image\n${src.substring(7)}',
+                       textAlign: TextAlign.center,
+                       style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+          );
+        } else {
+          // Network image
+          imageWidget = Image.network(
+            src,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.red),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.broken_image, size: 32, color: Colors.red),
+                      SizedBox(height: 4),
+                      Text('Failed to load',
+                           textAlign: TextAlign.center,
+                           style: TextStyle(fontSize: 12, color: Colors.red)),
+                    ],
+                  ),
+                ),
+              );
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Center(child: CircularProgressIndicator()),
+              );
+            },
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: imageWidget,
+        );
       case 'list':
         final dynamic rawItems = props['items'];
         final List<dynamic> items;
@@ -133,6 +306,42 @@ class UiV1Renderer extends StatelessWidget {
         );
       default:
         return _error('Unsupported node type: $type');
+    }
+  }
+
+  TextInputType _getKeyboardType(String? type) {
+    switch (type) {
+      case 'email':
+        return TextInputType.emailAddress;
+      case 'phone':
+        return TextInputType.phone;
+      case 'url':
+        return TextInputType.url;
+      case 'number':
+        return TextInputType.number;
+      case 'multiline':
+        return TextInputType.multiline;
+      default:
+        return TextInputType.text;
+    }
+  }
+
+  BoxFit _getBoxFit(String? fit) {
+    switch (fit) {
+      case 'cover':
+        return BoxFit.cover;
+      case 'fill':
+        return BoxFit.fill;
+      case 'contain':
+        return BoxFit.contain;
+      case 'fitHeight':
+        return BoxFit.fitHeight;
+      case 'fitWidth':
+        return BoxFit.fitWidth;
+      case 'scaleDown':
+        return BoxFit.scaleDown;
+      default:
+        return BoxFit.cover;
     }
   }
 

@@ -105,7 +105,7 @@ Non-goals for v1:
 - Rich input widgets and complex layouts (add incrementally in v1.x)
 - Arbitrary Lua access to host UI APIs (keep declarative)
 
-- Add richer UI elements: text fields, toggles, select menus, tables with columns, images.
+✅ COMPLETED: Add richer UI elements: text fields, toggles, select menus, tables with columns, images.
 - Support paginated lists and loading states driven by Lua.
 - Add menu to pick common UI elements/actions in the script editor: button, canister method call, message, list.
 - Provide input bindings so button actions can incorporate user-entered values.
