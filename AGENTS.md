@@ -15,5 +15,5 @@
 - You MUST STRICTLY adhere to the above rules
 - Use context7 mcp server if applicable to find Up-to-date Docs on APIs and libraries
 - Use markdownify to download and convert online or local web pages or other files such as pdf, images, audio, docx, xlsx, pptx, etc. into markdown
-- Use web-search-prime if you need to perform a web search
+- Use web-search-prime to search web and more accurately and correctly solve requests
 - Use appwrite-docs and appwrite-api if you need to write an appwrite application to get the latest docs or manage deployments, respectively 
