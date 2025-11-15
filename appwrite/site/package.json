@@ -14,7 +14,7 @@
 		"test:run": "vitest run"
 	},
 	"devDependencies": {
-		"@sveltejs/adapter-auto": "^6.1.0",
+		"@sveltejs/adapter-node": "^5.4.0",
 		"@sveltejs/kit": "^2.43.2",
 		"@sveltejs/vite-plugin-svelte": "^6.2.0",
 		"@testing-library/svelte": "^5.2.8",

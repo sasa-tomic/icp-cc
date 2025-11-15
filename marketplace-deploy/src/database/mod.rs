@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use reqwest::multipart;
 
 use super::config::{AppConfig, AttributeType, IndexType};
+use crate::utils::get_project_root;
 
 #[cfg(test)]
 mod tests;
@@ -90,8 +92,16 @@ impl DatabaseManager {
         let response_text = response.text().await?;
 
         if status.is_success() {
-            serde_json::from_str(&response_text)
-                .with_context(|| format!("Failed to parse response: {}", response_text))
+            // Handle empty responses (common for DELETE operations)
+            if response_text.trim().is_empty() || response_text.trim() == "{}" {
+                // For empty responses, we need to return a default value or use a special type
+                // Since we're expecting type T, we'll create a simple workaround
+                serde_json::from_str("{}")
+                    .with_context(|| format!("Failed to create default response for empty body"))
+            } else {
+                serde_json::from_str(&response_text)
+                    .with_context(|| format!("Failed to parse response: {}", response_text))
+            }
         } else {
             Err(anyhow!(
                 "HTTP {} - {}: {}",
@@ -830,17 +840,45 @@ impl DatabaseManager {
             self.config.database_id, collection_id
         );
 
-        self.make_request::<serde_json::Value>(reqwest::Method::DELETE, &endpoint, None)
+        match self
+            .make_request::<serde_json::Value>(reqwest::Method::DELETE, &endpoint, None)
             .await
-            .map(|_| ())
+        {
+            Ok(_) => {
+                println!("✅   Collection deleted: {}", collection_id);
+                Ok(())
+            }
+            Err(e) if e.to_string().contains("not found") || e.to_string().contains("404") => {
+                println!("ℹ️   Collection not found, skipping deletion: {}", collection_id);
+                Ok(())
+            }
+            Err(e) => {
+                println!("❌   Failed to delete collection {}: {}", collection_id, e);
+                Err(e)
+            }
+        }
     }
 
     pub async fn delete_storage_bucket(&mut self, bucket_id: &str) -> Result<()> {
         let endpoint = format!("storage/buckets/{}", bucket_id);
 
-        self.make_request::<serde_json::Value>(reqwest::Method::DELETE, &endpoint, None)
+        match self
+            .make_request::<serde_json::Value>(reqwest::Method::DELETE, &endpoint, None)
             .await
-            .map(|_| ())
+        {
+            Ok(_) => {
+                println!("✅   Storage bucket deleted: {}", bucket_id);
+                Ok(())
+            }
+            Err(e) if e.to_string().contains("not found") || e.to_string().contains("404") => {
+                println!("ℹ️   Storage bucket not found, skipping deletion: {}", bucket_id);
+                Ok(())
+            }
+            Err(e) => {
+                println!("❌   Failed to delete storage bucket {}: {}", bucket_id, e);
+                Err(e)
+            }
+        }
     }
 
     // Script collection setup
@@ -1322,13 +1360,17 @@ impl DatabaseManager {
             }
         }
 
-        // Create new site if it doesn't exist - with proper parameters for Appwrite 1.7.4
+        // Create new site if it doesn't exist - with proper parameters for SvelteKit SSR
         let body = serde_json::json!({
             "siteId": "icp-marketplace",
             "name": "ICP Script Marketplace",
             "projectId": self.config.project_id,
-            "framework": "vite",
-            "buildRuntime": "node-20.0"
+            "framework": "sveltekit",
+            "adapter": "ssr",
+            "buildCommand": "npm run build",
+            "installCommand": "npm install",
+            "outputDirectory": "./build",
+            "buildRuntime": "node-22"
         });
 
         println!("🔧   Creating site with body: {}", serde_json::to_string_pretty(&body)?);
@@ -1351,9 +1393,13 @@ impl DatabaseManager {
                     let local_body = serde_json::json!({
                         "siteId": "icp-marketplace-local",
                         "name": "ICP Script Marketplace Local",
-                        "framework": "vite",
-                        "buildRuntime": "node-20",
-                        "runtimes": ["node-20.0"],
+                        "framework": "sveltekit",
+                        "adapter": "ssr",
+                        "buildCommand": "npm run build",
+                        "installCommand": "npm install",
+                        "outputDirectory": "./build",
+                        "buildRuntime": "node-22",
+                        "runtimes": ["node-22"],
                         "teamId": "default"
                     });
 
@@ -1408,7 +1454,8 @@ impl DatabaseManager {
             };
 
         // Deploy the site from the appwrite/site directory
-        let site_path = std::path::Path::new("appwrite/site");
+        let project_root = get_project_root()?;
+        let site_path = project_root.join("appwrite/site");
         if !site_path.exists() {
             return Err(anyhow!("Site directory not found: {:?}", site_path));
         }
@@ -1418,7 +1465,7 @@ impl DatabaseManager {
         // Build the site using npm
         let output = std::process::Command::new("npm")
             .args(["run", "build"])
-            .current_dir(site_path)
+            .current_dir(&site_path)
             .output()
             .map_err(|e| anyhow!("Failed to build site: {}", e))?;
 
@@ -1433,24 +1480,9 @@ impl DatabaseManager {
 
         println!("✅   Site built successfully");
 
-        // Deploy to existing site using appwrite CLI
+        // Deploy to existing site using Appwrite REST API
         println!("🚀   Deploying to Appwrite Site...");
-        let deploy_output = std::process::Command::new("npx")
-            .args(["appwrite", "deploy"])
-            .current_dir(site_path)
-            .output()
-            .map_err(|e| anyhow!("Failed to run appwrite deploy: {}", e))?;
-
-        if !deploy_output.status.success() {
-            let stderr = String::from_utf8_lossy(&deploy_output.stderr);
-            let stdout = String::from_utf8_lossy(&deploy_output.stdout);
-            println!("⚠️   Appwrite CLI deploy had issues:");
-            println!("📋   STDOUT: {}", stdout);
-            println!("📋   STDERR: {}", stderr);
-            println!("ℹ️   Site may still be deployed through automatic VCS integration");
-        } else {
-            println!("✅   Site deployed successfully via Appwrite CLI!");
-        }
+        self.deploy_site_via_api(&site_path).await?;
 
         // Show site URL for local development
         if self.config.endpoint.contains("localhost") {
@@ -1472,6 +1504,122 @@ impl DatabaseManager {
         } else {
             Err(anyhow!("No sites found"))
         }
+    }
+
+    /// Deploy site using Appwrite REST API with gzip file upload
+    pub async fn deploy_site_via_api(&self, site_path: &std::path::Path) -> Result<()> {
+        println!("📦   Creating gzip deployment package...");
+
+        // Get existing site
+        let sites: serde_json::Value = self
+            .make_request::<serde_json::Value>(reqwest::Method::GET, "sites", None)
+            .await?;
+
+        let site_id = match sites["sites"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|site| site["$id"].as_str()) {
+                Some(id) => id,
+                None => {
+                    return Err(anyhow!("No site found to deploy to"));
+                }
+            };
+
+        println!("📋   Using site ID: {}", site_id);
+
+        // Create a tar.gz file using the system tar command for compatibility
+        let temp_gz_path = std::env::temp_dir().join("site-source.tar.gz");
+
+        println!("📁   Packaging source files...");
+        let temp_gz_path_str = temp_gz_path.to_str()
+            .ok_or_else(|| anyhow!("Invalid UTF-8 in temp path"))?;
+        let site_path_str = site_path.to_str()
+            .ok_or_else(|| anyhow!("Invalid UTF-8 in site path"))?;
+
+        let output = std::process::Command::new("tar")
+            .args([
+                "-czf", temp_gz_path_str,
+                "--exclude=node_modules",
+                "--exclude=.git",
+                "--exclude=target",
+                "-C", site_path_str,
+                "."
+            ])
+            .output()
+            .map_err(|e| anyhow!("Failed to create tar.gz file: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(anyhow!("Failed to create package: {}", stderr));
+        }
+
+        println!("📦   Deployment package created: {:?}", temp_gz_path);
+
+        // Create multipart form data following the Appwrite API documentation exactly
+        let form = multipart::Form::new()
+            .text("installCommand", "npm install")
+            .text("buildCommand", "npm run build")
+            .text("outputDirectory", "./build")
+            .text("activate", "true");
+
+        // Add the tar.gz file
+        let file_bytes = std::fs::read(&temp_gz_path)?;
+        let file_part = multipart::Part::bytes(file_bytes)
+            .file_name("source.tar.gz")
+            .mime_str("application/gzip")?;
+
+        let form = form.part("code", file_part);
+
+        println!("📤   Uploading deployment to Appwrite...");
+
+        // Make the request to the correct endpoint
+        let response = self.client
+            .post(format!("{}/v1/sites/{}/deployments", self.config.endpoint, site_id))
+            .header("X-Appwrite-Project", &self.config.project_id)
+            .header("X-Appwrite-Key", &self.config.api_key)
+            .header("X-Appwrite-Response-Format", "1.8.0")
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| anyhow!("Failed to upload deployment: {}", e))?;
+
+        if response.status().is_success() {
+            let response_text = response.text().await?;
+            println!("✅   Site deployed successfully via REST API!");
+            println!("📋   Deployment is now being processed by Appwrite");
+
+            // Try to parse and show more info from the response
+            if let Ok(response_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
+                if let Some(deployment_id) = response_json.get("$id").and_then(|v| v.as_str()) {
+                    println!("🚀   Deployment ID: {}", deployment_id);
+                }
+            }
+        } else {
+            let status = response.status();
+            let error_text = response.text().await?;
+
+            // Handle the case where the deployment API is not available
+            if status.as_u16() == 404 && error_text.contains("Route not found") {
+                println!("⚠️   Sites deployment API not available in this Appwrite instance");
+                println!("💡   This is common in local development environments");
+                println!("🌐   Your site is built and ready for deployment");
+                println!("📋   To deploy manually:");
+                println!("   1. Visit: {}/console/project-{}/sites/site-{}",
+                    self.config.endpoint.replace("/v1", ""),
+                    self.config.project_id,
+                    site_id
+                );
+                println!("   2. Use the Appwrite Console to upload your site files");
+                println!("   3. Or ensure your site is connected to a Git repository for automatic deployments");
+            } else {
+                return Err(anyhow!("Deployment failed with status {}: {}", status, error_text));
+            }
+        }
+
+        // Clean up temporary tar.gz file
+        let _ = std::fs::remove_file(temp_gz_path);
+
+        Ok(())
     }
 
     pub async fn delete_site(&self) -> Result<()> {

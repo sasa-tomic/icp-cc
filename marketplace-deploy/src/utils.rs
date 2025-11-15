@@ -1,4 +1,31 @@
 use colored::*;
+use std::path::PathBuf;
+use anyhow::Result;
+
+/// Get the project root directory by searching up the directory tree for a .git directory.
+/// Falls back to the current working directory if no .git directory is found.
+pub fn get_project_root() -> Result<PathBuf> {
+    // Start from the current working directory
+    let current_dir = std::env::current_dir()?;
+    let mut current_path = current_dir.as_path();
+
+    // Search up the directory tree for .git
+    loop {
+        let git_dir = current_path.join(".git");
+        if git_dir.exists() && git_dir.is_dir() {
+            return Ok(current_path.to_path_buf());
+        }
+
+        // Move to parent directory
+        match current_path.parent() {
+            Some(parent) => current_path = parent,
+            None => {
+                // No more parent directories, fall back to current working directory
+                return Ok(current_dir);
+            }
+        }
+    }
+}
 
 pub fn success_message(message: &str) {
     println!("✅ {}", message.bright_green());

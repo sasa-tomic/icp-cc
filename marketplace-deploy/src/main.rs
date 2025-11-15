@@ -215,25 +215,35 @@ async fn handle_deploy(
         // Clean collections
         if deploy_all || components.contains(&DeployComponents::Collections) {
             // Delete collections if they exist
-            let _ = db_manager
+            if let Err(e) = db_manager
                 .delete_collection(&config.scripts_collection_id)
-                .await;
-            let _ = db_manager
+                .await {
+                error_message(&format!("Failed to delete scripts collection: {}", e));
+            }
+            if let Err(e) = db_manager
                 .delete_collection(&config.users_collection_id)
-                .await;
-            let _ = db_manager
+                .await {
+                error_message(&format!("Failed to delete users collection: {}", e));
+            }
+            if let Err(e) = db_manager
                 .delete_collection(&config.reviews_collection_id)
-                .await;
-            let _ = db_manager
+                .await {
+                error_message(&format!("Failed to delete reviews collection: {}", e));
+            }
+            if let Err(e) = db_manager
                 .delete_collection(&config.purchases_collection_id)
-                .await;
+                .await {
+                error_message(&format!("Failed to delete purchases collection: {}", e));
+            }
         }
 
         // Clean storage bucket
         if deploy_all || components.contains(&DeployComponents::Storage) {
-            let _ = db_manager
+            if let Err(e) = db_manager
                 .delete_storage_bucket(&config.storage_bucket_id)
-                .await;
+                .await {
+                error_message(&format!("Failed to delete storage bucket: {}", e));
+            }
         }
 
         pb.finish_and_clear();
@@ -334,8 +344,9 @@ async fn handle_deploy(
             db_manager.create_site().await?;
 
             pb.set_message("Building and deploying SvelteKit site...");
-            // Build the site first
-            let site_dir = std::path::Path::new("appwrite/site");
+            // Build the site first - use paths relative to git repository root
+            let repo_root = utils::get_project_root()?;
+            let site_dir = repo_root.join("appwrite/site");
             if site_dir.exists() {
                 let output = std::process::Command::new("npm")
                     .args(["run", "build"])
