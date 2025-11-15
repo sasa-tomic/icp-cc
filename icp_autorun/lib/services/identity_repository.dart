@@ -23,8 +23,18 @@ class IdentityRepository {
       throw UnsupportedError('IdentityRepository does not support web yet.');
     }
 
-    final Directory directory =
-        _overrideDirectory ?? await getApplicationSupportDirectory();
+    Directory directory;
+    if (_overrideDirectory != null) {
+      directory = _overrideDirectory!;
+    } else {
+      try {
+        directory = await getApplicationSupportDirectory();
+      } catch (_) {
+        // In test or restricted environments where platform channels are unavailable,
+        // fall back to a temporary directory to avoid hanging initialization.
+        directory = await Directory.systemTemp.createTemp('icp_autorun_test_');
+      }
+    }
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }
