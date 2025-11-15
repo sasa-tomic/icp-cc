@@ -58,42 +58,51 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(AppDesignSystem.spacing20),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppDesignSystem.spacing8,
-        vertical: AppDesignSystem.spacing12,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(AppDesignSystem.radius24),
-        boxShadow: [
-          ...AppDesignSystem.shadowMedium,
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            blurRadius: 30,
-            offset: const Offset(0, 5),
-          ),
-        ],
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-          width: 1,
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    
+    return SafeArea(
+      child: Container(
+        margin: EdgeInsets.only(
+          left: AppDesignSystem.spacing20,
+          right: AppDesignSystem.spacing20,
+          bottom: bottomPadding > 0 ? bottomPadding : AppDesignSystem.spacing20,
+          top: AppDesignSystem.spacing20,
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: widget.items.asMap().entries.map((entry) {
-          final index = entry.key;
-          final item = entry.value;
-          final isActive = widget.currentIndex == index;
-          
-          return _buildNavItem(
-            item: item,
-            isActive: isActive,
-            index: index,
-            animation: isActive ? _slideAnimation : null,
-          );
-        }).toList(),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDesignSystem.spacing8,
+          vertical: AppDesignSystem.spacing12,
+        ),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(AppDesignSystem.radius24),
+          boxShadow: [
+            ...AppDesignSystem.shadowMedium,
+            BoxShadow(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              blurRadius: 30,
+              offset: const Offset(0, 5),
+            ),
+          ],
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: widget.items.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            final isActive = widget.currentIndex == index;
+            
+            return _buildNavItem(
+              item: item,
+              isActive: isActive,
+              index: index,
+              animation: isActive ? _slideAnimation : null,
+            );
+          }).toList(),
+        ),
       ),
     );
   }

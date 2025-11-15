@@ -60,26 +60,37 @@ class _MainHomePageState extends State<MainHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.surface,
-              Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
-              Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+      body: SafeArea(
+        top: true,
+        bottom: false,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).colorScheme.surface,
+                Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
+                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+              ],
+            ),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: IndexedStack(
+                  index: _currentIndex,
+                  children: <Widget>[
+                    const ScriptsScreen(),
+                    BookmarksScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
+                    const IdentityHomePage(),
+                  ],
+                ),
+              ),
+              // Add bottom padding to account for navigation bar height
+              const SizedBox(height: 100), // Approximate navigation bar height + safe area
             ],
           ),
-        ),
-        child: IndexedStack(
-          index: _currentIndex,
-          children: <Widget>[
-            const ScriptsScreen(),
-            BookmarksScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
-            const IdentityHomePage(),
-          ],
         ),
       ),
       bottomNavigationBar: _buildModernNavigationBar(),

@@ -45,53 +45,61 @@ class BookmarksScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.surface,
-              Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
-            ],
+      body: SafeArea(
+        top: false, // AppBar already handles top safe area
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.surface,
+                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+              ],
+            ),
           ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // Well-known canisters section
-              _buildSectionHeader(
-                context,
-                title: 'Popular Canisters',
-                subtitle: 'Quick access to essential ICP services',
-                icon: Icons.star_rounded,
-              ),
-              const SizedBox(height: 16),
-              _WellKnownList(onSelect: (cid, method) {
-                HapticFeedback.lightImpact();
-                onOpenClient(initialCanisterId: cid, initialMethodName: method);
-              }),
-              
-              const SizedBox(height: 32),
-              
-              // Bookmarks section
-              _buildSectionHeader(
-                context,
-                title: 'Your Bookmarks',
-                subtitle: 'Your saved canister methods for quick access',
-                icon: Icons.bookmark_rounded,
-              ),
-              const SizedBox(height: 16),
-              _BookmarksList(
-                bridge: bridge,
-                onTapEntry: (cid, method) {
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: 20 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Well-known canisters section
+                _buildSectionHeader(
+                  context,
+                  title: 'Popular Canisters',
+                  subtitle: 'Quick access to essential ICP services',
+                  icon: Icons.star_rounded,
+                ),
+                const SizedBox(height: 16),
+                _WellKnownList(onSelect: (cid, method) {
                   HapticFeedback.lightImpact();
                   onOpenClient(initialCanisterId: cid, initialMethodName: method);
-                },
-              ),
-            ],
+                }),
+                
+                const SizedBox(height: 32),
+                
+                // Bookmarks section
+                _buildSectionHeader(
+                  context,
+                  title: 'Your Bookmarks',
+                  subtitle: 'Your saved canister methods for quick access',
+                  icon: Icons.bookmark_rounded,
+                ),
+                const SizedBox(height: 16),
+                _BookmarksList(
+                  bridge: bridge,
+                  onTapEntry: (cid, method) {
+                    HapticFeedback.lightImpact();
+                    onOpenClient(initialCanisterId: cid, initialMethodName: method);
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -314,9 +322,17 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       controller: _jsonArgsController,
       onToggle: (v) => setState(() => _useAutoForm = v),
     );
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: ListView(
+     final viewInsets = MediaQuery.of(context).viewInsets;
+     final safeAreaPadding = MediaQuery.of(context).padding;
+     
+     return Padding(
+       padding: EdgeInsets.only(
+         bottom: viewInsets.bottom + safeAreaPadding.bottom,
+         left: 16,
+         right: 16,
+         top: 16,
+       ),
+       child: ListView(
         padding: const EdgeInsets.all(16),
         shrinkWrap: true,
         children: <Widget>[

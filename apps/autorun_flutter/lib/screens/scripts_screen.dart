@@ -510,10 +510,10 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
               ),
             ],
           ),
-          // Positioned FAB above navigation bar
+          // Positioned FAB above navigation bar with safe area awareness
           Positioned(
             right: 16,
-            bottom: 120, // Position well above navigation bar
+            bottom: MediaQuery.of(context).padding.bottom + 120, // Account for safe area + navigation bar
             child: _tabController.index == 0 
               ? AnimatedFab(
                   heroTag: 'scripts_fab',
@@ -975,18 +975,25 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.9,
-        height: MediaQuery.of(context).size.height * 0.8,
-        constraints: const BoxConstraints(
-          minWidth: 800,
-          minHeight: 600,
-          maxWidth: 1200,
-          maxHeight: 900,
-        ),
+   @override
+   Widget build(BuildContext context) {
+     final screenSize = MediaQuery.of(context).size;
+     final safeAreaPadding = MediaQuery.of(context).padding;
+     
+     return Dialog(
+       insetPadding: EdgeInsets.symmetric(
+         horizontal: 16 + safeAreaPadding.left,
+         vertical: 24 + safeAreaPadding.top,
+       ),
+       child: Container(
+         width: screenSize.width * 0.9,
+         height: screenSize.height * 0.8,
+         constraints: BoxConstraints(
+           minWidth: 800,
+           minHeight: 600,
+           maxWidth: screenSize.width - (32 + safeAreaPadding.horizontal),
+           maxHeight: screenSize.height - (48 + safeAreaPadding.vertical),
+         ),
         child: Column(
           children: [
             // Header
