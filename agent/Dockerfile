@@ -25,7 +25,7 @@ RUN DFXVM_INIT_YES=yes sh -ci "$(curl -fsSL https://internetcomputer.org/install
 
 # Install deps for ICP-CC project
 RUN apt update && \
-    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq
+    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq net-tools lsof
 
 # Install Node.js directly from NodeSource repository (required for Flutter and Cloudflare Workers)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
