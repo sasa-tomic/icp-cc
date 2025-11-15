@@ -44,7 +44,7 @@ class ResultDisplay extends StatelessWidget {
             ),
           if (error != null)
             _buildErrorSection(context)
-          else if (data != null)
+          else
             _buildDataSection(context),
         ],
       ),
@@ -366,7 +366,7 @@ class ResultDisplay extends StatelessWidget {
 
   String _formatValue(dynamic value) {
     if (value == null) return 'null';
-    if (value is String) return '"$value"';
+    if (value is String) return value;
     if (value is num) return value.toString();
     if (value is bool) return value.toString();
     return json.encode(value);
@@ -505,11 +505,11 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
               ),
             )
           else
-            Expanded(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _filteredItems.length,
-                itemBuilder: (context, index) {
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _filteredItems.length,
+              itemBuilder: (context, index) {
                 final item = _filteredItems[index];
                 return ListTile(
                   title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
@@ -547,7 +547,6 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
                   ),
                 );
               },
-              ),
             ),
         ],
       ),
