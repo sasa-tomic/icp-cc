@@ -8,6 +8,8 @@ import 'package:cryptography/cryptography.dart';
 import 'package:convert/convert.dart' as convert;
 import 'package:elliptic/elliptic.dart' as elliptic;
 import 'package:uuid/uuid.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../rust/native_bridge.dart' as rust;
 
 import '../models/identity_record.dart';
 
@@ -26,6 +28,27 @@ class IdentityGenerator {
     final String resolvedMnemonic = _resolveMnemonic(mnemonic);
     final String resolvedLabel = _resolveLabel(label, identityCount);
     final DateTime now = DateTime.now().toUtc();
+
+    // Prefer Rust FFI on non-web platforms for stable, tested outputs
+    if (!kIsWeb) {
+      final rust.RustBridgeLoader loader = const rust.RustBridgeLoader();
+      final int algCode = algorithm == KeyAlgorithm.ed25519 ? 0 : 1;
+      final rust.RustIdentityResult? r = loader.generateIdentity(
+        alg: algCode,
+        mnemonic: resolvedMnemonic,
+      );
+      if (r != null) {
+        return IdentityRecord(
+          id: _uuid.v4(),
+          label: resolvedLabel,
+          algorithm: algorithm,
+          publicKey: r.publicKeyB64,
+          privateKey: r.privateKeyB64,
+          mnemonic: resolvedMnemonic,
+          createdAt: now,
+        );
+      }
+    }
 
     switch (algorithm) {
       case KeyAlgorithm.ed25519:
