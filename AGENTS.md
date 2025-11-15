@@ -11,6 +11,7 @@
 - Run "make test" from the repo root as often as needed to check for any compilation issues. You must fix any warnings or errors before moving on to the next step.
 - Only commit changes after "make test" is clean and you check "git diff" changes and confirm made changes are minimal. Reduce changes if possible to make them minimal!
 - WHENEVER you fix any isse you MUST check the rest of the codebase to see if the same or similar issue exists elsewhere and FIX ALL INSTANCES.
+- If committing changes, DO NOT mention that commit is generated or co-authored by Claude
 - You MUST STRICTLY adhere to the above rules
 - Use context7 mcp server if applicable to find Up-to-date Docs on APIs and libraries
 - Use zai-mcp-server for vision tasks
