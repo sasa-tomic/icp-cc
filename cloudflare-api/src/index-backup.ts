@@ -1,5 +1,5 @@
 import { Env } from './types';
-import { CorsHandler, JsonResponse } from './utils';
+import { CorsHandler } from './utils';
 import { 
   handleScriptsRequest, 
   handleScriptByIdRequest,

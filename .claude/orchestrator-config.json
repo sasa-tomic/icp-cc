@@ -1,0 +1,89 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${PROJECT_ROOT}"]
+    },
+    "database": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-database"],
+      "env": {
+        "DB_CONNECTION_STRING": "${DB_CONNECTION_STRING}"
+      }
+    }
+  },
+  "orchestratorConfig": {
+    "defaultMode": "hybrid",
+    "maxIterations": 20,
+    "parallelAgentLimit": 5,
+    "statusUpdateInterval": 300,
+    "interruptInterval": 5,
+    "qualityThreshold": 85,
+    "enableAutoMCP": true,
+    "persistLearning": true,
+    "autoPauseOnStagnation": true,
+    "stagnationTolerance": 3,
+    "learningStorage": "./.claude/orchestrator-learning.json",
+    "logDirectory": "./.claude/logs/",
+    "enableDetailedLogging": true
+  },
+  "agentConfig": {
+    "code_generator": {
+      "maxOutputTokens": 50000,
+      "temperature": 0.1,
+      "timeout": 120
+    },
+    "fresh_evaluator": {
+      "maxOutputTokens": 30000,
+      "temperature": 0.2,
+      "timeout": 60
+    },
+    "test_agent": {
+      "maxOutputTokens": 40000,
+      "temperature": 0.1,
+      "timeout": 90
+    },
+    "performance_analyst": {
+      "maxOutputTokens": 35000,
+      "temperature": 0.1,
+      "timeout": 80
+    },
+    "security_reviewer": {
+      "maxOutputTokens": 40000,
+      "temperature": 0.1,
+      "timeout": 100
+    }
+  },
+  "qualityMetrics": {
+    "codeQuality": {
+      "complexityThreshold": 10,
+      "duplicationThreshold": 3,
+      "maintainabilityIndex": 70
+    },
+    "testCoverage": {
+      "minimumCoverage": 80,
+      "criticalPathCoverage": 95
+    },
+    "performance": {
+      "responseTimeThreshold": 200,
+      "memoryUsageThreshold": "100MB"
+    },
+    "security": {
+      "vulnerabilityThreshold": "medium",
+      "complianceChecks": true
+    }
+  },
+  "notificationSettings": {
+    "enableProgressUpdates": true,
+    "enableMilestoneNotifications": true,
+    "enableErrorAlerts": true,
+    "enableCompletionSummary": true
+  }
+}

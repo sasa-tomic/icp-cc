@@ -3,6 +3,8 @@ import 'package:icp_autorun/models/script_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers/miniflare_script_repository.dart';
+import '../test_helpers/test_signature_utils.dart';
+import '../test_helpers/unified_test_builder.dart';
 
 void main() {
   group('Script Repository API Tests', () {
@@ -23,10 +25,13 @@ void main() {
 
     group('Script Management', () {
       test('should create and manage script records', () async {
-        // Arrange - Create a test script
-        final testScript = ScriptRecord(
+        // Arrange - Create a test script with proper signature
+        final testScript = TestTemplates.createTestScriptWithSignature(
           id: 'test-publish-script',
           title: 'My Test Script for Publishing',
+          description: 'Test script for publishing',
+          category: 'Development',
+          tags: ['test', 'publish'],
           luaSource: '''function init(arg)
   return {
     message = "Hello from published script!",
@@ -47,19 +52,6 @@ function update(msg, state)
   end
   return state, {}
 end''',
-          metadata: {
-            'description': 'Test script for publishing',
-            'category': 'Development',
-            'tags': ['test', 'publish'],
-            'authorName': 'Test Author',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
-            'version': '1.0.0',
-            'price': 0.0,
-            'isPublic': true,
-          },
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
         );
 
         // Act - Add script to repository
@@ -74,41 +66,39 @@ end''',
 
       test('should update existing script', () async {
         // Arrange - Create and save a script
-        final originalScript = ScriptRecord(
+        final originalScript = TestTemplates.createTestScriptWithSignature(
           id: 'test-update-script',
           title: 'Original Title',
+          description: 'Original description',
+          category: 'Development',
+          tags: ['original'],
+          authorName: 'Original Author',
           luaSource: '-- Original source',
-          metadata: {
-            'description': 'Original description',
-            'category': 'Development',
-            'tags': ['original'],
-            'authorName': 'Original Author',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
-            'version': '1.0.0',
-            'price': 0.0,
-            'isPublic': false,
-          },
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
         );
         final originalScriptId = await miniflareRepository.saveScript(originalScript);
 
-        // Act - Update script
-        final updatedMetadata = Map<String, dynamic>.from(originalScript.metadata);
-        updatedMetadata['description'] = 'Updated description';
-        updatedMetadata['category'] = 'Utility';
-        updatedMetadata['tags'] = ['updated', 'modified'];
-        updatedMetadata['authorName'] = 'Updated Author';
-        updatedMetadata['version'] = '2.0.0';
-        updatedMetadata['price'] = 1.0;
-        updatedMetadata['isPublic'] = true;
+        // Act - Update script using the proper update helper
+        final updateData = TestTemplates.createTestUpdateRequest(
+          originalScriptId,
+          updates: {
+            'title': 'Updated Title',
+            'description': 'Updated description',
+            'category': 'Utility',
+            'lua_source': '-- Updated source',
+            'version': '2.0.0',
+            'tags': ['updated', 'modified'],
+            'authorName': 'Updated Author',
+            'authorPublicKey': TestSignatureUtils.getPublicKey(),
+            'price': 1.0,
+            'isPublic': true,
+          },
+        );
 
         final updatedScript = ScriptRecord(
           id: originalScriptId,
           title: 'Updated Title',
           luaSource: '-- Updated source',
-          metadata: updatedMetadata,
+          metadata: updateData,
           createdAt: originalScript.createdAt,
           updatedAt: DateTime.now(),
         );
@@ -126,23 +116,14 @@ end''',
 
       test('should delete script from repository', () async {
         // Arrange - Create and save a script
-        final testScript = ScriptRecord(
+        final testScript = TestTemplates.createTestScriptWithSignature(
           id: 'test-delete-script',
           title: 'Script to Delete',
+          description: 'Script for deletion testing',
+          category: 'Testing',
+          tags: ['delete', 'test'],
+          authorName: 'Delete Test',
           luaSource: '-- This will be deleted',
-          metadata: {
-            'description': 'Script for deletion testing',
-            'category': 'Testing',
-            'tags': ['delete', 'test'],
-            'authorName': 'Delete Test',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
-            'version': '1.0.0',
-            'price': 0.0,
-            'isPublic': true,
-          },
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
         );
         final scriptId = await miniflareRepository.saveScript(testScript);
 
@@ -161,41 +142,23 @@ end''',
       test('should list all scripts', () async {
         // Arrange - Create multiple scripts
         final scripts = [
-          ScriptRecord(
+          TestTemplates.createTestScriptWithSignature(
             id: 'list-test-1',
             title: 'List Test Script 1',
+            description: 'First list test script',
+            category: 'Development',
+            tags: ['list', 'test'],
+            authorName: 'List Test Author',
             luaSource: '-- Script 1',
-            metadata: {
-              'description': 'First list test script',
-              'category': 'Development',
-              'tags': ['list', 'test'],
-              'authorName': 'List Test Author',
-              'authorPublicKey': 'test-public-key-for-icp-compatibility',
-              'authorPrincipal': '2vxsx-fae',
-              'version': '1.0.0',
-              'price': 0.0,
-            'isPublic': true,
-            },
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
           ),
-          ScriptRecord(
+          TestTemplates.createTestScriptWithSignature(
             id: 'list-test-2',
             title: 'List Test Script 2',
+            description: 'Second list test script',
+            category: 'Utility',
+            tags: ['list', 'test'],
+            authorName: 'List Test Author',
             luaSource: '-- Script 2',
-            metadata: {
-              'description': 'Second list test script',
-              'category': 'Utility',
-              'tags': ['list', 'test'],
-              'authorName': 'List Test Author',
-              'authorPublicKey': 'test-public-key-for-icp-compatibility',
-              'authorPrincipal': '2vxsx-fae',
-              'version': '1.0.0',
-              'price': 0.0,
-              'isPublic': true,
-            },
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
           ),
         ];
 
@@ -216,23 +179,14 @@ end''',
 
       test('should search scripts by title and description', () async {
         // Arrange - Create scripts with searchable content
-        final searchableScript = ScriptRecord(
+        final searchableScript = TestTemplates.createTestScriptWithSignature(
           id: 'searchable-script',
           title: 'Unique Searchable Title',
+          description: 'This is a unique description for searching',
+          category: 'Testing',
+          tags: ['searchable', 'test'],
+          authorName: 'Search Test',
           luaSource: '-- Searchable script',
-          metadata: {
-            'description': 'This is a unique description for searching',
-            'category': 'Testing',
-            'tags': ['searchable', 'test'],
-            'authorName': 'Search Test',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
-            'version': '1.0.0',
-            'price': 0.0,
-            'isPublic': true,
-          },
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
         );
         await miniflareRepository.saveScript(searchableScript);
 
@@ -249,41 +203,23 @@ end''',
 
       test('should filter scripts by category', () async {
         // Arrange - Create scripts in different categories
-        final devScript = ScriptRecord(
+        final devScript = TestTemplates.createTestScriptWithSignature(
           id: 'dev-script',
           title: 'Development Script',
+          description: 'A development script',
+          category: 'Development',
+          tags: ['development', 'test'],
+          authorName: 'Dev Author',
           luaSource: '-- Dev script',
-          metadata: {
-            'description': 'A development script',
-            'category': 'Development',
-            'tags': ['development', 'test'],
-            'authorName': 'Dev Author',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
-            'version': '1.0.0',
-            'price': 0.0,
-            'isPublic': true,
-          },
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
         );
-        final utilScript = ScriptRecord(
+        final utilScript = TestTemplates.createTestScriptWithSignature(
           id: 'util-script',
           title: 'Utility Script',
+          description: 'A utility script',
+          category: 'Utility',
+          tags: ['utility', 'test'],
+          authorName: 'Util Author',
           luaSource: '-- Utility script',
-          metadata: {
-            'description': 'A utility script',
-            'category': 'Utility',
-            'tags': ['utility', 'test'],
-            'authorName': 'Util Author',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
-            'version': '1.0.0',
-            'price': 0.0,
-            'isPublic': true,
-          },
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
         );
 
         await miniflareRepository.saveScript(devScript);
@@ -300,24 +236,31 @@ end''',
 
       test('should get only public scripts', () async {
         // Arrange - Create public and private scripts
-        final publicScript = ScriptRecord(
+        final publicScript = TestTemplates.createTestScriptWithSignature(
           id: 'public-script',
           title: 'Public Script',
+          description: 'A public script',
+          category: 'Development',
+          tags: ['public', 'test'],
+          authorName: 'Public Author',
           luaSource: '-- Public script',
-          metadata: {
-            'description': 'A public script',
-            'category': 'Development',
-            'tags': ['public', 'test'],
-            'authorName': 'Public Author',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
-            'version': '1.0.0',
-            'price': 0.0,
-            'isPublic': true,
-          },
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
         );
+
+        // Create private script with its own signature for private script
+        final privateTimestamp = DateTime.now().toIso8601String();
+        final privateSignaturePayload = {
+          'action': 'upload',
+          'title': 'Private Script',
+          'description': 'A private script',
+          'category': 'Development',
+          'lua_source': '-- Private script',
+          'version': '1.0.0',
+          'tags': ['private', 'test'],
+          'author_principal': TestSignatureUtils.getPrincipal(),
+          'timestamp': privateTimestamp,
+        };
+        final privateSignature = TestSignatureUtils.generateTestSignature(privateSignaturePayload);
+
         final privateScript = ScriptRecord(
           id: 'private-script',
           title: 'Private Script',
@@ -327,11 +270,13 @@ end''',
             'category': 'Development',
             'tags': ['private', 'test'],
             'authorName': 'Private Author',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
+            'authorPublicKey': TestSignatureUtils.getPublicKey(),
+            'authorPrincipal': TestSignatureUtils.getPrincipal(),
             'version': '1.0.0',
             'price': 0.0,
             'isPublic': false,
+            'signature': privateSignature,
+            'timestamp': privateTimestamp,
           },
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -349,7 +294,21 @@ end''',
       });
 
       test('should publish script successfully', () async {
-        // Arrange - Create a private script
+        // Arrange - Create a private script with its own signature
+        final privateTimestamp = DateTime.now().toIso8601String();
+        final privateSignaturePayload = {
+          'action': 'upload',
+          'title': 'Script to Publish',
+          'description': 'Script that will be published',
+          'category': 'Development',
+          'lua_source': '-- Will be published',
+          'version': '1.0.0',
+          'tags': ['publish', 'test'],
+          'author_principal': TestSignatureUtils.getPrincipal(),
+          'timestamp': privateTimestamp,
+        };
+        final privateSignature = TestSignatureUtils.generateTestSignature(privateSignaturePayload);
+
         final privateScript = ScriptRecord(
           id: 'script-to-publish',
           title: 'Script to Publish',
@@ -359,11 +318,13 @@ end''',
             'category': 'Development',
             'tags': ['publish', 'test'],
             'authorName': 'Publish Author',
-            'authorPublicKey': 'test-public-key-for-icp-compatibility',
-            'authorPrincipal': '2vxsx-fae',
+            'authorPublicKey': TestSignatureUtils.getPublicKey(),
+            'authorPrincipal': TestSignatureUtils.getPrincipal(),
             'version': '1.0.0',
             'price': 0.0,
             'isPublic': false,
+            'signature': privateSignature,
+            'timestamp': privateTimestamp,
           },
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),

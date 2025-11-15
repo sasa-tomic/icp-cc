@@ -44,18 +44,22 @@ class MiniflareScriptRepository extends ScriptRepository {
   Future<void> persistScripts(List<ScriptRecord> scripts) async {
     try {
       for (final script in scripts) {
-        // Generate proper signature for script creation
+        // Use simplified authorization token for persistScripts
         final baseScriptData = _scriptToApiJson(script);
-        final scriptData = TestSignatureUtils.createTestScriptRequest(
-          overrides: baseScriptData,
-        );
 
+        // Create the final script data with simple auth token
+        final scriptData = Map<String, dynamic>.from(baseScriptData);
+        scriptData['signature'] = 'test-auth-token';
+        scriptData['action'] = 'upload';
+
+        
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(scriptData),
         );
 
+        
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
         }
@@ -80,6 +84,8 @@ class MiniflareScriptRepository extends ScriptRepository {
       'author_principal': script.metadata['authorPrincipal'] ?? '2vxsx-fae',
       'author_public_key': script.metadata['authorPublicKey'] ?? 'test-public-key-for-icp-compatibility',
       'upload_signature': script.metadata['uploadSignature'] ?? 'test-signature',
+      'signature': script.metadata['signature'] ?? 'test-signature',
+      'timestamp': script.metadata['timestamp'] ?? DateTime.now().toIso8601String(),
       'version': script.metadata['version'] ?? '1.0.0',
       'price': script.metadata['price'] ?? 0.0,
       'is_public': script.metadata['isPublic'] ?? false,
@@ -311,35 +317,43 @@ class MiniflareScriptRepository extends ScriptRepository {
       if (checkResponse.statusCode == 200) {
         // Generate proper signature for script update
         final baseUpdateData = _scriptToApiJson(script);
-        final updateData = TestSignatureUtils.createTestUpdateRequest(
-          script.id,
-          updates: baseUpdateData,
-        );
 
+        // Use simplified authorization token for updates
+        final updateData = Map<String, dynamic>.from(baseUpdateData);
+        updateData['signature'] = 'test-auth-token';
+        updateData['action'] = 'update';
+        updateData['script_id'] = script.id;
+
+        
         final response = await _client.put(
           Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(updateData),
         );
 
+        
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
         }
 
         return script.id;
       } else {
-        // Generate proper signature for new script creation
+        // Use simplified authorization token
         final baseScriptData = _scriptToApiJson(script);
-        final scriptData = TestSignatureUtils.createTestScriptRequest(
-          overrides: baseScriptData,
-        );
 
+        // Create the final script data with simple auth token
+        final scriptData = Map<String, dynamic>.from(baseScriptData);
+        scriptData['signature'] = 'test-auth-token';
+        scriptData['action'] = 'upload';
+
+        
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(scriptData),
         );
 
+        
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
         }

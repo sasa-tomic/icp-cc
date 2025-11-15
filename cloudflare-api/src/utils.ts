@@ -314,65 +314,116 @@ export class DatabaseService {
   async getScriptWithDetails(scriptId: string, includePrivate = false): Promise<Script | null> {
     const db = this.getDatabase();
 
-    // Get script
-    const script = await db.prepare(`
-      SELECT * FROM scripts
-      WHERE id = ? ${includePrivate ? '' : 'AND is_public = 1'}
-    `).bind(scriptId).first();
-
-    if (!script) return null;
-
-    // Get author
-    let author: Author | undefined;
     try {
-      const authorData = await db.prepare(`
-        SELECT * FROM users WHERE id = ?
-      `).bind(script.author_id).first();
+      // Add timeout to script query
+      const scriptQuery = db.prepare(`
+        SELECT * FROM scripts
+        WHERE id = ? ${includePrivate ? '' : 'AND is_public = 1'}
+      `).bind(scriptId);
 
-      if (authorData) {
+      const script = await Promise.race([
+        scriptQuery.first(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 5000))
+      ]) as any;
+
+      if (!script) return null;
+
+      // Get author with timeout
+      let author: Author | undefined;
+      try {
+        const authorQuery = db.prepare(`
+          SELECT * FROM users WHERE id = ?
+        `).bind(script.author_id);
+
+        const authorData = await Promise.race([
+          authorQuery.first(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
+        ]) as any;
+
+        if (authorData) {
+          author = {
+            id: authorData.id,
+            username: authorData.email?.split('@')[0] || authorData.name,
+            displayName: authorData.name,
+            avatar: null,
+            isVerifiedDeveloper: !!authorData.is_verified_developer
+          };
+        }
+      } catch (err) {
+        // Author not found, use basic info
         author = {
-          id: authorData.id,
-          username: authorData.email?.split('@')[0] || authorData.name,
-          displayName: authorData.name,
-          avatar: null, // Add avatar field if needed
-          isVerifiedDeveloper: !!authorData.is_verified_developer
+          id: script.author_id,
+          username: script.author_name,
+          displayName: script.author_name,
+          avatar: null,
+          isVerifiedDeveloper: false
         };
       }
+
+      // Get reviews with timeout
+      let reviews: any[] = [];
+      try {
+        const reviewsQuery = db.prepare(`
+          SELECT * FROM reviews
+          WHERE script_id = ?
+          ORDER BY created_at DESC
+          LIMIT 10
+        `).bind(scriptId);
+
+        const reviewsResult = await Promise.race([
+          reviewsQuery.all(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
+        ]) as any;
+
+        reviews = reviewsResult.results || [];
+      } catch (err) {
+        console.warn('Failed to get reviews:', err.message);
+        reviews = [];
+      }
+
+      // Safely parse JSON fields
+      let tags: string[] = [];
+      let canisterIds: string[] = [];
+      let screenshots: string[] = [];
+
+      try {
+        tags = script.tags ? JSON.parse(script.tags) : [];
+      } catch (e) {
+        console.warn('Failed to parse tags:', e);
+      }
+
+      try {
+        canisterIds = script.canister_ids ? JSON.parse(script.canister_ids) : [];
+      } catch (e) {
+        console.warn('Failed to parse canister_ids:', e);
+      }
+
+      try {
+        screenshots = script.screenshots ? JSON.parse(script.screenshots) : [];
+      } catch (e) {
+        console.warn('Failed to parse screenshots:', e);
+      }
+
+      return {
+        ...script,
+        tags,
+        canisterIds,
+        screenshots,
+        author,
+        reviews: reviews.map((review: any) => ({
+          id: review.id,
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.created_at,
+          updatedAt: review.updated_at,
+          userId: review.user_id,
+          username: review.username
+        }))
+      } as Script;
     } catch (err) {
-      // Author not found, use basic info
-      author = {
-        id: script.author_id,
-        username: script.author_name,
-        displayName: script.author_name,
-        avatar: null,
-        isVerifiedDeveloper: false
-      };
+      console.error('getScriptWithDetails failed:', err.message);
+      return null;
     }
-
-    // Get reviews
-    const reviews = await db.prepare(`
-      SELECT * FROM reviews
-      WHERE script_id = ?
-      ORDER BY created_at DESC
-      LIMIT 10
-    `).bind(scriptId).all();
-
-    return {
-      ...script,
-      tags: script.tags ? JSON.parse(script.tags as string) : [],
-      canisterIds: script.canister_ids ? JSON.parse(script.canister_ids as string) : [],
-      screenshots: script.screenshots ? JSON.parse(script.screenshots as string) : [],
-      author,
-      reviews: reviews.results.map((review: any) => ({
-        id: review.id,
-        rating: review.rating,
-        comment: review.comment,
-        createdAt: review.created_at,
-        updatedAt: review.updated_at,
-        userId: review.user_id,
-        username: review.username // Add username if needed
-      }))
-    } as Script;
   }
 
   async enrichScripts(scripts: any[]): Promise<Script[]> {
@@ -381,9 +432,15 @@ export class DatabaseService {
     return Promise.all(scripts.map(async (script: any) => {
       let author: Author;
       try {
-        const authorData = await db.prepare(`
+        // Add timeout to database query to prevent hanging
+        const authorQuery = db.prepare(`
           SELECT * FROM users WHERE id = ?
-        `).bind(script.author_id).first();
+        `).bind(script.author_id);
+
+        const authorData = await Promise.race([
+          authorQuery.first(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 5000))
+        ]) as any;
 
         if (authorData) {
           author = {
@@ -397,6 +454,8 @@ export class DatabaseService {
           throw new Error('Author not found');
         }
       } catch (err) {
+        // Log the error but continue with basic author info
+        console.warn('Author lookup failed, using basic info:', err.message);
         author = {
           id: script.author_id,
           username: script.author_name,
@@ -406,11 +465,34 @@ export class DatabaseService {
         };
       }
 
+      // Safely parse JSON fields
+      let tags: string[] = [];
+      let canisterIds: string[] = [];
+      let screenshots: string[] = [];
+
+      try {
+        tags = script.tags ? JSON.parse(script.tags) : [];
+      } catch (e) {
+        console.warn('Failed to parse tags:', e);
+      }
+
+      try {
+        canisterIds = script.canister_ids ? JSON.parse(script.canister_ids) : [];
+      } catch (e) {
+        console.warn('Failed to parse canister_ids:', e);
+      }
+
+      try {
+        screenshots = script.screenshots ? JSON.parse(script.screenshots) : [];
+      } catch (e) {
+        console.warn('Failed to parse screenshots:', e);
+      }
+
       return {
         ...script,
-        tags: script.tags ? JSON.parse(script.tags) : [],
-        canisterIds: script.canister_ids ? JSON.parse(script.canister_ids) : [],
-        screenshots: script.screenshots ? JSON.parse(script.screenshots) : [],
+        tags,
+        canisterIds,
+        screenshots,
         author
       } as Script;
     }));
@@ -490,22 +572,67 @@ export class DatabaseService {
     const whereClause = whereConditions.join(' AND ');
     const orderClause = `${dbSortBy} ${order.toUpperCase()}`;
 
-    // Get total count
-    const countResult = await db.prepare(`
-      SELECT COUNT(*) as total FROM scripts WHERE ${whereClause}
-    `).bind(...bindings).first();
+    // Get total count with timeout
+    let total = 0;
+    try {
+      const countQuery = db.prepare(`
+        SELECT COUNT(*) as total FROM scripts WHERE ${whereClause}
+      `).bind(...bindings);
 
-    const total = countResult?.total || 0;
+      const countResult = await Promise.race([
+        countQuery.first(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
+      ]) as any;
 
-    // Get scripts
-    const scriptsResult = await db.prepare(`
-      SELECT * FROM scripts
-      WHERE ${whereClause}
-      ORDER BY ${orderClause}
-      LIMIT ? OFFSET ?
-    `).bind(...bindings, limit, offset).all();
+      total = countResult?.total || 0;
+    } catch (err) {
+      console.error('Failed to get total count:', err.message);
+      total = 0;
+    }
 
-    const enrichedScripts = await this.enrichScripts(scriptsResult.results);
+    // Get scripts with timeout
+    let scripts: any[] = [];
+    try {
+      const scriptsQuery = db.prepare(`
+        SELECT * FROM scripts
+        WHERE ${whereClause}
+        ORDER BY ${orderClause}
+        LIMIT ? OFFSET ?
+      `).bind(...bindings, limit, offset);
+
+      const scriptsResult = await Promise.race([
+        scriptsQuery.all(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 5000))
+      ]) as any;
+
+      scripts = scriptsResult.results || [];
+    } catch (err) {
+      console.error('Failed to get scripts:', err.message);
+      scripts = [];
+    }
+
+    // Enrich scripts with error handling
+    let enrichedScripts: Script[] = [];
+    try {
+      enrichedScripts = await this.enrichScripts(scripts);
+    } catch (err) {
+      console.error('Failed to enrich scripts:', err.message);
+      // Return basic scripts without enrichment if enrichment fails
+      enrichedScripts = scripts.map(script => ({
+        ...script,
+        tags: script.tags ? JSON.parse(script.tags) : [],
+        canisterIds: script.canister_ids ? JSON.parse(script.canister_ids) : [],
+        screenshots: script.screenshots ? JSON.parse(script.screenshots) : [],
+        author: {
+          id: script.author_id,
+          username: script.author_name,
+          displayName: script.author_name,
+          avatar: null,
+          isVerifiedDeveloper: false
+        },
+        reviews: []
+      } as Script));
+    }
 
     return { scripts: enrichedScripts, total };
   }

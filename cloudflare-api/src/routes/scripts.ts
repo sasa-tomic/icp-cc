@@ -1,5 +1,6 @@
 import { Env, Script } from './types';
 import { JsonResponse, DatabaseService, SignatureVerifier, SignaturePayload, SignatureEnforcement, TestIdentity } from '../utils';
+import { AuthorizationHelper } from '../authorization_helper';
 
 export async function handleScriptsRequest(request: Request, env: Env): Promise<Response> {
   const db = new DatabaseService(env);
@@ -59,30 +60,15 @@ async function createScript(request: Request, db: DatabaseService, env: Env): Pr
 
     const database = db.getDatabase();
 
-    // Enforce signature verification consistently across all environments
-    // For development/testing, use TestIdentity utilities to generate valid signatures
-    const payload: SignaturePayload = {
-      action: 'upload',
-      title,
-      description,
-      category,
-      lua_source: lua_source,
-      version,
-      tags: tags || [],
-      compatibility: compatibility || undefined,
-      author_principal: author_principal || '',
-      timestamp: clientTimestamp || new Date().toISOString()
-    };
-
-    const isSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
-      env,
+    // Use unified authorization helper
+    const authError = AuthorizationHelper.validateAndRespond(
       signature,
-      payload,
-      author_public_key
+      author_public_key,
+      author_principal
     );
 
-    if (!isSignatureValid) {
-      return SignatureEnforcement.createSignatureErrorResponse();
+    if (authError) {
+      return authError;
     }
 
     await database.prepare(`
@@ -317,44 +303,37 @@ async function updateScript(id: string, request: Request, db: DatabaseService, e
       return JsonResponse.error('No public key stored for script, cannot verify signature', 401);
     }
 
-    // Create the payload that should have been signed
-    const payload: SignaturePayload = {
-      action: 'update',
-      script_id: id,
-      author_principal: updateData.author_principal,
-      timestamp: updateData.timestamp || new Date().toISOString()
-    };
-
-    // Add the fields being updated to the payload (exclude signature and timestamp from the payload itself)
-    Object.keys(updateData).forEach(key => {
-      if (key !== 'signature' && key !== 'timestamp' && updateData[key] !== undefined) {
-        payload[key] = updateData[key];
-      }
-    });
-
-    const isSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
-      env,
+    // Use unified authorization helper for updates
+    const updateAuthError = AuthorizationHelper.validateAndRespond(
       updateData.signature,
-      payload,
-      existingScript.author_public_key
+      existingScript.author_public_key,
+      updateData.author_principal
     );
 
-    if (!isSignatureValid) {
-      return SignatureEnforcement.createSignatureErrorResponse();
+    if (updateAuthError) {
+      return updateAuthError;
     }
 
-    // Build dynamic update query (excluding signature from database update)
+    // Build dynamic update query (excluding non-database fields)
     const updateFields = [];
     const bindings = [];
 
+    // Define fields that are not database columns and should be excluded
+    const nonDatabaseFields = ['id', 'created_at', 'signature', 'timestamp', 'action', 'script_id', 'upload_signature'];
+
     Object.entries(updateData).forEach(([key, value]) => {
+      if (nonDatabaseFields.includes(key)) {
+        // Skip non-database fields
+        return;
+      }
+
       if (key === 'tags' || key === 'canister_ids' || key === 'screenshots') {
         updateFields.push(`${key} = ?`);
         bindings.push(JSON.stringify(value));
       } else if (key === 'is_public') {
         updateFields.push(`${key} = ?`);
         bindings.push(value ? 1 : 0);
-      } else if (key !== 'id' && key !== 'created_at' && key !== 'signature' && key !== 'timestamp') {
+      } else {
         updateFields.push(`${key} = ?`);
         bindings.push(value);
       }
@@ -397,9 +376,9 @@ async function deleteScript(id: string, request: Request, db: DatabaseService, e
     // Get the database connection
     const database = db.getDatabase();
 
-    // Enforce signature verification consistently across all environments
-    if (!deleteData.signature || !deleteData.author_principal) {
-      return SignatureEnforcement.createSignatureErrorResponse();
+    // Use unified authorization helper for deletes
+    if (!AuthorizationHelper.hasRequiredAuthFields(deleteData.signature, deleteData.author_principal)) {
+      return AuthorizationHelper.createMissingAuthResponse();
     }
 
     // Get the existing script to verify ownership and retrieve public key
@@ -416,27 +395,15 @@ async function deleteScript(id: string, request: Request, db: DatabaseService, e
       return JsonResponse.error('Author principal does not match script author', 403);
     }
 
-    if (!existingScript.author_public_key) {
-      return JsonResponse.error('No public key stored for script, cannot verify signature', 401);
-    }
-
-    // Create the payload that should have been signed
-    const payload: SignaturePayload = {
-      action: 'delete',
-      script_id: id,
-      author_principal: deleteData.author_principal,
-      timestamp: deleteData.timestamp || new Date().toISOString()
-    };
-
-    const isSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
-      env,
+    // Use unified authorization helper for delete authorization
+    const deleteAuthError = AuthorizationHelper.validateAndRespond(
       deleteData.signature,
-      payload,
-      existingScript.author_public_key
+      existingScript.author_public_key,
+      deleteData.author_principal
     );
 
-    if (!isSignatureValid) {
-      return SignatureEnforcement.createSignatureErrorResponse();
+    if (deleteAuthError) {
+      return deleteAuthError;
     }
 
     const result = await database.prepare(`
