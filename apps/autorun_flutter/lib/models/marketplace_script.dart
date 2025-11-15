@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class MarketplaceScript {
   final String id;
   final String title;
@@ -62,13 +64,51 @@ class MarketplaceScript {
     return value ?? false;
   }
 
+  static List<String> _parseStringList(dynamic value) {
+    if (value == null) return const [];
+    if (value is List) {
+      return value
+          .where((element) => element != null)
+          .map((element) => element.toString())
+          .where((element) => element.trim().isNotEmpty)
+          .toList();
+    }
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return const [];
+      try {
+        final dynamic decoded = jsonDecode(trimmed);
+        if (decoded is List) {
+          return decoded
+              .where((element) => element != null)
+              .map((element) => element.toString())
+              .where((element) => element.trim().isNotEmpty)
+              .toList();
+        }
+      } catch (_) {
+        // Fall back to comma-separated parsing below.
+      }
+      return trimmed
+          .split(',')
+          .map((element) => element.trim())
+          .where((element) => element.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
+  static List<String>? _parseOptionalStringList(dynamic value) {
+    if (value == null) return null;
+    return _parseStringList(value);
+  }
+
   factory MarketplaceScript.fromJson(Map<String, dynamic> json) {
     return MarketplaceScript(
       id: json['id'] as String? ?? json['\$id'] as String,
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
       category: json['category'] as String? ?? '',
-      tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
+      tags: _parseStringList(json['tags']),
       authorId: json['authorId'] as String? ?? json['author_id'] as String? ?? '',
       authorName: json['authorName'] as String? ?? json['author_name'] as String? ?? '',
       authorPrincipal: json['authorPrincipal'] as String? ?? json['author_principal'] as String?,
@@ -82,8 +122,8 @@ class MarketplaceScript {
       verifiedReviewCount: json['verifiedReviewCount'] as int?,
       luaSource: json['luaSource'] as String? ?? json['lua_source'] as String? ?? '',
       iconUrl: json['iconUrl'] as String? ?? json['icon_url'] as String?,
-      screenshots: (json['screenshots'] as List<dynamic>?)?.cast<String>() ?? (json['screenshots'] as List<dynamic>?)?.cast<String>(),
-      canisterIds: (json['canisterIds'] as List<dynamic>?)?.cast<String>() ?? (json['canister_ids'] as List<dynamic>?)?.cast<String>() ?? [],
+      screenshots: _parseOptionalStringList(json['screenshots']),
+      canisterIds: _parseStringList(json['canisterIds'] ?? json['canister_ids']),
       compatibility: json['compatibility'] as String?,
       version: json['version'] as String?,
       isPublic: _parseBool(json['isPublic'] ?? json['is_public'] ?? true),

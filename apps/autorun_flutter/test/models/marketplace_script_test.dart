@@ -131,5 +131,53 @@ void main() {
       expect(script.title, 'Test Script');
       expect(script.author, isNull); // Should handle wrong type gracefully by setting to null
     });
+
+    test('should parse tags provided as JSON string', () {
+      final json = {
+        'id': 'test-id',
+        'title': 'Test Script',
+        'description': 'Test Description',
+        'category': 'Test',
+        'tags': '["alpha","beta","gamma"]',
+        'authorId': 'author-123',
+        'authorName': 'Test Author',
+        'price': 0.0,
+        'currency': 'USD',
+        'downloads': 0,
+        'rating': 0.0,
+        'reviewCount': 0,
+        'luaSource': 'print("Hello World")',
+        'createdAt': '2024-01-01T00:00:00.000Z',
+        'updatedAt': '2024-01-01T00:00:00.000Z',
+      };
+
+      final script = MarketplaceScript.fromJson(json);
+
+      expect(script.tags, equals(<String>['alpha', 'beta', 'gamma']));
+    });
+
+    test('should infer tags from comma separated string when JSON parse fails', () {
+      final json = {
+        'id': 'test-id',
+        'title': 'Test Script',
+        'description': 'Test Description',
+        'category': 'Test',
+        'tags': 'alpha, beta ,  gamma ',
+        'authorId': 'author-123',
+        'authorName': 'Test Author',
+        'price': 0.0,
+        'currency': 'USD',
+        'downloads': 0,
+        'rating': 0.0,
+        'reviewCount': 0,
+        'luaSource': 'print("Hello World")',
+        'createdAt': '2024-01-01T00:00:00.000Z',
+        'updatedAt': '2024-01-01T00:00:00.000Z',
+      };
+
+      final script = MarketplaceScript.fromJson(json);
+
+      expect(script.tags, equals(<String>['alpha', 'beta', 'gamma']));
+    });
   });
 }

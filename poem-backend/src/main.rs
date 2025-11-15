@@ -1092,6 +1092,10 @@ async fn get_marketplace_stats(Data(state): Data<&Arc<AppState>>) -> Response {
     .into_response()
 }
 
+fn resolve_script_visibility(flag: Option<bool>) -> bool {
+    flag.unwrap_or(true)
+}
+
 #[handler]
 async fn create_script(
     Json(req): Json<CreateScriptRequest>,
@@ -1117,7 +1121,7 @@ async fn create_script(
     let script_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let is_public = req.is_public.unwrap_or(false);
+    let is_public = resolve_script_visibility(req.is_public);
 
     let version = req.version.as_deref().unwrap_or("1.0.0");
     let price = req.price.unwrap_or(0.0);
@@ -2216,6 +2220,22 @@ mod tests {
         assert!(
             error.1.contains("sort"),
             "error message must mention sort validation"
+        );
+    }
+
+    #[test]
+    fn resolve_visibility_defaults_to_public() {
+        assert!(
+            resolve_script_visibility(None),
+            "missing visibility flag must default to public"
+        );
+    }
+
+    #[test]
+    fn resolve_visibility_preserves_private_flag() {
+        assert!(
+            !resolve_script_visibility(Some(false)),
+            "explicit private uploads must stay private"
         );
     }
 
