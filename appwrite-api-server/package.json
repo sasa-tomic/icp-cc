@@ -6,8 +6,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest",
-    "lint": "eslint src/",
+    "test": "jest --testEnvironment=node",
+    "test:watch": "jest --testEnvironment=node --watch",
+    "test:coverage": "jest --testEnvironment=node --coverage",
+    "lint": "eslint src/ tests/",
     "build": "echo 'No build step required for Node.js'"
   },
   "dependencies": {
