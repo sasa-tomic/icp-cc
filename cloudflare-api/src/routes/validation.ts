@@ -1,5 +1,7 @@
 import { Env } from '../types';
 import { JsonResponse } from '../utils';
+// @ts-ignore - luaparse doesn't have TypeScript definitions
+import luaparse from 'luaparse';
 
 interface LuaValidationResult {
   isSyntaxValid: boolean;
@@ -8,80 +10,55 @@ interface LuaValidationResult {
   missingFunctions: string[];
 }
 
-function validateLuaWithPatterns(lua_source: string): LuaValidationResult {
-  const missingFunctions: string[] = [];
+function validateLuaWithLuaparse(lua_source: string): LuaValidationResult {
   const syntaxErrors: string[] = [];
+  const missingFunctions: string[] = [];
 
-  // Basic syntax validation using patterns
-  const lines = lua_source.split('\n');
-  let inString = false;
-  let stringChar = '';
-  let commentDepth = 0;
-  let braceCount = 0;
-  let parenCount = 0;
-  let bracketCount = 0;
+  // Use luaparse for proper syntax validation
+  try {
+    const ast = luaparse.parse(lua_source);
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
+    // Extract function names from AST
+    const functions = new Set<string>();
 
-    // Skip empty lines and comments
-    if (trimmed === '' || trimmed.startsWith('--')) {
-      continue;
-    }
-
-    // Check for basic syntax issues
-    for (let j = 0; j < line.length; j++) {
-      const char = line[j];
-      const prevChar = j > 0 ? line[j - 1] : '';
-
-      // Handle strings
-      if (!inString && (char === '"' || char === "'")) {
-        inString = true;
-        stringChar = char;
-      } else if (inString && char === stringChar && prevChar !== '\\') {
-        inString = false;
-        stringChar = '';
+    function extractFunctions(node: any) {
+      if (node.type === 'FunctionDeclaration' && node.identifier) {
+        functions.add(node.identifier.name);
       }
 
-      // Count brackets outside of strings
-      if (!inString) {
-        if (char === '{') braceCount++;
-        else if (char === '}') braceCount--;
-        else if (char === '(') parenCount++;
-        else if (char === ')') parenCount--;
-        else if (char === '[') bracketCount++;
-        else if (char === ']') bracketCount--;
+      // Traverse child nodes
+      if (node.body && Array.isArray(node.body)) {
+        node.body.forEach(extractFunctions);
+      }
+      if (node.arguments && Array.isArray(node.arguments)) {
+        node.arguments.forEach(extractFunctions);
+      }
+      if (node.init) {
+        extractFunctions(node.init);
+      }
+      if (node.value) {
+        extractFunctions(node.value);
       }
     }
 
-    // Check for basic syntax errors
-    if (!inString) {
-      // Unclosed brackets at line end might indicate syntax issues
-      if (braceCount < 0 || parenCount < 0 || bracketCount < 0) {
-        syntaxErrors.push(`Line ${i + 1}: Unmatched closing bracket`);
-        break;
+    if (ast.body) {
+      ast.body.forEach(extractFunctions);
+    }
+
+    // Check for required functions
+    const requiredFunctions = ['init', 'view', 'update'];
+    for (const funcName of requiredFunctions) {
+      if (!functions.has(funcName)) {
+        missingFunctions.push(funcName);
       }
     }
+
+  } catch (error: any) {
+    // luaparse throws detailed syntax errors with line numbers
+    syntaxErrors.push(error.message || 'Lua syntax error');
   }
 
-  // Check for unmatched opening brackets
-  if (braceCount !== 0) syntaxErrors.push('Unmatched braces {}');
-  if (parenCount !== 0) syntaxErrors.push('Unmatched parentheses ()');
-  if (bracketCount !== 0) syntaxErrors.push('Unmatched brackets []');
-
-  // Check for required functions using pattern matching
-  const requiredFunctions = ['init', 'view', 'update'];
-
-  for (const funcName of requiredFunctions) {
-    // Look for function definition: function name( or function name (
-    const functionPattern = new RegExp(`function\\s+${funcName}\\s*\\(`, 'm');
-    if (!functionPattern.test(lua_source)) {
-      missingFunctions.push(funcName);
-    }
-  }
-
-  // Additional syntax checks
+  // Security checks for dangerous patterns
   const dangerousPatterns = [
     { pattern: /loadstring\s*\(/, message: 'loadstring() function not allowed' },
     { pattern: /dofile\s*\(/, message: 'dofile() function not allowed' },
@@ -95,25 +72,6 @@ function validateLuaWithPatterns(lua_source: string): LuaValidationResult {
   for (const { pattern, message } of dangerousPatterns) {
     if (pattern.test(lua_source)) {
       syntaxErrors.push(message);
-    }
-  }
-
-  // Check for basic Lua syntax errors
-  if (syntaxErrors.length === 0) {
-    // Check for common syntax mistakes
-    const commonErrors = [
-      { pattern: /function\s+\w+\s*[^(\s]/, message: 'Invalid function definition - missing parentheses' },
-      { pattern: /\bif\b.*\bthen\b\s*$/m, message: 'Incomplete if statement' },
-      { pattern: /\bthen\b.*\belse\b.*\bthen\b/m, message: 'Invalid if-else structure' },
-      { pattern: /\bfor\b.*\bdo\b\s*$/m, message: 'Incomplete for loop' },
-      { pattern: /\bwhile\b.*\bdo\b\s*$/m, message: 'Incomplete while loop' },
-      { pattern: /\bdo\b.*\bend\b/m, message: 'Loop structure without proper closing' },
-    ];
-
-    for (const { pattern, message } of commonErrors) {
-      if (pattern.test(lua_source)) {
-        syntaxErrors.push(message);
-      }
     }
   }
 
@@ -165,8 +123,8 @@ export async function handleScriptValidationRequest(request: Request, env: Env):
       }
     }
 
-    // Use lightweight pattern-based validation
-    const vmResult = validateLuaWithPatterns(lua_source);
+    // Use proper Lua parsing with luaparse
+    const vmResult = validateLuaWithLuaparse(lua_source);
 
     // Add syntax errors if any
     if (!vmResult.isSyntaxValid) {
