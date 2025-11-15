@@ -19,6 +19,31 @@ class ScriptTemplate {
     required this.tags,
     this.isRecommended = false,
   });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScriptTemplate &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          description == other.description &&
+          emoji == other.emoji &&
+          level == other.level &&
+          luaSource == other.luaSource &&
+          tags == other.tags &&
+          isRecommended == other.isRecommended;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      description.hashCode ^
+      emoji.hashCode ^
+      level.hashCode ^
+      luaSource.hashCode ^
+      tags.hashCode ^
+      isRecommended.hashCode;
 }
 
 /// Built-in script templates available to users

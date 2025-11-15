@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_highlight/themes/vs2015.dart';
+import 'package:flutter_highlight/themes/atom-one-dark.dart';
+import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/integrations_help.dart';
 
@@ -35,6 +38,14 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
   String? _lintError;
   Timer? _lintDebouncer;
   int _currentLineCount = 1;
+  String _selectedTheme = 'vs2015';
+
+  // Available themes
+  static const Map<String, Map<String, TextStyle>> _themes = {
+    'vs2015': vs2015Theme,
+    'atom-one-dark': atomOneDarkTheme,
+    'monokai-sublime': monokaiSublimeTheme,
+  };
 
   @override
   void initState() {
@@ -154,27 +165,11 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
               border: Border.all(
                 color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
               ),
+              color: _getBackgroundColorForTheme(),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: TextField(
-                controller: _controller,
-                readOnly: widget.readOnly,
-                maxLines: widget.maxLines,
-                minLines: widget.minLines,
-                expands: false,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 14,
-                  height: 1.6,
-                ),
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.all(16),
-                  border: InputBorder.none,
-                  hintText: '// Enter your Lua code here...',
-                ),
-                keyboardType: TextInputType.multiline,
-              ),
+              child: _buildHighlightedEditor(),
             ),
           ),
         ),
@@ -217,6 +212,31 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
             ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Theme selector
+          DropdownButton<String>(
+            value: _selectedTheme,
+            underline: const SizedBox(),
+            isDense: true,
+            items: _themes.keys.map((theme) {
+              return DropdownMenuItem<String>(
+                value: theme,
+                child: Text(
+                  theme.replaceAll('-', ' ').split(' ').map((word) =>
+                    word[0].toUpperCase() + word.substring(1)
+                  ).join(' '),
+                  style: const TextStyle(fontSize: 11),
+                ),
+              );
+            }).toList(),
+            onChanged: (String? theme) {
+              if (theme != null) {
+                setState(() => _selectedTheme = theme);
+              }
+            },
           ),
 
           const SizedBox(width: 16),
@@ -336,22 +356,78 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
     final code = _controller.text;
     // For now, just trigger a change
     _controller.text = code;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Code formatting coming soon!'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Code formatting coming soon!'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
   }
 
   void _copyCode() {
     // Copy to clipboard functionality
     Clipboard.setData(ClipboardData(text: _controller.text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Code copied to clipboard!'),
-        duration: Duration(seconds: 1),
-      ),
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Code copied to clipboard!'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  Widget _buildHighlightedEditor() {
+    // For now, use a simple monospace TextField with theme support
+    // Full syntax highlighting would require a more complex implementation
+    final TextStyle textStyle = TextStyle(
+      fontFamily: 'monospace',
+      fontSize: 14,
+      height: 1.6,
+      color: _getTextColorForTheme(),
     );
+
+    return TextField(
+      controller: _controller,
+      readOnly: widget.readOnly,
+      maxLines: widget.maxLines,
+      minLines: widget.minLines,
+      expands: false,
+      style: textStyle,
+      decoration: const InputDecoration(
+        contentPadding: EdgeInsets.all(16),
+        border: InputBorder.none,
+        hintText: '// Enter your Lua code here...',
+      ),
+      keyboardType: TextInputType.multiline,
+    );
+  }
+
+  Color _getTextColorForTheme() {
+    // Return appropriate text color based on selected theme
+    switch (_selectedTheme) {
+      case 'vs2015':
+      case 'atom-one-dark':
+      case 'monokai-sublime':
+        return Colors.white;
+      default:
+        return Colors.black;
+    }
+  }
+
+  Color _getBackgroundColorForTheme() {
+    // Return appropriate background color based on selected theme
+    switch (_selectedTheme) {
+      case 'vs2015':
+        return const Color(0xFF1E1E1E);
+      case 'atom-one-dark':
+        return const Color(0xFF282C34);
+      case 'monokai-sublime':
+        return const Color(0xFF2D2D2D);
+      default:
+        return Theme.of(context).colorScheme.surface;
+    }
   }
 }
