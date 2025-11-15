@@ -39,13 +39,13 @@ icp-cc/
 ├── appwrite/                          # Appwrite backend configuration
 │   ├── appwrite.json                  # Database schema definition
 │   ├── functions/                     # Cloud functions
-│   ├── deploy.sh                      # Deployment script
 │   └── README.md                      # Backend documentation
 ├── appwrite-api-server/               # Node.js public API server
 │   ├── package.json                   # Dependencies
 │   ├── src/server.js                  # API server implementation
 │   ├── .env.example                   # Environment template
 │   └── README.md                      # API documentation
+├── appwrite-cli/                      # Deployment and maintenance
 ├── apps/autorun_flutter/              # Flutter frontend app
 │   ├── lib/
 │   │   ├── models/                    # Data models (JSON serializable, NO Appwrite models)
