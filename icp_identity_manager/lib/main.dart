@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:bip39/bip39.dart' as bip39;
 
 import 'controllers/identity_controller.dart';
 import 'models/identity_record.dart';
@@ -95,16 +96,16 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                   onCopy: () => _copyToClipboard('Label', record.label),
                 ),
                 _DialogSection(
-                  label: 'Algorithm',
-                  value: keyAlgorithmToString(record.algorithm),
-                ),
-                _DialogSection(
                   label: 'Principal',
                   value: PrincipalUtils.textFromRecord(record),
                   onCopy: () => _copyToClipboard(
                     'Principal',
                     PrincipalUtils.textFromRecord(record),
                   ),
+                ),
+                _DialogSection(
+                  label: 'Algorithm',
+                  value: keyAlgorithmToString(record.algorithm),
                 ),
                 _DialogSection(
                   label: 'Seed phrase',
@@ -153,22 +154,67 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     IdentityRecord record,
   ) async {
     switch (action) {
-      case _IdentityAction.showMnemonic:
-        await _showDetailsDialog(record, title: 'Seed Phrase');
+      case _IdentityAction.showDetails:
+        await _showDetailsDialog(record, title: 'Identity details');
         break;
-      case _IdentityAction.copyMnemonic:
-        _copyToClipboard('Seed phrase', record.mnemonic);
-        break;
-      case _IdentityAction.copyPrivateKey:
-        _copyToClipboard('Private key', record.privateKey);
-        break;
-      case _IdentityAction.copyPublicKey:
-        _copyToClipboard('Public key', record.publicKey);
-        break;
-      case _IdentityAction.copyPrincipal:
-        _copyToClipboard('Principal', PrincipalUtils.textFromRecord(record));
+      case _IdentityAction.rename:
+        await _showRenameDialog(record);
         break;
     }
+  }
+
+  Future<void> _showRenameDialog(IdentityRecord record) async {
+    final TextEditingController controller =
+        TextEditingController(text: record.label);
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    final String? result = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Rename identity'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'New label',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              validator: (String? value) {
+                // Allow empty label, but normalize whitespace
+                return null;
+              },
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(context).pop(controller.text.trim());
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result == null) {
+      return;
+    }
+    await _controller.updateLabel(id: record.id, label: result);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Identity renamed')),
+    );
   }
 
   @override
@@ -201,9 +247,13 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
               padding: const EdgeInsets.only(bottom: 96, top: 8),
               itemBuilder: (BuildContext context, int index) {
                 final IdentityRecord record = identities[index];
+                final String principalText = PrincipalUtils.textFromRecord(record);
+                final String principalPrefix = principalText.length >= 5
+                    ? principalText.substring(0, 5)
+                    : principalText;
                 return ListTile(
                   title: Text(record.label),
-                  subtitle: Text(_subtitleFor(record)),
+                  subtitle: Text('$principalPrefix • ${_subtitleFor(record)}'),
                   leading: CircleAvatar(
                     child: Text(
                       record.label.isNotEmpty
@@ -211,31 +261,22 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                           : '#',
                     ),
                   ),
+                  onTap: () => _copyToClipboard(
+                    'Principal',
+                    PrincipalUtils.textFromRecord(record),
+                  ),
                   trailing: PopupMenuButton<_IdentityAction>(
                     onSelected: (_IdentityAction action) =>
                         _handleAction(action, record),
                     itemBuilder: (BuildContext context) =>
                         <PopupMenuEntry<_IdentityAction>>[
                           const PopupMenuItem<_IdentityAction>(
-                            value: _IdentityAction.showMnemonic,
-                            child: Text('Show seed phrase'),
+                            value: _IdentityAction.showDetails,
+                            child: Text('Show details'),
                           ),
                           const PopupMenuItem<_IdentityAction>(
-                            value: _IdentityAction.copyMnemonic,
-                            child: Text('Copy seed phrase'),
-                          ),
-                          const PopupMenuDivider(),
-                          const PopupMenuItem<_IdentityAction>(
-                            value: _IdentityAction.copyPrivateKey,
-                            child: Text('Copy private key'),
-                          ),
-                          const PopupMenuItem<_IdentityAction>(
-                            value: _IdentityAction.copyPublicKey,
-                            child: Text('Copy public key'),
-                          ),
-                          const PopupMenuItem<_IdentityAction>(
-                            value: _IdentityAction.copyPrincipal,
-                            child: Text('Copy principal'),
+                            value: _IdentityAction.rename,
+                            child: Text('Rename'),
                           ),
                         ],
                   ),
@@ -280,6 +321,7 @@ class _IdentityCreationSheet extends StatefulWidget {
 class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _labelController;
+  late final TextEditingController _mnemonicController;
   KeyAlgorithm _algorithm = KeyAlgorithm.ed25519;
   bool _isSubmitting = false;
 
@@ -287,11 +329,13 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
   void initState() {
     super.initState();
     _labelController = TextEditingController();
+    _mnemonicController = TextEditingController();
   }
 
   @override
   void dispose() {
     _labelController.dispose();
+    _mnemonicController.dispose();
     super.dispose();
   }
 
@@ -307,6 +351,9 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
       final IdentityRecord record = await widget.controller.createIdentity(
         algorithm: _algorithm,
         label: _labelController.text.trim(),
+        mnemonic: _mnemonicController.text.trim().isEmpty
+            ? null
+            : _mnemonicController.text.trim(),
       );
       if (!mounted) {
         return;
@@ -378,6 +425,29 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _mnemonicController,
+              decoration: const InputDecoration(
+                labelText: 'Seed phrase (optional)',
+                hintText: 'Enter existing BIP39 seed phrase',
+                helperText: 'Leave empty to generate a new seed phrase.',
+                border: OutlineInputBorder(),
+              ),
+              minLines: 2,
+              maxLines: 3,
+              textInputAction: TextInputAction.done,
+              enableSuggestions: false,
+              autocorrect: false,
+              validator: (String? value) {
+                if (value == null || value.trim().isEmpty) {
+                  return null;
+                }
+                return bip39.validateMnemonic(value.trim())
+                    ? null
+                    : 'Invalid BIP39 seed phrase';
+              },
+            ),
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _isSubmitting ? null : _submit,
@@ -388,7 +458,7 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.bolt),
-              label: const Text('Generate identity'),
+              label: const Text('Create identity'),
             ),
           ],
         ),
@@ -459,9 +529,6 @@ class _DialogSection extends StatelessWidget {
 }
 
 enum _IdentityAction {
-  showMnemonic,
-  copyMnemonic,
-  copyPrivateKey,
-  copyPublicKey,
-  copyPrincipal,
+  showDetails,
+  rename,
 }
