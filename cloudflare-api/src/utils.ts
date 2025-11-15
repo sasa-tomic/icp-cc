@@ -52,7 +52,7 @@ export class DatabaseService {
     // Get script
     const script = await this.env.DB.prepare(`
       SELECT * FROM scripts 
-      WHERE id = ? AND is_public = 1 AND is_approved = 1
+      WHERE id = ? AND is_public = 1
     `).bind(scriptId).first();
 
     if (!script) return null;
@@ -177,7 +177,6 @@ export class DatabaseService {
       'createdAt': 'created_at',
       'updatedAt': 'updated_at',
       'isPublic': 'is_public',
-      'isApproved': 'is_approved',
       'authorId': 'author_id',
       'canisterIds': 'canister_ids',
       'reviewCount': 'review_count'
@@ -185,7 +184,7 @@ export class DatabaseService {
 
     const dbSortBy = columnMapping[sortBy] || sortBy;
 
-    let whereConditions = ['is_public = 1', 'is_approved = 1'];
+    let whereConditions = ['is_public = 1'];
     let bindings: any[] = [];
 
     if (query) {

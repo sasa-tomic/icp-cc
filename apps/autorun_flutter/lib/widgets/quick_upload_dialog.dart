@@ -59,6 +59,13 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     _priceController = TextEditingController(text: '0.0');
 
     _initializeFromScript();
+    
+    // Validate script immediately if there's initial code
+    if (_luaSource.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _validateScript();
+      });
+    }
   }
 
   void _initializeFromScript() {
@@ -163,8 +170,19 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   void _onCodeChanged(String code) {
     setState(() {
       _luaSource = code;
-      _validationResult = null;
     });
+    
+    // Validate immediately after code changes
+    if (code.trim().isNotEmpty) {
+      _validateScript();
+    } else {
+      setState(() {
+        _validationResult = ScriptValidationResult(
+          isValid: false,
+          errors: ['Script code cannot be empty'],
+        );
+      });
+    }
   }
 
   Future<void> _validateScript() async {
@@ -308,18 +326,18 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Quick Upload to Marketplace',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Auto-filled metadata from your script',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
+                         Text(
+                           'Upload to Marketplace',
+                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                             fontWeight: FontWeight.bold,
+                           ),
+                         ),
+                         Text(
+                           'Share your script with the community',
+                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                             color: Theme.of(context).colorScheme.onSurfaceVariant,
+                           ),
+                         ),
                       ],
                     ),
                   ),
@@ -340,242 +358,263 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Quick info section
-                      Row(
-                        children: [
-                          // Left column - Basic info
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Basic Information',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                
-                                TextFormField(
-                                  controller: _titleController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Title *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Title is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                TextFormField(
-                                  controller: _descriptionController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Description *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  maxLines: 3,
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Description is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                TextFormField(
-                                  controller: _authorController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Author Name *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Author name is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedCategory,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Category *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  items: _availableCategories.map((category) {
-                                    return DropdownMenuItem(
-                                      value: category,
-                                      child: Text(category),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() {
-                                        _selectedCategory = value;
-                                      });
-                                    }
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                TextFormField(
-                                  controller: _tagsController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Tags (comma-separated)',
-                                    border: OutlineInputBorder(),
-                                    helperText: 'e.g., automation, defi, gaming',
-                                  ),
-                                ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                TextFormField(
-                                  controller: _priceController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Price (ICP) *',
-                                    border: OutlineInputBorder(),
-                                    helperText: 'Set to 0 for free scripts',
-                                  ),
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Price is required';
-                                    }
-                                    final price = double.tryParse(value.trim());
-                                    if (price == null || price < 0) {
-                                      return 'Invalid price';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          
-                          const SizedBox(width: 20),
-                          
-                          // Right column - Script editor
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Script Code',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                
-                                // Validation status
-                                if (_validationResult != null) ...[
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: _validationResult!.isValid
-                                          ? Colors.green.withValues(alpha: 0.1)
-                                          : Colors.red.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: _validationResult!.isValid
-                                            ? Colors.green
-                                            : Colors.red,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          _validationResult!.isValid
-                                              ? Icons.check_circle
-                                              : Icons.error,
-                                          color: _validationResult!.isValid
-                                              ? Colors.green
-                                              : Colors.red,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            _validationResult!.isValid
-                                                ? 'Script is valid ✓'
-                                                : 'Script has errors',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: _validationResult!.isValid
-                                                  ? Colors.green
-                                                  : Colors.red,
-                                            ),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: _validateScript,
-                                          child: const Text('Revalidate'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                ] else ...[
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.blue),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.info, color: Colors.blue),
-                                        const SizedBox(width: 8),
-                                        const Expanded(
-                                          child: Text(
-                                            'Script will be validated before upload',
-                                            style: TextStyle(color: Colors.blue),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: _validateScript,
-                                          child: const Text('Validate Now'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                ],
-                                
-                                // Script editor
-                                Container(
-                                  height: 300,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Theme.of(context).colorScheme.outline,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: EnhancedScriptEditor(
-                                    initialCode: _luaSource,
-                                    onCodeChanged: _onCodeChanged,
-                                    language: 'lua',
-                                    minLines: 12,
-                                    maxLines: 20,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                       // Basic Information Section
+                       Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Text(
+                             'Basic Information',
+                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                               fontWeight: FontWeight.bold,
+                             ),
+                           ),
+                           const SizedBox(height: 16),
+                           
+                           TextFormField(
+                             controller: _titleController,
+                             decoration: const InputDecoration(
+                               labelText: 'Title *',
+                               border: OutlineInputBorder(),
+                             ),
+                             validator: (value) {
+                               if (value == null || value.trim().isEmpty) {
+                                 return 'Title is required';
+                               }
+                               return null;
+                             },
+                           ),
+                           
+                           const SizedBox(height: 16),
+                           
+                           TextFormField(
+                             controller: _descriptionController,
+                             decoration: const InputDecoration(
+                               labelText: 'Description *',
+                               border: OutlineInputBorder(),
+                             ),
+                             maxLines: 3,
+                             validator: (value) {
+                               if (value == null || value.trim().isEmpty) {
+                                 return 'Description is required';
+                               }
+                               return null;
+                             },
+                           ),
+                           
+                           const SizedBox(height: 16),
+                           
+                           TextFormField(
+                             controller: _authorController,
+                             decoration: const InputDecoration(
+                               labelText: 'Author Name *',
+                               border: OutlineInputBorder(),
+                             ),
+                             validator: (value) {
+                               if (value == null || value.trim().isEmpty) {
+                                 return 'Author name is required';
+                               }
+                               return null;
+                             },
+                           ),
+                           
+                           const SizedBox(height: 16),
+                           
+                           DropdownButtonFormField<String>(
+                             initialValue: _selectedCategory,
+                             decoration: const InputDecoration(
+                               labelText: 'Category *',
+                               border: OutlineInputBorder(),
+                             ),
+                             items: _availableCategories.map((category) {
+                               return DropdownMenuItem(
+                                 value: category,
+                                 child: Text(category),
+                               );
+                             }).toList(),
+                             onChanged: (value) {
+                               if (value != null) {
+                                 setState(() {
+                                   _selectedCategory = value;
+                                 });
+                               }
+                             },
+                           ),
+                           
+                           const SizedBox(height: 16),
+                           
+                           TextFormField(
+                             controller: _tagsController,
+                             decoration: const InputDecoration(
+                               labelText: 'Tags (comma-separated)',
+                               border: OutlineInputBorder(),
+                               helperText: 'e.g., automation, defi, gaming',
+                             ),
+                           ),
+                           
+                           const SizedBox(height: 16),
+                           
+                           TextFormField(
+                             controller: _priceController,
+                             decoration: const InputDecoration(
+                               labelText: 'Price (ICP) *',
+                               border: OutlineInputBorder(),
+                               helperText: 'Set to 0 for free scripts',
+                             ),
+                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                             validator: (value) {
+                               if (value == null || value.trim().isEmpty) {
+                                 return 'Price is required';
+                               }
+                               final price = double.tryParse(value.trim());
+                               if (price == null || price < 0) {
+                                 return 'Invalid price';
+                               }
+                               return null;
+                             },
+                           ),
+                         ],
+                       ),
+                       
+                       const SizedBox(height: 24),
+                       
+                       // Script Code Section
+                       Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Text(
+                             'Script Code',
+                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                               fontWeight: FontWeight.bold,
+                             ),
+                           ),
+                           const SizedBox(height: 8),
+                           
+                           // Validation status - prominently displayed
+                           if (_validationResult != null) ...[
+                             Container(
+                               width: double.infinity,
+                               padding: const EdgeInsets.all(16),
+                               decoration: BoxDecoration(
+                                 color: _validationResult!.isValid
+                                     ? Colors.green.withValues(alpha: 0.1)
+                                     : Colors.red.withValues(alpha: 0.1),
+                                 borderRadius: BorderRadius.circular(12),
+                                 border: Border.all(
+                                   color: _validationResult!.isValid
+                                       ? Colors.green
+                                       : Colors.red,
+                                   width: 2,
+                                 ),
+                               ),
+                               child: Column(
+                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                 children: [
+                                   Row(
+                                     children: [
+                                       Icon(
+                                         _validationResult!.isValid
+                                             ? Icons.check_circle
+                                             : Icons.error,
+                                         color: _validationResult!.isValid
+                                             ? Colors.green
+                                             : Colors.red,
+                                         size: 24,
+                                       ),
+                                       const SizedBox(width: 12),
+                                       Expanded(
+                                         child: Text(
+                                           _validationResult!.isValid
+                                               ? '✓ Script is valid and ready to upload'
+                                               : '✗ Script has validation errors',
+                                           style: TextStyle(
+                                             fontSize: 16,
+                                             fontWeight: FontWeight.bold,
+                                             color: _validationResult!.isValid
+                                                 ? Colors.green
+                                                 : Colors.red,
+                                           ),
+                                         ),
+                                       ),
+                                     ],
+                                   ),
+                                   
+                                   // Show errors if any
+                                   if (!_validationResult!.isValid && 
+                                       _validationResult!.errors.isNotEmpty) ...[
+                                     const SizedBox(height: 12),
+                                     ..._validationResult!.errors.map((error) => Padding(
+                                       padding: const EdgeInsets.only(bottom: 4, left: 36),
+                                       child: Text(
+                                         '• $error',
+                                         style: TextStyle(
+                                           color: Colors.red.shade700,
+                                           fontSize: 14,
+                                         ),
+                                       ),
+                                     )),
+                                   ],
+                                   
+                                   const SizedBox(height: 8),
+                                   TextButton(
+                                     onPressed: _validateScript,
+                                     child: const Text('Revalidate'),
+                                   ),
+                                 ],
+                               ),
+                             ),
+                           ] else ...[
+                             Container(
+                               width: double.infinity,
+                               padding: const EdgeInsets.all(16),
+                               decoration: BoxDecoration(
+                                 color: Colors.orange.withValues(alpha: 0.1),
+                                 borderRadius: BorderRadius.circular(12),
+                                 border: Border.all(color: Colors.orange, width: 2),
+                               ),
+                               child: Row(
+                                 children: [
+                                   const Icon(Icons.warning, color: Colors.orange, size: 24),
+                                   const SizedBox(width: 12),
+                                   const Expanded(
+                                     child: Text(
+                                       'Script validation required',
+                                       style: TextStyle(
+                                         fontSize: 16,
+                                         fontWeight: FontWeight.bold,
+                                         color: Colors.orange,
+                                       ),
+                                     ),
+                                   ),
+                                   TextButton(
+                                     onPressed: _validateScript,
+                                     child: const Text('Validate Now'),
+                                   ),
+                                 ],
+                               ),
+                             ),
+                           ],
+                           
+                           const SizedBox(height: 16),
+                           
+                           // Script editor
+                           Container(
+                             height: 350,
+                             decoration: BoxDecoration(
+                               border: Border.all(
+                                 color: Theme.of(context).colorScheme.outline,
+                               ),
+                               borderRadius: BorderRadius.circular(8),
+                             ),
+                             child: EnhancedScriptEditor(
+                               initialCode: _luaSource,
+                               onCodeChanged: _onCodeChanged,
+                               language: 'lua',
+                               minLines: 15,
+                               maxLines: 25,
+                             ),
+                           ),
+                         ],
+                       ),
                       
                       const SizedBox(height: 20),
                       

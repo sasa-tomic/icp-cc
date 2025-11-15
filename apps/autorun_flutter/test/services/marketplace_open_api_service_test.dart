@@ -274,7 +274,6 @@ void main() {
         'screenshots': ['https://example.com/screenshot1.png'],
         'canisterIds': ['rrkah-fqaaa-aaaaa-aaaaq-cai'],
         'isPublic': true,
-        'isApproved': true,
         'createdAt': '2024-01-01T00:00:00Z',
         'version': '1.0.0',
         'compatibility': 'ICP v1.0+',
@@ -298,7 +297,6 @@ void main() {
       expect(script.screenshots, equals(['https://example.com/screenshot1.png']));
       expect(script.canisterIds, equals(['rrkah-fqaaa-aaaaa-aaaaq-cai']));
       expect(script.isPublic, isTrue);
-      expect(script.isApproved, isTrue);
       expect(script.version, equals('1.0.0'));
       expect(script.compatibility, equals('ICP v1.0+'));
     });
@@ -313,7 +311,6 @@ void main() {
         'authorId': 'author123',
         'luaSource': 'print("Hello, ICP!")',
         'isPublic': true,
-        'isApproved': true,
       };
 
       final script = MarketplaceScript.fromJson(json);

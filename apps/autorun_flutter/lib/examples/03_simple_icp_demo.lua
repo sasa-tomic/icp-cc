@@ -159,7 +159,7 @@ function render_results_section(state)
   if state.balance then
     table.insert(results, {
       title = "Account Balance",
-      subtitle = icp_format_icp(state.balance) .. " ICP"
+      subtitle = format_icp(state.balance) .. " ICP"
     })
   end
 
@@ -191,11 +191,10 @@ function render_results_section(state)
     type = "section",
     props = { title = "Results" },
     children = {
-      icp_enhanced_list({
-        items = results,
-        title = "Query Results",
-        searchable = false
-      })
+      {
+        type = "column",
+        children = format_results_for_ui(results)
+      }
     }
   }
 end
@@ -300,7 +299,7 @@ function handle_icp_response(msg, state)
   if msg.id == "balance_query" then
     if msg.ok then
       state.balance = msg.data.balance or 0
-      state.last_action = "Balance query successful: " .. icp_format_icp(state.balance) .. " ICP"
+      state.last_action = "Balance query successful: " .. format_icp(state.balance) .. " ICP"
     else
       state.last_action = "Balance query failed: " .. (msg.error or "Unknown error")
     end
@@ -320,4 +319,40 @@ function handle_icp_response(msg, state)
     state.last_action = "Unknown response: " .. (msg.id or "no id")
     return state, {}
   end
+end
+
+--==============================================================================
+-- HELPER FUNCTIONS
+-- Simple implementations for demonstration purposes
+--==============================================================================
+
+function format_icp(amount_e8s)
+  -- Convert from e8s (10^-8) to ICP
+  if not amount_e8s then return "0 ICP" end
+  local icp = amount_e8s / 100000000
+  return string.format("%.8f ICP", icp)
+end
+
+function format_results_for_ui(results)
+  local ui_elements = {}
+  
+  for i, result in ipairs(results) do
+    table.insert(ui_elements, {
+      type = "section",
+      props = {
+        title = result.title
+      },
+      children = {
+        {
+          type = "text",
+          props = {
+            text = result.subtitle or "No details available",
+            style = "subtitle"
+          }
+        }
+      }
+    })
+  end
+  
+  return ui_elements
 end

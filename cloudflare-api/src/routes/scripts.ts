@@ -30,8 +30,7 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
       version = '1.0.0',
       compatibility,
       price = 0.0,
-      is_public = true,
-      is_approved = false
+      is_public = true
     } = await request.json();
 
     // Validate required fields
@@ -49,8 +48,8 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
       INSERT INTO scripts (
         id, title, description, category, tags, lua_source, author_name, author_id,
         canister_ids, icon_url, screenshots, version, compatibility, price,
-        is_public, is_approved, downloads, rating, review_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        is_public, downloads, rating, review_count, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       scriptId,
       title,
@@ -67,7 +66,6 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
       compatibility || null,
       price,
       is_public ? 1 : 0,
-      is_approved ? 1 : 0,
       0,
       0,
       0,
@@ -186,7 +184,7 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
       if (key === 'tags' || key === 'canister_ids' || key === 'screenshots') {
         updateFields.push(`${key} = ?`);
         bindings.push(JSON.stringify(value));
-      } else if (key === 'is_public' || key === 'is_approved') {
+      } else if (key === 'is_public') {
         updateFields.push(`${key} = ?`);
         bindings.push(value ? 1 : 0);
       } else if (key !== 'id' && key !== 'created_at') {

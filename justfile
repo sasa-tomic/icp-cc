@@ -8,9 +8,79 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 root := `pwd`
 scripts_dir := root + "/scripts"
+logs_dir := root + "/logs"
+flutter_dir := root + "/apps/autorun_flutter"
+cloudflare_dir := root + "/cloudflare-api"
 
 # Platform detection
 platform := if `uname` == "Darwin" { "macos" } else if `uname` == "Linux" { "linux" } else { "unknown" }
+
+# Cloudflare configuration
+cloudflare_port := "8787"
+cloudflare_health_url := "http://localhost:" + cloudflare_port + "/api/v1/health"
+cloudflare_test_pid := "/tmp/wrangler-test.pid"
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
+
+# Wait for Cloudflare Workers to be healthy
+_wait-for-cloudflare timeout:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    timeout_val="{{timeout}}"
+    elapsed=0
+    while [ $elapsed -lt $timeout_val ]; do
+        if curl -s "{{cloudflare_health_url}}" >/dev/null 2>&1; then
+            echo "==> ✅ Cloudflare Workers is healthy and ready!"
+            echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
+            echo "==> Health Check: {{cloudflare_health_url}}"
+            exit 0
+        fi
+        echo "==> Waiting for server... ($elapsed/$timeout_val seconds)"
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    echo "==> ❌ Cloudflare Workers failed to start within $timeout_val seconds"
+    exit 1
+
+# Stop Cloudflare Workers by PID or port
+_stop-cloudflare-workers:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Stop by PID if file exists
+    if [ -f "{{cloudflare_test_pid}}" ]; then
+        pid=$(cat "{{cloudflare_test_pid}}")
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "==> Stopping Cloudflare Workers with PID $pid"
+            kill -TERM "$pid"
+            sleep 2
+            if kill -0 "$pid" 2>/dev/null; then
+                echo "==> Force killing Cloudflare Workers with PID $pid"
+                kill -KILL "$pid"
+            fi
+            echo "==> ✅ Cloudflare Workers stopped"
+        else
+            echo "==> Cloudflare Workers process $pid not found"
+        fi
+        rm -f "{{cloudflare_test_pid}}"
+    fi
+    
+    # Clean up any remaining wrangler processes on the port
+    pids=$(lsof -ti:{{cloudflare_port}} 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            if ps -p "$pid" -o command= | grep -q "wrangler dev"; then
+                echo "==> Cleaning up additional wrangler process $pid"
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
+        done
+    fi
+
+# =============================================================================
+# Main Targets
+# =============================================================================
 
 # Default target - show dynamic help
 default:
@@ -27,11 +97,11 @@ all: linux android
 linux:
     @echo "==> Building Linux target..."
     {{scripts_dir}}/build_linux.sh
-    cd {{root}}/apps/autorun_flutter && flutter build linux
+    cd {{flutter_dir}} && flutter build linux
     @if [ -n "${DISPLAY:-}" ]; then \
         echo "==> DISPLAY is set, running the built app..."; \
-        if [ -f {{root}}/apps/autorun_flutter/build/linux/x64/release/bundle/icp_autorun ]; then \
-            {{root}}/apps/autorun_flutter/build/linux/x64/release/bundle/icp_autorun; \
+        if [ -f {{flutter_dir}}/build/linux/x64/release/bundle/icp_autorun ]; then \
+            {{flutter_dir}}/build/linux/x64/release/bundle/icp_autorun; \
         else \
             echo "ERROR: Built executable not found at expected path"; \
             exit 1; \
@@ -43,9 +113,9 @@ linux:
 android:
     @echo "==> Building Android target..."
     {{scripts_dir}}/build_android.sh
-    cd {{root}}/apps/autorun_flutter && flutter build apk
+    cd {{flutter_dir}} && flutter build apk
     @echo "==> Copying APK to sync directory..."
-    if [ -d ~/sync/sasa-privatno/icp-autorun/ ]; then cp -v {{root}}/apps/autorun_flutter/build/app/outputs/flutter-apk/app-release.apk ~/sync/sasa-privatno/icp-autorun/; fi
+    if [ -d ~/sync/sasa-privatno/icp-autorun/ ]; then cp -v {{flutter_dir}}/build/app/outputs/flutter-apk/app-release.apk ~/sync/sasa-privatno/icp-autorun/; fi
 
 android-emulator:
     @echo "==> Starting Android emulator..."
@@ -54,42 +124,59 @@ android-emulator:
 macos:
     @echo "==> Building macOS target..."
     {{scripts_dir}}/build_macos.sh
-    cd {{root}}/apps/autorun_flutter && flutter build macos
+    cd {{flutter_dir}} && flutter build macos
 
 ios:
     @echo "==> Building iOS target..."
     {{scripts_dir}}/build_ios.sh
-    cd {{root}}/apps/autorun_flutter && flutter build ios --no-codesign
+    cd {{flutter_dir}} && flutter build ios --no-codesign
 
 windows:
     @echo "==> Building Windows target..."
     {{scripts_dir}}/build_windows.sh
-    cd {{root}}/apps/autorun_flutter && flutter build windows
+    cd {{flutter_dir}} && flutter build windows
+
+# =============================================================================
+# Lua Script Validation
+# =============================================================================
+
+
 
 # =============================================================================
 # Testing
 # =============================================================================
 
 test:
-    @echo "==> Running Rust linting and tests"
-    @echo "==> Full test output will be saved to logs/test-output.log"
-    @mkdir -p logs
-    @cargo clippy --benches --tests --all-features --quiet 2>&1 | tee logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust clippy found issues!"; exit 1; } || echo "✅ No clippy issues found"
-    @cargo clippy --quiet 2>&1 | tee -a logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust clippy found issues!"; exit 1; } || echo "✅ No clippy issues found"
-    @cargo fmt --all --quiet 2>&1 | tee -a logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust formatting issues found!"; exit 1; } || echo "✅ No formatting issues found"
-    @cargo nextest run 2>&1 | tee -a logs/test-output.log | grep -E "(error|FAILED|Summary)" || echo "✅ Rust tests completed"
-    @echo "==> Running Flutter tests with Cloudflare Workers..."
-    @just test-with-cloudflare || { echo "❌ Tests failed! Check logs/test-output.log for details"; exit 1; }
+    @echo "==> Running tests (output saved to logs/test-output.log)"
+    @mkdir -p {{logs_dir}}
+    @just _rust-tests
+    @just _flutter-tests
     @echo "✅ All tests passed! Full output saved to logs/test-output.log"
 
-# Run Flutter tests with Cloudflare Workers
+# Internal Rust testing target
+_rust-tests:
+    @echo "==> Rust linting and tests..."
+    @cargo clippy --benches --tests --all-features --quiet 2>&1 | tee {{logs_dir}}/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust clippy found issues!"; exit 1; } || echo "✅ No clippy issues found"
+    @cargo fmt --all --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust formatting issues found!"; exit 1; } || echo "✅ No formatting issues found"
+    @cargo nextest run 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(error|FAILED|Summary)" || echo "✅ Rust tests completed"
+
+
+
+# Internal Flutter testing target
+_flutter-tests:
+    @echo "==> Running Flutter tests with Cloudflare Workers..."
+    @just test-with-cloudflare || { echo "❌ Tests failed! Check logs/test-output.log for details"; exit 1; }
+
+# Run Flutter tests with Cloudflare Workers (includes Lua validation)
 test-with-cloudflare:
     @echo "==> Starting Cloudflare Workers for tests..."
     @just cloudflare-test-up
+    @echo "==> Validating Lua example scripts..."
+    @{{scripts_dir}}/validation/validate_lua.sh 2>&1 | tee -a {{logs_dir}}/test-output.log || { echo "❌ Lua script validation failed!"; exit 1; }
     @echo "==> Running Flutter analysis..."
-    @cd {{root}}/apps/autorun_flutter && flutter analyze --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E "(error|warning)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
+    @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(error|warning)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{root}}/apps/autorun_flutter && flutter test --concurrency $(nproc) --machine --quiet 2>&1 | tee -a {{root}}/logs/test-output.log | grep -E '"result":"error' | wc -l | xargs -I {} sh -c 'if [ {} -gt 0 ]; then echo "❌ Found {} test errors"; exit 1; else echo "✅ No test errors found"; fi'
+    @cd {{flutter_dir}} && flutter test --concurrency $(nproc) --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(FAIL|ERROR)" && { echo "❌ Flutter tests failed!"; exit 1; } || echo "✅ All Flutter tests passed"
     @echo "==> Stopping Cloudflare Workers..."
     @just cloudflare-test-down
 
@@ -100,17 +187,17 @@ test-with-cloudflare:
 # Clean build artifacts
 clean:
     @echo "==> Cleaning build artifacts..."
-    rm -rf {{root}}/apps/autorun_flutter/android/app/src/main/jniLibs/* || true
-    rm -rf {{root}}/apps/autorun_flutter/build || true
-    rm -f {{root}}/apps/autorun_flutter/build/linux/x64/*/bundle/lib/libicp_core.* || true
-    rm -rf {{root}}/apps/autorun_flutter/linux/flutter/ephemeral || true
+    rm -rf {{flutter_dir}}/android/app/src/main/jniLibs/* || true
+    rm -rf {{flutter_dir}}/build || true
+    rm -f {{flutter_dir}}/build/linux/x64/*/bundle/lib/libicp_core.* || true
+    rm -rf {{flutter_dir}}/linux/flutter/ephemeral || true
 
 # Deep clean including dependencies
 distclean: clean
     @echo "==> Deep cleaning all artifacts and dependencies..."
     rm -rf {{root}}/target || true
-    rm -rf {{root}}/apps/autorun_flutter/.dart_tool || true
-    rm -rf {{root}}/apps/autorun_flutter/.gradle || true
+    rm -rf {{flutter_dir}}/.dart_tool || true
+    rm -rf {{flutter_dir}}/.gradle || true
 
 # =============================================================================
 # Cloudflare Workers Deployment
@@ -165,23 +252,8 @@ server-init +args="":
 # Start local Cloudflare Workers development environment
 cloudflare-local-up:
     @echo "==> Starting local Cloudflare Workers development environment"
-    cd {{root}}/cloudflare-api && wrangler dev --port 8787 --persist-to .wrangler/state &
-    @echo "==> Waiting for Cloudflare Workers to be ready..."
-    # Wait up to 30 seconds for server to be ready, checking every 1 second
-    @timeout=30 && elapsed=0 && while [ $elapsed -lt $timeout ]; do \
-        if curl -s http://localhost:8787/api/v1/health >/dev/null 2>&1; then \
-            echo "==> ✅ Cloudflare Workers is healthy and ready!"; \
-            echo "==> API Endpoint: http://localhost:8787"; \
-            echo "==> Health Check: http://localhost:8787/api/v1/health"; \
-            exit 0; \
-        fi; \
-        echo "==> Waiting for server... ($elapsed/$timeout seconds)"; \
-        sleep 1; \
-        elapsed=$((elapsed + 1)); \
-    done; \
-    echo "==> ❌ Cloudflare Workers failed to start within $timeout seconds"; \
-    echo "==> Check logs with: just cloudflare-local-logs"; \
-    exit 1
+    cd {{cloudflare_dir}} && wrangler dev --port {{cloudflare_port}} --persist-to .wrangler/state &
+    @just _wait-for-cloudflare 30
 
 # Stop local Cloudflare Workers development environment
 cloudflare-local-down:
@@ -196,31 +268,31 @@ cloudflare-test-up:
     echo "==> Starting Cloudflare Workers for testing"
     
     # Check if already running
-    if [ -f /tmp/wrangler-test.pid ]; then
-        if kill -0 "$(cat /tmp/wrangler-test.pid)" 2>/dev/null; then
-            echo "==> Cloudflare Workers already running with PID $(cat /tmp/wrangler-test.pid)"
+    if [ -f "{{cloudflare_test_pid}}" ]; then
+        if kill -0 "$(cat {{cloudflare_test_pid}})" 2>/dev/null; then
+            echo "==> Cloudflare Workers already running with PID $(cat {{cloudflare_test_pid}})"
             exit 0
         else
             echo "==> Stale PID file found, cleaning up..."
-            rm -f /tmp/wrangler-test.pid
+            rm -f "{{cloudflare_test_pid}}"
         fi
     fi
     
     # Start wrangler in background and capture PID
-    cd "{{root}}/cloudflare-api"
-    wrangler dev --port 8787 --persist-to .wrangler/state > /tmp/wrangler-test.log 2>&1 &
-    echo $! > /tmp/wrangler-test.pid
-    echo "==> Cloudflare Workers started with PID $(cat /tmp/wrangler-test.pid)"
+    cd "{{cloudflare_dir}}"
+    wrangler dev --port {{cloudflare_port}} --persist-to .wrangler/state > /tmp/wrangler-test.log 2>&1 &
+    echo $! > "{{cloudflare_test_pid}}"
+    echo "==> Cloudflare Workers started with PID $(cat {{cloudflare_test_pid}})"
     echo "==> Waiting for Cloudflare Workers to be ready..."
     
     # Wait up to 45 seconds for server to be ready, checking every 2 seconds
     timeout=45
     elapsed=0
     while [ $elapsed -lt $timeout ]; do
-        if curl -s http://localhost:8787/api/v1/health >/dev/null 2>&1; then
+        if curl -s "{{cloudflare_health_url}}" >/dev/null 2>&1; then
             echo "==> ✅ Cloudflare Workers is healthy and ready for tests!"
-            echo "==> API Endpoint: http://localhost:8787"
-            echo "==> Health Check: http://localhost:8787/api/v1/health"
+            echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
+            echo "==> Health Check: {{cloudflare_health_url}}"
             exit 0
         fi
         echo "==> Waiting for server... ($elapsed/$timeout seconds)"
@@ -233,39 +305,8 @@ cloudflare-test-up:
 
 # Stop Cloudflare Workers for testing (with PID management)
 cloudflare-test-down:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "==> Stopping Cloudflare Workers for testing"
-    
-    if [ -f /tmp/wrangler-test.pid ]; then
-        pid=$(cat /tmp/wrangler-test.pid)
-        if kill -0 "$pid" 2>/dev/null; then
-            echo "==> Stopping Cloudflare Workers with PID $pid"
-            kill -TERM "$pid"
-            sleep 2
-            if kill -0 "$pid" 2>/dev/null; then
-                echo "==> Force killing Cloudflare Workers with PID $pid"
-                kill -KILL "$pid"
-            fi
-            echo "==> ✅ Cloudflare Workers stopped"
-        else
-            echo "==> Cloudflare Workers process $pid not found"
-        fi
-        rm -f /tmp/wrangler-test.pid
-    else
-        echo "==> No Cloudflare Workers PID file found"
-    fi
-    
-    # Clean up any remaining wrangler processes on port 8787
-    pids=$(lsof -ti:8787 2>/dev/null || true)
-    if [ -n "$pids" ]; then
-        for pid in $pids; do
-            if ps -p "$pid" -o command= | grep -q "wrangler dev"; then
-                echo "==> Cleaning up additional wrangler process $pid"
-                kill -TERM "$pid" 2>/dev/null || true
-            fi
-        done
-    fi
+    @echo "==> Stopping Cloudflare Workers for testing"
+    @just _stop-cloudflare-workers
 
 # Show local Cloudflare Workers logs
 cloudflare-local-logs:
@@ -276,37 +317,37 @@ cloudflare-local-logs:
 # Reset local Cloudflare Workers environment (wipes all data)
 cloudflare-local-reset:
     @echo "==> Resetting local Cloudflare Workers environment (wipes all data)"
-    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;" || echo "Database already empty"
-    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM reviews;" || echo "Database already empty"
-    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FROM script_stats;" || echo "Database already empty"
+    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;" || echo "Database already empty"
+    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --command="DELETE FROM reviews;" || echo "Database already empty"
+    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --command="DELETE FROM script_stats;" || echo "Database already empty"
     @echo "==> Local Cloudflare Workers environment reset complete"
 
 # Initialize local Cloudflare Workers database
 cloudflare-local-init:
     @echo "==> Initializing local Cloudflare Workers database"
-    cd {{root}}/cloudflare-api && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql
+    cd {{cloudflare_dir}} && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql
     @echo "==> Database initialized successfully"
 
 # Test local Cloudflare Workers endpoints
 cloudflare-local-test:
     @echo "==> Testing Cloudflare Workers endpoints"
     @echo "==> Testing health endpoint..."
-    @curl -s http://localhost:8787/api/v1/health | jq . || echo "Health check failed"
+    @curl -s {{cloudflare_health_url}} | jq . || echo "Health check failed"
     @echo "==> Testing marketplace stats..."
-    @curl -s http://localhost:8787/api/v1/marketplace-stats | jq . || echo "Stats endpoint failed"
+    @curl -s http://localhost:{{cloudflare_port}}/api/v1/marketplace-stats | jq . || echo "Stats endpoint failed"
     @echo "==> Testing featured scripts..."
-    @curl -s http://localhost:8787/api/v1/scripts/featured | jq . || echo "Featured scripts failed"
+    @curl -s http://localhost:{{cloudflare_port}}/api/v1/scripts/featured | jq . || echo "Featured scripts failed"
     @echo "==> Testing search endpoint..."
-    @curl -s -X POST -H "Content-Type: application/json" -d '{"query":"test","limit":5}' http://localhost:8787/api/v1/scripts/search | jq . || echo "Search endpoint failed"
+    @curl -s -X POST -H "Content-Type: application/json" -d '{"query":"test","limit":5}' http://localhost:{{cloudflare_port}}/api/v1/scripts/search | jq . || echo "Search endpoint failed"
     @echo "==> ✅ All endpoint tests completed"
 
 # Show local Cloudflare Workers configuration
 cloudflare-local-config:
     @echo "==> Local Cloudflare Workers Configuration"
-    @echo "==> API Endpoint: http://localhost:8787"
+    @echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
     @echo "==> Database: icp-marketplace-db (local D1)"
     @echo "==> Environment: development"
-    @cd {{root}}/cloudflare-api && wrangler whoami
+    @cd {{cloudflare_dir}} && wrangler whoami
 
 
 
@@ -317,12 +358,12 @@ cloudflare-local-config:
 # Run Flutter app with local development environment
 flutter-local +args="":
     @echo "==> Starting Flutter app with local Cloudflare Workers environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=USE_CLOUDFLARE=true --dart-define=CLOUDFLARE_ENDPOINT=http://localhost:8787 {{args}}
+    cd {{flutter_dir}} && flutter run -d chrome --dart-define=USE_CLOUDFLARE=true --dart-define=CLOUDFLARE_ENDPOINT=http://localhost:{{cloudflare_port}} {{args}}
 
 # Run Flutter app with production environment
 flutter-production +args="":
     @echo "==> Starting Flutter app with production environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=CLOUDFLARE_ENDPOINT=https://icp-mp.kalaj.org {{args}}
+    cd {{flutter_dir}} && flutter run -d chrome --dart-define=CLOUDFLARE_ENDPOINT=https://icp-mp.kalaj.org {{args}}
 
 # =============================================================================
 # Help and Information

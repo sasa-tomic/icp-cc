@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS scripts (
   compatibility TEXT,
   price REAL NOT NULL DEFAULT 0.0,
   is_public BOOLEAN NOT NULL DEFAULT TRUE,
-  is_approved BOOLEAN NOT NULL DEFAULT FALSE,
   downloads INTEGER NOT NULL DEFAULT 0,
   rating REAL NOT NULL DEFAULT 0,
   review_count INTEGER NOT NULL DEFAULT 0,
@@ -61,7 +60,7 @@ CREATE TABLE IF NOT EXISTS purchases (
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_scripts_category ON scripts(category);
 CREATE INDEX IF NOT EXISTS idx_scripts_author ON scripts(author_id);
-CREATE INDEX IF NOT EXISTS idx_scripts_public_approved ON scripts(is_public, is_approved);
+CREATE INDEX IF NOT EXISTS idx_scripts_public ON scripts(is_public);
 CREATE INDEX IF NOT EXISTS idx_scripts_downloads ON scripts(downloads DESC);
 CREATE INDEX IF NOT EXISTS idx_scripts_rating ON scripts(rating DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_script_id ON reviews(script_id);

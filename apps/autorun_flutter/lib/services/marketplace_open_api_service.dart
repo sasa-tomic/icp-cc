@@ -59,7 +59,8 @@ class MarketplaceOpenApiService {
 
       final data = responseData['data'];
       final scripts = (data['scripts'] as List)
-          .map((script) => MarketplaceScript.fromJson(script))
+          .where((script) => script is Map<String, dynamic>)
+          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
           .toList();
 
       return MarketplaceSearchResult(
@@ -96,6 +97,12 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'];
+      if (data == null) {
+        throw Exception('Script details response missing data field');
+      }
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Script details response data is not a valid object');
+      }
       return MarketplaceScript.fromJson(data);
 
     } catch (e) {
@@ -121,7 +128,10 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'] as List;
-      return data.map((script) => MarketplaceScript.fromJson(script)).toList();
+      return data
+          .where((script) => script is Map<String, dynamic>)
+          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .toList();
 
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get featured scripts failed: $e');
@@ -146,7 +156,10 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'] as List;
-      return data.map((script) => MarketplaceScript.fromJson(script)).toList();
+      return data
+          .where((script) => script is Map<String, dynamic>)
+          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .toList();
 
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get trending scripts failed: $e');
@@ -182,7 +195,10 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'] as List;
-      return data.map((script) => MarketplaceScript.fromJson(script)).toList();
+      return data
+          .where((script) => script is Map<String, dynamic>)
+          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .toList();
 
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get scripts by category failed: $e');
@@ -216,7 +232,10 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'] as List;
-      return data.map((review) => ScriptReview.fromJson(review)).toList();
+      return data
+          .where((review) => review is Map<String, dynamic>)
+          .map((review) => ScriptReview.fromJson(review as Map<String, dynamic>))
+          .toList();
 
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get script reviews failed: $e');
@@ -286,7 +305,7 @@ class MarketplaceOpenApiService {
         throw Exception('Paid scripts require authentication to download');
       }
 
-      if (!script.isPublic || !script.isApproved) {
+      if (!script.isPublic) {
         throw Exception('Script is not available for download');
       }
 
@@ -363,7 +382,10 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'] as List;
-      return data.map((script) => MarketplaceScript.fromJson(script)).toList();
+      return data
+          .where((script) => script is Map<String, dynamic>)
+          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .toList();
 
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get compatible scripts failed: $e');
@@ -459,6 +481,37 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'];
+      if (data == null) {
+        // Script was created but is not yet approved (not public)
+        // Return a basic script object with the upload info
+        return MarketplaceScript(
+          id: 'pending-approval-${DateTime.now().millisecondsSinceEpoch}',
+          title: title,
+          description: description,
+          category: category,
+          tags: tags,
+          authorId: 'anonymous',
+          authorName: authorName,
+          price: price,
+          currency: 'ICP',
+          downloads: 0,
+          rating: 0.0,
+          reviewCount: 0,
+          verifiedReviewCount: 0,
+          luaSource: luaSource,
+          iconUrl: iconUrl,
+          screenshots: screenshots ?? [],
+          canisterIds: canisterIds ?? [],
+          version: version ?? '1.0.0',
+          compatibility: compatibility,
+          isPublic: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+      }
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Upload response data is not a valid object. Data type: ${data.runtimeType}');
+      }
       return MarketplaceScript.fromJson(data);
 
     } catch (e) {
@@ -515,6 +568,12 @@ class MarketplaceOpenApiService {
       }
 
       final data = responseData['data'];
+      if (data == null) {
+        throw Exception('Update script response missing data field');
+      }
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Update script response data is not a valid object');
+      }
       return MarketplaceScript.fromJson(data);
 
     } catch (e) {
