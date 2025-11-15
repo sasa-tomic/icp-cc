@@ -284,7 +284,7 @@ cloudflare-test-up:
 # Stop Cloudflare Workers process and cleanup test database
 cloudflare-test-down:
     @echo "==> Stopping Cloudflare Workers process..."
-    {{agent_dir}}/wrangler-manager.sh stop || echo "⚠️  Wrangler process was not running"; \
+    @{{agent_dir}}/wrangler-manager.sh stop || echo "⚠️  Wrangler process was not running"
     @echo "==> Cleaning up test database..."
     @{{scripts_dir}}/test_db_manager.sh cleanup
     @echo "==> Cloudflare Workers process stopped and test database cleaned up"
@@ -351,7 +351,11 @@ cloudflare-local-test:
 
 # Generate Cloudflare Workers types
 cloudflare-types:
-    @if [[ -f "/.dockerenv" ]]; then \
+    @if command -v wrangler >/dev/null 2>&1; then \
+        echo "==> Generating Cloudflare Workers types..."; \
+        cd {{cloudflare_dir}} && wrangler types --config wrangler.local.jsonc; \
+        echo "==> ✅ Types generated successfully"; \
+    elif [[ -f "/.dockerenv" ]]; then \
         echo "==> Generating Cloudflare Workers types..."; \
         cd {{cloudflare_dir}} && wrangler types --config wrangler.local.jsonc; \
         echo "==> ✅ Types generated successfully"; \
@@ -360,7 +364,7 @@ cloudflare-types:
         cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler types --config wrangler.local.jsonc'; \
         echo "==> ✅ Types generated successfully"; \
     else \
-        echo "❌ Neither container nor Docker available - cannot generate types"; \
+        echo "❌ Neither wrangler nor Docker available - cannot generate types"; \
         exit 1; \
     fi
 

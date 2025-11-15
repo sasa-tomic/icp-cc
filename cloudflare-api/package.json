@@ -11,6 +11,7 @@
     "types": "wrangler types --config wrangler.local.jsonc"
   },
   "devDependencies": {
+    "@types/node": "^24.10.0",
     "wrangler": "^4.45.3"
   },
   "dependencies": {
