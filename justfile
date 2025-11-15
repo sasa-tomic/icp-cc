@@ -160,16 +160,22 @@ test:
 # Internal Rust testing target
 _rust-tests:
     @echo "==> Rust linting and tests..."
-    @cargo clippy --benches --tests --all-features --quiet 2>&1 | tee {{logs_dir}}/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust clippy found issues!"; exit 1; } || echo "✅ No clippy issues found"
-    @cargo fmt --all --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(error|warning)" && { echo "❌ Rust formatting issues found!"; exit 1; } || echo "✅ No formatting issues found"
-    @cargo nextest run 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(error|FAILED|Summary)" || echo "✅ Rust tests completed"
+    @cargo clippy --benches --tests --all-features --quiet 2>&1 | tee {{logs_dir}}/test-output.log
+    @if grep -E "(error|warning)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust clippy found issues!"; exit 1; fi
+    @echo "✅ No clippy issues found"
+    @cargo fmt --all --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @if grep -E "(error|warning)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust formatting issues found!"; exit 1; fi
+    @echo "✅ No formatting issues found"
+    @cargo nextest run 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @if grep -E "(FAILED|error)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust tests failed!"; exit 1; fi
+    @echo "✅ All Rust tests passed"
 
 
 
 # Internal Flutter testing target
 _flutter-tests:
     @echo "==> Running Flutter tests with Cloudflare Workers..."
-    @just test-with-cloudflare || { echo "❌ Tests failed! Check logs/test-output.log for details"; exit 1; }
+    @just test-with-cloudflare
 
 # Run Flutter tests with Cloudflare Workers (includes Lua validation)
 test-with-cloudflare:
@@ -178,12 +184,16 @@ test-with-cloudflare:
     @echo "==> Starting Cloudflare Workers for tests..."
     @just cloudflare-test-up
     @echo "==> Validating Lua example scripts..."
-    @{{scripts_dir}}/validation/validate_lua.sh 2>&1 | tee -a {{logs_dir}}/test-output.log || { echo "❌ Lua script validation failed!"; exit 1; }
+    @{{scripts_dir}}/validation/validate_lua.sh 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @if [ $$? -ne 0 ]; then echo "❌ Lua script validation failed!"; exit 1; fi
     @echo "==> Running Flutter analysis..."
-    @cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -E "(info •|warning •|error •)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
+    @cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi
+    @echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log | grep -iE "(FAIL|ERROR|Testing|All tests passed)" && { if grep -qiE "(FAIL|ERROR)" {{logs_dir}}/test-output.log; then echo "❌ Flutter tests failed!"; exit 1; else echo "✅ All Flutter tests passed"; fi; }
-    @echo "==> Stopping Cloudflare Workers..."
+    @cd {{flutter_dir}} && flutter test --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @if grep -qiE "(FAIL|ERROR)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi
+    @echo "✅ All Flutter tests passed"
     @just cloudflare-test-down
 
 # =============================================================================
@@ -260,67 +270,67 @@ server-init +args="":
 # Local Development Environment
 # =============================================================================
 
-# Start Cloudflare Workers for testing with dynamic database
+# Start Cloudflare Workers for testing with dynamic database using isolated container
 cloudflare-test-up:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "==> Starting Cloudflare Workers for tests with test database"
+    echo "==> Starting Cloudflare Workers in isolated container for tests"
 
-    # Generate types before starting to ensure they're up to date
-    echo "==> Generating Cloudflare Workers types..."
-    cd "{{cloudflare_dir}}" && wrangler types --config wrangler.local.jsonc || echo "⚠️  Warning: wrangler types failed, using existing types"
+    # FAIL FAST: Force complete container cleanup first
+    echo "==> FAILING FAST - Killing any existing wrangler containers..."
+    cd "{{root}}" && docker-compose -f agent/docker-compose.yml stop wrangler || true
+    cd "{{root}}" && docker-compose -f agent/docker-compose.yml rm -f wrangler || true
+    docker kill icp-cc-wrangler >/dev/null 2>&1 || true
+    docker rm icp-cc-wrangler >/dev/null 2>&1 || true
+
+    # Build the wrangler image to ensure it's up to date
+    echo "==> Building wrangler container image..."
+    cd "{{root}}" && DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker-compose -f agent/docker-compose.yml build wrangler
 
     # Setup test environment
+    echo "==> Setting up test database..."
     TEST_DB_NAME=$({{scripts_dir}}/test_db_manager.sh create "default")
     export TEST_DB_NAME
-
     echo "==> Using test database: $TEST_DB_NAME"
 
-    # Check if already running
-    if [ -f "{{cloudflare_test_pid}}" ]; then
-        if kill -0 "$(cat {{cloudflare_test_pid}})" 2>/dev/null; then
-            echo "==> Cloudflare Workers already running with PID $(cat {{cloudflare_test_pid}})"
-        else
-            echo "==> Stale PID file found, cleaning up..."
-            rm -f "{{cloudflare_test_pid}}"
-        fi
-    fi
+    # Start wrangler container in detached mode
+    echo "==> Starting wrangler container..."
+    cd "{{root}}" && docker-compose -f agent/docker-compose.yml up -d wrangler
 
-    # Start wrangler in background with test database environment variable
-    cd "{{cloudflare_dir}}"
-    TEST_DB_NAME="default" wrangler dev --config wrangler.local.jsonc --port {{cloudflare_port}} --persist-to .wrangler/state --var="TEST_DB_NAME:default" > /tmp/wrangler-test.log 2>&1 &
-    WRANGLER_PID=$!
-    echo $WRANGLER_PID > "{{cloudflare_test_pid}}"
-    echo "==> Cloudflare Workers started with PID $WRANGLER_PID"
-    echo "==> Waiting for Cloudflare Workers to be ready..."
-
-    # Wait up to 45 seconds for server to be ready, checking every 2 seconds
-    timeout=45
+    # Wait for container to be healthy
+    echo "==> Waiting for wrangler container to be healthy..."
+    timeout=60
     elapsed=0
     while [ $elapsed -lt $timeout ]; do
-        if timeout 5 curl -s "{{cloudflare_health_url}}" >/dev/null 2>&1; then
-            echo "==> ✅ Cloudflare Workers is healthy and ready for tests!"
+        # Check container health using docker-compose
+        if cd "{{root}}" && docker-compose -f agent/docker-compose.yml ps wrangler | grep -q "healthy\|Up (healthy)"; then
+            echo "==> ✅ Wrangler container is healthy and ready!"
             echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
             echo "==> Health Check: {{cloudflare_health_url}}"
             echo "==> Test Database: icp-marketplace-test"
             echo "==> ✅ Test environment setup complete"
-
             exit 0
         fi
-        # Check if wrangler process is still running
-        if ! kill -0 $WRANGLER_PID 2>/dev/null; then
-            echo "==> ❌ Cloudflare Workers process died!"
-            echo "==> Showing error log:"
-            cat /tmp/wrangler-test.log
+
+        # Check if container is still running
+        if ! docker ps | grep -q icp-cc-wrangler; then
+            echo "==> ❌ CLOUDFLARE WORKERS CONTAINER DIED"
+            echo "==> ❌ FAIL FAST - Critical infrastructure container failure"
+            echo "==> ❌ Tests cannot proceed - container terminated unexpectedly"
+            echo "==> ❌ Container logs:"
+            cd "{{root}}" && docker-compose -f agent/docker-compose.yml logs wrangler
             exit 1
         fi
-        echo "==> Waiting for server... ($elapsed/$timeout seconds)"
-        sleep 2
-        elapsed=$((elapsed + 2))
+
+        echo "==> Waiting for container health... ($elapsed/$timeout seconds)"
+        sleep 3
+        elapsed=$((elapsed + 3))
     done
-    echo "==> ❌ Cloudflare Workers failed to start within $timeout seconds"
-    echo "==> Showing error log:"
-    cat /tmp/wrangler-test.log
+
+    echo "==> ❌ CLOUDFLARE WORKERS CONTAINER HEALTH FAILURE"
+    echo "==> ❌ FAIL FAST - Container failed to become healthy within $timeout seconds"
+    echo "==> ❌ Container logs:"
+    cd "{{root}}" && docker-compose -f agent/docker-compose.yml logs wrangler
     exit 1
 
 # Stop Cloudflare Workers for testing with dynamic database cleanup
