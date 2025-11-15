@@ -108,10 +108,10 @@ if docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
     fi
     echo
     echo "Useful commands:"
-    echo -e "  ${BLUE}just docker-logs-prod${NC}     # View logs"
-    echo -e "  ${BLUE}just docker-status-prod${NC}   # Check status"
-    echo -e "  ${BLUE}just docker-rebuild-prod${NC}  # Rebuild"
-    echo -e "  ${BLUE}just docker-down-prod${NC}     # Stop services"
+    echo -e "  ${BLUE}just docker-logs env=prod${NC}     # View logs"
+    echo -e "  ${BLUE}just docker-status env=prod${NC}   # Check status"
+    echo -e "  ${BLUE}just docker-rebuild env=prod${NC}  # Rebuild"
+    echo -e "  ${BLUE}just docker-down env=prod${NC}     # Stop services"
     echo
 else
     echo
@@ -120,7 +120,7 @@ else
     echo "==========================================${NC}"
     echo
     echo "Check the logs for errors:"
-    echo -e "  ${BLUE}just docker-logs-prod${NC}"
+    echo -e "  ${BLUE}just docker-logs env=prod${NC}"
     echo
     exit 1
 fi

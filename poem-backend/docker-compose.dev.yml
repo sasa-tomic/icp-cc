@@ -2,15 +2,17 @@
 services:
   api:
     container_name: icp-marketplace-api-dev
+    restart: "no"
     environment:
       - RUST_LOG=debug
       - DATABASE_URL=sqlite:///data/dev.db?mode=rwc
       - ENVIRONMENT=development
+      - PORT=58000
     ports:
       - "58000:58000"
     networks:
-      - api-network
+      - api-network-dev
 
 networks:
-  api-network:
+  api-network-dev:
     driver: bridge

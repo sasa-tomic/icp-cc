@@ -68,14 +68,14 @@ if docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build;
         echo -e "  ${BLUE}http://localhost:58000/api/v1/scripts${NC}          - Scripts listing"
     else
         echo -e "${YELLOW}⚠${NC}  API not responding yet - check logs:"
-        echo -e "  ${BLUE}just docker-logs-dev${NC}"
+        echo -e "  ${BLUE}just docker-logs env=dev${NC}"
     fi
     echo
     echo "Useful commands:"
-    echo -e "  ${BLUE}just docker-logs-dev${NC}      # View logs"
-    echo -e "  ${BLUE}just docker-status-dev${NC}    # Check status"
-    echo -e "  ${BLUE}just docker-rebuild-dev${NC}   # Rebuild"
-    echo -e "  ${BLUE}just docker-down-dev${NC}      # Stop"
+    echo -e "  ${BLUE}just docker-logs env=dev${NC}     # View logs"
+    echo -e "  ${BLUE}just docker-status env=dev${NC}   # Check status"
+    echo -e "  ${BLUE}just docker-rebuild env=dev${NC}  # Rebuild"
+    echo -e "  ${BLUE}just docker-down env=dev${NC}     # Stop"
     echo
 else
     echo
@@ -84,7 +84,7 @@ else
     echo "==========================================${NC}"
     echo
     echo "Check the logs for errors:"
-    echo -e "  ${BLUE}just docker-logs-dev${NC}"
+    echo -e "  ${BLUE}just docker-logs env=dev${NC}"
     echo
     exit 1
 fi
