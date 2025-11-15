@@ -172,7 +172,7 @@ class UiV1Renderer extends StatelessWidget {
                 child: Text(optionLabel),
               );
             }).toList(),
-            value: value.isEmpty ? null : value,
+            initialValue: value.isEmpty ? null : value,
             onChanged: enabled && onChange != null ? (newValue) {
               if (newValue != null) {
                 final msg = Map<String, dynamic>.from(onChange);

@@ -89,12 +89,12 @@ appwrite-test:
 
 appwrite-api-server:
 	@echo "==> Starting Appwrite API server (production mode)"
-	cd $(ROOT)/appwrite-api-server && npm install && npm start
+	@cd $(ROOT)/appwrite-api-server && (npm list --production >/dev/null 2>&1 || npm install) && npm start
 
 appwrite-api-server-dev:
 	@echo "==> Starting Appwrite API server (development mode)"
-	cd $(ROOT)/appwrite-api-server && npm install && npm run dev
+	@cd $(ROOT)/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && npm run dev
 
 appwrite-api-server-test:
 	@echo "==> Testing Appwrite API server"
-	cd $(ROOT)/appwrite-api-server && npm install && npm test
+	@cd $(ROOT)/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && npm test

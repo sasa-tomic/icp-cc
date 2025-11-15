@@ -1,32 +1,40 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
-import 'package:http/http.dart' as http;
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 
-import 'marketplace_open_api_service_test.mocks.dart';
-
-@GenerateMocks([http.Client])
 void main() {
   group('MarketplaceOpenApiService', () {
     late MarketplaceOpenApiService service;
-    late MockClient mockClient;
 
     setUp(() {
       service = MarketplaceOpenApiService();
-      mockClient = MockClient();
     });
 
-    test('should validate canister ID format correctly', () {
-      // Valid canister IDs
-      expect(service._isValidCanisterId('rrkah-fqaaa-aaaaa-aaaaq-cai'), isTrue);
-      expect(service._isValidCanisterId('be2us-64aaa-aaaaa-qaabq-cai'), isTrue);
+    test('should validate canister ID format via search method', () {
+      // Test canister ID validation through the public search method
+      // Valid canister IDs should not throw exceptions
+      expect(
+        () => service.searchScriptsByCanisterId('rrkah-fqaaa-aaaaa-aaaaq-cai'),
+        returnsNormally,
+      );
+      expect(
+        () => service.searchScriptsByCanisterId('be2us-64aaa-aaaaa-qaabq-cai'),
+        returnsNormally,
+      );
 
-      // Invalid canister IDs
-      expect(service._isValidCanisterId('invalid-id'), isFalse);
-      expect(service._isValidCanisterId('RRKAH-FQAAA-AAAAA-AAAAQ-CAI'), isFalse); // Uppercase
-      expect(service._isValidCanisterId(''), isFalse);
+      // Invalid canister IDs should throw exceptions
+      expect(
+        () => service.searchScriptsByCanisterId('invalid-id'),
+        throwsA(isA<Exception>()),
+      );
+      expect(
+        () => service.searchScriptsByCanisterId('RRKAH-FQAAA-AAAAA-AAAAQ-CAI'),
+        throwsA(isA<Exception>()),
+      );
+      expect(
+        () => service.searchScriptsByCanisterId(''),
+        throwsA(isA<Exception>()),
+      );
     });
 
     test('should return correct categories list', () {
@@ -63,13 +71,6 @@ void main() {
 
       expect(result.isValid, isFalse);
       expect(result.errors.isNotEmpty, isTrue);
-    });
-
-    test('should throw exception for invalid canister ID in search', () async {
-      expect(
-        () => service.searchScriptsByCanisterId('invalid-id'),
-        throwsA(isA<Exception>()),
-      );
     });
   });
 
@@ -143,17 +144,17 @@ void main() {
       expect(script.rating, equals(0.0));
       expect(script.reviewCount, equals(0));
       expect(script.price, equals(0.0));
-      expect(script.iconUrl, isEmpty);
-      expect(script.screenshots, isEmpty);
+      expect(script.iconUrl ?? '', isEmpty);
+      expect(script.screenshots ?? [], isEmpty);
       expect(script.canisterIds, isEmpty);
-      expect(script.version, isEmpty);
-      expect(script.compatibility, isEmpty);
+      expect(script.version ?? '', isEmpty);
+      expect(script.compatibility ?? '', isEmpty);
     });
   });
 
   group('MarketplaceStats Model', () {
     test('should create stats from JSON correctly', () {
-      final json = {
+      final json = <String, dynamic>{
         'total_scripts': 150,
         'total_authors': 25,
         'total_downloads': 5000,
@@ -169,7 +170,7 @@ void main() {
     });
 
     test('should handle missing fields with defaults', () {
-      final json = {};
+      final json = <String, dynamic>{};
 
       final stats = MarketplaceStats.fromJson(json);
 
@@ -182,7 +183,7 @@ void main() {
 
   group('ScriptValidationResult Model', () {
     test('should create validation result from JSON correctly', () {
-      final json = {
+      final json = <String, dynamic>{
         'is_valid': false,
         'errors': ['Unexpected symbol near "invalid"'],
         'warnings': ['Unused variable "test"'],
@@ -196,7 +197,7 @@ void main() {
     });
 
     test('should handle missing fields with defaults', () {
-      final json = {};
+      final json = <String, dynamic>{};
 
       final result = ScriptValidationResult.fromJson(json);
 

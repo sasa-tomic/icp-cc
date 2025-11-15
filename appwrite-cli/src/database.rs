@@ -4,6 +4,9 @@ use std::time::Duration;
 
 use super::config::{AppConfig, AttributeType, IndexType};
 
+// Type alias to reduce complexity warnings
+type AttributeDefinition = (&'static str, AttributeType, Option<i32>, bool, Option<serde_json::Value>);
+
 pub struct DatabaseManager {
     client: reqwest::Client,
     config: AppConfig,
@@ -119,7 +122,7 @@ impl DatabaseManager {
             Ok(_) => {
                 println!("ℹ️   Database already exists: {}", self.config.database_id);
                 return Ok(());
-            },
+            }
             Err(_) => {
                 // Database doesn't exist, try to create it
             }
@@ -137,16 +140,19 @@ impl DatabaseManager {
             Ok(_) => {
                 println!("✅   Database created: {}", self.config.database_id);
                 Ok(())
-            },
+            }
             Err(e) if e.to_string().contains("already exists") => {
                 println!("ℹ️   Database already exists: {}", self.config.database_id);
                 Ok(())
-            },
+            }
             Err(e) if e.to_string().contains("409") => {
                 println!("ℹ️   Database already exists: {}", self.config.database_id);
                 Ok(())
-            },
-            Err(e) if e.to_string().contains("403") && e.to_string().contains("maximum number of databases") => {
+            }
+            Err(e)
+                if e.to_string().contains("403")
+                    && e.to_string().contains("maximum number of databases") =>
+            {
                 // Database limit reached, check if it already exists
                 match self.test_database_access().await {
                     Ok(_) => {
@@ -157,19 +163,25 @@ impl DatabaseManager {
                         Err(anyhow!("Database creation failed due to plan limit and database does not exist: {}", e))
                     }
                 }
-            },
+            }
             Err(e) => Err(e),
         }
     }
 
     pub async fn create_collection(&mut self, collection_id: &str, name: &str) -> Result<()> {
         // Check if collection already exists
-        let check_endpoint = format!("databases/{}/collections/{}", self.config.database_id, collection_id);
-        match self.make_request::<serde_json::Value>(reqwest::Method::GET, &check_endpoint, None).await {
+        let check_endpoint = format!(
+            "databases/{}/collections/{}",
+            self.config.database_id, collection_id
+        );
+        match self
+            .make_request::<serde_json::Value>(reqwest::Method::GET, &check_endpoint, None)
+            .await
+        {
             Ok(_) => {
                 println!("ℹ️   Collection already exists: {}", name);
                 return Ok(());
-            },
+            }
             Err(_) => {
                 // Collection doesn't exist, proceed with creation
             }
@@ -190,7 +202,7 @@ impl DatabaseManager {
                     "documentSecurity": true
                 });
                 (body, self.get_scripts_attributes())
-            },
+            }
             "users" => {
                 let body = serde_json::json!({
                     "collectionId": collection_id,
@@ -204,7 +216,7 @@ impl DatabaseManager {
                     "documentSecurity": true
                 });
                 (body, self.get_users_attributes())
-            },
+            }
             "reviews" => {
                 let body = serde_json::json!({
                     "collectionId": collection_id,
@@ -218,7 +230,7 @@ impl DatabaseManager {
                     "documentSecurity": true
                 });
                 (body, self.get_reviews_attributes())
-            },
+            }
             "purchases" => {
                 let body = serde_json::json!({
                     "collectionId": collection_id,
@@ -232,7 +244,7 @@ impl DatabaseManager {
                     "documentSecurity": true
                 });
                 (body, self.get_purchases_attributes())
-            },
+            }
             _ => {
                 let body = serde_json::json!({
                     "collectionId": collection_id,
@@ -253,23 +265,26 @@ impl DatabaseManager {
         let mut final_body = body;
         if !attributes.is_empty() {
             final_body["attributes"] = serde_json::Value::Array(
-                attributes.into_iter().map(|(key, attr_type, size, required, default)| {
-                    let mut attr = serde_json::json!({
-                        "key": key,
-                        "type": attr_type.as_str(),
-                        "required": required
-                    });
-                    if let Some(s) = size {
-                        attr["size"] = serde_json::Value::Number(s.into());
-                    }
-                    if matches!(attr_type, AttributeType::StringArray) {
-                        attr["array"] = serde_json::Value::Bool(true);
-                    }
-                    if let Some(d) = default {
-                        attr["default"] = d;
-                    }
-                    attr
-                }).collect()
+                attributes
+                    .into_iter()
+                    .map(|(key, attr_type, size, required, default)| {
+                        let mut attr = serde_json::json!({
+                            "key": key,
+                            "type": attr_type.as_str(),
+                            "required": required
+                        });
+                        if let Some(s) = size {
+                            attr["size"] = serde_json::Value::Number(s.into());
+                        }
+                        if matches!(attr_type, AttributeType::StringArray) {
+                            attr["array"] = serde_json::Value::Bool(true);
+                        }
+                        if let Some(d) = default {
+                            attr["default"] = d;
+                        }
+                        attr
+                    })
+                    .collect(),
             );
         }
 
@@ -282,23 +297,26 @@ impl DatabaseManager {
             Ok(_) => {
                 println!("✅   Collection created: {}", name);
                 Ok(())
-            },
+            }
             Err(e) if e.to_string().contains("already exists") => {
                 println!("ℹ️   Collection already exists: {}", name);
                 Ok(())
-            },
+            }
             Err(e) if e.to_string().contains("409") => {
                 println!("ℹ️   Collection already exists: {}", name);
                 Ok(())
-            },
+            }
             Err(e) if e.to_string().contains("404") => {
                 // Try the new API format - this might be using tables instead of collections
                 // But first, check if the collection was created successfully
-                match self.make_request::<serde_json::Value>(reqwest::Method::GET, &check_endpoint, None).await {
+                match self
+                    .make_request::<serde_json::Value>(reqwest::Method::GET, &check_endpoint, None)
+                    .await
+                {
                     Ok(_) => {
                         println!("ℹ️   Collection already exists: {}", name);
                         Ok(())
-                    },
+                    }
                     Err(_check_err) => {
                         // If it's truly a 404 route not found, it might be using the new API
                         if e.to_string().contains("Route not found") {
@@ -309,72 +327,336 @@ impl DatabaseManager {
                         }
                     }
                 }
-            },
+            }
             Err(e) => Err(e),
         }
     }
 
     // Helper methods to get attributes for each collection type
-    fn get_scripts_attributes(&self) -> Vec<(&str, AttributeType, Option<i32>, bool, Option<serde_json::Value>)> {
+    fn get_scripts_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
-            ("title", AttributeType::String, Some(256), true, None::<serde_json::Value>),
-            ("description", AttributeType::String, Some(2000), true, None::<serde_json::Value>),
-            ("category", AttributeType::String, Some(100), true, None::<serde_json::Value>),
-            ("tags", AttributeType::StringArray, Some(500), false, None::<serde_json::Value>),
-            ("authorId", AttributeType::String, Some(128), true, None::<serde_json::Value>),
-            ("authorName", AttributeType::String, Some(256), true, None::<serde_json::Value>),
-            ("price", AttributeType::Float, None, false, Some(serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()))),
-            ("downloads", AttributeType::Integer, None, false, Some(serde_json::Value::Number(serde_json::Number::from(0)))),
-            ("rating", AttributeType::Float, None, false, Some(serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()))),
-            ("reviewCount", AttributeType::Integer, None, false, Some(serde_json::Value::Number(serde_json::Number::from(0)))),
-            ("luaSource", AttributeType::String, Some(100000), true, None::<serde_json::Value>),
-            ("iconUrl", AttributeType::String, Some(2048), false, None::<serde_json::Value>),
-            ("screenshots", AttributeType::StringArray, Some(5000), false, None::<serde_json::Value>),
-            ("canisterIds", AttributeType::StringArray, Some(1000), false, None::<serde_json::Value>),
-            ("compatibility", AttributeType::String, Some(500), false, None::<serde_json::Value>),
-            ("version", AttributeType::String, Some(50), false, None::<serde_json::Value>),
-            ("isPublic", AttributeType::Boolean, None, false, Some(serde_json::Value::Bool(true))),
-            ("isApproved", AttributeType::Boolean, None, false, Some(serde_json::Value::Bool(false))),
+            (
+                "title",
+                AttributeType::String,
+                Some(256),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "description",
+                AttributeType::String,
+                Some(2000),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "category",
+                AttributeType::String,
+                Some(100),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "tags",
+                AttributeType::StringArray,
+                Some(500),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "authorId",
+                AttributeType::String,
+                Some(128),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "authorName",
+                AttributeType::String,
+                Some(256),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "price",
+                AttributeType::Float,
+                None,
+                false,
+                Some(serde_json::Value::Number(
+                    serde_json::Number::from_f64(0.0).unwrap(),
+                )),
+            ),
+            (
+                "downloads",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "rating",
+                AttributeType::Float,
+                None,
+                false,
+                Some(serde_json::Value::Number(
+                    serde_json::Number::from_f64(0.0).unwrap(),
+                )),
+            ),
+            (
+                "reviewCount",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "luaSource",
+                AttributeType::String,
+                Some(100000),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "iconUrl",
+                AttributeType::String,
+                Some(2048),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "screenshots",
+                AttributeType::StringArray,
+                Some(5000),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "canisterIds",
+                AttributeType::StringArray,
+                Some(1000),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "compatibility",
+                AttributeType::String,
+                Some(500),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "version",
+                AttributeType::String,
+                Some(50),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "isPublic",
+                AttributeType::Boolean,
+                None,
+                false,
+                Some(serde_json::Value::Bool(true)),
+            ),
+            (
+                "isApproved",
+                AttributeType::Boolean,
+                None,
+                false,
+                Some(serde_json::Value::Bool(false)),
+            ),
         ]
     }
 
-    fn get_users_attributes(&self) -> Vec<(&str, AttributeType, Option<i32>, bool, Option<serde_json::Value>)> {
+    fn get_users_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
-            ("userId", AttributeType::String, Some(128), true, None::<serde_json::Value>),
-            ("username", AttributeType::String, Some(100), true, None::<serde_json::Value>),
-            ("displayName", AttributeType::String, Some(256), true, None::<serde_json::Value>),
-            ("bio", AttributeType::String, Some(1000), false, None::<serde_json::Value>),
-            ("avatar", AttributeType::String, Some(2048), false, None::<serde_json::Value>),
-            ("website", AttributeType::String, Some(512), false, None::<serde_json::Value>),
-            ("socialLinks", AttributeType::StringArray, Some(1000), false, None::<serde_json::Value>),
-            ("scriptsPublished", AttributeType::Integer, None, false, Some(serde_json::Value::Number(serde_json::Number::from(0)))),
-            ("totalDownloads", AttributeType::Integer, None, false, Some(serde_json::Value::Number(serde_json::Number::from(0)))),
-            ("averageRating", AttributeType::Float, None, false, Some(serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()))),
-            ("isVerifiedDeveloper", AttributeType::Boolean, None, false, Some(serde_json::Value::Bool(false))),
-            ("favorites", AttributeType::StringArray, Some(10000), false, None::<serde_json::Value>),
+            (
+                "userId",
+                AttributeType::String,
+                Some(128),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "username",
+                AttributeType::String,
+                Some(100),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "displayName",
+                AttributeType::String,
+                Some(256),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "bio",
+                AttributeType::String,
+                Some(1000),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "avatar",
+                AttributeType::String,
+                Some(2048),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "website",
+                AttributeType::String,
+                Some(512),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "socialLinks",
+                AttributeType::StringArray,
+                Some(1000),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "scriptsPublished",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "totalDownloads",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "averageRating",
+                AttributeType::Float,
+                None,
+                false,
+                Some(serde_json::Value::Number(
+                    serde_json::Number::from_f64(0.0).unwrap(),
+                )),
+            ),
+            (
+                "isVerifiedDeveloper",
+                AttributeType::Boolean,
+                None,
+                false,
+                Some(serde_json::Value::Bool(false)),
+            ),
+            (
+                "favorites",
+                AttributeType::StringArray,
+                Some(10000),
+                false,
+                None::<serde_json::Value>,
+            ),
         ]
     }
 
-    fn get_reviews_attributes(&self) -> Vec<(&str, AttributeType, Option<i32>, bool, Option<serde_json::Value>)> {
+    fn get_reviews_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
-            ("userId", AttributeType::String, Some(128), true, None::<serde_json::Value>),
-            ("scriptId", AttributeType::String, Some(128), true, None::<serde_json::Value>),
-            ("rating", AttributeType::Integer, None, true, None::<serde_json::Value>),
-            ("comment", AttributeType::String, Some(2000), false, None::<serde_json::Value>),
-            ("isVerifiedPurchase", AttributeType::Boolean, None, false, Some(serde_json::Value::Bool(false))),
-            ("status", AttributeType::String, Some(50), false, Some(serde_json::Value::String("approved".to_string()))),
+            (
+                "userId",
+                AttributeType::String,
+                Some(128),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "scriptId",
+                AttributeType::String,
+                Some(128),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "rating",
+                AttributeType::Integer,
+                None,
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "comment",
+                AttributeType::String,
+                Some(2000),
+                false,
+                None::<serde_json::Value>,
+            ),
+            (
+                "isVerifiedPurchase",
+                AttributeType::Boolean,
+                None,
+                false,
+                Some(serde_json::Value::Bool(false)),
+            ),
+            (
+                "status",
+                AttributeType::String,
+                Some(50),
+                false,
+                Some(serde_json::Value::String("approved".to_string())),
+            ),
         ]
     }
 
-    fn get_purchases_attributes(&self) -> Vec<(&str, AttributeType, Option<i32>, bool, Option<serde_json::Value>)> {
+    fn get_purchases_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
-            ("userId", AttributeType::String, Some(128), true, None::<serde_json::Value>),
-            ("scriptId", AttributeType::String, Some(128), true, None::<serde_json::Value>),
-            ("transactionId", AttributeType::String, Some(256), true, None::<serde_json::Value>),
-            ("price", AttributeType::Float, None, true, None::<serde_json::Value>),
-            ("currency", AttributeType::String, Some(10), false, Some(serde_json::Value::String("USD".to_string()))),
-            ("status", AttributeType::String, Some(50), false, Some(serde_json::Value::String("pending".to_string()))),
-            ("paymentMethod", AttributeType::String, Some(50), true, None::<serde_json::Value>),
+            (
+                "userId",
+                AttributeType::String,
+                Some(128),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "scriptId",
+                AttributeType::String,
+                Some(128),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "transactionId",
+                AttributeType::String,
+                Some(256),
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "price",
+                AttributeType::Float,
+                None,
+                true,
+                None::<serde_json::Value>,
+            ),
+            (
+                "currency",
+                AttributeType::String,
+                Some(10),
+                false,
+                Some(serde_json::Value::String("USD".to_string())),
+            ),
+            (
+                "status",
+                AttributeType::String,
+                Some(50),
+                false,
+                Some(serde_json::Value::String("pending".to_string())),
+            ),
+            (
+                "paymentMethod",
+                AttributeType::String,
+                Some(50),
+                true,
+                None::<serde_json::Value>,
+            ),
         ]
     }
 
@@ -409,11 +691,16 @@ impl DatabaseManager {
             Ok(_) => Ok(()),
             Err(e) if e.to_string().contains("already exists") => Ok(()),
             Err(e) if e.to_string().contains("409") => Ok(()), // Conflict - attribute already exists
-            Err(e) if e.to_string().contains("404") && e.to_string().contains("Route not found") => {
+            Err(e)
+                if e.to_string().contains("404") && e.to_string().contains("Route not found") =>
+            {
                 // Attribute creation might not be supported in this API version
-                println!("ℹ️   Attribute creation skipped (API version mismatch): {}", key);
+                println!(
+                    "ℹ️   Attribute creation skipped (API version mismatch): {}",
+                    key
+                );
                 Ok(())
-            },
+            }
             Err(e) => Err(e),
         }
     }
@@ -445,11 +732,16 @@ impl DatabaseManager {
             Ok(_) => Ok(()),
             Err(e) if e.to_string().contains("already exists") => Ok(()),
             Err(e) if e.to_string().contains("409") => Ok(()), // Conflict - index already exists
-            Err(e) if e.to_string().contains("404") && e.to_string().contains("Route not found") => {
+            Err(e)
+                if e.to_string().contains("404") && e.to_string().contains("Route not found") =>
+            {
                 // Index creation might not be supported in this API version
-                println!("ℹ️   Index creation skipped (API version mismatch): {}", key);
+                println!(
+                    "ℹ️   Index creation skipped (API version mismatch): {}",
+                    key
+                );
                 Ok(())
-            },
+            }
             Err(e) => Err(e),
         }
     }
@@ -462,11 +754,14 @@ impl DatabaseManager {
     ) -> Result<()> {
         // Check if storage bucket already exists
         let check_endpoint = format!("storage/buckets/{}", bucket_id);
-        match self.make_request::<serde_json::Value>(reqwest::Method::GET, &check_endpoint, None).await {
+        match self
+            .make_request::<serde_json::Value>(reqwest::Method::GET, &check_endpoint, None)
+            .await
+        {
             Ok(_) => {
                 println!("ℹ️   Storage bucket already exists: {}", name);
                 return Ok(());
-            },
+            }
             Err(_) => {
                 // Storage bucket doesn't exist, proceed with creation
             }
@@ -486,15 +781,15 @@ impl DatabaseManager {
             Ok(_) => {
                 println!("✅   Storage bucket created: {}", name);
                 Ok(())
-            },
+            }
             Err(e) if e.to_string().contains("already exists") => {
                 println!("ℹ️   Storage bucket already exists: {}", name);
                 Ok(())
-            },
+            }
             Err(e) if e.to_string().contains("409") => {
                 println!("ℹ️   Storage bucket already exists: {}", name);
                 Ok(())
-            },
+            }
             Err(e) => Err(e),
         }
     }
