@@ -12,7 +12,7 @@ use utils::{error_message, info_message, section_header, success_message};
 /// Run all database migration files in order
 fn run_all_migrations(cloudflare_dir: &std::path::Path, database_name: &str) -> Result<()> {
     let migrations_dir = cloudflare_dir.join("migrations");
-    
+
     // Check if migrations directory exists
     if !migrations_dir.exists() {
         info_message("No migrations directory found, skipping migrations");
@@ -45,9 +45,12 @@ fn run_all_migrations(cloudflare_dir: &std::path::Path, database_name: &str) -> 
 
     for migration_path in &migrations {
         let migration_file = migration_path.to_string_lossy();
-        println!("🔄 Applying migration: {}", migration_path.file_name().unwrap().to_string_lossy());
+        println!(
+            "🔄 Applying migration: {}",
+            migration_path.file_name().unwrap().to_string_lossy()
+        );
         info_message(&format!("Applying migration: {}", migration_file));
-        
+
         let migrate_output = std::process::Command::new("wrangler")
             .args(["d1", "execute", database_name, "--file", &migration_file])
             .current_dir(cloudflare_dir)
@@ -61,7 +64,10 @@ fn run_all_migrations(cloudflare_dir: &std::path::Path, database_name: &str) -> 
                 String::from_utf8_lossy(&migrate_output.stderr)
             ));
         } else {
-            println!("✅ Migration completed successfully: {}", migration_path.file_name().unwrap().to_string_lossy());
+            println!(
+                "✅ Migration completed successfully: {}",
+                migration_path.file_name().unwrap().to_string_lossy()
+            );
         }
     }
 
