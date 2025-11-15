@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'result_display.dart';
+
 typedef UiEventHandler = void Function(Map<String, dynamic> msg);
 
 class UiV1Renderer extends StatelessWidget {
@@ -281,6 +283,20 @@ class UiV1Renderer extends StatelessWidget {
         } else {
           return _error('List items must be an array');
         }
+
+        // Check if we should use the enhanced list view
+        final bool enhanced = (props['enhanced'] as bool?) ?? false;
+        final bool searchable = (props['searchable'] as bool?) ?? true;
+        final String title = (props['title'] ?? 'Results').toString();
+
+        if (enhanced) {
+          return EnhancedResultList(
+            items: items.cast<Map<String, dynamic>>(),
+            title: title,
+            searchable: searchable,
+          );
+        }
+
         return ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -311,6 +327,20 @@ class UiV1Renderer extends StatelessWidget {
             }
             return ListTile(title: Text(item.toString()));
           },
+        );
+      case 'result_display':
+        final dynamic data = props['data'];
+        final String? title = props['title'] as String?;
+        final String? error = props['error'] as String?;
+        final bool isExpandable = (props['expandable'] as bool?) ?? true;
+        final bool initiallyExpanded = (props['expanded'] as bool?) ?? false;
+
+        return ResultDisplay(
+          data: data,
+          title: title,
+          error: error,
+          isExpandable: isExpandable,
+          initiallyExpanded: initiallyExpanded,
         );
       default:
         return _error('Unsupported node type: $type');
