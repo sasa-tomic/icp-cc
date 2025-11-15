@@ -133,6 +133,8 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   Map<String, dynamic> _createAuthenticatedScriptData(ScriptRecord script, String action) {
+    final timestamp = DateTime.now().toIso8601String();
+    
     final baseScriptData = {
       'title': script.title,
       'description': script.metadata['description'] ?? '',
@@ -147,6 +149,7 @@ class TestableScriptRepository extends ScriptRepository {
       'version': script.metadata['version'] ?? '1.0.0',
       'price': script.metadata['price'] ?? 0.0,
       'is_public': script.metadata['isPublic'] ?? false,
+      'timestamp': timestamp, // Always include timestamp
     };
 
     final scriptData = Map<String, dynamic>.from(baseScriptData);
@@ -162,10 +165,8 @@ class TestableScriptRepository extends ScriptRepository {
         final payload = {
           'action': action,
           ...baseScriptData,
-          'timestamp': DateTime.now().toIso8601String(),
         };
         scriptData['signature'] = TestSignatureUtils.generateTestSignature(payload);
-        scriptData['timestamp'] = payload['timestamp'];
         break;
 
       case AuthenticationMethod.invalidToken:
@@ -190,9 +191,12 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   Map<String, dynamic> _createAuthenticatedDeleteData(String id) {
+    final timestamp = DateTime.now().toIso8601String();
+    
     final baseDeleteData = {
       'script_id': id,
       'author_principal': '2vxsx-fae',
+      'timestamp': timestamp, // Always include timestamp
     };
 
     switch (_authMethod) {
@@ -201,7 +205,6 @@ class TestableScriptRepository extends ScriptRepository {
         break;
 
       case AuthenticationMethod.realSignature:
-        final timestamp = DateTime.now().toIso8601String();
         final payload = {
           'action': 'delete',
           'script_id': id,
@@ -209,7 +212,6 @@ class TestableScriptRepository extends ScriptRepository {
           'timestamp': timestamp,
         };
         baseDeleteData['signature'] = TestSignatureUtils.generateTestSignature(payload);
-        baseDeleteData['timestamp'] = timestamp;
         break;
 
       case AuthenticationMethod.invalidToken:

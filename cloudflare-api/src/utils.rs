@@ -4,6 +4,66 @@ use sha2::{Digest, Sha256};
 use base64::{Engine as _, engine::general_purpose};
 use std::collections::BTreeMap;
 use serde_json::Value;
+use serde::{Deserialize, Deserializer, Serializer};
+use serde::ser::Error as SerError;
+use serde::de::Error as DeError;
+
+pub mod timestamp_format {
+    use super::*;
+    use time::format_description::well_known::Rfc3339;
+    use time::OffsetDateTime;
+    use serde::{Deserialize, Deserializer, Serializer};
+    use serde_json::Value;
+
+    pub fn serialize<S>(date: &OffsetDateTime, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = date.format(&Rfc3339).map_err(SerError::custom)?;
+        serializer.serialize_str(&s)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> std::result::Result<OffsetDateTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+
+        let timestamp_str = match value {
+            Value::String(s) => s,
+            Value::Number(n) => n.to_string(),
+            _ => return Err(DeError::custom("timestamp must be a string or number")),
+        };
+
+        // Try parsing as RFC3339 first
+        if let Ok(dt) = OffsetDateTime::parse(&timestamp_str, &Rfc3339) {
+            return Ok(dt);
+        }
+
+        // Try parsing as other common formats
+        if let Ok(dt) = OffsetDateTime::parse(&timestamp_str, &time::format_description::well_known::Iso8601::PARSING) {
+            return Ok(dt);
+        }
+
+        // If all else fails, try to parse as a Unix timestamp in milliseconds
+        if let Ok(timestamp_ms) = timestamp_str.parse::<i64>() {
+            // Check if it's in milliseconds (typical JavaScript timestamp)
+            if timestamp_ms > 1_000_000_000_000 {
+                // It's in milliseconds, convert to seconds
+                if let Some(dt) = OffsetDateTime::from_unix_timestamp(timestamp_ms / 1000).ok() {
+                    return Ok(dt);
+                }
+            } else {
+                // It's already in seconds
+                if let Some(dt) = OffsetDateTime::from_unix_timestamp(timestamp_ms).ok() {
+                    return Ok(dt);
+                }
+            }
+        }
+
+        Err(DeError::custom(format!("Failed to parse timestamp: {}", timestamp_str)))
+    }
+}
 
 pub struct SignatureVerifier;
 
@@ -399,8 +459,15 @@ impl<'a> DatabaseService<'a> {
             downloads: result.get("downloads").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
             rating: result.get("rating").and_then(|v| v.as_f64()).unwrap_or(0.0),
             review_count: result.get("review_count").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-            created_at: time::OffsetDateTime::now_utc(), // Parse from database
-            updated_at: time::OffsetDateTime::now_utc(), // Parse from database
+            // Parse timestamps from database, use fallback if parsing fails
+            created_at: result.get("created_at")
+                .and_then(|v| v.as_str())
+                .and_then(|s| time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok())
+                .unwrap_or_else(time::OffsetDateTime::now_utc),
+            updated_at: result.get("updated_at")
+                .and_then(|v| v.as_str())
+                .and_then(|s| time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok())
+                .unwrap_or_else(time::OffsetDateTime::now_utc),
             author: None, // Fetch separately
             reviews: None, // Fetch separately
         };

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use crate::utils::timestamp_format;
 
 pub struct AppEnv {
     pub db: worker::D1Database,
@@ -162,7 +163,7 @@ pub struct SignaturePayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compatibility: Option<String>,
     pub author_principal: String,
-    #[serde(with = "time::serde::iso8601")]
+    #[serde(with = "timestamp_format")]
     pub timestamp: OffsetDateTime,
 }
 
@@ -192,7 +193,7 @@ pub struct CreateScriptRequest {
     pub author_principal: String,
     pub author_public_key: String,
     pub signature: String,
-    #[serde(with = "time::serde::iso8601")]
+    #[serde(with = "timestamp_format")]
     pub timestamp: OffsetDateTime,
 }
 
@@ -224,7 +225,7 @@ pub struct UpdateScriptRequest {
     pub is_public: Option<bool>,
     pub author_principal: String,
     pub signature: String,
-    #[serde(with = "time::serde::iso8601")]
+    #[serde(with = "timestamp_format")]
     pub timestamp: OffsetDateTime,
 }
 
@@ -232,7 +233,7 @@ pub struct UpdateScriptRequest {
 pub struct DeleteScriptRequest {
     pub author_principal: String,
     pub signature: String,
-    #[serde(with = "time::serde::iso8601")]
+    #[serde(with = "timestamp_format")]
     pub timestamp: OffsetDateTime,
 }
 
