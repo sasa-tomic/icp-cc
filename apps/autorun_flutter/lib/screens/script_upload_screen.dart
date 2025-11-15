@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-import '../services/marketplace_open_api_service.dart';
-import '../widgets/enhanced_script_editor.dart';
-import '../widgets/error_display.dart';
+ import 'package:flutter/material.dart';
+ import '../services/marketplace_open_api_service.dart';
+ import '../widgets/error_display.dart';
 
 class PreFilledUploadData {
   final String title;
@@ -41,64 +40,10 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   final TextEditingController _compatibilityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController(text: '0.0');
 
-  // Script editor state
-  String _luaSource = '''-- Welcome to the ICP Autorun Script Marketplace!
--- This is a template for your Lua script.
 
--- Define your script's init function
-function init(arg)
-    -- Initialize your script state here
-    local state = {
-        message = "Hello from marketplace script!",
-        counter = 0
-    }
 
-    -- Return initial state and any effects to run
-    return state, {}
-end
-
--- Define your script's view function (UI)
-function view(state)
-    -- Define the user interface for your script
-    return {
-        type = "column",
-        children = {
-            {
-                type = "text",
-                text = state.message,
-                style = "headline"
-            },
-            {
-                type = "text",
-                text = "Counter: " .. state.counter,
-                style = "body"
-            },
-            {
-                type = "button",
-                text = "Increment Counter",
-                on_click = {
-                    type = "increment"
-                }
-            }
-        }
-    }
-end
-
--- Define your script's update function (logic)
-function update(msg, state)
-    -- Handle messages and update state
-    if msg.type == "increment" then
-        state.counter = state.counter + 1
-    end
-
-    -- Return updated state and any effects to run
-    return state, {}
-end
-''';
-
-  bool _isUploading = false;
-  String? _error;
-  ScriptValidationResult? _validationResult;
+   bool _isUploading = false;
+   String? _error;
 
   // Available categories
   final List<String> _availableCategories = [
@@ -120,12 +65,11 @@ end
   void initState() {
     super.initState();
     
-    // Pre-fill data if provided
-    if (widget.preFilledData != null) {
-      _titleController.text = widget.preFilledData!.title;
-      _luaSource = widget.preFilledData!.luaSource;
-      _authorController.text = widget.preFilledData!.authorName;
-    }
+     // Pre-fill data if provided
+     if (widget.preFilledData != null) {
+       _titleController.text = widget.preFilledData!.title;
+       _authorController.text = widget.preFilledData!.authorName;
+     }
     
     // Set default category
     _categoryController.text = 'Example';
@@ -152,58 +96,14 @@ end
     super.dispose();
   }
 
-  void _onCodeChanged(String code) {
-    setState(() {
-      _luaSource = code;
-      _validationResult = null;
-    });
-  }
 
-  Future<void> _validateScript() async {
-    if (_luaSource.trim().isEmpty) {
-      setState(() {
-        _validationResult = ScriptValidationResult(
-          isValid: false,
-          errors: ['Script code cannot be empty'],
-        );
-      });
-      return;
-    }
-
-    try {
-      final result = await _marketplaceService.validateScript(_luaSource);
-      setState(() {
-        _validationResult = result;
-      });
-    } catch (e) {
-      setState(() {
-        _validationResult = ScriptValidationResult(
-          isValid: false,
-          errors: ['Validation failed: $e'],
-        );
-      });
-    }
-  }
 
   Future<void> _uploadScript() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_validationResult == null || !_validationResult!.isValid) {
-      await _validateScript();
-      if (_validationResult == null || !_validationResult!.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please fix script validation errors before uploading'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-    }
+
 
     setState(() {
       _isUploading = true;
@@ -240,21 +140,21 @@ end
           : _compatibilityController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
 
-      // Upload script
-      await _marketplaceService.uploadScript(
-        title: title,
-        description: description,
-        category: category,
-        tags: tags,
-        luaSource: _luaSource,
-        authorName: authorName,
-        canisterIds: canisterIds.isEmpty ? null : canisterIds,
-        iconUrl: iconUrl,
-        screenshots: screenshots.isEmpty ? null : screenshots,
-        version: version,
-        compatibility: compatibility,
-        price: price,
-      );
+       // Upload script
+       await _marketplaceService.uploadScript(
+         title: title,
+         description: description,
+         category: category,
+         tags: tags,
+         luaSource: '', // Empty source as it's not displayed
+         authorName: authorName,
+         canisterIds: canisterIds.isEmpty ? null : canisterIds,
+         iconUrl: iconUrl,
+         screenshots: screenshots.isEmpty ? null : screenshots,
+         version: version,
+         compatibility: compatibility,
+         price: price,
+       );
 
       if (!mounted) return;
 
@@ -528,163 +428,7 @@ end
                       },
                     ),
 
-                    const SizedBox(height: 24),
 
-                    // Script Code Section
-                    _buildSectionHeader('Script Code'),
-                    const SizedBox(height: 8),
-
-                    Text(
-                      'Write your Lua script code below. The script will be validated before uploading.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Validation status
-                    if (_validationResult != null) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _validationResult!.isValid
-                              ? Colors.green.withValues(alpha: 0.1)
-                              : Colors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: _validationResult!.isValid
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  _validationResult!.isValid
-                                      ? Icons.check_circle
-                                      : Icons.error,
-                                  color: _validationResult!.isValid
-                                      ? Colors.green
-                                      : Colors.red,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _validationResult!.isValid
-                                      ? 'Script is valid'
-                                      : 'Script has errors',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: _validationResult!.isValid
-                                        ? Colors.green
-                                        : Colors.red,
-                                  ),
-                                ),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: _validateScript,
-                                  child: const Text('Revalidate'),
-                                ),
-                              ],
-                            ),
-                            if (!_validationResult!.isValid &&
-                                _validationResult!.errors.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              ..._validationResult!.errors.map((error) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('• ', style: TextStyle(color: Colors.red)),
-                                    Expanded(
-                                      child: Text(
-                                        error,
-                                        style: const TextStyle(color: Colors.red),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )),
-                            ],
-                            if (_validationResult!.warnings.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Warnings:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange[700],
-                                ),
-                              ),
-                              ..._validationResult!.warnings.map((warning) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('• ', style: TextStyle(color: Colors.orange[700])),
-                                    Expanded(
-                                      child: Text(
-                                        warning,
-                                        style: TextStyle(color: Colors.orange[700]),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ] else ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info, color: Colors.blue),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'Click "Validate Script" to check your code for syntax errors',
-                                style: TextStyle(color: Colors.blue),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: _validateScript,
-                              child: const Text('Validate Script'),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Script editor
-                    Container(
-                      height: 400,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: EnhancedScriptEditor(
-                        initialCode: _luaSource,
-                        onCodeChanged: _onCodeChanged,
-                        language: 'lua',
-                        minLines: 15,
-                        maxLines: 30,
-                      ),
-                    ),
 
                     const SizedBox(height: 32),
 

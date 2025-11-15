@@ -22,12 +22,11 @@ void main() {
       expect(find.text('Description'), findsOneWidget);
       expect(find.text('Author Name'), findsOneWidget);
 
-      // Check that other sections are present
-      expect(find.text('Category and Tags'), findsOneWidget);
-      expect(find.text('ICP Integration (Optional)'), findsOneWidget);
-      expect(find.text('Media (Optional)'), findsOneWidget);
-      expect(find.text('Pricing'), findsOneWidget);
-      expect(find.text('Script Code'), findsOneWidget);
+       // Check that other sections are present
+       expect(find.text('Category and Tags'), findsOneWidget);
+       expect(find.text('ICP Integration (Optional)'), findsOneWidget);
+       expect(find.text('Media (Optional)'), findsOneWidget);
+       expect(find.text('Pricing'), findsOneWidget);
     });
 
     testWidgets('Title field is present and accepts input', (WidgetTester tester) async {
