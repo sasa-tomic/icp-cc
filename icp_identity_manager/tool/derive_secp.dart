@@ -11,6 +11,8 @@ void main(List<String> args) {
   final node = root.derivePath("m/44'/223'/0'/0/0");
   final priv = base64Encode(node.privateKey!);
   final pub = base64Encode(node.publicKey);
+  // ignore: avoid_print
   print('private: $priv');
+  // ignore: avoid_print
   print('public: $pub');
 }
