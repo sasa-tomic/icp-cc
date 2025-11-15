@@ -5,6 +5,7 @@ import '../widgets/marketplace_search_bar.dart';
 import '../widgets/script_card.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/error_display.dart';
+import 'script_upload_screen.dart';
 
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({super.key});
@@ -399,7 +400,11 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   void _showUploadScriptDialog(BuildContext context) {
-    Navigator.pushNamed(context, '/upload_script');
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => const ScriptUploadScreen(),
+      ),
+    );
   }
 
   @override

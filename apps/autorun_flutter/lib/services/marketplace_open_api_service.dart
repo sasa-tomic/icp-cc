@@ -346,6 +346,129 @@ class MarketplaceOpenApiService {
       );
     }
   }
+
+  // Upload a new script to the marketplace
+  Future<MarketplaceScript> uploadScript({
+    required String title,
+    required String description,
+    required String category,
+    required List<String> tags,
+    required String luaSource,
+    required String authorName,
+    List<String>? canisterIds,
+    String? iconUrl,
+    List<String>? screenshots,
+    String? version,
+    String? compatibility,
+    double price = 0.0,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/scripts'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'title': title,
+              'description': description,
+              'category': category,
+              'tags': tags,
+              'lua_source': luaSource,
+              'author_name': authorName,
+              'canister_ids': canisterIds ?? [],
+              'icon_url': iconUrl,
+              'screenshots': screenshots ?? [],
+              'version': version ?? '1.0.0',
+              'compatibility': compatibility,
+              'price': price,
+              'is_public': true,
+              'is_approved': false, // Requires admin approval
+            }),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode != 201) {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ?? 'Upload failed: ${response.reasonPhrase}');
+      }
+
+      final data = jsonDecode(response.body);
+      return MarketplaceScript.fromJson(data);
+
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Upload script failed: $e');
+      rethrow;
+    }
+  }
+
+  // Update an existing script
+  Future<MarketplaceScript> updateScript(
+    String scriptId, {
+    String? title,
+    String? description,
+    String? category,
+    List<String>? tags,
+    String? luaSource,
+    List<String>? canisterIds,
+    String? iconUrl,
+    List<String>? screenshots,
+    String? version,
+    String? compatibility,
+    double? price,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (title != null) body['title'] = title;
+      if (description != null) body['description'] = description;
+      if (category != null) body['category'] = category;
+      if (tags != null) body['tags'] = tags;
+      if (luaSource != null) body['lua_source'] = luaSource;
+      if (canisterIds != null) body['canister_ids'] = canisterIds;
+      if (iconUrl != null) body['icon_url'] = iconUrl;
+      if (screenshots != null) body['screenshots'] = screenshots;
+      if (version != null) body['version'] = version;
+      if (compatibility != null) body['compatibility'] = compatibility;
+      if (price != null) body['price'] = price;
+
+      final response = await http
+          .put(
+            Uri.parse('$_baseUrl/scripts/$scriptId'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode != 200) {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ?? 'Update failed: ${response.reasonPhrase}');
+      }
+
+      final data = jsonDecode(response.body);
+      return MarketplaceScript.fromJson(data);
+
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Update script failed: $e');
+      rethrow;
+    }
+  }
+
+  // Delete a script
+  Future<bool> deleteScript(String scriptId) async {
+    try {
+      final response = await http
+          .delete(Uri.parse('$_baseUrl/scripts/$scriptId'))
+          .timeout(_timeout);
+
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+
+      return true;
+
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Delete script failed: $e');
+      rethrow;
+    }
+  }
 }
 
 // Data classes for the open API response
