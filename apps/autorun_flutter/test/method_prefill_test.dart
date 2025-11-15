@@ -4,6 +4,10 @@ import 'package:icp_autorun/main.dart';
 void main() {
   testWidgets('prefills method when selecting a well-known canister', (tester) async {
     await tester.pumpWidget(const IdentityApp());
+    // Navigate to Favorites screen first
+    await tester.tap(find.byIcon(Icons.favorite));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     // Tap a well-known canister entry (NNS Registry) on the Favorites screen
     expect(find.text('Well-known canisters'), findsWidgets);
