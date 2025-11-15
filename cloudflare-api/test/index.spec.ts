@@ -227,6 +227,7 @@ end
 			expect(data.success).toBe(true);
 			expect(data.data.is_valid).toBe(true);
 			expect(data.data.errors).toHaveLength(0);
+		expect(data.data.vm_validation.validation_method).toBe('luaparse');
 		});
 
 		it('/api/v1/scripts/validate detects security issues', async () => {
@@ -255,6 +256,7 @@ end
 			expect(data.success).toBe(true);
 			expect(data.data.is_valid).toBe(false);
 			expect(data.data.errors.some((e: string) => e.includes('loadstring'))).toBe(true);
+			expect(data.data.vm_validation.validation_method).toBe('luaparse');
 		});
 
 		it('/api/v1/scripts/validate detects syntax errors', async () => {
@@ -282,6 +284,7 @@ end
 			expect(data.success).toBe(true);
 			expect(data.data.is_valid).toBe(false);
 			expect(data.data.errors.length > 0).toBe(true);
+			expect(data.data.vm_validation.validation_method).toBe('luaparse');
 		});
 	});
 
