@@ -242,12 +242,7 @@ flutter-local +args="":
 # Run Flutter app with production environment
 flutter-production +args="":
     @echo "==> Starting Flutter app with production environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=USE_CLOUDFLARE=true --dart-define=CLOUDFLARE_ENDPOINT=https://icp-autorun.appwrite.network {{args}}
-
-# Run Flutter app with legacy Appwrite (for backward compatibility)
-flutter-appwrite +args="":
-    @echo "==> Starting Flutter app with Appwrite environment (legacy)"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=USE_CLOUDFLARE=false --dart-define=APPWRITE_ENDPOINT=https://icp-autorun.appwrite.network/v1 {{args}}
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=CLOUDFLARE_ENDPOINT=https://icp-autorun.appwrite.network {{args}}
 
 # =============================================================================
 # Help and Information
