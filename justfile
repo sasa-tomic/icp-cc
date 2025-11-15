@@ -176,7 +176,7 @@ test-with-cloudflare:
     @echo "==> Cleaning up any existing test databases..."
     @{{scripts_dir}}/test_db_manager.sh cleanup
     @echo "==> Starting Cloudflare Workers for tests..."
-    @just cloudflare-test-up-dynamic
+    @just cloudflare-test-up
     @echo "==> Validating Lua example scripts..."
     @{{scripts_dir}}/validation/validate_lua.sh 2>&1 | tee -a {{logs_dir}}/test-output.log || { echo "❌ Lua script validation failed!"; exit 1; }
     @echo "==> Running Flutter analysis..."
@@ -186,7 +186,7 @@ test-with-cloudflare:
     @cd {{flutter_dir}} && flutter test --concurrency=$(nproc) --timeout=360s --quiet 2>&1 | sed 's/.*\r//' > {{logs_dir}}/test-output.log
     @if [ $? -ne 0 ]; then { grep -iE "(FAIL|ERROR)" {{logs_dir}}/test-output.log ; echo "❌ Flutter tests failed!"; exit 1; }; else echo "✅ All Flutter tests passed"; fi
     @echo "==> Stopping Cloudflare Workers..."
-    @just cloudflare-test-down-dynamic
+    @just cloudflare-test-down
 
 # =============================================================================
 # Cleanup
@@ -257,74 +257,8 @@ server-init +args="":
 # Local Development Environment
 # =============================================================================
 
-# Start local Cloudflare Workers development environment
-cloudflare-local-up:
-    @echo "==> Starting local Cloudflare Workers development environment"
-    pkill -f wrangler
-    sleep 0.5
-    pgrep -f wrangler && pkill -9 -f wrangler
-    cd {{cloudflare_dir}} && wrangler dev --config wrangler.local.jsonc --port {{cloudflare_port}} --persist-to .wrangler/state &
-    @just wait-for-cloudflare-internal 30
-
-# Stop local Cloudflare Workers development environment
-cloudflare-local-down:
-    @echo "==> Stopping local Cloudflare Workers development environment"
-    @pkill -f "wrangler dev" || echo "No wrangler processes found"
-    @echo "==> Cloudflare Workers stopped"
-
-# Start Cloudflare Workers for testing (with PID management) - LEGACY
-cloudflare-test-up:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "==> Starting Cloudflare Workers for tests (LEGACY)"
-    
-    # Check if already running
-    if [ -f "{{cloudflare_test_pid}}" ]; then
-        if kill -0 "$(cat {{cloudflare_test_pid}})" 2>/dev/null; then
-            echo "==> Cloudflare Workers already running with PID $(cat {{cloudflare_test_pid}})"
-        else
-            echo "==> Stale PID file found, cleaning up..."
-            rm -f "{{cloudflare_test_pid}}"
-        fi
-    fi
-    
-    # Start wrangler in background and capture PID
-    cd "{{cloudflare_dir}}"
-    wrangler dev --config wrangler.local.jsonc --port {{cloudflare_port}} --persist-to .wrangler/state > /tmp/wrangler-test.log 2>&1 &
-    echo $! > "{{cloudflare_test_pid}}"
-    echo "==> Cloudflare Workers started with PID $(cat {{cloudflare_test_pid}})"
-    echo "==> Waiting for Cloudflare Workers to be ready..."
-    
-    # Wait up to 45 seconds for server to be ready, checking every 2 seconds
-    timeout=45
-    elapsed=0
-    while [ $elapsed -lt $timeout ]; do
-        if curl -s "{{cloudflare_health_url}}" >/dev/null 2>&1; then
-            echo "==> ✅ Cloudflare Workers is healthy and ready for tests!"
-            echo "==> API Endpoint: http://localhost:{{cloudflare_port}}"
-            echo "==> Health Check: {{cloudflare_health_url}}"
-            
-            # Initialize database schema and clear data for clean test environment
-            echo "==> Setting up database for clean test environment..."
-            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --file=migrations/0001_initial_schema.sql >/dev/null 2>&1 || echo "Database schema already exists"
-            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM scripts;" >/dev/null 2>&1 || echo "Scripts table already empty"
-            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM reviews;" >/dev/null 2>&1 || echo "Reviews table already empty"  
-            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM purchases;" >/dev/null 2>&1 || echo "Purchases table already empty"
-            cd "{{cloudflare_dir}}" && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM users;" >/dev/null 2>&1 || echo "Users table already empty"
-            echo "==> ✅ Database setup complete for tests"
-            
-            exit 0
-        fi
-        echo "==> Waiting for server... ($elapsed/$timeout seconds)"
-        sleep 2
-        elapsed=$((elapsed + 2))
-    done
-    echo "==> ❌ Cloudflare Workers failed to start within $timeout seconds"
-    echo "==> Check logs with: cat /tmp/wrangler-test.log"
-    exit 1
-
 # Start Cloudflare Workers for testing with dynamic database
-cloudflare-test-up-dynamic:
+cloudflare-test-up:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Starting Cloudflare Workers for tests with test database"
@@ -373,13 +307,8 @@ cloudflare-test-up-dynamic:
     echo "==> Check logs with: cat /tmp/wrangler-test.log"
     exit 1
 
-# Stop Cloudflare Workers for testing (with PID management)
-cloudflare-test-down:
-    @echo "==> Stopping Cloudflare Workers for testing"
-    @just _stop-cloudflare-workers
-
 # Stop Cloudflare Workers for testing with dynamic database cleanup
-cloudflare-test-down-dynamic:
+cloudflare-test-down:
     @echo "==> Stopping local Cloudflare Workers development environment"
     @just _stop-cloudflare-workers
     @echo "==> Cleaning up test database..."
