@@ -54,11 +54,7 @@ enum AuthenticationScenario {
 /// Custom test matchers for cleaner assertions
 class AuthenticationMatchers {
   static Matcher succeedsWithMessage(String expectedMessage) {
-    return allOf(
-      returnsNormally,
-      completes,
-      predicate((dynamic result) => true),
-    );
+    return completes;
   }
 
   static Matcher failsWithAuthenticationError() {
@@ -85,14 +81,21 @@ class AuthenticationMatchers {
 
   static Matcher hasValidScriptId() {
     return predicate(
-      (String id) => RegExp(r'^[a-f0-9]{64}$').hasMatch(id),
+      (String id) => RegExp(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$').hasMatch(id),
     );
   }
 
   static Matcher hasConsistentBehavior() {
-    return allOf(
-      isA<String>(),
-      hasValidScriptId(),
+    return predicate(
+      (String result) {
+        // Extract script ID from "description: script_id" format
+        final parts = result.split(': ');
+        if (parts.length != 2) return false;
+
+        final scriptId = parts[1].trim();
+        // Check if it matches UUID format
+        return RegExp(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$').hasMatch(scriptId);
+      },
     );
   }
 }
@@ -195,8 +198,8 @@ class UnifiedAuthenticationTestHelper {
         await operation.execute(repository);
       } else {
         final expectedError = scenario.expectedError;
-        expect(
-          () => operation.execute(repository),
+        await expectLater(
+          operation.execute(repository),
           expectedError != null
             ? AuthenticationMatchers.failsWithError(expectedError)
             : AuthenticationMatchers.failsWithAuthenticationError(),

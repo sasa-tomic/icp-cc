@@ -81,7 +81,6 @@ EXAMPLES:
     $0 bash                          # Start a bash shell
     $0 claude --no-build             # Run Claude Code without rebuilding
     $0 claude "just test"            # Run ICP-CC tests in container with Claude Code
-    $0 claude "just cloudflare-local-up"  # Start Cloudflare Workers for local development
     $0 happy --detach                # Start Happy Coder in background
 
 ICP-CC SPECIFIC EXAMPLES:
@@ -232,8 +231,7 @@ run_tool() {
         esac
 
         log_info "Container provides isolation while giving $TOOL full ICP-CC project access"
-        log_info "Available ports: 8787 (Cloudflare Workers API), 3000 (Flutter web)"
-        log_info "Wrangler runs as managed process within container for efficiency"
+        log_info "Available ports: 3000 (Flutter web)"
         log_warning "Press Ctrl+D to exit $TOOL"
 
         # Use docker compose run for interactive session instead of up
@@ -247,10 +245,6 @@ cleanup() {
         log_info "Stopping detached containers..."
         docker compose -f "$COMPOSE_FILE" down
     fi
-
-    # Always stop wrangler process to ensure clean state for next run
-    log_info "Cleaning up wrangler process..."
-    docker compose -f "$COMPOSE_FILE" exec -T agent agent/wrangler-manager.sh stop >/dev/null 2>&1 || true
 }
 
 # Set up signal handlers

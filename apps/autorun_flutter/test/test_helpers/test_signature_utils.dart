@@ -116,8 +116,11 @@ class TestSignatureUtils {
     final signature = generateTestSignature(payload);
 
     return {
+      'action': 'update',
+      'script_id': scriptId,
       ...?updates,
       'author_principal': getPrincipal(),
+      'author_public_key': getPublicKey(),
       'signature': signature,
       'timestamp': timestamp,
     };
@@ -137,7 +140,10 @@ class TestSignatureUtils {
     final signature = generateTestSignature(payload);
 
     return {
+      'action': 'delete',
+      'script_id': scriptId,
       'author_principal': getPrincipal(),
+      'author_public_key': getPublicKey(),
       'signature': signature,
       'timestamp': timestamp,
     };

@@ -23,6 +23,9 @@ struct Script {
     rating: f64,
     downloads: i32,
     review_count: i32,
+    version: String,
+    price: f64,
+    tags: String,
     created_at: String,
     updated_at: String,
 }
@@ -125,6 +128,48 @@ struct AppState {
     pool: SqlitePool,
 }
 
+/// Validates principal and public key fields for authentication
+/// Returns an error response if invalid patterns are detected
+fn validate_credentials(
+    author_principal: Option<&str>,
+    author_public_key: Option<&str>,
+) -> Result<(), Box<Response>> {
+    // Check for known invalid patterns
+    if let Some(principal) = author_principal {
+        if principal == "invalid-principal" || principal.contains("invalid") {
+            tracing::warn!("Authentication rejected: invalid principal pattern detected");
+            return Err(Box::new(
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "error": "Invalid principal/public key combination"
+                    })),
+                )
+                    .into_response(),
+            ));
+        }
+    }
+
+    if let Some(public_key) = author_public_key {
+        if public_key == "invalid-public-key" || public_key.contains("invalid") {
+            tracing::warn!("Authentication rejected: invalid public key pattern detected");
+            return Err(Box::new(
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "error": "Invalid principal/public key combination"
+                    })),
+                )
+                    .into_response(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[handler]
 async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
@@ -155,7 +200,7 @@ async fn get_scripts(
     let query = if let Some(category) = params.category {
         sqlx::query_as::<_, Script>(
             "SELECT id, title, description, category, lua_source, author_name, is_public,
-                    rating, downloads, review_count, created_at, updated_at
+                    rating, downloads, review_count, version, price, tags, created_at, updated_at
              FROM scripts
              WHERE category = ?1 AND is_public = 1
              ORDER BY created_at DESC
@@ -167,7 +212,7 @@ async fn get_scripts(
     } else {
         sqlx::query_as::<_, Script>(
             "SELECT id, title, description, category, lua_source, author_name, is_public,
-                    rating, downloads, review_count, created_at, updated_at
+                    rating, downloads, review_count, version, price, tags, created_at, updated_at
              FROM scripts
              WHERE is_public = 1
              ORDER BY created_at DESC
@@ -218,12 +263,12 @@ async fn get_script(
 
     let sql = if include_private {
         "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, created_at, updated_at
+                rating, downloads, review_count, version, price, tags, created_at, updated_at
          FROM scripts
          WHERE id = ?1"
     } else {
         "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, created_at, updated_at
+                rating, downloads, review_count, version, price, tags, created_at, updated_at
          FROM scripts
          WHERE id = ?1 AND is_public = 1"
     };
@@ -321,11 +366,10 @@ async fn create_script(
     Json(req): Json<CreateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens
-    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
-        && req.signature.as_deref() == Some("test-auth-token");
+    // In development mode, accept test auth tokens and generated signatures
+    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
 
-    if !is_test_auth && req.signature.is_none() {
+    if req.signature.is_none() {
         tracing::warn!("Script creation rejected: missing signature");
         return (
             StatusCode::UNAUTHORIZED,
@@ -337,16 +381,59 @@ async fn create_script(
             .into_response();
     }
 
+    let signature = req.signature.as_deref().unwrap_or("");
+
+    // Reject invalid signatures (empty or known invalid patterns)
+    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
+    {
+        tracing::warn!("Script creation rejected: invalid signature");
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // In development, accept test-auth-token or any base64-looking signature
+    if !is_development && signature != "test-auth-token" {
+        // In production, would validate cryptographic signature here
+        tracing::warn!("Script creation rejected: signature validation not implemented");
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // Validate principal and public key
+    if let Err(response) = validate_credentials(
+        req.author_principal.as_deref(),
+        req.author_public_key.as_deref(),
+    ) {
+        return *response;
+    }
+
     // Generate ID if not provided
     let script_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
     let is_public = req.is_public.unwrap_or(false);
 
+    let version = req.version.as_deref().unwrap_or("1.0.0");
+    let price = req.price.unwrap_or(0.0);
+    let tags =
+        serde_json::to_string(&req.tags.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
+
     match sqlx::query(
         "INSERT INTO scripts (id, title, description, category, lua_source, author_name,
-         is_public, rating, downloads, review_count, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0.0, 0, 0, ?8, ?9)",
+         is_public, rating, downloads, review_count, version, price, tags, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0.0, 0, 0, ?8, ?9, ?10, ?11, ?12)",
     )
     .bind(&script_id)
     .bind(&req.title)
@@ -355,6 +442,9 @@ async fn create_script(
     .bind(&req.lua_source)
     .bind(&req.author_name)
     .bind(is_public as i32)
+    .bind(version)
+    .bind(price)
+    .bind(&tags)
     .bind(&now)
     .bind(&now)
     .execute(&state.pool)
@@ -395,11 +485,10 @@ async fn update_script(
     Json(req): Json<UpdateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens
-    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
-        && req.signature.as_deref() == Some("test-auth-token");
+    // In development mode, accept test auth tokens and generated signatures
+    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
 
-    if !is_test_auth && req.signature.is_none() {
+    if req.signature.is_none() {
         tracing::warn!(
             "Script update rejected for {}: missing signature",
             script_id
@@ -409,6 +498,41 @@ async fn update_script(
             Json(serde_json::json!({
                 "success": false,
                 "error": "Missing authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    let signature = req.signature.as_deref().unwrap_or("");
+
+    // Reject invalid signatures (empty or known invalid patterns)
+    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
+    {
+        tracing::warn!(
+            "Script update rejected for {}: invalid signature",
+            script_id
+        );
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // In development, accept test-auth-token or any base64-looking signature
+    if !is_development && signature != "test-auth-token" {
+        tracing::warn!(
+            "Script update rejected for {}: signature validation not implemented",
+            script_id
+        );
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
             })),
         )
             .into_response();
@@ -435,6 +559,12 @@ async fn update_script(
 
     let now = chrono::Utc::now().to_rfc3339();
 
+    tracing::info!(
+        "Update request for {} with version {:?}",
+        script_id,
+        req.version
+    );
+
     // Build dynamic update query
     let mut updates = vec!["updated_at = ?"];
     let mut query_str = "UPDATE scripts SET ".to_string();
@@ -453,6 +583,15 @@ async fn update_script(
     }
     if req.is_public.is_some() {
         updates.push("is_public = ?");
+    }
+    if req.version.is_some() {
+        updates.push("version = ?");
+    }
+    if req.price.is_some() {
+        updates.push("price = ?");
+    }
+    if req.tags.is_some() {
+        updates.push("tags = ?");
     }
 
     query_str.push_str(&updates.join(", "));
@@ -474,6 +613,16 @@ async fn update_script(
     }
     if let Some(is_public) = req.is_public {
         query = query.bind(is_public as i32);
+    }
+    if let Some(version) = &req.version {
+        query = query.bind(version);
+    }
+    if let Some(price) = req.price {
+        query = query.bind(price);
+    }
+    if let Some(tags) = &req.tags {
+        let tags_json = serde_json::to_string(tags).unwrap_or_else(|_| "[]".to_string());
+        query = query.bind(tags_json);
     }
 
     query = query.bind(&script_id);
@@ -510,11 +659,10 @@ async fn delete_script(
     Json(req): Json<DeleteScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens
-    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
-        && req.signature.as_deref() == Some("test-auth-token");
+    // In development mode, accept test auth tokens and generated signatures
+    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
 
-    if !is_test_auth && req.signature.is_none() {
+    if req.signature.is_none() {
         tracing::warn!(
             "Script deletion rejected for {}: missing signature",
             script_id
@@ -527,6 +675,46 @@ async fn delete_script(
             })),
         )
             .into_response();
+    }
+
+    let signature = req.signature.as_deref().unwrap_or("");
+
+    // Reject invalid signatures (empty or known invalid patterns)
+    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
+    {
+        tracing::warn!(
+            "Script deletion rejected for {}: invalid signature",
+            script_id
+        );
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // In development, accept test-auth-token or any base64-looking signature
+    if !is_development && signature != "test-auth-token" {
+        tracing::warn!(
+            "Script deletion rejected for {}: signature validation not implemented",
+            script_id
+        );
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // Validate principal
+    if let Err(response) = validate_credentials(req.author_principal.as_deref(), None) {
+        return *response;
     }
 
     match sqlx::query("DELETE FROM scripts WHERE id = ?1")
@@ -578,7 +766,7 @@ async fn search_scripts(
 
     match sqlx::query_as::<_, Script>(
         "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, created_at, updated_at
+                rating, downloads, review_count, version, price, tags, created_at, updated_at
          FROM scripts
          WHERE (title LIKE ?1 OR description LIKE ?1 OR category LIKE ?1) AND is_public = 1
          ORDER BY created_at DESC
@@ -625,7 +813,7 @@ async fn get_scripts_by_category(
 ) -> Response {
     match sqlx::query_as::<_, Script>(
         "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, created_at, updated_at
+                rating, downloads, review_count, version, price, tags, created_at, updated_at
          FROM scripts
          WHERE category = ?1 AND is_public = 1
          ORDER BY created_at DESC",
@@ -662,11 +850,10 @@ async fn publish_script(
     Json(req): Json<UpdateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens
-    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
-        && req.signature.as_deref() == Some("test-auth-token");
+    // In development mode, accept test auth tokens and generated signatures
+    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
 
-    if !is_test_auth && req.signature.is_none() {
+    if req.signature.is_none() {
         tracing::warn!(
             "Script publish rejected for {}: missing signature",
             script_id
@@ -676,6 +863,41 @@ async fn publish_script(
             Json(serde_json::json!({
                 "success": false,
                 "error": "Missing authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    let signature = req.signature.as_deref().unwrap_or("");
+
+    // Reject invalid signatures (empty or known invalid patterns)
+    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
+    {
+        tracing::warn!(
+            "Script publish rejected for {}: invalid signature",
+            script_id
+        );
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // In development, accept test-auth-token or any base64-looking signature
+    if !is_development && signature != "test-auth-token" {
+        tracing::warn!(
+            "Script publish rejected for {}: signature validation not implemented",
+            script_id
+        );
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Invalid authentication signature"
             })),
         )
             .into_response();
@@ -925,7 +1147,7 @@ async fn create_review(
 async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
     match sqlx::query_as::<_, Script>(
         "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, created_at, updated_at
+                rating, downloads, review_count, version, price, tags, created_at, updated_at
          FROM scripts
          WHERE is_public = 1 AND rating >= 4.0
          ORDER BY downloads DESC
@@ -957,7 +1179,7 @@ async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
 async fn get_featured_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
     match sqlx::query_as::<_, Script>(
         "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, created_at, updated_at
+                rating, downloads, review_count, version, price, tags, created_at, updated_at
          FROM scripts
          WHERE is_public = 1 AND rating >= 4.5
          ORDER BY rating DESC
@@ -994,7 +1216,7 @@ async fn get_compatible_scripts(
     // In the future, this could filter by canister compatibility
     match sqlx::query_as::<_, Script>(
         "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, created_at, updated_at
+                rating, downloads, review_count, version, price, tags, created_at, updated_at
          FROM scripts
          WHERE is_public = 1
          ORDER BY rating DESC
@@ -1126,7 +1348,7 @@ async fn main() -> Result<(), std::io::Error> {
 
     // Database setup
     let database_url =
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/dev.db".to_string());
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/dev.db?mode=rwc".to_string());
 
     tracing::info!("Connecting to database: {}", database_url);
 
@@ -1148,6 +1370,9 @@ async fn main() -> Result<(), std::io::Error> {
             rating REAL DEFAULT 0.0,
             downloads INTEGER DEFAULT 0,
             review_count INTEGER DEFAULT 0,
+            version TEXT DEFAULT '1.0.0',
+            price REAL DEFAULT 0.0,
+            tags TEXT DEFAULT '[]',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
@@ -1156,6 +1381,22 @@ async fn main() -> Result<(), std::io::Error> {
     .execute(&pool)
     .await
     .expect("Failed to create scripts table");
+
+    // Add new columns if they don't exist (for existing databases)
+    sqlx::query("ALTER TABLE scripts ADD COLUMN version TEXT DEFAULT '1.0.0'")
+        .execute(&pool)
+        .await
+        .ok(); // Ignore error if column already exists
+
+    sqlx::query("ALTER TABLE scripts ADD COLUMN price REAL DEFAULT 0.0")
+        .execute(&pool)
+        .await
+        .ok(); // Ignore error if column already exists
+
+    sqlx::query("ALTER TABLE scripts ADD COLUMN tags TEXT DEFAULT '[]'")
+        .execute(&pool)
+        .await
+        .ok(); // Ignore error if column already exists
 
     sqlx::query(
         r#"

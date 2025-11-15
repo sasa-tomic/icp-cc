@@ -1,26 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
-import '../test_helpers/miniflare_script_repository.dart';
-import '../test_helpers/miniflare_test_helper.dart';
+import '../test_helpers/poem_script_repository.dart';
+import '../test_helpers/poem_test_helper.dart';
 
-/// Integration tests for MiniflareScriptRepository
-/// These tests verify that the repository can work with a real Miniflare deployment
+/// Integration tests for PoemScriptRepository
+/// These tests verify that the repository can work with the Poem API deployment
 void main() {
-  group('MiniflareScriptRepository Integration Tests', () {
-    late MiniflareScriptRepository repository;
+  group('PoemScriptRepository Integration Tests', () {
+    late PoemScriptRepository repository;
     final List<String> createdScriptIds = [];
 
     setUpAll(() async {
       // Setup test environment - REQUIRE server for e2e tests
       // Wait for server to be ready with increased timeout
-      final serverReady = await MiniflareTestHelper.waitForMiniflare(
+      final serverReady = await PoemTestHelper.waitForPoemApi(
         timeout: Duration(seconds: 60),
         checkInterval: Duration(seconds: 2),
       );
       if (!serverReady) {
         throw Exception(
-          'Miniflare server failed to start within timeout. '
-          'Start it with: npm run dev in the cloudflare-api directory. '
+          'Poem API server failed to start within timeout. '
+          'Start it with: just api-up from the repository root. '
           'E2E tests MUST NOT run in offline mode or use mocks/fallbacks.',
         );
       }
@@ -28,12 +28,12 @@ void main() {
 
     setUp(() async {
       // Create a fresh repository for each test
-      repository = MiniflareTestHelper.createTestRepository();
+      repository = PoemTestHelper.createTestRepository();
     });
 
     tearDown(() async {
       // Clean up created scripts
-      await MiniflareTestHelper.cleanupTestData(
+      await PoemTestHelper.cleanupTestData(
         scriptIds: createdScriptIds,
       );
       createdScriptIds.clear();
@@ -45,7 +45,7 @@ void main() {
     group('Basic CRUD Operations', () {
       test('should create and retrieve script', () async {
         // Arrange
-        final testScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final testScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'CRUD Test Script',
         );
 
@@ -62,7 +62,7 @@ void main() {
 
       test('should update existing script', () async {
         // Arrange
-        final originalScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final originalScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'Original Title',
         );
         final savedScriptId = await repository.saveScript(originalScript);
@@ -72,6 +72,8 @@ void main() {
         final updatedMetadata = Map<String, dynamic>.from(originalScript.metadata);
         updatedMetadata['version'] = '2.0.0';
         
+        print('DEBUG updated metadata: $updatedMetadata');
+
         final updatedScript = ScriptRecord(
           id: savedScriptId,
           title: 'Updated Title',
@@ -90,7 +92,7 @@ void main() {
 
       test('should delete script', () async {
         // Arrange
-        final testScript = MiniflareScriptRepositoryTestExtensions.createTestScript();
+        final testScript = PoemScriptRepositoryTestExtensions.createTestScript();
         final savedScriptId = await repository.saveScript(testScript);
         createdScriptIds.add(savedScriptId);
 
@@ -107,7 +109,7 @@ void main() {
 
       test('should list all scripts', () async {
         // Arrange
-        final testScripts = MiniflareScriptRepositoryTestExtensions.createTestScripts(count: 3);
+        final testScripts = PoemScriptRepositoryTestExtensions.createTestScripts(count: 3);
         
         for (final script in testScripts) {
           final savedScriptId = await repository.saveScript(script);
@@ -127,7 +129,7 @@ void main() {
     group('Search and Filtering', () {
       test('should search scripts by title', () async {
         // Arrange
-        final searchableScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final searchableScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'Unique Searchable Title',
         );
         final savedScriptId = await repository.saveScript(searchableScript);
@@ -142,7 +144,7 @@ void main() {
 
       test('should filter scripts by category', () async {
         // Arrange
-        final devScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final devScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'Dev Script',
           metadata: {
             'description': 'Development script for testing',
@@ -155,7 +157,7 @@ void main() {
             'isPublic': true,
           },
         );
-        final utilScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final utilScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'Util Script',
           metadata: {
             'description': 'Utility script for testing',
@@ -188,7 +190,7 @@ void main() {
 
       test('should get only public scripts', () async {
         // Arrange
-        final publicScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final publicScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'Public Script',
           metadata: {
             'description': 'Public script for testing',
@@ -201,7 +203,7 @@ void main() {
             'isPublic': true,
           },
         );
-        final privateScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final privateScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'Private Script',
           metadata: {
             'description': 'Private script for testing',
@@ -231,7 +233,7 @@ void main() {
     group('Publishing', () {
       test('should publish script successfully', () async {
         // Arrange
-        final privateScript = MiniflareScriptRepositoryTestExtensions.createTestScript(
+        final privateScript = PoemScriptRepositoryTestExtensions.createTestScript(
           title: 'Script to Publish',
           metadata: {
             'description': 'Script to be published',
@@ -269,7 +271,7 @@ void main() {
       test('should get accurate script count', () async {
         // Arrange
         final initialCount = await repository.getScriptsCount();
-        final newScript = MiniflareScriptRepositoryTestExtensions.createTestScript();
+        final newScript = PoemScriptRepositoryTestExtensions.createTestScript();
         final savedScriptId = await repository.saveScript(newScript);
         createdScriptIds.add(savedScriptId);
 
@@ -284,7 +286,7 @@ void main() {
     group('Error Handling', () {
       test('should handle actual server errors appropriately', () async {
         // Arrange - Use a non-existent server URL to test real error handling
-        final offlineRepository = MiniflareTestHelper.createTestRepository(
+        final offlineRepository = PoemTestHelper.createTestRepository(
           baseUrl: 'http://localhost:9999',
         );
 

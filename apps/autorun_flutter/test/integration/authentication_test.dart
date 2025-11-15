@@ -149,7 +149,7 @@ void main() {
         for (final repository in repositories) {
           try {
             await expectLater(
-              () => repository.saveScript(script),
+              repository.saveScript(script),
               AuthenticationMatchers.succeedsWithMessage('Repository factory test'),
             );
           } finally {

@@ -233,31 +233,6 @@
 - ⏳ Implement CI/CD pipeline with security scanning
 - ⏳ **HTTP Testing Guidelines**: Document TestWidgetsFlutterBinding vs real HTTP testing patterns (see `HTTP_TEST_DEBUGGING_ROOT_CAUSE.md`)
 
-#### Database & Testing Infrastructure
-- ✅ **IMPORTANT**: Current E2E tests use REAL Cloudflare D1 database (not mocks)
-  - Local D1 instance: `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite`
-  - Database initialized with proper schema via `wrangler d1 execute icp-marketplace-db --local --file=migrations/0001_initial_schema.sql`
-  - Test data includes 1 real script for comprehensive API testing
-  - All 20 integration tests validate actual API endpoints and database operations
-- **TODO**: Add test data seeding for more comprehensive testing scenarios
-- **TODO**: Add separate test database configuration for isolated testing
-- **TODO**: Implement database cleanup/reset between test runs
-- **HIGH PRIORITY**: Automate CF infrastructure setup/teardown for test runs
-  - **Setup Phase**: Automatically spin up local Cloudflare Workers and D1 database before tests
-    - Start local Wrangler dev server programmatically
-    - Initialize fresh D1 database with schema migrations
-    - Seed test data for comprehensive testing scenarios
-    - Wait for server to be healthy before proceeding
-    - Handle port conflicts and environment cleanup
-  - **Teardown Phase**: Automatically clean up infrastructure after tests complete
-    - Stop Wrangler dev server gracefully
-    - Clean up temporary database files
-    - Reset environment state
-    - Ensure no lingering processes or ports
-  - **Implementation**: Add to `test/integration/comprehensive_e2e_test.dart` in `setUpAll`/`tearDownAll`
-  - **Alternative**: Create separate test runner script that manages full lifecycle
-  - **Benefits**: Isolated test environment, no manual setup, CI/CD compatibility
-
 ---
 
 ## Documentation Updates
@@ -292,7 +267,6 @@
 ## Infrastructure & Operations
 
 ### Backup & Disaster Recovery
-- [ ] **Database Backups**: Configure automated D1 database backups
 - [ ] **Backup Testing**: Regularly test backup restoration procedures
 - [ ] **Rollback Plan**: Document rollback procedures for deployments
 

@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
-import 'miniflare_script_repository.dart';
+import 'poem_script_repository.dart';
 
 /// Test helper utilities for API server integration testing
-class MiniflareTestHelper {
+class PoemTestHelper {
   static String get defaultBaseUrl {
     final portFile = File('/tmp/icp-api.port');
     if (!portFile.existsSync()) {
@@ -19,8 +19,8 @@ class MiniflareTestHelper {
     return 'http://127.0.0.1:$port';
   }
   
-  /// Check if Miniflare server is running and available
-  static Future<bool> isMiniflareRunning({String? baseUrl}) async {
+  /// Check if Poem API server is running and available
+  static Future<bool> isPoemApiRunning({String? baseUrl}) async {
     try {
       final response = await http.get(
         Uri.parse('${baseUrl ?? defaultBaseUrl}/'),
@@ -33,8 +33,8 @@ class MiniflareTestHelper {
     }
   }
 
-  /// Wait for Miniflare server to be available (with timeout)
-  static Future<bool> waitForMiniflare({
+  /// Wait for Poem API server to be available (with timeout)
+  static Future<bool> waitForPoemApi({
     String? baseUrl,
     Duration timeout = const Duration(seconds: 30),
     Duration checkInterval = const Duration(seconds: 1),
@@ -42,7 +42,7 @@ class MiniflareTestHelper {
     final stopwatch = Stopwatch()..start();
     
     while (stopwatch.elapsed < timeout) {
-      if (await isMiniflareRunning(baseUrl: baseUrl)) {
+      if (await isPoemApiRunning(baseUrl: baseUrl)) {
         return true;
       }
       await Future.delayed(checkInterval);
@@ -52,21 +52,21 @@ class MiniflareTestHelper {
   }
 
   /// Create a test repository with proper error handling for tests
-  static MiniflareScriptRepository createTestRepository({
+  static PoemScriptRepository createTestRepository({
     String? baseUrl,
   }) {
-    return MiniflareScriptRepository(
+    return PoemScriptRepository(
       baseUrl: baseUrl ?? defaultBaseUrl,
       client: http.Client(), // Always use real HTTP client for e2e tests
     );
   }
 
   /// Setup test environment with API server checks
-  static Future<void> setupMiniflareTestEnvironment({
+  static Future<void> setupPoemTestEnvironment({
     String? baseUrl,
     bool requireServer = true, // Changed default to true for e2e tests
   }) async {
-    final isRunning = await isMiniflareRunning(baseUrl: baseUrl);
+    final isRunning = await isPoemApiRunning(baseUrl: baseUrl);
 
     if (!isRunning) {
       throw Exception(
@@ -85,7 +85,7 @@ class MiniflareTestHelper {
     if (scriptIds == null || scriptIds.isEmpty) return;
     
     try {
-      final repository = MiniflareScriptRepository(baseUrl: baseUrl);
+      final repository = PoemScriptRepository(baseUrl: baseUrl);
       
       for (final scriptId in scriptIds) {
         await repository.deleteScript(scriptId);
@@ -99,8 +99,8 @@ class MiniflareTestHelper {
   }
 }
 
-/// Test extension methods for MiniflareScriptRepository
-extension MiniflareScriptRepositoryTestExtensions on MiniflareScriptRepository {
+/// Test extension methods for PoemScriptRepository
+extension PoemScriptRepositoryTestExtensions on PoemScriptRepository {
   /// Create test script data for testing
   static ScriptRecord createTestScript({
     String? id,
@@ -134,7 +134,7 @@ end''',
         'authorPrincipal': '2vxsx-fae',
         'version': '1.0.0',
         'price': 0.0,
-        'isPublic': false,
+        'isPublic': true,
       },
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),

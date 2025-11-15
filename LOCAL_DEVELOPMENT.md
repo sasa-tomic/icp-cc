@@ -277,13 +277,3 @@ The tests automatically start/stop the API server, so you can also just run:
 just test
 ```
 
-## Migration from Cloudflare Workers
-
-This project previously used Cloudflare Workers. The Poem-based API server provides:
-
-✅ **No port conflicts** - random port allocation
-✅ **Faster startup** - 2-3 seconds vs 10+ seconds
-✅ **Better debugging** - standard Rust tooling
-✅ **Simpler setup** - no wrangler/node dependencies
-✅ **Type safety** - compile-time guarantees
-✅ **Cleaner architecture** - easier to test and maintain

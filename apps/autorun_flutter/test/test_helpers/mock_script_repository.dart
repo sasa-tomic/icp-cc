@@ -35,7 +35,7 @@ class MockScriptRepository extends ScriptRepository {
     _scripts.addAll(scripts);
   }
 
-  /// Additional methods that match MiniflareScriptRepository interface
+  /// Additional methods that match PoemScriptRepository interface
   Future<List<ScriptRecord>> getPublicScripts() async {
     if (_shouldFail) throw Exception('Mock repository failure');
     return _scripts.where((s) => s.metadata['isPublic'] == true).toList();

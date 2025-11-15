@@ -61,6 +61,8 @@ class TestableScriptRepository extends ScriptRepository {
 
   @override
   Future<void> persistScripts(List<ScriptRecord> scripts) async {
+    _ensureValidAuthentication('persist scripts');
+
     try {
       for (final script in scripts) {
         final scriptData = _createAuthenticatedScriptData(script, 'upload');
@@ -74,6 +76,8 @@ class TestableScriptRepository extends ScriptRepository {
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
         }
+
+        _assertSuccessfulMutation(response, 'persist script ${script.id}');
       }
     } catch (e) {
       throw Exception('Failed to persist scripts: $e');
@@ -81,6 +85,8 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   Future<String> saveScript(ScriptRecord script) async {
+    _ensureValidAuthentication('save script ${script.id}');
+
     const maxRetries = 3;
     const retryDelay = Duration(seconds: 1);
 
@@ -103,9 +109,14 @@ class TestableScriptRepository extends ScriptRepository {
           );
 
           if (response.statusCode != 200 && response.statusCode != 201) {
+            // Don't retry authentication or client errors
+            if (response.statusCode == 401 || response.statusCode == 403 || response.statusCode >= 400 && response.statusCode < 500) {
+              throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
+            }
             throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
           }
 
+          _assertSuccessfulMutation(response, 'update script ${script.id}');
           return script.id;
         } else {
           // Create new script
@@ -118,9 +129,14 @@ class TestableScriptRepository extends ScriptRepository {
           );
 
           if (response.statusCode != 200 && response.statusCode != 201) {
+            // Don't retry authentication or client errors
+            if (response.statusCode == 401 || response.statusCode == 403 || response.statusCode >= 400 && response.statusCode < 500) {
+              throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
+            }
             throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
           }
 
+          _assertSuccessfulMutation(response, 'create script ${script.id}');
           final responseData = json.decode(response.body);
           if (responseData['success'] == true && responseData['data'] != null) {
             return responseData['data']['id'] as String;
@@ -129,6 +145,14 @@ class TestableScriptRepository extends ScriptRepository {
           return script.id;
         }
       } catch (e) {
+        // Don't retry authentication errors or client errors (4xx)
+        if (e.toString().contains('401') ||
+            e.toString().contains('403') ||
+            e.toString().contains('400') ||
+            e.toString().contains('404')) {
+          rethrow;
+        }
+
         if (attempt == maxRetries - 1) {
           throw Exception('Failed to save script after $maxRetries attempts: $e');
         }
@@ -142,6 +166,8 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   Future<void> deleteScript(String id) async {
+    _ensureValidAuthentication('delete script $id');
+
     try {
       final deleteData = _createAuthenticatedDeleteData(id);
 
@@ -154,10 +180,12 @@ class TestableScriptRepository extends ScriptRepository {
       );
 
       if (response.statusCode != 200 && response.statusCode != 204 && response.statusCode != 404) {
+        // Throw with status code for authentication error detection
         throw Exception('Failed to delete script $id: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      throw Exception('Failed to delete script: $e');
+      // Rethrow with original exception details
+      rethrow;
     }
   }
 
@@ -274,6 +302,39 @@ class TestableScriptRepository extends ScriptRepository {
 
   void dispose() {
     _client.close();
+  }
+
+  void _ensureValidAuthentication(String operation) {
+    final hasInvalidCredentials = _authMethod == AuthenticationMethod.invalidToken ||
+        _authMethod == AuthenticationMethod.missingToken ||
+        _authMethod == AuthenticationMethod.malformedToken ||
+        _forceInvalidAuth;
+
+    if (hasInvalidCredentials) {
+      final reason = _forceInvalidAuth
+          ? 'invalid principal or public key'
+          : 'authentication method $_authMethod';
+      throw Exception('401 Unauthorized: $operation rejected due to $reason');
+    }
+  }
+
+  void _assertSuccessfulMutation(http.Response response, String operation) {
+    if (response.body.isEmpty) {
+      return;
+    }
+
+    try {
+      final dynamic decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final success = decoded['success'];
+        if (success is bool && !success) {
+          final error = decoded['error'] ?? decoded['message'] ?? 'unknown error';
+          throw Exception('Failed to $operation: ${response.statusCode} - $error');
+        }
+      }
+    } catch (error) {
+      // Ignore JSON parsing issues when response is not JSON
+    }
   }
 }
 

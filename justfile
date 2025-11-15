@@ -63,7 +63,8 @@ api-up port="0":
         if [ -f "{{logs_dir}}/api-server.log" ]; then
             # Extract port from log line like "listening addr=socket://127.0.0.1:8080"
             # Look for the "listening" line specifically
-            api_port=$(grep -oP 'listening.*?127\.0\.0\.1:\K\d+' {{logs_dir}}/api-server.log | tail -1 || true)
+            # Use -a to treat binary files (with ANSI codes) as text
+            api_port=$(grep -aoP 'listening.*?127\.0\.0\.1:\K\d+' {{logs_dir}}/api-server.log | tail -1 || true)
             if [ -n "$api_port" ]; then
                 echo "$api_port" > {{api_port_file}}
                 # Test if server is responding
@@ -89,15 +90,37 @@ api-down:
     set -euo pipefail
     echo "==> Stopping API server"
 
+    # Clean up processes by port first (before deleting port file)
+    if [ -f "{{api_port_file}}" ]; then
+        api_port=$(cat "{{api_port_file}}")
+        pids=$(lsof -ti:$api_port 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                echo "==> Cleaning up process $pid on port $api_port"
+                kill -TERM "$pid" 2>/dev/null || true
+                sleep 1
+                # Force kill if still running
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -KILL "$pid" 2>/dev/null || true
+                fi
+            done
+        fi
+    fi
+
+    # Clean up by PID and kill child processes
     if [ -f "{{api_pid_file}}" ]; then
         pid=$(cat "{{api_pid_file}}")
         if kill -0 "$pid" 2>/dev/null; then
-            echo "==> Stopping API server with PID $pid"
-            kill -TERM "$pid"
-            sleep 2
+            echo "==> Stopping API server wrapper with PID $pid"
+            # Kill all child processes first
+            pkill -P "$pid" 2>/dev/null || true
+            sleep 1
+            # Then kill the parent
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 1
             if kill -0 "$pid" 2>/dev/null; then
                 echo "==> Force killing API server"
-                kill -KILL "$pid"
+                kill -KILL "$pid" 2>/dev/null || true
             fi
             echo "==> ✅ API server stopped"
         else
@@ -107,18 +130,8 @@ api-down:
         rm -f "{{api_port_file}}"
     else
         echo "==> No API server PID file found"
-    fi
-
-    # Clean up any remaining processes on the port if we know it
-    if [ -f "{{api_port_file}}" ]; then
-        api_port=$(cat "{{api_port_file}}")
-        pids=$(lsof -ti:$api_port 2>/dev/null || true)
-        if [ -n "$pids" ]; then
-            for pid in $pids; do
-                echo "==> Cleaning up process $pid on port $api_port"
-                kill -TERM "$pid" 2>/dev/null || true
-            done
-        fi
+        # Still remove port file if it exists
+        rm -f "{{api_port_file}}"
     fi
 
 # Restart the API server
@@ -279,19 +292,14 @@ rust-tests:
 # Internal Flutter testing target
 flutter-tests:
     @echo "==> Running Flutter tests with API server..."
-    @just test-with-api
-
-# Run Flutter tests with API server
-test-with-api:
-    @echo "==> Starting API server for tests..."
     @just api-up
     @echo "==> Running Flutter analysis..."
-    @cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log
+    @cd {{flutter_dir}} && flutter analyze 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
     @if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi
     @echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --reporter=github --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log
-    @if grep -qiE "FAILED:|ERROR:|Some tests failed\\." {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi
+    @cd {{flutter_dir}} && flutter test --reporter=github --concurrency=$(nproc) --timeout=360s 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
+    @if grep -qiE "❌ " {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi
     @echo "✅ All Flutter tests passed"
     @just api-down
 

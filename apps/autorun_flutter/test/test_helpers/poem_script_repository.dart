@@ -5,13 +5,12 @@ import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
 import 'test_signature_utils.dart';
 
-/// Repository implementation that uses a real API server deployment
-/// for end-to-end testing instead of in-memory mocks.
-class MiniflareScriptRepository extends ScriptRepository {
+/// Repository implementation that uses the Poem API server for end-to-end tests.
+class PoemScriptRepository extends ScriptRepository {
   final String baseUrl;
   final http.Client _client;
 
-  MiniflareScriptRepository({
+  PoemScriptRepository({
     String? baseUrl,
     http.Client? client,
   }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
@@ -69,17 +68,19 @@ class MiniflareScriptRepository extends ScriptRepository {
         scriptData['signature'] = 'test-auth-token';
         scriptData['action'] = 'upload';
 
-        
+
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(scriptData),
         );
 
-        
+
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
         }
+
+        _assertSuccessfulMutation(response, 'persist script ${script.id}');
       }
     } catch (e) {
       // For e2e tests, fail if server is not available
@@ -92,12 +93,14 @@ class MiniflareScriptRepository extends ScriptRepository {
   Map<String, dynamic> _scriptToApiJson(ScriptRecord script) {
     // Always generate a fresh timestamp for the API request
     final timestamp = DateTime.now().toUtc().toIso8601String();
-    
+
     return {
       'title': script.title,
       'description': script.metadata['description'] ?? '',
       'category': script.metadata['category'] ?? 'Development',
-      'tags': script.metadata['tags'] ?? [],
+      'tags': (script.metadata['tags'] as List<dynamic>? ?? const [])
+          .map((tag) => tag.toString())
+          .toList(),
       'lua_source': script.luaSource,
       'author_name': script.metadata['authorName'] ?? 'Anonymous',
       'author_id': script.metadata['authorId'] ?? 'test-author-id',
@@ -106,7 +109,7 @@ class MiniflareScriptRepository extends ScriptRepository {
       'upload_signature': script.metadata['uploadSignature'] ?? 'test-signature',
       'signature': script.metadata['signature'] ?? 'test-signature',
       'timestamp': timestamp,
-      'version': script.metadata['version'] ?? '1.0.0',
+      'version': (script.metadata['version'] ?? '1.0.0').toString(),
       'price': script.metadata['price'] ?? 0.0,
       'is_public': script.metadata['isPublic'] ?? false,
     };
@@ -135,7 +138,7 @@ class MiniflareScriptRepository extends ScriptRepository {
         'authorName': json['author_name']?.toString() ?? 'Anonymous',
         'version': json['version']?.toString() ?? '1.0.0',
         'price': (json['price'] as num?)?.toDouble() ?? 0.0,
-        'isPublic': (json['is_public'] as int? ?? 0) == 1,
+        'isPublic': _parseBool(json['is_public']),
         'downloads': (json['downloads'] as int?) ?? 0,
         'rating': (json['rating'] as num?)?.toDouble() ?? 0.0,
         'reviewCount': (json['review_count'] as int?) ?? 0,
@@ -156,6 +159,17 @@ class MiniflareScriptRepository extends ScriptRepository {
       }
     }
     return DateTime.now();
+  }
+
+  bool _parseBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    if (value is String) {
+      final lower = value.toLowerCase();
+      return lower == 'true' || lower == '1';
+    }
+    return false;
   }
 
   /// Additional methods for testing purposes
@@ -202,6 +216,8 @@ class MiniflareScriptRepository extends ScriptRepository {
       if (response.statusCode != 200 && response.statusCode != 204 && response.statusCode != 404) {
         throw Exception('Failed to delete script $id: ${response.statusCode}');
       }
+
+      _assertSuccessfulMutation(response, 'delete script $id');
     } catch (e) {
       throw Exception('Failed to delete script: $e');
     }
@@ -299,13 +315,13 @@ class MiniflareScriptRepository extends ScriptRepository {
         headers: {'Content-Type': 'application/json'},
         body: json.encode(_scriptToApiJson(updatedScript)),
       );
-      
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true && data['data'] != null) {
           return data['data']['id'] as String? ?? script.id;
         }
-        return script.id;
+        throw Exception('Failed to publish script: unexpected response');
       } else {
         throw Exception('Failed to publish script: ${response.statusCode}');
       }
@@ -317,15 +333,24 @@ class MiniflareScriptRepository extends ScriptRepository {
   Future<int> getScriptsCount() async {
     try {
       final response = await _client.get(Uri.parse('$baseUrl/api/v1/scripts/count'));
-      
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true && data['data'] != null) {
-          return data['data']['count'] as int? ?? 0;
+          final dynamic countValue = (data['data'] as Map<String, dynamic>)['count'] ??
+              (data['data'] as Map<String, dynamic>)['total'] ??
+              (data['data'] as Map<String, dynamic>)['scripts_count'];
+          if (countValue is int) {
+            return countValue;
+          }
+          if (countValue is num) {
+            return countValue.toInt();
+          }
+          throw Exception('Unexpected count response: ${data['data']}');
         }
-        return 0;
+        throw Exception('Failed to get scripts count: unexpected response');
       } else {
-        return 0;
+        throw Exception('Failed to get scripts count: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Failed to get scripts count: $e');
@@ -334,9 +359,17 @@ class MiniflareScriptRepository extends ScriptRepository {
 
   Future<String> saveScript(ScriptRecord script) async {
     try {
+      File('poem_debug.log')
+          .writeAsStringSync('metadata ${script.id}: ${script.metadata}\n', mode: FileMode.append);
+
       // First try to check if script exists using a simple GET request
       final checkResponse = await _client.get(
         Uri.parse('$baseUrl/api/v1/scripts/${script.id}?includePrivate=true'),
+      );
+
+      File('poem_debug.log').writeAsStringSync(
+        'check ${script.id}: ${checkResponse.statusCode}\n',
+        mode: FileMode.append,
       );
 
       if (checkResponse.statusCode == 200) {
@@ -346,24 +379,36 @@ class MiniflareScriptRepository extends ScriptRepository {
           'description': script.metadata['description'] ?? '',
           'category': script.metadata['category'] ?? 'Development',
           'lua_source': script.luaSource,
-          'tags': script.metadata['tags'] ?? [],
-          'version': script.metadata['version'] ?? '1.0.0',
+          'tags': (script.metadata['tags'] as List<dynamic>? ?? const [])
+              .map((tag) => tag.toString())
+              .toList(),
+          'version': (script.metadata['version'] ?? '1.0.0').toString(),
           'price': script.metadata['price'] ?? 0.0,
           'is_public': script.metadata['isPublic'] ?? false,
         });
 
-        
+        if (!updateData.containsKey('version')) {
+          throw Exception('Update payload missing version for ${script.id}');
+        }
+
+
+        File('poem_debug.log').writeAsStringSync(
+          'update ${script.id}: ${json.encode(updateData)}\n',
+          mode: FileMode.append,
+        );
+
         final response = await _client.put(
           Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(updateData),
         );
 
-        
+
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
         }
 
+        _assertSuccessfulMutation(response, 'update script ${script.id}');
         return script.id;
       } else {
         // Use simplified authorization token
@@ -374,18 +419,19 @@ class MiniflareScriptRepository extends ScriptRepository {
         scriptData['signature'] = 'test-auth-token';
         scriptData['action'] = 'upload';
 
-        
+
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(scriptData),
         );
 
-        
+
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
         }
 
+        _assertSuccessfulMutation(response, 'create script ${script.id}');
         // Return the generated ID from response
         final responseData = json.decode(response.body);
         if (responseData['success'] == true && responseData['data'] != null) {
@@ -406,5 +452,24 @@ class MiniflareScriptRepository extends ScriptRepository {
 
   void dispose() {
     _client.close();
+  }
+
+  void _assertSuccessfulMutation(http.Response response, String operation) {
+    if (response.body.isEmpty) {
+      return;
+    }
+
+    try {
+      final dynamic decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final success = decoded['success'];
+        if (success is bool && !success) {
+          final error = decoded['error'] ?? decoded['message'] ?? decoded['details'] ?? 'unknown error';
+          throw Exception('Failed to $operation: ${response.statusCode} - $error');
+        }
+      }
+    } catch (_) {
+      // Ignore responses that are not JSON
+    }
   }
 }

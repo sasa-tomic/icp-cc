@@ -6,7 +6,7 @@ FROM rust:latest
 # Environment variables (from CI Dockerfile)
 ENV HOME=/home/ubuntu \
     XDG_DATA_HOME=/home/ubuntu/.cache/data \
-    PATH=/home/ubuntu/.cache/data/dfx/bin:/home/ubuntu/.cache/data/bin:/home/ubuntu/.cache/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/.local/bin:/home/ubuntu/bin:/home/ubuntu/.npm-global/bin:$PATH \
+    PATH=/home/ubuntu/.cache/data/dfx/bin:/home/ubuntu/.cache/data/bin:/home/ubuntu/.cache/bin:/home/ubuntu/.cargo/bin:/usr/local/cargo/bin:/home/ubuntu/.local/bin:/home/ubuntu/bin:/home/ubuntu/.npm-global/bin:$PATH \
     POCKET_IC_BIN=/home/ubuntu/bin/pocket-ic \
     RUST_BACKTRACE=1
 
@@ -25,7 +25,7 @@ RUN DFXVM_INIT_YES=yes sh -ci "$(curl -fsSL https://internetcomputer.org/install
 
 # Install deps for ICP-CC project
 RUN apt update && \
-    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq net-tools lsof
+    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq net-tools lsof sqlite3
 
 # Install Node.js directly from NodeSource repository (required for Flutter and Cloudflare Workers)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
@@ -69,7 +69,7 @@ RUN mkdir -p ~/.npm-global \
     && echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.profile \
     && export PATH=~/.npm-global/bin:$PATH \
     && npm install -g @anthropic-ai/claude-code happy-coder \
-    && npm install -g wrangler @openai/codex
+    && npm install -g @openai/codex
 
 # Install Flutter SDK for ICP-CC project
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \

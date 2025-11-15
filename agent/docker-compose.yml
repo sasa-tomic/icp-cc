@@ -1,5 +1,5 @@
 services:
-  # Single container development environment with wrangler as background process
+  # Single container development environment
   agent:
     build:
       context: ..
@@ -28,7 +28,6 @@ services:
     stdin_open: true
     tty: true
     ports:
-      - "8787:8787"  # Cloudflare Workers API (exposed from wrangler process)
       - "3000:3000"  # Flutter web development
     networks:
       - icp-cc-network

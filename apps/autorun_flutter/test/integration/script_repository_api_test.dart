@@ -2,17 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../test_helpers/miniflare_script_repository.dart';
+import '../test_helpers/poem_script_repository.dart';
 import '../test_helpers/test_signature_utils.dart';
 import '../test_helpers/unified_test_builder.dart';
 
 void main() {
   group('Script Repository API Tests', () {
-    late MiniflareScriptRepository miniflareRepository;
+    late PoemScriptRepository poemRepository;
 
     setUp(() async {
-      // Initialize miniflare repository
-      miniflareRepository = MiniflareScriptRepository();
+      // Initialize Poem repository
+      poemRepository = PoemScriptRepository();
       
       // Mock SharedPreferences for tests
       SharedPreferences.setMockInitialValues({});
@@ -20,7 +20,7 @@ void main() {
 
     tearDown(() async {
       // Clean up repository
-      miniflareRepository.dispose();
+      poemRepository.dispose();
     });
 
     group('Script Management', () {
@@ -55,10 +55,10 @@ end''',
         );
 
         // Act - Add script to repository
-        final savedScriptId = await miniflareRepository.saveScript(testScript);
+        final savedScriptId = await poemRepository.saveScript(testScript);
 
         // Assert - Verify script was saved
-        final savedScripts = await miniflareRepository.getAllScripts();
+        final savedScripts = await poemRepository.getAllScripts();
         final savedScript = savedScripts.firstWhere((s) => s.id == savedScriptId);
         expect(savedScript.title, testScript.title);
         expect(savedScript.luaSource, testScript.luaSource);
@@ -75,7 +75,7 @@ end''',
           authorName: 'Original Author',
           luaSource: '-- Original source',
         );
-        final originalScriptId = await miniflareRepository.saveScript(originalScript);
+        final originalScriptId = await poemRepository.saveScript(originalScript);
 
         // Act - Update script using the proper update helper
         final updateData = TestTemplates.createTestUpdateRequest(
@@ -102,10 +102,10 @@ end''',
           createdAt: originalScript.createdAt,
           updatedAt: DateTime.now(),
         );
-        await miniflareRepository.saveScript(updatedScript);
+        await poemRepository.saveScript(updatedScript);
 
         // Assert - Verify script was updated
-        final retrievedScript = await miniflareRepository.getScriptById(originalScriptId);
+        final retrievedScript = await poemRepository.getScriptById(originalScriptId);
         expect(retrievedScript, isNotNull);
         expect(retrievedScript!.title, 'Updated Title');
         expect(retrievedScript.luaSource, '-- Updated source');
@@ -125,17 +125,17 @@ end''',
           authorName: 'Delete Test',
           luaSource: '-- This will be deleted',
         );
-        final scriptId = await miniflareRepository.saveScript(testScript);
+        final scriptId = await poemRepository.saveScript(testScript);
 
         // Verify it exists
-        var currentScripts = await miniflareRepository.getAllScripts();
+        var currentScripts = await poemRepository.getAllScripts();
         expect(currentScripts.any((s) => s.id == scriptId), isTrue);
 
         // Act - Delete script
-        await miniflareRepository.deleteScript(scriptId);
+        await poemRepository.deleteScript(scriptId);
 
         // Assert - Verify it was deleted
-        final finalScripts = await miniflareRepository.getAllScripts();
+        final finalScripts = await poemRepository.getAllScripts();
         expect(finalScripts.any((s) => s.id == scriptId), isFalse);
       });
 
@@ -164,12 +164,12 @@ end''',
 
  final scriptIds = <String>[];
         for (final script in scripts) {
-          final savedId = await miniflareRepository.saveScript(script);
+          final savedId = await poemRepository.saveScript(script);
           scriptIds.add(savedId);
         }
 
         // Act - Get all scripts
-        final allScripts = await miniflareRepository.getAllScripts();
+        final allScripts = await poemRepository.getAllScripts();
 
         // Assert - Verify all scripts are present
         expect(allScripts.length, greaterThanOrEqualTo(2)); // Including mock test data
@@ -188,13 +188,13 @@ end''',
           authorName: 'Search Test',
           luaSource: '-- Searchable script',
         );
-        await miniflareRepository.saveScript(searchableScript);
+        await poemRepository.saveScript(searchableScript);
 
         // Act - Search by title
-        final titleResults = await miniflareRepository.searchScripts('Unique Searchable');
+        final titleResults = await poemRepository.searchScripts('Unique Searchable');
         
         // Act - Search by description
-        final descriptionResults = await miniflareRepository.searchScripts('unique description');
+        final descriptionResults = await poemRepository.searchScripts('unique description');
 
         // Assert - Verify search works
         expect(titleResults.any((s) => s.title.contains('Unique Searchable')), isTrue);
@@ -222,12 +222,12 @@ end''',
           luaSource: '-- Utility script',
         );
 
-        await miniflareRepository.saveScript(devScript);
-        await miniflareRepository.saveScript(utilScript);
+        await poemRepository.saveScript(devScript);
+        await poemRepository.saveScript(utilScript);
 
         // Act - Get scripts by category
-        final devScripts = await miniflareRepository.getScriptsByCategory('Development');
-        final utilScripts = await miniflareRepository.getScriptsByCategory('Utility');
+        final devScripts = await poemRepository.getScriptsByCategory('Development');
+        final utilScripts = await poemRepository.getScriptsByCategory('Utility');
 
         // Assert - Verify filtering works
         expect(devScripts.any((s) => s.title.contains('Development Script')), isTrue);
@@ -282,11 +282,11 @@ end''',
           updatedAt: DateTime.now(),
         );
 
-        await miniflareRepository.saveScript(publicScript);
-        await miniflareRepository.saveScript(privateScript);
+        await poemRepository.saveScript(publicScript);
+        await poemRepository.saveScript(privateScript);
 
         // Act - Get public scripts
-        final publicScripts = await miniflareRepository.getPublicScripts();
+        final publicScripts = await poemRepository.getPublicScripts();
 
         // Assert - Verify only public scripts are returned
         expect(publicScripts.any((s) => s.title.contains('Public Script')), isTrue);
@@ -329,7 +329,7 @@ end''',
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
-        final savedScriptId = await miniflareRepository.saveScript(privateScript);
+        final savedScriptId = await poemRepository.saveScript(privateScript);
 
         // Act - Publish the script using the saved ID
         final scriptToPublish = ScriptRecord(
@@ -340,21 +340,21 @@ end''',
           createdAt: privateScript.createdAt,
           updatedAt: DateTime.now(),
         );
-        final publishedId = await miniflareRepository.publishScript(scriptToPublish);
+        final publishedId = await poemRepository.publishScript(scriptToPublish);
 
         // Assert - Verify script is now public
         expect(publishedId, isNotEmpty);
-        final publishedScript = await miniflareRepository.getScriptById(publishedId);
+        final publishedScript = await poemRepository.getScriptById(publishedId);
         expect(publishedScript, isNotNull);
         expect(publishedScript!.metadata['isPublic'], true);
       });
 
       test('should get accurate script count', () async {
         // Arrange
-        final miniflareRepository = MiniflareScriptRepository();
+        final poemRepository = PoemScriptRepository();
 
         // Act - Get script count (should be non-negative)
-        final count = await miniflareRepository.getScriptsCount();
+        final count = await poemRepository.getScriptsCount();
 
         // Assert - Verify count is reasonable
         expect(count, greaterThanOrEqualTo(0));
