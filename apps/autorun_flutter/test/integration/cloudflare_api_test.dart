@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'dart:convert';
+
 import '../test_helpers/wrangler_manager.dart';
+import '../test_helpers/http_test_helper.dart';
 
 void main() {
   group('Cloudflare Workers API Integration Tests', () {
@@ -23,9 +26,23 @@ void main() {
 
     test('should get marketplace stats from Cloudflare Workers', () async {
       try {
-        final stats = await apiService.getMarketplaceStats();
-        print('Marketplace stats: $stats');
-        expect(stats.totalScripts, greaterThanOrEqualTo(0));
+        final result = await HttpTestHelper.get(
+          'http://localhost:8787/api/v1/marketplace-stats',
+          config: const HttpRequestConfig(
+            maxRetries: 3,
+            userMessage: 'Failed to get marketplace stats',
+          ),
+        );
+        
+        expect(result.isSuccess, isTrue);
+        
+        final responseData = jsonDecode(result.response.body);
+        expect(responseData['success'], isTrue);
+        
+        final data = responseData['data'];
+        expect(data['totalScripts'], greaterThanOrEqualTo(0));
+        
+        print('Marketplace stats: ${data['totalScripts']} scripts found');
       } catch (e) {
         fail('Failed to get marketplace stats: $e');
       }

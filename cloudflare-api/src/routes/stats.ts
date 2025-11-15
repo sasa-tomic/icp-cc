@@ -8,21 +8,29 @@ export async function handleMarketplaceStatsRequest(request: Request, env: Env):
 
   try {
     const db = new DatabaseService(env);
+    const database = db.getDatabase();
+
+    // Log database info for debugging
+    console.log('Marketplace stats - Database info:', {
+      hasDb: !!database,
+      envKeys: Object.keys(env),
+      dbType: database ? 'D1Database' : 'null'
+    });
 
     // Get total scripts count
-    const totalScriptsResult = await db.env.DB.prepare(`
+    const totalScriptsResult = await database.prepare(`
       SELECT COUNT(*) as count FROM scripts 
       WHERE is_public = 1
     `).first();
 
     // Get total verified authors
-    const totalAuthorsResult = await db.env.DB.prepare(`
+    const totalAuthorsResult = await database.prepare(`
       SELECT COUNT(*) as count FROM users 
       WHERE is_verified_developer = 1
     `).first();
 
     // Get all scripts for stats calculation
-    const allScriptsResult = await db.env.DB.prepare(`
+    const allScriptsResult = await database.prepare(`
       SELECT downloads, rating FROM scripts 
       WHERE is_public = 1
     `).all();
@@ -44,17 +52,17 @@ export async function handleMarketplaceStatsRequest(request: Request, env: Env):
     const averageRating = ratedScriptsCount > 0 ? totalRating / ratedScriptsCount : 0;
 
     // Get total purchases and reviews counts
-    const totalPurchasesResult = await db.env.DB.prepare(`
+    const totalPurchasesResult = await database.prepare(`
       SELECT COUNT(*) as count FROM purchases
     `).first();
 
-    const totalReviewsResult = await db.env.DB.prepare(`
+    const totalReviewsResult = await database.prepare(`
       SELECT COUNT(*) as count FROM reviews
     `).first();
 
     // Get scripts by category distribution
     const categoryStats: any = {};
-    const scriptsByCategory = await db.env.DB.prepare(`
+    const scriptsByCategory = await database.prepare(`
       SELECT category, downloads, rating FROM scripts 
       WHERE is_public = 1
     `).all();
@@ -139,10 +147,19 @@ export async function handleUpdateScriptStatsRequest(request: Request, env: Env)
       return JsonResponse.error('Script ID is required', 400);
     }
 
-    const db = new DatabaseService(env);
+    const dbService = new DatabaseService(env);
+    const database = dbService.getDatabase();
+
+    // Log database info for debugging
+    console.log('Update script stats - Database info:', {
+      hasDb: !!database,
+      scriptId: scriptId,
+      envKeys: Object.keys(env),
+      dbType: database ? 'D1Database' : 'null'
+    });
 
     // Get all reviews for script
-    const reviews = await db.env.DB.prepare(`
+    const reviews = await database.prepare(`
       SELECT rating FROM reviews WHERE script_id = ?
     `).bind(scriptId).all();
 
@@ -151,7 +168,7 @@ export async function handleUpdateScriptStatsRequest(request: Request, env: Env)
     const averageRating = reviews.results.length > 0 ? totalRating / reviews.results.length : 0;
 
     // Update script
-    await db.env.DB.prepare(`
+    await database.prepare(`
       UPDATE scripts 
       SET rating = ?, review_count = ?, updated_at = ?
       WHERE id = ?
@@ -163,12 +180,12 @@ export async function handleUpdateScriptStatsRequest(request: Request, env: Env)
     ).run();
 
     // Get script details for author stats update
-    const script = await db.env.DB.prepare(`
+    const script = await database.prepare(`
       SELECT author_id FROM scripts WHERE id = ?
     `).bind(scriptId).first();
 
     if (script?.author_id) {
-      await updateAuthorStats(db.env.DB, script.author_id);
+      await updateAuthorStats(database, script.author_id);
     }
 
     return JsonResponse.success({

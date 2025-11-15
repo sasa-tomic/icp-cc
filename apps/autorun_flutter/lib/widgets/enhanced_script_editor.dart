@@ -50,6 +50,17 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
   };
 
   @override
+  void didUpdateWidget(EnhancedScriptEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update controller text when initialCode changes
+    if (oldWidget.initialCode != widget.initialCode && 
+        _controller.text != widget.initialCode) {
+      _controller.text = widget.initialCode;
+      _scheduleLint();
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _controller = CodeController(

@@ -284,10 +284,34 @@
 - ✅ Add test for `icp_group_by` function
 - ✅ Update regression test to check for 16 functions instead of 15
 
+#### HTTP Test Infrastructure Cleanup (Priority: MEDIUM)
+**MOTIVATION**: HTTP debugging investigation (2025-10-26) created several temporary files and modifications that need cleanup.
+
+**Files Created During Investigation (CAN BE DELETED):**
+- `apps/autorun_flutter/debug_http_comparison.dart` - Debug script for HTTP comparison
+- `apps/autorun_flutter/test_debug_http.dart` - Fixed HttpTestHelper API usage  
+- `apps/autorun_flutter/test_http_package.dart` - Fixed HttpTestHelper API usage
+
+**Files Modified During Investigation (REVIEW NEEDED):**
+- `apps/autorun_flutter/test/integration/upload_fix_verification_test.dart` - Split into UI-only test
+- `apps/autorun_flutter/test/integration/upload_fix_api_test.dart` - NEW: API-only test (KEEP)
+- `apps/autorun_flutter/test/flutter_http_debug_test.dart` - URL consistency fixes (127.0.0.1 → localhost)
+
+**Cleanup Tasks:**
+- [ ] Delete temporary debug files: `debug_http_comparison.dart`, `test_debug_http.dart`, `test_http_package.dart`
+- [ ] Review `upload_fix_verification_test.dart` for any remaining debug code that can be cleaned up
+- [ ] Verify `flutter_http_debug_test.dart` still has purpose or can be removed
+- [ ] Update test documentation to reflect new UI/API test separation pattern
+
+**Root Cause Documentation:**
+- ✅ Documented in `HTTP_TEST_DEBUGGING_ROOT_CAUSE.md`
+- [ ] Add reference to root cause document in testing guidelines section below
+
 #### Development Infrastructure
 - ⏳ Add Rust tests with local Cloudflare Workers instance
 - ⏳ Document development workflow for future developers
 - ⏳ Implement CI/CD pipeline with security scanning
+- ⏳ **HTTP Testing Guidelines**: Document TestWidgetsFlutterBinding vs real HTTP testing patterns (see `HTTP_TEST_DEBUGGING_ROOT_CAUSE.md`)
 
 #### Database & Testing Infrastructure
 - ✅ **IMPORTANT**: Current E2E tests use REAL Cloudflare D1 database (not mocks)
@@ -382,4 +406,4 @@
 
 ---
 
-*Last Updated: 2025-10-26 - Added Rust Lua engine test coverage tasks after fixing missing icp_enhanced_list function*
+*Last Updated: 2025-10-26 - Added HTTP test infrastructure cleanup tasks and root cause documentation*

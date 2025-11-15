@@ -52,7 +52,9 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const scriptId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    await db.env.DB.prepare(`
+    const database = db.getDatabase();
+    
+    await database.prepare(`
       INSERT INTO scripts (
         id, title, description, category, tags, lua_source, author_name, author_id,
         canister_ids, icon_url, screenshots, version, compatibility, price,
