@@ -16,8 +16,9 @@ api_dir := root + "/poem-backend"
 platform := if `uname` == "Darwin" { "macos" } else if `uname` == "Linux" { "linux" } else { "unknown" }
 
 # API server configuration
-api_port_file := "/tmp/icp-api.port"
-api_pid_file := "/tmp/icp-api.pid"
+tmp_dir := root + "/.just-tmp"
+api_port_file := tmp_dir + "/icp-api.port"
+api_pid_file := tmp_dir + "/icp-api.pid"
 
 # =============================================================================
 # Default Target
@@ -86,6 +87,9 @@ api-up port="0":
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Starting ICP Marketplace API server"
+
+    # Ensure temp directory exists
+    mkdir -p "{{tmp_dir}}"
 
     # Check if already running
     if [ -f "{{api_pid_file}}" ]; then
