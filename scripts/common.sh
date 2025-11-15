@@ -6,8 +6,8 @@ set -euo pipefail
 # Resolve repo root (assumes this script is under repo_root/scripts)
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
-CRATE_DIR="${REPO_ROOT}/rust/icp_core"
-DART_APP_DIR="${REPO_ROOT}/icp_autorun"
+CRATE_DIR="${REPO_ROOT}/crates/icp_core"
+DART_APP_DIR="${REPO_ROOT}/apps/autorun_flutter"
 
 ensure_tools() {
   if ! command -v rustup >/dev/null 2>&1; then

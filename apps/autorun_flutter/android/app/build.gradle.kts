@@ -48,9 +48,9 @@ android {
             "x86_64" to "x86_64-linux-android",
             "x86" to "i686-linux-android",
         )
-        // Resolve repo root (android/ is two levels under repo root)
-        val repoRoot = project.rootDir.parentFile?.parentFile ?: project.rootDir
-        val rustCrateDir = File(repoRoot, "rust/icp_core")
+        // Resolve repo root (apps/autorun_flutter/android is three levels under repo root)
+        val repoRoot = project.rootDir.parentFile?.parentFile?.parentFile ?: project.rootDir
+        val rustCrateDir = File(repoRoot, "crates/icp_core")
         val jniLibsDir = File(project.projectDir, "src/main/jniLibs")
 
         tasks.named("merge${variant.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}JniLibFolders").configure {

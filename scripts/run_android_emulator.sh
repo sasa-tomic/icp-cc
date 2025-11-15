@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
-APP_DIR="$ROOT/icp_autorun"
+APP_DIR="$ROOT/apps/autorun_flutter"
 # Default AVD and system image; override via env if desired
 # Use the stock AVD name that usually ships with Android Studio
 AVD_NAME=${AVD_NAME:-Medium_Phone_API_35}

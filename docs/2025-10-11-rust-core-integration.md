@@ -4,15 +4,15 @@
 - Keep the Rust API small and stable to extend later (Candid/Agent).
 
 ## Scope of Work
-- Rust crate `rust/icp_core`:
+- Rust crate `crates/icp_core`:
   - `generate_ed25519_identity(mnemonic?: String) -> IdentityData`
   - `generate_secp256k1_identity(mnemonic?: String) -> IdentityData`
   - `principal_from_public_key(alg: "ed25519"|"secp256k1", public_key: &[u8]) -> String`
   - `IdentityData { public_key_b64, private_key_b64, principal_text }`
   - Crates: `bip39`, `bitcoin`, `ed25519-dalek`, `candid`, `base64`, `sha2`.
 - Bridge & Platforms
-  - FFI implemented with a minimal C-ABI in `rust/icp_core/src/ffi.rs` including `icp_generate_identity` and canister client bridges.
-  - Android/iOS/Desktop via `dart:ffi` through `icp_autorun/lib/rust/native_bridge.dart`. Web keeps current Dart path short-term.
+  - FFI implemented with a minimal C-ABI in `crates/icp_core/src/ffi.rs` including `icp_generate_identity` and canister client bridges.
+  - Android/iOS/Desktop via `dart:ffi` through `apps/autorun_flutter/lib/rust/native_bridge.dart`. Web keeps current Dart path short-term.
 - Flutter integration
   - Add a Dart facade that calls FFI on native and falls back to Dart on Web.
   - Update `IdentityGenerator.generate(...)` to use the Rust-backed path.

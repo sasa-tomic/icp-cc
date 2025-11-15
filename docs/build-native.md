@@ -13,7 +13,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 2. Build with cargo-ndk:
 ```bash
 cargo install cargo-ndk
-cargo ndk -t armeabi-v7a -t arm64-v8a -t x86 -t x86_64 -o ../icp_autorun/android/app/src/main/jniLibs build -p icp_core --release
+cargo ndk -t armeabi-v7a -t arm64-v8a -t x86 -t x86_64 -o ../apps/autorun_flutter/android/app/src/main/jniLibs build -p icp_core --release
 ```
 This will place `libicp_core.so` into ABI folders under `jniLibs`.
 
@@ -23,7 +23,7 @@ Requirements:
 
 Build universal static lib and wrap into xcframework:
 ```bash
-cd rust/icp_core
+cd crates/icp_core
 cargo build --target aarch64-apple-ios --release
 cargo build --target x86_64-apple-ios --release
 
@@ -36,7 +36,7 @@ xcodebuild -create-xcframework \
 Integrate the xcframework into the iOS Runner project and ensure it’s embedded and signed. Expose symbols are C ABI.
 
 ## Tests & Lints
-From `rust/icp_core`:
+From `crates/icp_core`:
 ```bash
 cargo clippy --benches --tests --all-features && cargo clippy && cargo fmt --all && cargo nextest run
 ```

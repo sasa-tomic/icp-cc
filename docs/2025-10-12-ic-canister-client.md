@@ -1,6 +1,6 @@
 # ICP Canister Client - Work Spec (2025-10-12)
 
-Objective: Add a Rust-first canister client to `rust/icp_core` that can:
+Objective: Add a Rust-first canister client to `crates/icp_core` that can:
 - Fetch embedded Candid for a canister id (metadata key `candid:service`) from the IC replica.
 - Introspect methods (name, kind, args/returns) from the Candid and present them to the UI.
 - Send anonymous or authenticated requests to a selected endpoint and return results.
@@ -38,7 +38,7 @@ Tests:
 - Integration tests (opt-in): deferred for now.
 
 FFI:
-- Done: thin FFI exports `fetch_candid`, `parse_candid_interface`, `call_anonymous`/`call_authenticated`, and favorites `add`/`list`/`remove` from `rust/icp_core/src/ffi.rs`. A Dart bridge in `icp_autorun/lib/rust/native_bridge.dart` wires these into the Flutter app layer.
+- Done: thin FFI exports `fetch_candid`, `parse_candid_interface`, `call_anonymous`/`call_authenticated`, and favorites `add`/`list`/`remove` from `crates/icp_core/src/ffi.rs`. A Dart bridge in `apps/autorun_flutter/lib/rust/native_bridge.dart` wires these into the Flutter app layer.
 
 UI guidance:
 - It's sufficient to show a list of functions; optionally show signature text (args/results) if trivial. No renderer required.

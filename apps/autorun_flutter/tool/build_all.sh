@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Build Rust libs for all platforms (where possible from this host) and place/copy into app bundles.
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
-CRATE_DIR="$ROOT_DIR/../rust/icp_core"
-WORKSPACE_ROOT="$ROOT_DIR/.."
+CRATE_DIR="$ROOT_DIR/../../crates/icp_core"
+WORKSPACE_ROOT="$ROOT_DIR/../.."
 
 if [ ! -d "$CRATE_DIR" ]; then
   echo "Rust crate dir not found: $CRATE_DIR" >&2

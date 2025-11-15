@@ -17,35 +17,35 @@ all: linux android
 
 linux:
 	$(S)/build_linux.sh
-	cd $(ROOT)/icp_autorun && flutter build linux && flutter run -d linux
+	cd $(ROOT)/apps/autorun_flutter && flutter build linux && flutter run -d linux
 
 android:
 	$(S)/build_android.sh
-	cd $(ROOT)/icp_autorun && flutter build apk
+	cd $(ROOT)/apps/autorun_flutter && flutter build apk
 
 android-emulator:
 	$(S)/run_android_emulator.sh
 
 macos:
 	$(S)/build_macos.sh
-	cd $(ROOT)/icp_autorun && flutter build macos
+	cd $(ROOT)/apps/autorun_flutter && flutter build macos
 
 ios:
 	$(S)/build_ios.sh
-	cd $(ROOT)/icp_autorun && flutter build ios --no-codesign
+	cd $(ROOT)/apps/autorun_flutter && flutter build ios --no-codesign
 
 windows:
 	$(S)/build_windows.sh
-	cd $(ROOT)/icp_autorun && flutter build windows
+	cd $(ROOT)/apps/autorun_flutter && flutter build windows
 
 clean:
-	rm -rf $(ROOT)/icp_autorun/android/app/src/main/jniLibs/* || true
-	rm -f $(ROOT)/icp_autorun/build/linux/x64/*/bundle/lib/libicp_core.* || true
+	rm -rf $(ROOT)/apps/autorun_flutter/android/app/src/main/jniLibs/* || true
+	rm -f $(ROOT)/apps/autorun_flutter/build/linux/x64/*/bundle/lib/libicp_core.* || true
 
 test:
 	@set -euo pipefail
 	@echo "==> Running Flutter analysis and tests"
-	cd $(ROOT)/icp_autorun && flutter analyze && flutter test
+	cd $(ROOT)/apps/autorun_flutter && flutter analyze && flutter test
 	@echo "==> Running Rust linting and tests"
 	cargo clippy --benches --tests --all-features
 	cargo clippy

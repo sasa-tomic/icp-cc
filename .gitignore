@@ -1,4 +1,7 @@
 vendors/
+# Ignore ripgrep noise and third-party
+.rgignore
+third_party/
 target/
 /.idea/
 /.vscode/
