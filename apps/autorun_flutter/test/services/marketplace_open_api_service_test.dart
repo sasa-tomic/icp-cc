@@ -6,6 +6,16 @@ void main() {
   group('MarketplaceOpenApiService', () {
     late MarketplaceOpenApiService service;
 
+    setUpAll(() {
+      // Suppress debug output during tests to avoid confusing messages
+      suppressDebugOutput = true;
+    });
+
+    tearDownAll(() {
+      // Re-enable debug output after tests
+      suppressDebugOutput = false;
+    });
+
     setUp(() {
       service = MarketplaceOpenApiService();
     });

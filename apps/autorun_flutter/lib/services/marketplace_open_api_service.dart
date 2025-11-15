@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 
+// Flag to control debug output in tests
+bool suppressDebugOutput = false;
+
 class MarketplaceOpenApiService {
   static final MarketplaceOpenApiService _instance = MarketplaceOpenApiService._internal();
   factory MarketplaceOpenApiService() => _instance;
@@ -58,7 +61,7 @@ class MarketplaceOpenApiService {
       );
 
     } catch (e) {
-      debugPrint('Search scripts failed: $e');
+      if (!suppressDebugOutput) debugPrint('Search scripts failed: $e');
       rethrow;
     }
   }
@@ -81,7 +84,7 @@ class MarketplaceOpenApiService {
       return MarketplaceScript.fromJson(data);
 
     } catch (e) {
-      debugPrint('Get script details failed: $e');
+      if (!suppressDebugOutput) debugPrint('Get script details failed: $e');
       rethrow;
     }
   }
@@ -101,7 +104,7 @@ class MarketplaceOpenApiService {
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
-      debugPrint('Get featured scripts failed: $e');
+      if (!suppressDebugOutput) debugPrint('Get featured scripts failed: $e');
       return [];
     }
   }
@@ -121,7 +124,7 @@ class MarketplaceOpenApiService {
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
-      debugPrint('Get trending scripts failed: $e');
+      if (!suppressDebugOutput) debugPrint('Get trending scripts failed: $e');
       return [];
     }
   }
@@ -152,7 +155,7 @@ class MarketplaceOpenApiService {
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
-      debugPrint('Get scripts by category failed: $e');
+      if (!suppressDebugOutput) debugPrint('Get scripts by category failed: $e');
       rethrow;
     }
   }
@@ -181,7 +184,7 @@ class MarketplaceOpenApiService {
       return data.map((review) => ScriptReview.fromJson(review)).toList();
 
     } catch (e) {
-      debugPrint('Get script reviews failed: $e');
+      if (!suppressDebugOutput) debugPrint('Get script reviews failed: $e');
       rethrow;
     }
   }
@@ -231,7 +234,7 @@ class MarketplaceOpenApiService {
       return result.scripts;
 
     } catch (e) {
-      debugPrint('Search scripts by canister ID failed: $e');
+      if (!suppressDebugOutput) debugPrint('Search scripts by canister ID failed: $e');
       rethrow;
     }
   }
@@ -253,7 +256,7 @@ class MarketplaceOpenApiService {
       return script.luaSource;
 
     } catch (e) {
-      debugPrint('Download script failed: $e');
+      if (!suppressDebugOutput) debugPrint('Download script failed: $e');
       rethrow;
     }
   }
@@ -273,7 +276,7 @@ class MarketplaceOpenApiService {
       return MarketplaceStats.fromJson(data);
 
     } catch (e) {
-      debugPrint('Get marketplace stats failed: $e');
+      if (!suppressDebugOutput) debugPrint('Get marketplace stats failed: $e');
       // Return default stats if API fails
       return MarketplaceStats(
         totalScripts: 0,
@@ -312,7 +315,7 @@ class MarketplaceOpenApiService {
       return data.map((script) => MarketplaceScript.fromJson(script)).toList();
 
     } catch (e) {
-      debugPrint('Get compatible scripts failed: $e');
+      if (!suppressDebugOutput) debugPrint('Get compatible scripts failed: $e');
       rethrow;
     }
   }
@@ -336,7 +339,7 @@ class MarketplaceOpenApiService {
       return ScriptValidationResult.fromJson(data);
 
     } catch (e) {
-      debugPrint('Validate script failed: $e');
+      if (!suppressDebugOutput) debugPrint('Validate script failed: $e');
       return ScriptValidationResult(
         isValid: false,
         errors: [e.toString()],
