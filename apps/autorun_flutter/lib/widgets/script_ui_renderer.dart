@@ -21,6 +21,12 @@ class _ScriptUiRendererState extends State<ScriptUiRenderer> {
 
   Future<void> _runAction(Map<String, dynamic> action) async {
     if (_busy) return;
+    final String kind = (action['action'] as String? ?? '').trim();
+    if (kind == 'message') {
+      final String text = (action['text'] ?? '').toString();
+      setState(() { _lastResult = {'message': text}; });
+      return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
       final res = await widget.runner.performAction(action);
