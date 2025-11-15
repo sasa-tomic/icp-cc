@@ -335,7 +335,7 @@ async fn handle_deploy(
 
             pb.set_message("Building and deploying SvelteKit site...");
             // Build the site first
-            let site_dir = std::path::Path::new("../appwrite/site");
+            let site_dir = std::path::Path::new("appwrite/site");
             if site_dir.exists() {
                 let output = std::process::Command::new("npm")
                     .args(["run", "build"])
@@ -347,10 +347,12 @@ async fn handle_deploy(
                     return Err(anyhow!("Site build failed: {}", String::from_utf8_lossy(&output.stderr)));
                 }
 
-                // Deploy the site
+                println!("✅   Site pre-build completed");
+
+                // Deploy the site (deploy_site will handle the actual deployment)
                 db_manager.deploy_site().await?;
             } else {
-                return Err(anyhow!("Site directory not found: ../appwrite/site"));
+                return Err(anyhow!("Site directory not found: appwrite/site"));
             }
         }
         pb.tick();
