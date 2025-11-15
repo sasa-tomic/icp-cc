@@ -1,7 +1,7 @@
 [workspace]
 
 [package]
-name = "cloudflare-api-rust"
+name = "cloudflare-api"
 version = "0.1.0"
 edition = "2021"
 

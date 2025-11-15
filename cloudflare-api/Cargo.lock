@@ -64,7 +64,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cloudflare-api-rust"
+name = "cloudflare-api"
 version = "0.1.0"
 dependencies = [
  "base64",

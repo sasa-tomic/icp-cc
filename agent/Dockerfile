@@ -1,12 +1,12 @@
 # Dockerfile for ICP-CC (ICP Autorun/Script Marketplace) + Containerized development environment
-# Based on project requirements with additions for Claude Code and Happy Coder
+# Based on project requirements with additions for coding agents
 
 FROM rust:latest
 
 # Environment variables (from CI Dockerfile)
 ENV HOME=/home/ubuntu \
     XDG_DATA_HOME=/home/ubuntu/.cache/data \
-    PATH=/home/ubuntu/.cache/data/dfx/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/.local/bin:/home/ubuntu/bin:/home/ubuntu/.npm-global/bin:$PATH \
+    PATH=/home/ubuntu/.cache/data/dfx/bin:/home/ubuntu/.cache/data/bin:/home/ubuntu/.cache/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/.local/bin:/home/ubuntu/bin:/home/ubuntu/.npm-global/bin:$PATH \
     POCKET_IC_BIN=/home/ubuntu/bin/pocket-ic \
     RUST_BACKTRACE=1
 

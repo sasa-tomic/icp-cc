@@ -129,7 +129,7 @@ start_wrangler() {
 
     # Start wrangler in background
     log_info "Starting wrangler dev server..."
-    cd "/code/cloudflare-api"
+    cd "/code/icp-cc/cloudflare-api"
 
     # Start wrangler with background execution and logging
     nohup wrangler dev \

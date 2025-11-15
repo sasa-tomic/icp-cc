@@ -4,26 +4,27 @@ services:
     build:
       context: ..
       dockerfile: agent/Dockerfile
-    image: icp-cc-claude:latest
-    container_name: icp-cc-claude-dev
+    image: icp-cc-agent:latest
+    container_name: icp-cc-agent-dev
     environment:
       # Development environment variables for ICP-CC project
       - RUST_LOG=info
       - RUST_BACKTRACE=1
       - HOME=/home/ubuntu
     volumes:
-      # Mount the entire repository directory to /code
-      - ..:/code
+      # Mount the entire repository directory
+      - ..:/code/icp-cc
       # Mount some other configuration from home directory
       - ${HOME}/.claude.json:/home/ubuntu/.claude.json
       - ${HOME}/.claude:/home/ubuntu/.claude
       - ${HOME}/.codex:/home/ubuntu/.codex
       - ${HOME}/.happy:/home/ubuntu/.happy
+      - ${HOME}/.serena:/home/ubuntu/.serena
       # Cache volumes for rust tooling and dependencies (controlled by ubuntu user)
       - rustup-cache:/usr/local/rustup
       - cargo-cache:/home/ubuntu/.cargo
       - home-cache:/home/ubuntu/.cache
-    working_dir: /code
+    working_dir: /code/icp-cc
     stdin_open: true
     tty: true
     ports:
