@@ -33,12 +33,17 @@ pub fn print_deployment_summary(config: &super::config::AppConfig) {
         config.purchases_collection_id
     );
     println!("   • Storage Bucket: {}", config.storage_bucket_id);
-    println!("   • Cloud Functions: search_scripts, process_purchase, update_script_stats");
+    println!("   • Appwrite Site: ICP Script Marketplace (SvelteKit)");
+    println!();
+    println!("🌐 Site Features:");
+    println!("   • Frontend: SvelteKit web application");
+    println!("   • API Routes: /api/* endpoints integrated with site");
+    println!("   • Automatic deployment via Appwrite Sites");
     println!();
     println!("🔗 Next steps:");
-    println!("   1. Start API server: cd appwrite-api-server && npm start");
-    println!("   2. Configure your Flutter app with API endpoint");
-    println!("   3. Test integration");
+    println!("   1. Visit your Appwrite Site to test the marketplace");
+    println!("   2. Configure your Flutter app with the site URL");
+    println!("   3. Test API endpoints via the site");
     println!();
     println!(
         "✨ {}",

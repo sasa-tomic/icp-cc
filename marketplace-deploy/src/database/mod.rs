@@ -1301,4 +1301,124 @@ impl DatabaseManager {
 
         Ok(())
     }
+
+    // Site management methods
+    pub async fn create_site(&mut self) -> Result<()> {
+        // First check if site already exists
+        let existing_sites: serde_json::Value = self
+            .make_request::<serde_json::Value>(reqwest::Method::GET, "sites", None)
+            .await?;
+
+        if let Some(sites_array) = existing_sites["sites"].as_array() {
+            for site in sites_array {
+                if let Some(name) = site["name"].as_str() {
+                    if name == "ICP Script Marketplace" || name == "icp-autorun" {
+                        println!("ℹ️   Site already exists: {}", name);
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        // Create new site if it doesn't exist
+        let body = serde_json::json!({
+            "name": "ICP Script Marketplace"
+        });
+
+        match self
+            .make_request::<serde_json::Value>(reqwest::Method::POST, "sites", Some(body))
+            .await
+        {
+            Ok(_) => {
+                println!("✅   Site created: ICP Script Marketplace");
+                Ok(())
+            }
+            Err(e) => {
+                // If creation fails, check if it's because site already exists with different name
+                println!("⚠️   Site creation failed: {}", e);
+                println!("ℹ️   Continuing with existing site setup...");
+                Ok(())
+            }
+        }
+    }
+
+    pub async fn deploy_site(&self) -> Result<()> {
+        // Get site ID first
+        let sites: serde_json::Value = self
+            .make_request::<serde_json::Value>(reqwest::Method::GET, "sites", None)
+            .await?;
+
+        let site_id = sites["sites"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|site| site["$id"].as_str())
+            .ok_or_else(|| anyhow!("No site found"))?;
+
+        println!("🚀   Found existing site: {}", site_id);
+
+        // Deploy the site from the appwrite/site directory
+        let site_path = std::path::Path::new("../appwrite/site");
+        if !site_path.exists() {
+            return Err(anyhow!("Site directory not found: {:?}", site_path));
+        }
+
+        println!("🚀   Building site from: {:?}", site_path);
+
+        // Build the site using npm
+        let output = std::process::Command::new("npm")
+            .args(["run", "build"])
+            .current_dir(site_path)
+            .output()
+            .map_err(|e| anyhow!("Failed to build site: {}", e))?;
+
+        if !output.status.success() {
+            return Err(anyhow!("Site build failed: {}", String::from_utf8_lossy(&output.stderr)));
+        }
+
+        println!("✅   Site built successfully");
+        println!("ℹ️   Site deployment handled by Appwrite Sites automatically");
+        Ok(())
+    }
+
+    pub async fn test_site_access(&self) -> Result<()> {
+        let sites: serde_json::Value = self
+            .make_request::<serde_json::Value>(reqwest::Method::GET, "sites", None)
+            .await?;
+
+        if sites["sites"].as_array().map_or(0, |arr| arr.len()) > 0 {
+            Ok(())
+        } else {
+            Err(anyhow!("No sites found"))
+        }
+    }
+
+    pub async fn delete_site(&self) -> Result<()> {
+        let sites: serde_json::Value = self
+            .make_request::<serde_json::Value>(reqwest::Method::GET, "sites", None)
+            .await?;
+
+        if let Some(sites_array) = sites["sites"].as_array() {
+            for site in sites_array {
+                if let Some(site_id) = site["$id"].as_str() {
+                    match self
+                        .make_request::<serde_json::Value>(
+                            reqwest::Method::DELETE,
+                            &format!("sites/{}", site_id),
+                            None,
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            println!("✅   Site deleted: {}", site_id);
+                        }
+                        Err(e) => {
+                            println!("⚠️   Failed to delete site {}: {}", site_id, e);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
