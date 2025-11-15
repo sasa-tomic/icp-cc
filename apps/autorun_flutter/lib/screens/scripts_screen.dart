@@ -510,10 +510,10 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
               ),
             ],
           ),
-          // Positioned FAB above navigation bar with safe area awareness
+          // Positioned FAB above navigation bar with better spacing
           Positioned(
             right: 16,
-            bottom: MediaQuery.of(context).padding.bottom + 70, // Positioned closer to bottom
+            bottom: MediaQuery.of(context).padding.bottom + 90, // Better spacing from navigation bar
             child: _tabController.index == 0 
               ? AnimatedFab(
                   heroTag: 'scripts_fab',
@@ -555,7 +555,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           onRefresh: _controller.refresh,
           child: ListView.separated(
             padding: EdgeInsets.only(
-              bottom: 32 + MediaQuery.of(context).padding.bottom, 
+              bottom: 100, // Consistent space for FAB
               top: 8,
               left: 8,
               right: 8,

@@ -822,20 +822,12 @@ function render_transactions_section(state)
     }
   end
 
-  return {
-    type = "section",
-    props = {
-      title = string.format("Transactions (%d items)", #filtered_transactions)
-    },
-    children = {
-      -- Use the searchable list component for rich display
-      icp_searchable_list({
-        items = format_transactions_for_display(filtered_transactions),
-        title = "Transaction List",
-        searchable = true
-      })
-    ]
-  }
+  -- Use the searchable list component for rich display
+  return icp_searchable_list({
+    items = format_transactions_for_display(filtered_transactions),
+    title = "Transaction List",
+    searchable = true
+  })
 end
 
 function render_statistics_section(state)
