@@ -4,6 +4,7 @@ x-logging: &x-logging
     options:
       max-file: '5'
       max-size: '10m'
+
 services:
   traefik:
     image: traefik:2.11
@@ -65,6 +66,8 @@ services:
       - mariadb
       - redis
 #      - clamav
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -175,6 +178,8 @@ services:
     restart: unless-stopped
     networks:
       - appwrite
+    env_file:
+      - appwrite-local.env
     labels:
       - "traefik.enable=true"
       - "traefik.constraint-label-stack=appwrite"
@@ -215,6 +220,8 @@ services:
     depends_on:
       - mariadb
       - redis
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -244,6 +251,8 @@ services:
     depends_on:
       - redis
       - mariadb
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -270,6 +279,8 @@ services:
     depends_on:
       - redis
       - mariadb
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -305,6 +316,8 @@ services:
       - appwrite-sites:/storage/sites:rw
       - appwrite-builds:/storage/builds:rw
       - appwrite-certificates:/storage/certificates:rw
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -361,6 +374,8 @@ services:
     depends_on:
       - redis
       - mariadb
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -392,6 +407,8 @@ services:
       - appwrite-sites:/storage/sites:rw
       - appwrite-builds:/storage/builds:rw
       - appwrite-uploads:/storage/uploads:rw
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -458,6 +475,8 @@ services:
     volumes:
       - appwrite-config:/storage/config:rw
       - appwrite-certificates:/storage/certificates:rw
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -491,6 +510,8 @@ services:
       - redis
       - mariadb
       - openruntimes-executor
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -528,6 +549,8 @@ services:
       - appwrite
     depends_on:
       - redis
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -564,6 +587,8 @@ services:
       - appwrite-uploads:/storage/uploads:rw
     depends_on:
       - redis
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -615,6 +640,8 @@ services:
       - appwrite-imports:/storage/imports:rw
     depends_on:
       - mariadb
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -647,6 +674,8 @@ services:
       - appwrite
     depends_on:
       - redis
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -685,6 +714,8 @@ services:
     depends_on:
       - redis
       - mariadb
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -714,6 +745,8 @@ services:
     depends_on:
       - redis
       - mariadb
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -742,6 +775,8 @@ services:
     depends_on:
       - redis
       - mariadb
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -770,6 +805,8 @@ services:
     depends_on:
       - mariadb
       - redis
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -795,6 +832,8 @@ services:
     depends_on:
       - mariadb
       - redis
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -820,6 +859,8 @@ services:
     depends_on:
       - mariadb
       - redis
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -841,6 +882,8 @@ services:
     restart: unless-stopped
     networks:
       - appwrite
+    env_file:
+      - appwrite-local.env
     environment:
       - _APP_ASSISTANT_OPENAI_API_KEY
       
@@ -870,6 +913,8 @@ services:
       # Host mount nessessary to share files between executor and runtimes.
       # It's not possible to share mount file between 2 containers without host mount (copying is too slow)
       - /tmp:/tmp:rw
+    env_file:
+      - appwrite-local.env
     environment:
       - OPR_EXECUTOR_INACTIVE_TRESHOLD=$_APP_COMPUTE_INACTIVE_THRESHOLD
       - OPR_EXECUTOR_MAINTENANCE_INTERVAL=$_APP_COMPUTE_MAINTENANCE_INTERVAL
@@ -913,6 +958,8 @@ services:
       - appwrite
     volumes:
       - appwrite-mariadb:/var/lib/mysql:rw
+    env_file:
+      - appwrite-local.env
     environment:
       - MYSQL_ROOT_PASSWORD=${_APP_DB_ROOT_PASS}
       - MYSQL_DATABASE=${_APP_DB_SCHEMA}
