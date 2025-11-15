@@ -78,6 +78,12 @@ Required environment variables:
 - `APPWRITE_FUNCTION_ENDPOINT`: Appwrite endpoint URL
 - `APPWRITE_FUNCTION_PROJECT_ID`: Appwrite project ID
 - `APPWRITE_FUNCTION_API_KEY`: Appwrite API key
+- `PUBLIC_SITE_URL`: Site URL (https://icp-autorun.appwrite.network for production, http://localhost:5173 for local)
+
+### Site URLs
+
+- **Production**: https://icp-autorun.appwrite.network
+- **Local Development**: http://localhost:5173
 
 ## Migration from Functions
 
