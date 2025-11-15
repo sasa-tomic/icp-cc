@@ -83,7 +83,7 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
       now
     ).run();
 
-    const script = await db.getScriptWithDetails(scriptId);
+    const script = await db.getScriptWithDetails(scriptId, true);
     
     console.log('Script created successfully:', { scriptId, title, isPublic: is_public });
 
@@ -98,13 +98,20 @@ async function getScripts(url: URL, db: DatabaseService): Promise<Response> {
   try {
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const offset = parseInt(url.searchParams.get('offset') || '0');
+    const isPublic = url.searchParams.get('public') === 'true';
 
-    const { scripts, total } = await db.searchScripts({
+    const searchParams: any = {
       limit,
       offset,
       sortBy: 'created_at',
       order: 'desc'
-    });
+    };
+
+    if (isPublic) {
+      searchParams.isPublic = true;
+    }
+
+    const { scripts, total } = await db.searchScripts(searchParams);
 
     return JsonResponse.success({
       scripts,
@@ -119,16 +126,77 @@ async function getScripts(url: URL, db: DatabaseService): Promise<Response> {
 
 export async function handleScriptByIdRequest(request: Request, env: Env, id: string): Promise<Response> {
   const db = new DatabaseService(env);
+  const url = new URL(request.url);
+  const includePrivate = url.searchParams.get('includePrivate') === 'true';
 
   switch (request.method) {
     case 'GET':
-      return getScript(id, db);
+      return getScript(id, db, includePrivate);
     case 'PUT':
       return updateScript(id, request, db);
     case 'DELETE':
       return deleteScript(id, db);
     default:
       return JsonResponse.error('Method not allowed', 405);
+  }
+}
+
+export async function handleScriptsCountRequest(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'GET') {
+    return JsonResponse.error('Method not allowed', 405);
+  }
+
+  try {
+    const db = new DatabaseService(env);
+    const database = db.getDatabase();
+    
+    const result = await database.prepare(`
+      SELECT COUNT(*) as count FROM scripts
+    `).first();
+
+    const count = result?.count as number || 0;
+
+    return JsonResponse.success({ count });
+  } catch (err: any) {
+    console.error('Get scripts count failed:', err.message);
+    return JsonResponse.error('Failed to get scripts count', 500, err.message);
+  }
+}
+
+export async function handlePublishScriptRequest(request: Request, env: Env, id: string): Promise<Response> {
+  if (request.method !== 'POST') {
+    return JsonResponse.error('Method not allowed', 405);
+  }
+
+  try {
+    const db = new DatabaseService(env);
+    const database = db.getDatabase();
+    
+    // Check if script exists
+    const existingScript = await database.prepare(`
+      SELECT id FROM scripts WHERE id = ?
+    `).bind(id).first();
+
+    if (!existingScript) {
+      return JsonResponse.error('Script not found', 404);
+    }
+
+    // Update script to make it public
+    const now = new Date().toISOString();
+    const result = await database.prepare(`
+      UPDATE scripts SET is_public = 1, updated_at = ? WHERE id = ?
+    `).bind(now, id).run();
+
+    if (result.changes === 0) {
+      return JsonResponse.error('Failed to publish script', 500);
+    }
+
+    const script = await db.getScriptWithDetails(id, true);
+    
+    return JsonResponse.success(script);
+  } catch (err: any) {
+    console.error('Publish script failed:', err.message);
+    return JsonResponse.error('Failed to publish script', 500, err.message);
   }
 }
 
@@ -160,13 +228,13 @@ export async function handleScriptsByCategoryRequest(request: Request, env: Env,
   }
 }
 
-async function getScript(id: string, db: DatabaseService): Promise<Response> {
+async function getScript(id: string, db: DatabaseService, includePrivate = false): Promise<Response> {
   try {
     if (!id) {
       return JsonResponse.error('Script ID is required', 400);
     }
 
-    const script = await db.getScriptWithDetails(id);
+    const script = await db.getScriptWithDetails(id, includePrivate);
 
     if (!script) {
       return JsonResponse.error('Script not found', 404);
@@ -208,11 +276,12 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
     updateFields.push('updated_at = ?');
     bindings.push(now, id);
 
-    await db.env.DB.prepare(`
+    const database = db.getDatabase();
+    await database.prepare(`
       UPDATE scripts SET ${updateFields.join(', ')} WHERE id = ?
     `).bind(...bindings).run();
 
-    const script = await db.getScriptWithDetails(id);
+    const script = await db.getScriptWithDetails(id, true);
 
     if (!script) {
       return JsonResponse.error('Script not found', 404);
@@ -231,7 +300,8 @@ async function deleteScript(id: string, db: DatabaseService): Promise<Response> 
       return JsonResponse.error('Script ID is required', 400);
     }
 
-    const result = await db.env.DB.prepare(`
+    const database = db.getDatabase();
+    const result = await database.prepare(`
       DELETE FROM scripts WHERE id = ?
     `).bind(id).run();
 

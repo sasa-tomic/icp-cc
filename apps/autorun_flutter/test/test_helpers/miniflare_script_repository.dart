@@ -18,18 +18,24 @@ class MiniflareScriptRepository extends ScriptRepository {
   @override
   Future<List<ScriptRecord>> loadScripts() async {
     try {
-      final response = await _client.get(Uri.parse('$baseUrl/scripts'));
+      final response = await _client.get(Uri.parse('$baseUrl/api/v1/scripts'));
       
       if (response.statusCode == 200) {
-        final List<dynamic> scriptsJson = json.decode(response.body);
-        return scriptsJson.map((json) => _scriptFromJson(json)).toList();
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final Map<String, dynamic> responseData = data['data'];
+          if (responseData['scripts'] != null) {
+            final List<dynamic> scriptsJson = responseData['scripts'];
+            return scriptsJson.map((json) => _scriptFromJson(json)).toList();
+          }
+        }
+        return [];
       } else {
         throw Exception('Failed to load scripts: ${response.statusCode}');
       }
     } catch (e) {
-      // For e2e tests, return empty list if server is not available
-      // This allows tests to run without requiring the server to be up
-      return [];
+      // For e2e tests, fail if server is not available
+      throw Exception('Failed to load scripts: $e');
     }
   }
 
@@ -38,9 +44,9 @@ class MiniflareScriptRepository extends ScriptRepository {
     try {
       for (final script in scripts) {
         final response = await _client.post(
-          Uri.parse('$baseUrl/scripts'),
+          Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
-          body: json.encode(_scriptToJson(script)),
+          body: json.encode(_scriptToApiJson(script)),
         );
         
         if (response.statusCode != 200 && response.statusCode != 201) {
@@ -48,90 +54,156 @@ class MiniflareScriptRepository extends ScriptRepository {
         }
       }
     } catch (e) {
-      // For e2e tests, silently ignore persistence errors if server is not available
-      // This allows tests to focus on UI behavior rather than server availability
+      // For e2e tests, fail if server is not available
+      throw Exception('Failed to persist scripts: $e');
     }
   }
 
-  Map<String, dynamic> _scriptToJson(ScriptRecord script) {
+
+
+  Map<String, dynamic> _scriptToApiJson(ScriptRecord script) {
     return {
-      'id': script.id,
       'title': script.title,
-      'luaSource': script.luaSource,
-      'metadata': script.metadata,
-      'createdAt': script.createdAt.toIso8601String(),
-      'updatedAt': script.updatedAt.toIso8601String(),
+      'description': script.metadata['description'] ?? '',
+      'category': script.metadata['category'] ?? 'Development',
+      'tags': script.metadata['tags'] ?? [],
+      'lua_source': script.luaSource,
+      'author_name': script.metadata['authorName'] ?? 'Anonymous',
+      'version': script.metadata['version'] ?? '1.0.0',
+      'price': script.metadata['price'] ?? 0.0,
+      'is_public': script.metadata['isPublic'] ?? false,
     };
   }
 
   ScriptRecord _scriptFromJson(Map<String, dynamic> json) {
+    // Handle null or malformed JSON gracefully
+    if (json.isEmpty) {
+      throw Exception('Empty JSON data');
+    }
+    
+    final id = json['id'];
+    final title = json['title'];
+    if (id == null || title == null) {
+      throw Exception('Missing required fields: id or title');
+    }
+    
     return ScriptRecord(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      luaSource: json['luaSource'] as String,
-      metadata: Map<String, dynamic>.from(json['metadata'] as Map),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      id: id.toString(),
+      title: title.toString(),
+      luaSource: json['lua_source']?.toString() ?? '',
+      metadata: {
+        'description': json['description']?.toString() ?? '',
+        'category': json['category']?.toString() ?? 'Development',
+        'tags': json['tags'] is List ? json['tags'] as List<dynamic> : [],
+        'authorName': json['author_name']?.toString() ?? 'Anonymous',
+        'version': json['version']?.toString() ?? '1.0.0',
+        'price': (json['price'] as num?)?.toDouble() ?? 0.0,
+        'isPublic': (json['is_public'] as int? ?? 0) == 1,
+        'downloads': (json['downloads'] as int?) ?? 0,
+        'rating': (json['rating'] as num?)?.toDouble() ?? 0.0,
+        'reviewCount': (json['review_count'] as int?) ?? 0,
+        ...json['metadata'] is Map ? json['metadata'] as Map<String, dynamic> : {},
+      },
+      createdAt: _parseDateTime(json['created_at'] ?? json['createdAt']),
+      updatedAt: _parseDateTime(json['updated_at'] ?? json['updatedAt']),
     );
+  }
+  
+  DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
   }
 
   /// Additional methods for testing purposes
-  Future<ScriptRecord?> getScriptById(String id) async {
+  Future<ScriptRecord?> getScriptById(String id, {bool includePrivate = true}) async {
     try {
-      final response = await _client.get(Uri.parse('$baseUrl/scripts/$id'));
+      final response = await _client.get(Uri.parse('$baseUrl/api/v1/scripts/$id?includePrivate=true'));
       
       if (response.statusCode == 200) {
-        return _scriptFromJson(json.decode(response.body));
+        final data = json.decode(response.body);
+        if (data is Map<String, dynamic> && 
+            data['success'] == true && 
+            data['data'] != null &&
+            data['data'] is Map<String, dynamic>) {
+          return _scriptFromJson(data['data'] as Map<String, dynamic>);
+        }
+        return null;
       } else {
         return null;
       }
     } catch (e) {
+      // Return null instead of throwing for graceful error handling
       return null;
     }
   }
 
   Future<void> deleteScript(String id) async {
     try {
-      final response = await _client.delete(Uri.parse('$baseUrl/scripts/$id'));
+      final response = await _client.delete(Uri.parse('$baseUrl/api/v1/scripts/$id'));
       
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Failed to delete script $id: ${response.statusCode}');
       }
     } catch (e) {
-      // Silently ignore deletion errors if server is not available
+      throw Exception('Failed to delete script: $e');
     }
   }
 
   Future<List<ScriptRecord>> searchScripts(String query) async {
     try {
       final response = await _client.get(
-        Uri.parse('$baseUrl/scripts/search?q=${Uri.encodeComponent(query)}')
+        Uri.parse('$baseUrl/api/v1/scripts/search?q=${Uri.encodeComponent(query)}')
       );
       
       if (response.statusCode == 200) {
-        final List<dynamic> scriptsJson = json.decode(response.body);
-        return scriptsJson.map((json) => _scriptFromJson(json)).toList();
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final Map<String, dynamic> responseData = data['data'];
+          if (responseData['scripts'] != null) {
+            final List<dynamic> scriptsJson = responseData['scripts'];
+            return scriptsJson.map((json) => _scriptFromJson(json)).toList();
+          }
+        }
+        return [];
       } else {
         return [];
       }
     } catch (e) {
-      return [];
+      throw Exception('Failed to search scripts: $e');
     }
   }
 
   Future<List<ScriptRecord>> getScriptsByCategory(String category) async {
     try {
       final response = await _client.get(
-        Uri.parse('$baseUrl/scripts?category=${Uri.encodeComponent(category)}')
+        Uri.parse('$baseUrl/api/v1/scripts/category/${Uri.encodeComponent(category)}')
       );
       
       if (response.statusCode == 200) {
-        final List<dynamic> scriptsJson = json.decode(response.body);
-        return scriptsJson.map((json) => _scriptFromJson(json)).toList();
+        final data = json.decode(response.body);
+        if (data is Map<String, dynamic> && 
+            data['success'] == true && 
+            data['data'] != null &&
+            data['data'] is List) {
+          final List<dynamic> scriptsJson = data['data'] as List<dynamic>;
+          return scriptsJson
+              .whereType<Map<String, dynamic>>()
+              .map((json) => _scriptFromJson(json))
+              .toList();
+        }
+        return [];
       } else {
         return [];
       }
     } catch (e) {
+      // Return empty list instead of throwing for graceful error handling
       return [];
     }
   }
@@ -139,17 +211,24 @@ class MiniflareScriptRepository extends ScriptRepository {
   Future<List<ScriptRecord>> getPublicScripts() async {
     try {
       final response = await _client.get(
-        Uri.parse('$baseUrl/scripts?public=true')
+        Uri.parse('$baseUrl/api/v1/scripts?public=true')
       );
       
       if (response.statusCode == 200) {
-        final List<dynamic> scriptsJson = json.decode(response.body);
-        return scriptsJson.map((json) => _scriptFromJson(json)).toList();
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final Map<String, dynamic> responseData = data['data'];
+          if (responseData['scripts'] != null) {
+            final List<dynamic> scriptsJson = responseData['scripts'];
+            return scriptsJson.map((json) => _scriptFromJson(json)).toList();
+          }
+        }
+        return [];
       } else {
         return [];
       }
     } catch (e) {
-      return [];
+      throw Exception('Failed to get public scripts: $e');
     }
   }
 
@@ -165,12 +244,16 @@ class MiniflareScriptRepository extends ScriptRepository {
       );
 
       final response = await _client.post(
-        Uri.parse('$baseUrl/scripts/${script.id}/publish'),
+        Uri.parse('$baseUrl/api/v1/scripts/${script.id}/publish'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode(_scriptToJson(updatedScript)),
+        body: json.encode(_scriptToApiJson(updatedScript)),
       );
       
       if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          return data['data']['id'] as String? ?? script.id;
+        }
         return script.id;
       } else {
         throw Exception('Failed to publish script: ${response.statusCode}');
@@ -182,32 +265,58 @@ class MiniflareScriptRepository extends ScriptRepository {
 
   Future<int> getScriptsCount() async {
     try {
-      final response = await _client.get(Uri.parse('$baseUrl/scripts/count'));
+      final response = await _client.get(Uri.parse('$baseUrl/api/v1/scripts/count'));
       
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['count'] as int;
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          return data['data']['count'] as int? ?? 0;
+        }
+        return 0;
       } else {
         return 0;
       }
     } catch (e) {
-      return 0;
+      throw Exception('Failed to get scripts count: $e');
     }
   }
 
-  Future<void> saveScript(ScriptRecord script) async {
+  Future<String> saveScript(ScriptRecord script) async {
     try {
-      final response = await _client.put(
-        Uri.parse('$baseUrl/scripts/${script.id}'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(_scriptToJson(script)),
+      // First try to check if script exists using a simple GET request
+      final checkResponse = await _client.get(
+        Uri.parse('$baseUrl/api/v1/scripts/${script.id}?includePrivate=true'),
       );
+      
+      final response = checkResponse.statusCode == 200
+        ? await _client.put(
+            Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(_scriptToApiJson(script)),
+          )
+        : await _client.post(
+            Uri.parse('$baseUrl/api/v1/scripts'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(_scriptToApiJson(script)),
+          );
       
       if (response.statusCode != 200 && response.statusCode != 201) {
         throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
       }
+      
+      // If creating a new script, return the generated ID from response
+      if (checkResponse.statusCode != 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['success'] == true && responseData['data'] != null) {
+          return responseData['data']['id'] as String;
+        }
+      }
+      
+      // If updating, return the original ID
+      return script.id;
     } catch (e) {
-      // For e2e tests, silently ignore save errors if server is not available
+      // For e2e tests, fail if server is not available
+      throw Exception('Failed to save script: $e');
     }
   }
 
