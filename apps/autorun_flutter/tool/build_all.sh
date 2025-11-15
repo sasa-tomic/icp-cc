@@ -21,7 +21,7 @@ fi
 # Android
 if command -v cargo-ndk >/dev/null 2>&1; then
   echo "Building Android ABIs via cargo-ndk..."
-  (cd "$WORKSPACE_ROOT" && cargo ndk -t armeabi-v7a -t arm64-v8a -t x86 -t x86_64 -o "$ROOT_DIR/android/app/src/main/jniLibs" build -p icp_core --release)
+  (cd "$WORKSPACE_ROOT" && cargo ndk -t armeabi-v7a -t arm64-v8a -t x86_64 -o "$ROOT_DIR/android/app/src/main/jniLibs" build -p icp_core --release)
 else
   echo "cargo-ndk not found; skipping Android ndk build"
 fi
