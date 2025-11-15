@@ -5,6 +5,55 @@ import 'result_display.dart';
 
 typedef UiEventHandler = void Function(Map<String, dynamic> msg);
 
+/// Convert mixed-type list items to Map format for EnhancedResultList
+List<Map<String, dynamic>> _normalizeItemsForEnhancedList(List<dynamic> items) {
+  return items.map((item) {
+    if (item is Map<String, dynamic>) {
+      return item;
+    }
+
+    // Convert primitive types to map format
+    if (item == null) {
+      return {
+        'title': 'null',
+        'subtitle': 'Null value',
+        'data': {'original': null}
+      };
+    }
+
+    if (item is String) {
+      return {
+        'title': item,
+        'subtitle': 'String value',
+        'data': {'original': item, 'type': 'string'}
+      };
+    }
+
+    if (item is num) {
+      return {
+        'title': item.toString(),
+        'subtitle': 'Number value',
+        'data': {'original': item, 'type': 'number'}
+      };
+    }
+
+    if (item is bool) {
+      return {
+        'title': item.toString(),
+        'subtitle': 'Boolean value',
+        'data': {'original': item, 'type': 'boolean'}
+      };
+    }
+
+    // Fallback for other types
+    return {
+      'title': item.toString(),
+      'subtitle': '${item.runtimeType} value',
+      'data': {'original': item}
+    };
+  }).cast<Map<String, dynamic>>().toList();
+}
+
 class UiV1Renderer extends StatelessWidget {
   const UiV1Renderer({super.key, required this.ui, required this.onEvent});
   final Map<String, dynamic> ui; // root node { type, props?, children? }
@@ -291,9 +340,10 @@ class UiV1Renderer extends StatelessWidget {
 
         if (enhanced) {
           return EnhancedResultList(
-            items: items.cast<Map<String, dynamic>>(),
+            items: _normalizeItemsForEnhancedList(items),
             title: title,
             searchable: searchable,
+            onEvent: onEvent,
           );
         }
 

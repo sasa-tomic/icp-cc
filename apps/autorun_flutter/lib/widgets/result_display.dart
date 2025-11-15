@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+typedef UiEventHandler = void Function(Map<String, dynamic> msg);
+
 /// Widget for displaying canister call results with various formatting options
 class ResultDisplay extends StatelessWidget {
   const ResultDisplay({
@@ -359,8 +361,9 @@ class ResultDisplay extends StatelessWidget {
   }
 
   bool _isTableLike(Map<String, dynamic> map) {
-    // Consider it table-like if all values are primitives
-    return map.values.every((value) =>
+    // Consider it table-like only if it has many entries and all values are primitives
+    // Small objects (like user profiles) should use regular map display
+    return map.length >= 5 && map.values.every((value) =>
         value is String || value is num || value is bool || value == null);
   }
 
@@ -410,11 +413,13 @@ class EnhancedResultList extends StatefulWidget {
     required this.items,
     this.title = 'Results',
     this.searchable = true,
+    this.onEvent,
   });
 
   final List<Map<String, dynamic>> items;
   final String title;
   final bool searchable;
+  final UiEventHandler? onEvent;
 
   @override
   State<EnhancedResultList> createState() => _EnhancedResultListState();
@@ -505,11 +510,10 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
               ),
             )
           else
-            SizedBox(
-              height: 300, // Fixed height to prevent overflow
+            Expanded(
               child: ListView.builder(
-                shrinkWrap: false,
-                physics: const AlwaysScrollableScrollPhysics(),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: _filteredItems.length,
                 itemBuilder: (context, index) {
                   final item = _filteredItems[index];
@@ -563,6 +567,12 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Item copied to clipboard')),
         );
+        // Trigger event for test purposes
+        widget.onEvent?.call({
+          'type': 'copy',
+          'item': item,
+          'action': 'copy'
+        });
         break;
       case 'details':
         showDialog(
