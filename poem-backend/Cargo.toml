@@ -35,5 +35,16 @@ k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
 sha2 = "0.10"
 base64 = "0.22"
 
+# WebAuthn/Passkey support
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+webauthn-rs-proto = "0.5"
+
+# Password hashing for vault encryption and recovery codes
+argon2 = { version = "0.5", features = ["std"] }
+
+# Additional crypto for vault encryption
+aes-gcm = "0.10"
+rand = "0.8"
+
 [dev-dependencies]
 tokio-test = "0.4"

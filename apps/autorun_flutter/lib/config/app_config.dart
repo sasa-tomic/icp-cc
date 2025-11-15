@@ -7,6 +7,11 @@ class AppConfig {
     defaultValue: 'https://icp-mp.kalaj.org',
   );
 
+  static const String _marketplaceWebUrl = String.fromEnvironment(
+    'MARKETPLACE_WEB_URL',
+    defaultValue: 'https://icp-mp.kalaj.org',
+  );
+
   static String get apiEndpoint {
     // Check if we're in test mode and an API service override is available
     if (_isTestMode && _testServiceEndpoint != null) {
@@ -16,6 +21,8 @@ class AppConfig {
   }
   
   static String get cloudflareEndpoint => apiEndpoint;
+
+  static String get marketplaceWebUrl => _marketplaceWebUrl;
 
   // Check if we're in test mode by looking for test environment indicators
   static bool get _isTestMode {

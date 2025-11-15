@@ -358,25 +358,34 @@ class ScriptCard extends StatelessWidget {
                       )
                     else if (onDownload != null && script.price > 0)
                       ModernButton(
-                        onPressed: isDownloading ? null : () {
+                        onPressed: () {
                           HapticFeedback.mediumImpact();
-                          onDownload!();
+                          // Show "Coming Soon" dialog for paid scripts
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Payments Coming Soon'),
+                              content: const Text(
+                                'Paid scripts will be available in the next update! '
+                                'We\'re working on integrating secure payment processing with ICP tokens.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
                         },
                         variant: ModernButtonVariant.outline,
                         size: ModernButtonSize.medium,
                         fullWidth: true,
-                        loading: isDownloading,
-                        icon: Icon(
-                          isDownloaded ? Icons.check_circle_rounded : Icons.shopping_cart_rounded,
+                        icon: const Icon(
+                          Icons.shopping_cart_rounded,
                           size: 18,
                         ),
-                        child: Text(
-                          isDownloading 
-                              ? 'Processing...' 
-                              : isDownloaded 
-                                  ? 'Purchased ✓' 
-                                  : '\$${script.price.toStringAsFixed(2)}',
-                        ),
+                        child: Text('\$${script.price.toStringAsFixed(2)}'),
                       )
                     else
                       // Small action buttons for other cases

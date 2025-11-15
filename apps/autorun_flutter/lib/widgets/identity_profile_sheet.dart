@@ -126,7 +126,9 @@ class _IdentityProfileFormState extends State<_IdentityProfileForm> {
                   if (value == null || value.trim().isEmpty) {
                     return null;
                   }
-                  if (!value.contains('@') || !value.contains('.')) {
+                  // Proper email validation: must have @ and . in correct positions
+                  final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                  if (!emailRegex.hasMatch(value.trim())) {
                     return 'Enter a valid email address';
                   }
                   return null;

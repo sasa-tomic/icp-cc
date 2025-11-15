@@ -17,7 +17,7 @@ Cloudflare Network
     ↓
 Cloudflare Tunnel (cloudflared container)
     ↓
-icp-mp.kalaj.org → api:8080 (internal network)
+icp-mp.kalaj.org → api:58000
 ```
 
 **Benefits:**
@@ -53,7 +53,7 @@ That's it! No need to install cloudflared locally.
    - **Subdomain**: `icp-mp`
    - **Domain**: `kalaj.org`
    - **Service Type**: `HTTP`
-   - **URL**: `api:8080`
+   - **URL**: `api:58000`
 4. Click **Save hostname**
 
 ### Step 3: Get the Tunnel Token
@@ -227,31 +227,19 @@ nslookup icp-mp.kalaj.org
 # Networks > Tunnels > icp-marketplace > Public Hostname tab
 ```
 
-### Port Already in Use
-
-If port 8080 is already in use:
-
-```bash
-# Edit docker-compose.yml and change the host port
-ports:
-  - "127.0.0.1:8081:8080"  # Changed from 8080 to 8081
-```
-
 ## Security Considerations
 
 1. **Token Protection**: The `.env.tunnel` file contains a secret token and is automatically excluded from git via `.gitignore`
 
-2. **Local-Only API Access**: The API is bound to `127.0.0.1:8080`, preventing direct external access
-
-3. **Cloudflare Protection**: All traffic goes through Cloudflare's network, providing:
+2. **Cloudflare Protection**: All traffic goes through Cloudflare's network, providing:
    - DDoS protection
    - Web Application Firewall (WAF)
    - Rate limiting
    - TLS encryption
 
-4. **Container Security**: The API runs as a non-root user inside the container
+3. **Container Security**: The API runs as a non-root user inside the container
 
-5. **Token Rotation**: You can regenerate the tunnel token at any time from the Cloudflare dashboard
+4. **Token Rotation**: You can regenerate the tunnel token at any time from the Cloudflare dashboard
 
 ## Data Persistence
 

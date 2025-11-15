@@ -46,7 +46,7 @@ if [ ! -f ".env" ]; then
     echo "     - Subdomain: icp-mp"
     echo "     - Domain: kalaj.org"
     echo "     - Service Type: HTTP"
-    echo "     - URL: api:8080"
+    echo "     - URL: api:58000"
     echo "  5. Select 'Docker' and copy the token from the command"
     echo "  6. Create .env file:"
     echo

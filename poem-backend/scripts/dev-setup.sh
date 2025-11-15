@@ -12,7 +12,7 @@ mkdir -p data
 
 # Set environment variables
 export DATABASE_URL="sqlite:./data/dev.db"
-export PORT=8080
+export PORT=58000
 export ENVIRONMENT="development"
 export RUST_LOG="info,icp_marketplace_api_poem=debug"
 
@@ -66,9 +66,9 @@ echo "  Start server:     cargo run"
 echo "  Reset database:  ./scripts/reset-db.sh"
 echo "  Add sample data:  ./scripts/add-sample-data.sh"
 echo ""
-echo "🌐 Server will be available at: http://localhost:8080"
+echo "🌐 Server will be available at: http://localhost:58000"
 echo "📚 API endpoints:"
-echo "  Health:          http://localhost:8080/api/v1/health"
-echo "  Ping:            http://localhost:8080/api/v1/ping"
-echo "  Scripts:         http://localhost:8080/api/v1/scripts"
+echo "  Health:          http://localhost:58000/api/v1/health"
+echo "  Ping:            http://localhost:58000/api/v1/ping"
+echo "  Scripts:         http://localhost:58000/api/v1/scripts"
 echo ""

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../config/app_config.dart';
 import '../controllers/script_controller.dart';
 import '../models/script_record.dart';
 import '../models/script_template.dart';
@@ -579,8 +580,33 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                   ),
                 ),
                 confirmDismiss: (_) async {
+                  // Implement soft delete with undo
+                  final deletedScript = rec;
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  final scriptRepository = ScriptRepository();
+
+                  // Delete the script
                   await _controller.deleteScript(rec.id);
-                  return false;
+
+                  // Show snackbar with undo option
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Script "${deletedScript.title}" deleted'),
+                      duration: const Duration(seconds: 5),
+                      action: SnackBarAction(
+                        label: 'Undo',
+                        onPressed: () async {
+                          // Restore the script by persisting current scripts + deleted one
+                          final currentScripts = await scriptRepository.loadScripts();
+                          currentScripts.add(deletedScript);
+                          await scriptRepository.persistScripts(currentScripts);
+                          await _controller.refresh(); // Refresh controller to pick up change
+                        },
+                      ),
+                    ),
+                  );
+
+                  return false; // Don't actually dismiss the widget, let controller update handle it
                 },
                 child: Container(
                   margin: const EdgeInsets.symmetric(vertical: 2),
@@ -956,7 +982,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   void _shareScript(BuildContext context, MarketplaceScript script) async {
     // For now, just copy the script URL to clipboard
     // In a real implementation, you would generate a shareable link
-    final shareUrl = 'https://icp-marketplace.com/scripts/${script.id}';
+    final shareUrl = '${AppConfig.marketplaceWebUrl}/scripts/${script.id}';
 
     // Capture context before async operation
     final messenger = ScaffoldMessenger.of(context);

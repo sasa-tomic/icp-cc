@@ -128,41 +128,71 @@ A smooth, intuitive platform where users can discover, manage, and automate inte
 
 **Target Requirements**:
 
-#### 6.1 Request Authentication
-- **All DB operations** must be signed with Ed25519 (or propose better alternative)
-- Signature verification on backend for every state-changing operation
-- Consider alternatives if easier:
-  - **Passkey/WebAuthn** (modern, built into browsers/OS)
-  - **ECDSA secp256k1** (already supported, could standardize)
-  - **Hybrid approach**: Passkey for web, Ed25519 for native
+#### 6.1 Request Authentication & Encryption Architecture
 
-**Decision Needed**:
-- Current: Ed25519 + secp256k1 both supported, but inconsistently applied
-- Recommendation: Standardize on **Passkeys** for primary auth (better UX), keep Ed25519 for script signing
+**DECISION (2025-11-14)**: Hybrid Approach - Passkey Authentication + Password-Based Vault Encryption
 
-#### 6.2 Credential Storage
-**Current State**: Keys stored in platform secure storage, but server-side credential storage not encrypted.
+After research, we're implementing **Option 1** from the security analysis:
+- **Authentication**: Passkeys via WebAuthn (phishing-resistant, great UX for login)
+- **Vault Encryption**: Separate password for encrypting stored credentials (zero-knowledge)
+- **Recovery**: Password recovery codes (rock-solid, well-understood)
 
-**Target**:
-- Users can store credentials **on server** encrypted with:
-  - **Option 1**: Strong password (PBKDF2/Argon2 derived key)
-  - **Option 2**: Passkey (WebAuthn credential for encryption)
-  - **Option 3**: Hardware security key (YubiKey, etc.)
+**Why This Works**:
+- ✅ Best of both worlds: Passkey UX for frequent logins, password for encryption
+- ✅ Separation of concerns: Authentication ≠ encryption (losing passkey ≠ losing data)
+- ✅ Platform-independent: Works on all devices (no Windows 11 PRF fragmentation)
+- ✅ Easy implementation: Mature libraries (`webauthn-rs` + `passkeys` package)
+- ✅ Rock-solid recovery: Password recovery codes proven solution
 
-**Requirements**:
-- [ ] Client-side encryption before sending to server (server never sees plaintext)
-- [ ] Key derivation from user password/passkey (use Argon2id)
-- [ ] Encrypted blob storage in DB with associated metadata
-- [ ] Secure key rotation mechanism
-- [ ] Recovery flow (security questions, backup codes, or similar)
+**Implementation Stack**:
+- **Backend (Rust)**: `webauthn-rs` v0.5.2 + `argon2` crate
+- **Frontend (Flutter)**: `passkeys` package v2.16.0 + Argon2id via FFI/pointycastle
+- **Parameters**: Argon2id (time=3, mem=64MB, parallelism=4) for Bitwarden-level security
 
-**Proposed Architecture**:
+#### 6.2 Authentication Requirements
+- [ ] Integrate `webauthn-rs` for passkey registration/authentication
+- [ ] Create `/api/passkey/register` and `/api/passkey/authenticate` endpoints
+- [ ] Store passkey credentials in database (linked to user accounts)
+- [ ] Support multiple passkeys per user (force ≥2 for redundancy)
+- [ ] Alert users on new passkey registration
+- [ ] Log authentication attempts with device metadata
+
+#### 6.3 Vault Encryption Requirements
+- [ ] Client-side encryption with Argon2id-derived key from vault password
+- [ ] Enforce strong password (min 16 chars, complexity requirements)
+- [ ] Encrypt credentials with AES-256-GCM before sending to server
+- [ ] Server stores encrypted blob + salt per user (zero-knowledge)
+- [ ] Never transmit or store vault password server-side
+- [ ] Decrypt credentials in memory only, never persist decrypted
+
+#### 6.4 Recovery Mechanism Requirements
+- [ ] Generate 12 recovery codes (base32-encoded) during setup
+- [ ] Hash recovery codes with bcrypt/Argon2id before storage
+- [ ] Allow one-time use for vault password reset
+- [ ] Provide download/print functionality for recovery codes
+- [ ] Multiple confirmation warnings about irrecoverability
+- [ ] Audit trail for recovery code usage
+
+**Architecture**:
 ```
-User Password/Passkey → Argon2id KDF → Encryption Key
-                                     ↓
-                     Encrypt(User Credentials) → Store in DB
-                                     ↓
-                     Server stores encrypted blob only
+┌─────────────────────────────────────────────────────────┐
+│ Authentication (Frequent)                               │
+│ User → Passkey (WebAuthn) → Backend → Session Token    │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ Vault Access (Occasional)                               │
+│ Vault Password → Argon2id → Encryption Key             │
+│                             ↓                           │
+│              Decrypt(Credentials) ← Server Blob         │
+│                             ↓                           │
+│              Use in memory, never persist               │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ Recovery (Emergency)                                    │
+│ Recovery Code → Verify Hash → Allow Password Reset     │
+└─────────────────────────────────────────────────────────┘
 ```
 
 #### 6.3 API Security
@@ -289,29 +319,39 @@ User Password/Passkey → Argon2id KDF → Encryption Key
 
 ## Implementation Phases
 
-### Phase 1: Security & Foundation (Week 1-2)
-- Fix authentication gaps (all endpoints signed)
-- Implement encrypted credential storage
+**REVISED 2025-11-14**: Prioritizing UX improvements first for immediate "awesome" feel, then security hardening.
+
+### Phase 1: UX Overhaul (Week 1-2) **← CURRENT FOCUS**
+- Unified script view (no tabs, single integrated experience)
+- Smooth upload/download flows with visual feedback
+- Script slug generation (author/script-name instead of UUIDs)
+- Profile editing improvements with real-time validation
+- Better error messages (user-friendly, actionable)
+- Fix navigation bugs and disconnected views
+- Responsive design improvements
+
+### Phase 2: Security & Foundation (Week 3-6)
+- **See `PASSKEY_IMPLEMENTATION_PLAN.md` for complete details**
+- Implement passkey authentication (WebAuthn)
+- Implement vault encryption (Argon2id + AES-GCM)
+- Recovery code system
 - Add rate limiting and CORS
-- Refactor backend into modules
+- Fix authentication gaps (signature verification on all endpoints)
+- Database schema already prepared (3 new tables created)
 
-### Phase 2: UX Overhaul (Week 3-4)
-- Unified script view (no tabs)
-- Smooth upload/download flows
-- Profile editing improvements
-- Better error messages
-
-### Phase 3: Discovery & Updates (Week 5-6)
-- Trending/recommendations
+### Phase 3: Discovery & Updates (Week 7-8)
+- Trending/recommendations based on marketplace stats
 - Update notification system
 - Version management UI
 - Changelog viewer
+- Rich script cards with complexity/usage indicators
 
-### Phase 4: Polish & Scale (Week 7-8)
+### Phase 4: Polish & Scale (Week 9-10)
 - Performance optimization (caching, pagination)
-- Rich script cards with stats
+- Refactor backend from monolithic main.rs into modules
 - Automation scheduler UI
 - Canister explorer improvements
+- Production hardening
 
 ---
 

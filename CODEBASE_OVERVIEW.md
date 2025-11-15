@@ -36,7 +36,7 @@ This is a **Flutter + Rust + Poem REST API** cross-platform application for mana
   - `sha2` for message hashing
   - `base64` for encoding/decoding
 - **Logging**: tracing + tracing-subscriber
-- **Port**: 58100 (configurable via `PORT` env var)
+- **Port**: 58000 (configurable via `PORT` env var)
 
 ### Native Bridge
 - **Rust FFI Crate**: `crates/icp_core` (cdylib)

@@ -7,4 +7,4 @@ services:
       - DATABASE_URL=sqlite:///data/dev.db?mode=rwc
       - ENVIRONMENT=development
     ports:
-      - "58000:58100"  # Dev port (avoids conflict with other services)
+      - "58000:58000"
