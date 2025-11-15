@@ -42,7 +42,14 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
     }
 
     const now = new Date().toISOString();
-    const scriptId = crypto.randomUUID();
+    
+    // Calculate SHA256 hash of the script content to use as identifier
+    const scriptContent = `${title}|${description}|${category}|${lua_source}|${author_name}|${version}`;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(scriptContent);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const scriptId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     await db.env.DB.prepare(`
       INSERT INTO scripts (

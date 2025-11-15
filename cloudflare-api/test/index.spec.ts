@@ -23,6 +23,44 @@ describe('ICP Marketplace API worker', () => {
 			expect(data.success).toBe(false);
 		});
 
+		it('should generate consistent SHA256 hash for identical script content', async () => {
+			// Test SHA256 hash generation consistency
+			const scriptContent = 'Test Script|Test Description|utility|print("hello")|TestAuthor|1.0.0';
+			const encoder = new TextEncoder();
+			const data = encoder.encode(scriptContent);
+			const hashBuffer1 = await crypto.subtle.digest('SHA-256', data);
+			const hashArray1 = Array.from(new Uint8Array(hashBuffer1));
+			const scriptId1 = hashArray1.map(b => b.toString(16).padStart(2, '0')).join('');
+			
+			// Generate hash again with same content
+			const hashBuffer2 = await crypto.subtle.digest('SHA-256', data);
+			const hashArray2 = Array.from(new Uint8Array(hashBuffer2));
+			const scriptId2 = hashArray2.map(b => b.toString(16).padStart(2, '0')).join('');
+			
+			expect(scriptId1).toBe(scriptId2);
+			expect(scriptId1).toHaveLength(64); // SHA256 produces 64 hex characters
+		});
+
+		it('should generate different SHA256 hashes for different script content', async () => {
+			// Test with different content
+			const scriptContent1 = 'Test Script|Test Description|utility|print("hello")|TestAuthor|1.0.0';
+			const scriptContent2 = 'Different Script|Test Description|utility|print("hello")|TestAuthor|1.0.0';
+			
+			const encoder = new TextEncoder();
+			const data1 = encoder.encode(scriptContent1);
+			const data2 = encoder.encode(scriptContent2);
+			
+			const hashBuffer1 = await crypto.subtle.digest('SHA-256', data1);
+			const hashArray1 = Array.from(new Uint8Array(hashBuffer1));
+			const scriptId1 = hashArray1.map(b => b.toString(16).padStart(2, '0')).join('');
+			
+			const hashBuffer2 = await crypto.subtle.digest('SHA-256', data2);
+			const hashArray2 = Array.from(new Uint8Array(hashBuffer2));
+			const scriptId2 = hashArray2.map(b => b.toString(16).padStart(2, '0')).join('');
+			
+			expect(scriptId1).not.toBe(scriptId2);
+		});
+
 		it('/api/v1/scripts/search rejects GET requests', async () => {
 			const request = new Request('http://example.com/api/v1/scripts/search?q=test');
 			const response = await SELF.fetch(request);
