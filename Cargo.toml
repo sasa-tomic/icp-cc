@@ -1,6 +1,6 @@
 [workspace]
 members = [
   "crates/icp_core",
-  "marketplace-deploy",
+  "server-deploy",
 ]
 resolver = "2"

@@ -6,39 +6,32 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub endpoint: String,
-    pub project_id: String,
-    pub api_key: String,
+    pub account_id: String,
+    pub api_token: String,
+    pub worker_name: String,
+    pub database_name: String,
     pub database_id: String,
-    pub scripts_collection_id: String,
-    pub users_collection_id: String,
-    pub purchases_collection_id: String,
-    pub reviews_collection_id: String,
-    pub storage_bucket_id: String,
+    pub worker_url: String,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            endpoint: String::new(),
-            project_id: String::new(),
-            api_key: String::new(),
-            database_id: "marketplace_db".to_string(),
-            scripts_collection_id: "scripts".to_string(),
-            users_collection_id: "users".to_string(),
-            purchases_collection_id: "purchases".to_string(),
-            reviews_collection_id: "reviews".to_string(),
-            storage_bucket_id: "scripts_files".to_string(),
+            account_id: String::new(),
+            api_token: String::new(),
+            worker_name: "icp-marketplace-api".to_string(),
+            database_name: "icp-marketplace-db".to_string(),
+            database_id: String::new(),
+            worker_url: String::new(),
         }
     }
 }
 
 impl AppConfig {
-    pub fn new(project_id: String, api_key: String, endpoint: String) -> Self {
+    pub fn new(account_id: String, api_token: String) -> Self {
         Self {
-            endpoint,
-            project_id,
-            api_key,
+            account_id,
+            api_token,
             ..Default::default()
         }
     }
@@ -85,7 +78,7 @@ impl AppConfig {
     }
 
     pub fn is_complete(&self) -> bool {
-        !self.project_id.is_empty() && !self.api_key.is_empty() && !self.endpoint.is_empty()
+        !self.account_id.is_empty() && !self.api_token.is_empty()
     }
 }
 
@@ -132,8 +125,6 @@ impl IndexType {
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum DeployComponents {
     Database,
-    Collections,
-    Sites,
-    Storage,
+    Worker,
     All,
 }

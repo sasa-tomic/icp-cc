@@ -13,7 +13,7 @@ class MarketplaceOpenApiService {
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal();
 
-  final String _baseUrl = '${AppConfig.appwriteEndpoint}/api'; // Site API endpoints
+  final String _baseUrl = '${AppConfig.apiEndpoint}/api'; // API endpoints
   final Duration _timeout = const Duration(seconds: 30);
   static const int defaultSearchLimit = 20;
 
@@ -32,7 +32,7 @@ class MarketplaceOpenApiService {
     try {
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/search_scripts'),
+            Uri.parse('$_baseUrl/scripts/search'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'query': query,
@@ -300,7 +300,7 @@ class MarketplaceOpenApiService {
   Future<MarketplaceStats> getMarketplaceStats() async {
     try {
       final response = await http
-          .get(Uri.parse('$_baseUrl/get_marketplace_stats'))
+          .get(Uri.parse('$_baseUrl/marketplace-stats'))
           .timeout(_timeout);
 
       if (response.statusCode != 200) {
@@ -340,12 +340,16 @@ class MarketplaceOpenApiService {
         }
       }
 
-      final uri = Uri.parse('$_baseUrl/scripts/compatible').replace(queryParameters: {
-        'canister_ids': canisterIds.join(','),
-        'limit': limit.toString(),
-      });
-
-      final response = await http.get(uri).timeout(_timeout);
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/scripts/compatible'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'canisterId': canisterIds.first, // Cloudflare endpoint expects single canister ID
+              'limit': limit,
+            }),
+          )
+          .timeout(_timeout);
 
       if (response.statusCode != 200) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
@@ -368,25 +372,35 @@ class MarketplaceOpenApiService {
   // Validate script syntax (service that checks if Lua code is valid)
   Future<ScriptValidationResult> validateScript(String luaSource) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/scripts/validate'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'lua_source': luaSource}),
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      // For now, do basic client-side validation since Cloudflare endpoint doesn't exist yet
+      final errors = <String>[];
+      final warnings = <String>[];
+      
+      // Basic Lua syntax validation
+      if (luaSource.trim().isEmpty) {
+        errors.add('Lua source cannot be empty');
       }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Script validation failed');
+      
+      // Check for potentially dangerous functions
+      final dangerousPatterns = [
+        r'os\.execute',
+        r'io\.open',
+        r'dofile',
+        r'loadfile',
+        r'require',
+      ];
+      
+      for (final pattern in dangerousPatterns) {
+        if (RegExp(pattern).hasMatch(luaSource)) {
+          warnings.add('Potentially dangerous function detected: $pattern');
+        }
       }
-
-      final data = responseData['data'];
-      return ScriptValidationResult.fromJson(data);
+      
+      return ScriptValidationResult(
+        isValid: errors.isEmpty,
+        errors: errors,
+        warnings: warnings,
+      );
 
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Validate script failed: $e');
