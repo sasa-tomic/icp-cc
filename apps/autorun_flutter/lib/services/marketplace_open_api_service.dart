@@ -12,7 +12,10 @@ class MarketplaceOpenApiService {
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal();
 
-  final String _baseUrl = 'http://localhost:3000/v1'; // Local API server URL
+  final String _baseUrl = String.fromEnvironment(
+    'MARKETPLACE_API_URL',
+    defaultValue: 'http://localhost:3000/v1',
+  ); // API server URL configurable via environment variable
   final Duration _timeout = const Duration(seconds: 30);
   static const int defaultSearchLimit = 20;
 
