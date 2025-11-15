@@ -10,7 +10,7 @@ void main() {
   suppressDebugOutput = false;
   group('Script Upload Immediate Visibility E2E Tests', () {
     late MarketplaceOpenApiService marketplaceService;
-    late String testScriptId;
+    String testScriptId = '';
     late String testScriptTitle;
 
     setUpAll(() async {

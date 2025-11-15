@@ -478,10 +478,21 @@ class MarketplaceOpenApiService {
           .timeout(_timeout);
 
       if (response.statusCode != 201) {
-        final responseData = jsonDecode(response.body);
-        throw Exception(responseData['error'] ?? 'Upload failed: ${response.reasonPhrase}');
+        if (response.body.isEmpty) {
+          throw Exception('Upload failed: ${response.reasonPhrase}');
+        }
+        try {
+          final responseData = jsonDecode(response.body);
+          throw Exception(responseData['error'] ?? 'Upload failed: ${response.reasonPhrase}');
+        } catch (e) {
+          throw Exception('Upload failed: ${response.reasonPhrase}');
+        }
       }
 
+      if (response.body.isEmpty) {
+        throw Exception('Upload failed: Empty response from server');
+      }
+      
       final responseData = jsonDecode(response.body);
       if (!responseData['success']) {
         throw Exception(responseData['error'] ?? 'Upload failed');
