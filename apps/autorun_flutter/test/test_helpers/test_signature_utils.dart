@@ -114,7 +114,7 @@ class TestSignatureUtils {
     final signature = generateTestSignature(payload);
 
     return {
-      ...updates,
+      ...?updates,
       'author_principal': getPrincipal(),
       'signature': signature,
       'timestamp': timestamp,
