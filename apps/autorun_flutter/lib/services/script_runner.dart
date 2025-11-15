@@ -204,7 +204,7 @@ class ScriptRunner {
       }
 
       try {
-        final List<IdentityRecord> identities = await _identityRepository.loadIdentities();
+        final List<IdentityRecord> identities = await _identityRepository!.loadIdentities();
         final IdentityRecord? identity = identities.cast<IdentityRecord?>().firstWhere(
           (id) => id?.id == spec.identityId,
           orElse: () => null,

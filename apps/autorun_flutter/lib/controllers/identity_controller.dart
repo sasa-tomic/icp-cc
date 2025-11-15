@@ -2,12 +2,15 @@ import 'package:flutter/foundation.dart';
 
 import '../models/identity_record.dart';
 import '../services/identity_repository.dart';
+import '../services/secure_identity_repository.dart';
 import '../utils/identity_generator.dart';
 
 class IdentityController extends ChangeNotifier {
-  IdentityController(this._repository);
+  IdentityController(this._repository, {SecureIdentityRepository? secureRepository})
+      : _secureRepository = secureRepository ?? SecureIdentityRepository();
 
   final IdentityRepository _repository;
+  final SecureIdentityRepository _secureRepository;
   final List<IdentityRecord> _identities = <IdentityRecord>[];
 
   bool _initialized = false;
@@ -28,7 +31,22 @@ class IdentityController extends ChangeNotifier {
   Future<void> refresh() async {
     _setBusy(true);
     try {
-      final List<IdentityRecord> records = await _repository.loadIdentities();
+      // First, try to load from secure storage
+      List<IdentityRecord> records = await _secureRepository.loadIdentities();
+
+      // If no secure identities exist, try to migrate from insecure storage
+      if (records.isEmpty) {
+        final List<IdentityRecord> insecureRecords = await _repository.loadIdentities();
+        if (insecureRecords.isNotEmpty) {
+          // Migrate to secure storage
+          await _secureRepository.migrateFromInsecureStorage(insecureRecords);
+          records = await _secureRepository.loadIdentities();
+
+          // Clear the old insecure storage after successful migration
+          await _repository.persistIdentities(<IdentityRecord>[]);
+        }
+      }
+
       _identities
         ..clear()
         ..addAll(records);
@@ -52,7 +70,7 @@ class IdentityController extends ChangeNotifier {
         identityCount: _identities.length,
       );
       _identities.add(record);
-      await _repository.persistIdentities(_identities);
+      await _secureRepository.persistIdentities(_identities);
       notifyListeners();
       return record;
     } finally {
@@ -75,13 +93,17 @@ class IdentityController extends ChangeNotifier {
     }
     final int index = _identities.indexOf(existing);
     _identities[index] = existing.copyWith(label: label);
-    await _repository.persistIdentities(_identities);
+    await _secureRepository.persistIdentities(_identities);
     notifyListeners();
   }
 
   Future<void> deleteIdentity(String id) async {
+    final IdentityRecord? toDelete = _identities.where((IdentityRecord record) => record.id == id).firstOrNull;
+    if (toDelete != null) {
+      await _secureRepository.deleteIdentitySecureData(toDelete.id);
+    }
     _identities.removeWhere((IdentityRecord record) => record.id == id);
-    await _repository.persistIdentities(_identities);
+    await _secureRepository.persistIdentities(_identities);
     notifyListeners();
   }
 
