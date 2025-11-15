@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../rust/native_bridge.dart';
 import '../services/favorites_events.dart';
 import '../utils/json_format.dart';
+import '../utils/candid_form_model.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key, required this.bridge, required this.onOpenClient});
@@ -65,8 +66,10 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   final TextEditingController _methodController = TextEditingController();
   final TextEditingController _identityKeyController = TextEditingController();
   int _selectedKind = 0; // 0=query,1=update,2=comp
-  // JSON-only args input
+  // Args input
   final TextEditingController _jsonArgsController = TextEditingController();
+  bool _useAutoForm = true;
+  List<Map<String, dynamic>> _currentMethodSig = const <Map<String, dynamic>>[]; // [{"name": "arg0", "type": "text"}, ...]
   String? _resultJson;
   String? _candidRaw;
   List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
@@ -143,6 +146,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         if (selected != null) {
           final String kind = (selected['kind'] as String).toLowerCase();
           _selectedKind = kind.contains('update') ? 1 : (kind.contains('composite') ? 2 : 0);
+          _currentMethodSig = (selected['args'] as List<String>)
+              .asMap()
+              .entries
+              .map((e) => {'name': 'arg${e.key}', 'type': e.value})
+              .toList();
+          _useAutoForm = true;
         } else if (_methods.isNotEmpty) {
           // Fallback to the first method as a hint when nothing preset matches
           if (_methodController.text.trim().isEmpty) {
@@ -160,6 +169,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
 
   @override
   Widget build(BuildContext context) {
+    Widget argsEditor = _ArgsEditor(
+      useAuto: _useAutoForm,
+      argTypes: _currentMethodSig.map((m) => m['type'] as String).toList(),
+      controller: _jsonArgsController,
+      onToggle: (v) => setState(() => _useAutoForm = v),
+    );
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: ListView(
@@ -216,18 +231,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
             ),
           ),
           const SizedBox(height: 12),
-          Text('Arguments (JSON only)', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _jsonArgsController,
-            decoration: const InputDecoration(
-              labelText: 'Args JSON',
-              hintText: '[] for multiple args; object/array/scalar for single arg',
-              border: OutlineInputBorder(),
-            ),
-            minLines: 1,
-            maxLines: 8,
-          ),
+          argsEditor,
           const SizedBox(height: 12),
           ExpansionTile(
             title: const Text('Authenticated (optional)'),
@@ -357,12 +361,18 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                           IconButton(
                             tooltip: 'Use method',
                             icon: const Icon(Icons.input),
-                            onPressed: () {
+                          onPressed: () {
                               _methodController.text = name;
                               setState(() {
                                 _selectedKind = kind.toLowerCase().contains('update')
                                     ? 1
                                     : (kind.toLowerCase().contains('composite') ? 2 : 0);
+                              _currentMethodSig = args
+                                  .asMap()
+                                  .entries
+                                  .map((e) => {'name': 'arg${e.key}', 'type': e.value})
+                                  .toList();
+                              _useAutoForm = true;
                               });
                             },
                           ),
@@ -403,6 +413,155 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ArgsEditor extends StatefulWidget {
+  const _ArgsEditor({
+    required this.useAuto,
+    required this.argTypes,
+    required this.controller,
+    required this.onToggle,
+  });
+  final bool useAuto;
+  final List<String> argTypes;
+  final TextEditingController controller;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  State<_ArgsEditor> createState() => _ArgsEditorState();
+}
+
+class _ArgsEditorState extends State<_ArgsEditor> {
+  late List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List<TextEditingController>.generate(
+      widget.argTypes.length,
+      (_) => TextEditingController(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _ArgsEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.argTypes.length != widget.argTypes.length) {
+      for (final c in _controllers) {
+        c.dispose();
+      }
+      _controllers = List<TextEditingController>.generate(
+        widget.argTypes.length,
+        (_) => TextEditingController(),
+      );
+      _rebuildJson();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _rebuildJson() {
+    try {
+      final model = CandidFormModel(widget.argTypes);
+      if (!model.isSupportedByForm || !widget.useAuto) {
+        return;
+      }
+      final List<dynamic> values = <dynamic>[];
+      for (int i = 0; i < widget.argTypes.length; i += 1) {
+        values.add(_controllers[i].text.trim());
+      }
+      widget.controller.text = model.buildJson(values);
+    } catch (_) {
+      // Let the user fall back to raw JSON
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final model = CandidFormModel(widget.argTypes);
+
+    // Header with toggle
+    final header = Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: <Widget>[
+        Text('Arguments', style: Theme.of(context).textTheme.titleMedium),
+        Row(children: <Widget>[
+          const Text('Auto'),
+          Switch(value: widget.useAuto, onChanged: widget.onToggle),
+        ]),
+      ],
+    );
+
+    if (!widget.useAuto || widget.argTypes.isEmpty || !model.isSupportedByForm) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          header,
+          const SizedBox(height: 8),
+          if (!widget.useAuto && widget.argTypes.isNotEmpty)
+            const SizedBox.shrink()
+          else if (!model.isSupportedByForm)
+            const Text('Some argument types are not supported by auto form. Use raw JSON below.'),
+          if (widget.argTypes.isEmpty)
+            const Text('No input required for this method')
+          else
+            TextField(
+              controller: widget.controller,
+              decoration: const InputDecoration(
+                labelText: 'Args JSON',
+                hintText: '[] for multiple args; object/array/scalar for single arg',
+                border: OutlineInputBorder(),
+              ),
+              minLines: 1,
+              maxLines: 8,
+            ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        header,
+        const SizedBox(height: 8),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: widget.argTypes.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final String t = widget.argTypes[index];
+            final String label = 'Arg ${index + 1} ($t)';
+            final String lower = t.toLowerCase();
+            final TextInputType inputType = (lower.contains('int') || lower.contains('float') || lower.contains('nat'))
+                ? TextInputType.number
+                : TextInputType.text;
+            final String? hint = lower.startsWith('record')
+                ? 'JSON object or array matching record fields'
+                : (lower.startsWith('vec')
+                    ? 'JSON array for vector values'
+                    : (lower.startsWith('opt') ? 'Value or null' : null));
+            return TextField(
+              controller: _controllers[index],
+              decoration: InputDecoration(
+                labelText: label,
+                hintText: hint,
+                border: const OutlineInputBorder(),
+              ),
+              keyboardType: inputType,
+              onChanged: (_) => _rebuildJson(),
+            );
+          },
+        ),
+      ],
     );
   }
 }
