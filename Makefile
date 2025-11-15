@@ -17,7 +17,7 @@ all: linux android
 
 linux:
 	$(S)/build_linux.sh
-	cd $(ROOT)/icp_identity_manager && flutter build linux
+	cd $(ROOT)/icp_identity_manager && flutter build linux && flutter run -d linux
 
 android:
 	$(S)/build_android.sh
