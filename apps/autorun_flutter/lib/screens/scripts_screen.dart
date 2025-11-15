@@ -183,6 +183,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
         );
       }),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'scripts_fab',
         onPressed: _controller.isBusy ? null : _showCreateSheet,
         icon: const Icon(Icons.add),
         label: const Text('New script'),

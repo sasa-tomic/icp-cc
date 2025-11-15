@@ -277,6 +277,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'identities_fab',
         onPressed: _controller.isBusy ? null : _showCreationSheet,
         icon: const Icon(Icons.add),
         label: const Text('New identity'),

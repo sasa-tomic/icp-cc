@@ -38,7 +38,15 @@ class _FakeRuntime implements IScriptAppRuntime {
   Future<Map<String, dynamic>> view({required String script, required Map<String, dynamic> state, int budgetMs = 50}) async {
     return <String, dynamic>{
       'ok': true,
-      'ui': <String, dynamic>{ 'type': 'column', 'children': const <dynamic>[] },
+      'ui': <String, dynamic>{
+        'type': 'column',
+        'children': <dynamic>[
+          <String, dynamic>{
+            'type': 'button',
+            'props': <String, dynamic>{ 'label': 'Trigger', 'on_press': <String, dynamic>{ 'type': 'go' } },
+          },
+        ],
+      },
     };
   }
 }
@@ -55,6 +63,13 @@ void main() {
     // Initial frame and async startup
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
+
+    // No dialog yet since effects were an object (treated as empty)
+    expect(find.textContaining('Allow canister call?'), findsNothing);
+
+    // Tap the Trigger button to cause update() which returns a call effect
+    await tester.tap(find.text('Trigger'));
+    await tester.pumpAndSettle();
 
     // Expect a dialog asking for permission
     expect(find.textContaining('Allow canister call?'), findsOneWidget);
