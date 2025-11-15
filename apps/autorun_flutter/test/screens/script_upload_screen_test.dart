@@ -28,14 +28,19 @@ void main() {
          await tester.pumpWidget(createWidget());
          await tester.pumpAndSettle();
 
-         // Assert
-         expect(find.byType(TextFormField), findsNWidgets(9));
-         expect(find.text('Title'), findsOneWidget);
-         expect(find.text('Description'), findsOneWidget);
-         expect(find.text('Author Name'), findsOneWidget);
-         expect(find.text('Category'), findsOneWidget);
-         expect(find.text('Price (in ICP)'), findsOneWidget);
-         expect(find.text('Version'), findsOneWidget);
+          // Assert
+          expect(find.byType(TextFormField), findsNWidgets(10));
+          expect(find.text('Title'), findsOneWidget);
+          expect(find.text('Description'), findsOneWidget);
+          expect(find.text('Author Name'), findsOneWidget);
+          expect(find.text('Category'), findsOneWidget);
+          expect(find.text('Tags'), findsOneWidget);
+          expect(find.text('Canister IDs'), findsOneWidget);
+          expect(find.text('Compatibility Notes'), findsOneWidget);
+          expect(find.text('Icon URL'), findsOneWidget);
+          expect(find.text('Screenshots'), findsOneWidget);
+          expect(find.text('Price (in ICP)'), findsOneWidget);
+          expect(find.text('Version'), findsOneWidget);
        });
     });
 
@@ -143,7 +148,7 @@ void main() {
 
          // Assert - Should still show form without crashing
          expect(find.byType(ScriptUploadScreen), findsOneWidget);
-         expect(find.byType(TextFormField), findsNWidgets(9));
+         expect(find.byType(TextFormField), findsNWidgets(10));
       });
     });
   });

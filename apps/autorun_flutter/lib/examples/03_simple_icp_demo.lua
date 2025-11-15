@@ -45,7 +45,7 @@ function view(state)
       },
 
       -- Info Section (conditional)
-      state.show_info and {
+      (state.show_info and {
         type = "section",
         props = { title = "About This Demo" },
         children = {
@@ -63,7 +63,7 @@ function view(state)
             }
           }
         }
-      },
+      }) or nil,
 
       -- Actions Section
       {

@@ -43,8 +43,9 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
 
     const now = new Date().toISOString();
     
-    // Calculate SHA256 hash of the script content to use as identifier
-    const scriptContent = `${title}|${description}|${category}|${lua_source}|${author_name}|${version}`;
+    // Calculate SHA256 hash of the script content + timestamp to ensure uniqueness
+    const timestamp = Date.now().toString();
+    const scriptContent = `${title}|${description}|${category}|${lua_source}|${author_name}|${version}|${timestamp}`;
     const encoder = new TextEncoder();
     const data = encoder.encode(scriptContent);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
