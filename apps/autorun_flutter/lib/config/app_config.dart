@@ -4,7 +4,7 @@ import 'dart:io';
 class AppConfig {
   static const String _cloudflareEndpoint = String.fromEnvironment(
     'CLOUDFLARE_ENDPOINT',
-    defaultValue: 'http://localhost:8787',
+    defaultValue: 'https://icp-mp.kalaj.org',
   );
 
   static String get apiEndpoint {
