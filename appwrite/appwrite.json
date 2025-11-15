@@ -1,0 +1,473 @@
+name: icp_script_marketplace
+version: 1.0.0
+description: Appwrite backend for ICP Script Marketplace
+
+# Environment variables
+variables:
+  - name: PROJECT_ID
+    description: Appwrite Project ID
+    required: true
+  - name: DATABASE_ID
+    description: Main database ID
+    required: true
+  - name: SCRIPTS_COLLECTION_ID
+    description: Scripts collection ID
+    required: true
+  - name: USERS_COLLECTION_ID
+    description: Users collection ID
+    required: true
+  - name: PURCHASES_COLLECTION_ID
+    description: Purchases collection ID
+    required: true
+  - name: REVIEWS_COLLECTION_ID
+    description: Reviews collection ID
+    required: true
+  - name: STORAGE_BUCKET_ID
+    description: File storage bucket ID
+    required: true
+
+# Collections configuration
+collections:
+  scripts:
+    id: ${SCRIPTS_COLLECTION_ID}
+    database: ${DATABASE_ID}
+    name: scripts
+    enabled: true
+    documentSecurity: true
+    attributes:
+      - type: string
+        key: title
+        size: 256
+        required: true
+        array: false
+      - type: string
+        key: description
+        size: 2000
+        required: true
+        array: false
+      - type: string
+        key: category
+        size: 100
+        required: true
+        array: false
+      - type: string
+        key: tags
+        size: 500
+        required: false
+        array: true
+      - type: string
+        key: authorId
+        size: 128
+        required: true
+        array: false
+      - type: string
+        key: authorName
+        size: 256
+        required: true
+        array: false
+      - type: float
+        key: price
+        default: 0.00
+        required: false
+        array: false
+      - type: integer
+        key: downloads
+        default: 0
+        required: false
+        array: false
+      - type: float
+        key: rating
+        default: 0
+        required: false
+        array: false
+      - type: integer
+        key: reviewCount
+        default: 0
+        required: false
+        array: false
+      - type: string
+        key: luaSource
+        size: 100000
+        required: true
+        array: false
+      - type: string
+        key: iconUrl
+        size: 2048
+        required: false
+        array: false
+      - type: string
+        key: screenshots
+        size: 5000
+        required: false
+        array: true
+      - type: string
+        key: canisterIds
+        size: 1000
+        required: false
+        array: true
+      - type: string
+        key: compatibility
+        size: 500
+        required: false
+        array: false
+      - type: string
+        key: version
+        size: 50
+        required: false
+        array: false
+      - type: boolean
+        key: isPublic
+        default: true
+        required: false
+        array: false
+      - type: boolean
+        key: isApproved
+        default: false
+        required: false
+        array: false
+      - type: integer
+        key: featuredOrder
+        required: false
+        array: false
+    indexes:
+      - type: key
+        key: title
+        status: available
+        caseSensitive: false
+      - type: key
+        key: category
+        status: available
+        caseSensitive: false
+      - type: key
+        key: authorId
+        status: available
+        caseSensitive: false
+      - type: fulltext
+        key: title,description,tags
+        status: available
+        caseSensitive: false
+      - type: key
+        key: rating
+        status: available
+        caseSensitive: false
+      - type: key
+        key: downloads
+        status: available
+        caseSensitive: false
+      - type: key
+        key: price
+        status: available
+        caseSensitive: false
+      - type: key
+        key: createdAt
+        status: available
+        caseSensitive: false
+      - type: key
+        key: isPublic
+        status: available
+        caseSensitive: false
+      - type: key
+        key: isApproved
+        status: available
+        caseSensitive: false
+      - type: key
+        key: featuredOrder
+        status: available
+        caseSensitive: false
+      - type: key
+        key: canisterIds
+        status: available
+        caseSensitive: false
+        array: true
+
+  users:
+    id: ${USERS_COLLECTION_ID}
+    database: ${DATABASE_ID}
+    name: users
+    enabled: true
+    documentSecurity: true
+    attributes:
+      - type: string
+        key: userId
+        size: 128
+        required: true
+        array: false
+      - type: string
+        key: username
+        size: 100
+        required: true
+        array: false
+      - type: string
+        key: displayName
+        size: 256
+        required: true
+        array: false
+      - type: string
+        key: bio
+        size: 1000
+        required: false
+        array: false
+      - type: string
+        key: avatar
+        size: 2048
+        required: false
+        array: false
+      - type: string
+        key: website
+        size: 512
+        required: false
+        array: false
+      - type: string
+        key: socialLinks
+        size: 1000
+        required: false
+        array: true
+      - type: integer
+        key: scriptsPublished
+        default: 0
+        required: false
+        array: false
+      - type: integer
+        key: totalDownloads
+        default: 0
+        required: false
+        array: false
+      - type: float
+        key: averageRating
+        default: 0
+        required: false
+        array: false
+      - type: boolean
+        key: isVerifiedDeveloper
+        default: false
+        required: false
+        array: false
+      - type: string
+        key: favorites
+        size: 10000
+        required: false
+        array: true
+    indexes:
+      - type: key
+        key: userId
+        status: available
+        caseSensitive: false
+        unique: true
+      - type: key
+        key: username
+        status: available
+        caseSensitive: false
+        unique: true
+      - type: key
+        key: scriptsPublished
+        status: available
+        caseSensitive: false
+      - type: key
+        key: totalDownloads
+        status: available
+        caseSensitive: false
+      - type: key
+        key: averageRating
+        status: available
+        caseSensitive: false
+      - type: key
+        key: isVerifiedDeveloper
+        status: available
+        caseSensitive: false
+
+  purchases:
+    id: ${PURCHASES_COLLECTION_ID}
+    database: ${DATABASE_ID}
+    name: purchases
+    enabled: true
+    documentSecurity: true
+    attributes:
+      - type: string
+        key: userId
+        size: 128
+        required: true
+        array: false
+      - type: string
+        key: scriptId
+        size: 128
+        required: true
+        array: false
+      - type: string
+        key: transactionId
+        size: 256
+        required: true
+        array: false
+      - type: float
+        key: price
+        required: true
+        array: false
+      - type: string
+        key: currency
+        size: 10
+        default: USD
+        required: false
+        array: false
+      - type: string
+        key: status
+        size: 50
+        default: pending
+        required: false
+        array: false
+      - type: string
+        key: paymentMethod
+        size: 50
+        required: true
+        array: false
+    indexes:
+      - type: key
+        key: userId
+        status: available
+        caseSensitive: false
+      - type: key
+        key: scriptId
+        status: available
+        caseSensitive: false
+      - type: key
+        key: transactionId
+        status: available
+        caseSensitive: false
+        unique: true
+      - type: key
+        key: status
+        status: available
+        caseSensitive: false
+
+  reviews:
+    id: ${REVIEWS_COLLECTION_ID}
+    database: ${DATABASE_ID}
+    name: reviews
+    enabled: true
+    documentSecurity: true
+    attributes:
+      - type: string
+        key: userId
+        size: 128
+        required: true
+        array: false
+      - type: string
+        key: scriptId
+        size: 128
+        required: true
+        array: false
+      - type: integer
+        key: rating
+        required: true
+        array: false
+      - type: string
+        key: comment
+        size: 2000
+        required: false
+        array: false
+      - type: boolean
+        key: isVerifiedPurchase
+        default: false
+        required: false
+        array: false
+      - type: string
+        key: status
+        size: 50
+        default: approved
+        required: false
+        array: false
+    indexes:
+      - type: key
+        key: userId
+        status: available
+        caseSensitive: false
+      - type: key
+        key: scriptId
+        status: available
+        caseSensitive: false
+      - type: key
+        key: rating
+        status: available
+        caseSensitive: false
+      - type: key
+        key: isVerifiedPurchase
+        status: available
+        caseSensitive: false
+      - type: key
+        key: status
+        status: available
+        caseSensitive: false
+      - type: unique
+        key: userId,scriptId
+        status: available
+        caseSensitive: false
+
+# Storage buckets configuration
+storage:
+  scripts_bucket:
+    id: ${STORAGE_BUCKET_ID}
+    name: scripts
+    enabled: true
+    allowedSecurity: false
+    maximumFileSize: 10485760
+    allowedFileTypes: []
+    compression: none
+    encryption: false
+    antivirus: true
+
+# Functions configuration
+functions:
+  search_scripts:
+    id: search_scripts
+    name: Search Scripts
+    runtime: node-18.0
+    execute: [any]
+    events: []
+    schedule: ''
+    timeout: 15
+    enabled: true
+    logging: true
+    entrypoint: src/main.js
+    commands: []
+    installationId: ''
+    providerRepositoryId: ''
+    providerBranch: ''
+    providerRootDirectory: ''
+    providerSilentMode: false
+    specification:
+
+  process_purchase:
+    id: process_purchase
+    name: Process Purchase
+    runtime: node-18.0
+    execute: [any]
+    events: []
+    schedule: ''
+    timeout: 30
+    enabled: true
+    logging: true
+    entrypoint: src/main.js
+    commands: []
+    installationId: ''
+    providerRepositoryId: ''
+    providerBranch: ''
+    providerRootDirectory: ''
+    providerSilentMode: false
+    specification:
+
+  update_script_stats:
+    id: update_script_stats
+    name: Update Script Stats
+    runtime: node-18.0
+    execute: [any]
+    events: ['databases.*.documents.create']
+    schedule: ''
+    timeout: 10
+    enabled: true
+    logging: true
+    entrypoint: src/main.js
+    commands: []
+    installationId: ''
+    providerRepositoryId: ''
+    providerBranch: ''
+    providerRootDirectory: ''
+    providerSilentMode: false
+    specification:

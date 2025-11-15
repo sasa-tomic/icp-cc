@@ -1,5 +1,6 @@
 [workspace]
 members = [
   "crates/icp_core",
+  "appwrite-cli",
 ]
 resolver = "2"

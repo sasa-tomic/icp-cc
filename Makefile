@@ -4,7 +4,7 @@ SHELL := /bin/bash
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 S := $(ROOT)/scripts
 
-.PHONY: help all linux android android-emulator macos ios windows clean distclean test
+.PHONY: help all linux android android-emulator macos ios windows clean distclean test appwrite-setup appwrite-deploy appwrite-api-server appwrite-api-server-dev appwrite-api-server-prod
 .DEFAULT_GOAL := help
 
 help:
@@ -63,3 +63,38 @@ test:
 	  echo "cargo-nextest not found; running cargo test" ; \
 	  cargo test ; \
 	fi
+
+# Appwrite deployment targets
+appwrite-setup:
+	@echo "==> Setting up Appwrite CLI tools"
+	@npm install -g appwrite-cli || echo "Appwrite CLI already installed or install failed - please install manually"
+	@echo "==> Building Rust deployment tool"
+	cd $(ROOT)/appwrite-cli && cargo build --release
+
+appwrite-deploy:
+	@echo "==> Deploying ICP Script Marketplace to Appwrite (using unified Rust CLI)"
+	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli deploy
+
+appwrite-deploy-dry-run:
+	@echo "==> Dry run: showing what would be deployed to Appwrite (using unified Rust CLI)"
+	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli deploy --dry-run
+
+appwrite-deploy-verbose:
+	@echo "==> Deploying ICP Script Marketplace to Appwrite (verbose mode, using unified Rust CLI)"
+	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli deploy --verbose
+
+appwrite-test:
+	@echo "==> Testing Appwrite deployment configuration (using unified Rust CLI)"
+	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli test
+
+appwrite-api-server:
+	@echo "==> Starting Appwrite API server (production mode)"
+	cd $(ROOT)/appwrite-api-server && npm install && npm start
+
+appwrite-api-server-dev:
+	@echo "==> Starting Appwrite API server (development mode)"
+	cd $(ROOT)/appwrite-api-server && npm install && npm run dev
+
+appwrite-api-server-test:
+	@echo "==> Testing Appwrite API server"
+	cd $(ROOT)/appwrite-api-server && npm install && npm test
