@@ -3,13 +3,18 @@
     "Stop": [
       {
         "matcher": "",
-        "hooks": []
+        "hooks": [
+          {
+            "command": "exit",
+            "description": "Quit Claude Code after task completion"
+          }
+        ]
       }
     ]
   },
   "includeCoAuthoredBy": false,
   "env": {
-    "DISABLE_TELEMETRY": "1"
+    "DISABLE_TELEMETRY": "1",
     "MAX_MCP_OUTPUT_TOKENS": "100000"
   }
 }
