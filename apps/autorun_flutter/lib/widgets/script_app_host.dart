@@ -44,7 +44,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
     try {
       final initOut = await widget.runtime.init(script: widget.script, initialArg: widget.initialArg);
       final Map<String, dynamic> st = (initOut['state'] as Map<String, dynamic>? ?? const <String, dynamic>{});
-      final List<dynamic> fx = (initOut['effects'] as List<dynamic>? ?? const <dynamic>[]);
+      final List<dynamic> fx = _effectsListOf(initOut['effects']);
       await _applyStateAndRender(st);
       await _executeEffects(fx);
     } catch (e, st) {
@@ -279,13 +279,19 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
     return '${s.substring(0, max - 1)}…';
   }
 
+  List<dynamic> _effectsListOf(dynamic raw) {
+    if (raw == null) return const <dynamic>[];
+    if (raw is List<dynamic>) return raw;
+    return const <dynamic>[];
+  }
+
   Future<void> _dispatch(Map<String, dynamic> msg) async {
     if (_state == null) return;
     setState(() { _busy = true; _error = null; });
     try {
       final upd = await widget.runtime.update(script: widget.script, msg: msg, state: _state!);
       final Map<String, dynamic> st = (upd['state'] as Map<String, dynamic>? ?? const <String, dynamic>{});
-      final List<dynamic> fx = (upd['effects'] as List<dynamic>? ?? const <dynamic>[]);
+      final List<dynamic> fx = _effectsListOf(upd['effects']);
       await _applyStateAndRender(st);
       await _executeEffects(fx);
     } catch (e, st) {

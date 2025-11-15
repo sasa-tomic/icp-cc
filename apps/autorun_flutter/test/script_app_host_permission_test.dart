@@ -10,6 +10,17 @@ class _FakeRuntime implements IScriptAppRuntime {
     return <String, dynamic>{
       'ok': true,
       'state': <String, dynamic>{},
+      // Simulate runtime returning an object instead of list for empty effects (should be tolerated)
+      'effects': <String, dynamic>{},
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs = 50}) async {
+    // After first frame, return a list-based effect to trigger permission
+    return <String, dynamic>{
+      'ok': true,
+      'state': <String, dynamic>{},
       'effects': <dynamic>[
         <String, dynamic>{
           'kind': 'icp_call',
@@ -20,16 +31,6 @@ class _FakeRuntime implements IScriptAppRuntime {
           'args': '("World")',
         },
       ],
-    };
-  }
-
-  @override
-  Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs = 50}) async {
-    // After permission, simulate UI render call
-    return <String, dynamic>{
-      'ok': true,
-      'state': <String, dynamic>{},
-      'effects': const <dynamic>[],
     };
   }
 
