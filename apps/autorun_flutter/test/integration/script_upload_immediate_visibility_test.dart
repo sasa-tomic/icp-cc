@@ -51,9 +51,9 @@ void main() {
       final initialCount = initialResult.total;
       print('Initial script count: $initialCount');
       
-      // Verify our test script doesn't exist yet
+      // Verify our specific test script doesn't exist yet
       final existingTestScripts = initialResult.scripts
-          .where((script) => script.title.contains('E2E Test Script'))
+          .where((script) => script.title == testScriptTitle)
           .toList();
       expect(existingTestScripts.isEmpty, isTrue, 
           reason: 'Test script should not exist before upload');
