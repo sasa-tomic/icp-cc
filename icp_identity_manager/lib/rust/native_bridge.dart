@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:ffi' as ffi;
-import 'dart:io' show Platform, HttpClient, HttpClientRequest, HttpClientResponse;
+import 'dart:io' show Platform;
 import 'package:ffi/ffi.dart' as pkg_ffi;
 
 class _Symbols {
@@ -78,23 +78,17 @@ class RustBridgeLoader {
 
   Future<String?> fetchCandid({required String canisterId, String? host}) async {
     final lib = _open();
-    if (lib == null) {
-      return _fetchCandidHttp(canisterId: canisterId, host: host);
-    }
+    if (lib == null) return null;
     final cid = canisterId.toNativeUtf8();
     final h = host == null ? ffi.nullptr : host.toNativeUtf8();
     try {
       final fn = lib.lookupFunction<_Str2StrNative, _Str2StrDart>(_Symbols.fetchCandid);
       final res = fn(cid.cast(), h.cast());
-      if (res == ffi.nullptr) {
-        return _fetchCandidHttp(canisterId: canisterId, host: host);
-      }
+      if (res == ffi.nullptr) return null;
       String? out;
       try {
         final String s = res.cast<pkg_ffi.Utf8>().toDartString();
-        out = s.trim().isEmpty
-            ? await _fetchCandidHttp(canisterId: canisterId, host: host)
-            : s;
+        out = s.trim().isEmpty ? null : s;
       } finally {
         final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
         free(res);
@@ -102,31 +96,6 @@ class RustBridgeLoader {
       return out;
     } finally {
       pkg_ffi.malloc..free(cid)..free(h);
-    }
-  }
-
-  Future<String?> _fetchCandidHttp({required String canisterId, String? host}) async {
-    final String base = (host == null || host.trim().isEmpty) ? 'https://ic0.app' : host.trim();
-    final String url = '${base.endsWith('/') ? base.substring(0, base.length - 1) : base}/api/v2/canister/$canisterId/metadata/candid:service';
-    final HttpClient client = HttpClient();
-    try {
-      final Uri uri = Uri.parse(url);
-      return await _httpGetAsString(client, uri);
-    } catch (_) {
-      return null;
-    } finally {
-      client.close(force: true);
-    }
-  }
-
-  Future<String?> _httpGetAsString(HttpClient client, Uri uri) async {
-    try {
-      final HttpClientRequest req = await client.getUrl(uri);
-      final HttpClientResponse resp = await req.close();
-      if (resp.statusCode < 200 || resp.statusCode >= 300) return null;
-      return await resp.transform(const Utf8Decoder()).join();
-    } catch (_) {
-      return null;
     }
   }
 

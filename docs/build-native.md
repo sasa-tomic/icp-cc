@@ -13,7 +13,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 2. Build with cargo-ndk:
 ```bash
 cargo install cargo-ndk
-cargo ndk -t armeabi-v7a -t arm64-v8a -t x86 -t x86_64 -o ../icp_identity_manager/android/app/src/main/jniLibs build -p icp_core --features ffi --release
+cargo ndk -t armeabi-v7a -t arm64-v8a -t x86 -t x86_64 -o ../icp_identity_manager/android/app/src/main/jniLibs build -p icp_core --release
 ```
 This will place `libicp_core.so` into ABI folders under `jniLibs`.
 
@@ -24,8 +24,8 @@ Requirements:
 Build universal static lib and wrap into xcframework:
 ```bash
 cd rust/icp_core
-cargo build --features ffi --target aarch64-apple-ios --release
-cargo build --features ffi --target x86_64-apple-ios --release
+cargo build --target aarch64-apple-ios --release
+cargo build --target x86_64-apple-ios --release
 
 rm -rf icp_core.xcframework
 xcodebuild -create-xcframework \
