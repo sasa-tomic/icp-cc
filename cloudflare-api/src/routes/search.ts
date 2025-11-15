@@ -22,7 +22,7 @@ export async function handleSearchScriptsRequest(request: Request, env: Env): Pr
       limit = parseInt(url.searchParams.get('limit') || '20');
       offset = parseInt(url.searchParams.get('offset') || '0');
     } else {
-      const body = await request.json();
+      const body = await request.json() as any;
       query = body.query;
       category = body.category;
       canisterId = body.canisterId;
@@ -111,7 +111,7 @@ export async function handleCompatibleScriptsRequest(request: Request, env: Env)
 
   try {
     const db = new DatabaseService(env);
-    const { canisterId, limit = 20, offset = 0 } = await request.json();
+    const { canisterId, limit = 20, offset = 0 } = await request.json() as any;
 
     if (!canisterId) {
       return JsonResponse.error('Canister ID is required', 400);

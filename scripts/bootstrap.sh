@@ -43,9 +43,15 @@ fetch_latest_cmdline_tools() {
   manifest="https://dl.google.com/android/repository/repository2-1.xml"
   say "Querying latest Command-line Tools from: ${manifest}"
 
-  fname="$(curl -fsSL "${manifest}" \
+  fname="$(timeout 30 curl -fsSL "${manifest}" 2>/dev/null \
             | grep -oE 'commandlinetools-linux-[0-9]+_latest\.zip' \
             | sort -V | tail -n1 || true)"
+  curl_exit_code=$?
+  if [ $curl_exit_code -eq 124 ]; then
+    die "Timeout while fetching Android tools manifest from ${manifest} (30s limit)"
+  elif [ $curl_exit_code -ne 0 ]; then
+    die "Failed to fetch Android tools manifest from ${manifest} (curl exit code: $curl_exit_code)"
+  fi
   [[ -n "${fname}" ]] || die "Could not resolve latest Command-line Tools from manifest."
 
   url="https://dl.google.com/android/repository/${fname}"
@@ -54,7 +60,13 @@ fetch_latest_cmdline_tools() {
   tmpdir="$(mktemp -d)"
   out="${tmpdir}/${fname}"
   say "Downloading ${url}"
-  curl -fL -sS --retry 3 --retry-delay 2 -o "${out}" "${url}"
+  timeout 60 curl -fL -sS --retry 3 --retry-delay 2 --connect-timeout 10 -o "${out}" "${url}"
+  curl_exit_code=$?
+  if [ $curl_exit_code -eq 124 ]; then
+    die "Timeout while downloading Android Command-line Tools from ${url} (60s limit)"
+  elif [ $curl_exit_code -ne 0 ]; then
+    die "Failed to download Android Command-line Tools from ${url} (curl exit code: $curl_exit_code)"
+  fi
 
   # Make sure we really got a zip
   unzip -tq "${out}" >/dev/null 2>&1 || die "Downloaded file is not a valid zip: ${out}"
@@ -176,7 +188,13 @@ fi
 say "Installing Rust toolchain…"
 if ! command -v rustup >/dev/null 2>&1; then
   say "Installing rustup..."
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  timeout 60 curl --proto '=https' --tlsv1.2 -sSf --connect-timeout 10 https://sh.rustup.rs | sh -s -- -y
+  curl_exit_code=$?
+  if [ $curl_exit_code -eq 124 ]; then
+    die "Timeout while installing rustup from https://sh.rustup.rs (60s limit)"
+  elif [ $curl_exit_code -ne 0 ]; then
+    die "Failed to install rustup from https://sh.rustup.rs (curl exit code: $curl_exit_code)"
+  fi
   source "$HOME/.cargo/env"
 fi
 say "Adding Android targets for Rust…"
@@ -187,7 +205,13 @@ say "Installing Flutter ${FLUTTER_VERSION}…"
 mkdir -p ~/develop
 cd ~/develop
 if [[ ! -d "flutter" ]]; then
-  curl "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}.tar.xz" -LO
+  timeout 120 curl --connect-timeout 10 "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}.tar.xz" -LO
+  curl_exit_code=$?
+  if [ $curl_exit_code -eq 124 ]; then
+    die "Timeout while downloading Flutter ${FLUTTER_VERSION} from Google Storage (120s limit)"
+  elif [ $curl_exit_code -ne 0 ]; then
+    die "Failed to download Flutter ${FLUTTER_VERSION} from Google Storage (curl exit code: $curl_exit_code)"
+  fi
   tar xf "flutter_linux_${FLUTTER_VERSION}.tar.xz" -C ~/develop
   rm "flutter_linux_${FLUTTER_VERSION}.tar.xz"
 else

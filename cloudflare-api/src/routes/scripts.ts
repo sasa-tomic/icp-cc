@@ -1,6 +1,5 @@
 import { Env, Script } from './types';
-import { JsonResponse, DatabaseService, SignatureVerifier, SignaturePayload, SignatureEnforcement, TestIdentity } from '../utils';
-import { AuthorizationHelper } from '../authorization_helper';
+import { JsonResponse, DatabaseService, SignaturePayload, SignatureEnforcement } from '../utils';
 
 export async function handleScriptsRequest(request: Request, env: Env): Promise<Response> {
   const db = new DatabaseService(env);
@@ -18,7 +17,7 @@ export async function handleScriptsRequest(request: Request, env: Env): Promise<
 
 async function createScript(request: Request, db: DatabaseService, env: Env): Promise<Response> {
   try {
-    const requestBody = await request.json();
+    const requestBody = await request.json() as any;
   const {
       title,
       description,
@@ -60,15 +59,30 @@ async function createScript(request: Request, db: DatabaseService, env: Env): Pr
 
     const database = db.getDatabase();
 
-    // Use unified authorization helper
-    const authError = AuthorizationHelper.validateAndRespond(
+    if (!signature || !author_principal || !author_public_key) {
+      return SignatureEnforcement.createSignatureErrorResponse();
+    }
+
+    const signatureTimestamp = typeof clientTimestamp === 'string' ? clientTimestamp : new Date().toISOString();
+
+    const restOfRequest: Record<string, any> = { ...requestBody, timestamp: signatureTimestamp };
+    delete restOfRequest.signature;
+
+    const signaturePayload: SignaturePayload = {
+      action: 'upload',
+      author_principal,
+      ...restOfRequest
+    };
+
+    const signatureValid = await SignatureEnforcement.enforceSignatureVerification(
+      env,
       signature,
-      author_public_key,
-      author_principal
+      signaturePayload,
+      author_public_key
     );
 
-    if (authError) {
-      return authError;
+    if (!signatureValid) {
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
     await database.prepare(`
@@ -208,7 +222,7 @@ export async function handlePublishScriptRequest(request: Request, env: Env, id:
       UPDATE scripts SET is_public = 1, updated_at = ? WHERE id = ?
     `).bind(now, id).run();
 
-    if (result.changes === 0) {
+    if ((result as any).changes === 0) {
       return JsonResponse.error('Failed to publish script', 500);
     }
 
@@ -274,7 +288,7 @@ async function updateScript(id: string, request: Request, db: DatabaseService, e
       return JsonResponse.error('Script ID is required', 400);
     }
 
-    const updateData = await request.json();
+    const updateData = await request.json() as any;
     const now = new Date().toISOString();
 
     // Get the database connection
@@ -303,15 +317,29 @@ async function updateScript(id: string, request: Request, db: DatabaseService, e
       return JsonResponse.error('No public key stored for script, cannot verify signature', 401);
     }
 
-    // Use unified authorization helper for updates
-    const updateAuthError = AuthorizationHelper.validateAndRespond(
+    const signatureTimestamp = typeof updateData.timestamp === 'string'
+      ? updateData.timestamp
+      : new Date().toISOString();
+
+    const restUpdateData: Record<string, any> = { ...updateData, timestamp: signatureTimestamp };
+    delete restUpdateData.signature;
+
+    const updateSignaturePayload: SignaturePayload = {
+      action: 'update',
+      script_id: id,
+      author_principal: updateData.author_principal,
+      ...restUpdateData
+    };
+
+    const updateSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
+      env,
       updateData.signature,
-      existingScript.author_public_key,
-      updateData.author_principal
+      updateSignaturePayload,
+      existingScript.author_public_key
     );
 
-    if (updateAuthError) {
-      return updateAuthError;
+    if (!updateSignatureValid) {
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
     // Build dynamic update query (excluding non-database fields)
@@ -321,7 +349,7 @@ async function updateScript(id: string, request: Request, db: DatabaseService, e
     // Define fields that are not database columns and should be excluded
     const nonDatabaseFields = ['id', 'created_at', 'signature', 'timestamp', 'action', 'script_id', 'upload_signature'];
 
-    Object.entries(updateData).forEach(([key, value]) => {
+    Object.entries(updateData as any).forEach(([key, value]: [string, any]) => {
       if (nonDatabaseFields.includes(key)) {
         // Skip non-database fields
         return;
@@ -371,14 +399,13 @@ async function deleteScript(id: string, request: Request, db: DatabaseService, e
       return JsonResponse.error('Script ID is required', 400);
     }
 
-    const deleteData = await request.json();
+    const deleteData = await request.json() as any;
 
     // Get the database connection
     const database = db.getDatabase();
 
-    // Use unified authorization helper for deletes
-    if (!AuthorizationHelper.hasRequiredAuthFields(deleteData.signature, deleteData.author_principal)) {
-      return AuthorizationHelper.createMissingAuthResponse();
+    if (!deleteData.signature || !deleteData.author_principal) {
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
     // Get the existing script to verify ownership and retrieve public key
@@ -395,22 +422,40 @@ async function deleteScript(id: string, request: Request, db: DatabaseService, e
       return JsonResponse.error('Author principal does not match script author', 403);
     }
 
-    // Use unified authorization helper for delete authorization
-    const deleteAuthError = AuthorizationHelper.validateAndRespond(
+    if (!existingScript.author_public_key) {
+      return JsonResponse.error('No public key stored for script, cannot verify signature', 401);
+    }
+
+    const deleteSignatureTimestamp = typeof deleteData.timestamp === 'string'
+      ? deleteData.timestamp
+      : new Date().toISOString();
+
+    const restDeleteData: Record<string, any> = { ...deleteData, timestamp: deleteSignatureTimestamp };
+    delete restDeleteData.signature;
+
+    const deleteSignaturePayload: SignaturePayload = {
+      action: 'delete',
+      script_id: id,
+      author_principal: deleteData.author_principal,
+      ...restDeleteData
+    };
+
+    const deleteSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
+      env,
       deleteData.signature,
-      existingScript.author_public_key,
-      deleteData.author_principal
+      deleteSignaturePayload,
+      existingScript.author_public_key
     );
 
-    if (deleteAuthError) {
-      return deleteAuthError;
+    if (!deleteSignatureValid) {
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
     const result = await database.prepare(`
       DELETE FROM scripts WHERE id = ?
     `).bind(id).run();
 
-    if (result.changes === 0) {
+    if ((result as any).changes === 0) {
       return JsonResponse.error('Script not found', 404);
     }
 

@@ -1,5 +1,6 @@
 import { Env } from '../types';
 import { JsonResponse } from '../utils';
+
 // @ts-ignore - luaparse doesn't have TypeScript definitions
 import luaparse from 'luaparse';
 
@@ -14,9 +15,33 @@ function validateLuaWithLuaparse(lua_source: string): LuaValidationResult {
   const syntaxErrors: string[] = [];
   const missingFunctions: string[] = [];
 
+  if (!luaparse || typeof luaparse.parse !== 'function') {
+    throw new Error('Lua parser unavailable: luaparse.parse missing');
+  }
+
   // Use luaparse for proper syntax validation
+  const parseStartTime = Date.now();
+  const PARSE_TIMEOUT_MS = 5000; // 5 second timeout
+
   try {
-    const ast = luaparse.parse(lua_source);
+    const ast = luaparse.parse(lua_source, {
+      // Configure luaparse to be more permissive and prevent hanging
+      locations: true,
+      ranges: true,
+      strict: false
+    });
+
+    // Check if parsing took too long
+    const parseTime = Date.now() - parseStartTime;
+    if (parseTime > PARSE_TIMEOUT_MS) {
+      syntaxErrors.push(`Lua parsing took too long (${parseTime}ms), possible infinite loop or complex syntax`);
+      return {
+        isSyntaxValid: false,
+        hasRequiredFunctions: false,
+        syntaxError: syntaxErrors.join('; '),
+        missingFunctions
+      };
+    }
 
     // Extract function names from AST
     const functions = new Set<string>();
@@ -89,7 +114,7 @@ export async function handleScriptValidationRequest(request: Request, env: Env):
   }
 
   try {
-    const { lua_source } = await request.json();
+    const { lua_source } = await request.json() as any;
 
     if (lua_source === undefined || lua_source === null || typeof lua_source !== 'string') {
       return JsonResponse.error('lua_source is required and must be a string', 400);

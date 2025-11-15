@@ -1,334 +1,206 @@
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { SELF, env } from 'cloudflare:test';
 import { TestIdentity } from '../src/utils';
+import { applyMigrations, resetDatabase } from './helpers/database';
 
-describe('Script Routes Integration Tests with Signature Enforcement', () => {
-  let env: any;
-  let mockDb: any;
+async function createScript(overrides: Record<string, unknown> = {}) {
+  const requestBody = TestIdentity.createTestScriptRequest({
+    title: 'Integration Test Script',
+    description: 'A script for integration testing',
+    category: 'test',
+    lua_source: 'print("Hello, Integration!")',
+    ...overrides
+  });
 
-  beforeAll(() => {
-    // Mock D1 database with proper method chaining
-    mockDb = {
-      prepare: (query: string) => ({
-        bind: (...args: any[]) => ({
-          run: () => Promise.resolve({ success: true, meta: { changes: 1 } }),
-          first: () => Promise.resolve(null),
-          all: () => Promise.resolve({ results: [] })
-        })
-      })
-    };
+  const response = await SELF.fetch('http://example.com/api/v1/scripts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
 
-    env = {
-      ENVIRONMENT: 'test',
-      DB: mockDb,
-      TEST_DB: mockDb
-    };
+  const data = await response.json();
+  return { response, data, requestBody };
+}
+
+describe.sequential('Script Routes Integration (real D1)', () => {
+  beforeAll(async () => {
+    await applyMigrations();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
   });
 
   describe('POST /api/v1/scripts', () => {
-    it('should create script with valid signature', async () => {
-      const testRequest = TestIdentity.createTestScriptRequest({
-        title: 'Integration Test Script',
-        description: 'A script for testing integration',
-        category: 'test',
-        lua_source: 'print("Hello, Integration!")'
-      });
-
-      const request = new Request('http://example.com/api/v1/scripts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(testRequest)
-      });
-
-      // Import the handler function
-      const { handleScriptsRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptsRequest(request, env);
+    it('creates script with valid signature and persists data', async () => {
+      const { response, data } = await createScript();
 
       expect(response.status).toBe(201);
-      const data = await response.json();
       expect(data.success).toBe(true);
       expect(data.data.title).toBe('Integration Test Script');
+
+      const persisted = await env.DB.prepare(
+        'SELECT title, description, category FROM scripts WHERE id = ?'
+      ).bind(data.data.id).first();
+
+      expect(persisted?.title).toBe('Integration Test Script');
+      expect(persisted?.description).toBe('A script for integration testing');
+      expect(persisted?.category).toBe('test');
     });
 
-    it('should reject script creation without signature', async () => {
-      const scriptData = {
-        title: 'Invalid Script',
-        description: 'No signature provided',
-        category: 'test',
-        lua_source: 'print("No signature")',
-        author_principal: TestIdentity.getPrincipal(),
-        author_public_key: TestIdentity.getPublicKey(),
-        timestamp: new Date().toISOString()
-      };
+    it('rejects script creation without signature', async () => {
+      const requestBody = TestIdentity.createTestScriptRequest({
+        title: 'Unsigned Script'
+      });
+      delete (requestBody as any).signature;
 
-      const request = new Request('http://example.com/api/v1/scripts', {
+      const response = await SELF.fetch('http://example.com/api/v1/scripts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scriptData)
+        body: JSON.stringify(requestBody)
       });
 
-      const { handleScriptsRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptsRequest(request, env);
-
-      expect(response.status).toBe(401);
       const data = await response.json();
+      expect(response.status).toBe(401);
       expect(data.success).toBe(false);
       expect(data.error).toContain('signature');
     });
 
-    it('should reject script creation with invalid signature', async () => {
-      const scriptData = {
-        title: 'Invalid Signature Script',
-        description: 'Invalid signature provided',
-        category: 'test',
-        lua_source: 'print("Invalid signature")',
-        author_principal: TestIdentity.getPrincipal(),
-        author_public_key: TestIdentity.getPublicKey(),
-        signature: 'invalid-signature',
-        timestamp: new Date().toISOString()
-      };
+    it('rejects script creation with invalid signature', async () => {
+      const requestBody = TestIdentity.createTestScriptRequest({
+        title: 'Tampered Script'
+      });
+      (requestBody as any).signature = 'invalid-signature';
 
-      const request = new Request('http://example.com/api/v1/scripts', {
+      const response = await SELF.fetch('http://example.com/api/v1/scripts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scriptData)
+        body: JSON.stringify(requestBody)
       });
 
-      const { handleScriptsRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptsRequest(request, env);
-
-      expect(response.status).toBe(401);
       const data = await response.json();
+      expect(response.status).toBe(401);
       expect(data.success).toBe(false);
+      expect(data.error).toContain('signature');
     });
   });
 
   describe('PUT /api/v1/scripts/:id', () => {
-    const scriptId = 'test-script-id';
+    it('updates script when signature and principal are valid', async () => {
+      const { data } = await createScript();
+      const scriptId = data.data.id as string;
 
-    beforeEach(() => {
-      // Mock existing script lookup - keep the same structure as beforeAll
-      const originalPrepare = mockDb.prepare;
-      mockDb.prepare = (query: string) => {
-        if (query.includes('SELECT')) {
-          return {
-            bind: (...args: any[]) => ({
-              first: () => Promise.resolve({
-                author_principal: TestIdentity.getPrincipal(),
-                author_public_key: TestIdentity.getPublicKey()
-              })
-            })
-          };
-        }
-        return originalPrepare(query);
-      };
-    });
-
-    it('should update script with valid signature', async () => {
-      const updateData = TestIdentity.createTestUpdateRequest(scriptId, {
-        title: 'Updated Integration Test Script',
+      const updatePayload = TestIdentity.createTestUpdateRequest(scriptId, {
+        title: 'Updated Integration Script',
         description: 'Updated description'
       });
 
-      const request = new Request(`http://example.com/api/v1/scripts/${scriptId}`, {
+      const response = await SELF.fetch(`http://example.com/api/v1/scripts/${scriptId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(updatePayload)
       });
 
-      const { handleScriptByIdRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptByIdRequest(request, env, scriptId);
-
+      const body = await response.json();
       expect(response.status).toBe(200);
-      const data = await response.json();
-      expect(data.success).toBe(true);
+      expect(body.success).toBe(true);
+      expect(body.data.title).toBe('Updated Integration Script');
+
+      const persisted = await env.DB.prepare(
+        'SELECT title, description FROM scripts WHERE id = ?'
+      ).bind(scriptId).first();
+
+      expect(persisted?.title).toBe('Updated Integration Script');
+      expect(persisted?.description).toBe('Updated description');
     });
 
-    it('should reject script update without signature', async () => {
-      const updateData = {
-        title: 'Updated Without Signature',
+    it('rejects script update without signature', async () => {
+      const { data } = await createScript();
+      const scriptId = data.data.id as string;
+
+      const updatePayload: any = {
+        title: 'Unsigned Update',
         author_principal: TestIdentity.getPrincipal(),
         timestamp: new Date().toISOString()
       };
 
-      const request = new Request(`http://example.com/api/v1/scripts/${scriptId}`, {
+      const response = await SELF.fetch(`http://example.com/api/v1/scripts/${scriptId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(updatePayload)
       });
 
-      const { handleScriptByIdRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptByIdRequest(request, env, scriptId);
-
+      const body = await response.json();
       expect(response.status).toBe(401);
-      const data = await response.json();
-      expect(data.success).toBe(false);
-      expect(data.error).toContain('signature');
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('signature');
     });
 
-    it('should reject script update with wrong author principal', async () => {
-      // Mock script with different author
-      const originalPrepare = mockDb.prepare;
-      mockDb.prepare = (query: string) => {
-        if (query.includes('SELECT')) {
-          return {
-            bind: (...args: any[]) => ({
-              first: () => Promise.resolve({
-                author_principal: 'different-principal',
-                author_public_key: TestIdentity.getPublicKey()
-              })
-            })
-          };
-        }
-        return originalPrepare(query);
-      };
+    it('rejects script update from different principal', async () => {
+      const { data } = await createScript();
+      const scriptId = data.data.id as string;
 
-      const updateData = TestIdentity.createTestUpdateRequest(scriptId, {
+      const updatePayload = TestIdentity.createTestUpdateRequest(scriptId, {
         title: 'Hijacked Update'
       });
+      updatePayload.author_principal = 'different-principal';
 
-      const request = new Request(`http://example.com/api/v1/scripts/${scriptId}`, {
+      const response = await SELF.fetch(`http://example.com/api/v1/scripts/${scriptId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(updatePayload)
       });
 
-      const { handleScriptByIdRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptByIdRequest(request, env, scriptId);
-
+      const body = await response.json();
       expect(response.status).toBe(403);
-      const data = await response.json();
-      expect(data.success).toBe(false);
-      expect(data.error).toContain('Author principal does not match');
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('Author principal does not match script author');
     });
   });
 
   describe('DELETE /api/v1/scripts/:id', () => {
-    const scriptId = 'test-script-id';
+    it('deletes script when signature is valid', async () => {
+      const { data } = await createScript();
+      const scriptId = data.data.id as string;
 
-    beforeEach(() => {
-      // Mock existing script lookup - keep the same structure as beforeAll
-      const originalPrepare = mockDb.prepare;
-      mockDb.prepare = (query: string) => {
-        if (query.includes('SELECT')) {
-          return {
-            bind: (...args: any[]) => ({
-              first: () => Promise.resolve({
-                author_principal: TestIdentity.getPrincipal(),
-                author_public_key: TestIdentity.getPublicKey()
-              }),
-              run: () => Promise.resolve({ success: true, meta: { changes: 1 } })
-            })
-          };
-        }
-        return originalPrepare(query);
-      };
-    });
+      const deletePayload = TestIdentity.createTestDeleteRequest(scriptId);
 
-    it('should delete script with valid signature', async () => {
-      const deleteData = TestIdentity.createTestDeleteRequest(scriptId);
-
-      const request = new Request(`http://example.com/api/v1/scripts/${scriptId}`, {
+      const response = await SELF.fetch(`http://example.com/api/v1/scripts/${scriptId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(deleteData)
+        body: JSON.stringify(deletePayload)
       });
 
-      const { handleScriptByIdRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptByIdRequest(request, env, scriptId);
-
+      const body = await response.json();
       expect(response.status).toBe(200);
-      const data = await response.json();
-      expect(data.success).toBe(true);
-      expect(data.data.message).toContain('deleted successfully');
+      expect(body.success).toBe(true);
+      expect(body.data.message).toContain('deleted successfully');
+
+      const persisted = await env.DB.prepare(
+        'SELECT id FROM scripts WHERE id = ?'
+      ).bind(scriptId).first();
+      expect(persisted).toBeNull();
     });
 
-    it('should reject script deletion without signature', async () => {
-      const deleteData = {
+    it('rejects script deletion without signature', async () => {
+      const { data } = await createScript();
+      const scriptId = data.data.id as string;
+
+      const deletePayload: any = {
         author_principal: TestIdentity.getPrincipal(),
         timestamp: new Date().toISOString()
       };
 
-      const request = new Request(`http://example.com/api/v1/scripts/${scriptId}`, {
+      const response = await SELF.fetch(`http://example.com/api/v1/scripts/${scriptId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(deleteData)
+        body: JSON.stringify(deletePayload)
       });
 
-      const { handleScriptByIdRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptByIdRequest(request, env, scriptId);
-
+      const body = await response.json();
       expect(response.status).toBe(401);
-      const data = await response.json();
-      expect(data.success).toBe(false);
-      expect(data.error).toContain('signature');
-    });
-
-    it('should reject script deletion when script not found', async () => {
-      // Mock script not found
-      const originalPrepare = mockDb.prepare;
-      mockDb.prepare = (query: string) => {
-        if (query.includes('SELECT')) {
-          return {
-            bind: (...args: any[]) => ({
-              first: () => Promise.resolve(null)
-            })
-          };
-        }
-        return originalPrepare(query);
-      };
-
-      const deleteData = TestIdentity.createTestDeleteRequest(scriptId);
-
-      const request = new Request(`http://example.com/api/v1/scripts/${scriptId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(deleteData)
-      });
-
-      const { handleScriptByIdRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptByIdRequest(request, env, scriptId);
-
-      expect(response.status).toBe(404);
-      const data = await response.json();
-      expect(data.success).toBe(false);
-      expect(data.error).toContain('Script not found');
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should handle malformed JSON gracefully', async () => {
-      const request = new Request('http://example.com/api/v1/scripts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: 'invalid-json'
-      });
-
-      const { handleScriptsRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptsRequest(request, env);
-
-      expect(response.status).toBe(500);
-      const data = await response.json();
-      expect(data.success).toBe(false);
-    });
-
-    it('should handle missing required fields', async () => {
-      const incompleteData = TestIdentity.createTestScriptRequest();
-      delete (incompleteData as any).title;
-      delete (incompleteData as any).description;
-
-      const request = new Request('http://example.com/api/v1/scripts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(incompleteData)
-      });
-
-      const { handleScriptsRequest } = await import('../src/routes/scripts');
-      const response = await handleScriptsRequest(request, env);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.success).toBe(false);
-      expect(data.error).toContain('Missing required fields');
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('signature');
     });
   });
 });

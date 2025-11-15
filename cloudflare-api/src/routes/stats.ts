@@ -117,21 +117,7 @@ export async function handleMarketplaceStatsRequest(request: Request, env: Env):
   } catch (err: any) {
     console.error('Failed to generate marketplace stats:', err.message);
 
-    // Return default stats if calculation fails
-    return JsonResponse.success({
-      totalScripts: 0,
-      totalAuthors: 0,
-      totalDownloads: 0,
-      averageRating: 0.0,
-      totalPurchases: 0,
-      totalReviews: 0,
-      categoryBreakdown: {},
-      activeDevelopers: 0,
-      scriptsWithDownloads: 0,
-      scriptsWithReviews: 0,
-      generatedAt: new Date().toISOString(),
-      error: 'Stats calculation failed, showing defaults'
-    }, 500);
+    return JsonResponse.error('Failed to generate marketplace stats', 500, err.message);
   }
 }
 
@@ -141,7 +127,7 @@ export async function handleUpdateScriptStatsRequest(request: Request, env: Env)
   }
 
   try {
-    const { scriptId } = await request.json();
+    const { scriptId } = await request.json() as any;
 
     if (!scriptId) {
       return JsonResponse.error('Script ID is required', 400);
@@ -214,7 +200,7 @@ async function updateAuthorStats(db: D1Database, authorId: string): Promise<void
     WHERE id = ?
   `).bind(
     authorScripts?.count || 0,
-    Math.round((authorScripts?.avg_rating || 0) * 100) / 100,
+    Math.round(((authorScripts as any)?.avg_rating || 0) * 100) / 100,
     new Date().toISOString(),
     authorId
   ).run();

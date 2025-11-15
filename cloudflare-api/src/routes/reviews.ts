@@ -51,7 +51,7 @@ export async function handleCreateReviewRequest(request: Request, env: Env, scri
 
   try {
     const db = new DatabaseService(env);
-    const { rating, comment, userId } = await request.json();
+    const { rating, comment, userId } = await request.json() as any;
 
     if (!scriptId || !rating || !userId) {
       return JsonResponse.error('Missing required fields: scriptId, rating, userId', 400);
