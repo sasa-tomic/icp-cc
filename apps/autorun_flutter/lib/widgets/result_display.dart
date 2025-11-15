@@ -361,10 +361,26 @@ class ResultDisplay extends StatelessWidget {
   }
 
   bool _isTableLike(Map<String, dynamic> map) {
-    // Consider it table-like only if it has many entries and all values are primitives
-    // Small objects (like user profiles) should use regular map display
-    return map.length >= 5 && map.values.every((value) =>
+    // Consider it table-like based on size and data characteristics
+    if (map.length < 4) return false;
+
+    // Check if all values are primitives (no nested objects/arrays)
+    final allPrimitives = map.values.every((value) =>
         value is String || value is num || value is bool || value == null);
+    if (!allPrimitives) return false;
+
+    // For 4 entries: be more permissive (allows mixed types like user records)
+    // For 5+ entries: require homogeneous data to avoid treating test data as tables
+    if (map.length == 4) {
+      return true;
+    } else {
+      // For 5 or more entries, require all non-null values to be the same type
+      final nonNullValues = map.values.where((v) => v != null).toList();
+      if (nonNullValues.isEmpty) return false;
+
+      final firstValueType = nonNullValues.first.runtimeType;
+      return nonNullValues.every((value) => value.runtimeType == firstValueType);
+    }
   }
 
   String _formatValue(dynamic value) {

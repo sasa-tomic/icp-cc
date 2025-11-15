@@ -420,11 +420,11 @@ void main() {
       );
 
       expect(find.text('Array Data'), findsOneWidget);
-      expect(find.text('[0]:'), findsOneWidget);
+      expect(find.text('[0]: '), findsOneWidget);
       expect(find.text('first'), findsOneWidget);
-      expect(find.text('[1]:'), findsOneWidget);
+      expect(find.text('[1]: '), findsOneWidget);
       expect(find.text('second'), findsOneWidget);
-      expect(find.text('[2]:'), findsOneWidget);
+      expect(find.text('[2]: '), findsOneWidget);
       expect(find.text('third'), findsOneWidget);
     });
 
