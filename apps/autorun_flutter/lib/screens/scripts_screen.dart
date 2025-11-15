@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../controllers/script_controller.dart';
@@ -9,7 +8,8 @@ import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/script_app_host.dart';
-import '../widgets/integrations_help.dart';
+import '../widgets/enhanced_script_editor.dart';
+import 'enhanced_script_creation_screen.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -75,32 +75,22 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _showCreateSheet() async {
-    // Step 1: Let user select a template
-    final ScriptTemplate? template = await showDialog<ScriptTemplate>(
-      context: context,
-      builder: (_) => _ScriptTemplateSelectionDialog(),
-    );
-    if (!mounted || template == null) return;
-
-    // Step 2: let user edit the selected template
-    final String? editedSource = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (context) => _ScriptCreateSheet(
-        controller: _controller,
-        initialTemplate: template,
+    // Use enhanced creation screen
+    final ScriptRecord? rec = await Navigator.of(context).push<ScriptRecord>(
+      MaterialPageRoute<ScriptRecord>(
+        builder: (context) => EnhancedScriptCreationScreen(
+          controller: _controller,
+        ),
       ),
     );
-    if (!mounted || editedSource == null) return;
-
-    // Step 3: prompt for details and create the script record
-    final ScriptRecord? rec = await showDialog<ScriptRecord>(
-      context: context,
-      builder: (_) => _NewScriptDetailsDialog(controller: _controller, luaSource: editedSource),
-    );
-    if (!mounted || rec == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Script created')));
+    if (!mounted || rec != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Script created successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   @override
@@ -155,7 +145,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
                   onTap: () {
                     showDialog<void>(
                       context: context,
-                      builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
+                      builder: (_) => _EnhancedScriptEditorDialog(controller: _controller, record: rec),
                     );
                   },
                   trailing: Row(
@@ -204,220 +194,62 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
   }
 }
 
-// Empty state moved to shared widget
+// Legacy script creation components replaced by enhanced versions
 
-class _ScriptCreateSheet extends StatefulWidget {
-  const _ScriptCreateSheet({
-    required this.controller,
-    this.initialTemplate,
-  });
-  final ScriptController controller;
-  final ScriptTemplate? initialTemplate;
-
-  @override
-  State<_ScriptCreateSheet> createState() => _ScriptCreateSheetState();
-}
-
-class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _titleController;
-  late final TextEditingController _emojiController;
-  late final TextEditingController _imageUrlController;
-  late final TextEditingController _sourceController;
-  bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final template = widget.initialTemplate;
-    _titleController = TextEditingController(text: template?.title ?? 'My first script');
-    _emojiController = TextEditingController(text: template?.emoji ?? '🧪');
-    _imageUrlController = TextEditingController();
-    _sourceController = TextEditingController(text: template?.luaSource ?? kDefaultSampleLua);
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _emojiController.dispose();
-    _imageUrlController.dispose();
-    _sourceController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (_isSubmitting) return;
-    // Only validate that the Lua source is non-empty (fail-fast)
-    if (_sourceController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lua source cannot be empty')));
-      return;
-    }
-    setState(() => _isSubmitting = true);
-    try {
-      // Return only the edited source; details are collected after Save
-      if (!mounted) return;
-      Navigator.of(context).pop<String>(_sourceController.text);
-    } catch (error, stackTrace) {
-      debugPrint('Failed to create script: $error\n$stackTrace');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $error')));
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final EdgeInsets viewInsets = MediaQuery.of(context).viewInsets;
-    return Padding(
-      padding: EdgeInsets.only(bottom: viewInsets.bottom),
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          shrinkWrap: true,
-          children: <Widget>[
-            Text('New script', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _sourceController,
-              minLines: 8,
-              maxLines: 16,
-              decoration: const InputDecoration(
-                labelText: 'Lua source (edit first, Save to continue)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.multiline,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Title',
-                border: OutlineInputBorder(),
-              ),
-              enabled: false,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _emojiController,
-              decoration: const InputDecoration(
-                labelText: 'Emoji (optional)',
-                hintText: 'e.g. 🔍',
-                border: OutlineInputBorder(),
-              ),
-              enabled: false,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _imageUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Image URL (optional)',
-                hintText: 'local:// or https:// path',
-                border: OutlineInputBorder(),
-              ),
-              enabled: false,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Provide either an emoji or an image URL',
-              style: TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _isSubmitting ? null : _submit,
-              icon: _isSubmitting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.bolt),
-              label: const Text('Continue'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ScriptEditorDialog extends StatefulWidget {
-  const _ScriptEditorDialog({required this.controller, required this.record});
+/// Enhanced script editor dialog with syntax highlighting and improved UX
+class _EnhancedScriptEditorDialog extends StatefulWidget {
+  const _EnhancedScriptEditorDialog({required this.controller, required this.record});
   final ScriptController controller;
   final ScriptRecord record;
 
   @override
-  State<_ScriptEditorDialog> createState() => _ScriptEditorDialogState();
+  State<_EnhancedScriptEditorDialog> createState() => _EnhancedScriptEditorDialogState();
 }
 
-class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
-  late final TextEditingController _sourceController;
+class _EnhancedScriptEditorDialogState extends State<_EnhancedScriptEditorDialog> {
   bool _saving = false;
-  String? _lintError;
-  DateTime _lastEditTs = DateTime.fromMillisecondsSinceEpoch(0);
+  late final ValueNotifier<String> _codeNotifier;
 
   @override
   void initState() {
     super.initState();
-    _sourceController = TextEditingController(text: widget.record.luaSource);
-    _sourceController.addListener(_onChanged);
-    // Initial lint
-    _scheduleLint();
+    _codeNotifier = ValueNotifier<String>(widget.record.luaSource);
   }
 
   @override
   void dispose() {
-    _sourceController.removeListener(_onChanged);
-    _sourceController.dispose();
+    _codeNotifier.dispose();
     super.dispose();
   }
 
-  void _onChanged() {
-    _lastEditTs = DateTime.now();
-    _scheduleLint();
-  }
-
-  void _scheduleLint() async {
-    final DateTime ts = _lastEditTs;
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    if (!mounted || ts != _lastEditTs) return; // Debounced
-    final String src = _sourceController.text;
-    // Fail-fast: empty script is an error in runner; report here too
-    if (src.trim().isEmpty) {
-      setState(() => _lintError = 'Script is empty');
-      return;
-    }
-    final String? out = (RustScriptBridge(const RustBridgeLoader())).luaLint(script: src);
-    if (out == null || out.trim().isEmpty) {
-      if (!mounted) return;
-      setState(() => _lintError = 'Linter unavailable');
-      return;
-    }
-    try {
-      final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
-      final bool ok = (obj['ok'] as bool?) ?? false;
-      if (!mounted) return;
-      if (ok) {
-        setState(() => _lintError = null);
-      } else {
-        final List<dynamic> errs = (obj['errors'] as List<dynamic>? ?? const <dynamic>[]);
-        final String msg = errs.isNotEmpty ? ((errs.first as Map<String, dynamic>)['message'] as String? ?? 'Invalid script') : 'Invalid script';
-        setState(() => _lintError = msg);
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _lintError = 'Invalid linter output');
-    }
+  void _onCodeChanged(String code) {
+    _codeNotifier.value = code;
   }
 
   Future<void> _save() async {
     if (_saving) return;
     setState(() => _saving = true);
     try {
-      await widget.controller.updateSource(id: widget.record.id, luaSource: _sourceController.text);
+      await widget.controller.updateSource(
+        id: widget.record.id,
+        luaSource: _codeNotifier.value,
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Script saved successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Save failed: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -426,71 +258,112 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Edit: ${widget.record.title}'),
-      content: SizedBox(
-        width: 600,
+    return Dialog(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.8,
+        constraints: const BoxConstraints(
+          minWidth: 800,
+          minHeight: 600,
+          maxWidth: 1200,
+          maxHeight: 900,
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                TextButton.icon(
-                  onPressed: () {
-                    showDialog<String?>(
-                      context: context,
-                      builder: (_) => const IntegrationsHelpDialog(),
-                    ).then((String? snippet) {
-                      if (snippet == null || snippet.isEmpty) return;
-                      final TextEditingController c = _sourceController;
-                      final int baseOffset = c.selection.baseOffset;
-                      final int extentOffset = c.selection.extentOffset;
-                      final bool hasSel = baseOffset >= 0 && extentOffset >= 0 && baseOffset != extentOffset;
-                      final String before = hasSel ? c.text.replaceRange(baseOffset, extentOffset, '') : c.text;
-                      final int insertPos = hasSel ? baseOffset : (c.selection.baseOffset >= 0 ? c.selection.baseOffset : before.length);
-                      final String updated = before.substring(0, insertPos) + snippet + before.substring(insertPos);
-                      c.text = updated;
-                      c.selection = TextSelection.collapsed(offset: insertPos + snippet.length);
-                    });
-                  },
-                  icon: const Icon(Icons.extension),
-                  label: const Text('Integrations'),
-                ),
-              ],
-            ),
-            TextField(
-              controller: _sourceController,
-              minLines: 8,
-              maxLines: 16,
-              decoration: const InputDecoration(
-                labelText: 'Lua source',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.multiline,
-            ),
-            if (_lintError != null) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _lintError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
                 ),
               ),
-            ],
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.edit,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Edit Script',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        Text(
+                          widget.record.title,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+
+            // Editor
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: EnhancedScriptEditor(
+                  initialCode: widget.record.luaSource,
+                  onCodeChanged: _onCodeChanged,
+                  language: 'lua',
+                  showIntegrations: true,
+                  minLines: 25,
+                ),
+              ),
+            ),
+
+            // Footer with actions
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.3),
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                  ),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save),
+                    label: const Text('Save Changes'),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-      actions: <Widget>[
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-        FilledButton(
-          onPressed: _saving || _lintError != null ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
-        ),
-      ],
     );
   }
 }
