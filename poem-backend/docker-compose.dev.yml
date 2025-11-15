@@ -8,3 +8,9 @@ services:
       - ENVIRONMENT=development
     ports:
       - "58000:58000"
+    networks:
+      - api-network
+
+networks:
+  api-network:
+    driver: bridge

@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "58100:58000"
+    networks:
+      - api-network-prod
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -14,7 +16,11 @@ services:
     environment:
       - TUNNEL_TOKEN
     networks:
-      - api-network
+      - api-network-prod
     depends_on:
       api:
         condition: service_healthy
+
+networks:
+  api-network-prod:
+    driver: bridge

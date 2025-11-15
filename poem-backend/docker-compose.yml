@@ -11,12 +11,12 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/marketplace.db?mode=rwc}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - PORT=58000
+    networks:
+      - api-network-dev
     volumes:
       - ./data:/data
     ports:
       - "${API_PORT:-58000}"
-    networks:
-      - ${NETWORK_NAME:-api-network}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:58000/api/v1/health"]
       interval: 30s
@@ -25,5 +25,5 @@ services:
       retries: 3
 
 networks:
-  api-network:
+  api-network-dev:
     driver: bridge
