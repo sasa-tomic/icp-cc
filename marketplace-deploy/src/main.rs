@@ -17,7 +17,7 @@ use utils::{
 
 #[derive(Parser)]
 #[command(
-    name = "appwrite-cli",
+    name = "marketplace-deploy",
     about = "Unified CLI for ICP Script Marketplace deployment on Appwrite",
     version = "1.0.0",
     author = "ICP Marketplace Team"
@@ -172,7 +172,7 @@ async fn handle_deploy(
     // Use the already loaded config
     let config = config.clone();
     if !config.is_complete() {
-        error_message("Configuration incomplete. Run 'appwrite-cli init' first.");
+        error_message("Configuration incomplete. Run 'marketplace-deploy init' first.");
         return Err(anyhow!("Configuration incomplete"));
     }
 
@@ -436,7 +436,7 @@ async fn handle_test(target: &str) -> Result<()> {
 
     let config = AppConfig::load(target)?;
     if !config.is_complete() {
-        error_message("Configuration incomplete. Run 'appwrite-cli init' first.");
+        error_message("Configuration incomplete. Run 'marketplace-deploy init' first.");
         return Err(anyhow!("Configuration incomplete"));
     }
 

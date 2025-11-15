@@ -51,10 +51,10 @@ The custom Appwrite CLI supports `--target` flag for seamless switching between 
 
 ```bash
 # Local development
-appwrite-cli --target local <command>
+marketplace-deploy --target local <command>
 
 # Production (default)
-appwrite-cli --target prod <command>
+marketplace-deploy --target prod <command>
 ```
 
 Available commands:

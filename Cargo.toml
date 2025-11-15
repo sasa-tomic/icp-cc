@@ -1,6 +1,6 @@
 [workspace]
 members = [
   "crates/icp_core",
-  "appwrite-cli",
+  "marketplace-deploy",
 ]
 resolver = "2"
