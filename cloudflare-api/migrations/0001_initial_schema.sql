@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS scripts (
   lua_source TEXT NOT NULL,
   author_name TEXT NOT NULL,
   author_id TEXT NOT NULL DEFAULT 'anonymous',
+  author_principal TEXT, -- ICP principal of the script author
+  author_public_key TEXT, -- Public key for signature verification
+  upload_signature TEXT, -- Signature of the initial upload payload
   canister_ids TEXT, -- JSON array
   icon_url TEXT,
   screenshots TEXT, -- JSON array
@@ -63,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_scripts_author ON scripts(author_id);
 CREATE INDEX IF NOT EXISTS idx_scripts_public ON scripts(is_public);
 CREATE INDEX IF NOT EXISTS idx_scripts_downloads ON scripts(downloads DESC);
 CREATE INDEX IF NOT EXISTS idx_scripts_rating ON scripts(rating DESC);
+CREATE INDEX IF NOT EXISTS idx_scripts_author_principal ON scripts(author_principal);
 CREATE INDEX IF NOT EXISTS idx_reviews_script_id ON reviews(script_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_script_id ON purchases(script_id);
