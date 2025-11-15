@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "cloudflare-api",
+	"name": "icp-marketplace-api",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-10-24",
 	"compatibility_flags": [
@@ -21,12 +21,16 @@
 		{
 			"binding": "DB",
 			"database_name": "icp-marketplace-db",
-			"database_id": "local"
+			"database_id": "cf3f5b39-eb48-4fa7-97a2-32cc680bf593"
 		}
 	],
 	"vars": {
-		"ENVIRONMENT": "development"
+		"ENVIRONMENT": "production"
 	},
+	"routes": [
+		{ "pattern": "icp-mp.kalaj.org/*", "zone_name": "kalaj.org" }
+	],
+	"workers_dev": true
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

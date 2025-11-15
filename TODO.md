@@ -23,7 +23,6 @@
 
 - [ ] Create basic script download API endpoint structure
 - [ ] Add input validation to existing API endpoints
-- [x] Clean up all remaining references to the failed Appwrite experiment throughout the codebase
 
 ## Production Readiness Checklist (Priority: CRITICAL)
 
@@ -296,8 +295,6 @@
 - [ ] Set up automated backup and recovery procedures
 
 ### Deployment Status
-- **Previous**: Legacy deployment at https://icp-autorun.appwrite.network (deprecated)
-- **Current**: ✅ Migration to Cloudflare Workers COMPLETED with D1 database
 - **Local Development**: ✅ Running on http://localhost:8787 with all endpoints functional
 - **Infrastructure**: Automated deployment tool (server-deploy) handles complete infrastructure + worker deployment
 - **Production**: 🚀 READY FOR DEPLOYMENT - See Production Readiness Checklist above

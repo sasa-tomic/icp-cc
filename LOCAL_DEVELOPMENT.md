@@ -8,15 +8,6 @@ This guide covers setting up and running the ICP Script Marketplace with local C
 2. **Initialize database**: `just cloudflare-local-init`
 3. **Run Flutter app locally**: `just flutter-local`
 
-## Migration Status: ✅ COMPLETED
-
-The migration from Appwrite to Cloudflare Workers has been completed successfully. All API endpoints are now running on Cloudflare Workers with D1 database.
-
-- **Previous**: Appwrite Functions with PostgreSQL
-- **Current**: Cloudflare Workers with D1 database
-- **API Endpoints**: Fully migrated and functional
-- **Flutter App**: Configured to use Cloudflare Workers by default
-
 ## Detailed Setup
 
 ### 1. Local Cloudflare Workers Environment
