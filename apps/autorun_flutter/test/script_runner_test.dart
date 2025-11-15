@@ -1,10 +1,51 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/identity_record.dart';
-import 'package:icp_autorun/services/identity_repository.dart';
+import 'package:icp_autorun/services/secure_identity_repository.dart';
 import 'package:icp_autorun/services/script_runner.dart';
+
+class _MockSecureIdentityRepository implements SecureIdentityRepository {
+  final Map<String, String> _privateKeys = {};
+  final List<IdentityRecord> _identities = [];
+
+  void addIdentity(IdentityRecord identity, String privateKey) {
+    _identities.add(identity);
+    _privateKeys[identity.id] = privateKey;
+  }
+
+  @override
+  Future<List<IdentityRecord>> loadIdentities() async {
+    return List.unmodifiable(_identities);
+  }
+
+  @override
+  Future<void> persistIdentities(List<IdentityRecord> identities) async {
+    // No-op for tests
+  }
+
+  @override
+  Future<void> deleteIdentitySecureData(String identityId) async {
+    _privateKeys.remove(identityId);
+    _identities.removeWhere((id) => id.id == identityId);
+  }
+
+  @override
+  Future<void> deleteAllSecureData() async {
+    _privateKeys.clear();
+    _identities.clear();
+  }
+
+  @override
+  Future<String?> getPrivateKey(String identityId) async {
+    return _privateKeys[identityId];
+  }
+
+  @override
+  Future<void> migrateFromInsecureStorage(List<IdentityRecord> insecureIdentities) async {
+    // No-op for tests
+  }
+}
 
 class _FakeBridge implements ScriptBridge {
   _FakeBridge({required this.responses});
@@ -80,6 +121,8 @@ class _FakeBridge implements ScriptBridge {
 }
 
 void main() {
+  // Initialize Flutter bindings for secure storage tests
+  TestWidgetsFlutterBinding.ensureInitialized();
   test('ScriptRunner aggregates canister outputs and executes Lua', () async {
     final bridge = _FakeBridge(responses: {
       'cid1::m1': json.encode({'value': 2}),
@@ -101,15 +144,14 @@ void main() {
 
   group('ScriptRunner Identity Resolution Tests', () {
     late _FakeBridge bridge;
-    late IdentityRepository identityRepo;
-    late Directory tempDir;
+    late _MockSecureIdentityRepository secureRepo;
 
     setUp(() async {
       bridge = _FakeBridge(responses: {
         'test-canister::method': json.encode({'result': 'success'}),
       });
-      tempDir = await Directory.systemTemp.createTemp('identity_test_');
-      identityRepo = IdentityRepository(overrideDirectory: tempDir);
+
+      secureRepo = _MockSecureIdentityRepository();
 
       // Create test identities
       final identities = [
@@ -132,17 +174,14 @@ void main() {
           createdAt: DateTime.now(),
         ),
       ];
-      await identityRepo.persistIdentities(identities);
-    });
 
-    tearDown(() async {
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
-      }
+      // Add identities to mock repository
+      secureRepo.addIdentity(identities[0], 'test_private_key_1');
+      secureRepo.addIdentity(identities[1], 'test_private_key_2');
     });
 
     test('CanisterCallSpec with identityId uses authenticated call with resolved identity', () async {
-      final runner = ScriptRunner(bridge, identityRepository: identityRepo);
+      final runner = ScriptRunner(bridge, secureRepository: secureRepo);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
         calls: [
@@ -240,7 +279,7 @@ void main() {
     });
 
     test('CanisterCallSpec prioritizes identityId over privateKeyB64', () async {
-      final runner = ScriptRunner(bridge, identityRepository: identityRepo);
+      final runner = ScriptRunner(bridge, secureRepository: secureRepo);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
         calls: [
@@ -266,7 +305,7 @@ void main() {
     });
 
     test('CanisterCallSpec fails when identityId not found', () async {
-      final runner = ScriptRunner(bridge, identityRepository: identityRepo);
+      final runner = ScriptRunner(bridge, secureRepository: secureRepo);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
         calls: [
@@ -306,7 +345,7 @@ void main() {
 
       final res = await runner.run(plan);
       expect(res.ok, false);
-      expect(res.error, contains('Identity ID specified but no identity repository provided'));
+      expect(res.error, contains('Identity ID specified but no secure identity repository provided'));
 
       // Verify no calls were made
       expect(bridge.callLog.isEmpty, true);
