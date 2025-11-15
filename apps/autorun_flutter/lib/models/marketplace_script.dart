@@ -51,6 +51,13 @@ class MarketplaceScript {
     this.author,
   });
 
+  static bool _parseBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    if (value is String) return value.toLowerCase() == 'true' || value == '1';
+    return value ?? false;
+  }
+
   factory MarketplaceScript.fromJson(Map<String, dynamic> json) {
     return MarketplaceScript(
       id: json['id'] as String? ?? json['\$id'] as String,
@@ -58,24 +65,24 @@ class MarketplaceScript {
       description: json['description'] as String? ?? '',
       category: json['category'] as String? ?? '',
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
-      authorId: json['authorId'] as String? ?? '',
-      authorName: json['authorName'] as String? ?? '',
+      authorId: json['authorId'] as String? ?? json['author_id'] as String? ?? '',
+      authorName: json['authorName'] as String? ?? json['author_name'] as String? ?? '',
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       currency: json['currency'] as String? ?? 'USD',
       downloads: json['downloads'] as int? ?? 0,
       rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
-      reviewCount: json['reviewCount'] as int? ?? 0,
+      reviewCount: json['reviewCount'] as int? ?? json['review_count'] as int? ?? 0,
       verifiedReviewCount: json['verifiedReviewCount'] as int?,
-      luaSource: json['luaSource'] as String? ?? '',
-      iconUrl: json['iconUrl'] as String?,
-      screenshots: (json['screenshots'] as List<dynamic>?)?.cast<String>(),
-      canisterIds: (json['canisterIds'] as List<dynamic>?)?.cast<String>() ?? [],
+      luaSource: json['luaSource'] as String? ?? json['lua_source'] as String? ?? '',
+      iconUrl: json['iconUrl'] as String? ?? json['icon_url'] as String?,
+      screenshots: (json['screenshots'] as List<dynamic>?)?.cast<String>() ?? (json['screenshots'] as List<dynamic>?)?.cast<String>(),
+      canisterIds: (json['canisterIds'] as List<dynamic>?)?.cast<String>() ?? (json['canister_ids'] as List<dynamic>?)?.cast<String>() ?? [],
       compatibility: json['compatibility'] as String?,
       version: json['version'] as String?,
-      isPublic: json['isPublic'] as bool? ?? true,
-      isApproved: json['isApproved'] as bool? ?? false,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? json['\$createdAt'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? json['\$updatedAt'] as String? ?? '') ?? DateTime.now(),
+      isPublic: _parseBool(json['isPublic'] ?? json['is_public'] ?? true),
+      isApproved: _parseBool(json['isApproved'] ?? json['is_approved'] ?? false),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? json['created_at'] as String? ?? json['\$createdAt'] as String? ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? json['updated_at'] as String? ?? json['\$updatedAt'] as String? ?? '') ?? DateTime.now(),
       author: json['author'] != null
           ? MarketplaceAuthor.fromJson(json['author'] as Map<String, dynamic>)
           : null,

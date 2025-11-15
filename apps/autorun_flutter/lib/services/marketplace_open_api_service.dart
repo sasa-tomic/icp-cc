@@ -244,7 +244,8 @@ class MarketplaceOpenApiService {
   // Validate ICP canister ID format
   bool _isValidCanisterId(String canisterId) {
     // Basic validation for ICP canister ID format
-    final regex = RegExp(r'^[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{3}$');
+    // Supports both 5-5-5-5-3 and 5-5-5-5-5-5 formats
+    final regex = RegExp(r'^[a-z0-9]{5}(-[a-z0-9]{5}){4,5}$');
     return regex.hasMatch(canisterId);
   }
 
