@@ -33,6 +33,8 @@ android:
     @echo "==> Building Android target..."
     {{scripts_dir}}/build_android.sh
     cd {{root}}/apps/autorun_flutter && flutter build apk
+    @echo "==> Copying APK to sync directory..."
+    if [ -d ~/sync/sasa-privatno/icp-autorun/ ]; then cp {{root}}/apps/autorun_flutter/build/app/outputs/flutter-apk/app-release.apk ~/sync/sasa-privatno/icp-autorun/; fi
 
 android-emulator:
     @echo "==> Starting Android emulator..."
