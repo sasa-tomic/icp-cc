@@ -12,7 +12,7 @@
   - Crates: `bip39`, `bitcoin`, `ed25519-dalek`, `candid`, `base64`, `sha2`.
 - Bridge & Platforms
   - FFI implemented with a minimal C-ABI in `rust/icp_core/src/ffi.rs` including `icp_generate_identity` and canister client bridges.
-  - Android/iOS/Desktop via `dart:ffi` through `icp_identity_manager/lib/rust/native_bridge.dart`. Web keeps current Dart path short-term.
+  - Android/iOS/Desktop via `dart:ffi` through `icp_autorun/lib/rust/native_bridge.dart`. Web keeps current Dart path short-term.
 - Flutter integration
   - Add a Dart facade that calls FFI on native and falls back to Dart on Web.
   - Update `IdentityGenerator.generate(...)` to use the Rust-backed path.

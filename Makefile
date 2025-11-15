@@ -17,27 +17,27 @@ all: linux android
 
 linux:
 	$(S)/build_linux.sh
-	cd $(ROOT)/icp_identity_manager && flutter build linux && flutter run -d linux
+	cd $(ROOT)/icp_autorun && flutter build linux && flutter run -d linux
 
 android:
 	$(S)/build_android.sh
-	cd $(ROOT)/icp_identity_manager && flutter build apk
+	cd $(ROOT)/icp_autorun && flutter build apk
 
 android-emulator:
 	$(S)/run_android_emulator.sh
 
 macos:
 	$(S)/build_macos.sh
-	cd $(ROOT)/icp_identity_manager && flutter build macos
+	cd $(ROOT)/icp_autorun && flutter build macos
 
 ios:
 	$(S)/build_ios.sh
-	cd $(ROOT)/icp_identity_manager && flutter build ios --no-codesign
+	cd $(ROOT)/icp_autorun && flutter build ios --no-codesign
 
 windows:
 	$(S)/build_windows.sh
-	cd $(ROOT)/icp_identity_manager && flutter build windows
+	cd $(ROOT)/icp_autorun && flutter build windows
 
 clean:
-	rm -rf $(ROOT)/icp_identity_manager/android/app/src/main/jniLibs/* || true
-	rm -f $(ROOT)/icp_identity_manager/build/linux/x64/*/bundle/lib/libicp_core.* || true
+	rm -rf $(ROOT)/icp_autorun/android/app/src/main/jniLibs/* || true
+	rm -f $(ROOT)/icp_autorun/build/linux/x64/*/bundle/lib/libicp_core.* || true
