@@ -5,4 +5,6 @@
 - Tests must assert meaningful behavior and avoid overlapping coverage.
 - All tests and code must compile without warnings
 - All tests must pass
-
+- For rust code ensure the following passes without any warnings or errors, ensuring good test coverage after fixing any potential errors or warnings:
+❯ cargo clippy --benches --tests --all-features && cargo clippy && cargo fmt --all && cargo nextest run
+- Only commit changes after all the above is satisfied
