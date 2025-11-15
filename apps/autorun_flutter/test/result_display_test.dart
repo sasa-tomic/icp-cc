@@ -83,11 +83,11 @@ void main() {
       );
 
       expect(find.text('Fruit List'), findsOneWidget);
-      expect(find.text('[0]:'), findsOneWidget);
+      expect(find.text('[0]: '), findsOneWidget);
       expect(find.text('apple'), findsOneWidget);
-      expect(find.text('[1]:'), findsOneWidget);
+      expect(find.text('[1]: '), findsOneWidget);
       expect(find.text('banana'), findsOneWidget);
-      expect(find.text('[2]:'), findsOneWidget);
+      expect(find.text('[2]: '), findsOneWidget);
       expect(find.text('cherry'), findsOneWidget);
     });
 
