@@ -14,7 +14,7 @@ class MarketplaceOpenApiService {
 
   final String _baseUrl = String.fromEnvironment(
     'MARKETPLACE_API_URL',
-    defaultValue: 'http://localhost:3000/v1',
+    defaultValue: 'https://fra.cloud.appwrite.io/v1',
   ); // API server URL configurable via environment variable
   final Duration _timeout = const Duration(seconds: 30);
   static const int defaultSearchLimit = 20;
