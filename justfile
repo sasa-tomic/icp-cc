@@ -276,50 +276,21 @@ server-init +args="":
 cloudflare-test-up:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "==> Starting Cloudflare Workers with process isolation for tests"
+    echo "==> Starting Cloudflare Workers for tests"
 
-    # Check if running in container environment
-    if [[ -f "/.dockerenv" ]]; then
-        echo "==> Container environment detected - using process isolation"
+    # Setup test environment
+    echo "==> Setting up test database..."
+    TEST_DB_NAME=$({{scripts_dir}}/test_db_manager.sh create "default")
+    export TEST_DB_NAME
+    echo "==> Using test database: $TEST_DB_NAME"
 
-        # Setup test environment
-        echo "==> Setting up test database..."
-        TEST_DB_NAME=$({{scripts_dir}}/test_db_manager.sh create "default")
-        export TEST_DB_NAME
-        echo "==> Using test database: $TEST_DB_NAME"
-
-        # Use wrangler manager script for fail-fast process management
-        exec {{agent_dir}}/wrangler-manager.sh start
-
-    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-        echo "==> Docker detected - running in container with process isolation"
-
-        # Start the development container
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml up -d agent
-
-        # Execute wrangler start inside container
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent {{agent_dir}}/wrangler-manager.sh start
-
-    else
-        echo "==> ❌ NEITHER CONTAINER NOR DOCKER AVAILABLE"
-        echo "==> ❌ FAIL FAST - Cannot ensure proper isolation and cleanup"
-        echo "==> ❌ Either run inside container or provide Docker"
-        exit 1
-    fi
+    # Use wrangler manager script for fail-fast process management
+    exec {{agent_dir}}/wrangler-manager.sh start
 
 # Stop Cloudflare Workers process and cleanup test database
 cloudflare-test-down:
     @echo "==> Stopping Cloudflare Workers process..."
-    @if [[ -f "/.dockerenv" ]]; then \
-        echo "==> Container environment detected - stopping wrangler process"; \
-        {{agent_dir}}/wrangler-manager.sh stop || echo "⚠️  Wrangler process was not running"; \
-    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
-        echo "==> Docker detected - stopping wrangler process in container"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent {{agent_dir}}/wrangler-manager.sh stop || echo "⚠️  Wrangler process was not running"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml stop agent || echo "⚠️  Agent container was not running"; \
-    else \
-        echo "⚠️  Neither container nor Docker available - cannot stop wrangler cleanly"; \
-    fi
+    {{agent_dir}}/wrangler-manager.sh stop || echo "⚠️  Wrangler process was not running"; \
     @echo "==> Cleaning up test database..."
     @{{scripts_dir}}/test_db_manager.sh cleanup
     @echo "==> Cloudflare Workers process stopped and test database cleaned up"
@@ -331,7 +302,7 @@ cloudflare-local-logs:
         {{agent_dir}}/wrangler-manager.sh logs; \
     elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
         echo "==> Showing Cloudflare Workers process logs from container"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent {{agent_dir}}/wrangler-manager.sh logs; \
+        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent ./agent/wrangler-manager.sh logs; \
     else \
         echo "❌ Neither container nor Docker available - cannot show logs"; \
         exit 1; \
@@ -347,9 +318,9 @@ cloudflare-local-reset:
         echo "==> Local Cloudflare Workers environment reset complete"; \
     elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
         echo "==> Resetting local Cloudflare Workers environment (wipes all data)"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM scripts;"' || echo "Database already empty"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM reviews;"' || echo "Database already empty"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM script_stats;"' || echo "Database already empty"; \
+        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM scripts;"' || echo "Database already empty"; \
+        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM reviews;"' || echo "Database already empty"; \
+        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --command="DELETE FROM script_stats;"' || echo "Database already empty"; \
         echo "==> Local Cloudflare Workers environment reset complete"; \
     else \
         echo "❌ Neither container nor Docker available - cannot reset database"; \
@@ -364,7 +335,7 @@ cloudflare-local-init:
         echo "==> Database initialized successfully"; \
     elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
         echo "==> Initializing local Cloudflare Workers database"; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd {{cloudflare_dir}} && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --file=migrations/0001_initial_schema.sql'; \
+        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler d1 execute --config wrangler.local.jsonc icp-marketplace-test --file=migrations/0001_initial_schema.sql'; \
         echo "==> Database initialized successfully"; \
     else \
         echo "❌ Neither container nor Docker available - cannot initialize database"; \
@@ -392,7 +363,7 @@ cloudflare-types:
         echo "==> ✅ Types generated successfully"; \
     elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
         echo "==> Generating Cloudflare Workers types..."; \
-        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd {{cloudflare_dir}} && wrangler types --config wrangler.local.jsonc'; \
+        cd "{{root}}" && docker compose -f {{agent_dir}}/docker-compose.yml exec -T agent bash -c 'cd ./cloudflare-api && wrangler types --config wrangler.local.jsonc'; \
         echo "==> ✅ Types generated successfully"; \
     else \
         echo "❌ Neither container nor Docker available - cannot generate types"; \

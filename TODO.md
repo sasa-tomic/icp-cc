@@ -4,8 +4,6 @@
 
 - Adjust the UI to align it closely with fantastic UX on mobile devices that typically have narrow screen - much taller than wide.
 - Make the script size more compact in the marketplace. We are now consuming a lot of vertical space for each script.
-- ✅ When uploading a script, mandatory sign it with the identity (private key) of the script author. When listing the script show the identity of the author as an ICP principal (first 5 characters should be enough for now).
-- ✅ In requests to update or delete the script, sign the request in a reliable way with the private key (identity) of the script author and at the server side compare that the request signer matches the script author. Allow script updates or deletions if the signatures of author + requestor match.
 - Extend the UI to support script re-uploading from "My scripts"
 - Extend the UI to support script deletion in the "Marketplace" tab (server would do the request signature checking)
 
@@ -28,7 +26,7 @@
   - Add smart filtering by source, category, tags, and usage frequency
   - Design unified script cards with consistent actions and information
 
-### Seamless Publishing Workflow (Priority: High)  
+### Seamless Publishing Workflow (Priority: High)
 - ✅ Add "Publish to Marketplace" directly from local scripts
   - [ ] Auto-populate marketplace metadata from local script analysis
   - [ ] Design progressive disclosure for advanced publishing options
@@ -73,8 +71,8 @@
 
 ### Quick Actions Integration (Priority: High)
 - ✅ Add marketplace actions directly to scripts tab
+  - ✅ "View in Marketplace" for local scripts with published versions
   - [ ] "Check for Updates" for downloaded marketplace scripts
-  - [ ] "View in Marketplace" for local scripts with published versions
   - [ ] "Share Script" with marketplace link generation
 
 ### Search and Discovery Enhancements (Priority: Medium)
@@ -100,11 +98,11 @@
 
 ### Script Downloads & Installation (Priority: High)
 - ✅ Enhance existing script retrieval with file download functionality
+  - ✅ Create script preview functionality (code snippets, screenshots, reviews)
   - [ ] Create script installation guides and documentation, with step-by-step guidance
   - [ ] Implement version management and update notifications
   - [ ] Add support for installing locally a particular version of script
   - [ ] Design rollback mechanism for script updates
-  - [ ] Create script preview functionality (code snippets, screenshots, reviews)
   - [ ] Analyze and research if other assets such as images and sound would be good to package with scripts
   - [ ] Add verification of script integrity and checksums: sha256 of each script
 
@@ -207,15 +205,6 @@
   - Create performance tests for complex scripts
   - Add accessibility testing for generated UI
 
-#### Rust Lua Engine Test Coverage (Priority: HIGH)
-- **MOTIVATION**: Recent bug showed `icp_searchable_list` function missing from Rust engine, causing runtime errors. Only 1/13 helper functions had test coverage.
-- ✅ Add tests for remaining action helpers: `icp_call`, `icp_batch`, `icp_message`, `icp_ui_list`, `icp_result_display`, `icp_section`, `icp_table`
-- ✅ Add tests for formatting helpers: `icp_format_number`, `icp_format_icp`, `icp_format_timestamp`, `icp_format_bytes`, `icp_truncate`
-- ✅ Add tests for data manipulation helpers: `icp_filter_items`, `icp_sort_items`
-- ✅ Create regression test to verify all 13 helper functions are available in both Rust and Flutter environments
-
-**All critical helper function gaps have been resolved - all 16 helper functions are now available in both Rust and Flutter environments**
-
 #### HTTP Test Infrastructure Cleanup (Priority: MEDIUM)
 **MOTIVATION**: HTTP debugging investigation (2025-10-26) created several temporary files and modifications that need cleanup.
 
@@ -236,7 +225,6 @@
 - [ ] Update test documentation to reflect new UI/API test separation pattern
 
 **Root Cause Documentation:**
-- ✅ Documented in `HTTP_TEST_DEBUGGING_ROOT_CAUSE.md`
 - [ ] Add reference to root cause document in testing guidelines section below
 
 #### Development Infrastructure
