@@ -6,6 +6,7 @@ import '../controllers/identity_controller.dart';
 import '../models/identity_record.dart';
 import '../services/identity_repository.dart';
 import '../utils/principal.dart';
+import '../widgets/empty_state.dart';
 
 class IdentityHomePage extends StatefulWidget {
   const IdentityHomePage({super.key});
@@ -202,11 +203,11 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ICP Identity Manager'),
+        title: const Text('Identities'),
         actions: <Widget>[
           IconButton(
             onPressed: _controller.isBusy ? null : _controller.refresh,
-            tooltip: 'Reload identities',
+            tooltip: 'Reload',
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -217,7 +218,11 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (identities.isEmpty) {
-            return const _EmptyState();
+            return const EmptyState(
+              icon: Icons.verified_user,
+              title: 'No identities yet',
+              subtitle: 'Tap "New identity" to generate your first ICP identity.',
+            );
           }
           return RefreshIndicator(
             onRefresh: _controller.refresh,
@@ -421,31 +426,7 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(Icons.verified_user, size: 72, color: scheme.primary),
-          const SizedBox(height: 16),
-          Text('No identities yet', style: textTheme.titleLarge, textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Text(
-            'Tap "New identity" to generate your first ICP identity.',
-            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Empty state moved to shared widget
 
 class _DialogSection extends StatelessWidget {
   const _DialogSection({required this.label, required this.value, this.onCopy});

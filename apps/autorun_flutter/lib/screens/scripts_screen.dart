@@ -6,6 +6,7 @@ import '../models/script_record.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
+import '../widgets/empty_state.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -102,7 +103,11 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
       body: Builder(builder: (context) {
         if (showLoading) return const Center(child: CircularProgressIndicator());
         if (scripts.isEmpty) {
-          return const _EmptyScripts();
+          return const EmptyState(
+            icon: Icons.code,
+            title: 'No scripts yet',
+            subtitle: 'Tap "New script" to add a Lua script.',
+          );
         }
         return RefreshIndicator(
           onRefresh: _controller.refresh,
@@ -187,31 +192,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
   }
 }
 
-class _EmptyScripts extends StatelessWidget {
-  const _EmptyScripts();
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(Icons.code, size: 72, color: scheme.primary),
-          const SizedBox(height: 16),
-          Text('No scripts yet', style: textTheme.titleLarge, textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Text(
-            'Tap "New script" to add a Lua script.',
-            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Empty state moved to shared widget
 
 class _ScriptCreateSheet extends StatefulWidget {
   const _ScriptCreateSheet({required this.controller});
