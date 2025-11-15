@@ -140,13 +140,48 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
           : _compatibilityController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
 
+       // Generate a default Lua script since API requires non-empty lua_source
+       final defaultLuaSource = '''-- Default Script for $title
+function init(arg)
+  return {
+    message = "Hello from $title!",
+    description = "$description"
+  }, {}
+end
+
+function view(state)
+  return {
+    type = "column",
+    children = {
+      {
+        type = "text",
+        props = {
+          text = state.message,
+          style = "title"
+        }
+      },
+      {
+        type = "text", 
+        props = {
+          text = state.description,
+          style = "body"
+        }
+      }
+    }
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end''';
+
        // Upload script
        await _marketplaceService.uploadScript(
          title: title,
          description: description,
          category: category,
          tags: tags,
-         luaSource: '', // Empty source as it's not displayed
+         luaSource: defaultLuaSource,
          authorName: authorName,
          canisterIds: canisterIds.isEmpty ? null : canisterIds,
          iconUrl: iconUrl,

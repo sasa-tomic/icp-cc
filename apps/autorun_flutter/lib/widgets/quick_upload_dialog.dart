@@ -130,12 +130,33 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       final authorName = _authorController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
 
+       // Generate a default Lua script since API requires non-empty lua_source
+       final defaultLuaSource = '''-- Default Script
+function init(arg)
+  return {
+    message = "Hello from $title!"
+  }, {}
+end
+
+function view(state)
+  return {
+    type = "text",
+    props = {
+      text = state.message
+    }
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end''';
+
        await _marketplaceService.uploadScript(
          title: title,
          description: description,
          category: _selectedCategory,
          tags: tags,
-         luaSource: '', // Empty source as it's not displayed
+         luaSource: defaultLuaSource,
          authorName: authorName,
          price: price,
          version: '1.0.0',

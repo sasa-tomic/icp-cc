@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_highlight/themes/vs2015.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
+import 'package:highlight/languages/lua.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/integrations_help.dart';
 
@@ -34,7 +36,7 @@ class EnhancedScriptEditor extends StatefulWidget {
 }
 
 class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
-  late final TextEditingController _controller;
+  late final CodeController _controller;
   String? _lintError;
   Timer? _lintDebouncer;
   int _currentLineCount = 1;
@@ -50,7 +52,10 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialCode);
+    _controller = CodeController(
+      text: widget.initialCode,
+      language: lua,
+    );
     _controller.addListener(_onTextChanged);
     _updateLineCount();
     _scheduleLint();
@@ -570,41 +575,29 @@ class _EnhancedScriptEditorState extends State<EnhancedScriptEditor> {
   }
 
   Widget _buildHighlightedEditor() {
-    // For now, use a simple monospace TextField with theme support
-    // Full syntax highlighting would require a more complex implementation
-    final TextStyle textStyle = TextStyle(
-      fontFamily: 'monospace',
-      fontSize: 14,
-      height: 1.6,
-      color: _getTextColorForTheme(),
-    );
-
-    return TextField(
-      controller: _controller,
-      readOnly: widget.readOnly,
-      maxLines: widget.maxLines,
-      minLines: widget.minLines,
-      expands: false,
-      style: textStyle,
-      decoration: const InputDecoration(
-        contentPadding: EdgeInsets.all(16),
-        border: InputBorder.none,
-        hintText: '// Enter your Lua code here...',
+    return CodeTheme(
+      data: CodeThemeData(styles: _themes[_selectedTheme] ?? vs2015Theme),
+      child: SingleChildScrollView(
+        child: CodeField(
+          controller: _controller,
+          minLines: widget.minLines,
+          maxLines: widget.maxLines,
+          readOnly: widget.readOnly,
+          gutterStyle: GutterStyle(
+            showErrors: true,
+            showFoldingHandles: true,
+            showLineNumbers: true,
+          ),
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontFamily: 'monospace',
+            height: 1.6,
+          ),
+          padding: const EdgeInsets.all(16),
+          expands: false, // Allow scrolling
+        ),
       ),
-      keyboardType: TextInputType.multiline,
     );
-  }
-
-  Color _getTextColorForTheme() {
-    // Return appropriate text color based on selected theme
-    switch (_selectedTheme) {
-      case 'vs2015':
-      case 'atom-one-dark':
-      case 'monokai-sublime':
-        return Colors.white;
-      default:
-        return Colors.black;
-    }
   }
 
   Color _getBackgroundColorForTheme() {
