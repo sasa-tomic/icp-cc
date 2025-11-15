@@ -1,6 +1,31 @@
 ## Fixes and urgent improvements
 
-(none)
+### 🚨 CRITICAL: Remove API Keys from Flutter App (Security Vulnerability)
+
+**Problem**: Flutter app contains hardcoded Appwrite API keys, exposing credentials to every user who downloads the app.
+
+**Root Cause**: Appwrite Functions require environment variables that aren't being set during deployment, causing 401 errors.
+
+**Files Affected**:
+- `apps/autorun_flutter/lib/services/marketplace_open_api_service.dart` (contains API keys)
+- `marketplace-deploy/src/functions.rs` (missing environment variable configuration)
+- `appwrite/functions/*/src/main.js` (correctly expects environment variables)
+
+**Required Actions**:
+1. **HIGH PRIORITY**: Update `marketplace-deploy/src/functions.rs` to set function environment variables:
+   - `APPWRITE_FUNCTION_ENDPOINT`
+   - `APPWRITE_FUNCTION_PROJECT_ID`
+   - `APPWRITE_FUNCTION_API_KEY`
+   - `DATABASE_ID`, `SCRIPTS_COLLECTION_ID`, etc.
+
+2. **HIGH PRIORITY**: Remove hardcoded API keys from Flutter app:
+   - Remove `_marketplaceApiKey` constant
+   - Remove `X-Appwrite-Key` headers
+   - Keep functions publicly accessible (`"execute": ["any"]`)
+
+3. **MEDIUM PRIORITY**: Remove unnecessary `appwrite-api-server` - functions should handle this directly
+
+**Testing**: Verify marketplace works without client-side authentication and no keys are exposed in compiled app.
 
 ## Update this document (tasks from this section should always stay here)
 
@@ -26,6 +51,29 @@
 - ✅ Test complete marketplace flow end-to-end locally
 - ⏳ Add Rust tests with local Appwrite instance
 - ⏳ Document development workflow for future developers
+
+### Bootstrapping a fresh local appwrite instance
+
+Should be fully automated. Seems like appwrite-cli can be used to set up an instance after starting the local docker compose deployment.
+```bash
+❯ npx appwrite-cli init --help
+Usage: appwrite init [options] [command]
+
+The init command provides a convenient wrapper for creating and initializing projects, functions, collections, buckets, teams, and messaging-topics in  Appwrite.
+
+Options:
+  -h, --help              display help for command
+
+Commands:
+  project [options]       Init a new Appwrite project
+  function|functions      Init a new Appwrite function
+  site|sites              Init a new Appwrite site
+  bucket|buckets          Init a new Appwrite bucket
+  team|teams              Init a new Appwrite team
+  collection|collections  Init a new Appwrite collection
+  table|tables            Init a new Appwrite table
+  topic|topics            Init a new Appwrite topic
+```
 
 ## ICP Autorun Marketplace
 
