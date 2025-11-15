@@ -60,6 +60,10 @@ enum Commands {
         /// Only deploy specific components
         #[arg(long, value_enum, use_value_delimiter = true)]
         components: Option<Vec<DeployComponents>>,
+
+        /// Clean and redeploy all resources (removes existing resources first)
+        #[arg(long)]
+        clean: bool,
     },
     /// Clean up existing resources
     Clean,
@@ -86,7 +90,9 @@ async fn main() -> Result<()> {
             api_key,
             endpoint,
         } => handle_init(project_id, api_key, endpoint).await,
-        Commands::Deploy { components } => handle_deploy(cli.yes, components, cli.dry_run).await,
+        Commands::Deploy { components, clean } => {
+            handle_deploy(cli.yes, components, cli.dry_run, clean).await
+        }
         Commands::Clean => handle_clean(cli.yes).await,
         Commands::Config => handle_config().await,
         Commands::Test => handle_test().await,
@@ -129,6 +135,7 @@ async fn handle_deploy(
     yes: bool,
     components: Option<Vec<DeployComponents>>,
     dry_run: bool,
+    clean: bool,
 ) -> Result<()> {
     if dry_run {
         section_header("DRY RUN - Deployment Preview");
@@ -177,6 +184,52 @@ async fn handle_deploy(
     let func_manager = FunctionManager::new(config.clone()).await?;
     pb.tick();
 
+    // Clean existing resources if clean flag is set
+    if clean && !dry_run {
+        pb.set_message("Cleaning existing resources...");
+        info_message("Cleaning existing resources before redeployment...");
+
+        // Clean functions first
+        if deploy_all || components.contains(&DeployComponents::Functions) {
+            func_manager.clean_all_functions().await?;
+        }
+
+        // Clean collections
+        if deploy_all || components.contains(&DeployComponents::Collections) {
+            // Delete collections if they exist
+            let _ = db_manager
+                .delete_collection(&config.scripts_collection_id)
+                .await;
+            let _ = db_manager
+                .delete_collection(&config.users_collection_id)
+                .await;
+            let _ = db_manager
+                .delete_collection(&config.reviews_collection_id)
+                .await;
+            let _ = db_manager
+                .delete_collection(&config.purchases_collection_id)
+                .await;
+        }
+
+        // Clean storage bucket
+        if deploy_all || components.contains(&DeployComponents::Storage) {
+            let _ = db_manager
+                .delete_storage_bucket(&config.storage_bucket_id)
+                .await;
+        }
+
+        pb.finish_and_clear();
+        success_message("Cleanup completed. Starting fresh deployment...");
+
+        // Reset progress bar for deployment phase
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} [{elapsed_precise}] {msg}")
+                .unwrap(),
+        );
+    }
+
     // Deploy database
     if deploy_all || components.contains(&DeployComponents::Database) {
         if dry_run {
@@ -195,10 +248,39 @@ async fn handle_deploy(
             pb.set_message("DRY RUN: Would create collections");
         } else {
             pb.set_message("Creating collections...");
-            db_manager.setup_scripts_collection().await?;
-            db_manager.setup_users_collection().await?;
-            db_manager.setup_reviews_collection().await?;
-            db_manager.setup_purchases_collection().await?;
+            // Try to create collections with all attributes at once
+            if let Err(e) = db_manager
+                .create_collection(&config.scripts_collection_id, "Scripts")
+                .await
+            {
+                if !e.to_string().contains("already exists") {
+                    return Err(e);
+                }
+            }
+            if let Err(e) = db_manager
+                .create_collection(&config.users_collection_id, "Users")
+                .await
+            {
+                if !e.to_string().contains("already exists") {
+                    return Err(e);
+                }
+            }
+            if let Err(e) = db_manager
+                .create_collection(&config.reviews_collection_id, "Reviews")
+                .await
+            {
+                if !e.to_string().contains("already exists") {
+                    return Err(e);
+                }
+            }
+            if let Err(e) = db_manager
+                .create_collection(&config.purchases_collection_id, "Purchases")
+                .await
+            {
+                if !e.to_string().contains("already exists") {
+                    return Err(e);
+                }
+            }
         }
         pb.tick();
         info_message("Collections: scripts, users, reviews, purchases");
@@ -308,8 +390,8 @@ async fn handle_config() -> Result<()> {
         error_message("API Key not configured");
     } else {
         let masked_key = format!(
-            "{}***",
-            &config.api_key[..config.api_key.len().saturating_sub(3)]
+            "{}...",
+            &config.api_key[..config.api_key.len().saturating_sub(3).min(40)]
         );
         println!("API Key: {}", masked_key);
     }

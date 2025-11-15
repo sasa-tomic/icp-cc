@@ -110,6 +110,7 @@ impl AttributeType {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum IndexType {
     Key,
@@ -117,6 +118,7 @@ pub enum IndexType {
     Fulltext,
 }
 
+#[allow(dead_code)]
 impl IndexType {
     pub fn as_str(&self) -> &'static str {
         match self {
