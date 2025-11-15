@@ -350,5 +350,44 @@ flutter-production +args="":
     cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=https://api.icp-marketplace.example.com {{args}}
 
 # =============================================================================
+# Cloudflare Container Deployment
+# =============================================================================
+
+# Deploy Poem API to Cloudflare Containers
+cf-deploy:
+    @echo "==> Deploying to Cloudflare Containers"
+    cd {{api_dir}} && ./scripts/deploy-cloudflare.sh
+
+# Deploy to Cloudflare (dry-run mode)
+cf-deploy-dry:
+    @echo "==> Running deployment dry-run"
+    cd {{api_dir}} && ./scripts/deploy-cloudflare.sh --dry-run
+
+# Check Cloudflare container status
+cf-status:
+    @echo "==> Checking Cloudflare container status"
+    cd {{api_dir}} && npx wrangler containers list
+
+# View Cloudflare container images
+cf-images:
+    @echo "==> Listing Cloudflare container images"
+    cd {{api_dir}} && npx wrangler containers images list
+
+# Tail Cloudflare Worker logs
+cf-logs:
+    @echo "==> Tailing Cloudflare Worker logs (Ctrl+C to stop)"
+    cd {{api_dir}} && npx wrangler tail
+
+# Login to Cloudflare (required for first deployment)
+cf-login:
+    @echo "==> Logging in to Cloudflare"
+    cd {{api_dir}} && npx wrangler login
+
+# Install Cloudflare deployment dependencies
+cf-setup:
+    @echo "==> Installing Cloudflare deployment dependencies"
+    cd {{api_dir}} && npm install
+
+# =============================================================================
 # Help and Information
 # =============================================================================

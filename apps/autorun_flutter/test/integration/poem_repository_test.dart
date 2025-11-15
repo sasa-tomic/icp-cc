@@ -71,8 +71,6 @@ void main() {
         // Act
         final updatedMetadata = Map<String, dynamic>.from(originalScript.metadata);
         updatedMetadata['version'] = '2.0.0';
-        
-        print('DEBUG updated metadata: $updatedMetadata');
 
         final updatedScript = ScriptRecord(
           id: savedScriptId,
