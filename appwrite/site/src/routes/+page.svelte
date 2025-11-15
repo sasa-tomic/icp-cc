@@ -2,51 +2,101 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
 
-  let endpoints = [
+  // Featured scripts data
+  let featuredScripts = [
     {
-      method: 'POST',
-      path: '/api/search_scripts',
-      description: 'Search for scripts with filters and pagination',
-      parameters: ['query', 'category', 'canisterId', 'minRating', 'maxPrice', 'sortBy', 'limit', 'offset']
+      id: 1,
+      title: "Auto Farmer Pro",
+      description: "Automated farming script with advanced scheduling and yield optimization",
+      category: "Automation",
+      price: "$12.99",
+      rating: 4.8,
+      downloads: 15420,
+      author: "DevMaster",
+      verified: true,
+      icon: "🌾"
     },
     {
-      method: 'POST',
-      path: '/api/process_purchase',
-      description: 'Process script purchases and update download counts',
-      parameters: ['userId', 'scriptId', 'paymentMethod', 'price', 'transactionId']
+      id: 2,
+      title: "Market Monitor",
+      description: "Real-time market analysis and trading opportunities detector",
+      category: "Trading",
+      price: "$24.99",
+      rating: 4.9,
+      downloads: 8930,
+      author: "TradeBot",
+      verified: true,
+      icon: "📊"
     },
     {
-      method: 'POST',
-      path: '/api/update_script_stats',
-      description: 'Update script statistics when new reviews are added',
-      parameters: ['payload (event data)']
+      id: 3,
+      title: "Resource Manager",
+      description: "Optimize resource allocation and minimize waste across all operations",
+      category: "Utility",
+      price: "$8.99",
+      rating: 4.6,
+      downloads: 12350,
+      author: "EfficiencyExpert",
+      verified: false,
+      icon: "⚙️"
     },
     {
-      method: 'GET',
-      path: '/api/get_marketplace_stats',
-      description: 'Get marketplace statistics and analytics',
-      parameters: []
+      id: 4,
+      title: "Security Shield",
+      description: "Advanced security monitoring and threat protection system",
+      category: "Security",
+      price: "$19.99",
+      rating: 4.7,
+      downloads: 6780,
+      author: "SecurityGuru",
+      verified: true,
+      icon: "🛡️"
+    },
+    {
+      id: 5,
+      title: "Analytics Plus",
+      description: "Comprehensive data analytics and reporting dashboard",
+      category: "Analytics",
+      price: "$15.99",
+      rating: 4.5,
+      downloads: 9450,
+      author: "DataNinja",
+      verified: true,
+      icon: "📈"
+    },
+    {
+      id: 6,
+      title: "Quick Deploy",
+      description: "One-click deployment and configuration management tool",
+      category: "DevOps",
+      price: "$11.99",
+      rating: 4.4,
+      downloads: 7230,
+      author: "DeployMaster",
+      verified: false,
+      icon: "🚀"
     }
   ];
 
+  // Categories for filtering
+  let categories = ["All", "Automation", "Trading", "Utility", "Security", "Analytics", "DevOps"];
+  let selectedCategory = "All";
+  let searchQuery = "";
+
+  // Theme management
   let isDark = false;
 
   onMount(() => {
-    // Add smooth scroll behavior
-    document.documentElement.style.scrollBehavior = 'smooth';
-
     // Check system color preference
     if (browser) {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       isDark = mediaQuery.matches;
 
-      // Listen for system theme changes
       const handleChange = (e) => {
         isDark = e.matches;
       };
 
       mediaQuery.addEventListener('change', handleChange);
-
       return () => {
         mediaQuery.removeEventListener('change', handleChange);
       };
@@ -60,81 +110,232 @@
   function toggleTheme() {
     isDark = !isDark;
   }
+
+  // Filter scripts based on category and search
+  $: filteredScripts = featuredScripts.filter(script => {
+    const matchesCategory = selectedCategory === "All" || script.category === selectedCategory;
+    const matchesSearch = script.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         script.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  function selectCategory(category) {
+    selectedCategory = category;
+  }
 </script>
 
 <svelte:head>
   <style>
     :root {
-      /* Light theme colors - Modern 2025 palette */
-      --bg-primary: #fafbfc;
-      --bg-secondary: #ffffff;
-      --bg-accent: #f8faff;
-      --text-primary: #0d1117;
-      --text-secondary: #656d76;
-      --text-muted: #8b949e;
+      /* Light theme - Modern marketplace palette */
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8fafc;
+      --bg-tertiary: #f1f5f9;
+      --bg-accent: #e0f2fe;
+      --bg-glass: rgba(255, 255, 255, 0.95);
+      --bg-overlay: rgba(15, 23, 42, 0.8);
+
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --text-accent: #0ea5e9;
       --text-inverse: #ffffff;
-      --accent-primary: #0969da;
-      --accent-secondary: #1a7f37;
-      --accent-tertiary: #8250df;
-      --accent-warning: #bf8700;
-      --accent-coral: #cf222e;
-      --accent-teal: #1f883d;
-      --border-color: #d1d9e0;
-      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-      --shadow-xl: 0 16px 64px rgba(0, 0, 0, 0.16);
-      --gradient-primary: linear-gradient(135deg, #0969da 0%, #8250df 50%, #cf222e 100%);
-      --gradient-accent: linear-gradient(135deg, #1a7f37 0%, #0969da 100%);
-      --gradient-hero: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #21262d 100%);
+
+      --accent-primary: #0ea5e9;
+      --accent-secondary: #10b981;
+      --accent-tertiary: #8b5cf6;
+      --accent-warning: #f59e0b;
+      --accent-danger: #ef4444;
+      --accent-success: #22c55e;
+
+      --border-primary: #e2e8f0;
+      --border-secondary: #cbd5e1;
+      --border-accent: #0ea5e9;
+
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+      --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+      --gradient-primary: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+      --gradient-secondary: linear-gradient(135deg, #10b981 0%, #0ea5e9 100%);
+      --gradient-accent: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+      --gradient-hero: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%);
+      --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
     }
 
     [data-theme="dark"] {
-      /* Dark theme colors - Modern 2025 palette */
-      --bg-primary: #010409;
-      --bg-secondary: #0d1117;
-      --bg-accent: #161b22;
-      --text-primary: #f0f6fc;
-      --text-secondary: #c9d1d9;
-      --text-muted: #8b949e;
-      --text-inverse: #010409;
-      --accent-primary: #58a6ff;
-      --accent-secondary: #3fb950;
-      --accent-tertiary: #bc8cff;
-      --accent-warning: #f79009;
-      --accent-coral: #f85149;
-      --accent-teal: #2ea043;
-      --border-color: #30363d;
-      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.24);
-      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.32);
-      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.48);
-      --shadow-xl: 0 16px 64px rgba(0, 0, 0, 0.64);
-      --gradient-primary: linear-gradient(135deg, #58a6ff 0%, #bc8cff 50%, #f85149 100%);
-      --gradient-accent: linear-gradient(135deg, #3fb950 0%, #58a6ff 100%);
-      --gradient-hero: linear-gradient(135deg, #010409 0%, #0d1117 50%, #161b22 100%);
+      /* Dark theme - Modern marketplace palette */
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-tertiary: #334155;
+      --bg-accent: #1e3a5f;
+      --bg-glass: rgba(15, 23, 42, 0.95);
+      --bg-overlay: rgba(255, 255, 255, 0.1);
+
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --text-accent: #38bdf8;
+      --text-inverse: #0f172a;
+
+      --accent-primary: #0ea5e9;
+      --accent-secondary: #10b981;
+      --accent-tertiary: #a78bfa;
+      --accent-warning: #fbbf24;
+      --accent-danger: #f87171;
+      --accent-success: #4ade80;
+
+      --border-primary: #334155;
+      --border-secondary: #475569;
+      --border-accent: #0ea5e9;
+
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+      --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.7);
+
+      --gradient-primary: linear-gradient(135deg, #0ea5e9 0%, #a78bfa 100%);
+      --gradient-secondary: linear-gradient(135deg, #10b981 0%, #0ea5e9 100%);
+      --gradient-accent: linear-gradient(135deg, #fbbf24 0%, #f87171 100%);
+      --gradient-hero: linear-gradient(135deg, #1e3a5f 0%, #1e293b 50%, #0f172a 100%);
+      --gradient-glass: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
     }
 
     :global(body) {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Display', 'Inter', sans-serif;
-      background: var(--gradient-hero);
-      min-height: 100vh;
+      background: var(--bg-secondary);
       color: var(--text-primary);
-      line-height: 1.7;
-      letter-spacing: -0.01em;
-      transition: background 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), color 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      line-height: 1.6;
       font-weight: 400;
+      overflow-x: hidden;
+      transition: background 0.3s ease, color 0.3s ease;
     }
 
-    .container {
-      max-width: 1200px;
+    /* Navigation */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-primary);
+      z-index: 1000;
+      transition: all 0.3s ease;
+    }
+
+    .nav-container {
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 0 20px;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
+    .nav-logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-search {
+      flex: 1;
+      max-width: 500px;
+      margin: 0 2rem;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.75rem 1rem 0.75rem 3rem;
+      border: 1px solid var(--border-primary);
+      border-radius: 12px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .theme-toggle {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-primary);
+      border-radius: 10px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 1.2rem;
+    }
+
+    .theme-toggle:hover {
+      background: var(--accent-primary);
+      color: var(--text-inverse);
+      border-color: var(--accent-primary);
+      transform: rotate(180deg);
+    }
+
+    .nav-button {
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    .nav-button-primary {
+      background: var(--gradient-primary);
+      color: var(--text-inverse);
+      box-shadow: var(--shadow-md);
+    }
+
+    .nav-button-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* Hero Section */
     .hero {
-      text-align: center;
-      padding: 100px 20px;
+      margin-top: 80px;
+      padding: 4rem 2rem;
+      background: var(--gradient-hero);
       color: var(--text-inverse);
       position: relative;
       overflow: hidden;
@@ -143,396 +344,362 @@
     .hero::before {
       content: '';
       position: absolute;
-      top: -50%;
+      top: 0;
       left: -50%;
       width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%);
+      height: 100%;
+      background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
       animation: float 20s ease-in-out infinite;
     }
 
-    .hero h1 {
-      font-size: 4rem;
-      font-weight: 700;
-      margin-bottom: 28px;
-      text-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
-      animation: fadeInUp 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.92) 50%, rgba(255, 255, 255, 0.86) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero .subtitle {
-      font-size: 1.375rem;
-      margin-bottom: 48px;
-      opacity: 0.94;
-      max-width: 680px;
-      margin-left: auto;
-      margin-right: auto;
-      animation: fadeInUp 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
-      font-weight: 400;
-      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-      line-height: 1.8;
-      position: relative;
-      z-index: 1;
-    }
-
-    .features {
+    .hero-container {
+      max-width: 1400px;
+      margin: 0 auto;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-      gap: 40px;
-      margin: 120px 0;
-      animation: fadeInUp 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
       position: relative;
+      z-index: 1;
     }
 
-    .feature-card {
+    .hero-content h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin-bottom: 1.5rem;
+      line-height: 1.1;
+      text-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .hero-content .subtitle {
+      font-size: 1.25rem;
+      margin-bottom: 2rem;
+      opacity: 0.9;
+      line-height: 1.6;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 3rem;
+      margin-top: 2rem;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-inverse);
+      display: block;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-visual {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .hero-card {
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 2rem;
+      box-shadow: var(--shadow-2xl);
+      border: 1px solid var(--border-primary);
+      max-width: 400px;
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .hero-card-icon {
+      font-size: 3rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .hero-card h3 {
+      text-align: center;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+
+    /* Category Filter */
+    .categories {
+      padding: 2rem;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-primary);
+    }
+
+    .categories-container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .categories h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: var(--text-primary);
+    }
+
+    .category-list {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .category-chip {
+      padding: 0.75rem 1.5rem;
+      border-radius: 25px;
       background: var(--bg-secondary);
-      backdrop-filter: blur(24px);
-      border-radius: 24px;
-      padding: 40px 36px;
-      box-shadow: var(--shadow-xl);
-      border: 1px solid var(--border-color);
-      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      border: 1px solid var(--border-primary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+
+    .category-chip:hover {
+      background: var(--bg-tertiary);
+      transform: translateY(-2px);
+    }
+
+    .category-chip.active {
+      background: var(--gradient-primary);
+      color: var(--text-inverse);
+      border-color: var(--accent-primary);
+      box-shadow: var(--shadow-md);
+    }
+
+    /* Scripts Grid */
+    .scripts {
+      padding: 3rem 2rem;
+      background: var(--bg-secondary);
+    }
+
+    .scripts-container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .scripts-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .scripts h2 {
+      font-size: 2rem;
+      color: var(--text-primary);
+    }
+
+    .sort-dropdown {
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-primary);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .scripts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 2rem;
+    }
+
+    .script-card {
+      background: var(--bg-primary);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border-primary);
+      transition: all 0.3s ease;
+      cursor: pointer;
       position: relative;
       overflow: hidden;
-      transform-style: preserve-3d;
     }
 
-    .feature-card::before {
+    .script-card::before {
       content: '';
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
       height: 4px;
-      background: var(--gradient-accent);
-      transform: scaleX(0) translateY(-1px);
-      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      background: var(--gradient-primary);
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
       transform-origin: left;
     }
 
-    .feature-card::after {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, var(--accent-primary) 0%, transparent 70%);
-      opacity: 0;
-      transition: opacity 0.4s ease;
-      pointer-events: none;
+    .script-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-xl);
+      border-color: var(--accent-primary);
     }
 
-    .feature-card:hover::before {
+    .script-card:hover::before {
       transform: scaleX(1);
     }
 
-    .feature-card:hover {
-      transform: translateY(-12px) rotateX(2deg);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
-      border-color: var(--accent-primary);
+    .script-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1rem;
     }
 
-    .feature-card:hover::after {
-      opacity: 0.03;
+    .script-icon {
+      font-size: 2rem;
+      margin-right: 1rem;
     }
 
-    .feature-card h3 {
-      color: var(--accent-primary);
-      margin-top: 0;
-      margin-bottom: 16px;
-      font-size: 1.5rem;
-      font-weight: 700;
+    .script-info {
+      flex: 1;
     }
 
-    .feature-card p {
-      color: var(--text-secondary);
-      margin-bottom: 16px;
-      font-weight: 400;
-    }
-
-    .feature-card strong {
-      color: var(--accent-secondary);
+    .script-title {
+      font-size: 1.25rem;
       font-weight: 600;
-    }
-
-    .api-section {
-      background: var(--bg-secondary);
-      border-radius: 28px;
-      padding: 60px;
-      margin: 120px 0;
-      box-shadow: var(--shadow-xl);
-      border: 1px solid var(--border-color);
-      animation: fadeInUp 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s both;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .api-section::before {
-      content: '';
-      position: absolute;
-      top: -100px;
-      right: -100px;
-      width: 200px;
-      height: 200px;
-      background: radial-gradient(circle, var(--accent-primary) 0%, transparent 70%);
-      opacity: 0.05;
-      animation: pulse 4s ease-in-out infinite;
-    }
-
-    .api-section h2 {
-      text-align: center;
       color: var(--text-primary);
-      margin-bottom: 56px;
-      font-size: 2.75rem;
-      font-weight: 600;
-      position: relative;
-      z-index: 1;
-    }
-
-    .api-section > p {
-      text-align: center;
-      color: var(--text-secondary);
-      margin-bottom: 48px;
-      font-size: 1.125rem;
-      max-width: 800px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .endpoint-grid {
-      display: grid;
-      gap: 24px;
-    }
-
-    .endpoint-card {
-      background: var(--bg-accent);
-      border-left: 4px solid var(--accent-primary);
-      border-radius: 20px;
-      padding: 32px 28px;
-      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-      border: 1px solid var(--border-color);
-      position: relative;
-      overflow: hidden;
-      transform-style: preserve-3d;
-    }
-
-    .endpoint-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 0;
-      height: 0;
-      background: var(--accent-primary);
-      clip-path: polygon(0 0, 100% 0, 100% 100%);
-      opacity: 0.08;
-      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-
-    .endpoint-card:hover {
-      background: var(--bg-secondary);
-      transform: translateX(12px) translateY(-2px) rotateY(2deg);
-      box-shadow: var(--shadow-xl);
-      border-color: var(--accent-primary);
-      border-radius: 24px;
-    }
-
-    .endpoint-card:hover::before {
-      width: 60px;
-      height: 60px;
-    }
-
-    .endpoint-header {
+      margin-bottom: 0.25rem;
       display: flex;
       align-items: center;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-      gap: 12px;
+      gap: 0.5rem;
     }
 
-    .method {
+    .verified-badge {
+      background: var(--accent-success);
       color: var(--text-inverse);
-      padding: 6px 14px;
-      border-radius: 20px;
       font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .method.post {
-      background: var(--accent-secondary);
-      box-shadow: 0 4px 16px rgba(26, 127, 55, 0.24);
-    }
-    .method.get {
-      background: var(--accent-primary);
-      box-shadow: 0 4px 16px rgba(9, 105, 218, 0.24);
-    }
-
-    .method:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
-    }
-
-    .path {
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Menlo', monospace;
-      background: var(--bg-primary);
-      color: var(--accent-primary);
-      padding: 10px 18px;
+      padding: 0.25rem 0.5rem;
       border-radius: 12px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      border: 1px solid var(--border-color);
-      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-      letter-spacing: 0.025em;
-    }
-
-    .path:hover {
-      background: var(--accent-primary);
-      color: var(--text-inverse);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(9, 105, 218, 0.32);
-    }
-
-    .endpoint-description {
-      color: var(--text-secondary);
-      line-height: 1.6;
-      margin-bottom: 16px;
-    }
-
-    .parameters {
-      margin-top: 16px;
-    }
-
-    .parameters h4 {
-      color: var(--text-primary);
-      margin-bottom: 8px;
-      font-size: 0.875rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
       font-weight: 600;
     }
 
-    .param-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .param-tag {
-      background: var(--bg-primary);
-      color: var(--text-secondary);
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-      border: 1px solid var(--border-color);
-    }
-
-    .coming-soon {
-      text-align: center;
-      padding: 80px 20px;
-      color: var(--text-inverse);
-      animation: fadeInUp 0.8s ease-out 0.8s both;
-    }
-
-    .coming-soon h2 {
-      font-size: 2.5rem;
-      margin-bottom: 24px;
-      font-weight: 700;
-    }
-
-    .coming-soon p {
-      font-size: 1.125rem;
-      opacity: 0.95;
-      max-width: 600px;
-      margin: 0 auto 24px;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-
-    .beta-badge {
+    .script-category {
       display: inline-block;
-      background: var(--accent-warning);
-      color: var(--text-primary);
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-left: 12px;
-      box-shadow: var(--shadow-sm);
+      background: var(--bg-accent);
+      color: var(--accent-primary);
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
     }
 
-    .footer {
-      text-align: center;
-      padding: 48px 20px;
-      color: var(--text-inverse);
-      animation: fadeInUp 0.8s ease-out 1s both;
+    .script-description {
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
     }
 
-    .footer p {
-      margin-bottom: 8px;
-      opacity: 0.9;
+    .script-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-primary);
     }
 
-    .footer strong {
-      color: var(--accent-secondary);
-      font-weight: 600;
+    .script-stats {
+      display: flex;
+      gap: 1rem;
     }
 
-    .theme-toggle {
-      position: fixed;
-      top: 24px;
-      right: 24px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      width: 52px;
-      height: 52px;
+    .script-stat {
       display: flex;
       align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      box-shadow: var(--shadow-lg);
-      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-      z-index: 1000;
-      font-size: 22px;
-      backdrop-filter: blur(24px);
+      gap: 0.25rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
     }
 
-    .theme-toggle:hover {
-      transform: scale(1.08) rotate(5deg);
-      box-shadow: var(--shadow-xl);
-      border-color: var(--accent-primary);
-      background: var(--accent-primary);
+    .script-price {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent-primary);
     }
 
-    .theme-toggle:active {
-      transform: scale(1.02) rotate(-2deg);
+    .script-author {
+      color: var(--text-muted);
+      font-size: 0.875rem;
     }
 
-    @media (max-width: 768px) {
-      .theme-toggle {
-        top: 16px;
-        right: 16px;
-        width: 40px;
-        height: 40px;
-        font-size: 16px;
+    /* Footer */
+    .footer {
+      background: var(--bg-primary);
+      border-top: 1px solid var(--border-primary);
+      padding: 3rem 2rem 2rem;
+      margin-top: 4rem;
+    }
+
+    .footer-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .footer-content {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .footer-section h3 {
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .footer-section p,
+    .footer-section a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      line-height: 1.6;
+      transition: color 0.3s ease;
+    }
+
+    .footer-section a:hover {
+      color: var(--accent-primary);
+    }
+
+    .footer-bottom {
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-primary);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Animations */
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0px);
+      }
+      50% {
+        transform: translateY(-20px);
       }
     }
 
     @keyframes fadeInUp {
       from {
         opacity: 0;
-        transform: translateY(40px);
+        transform: translateY(30px);
       }
       to {
         opacity: 1;
@@ -540,195 +707,266 @@
       }
     }
 
-    @keyframes float {
-      0%, 100% {
-        transform: translate(-50%, -50%) rotate(0deg) scale(1);
-      }
-      33% {
-        transform: translate(-45%, -55%) rotate(120deg) scale(1.05);
-      }
-      66% {
-        transform: translate(-55%, -45%) rotate(240deg) scale(0.95);
-      }
-    }
-
-    @keyframes pulse {
-      0%, 100% {
-        opacity: 0.05;
-        transform: scale(1);
-      }
-      50% {
-        opacity: 0.08;
-        transform: scale(1.1);
-      }
-    }
-
+    /* Responsive Design */
     @media (max-width: 768px) {
-      .hero h1 {
-        font-size: 2.75rem;
-        font-weight: 600;
-      }
-
-      .hero .subtitle {
-        font-size: 1.25rem;
-        padding: 0 16px;
-      }
-
-      .api-section {
-        padding: 48px 32px;
-        margin: 80px 0;
-      }
-
-      .api-section h2 {
-        font-size: 2.25rem;
-      }
-
-      .endpoint-header {
+      .nav-container {
+        padding: 1rem;
         flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
+        gap: 1rem;
       }
 
-      .features {
+      .nav-search {
+        margin: 0;
+        max-width: 100%;
+      }
+
+      .hero-container {
         grid-template-columns: 1fr;
-        gap: 32px;
-        margin: 80px 0;
+        gap: 2rem;
+        text-align: center;
       }
 
-      .feature-card {
-        padding: 32px 28px;
+      .hero-content h1 {
+        font-size: 2.5rem;
       }
 
-      .endpoint-card {
-        padding: 28px 24px;
+      .hero-stats {
+        justify-content: center;
+      }
+
+      .scripts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .scripts-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+      }
+
+      .category-list {
+        justify-content: center;
+      }
+
+      .nav-actions {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.5rem;
+      }
+
+      .nav-button {
+        width: 100%;
       }
     }
 
     @media (max-width: 480px) {
-      .hero h1 {
-        font-size: 2.25rem;
-        font-weight: 600;
-      }
-
       .hero {
-        padding: 80px 16px;
+        padding: 2rem 1rem;
       }
 
-      .hero .subtitle {
-        font-size: 1.125rem;
+      .hero-content h1 {
+        font-size: 2rem;
       }
 
-      .feature-card {
-        padding: 28px 24px;
-        border-radius: 20px;
+      .scripts {
+        padding: 2rem 1rem;
       }
 
-      .api-section {
-        padding: 40px 24px;
-        border-radius: 24px;
+      .categories {
+        padding: 1.5rem 1rem;
       }
 
-      .theme-toggle {
-        top: 16px;
-        right: 16px;
-        width: 44px;
-        height: 44px;
-        font-size: 18px;
+      .script-card {
+        padding: 1rem;
       }
 
-      .container {
-        padding: 0 16px;
+      .hero-stats {
+        gap: 1.5rem;
       }
     }
   </style>
 </svelte:head>
 
-<!-- Theme Toggle Button -->
-{#if browser}
-<button class="theme-toggle" onclick={toggleTheme} aria-label="Toggle theme">
-  {#if isDark}
-    ☀️
-  {:else}
-    🌙
-  {/if}
-</button>
-{/if}
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav-container">
+    <div class="nav-logo">
+      📦 ICP Marketplace
+    </div>
 
-<div class="hero">
-  <div class="container">
-    <h1>ICP Script Marketplace</h1>
-    <p class="subtitle">
-      Discover, share, and download powerful Lua scripts for Internet Computer applications.
-      Automate your workflow with community-driven tools and unleash the full potential of ICP.
-    </p>
+    <div class="nav-search">
+      <span class="search-icon">🔍</span>
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Search scripts, categories, or authors..."
+        bind:value={searchQuery}
+      />
+    </div>
+
+    <div class="nav-actions">
+      <button class="theme-toggle" onclick={toggleTheme} aria-label="Toggle theme">
+        {#if isDark}
+          ☀️
+        {:else}
+          🌙
+        {/if}
+      </button>
+      <button class="nav-button nav-button-primary">
+        Sign In
+      </button>
+    </div>
   </div>
-</div>
+</nav>
 
-<div class="container">
-  <section class="features">
-    <div class="feature-card">
-      <h3>🚀 Powerful Automation</h3>
-      <p>Access a growing collection of Lua scripts designed specifically for Internet Computer automation and workflow optimization.</p>
-      <p><strong>Coming soon:</strong> Download scripts, install guides, and one-click setup</p>
+<!-- Hero Section -->
+<section class="hero">
+  <div class="hero-container">
+    <div class="hero-content">
+      <h1>Discover Amazing ICP Scripts</h1>
+      <p class="subtitle">
+        Browse our curated collection of powerful Lua scripts for Internet Computer applications.
+        From automation tools to trading bots, find the perfect solution to boost your productivity.
+      </p>
+      <div class="hero-stats">
+        <div class="stat-item">
+          <span class="stat-number">1,250+</span>
+          <span class="stat-label">Scripts</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">45K+</span>
+          <span class="stat-label">Downloads</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">320+</span>
+          <span class="stat-label">Developers</span>
+        </div>
+      </div>
     </div>
 
-    <div class="feature-card">
-      <h3>🛡️ Secure & Verified</h3>
-      <p>All scripts undergo security review and community verification. Download with confidence knowing each script is tested and approved.</p>
-      <p><strong>Coming soon:</strong> User reviews, ratings, and security badges</p>
+    <div class="hero-visual">
+      <div class="hero-card">
+        <div class="hero-card-icon">🚀</div>
+        <h3>Featured Script</h3>
+        <p style="text-align: center; color: var(--text-secondary); margin-bottom: 1rem;">
+          Auto Farmer Pro - The most advanced farming automation tool
+        </p>
+        <div style="text-align: center;">
+          <div style="color: var(--accent-primary); font-size: 1.5rem; font-weight: 700;">$12.99</div>
+          <div style="color: var(--text-muted); font-size: 0.875rem;">⭐ 4.8 (15K downloads)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Category Filter -->
+<section class="categories">
+  <div class="categories-container">
+    <h2>Browse Categories</h2>
+    <div class="category-list">
+      {#each categories as category}
+        <button
+          class="category-chip {selectedCategory === category ? 'active' : ''}"
+          onclick={() => selectCategory(category)}
+        >
+          {category}
+        </button>
+      {/each}
+    </div>
+  </div>
+</section>
+
+<!-- Scripts Grid -->
+<section class="scripts">
+  <div class="scripts-container">
+    <div class="scripts-header">
+      <h2>{selectedCategory === "All" ? "Featured Scripts" : selectedCategory + " Scripts"}</h2>
+      <select class="sort-dropdown">
+        <option>Most Popular</option>
+        <option>Top Rated</option>
+        <option>Price: Low to High</option>
+        <option>Price: High to Low</option>
+        <option>Recently Added</option>
+      </select>
     </div>
 
-    <div class="feature-card">
-      <h3>🌍 Community Driven</h3>
-      <p>Built by the ICP community, for the ICP community. Contribute your own scripts or request custom automation solutions.</p>
-      <p><strong>Coming soon:</strong> Developer profiles, script submissions, and bounty system</p>
-    </div>
-  </section>
-
-  <section class="api-section">
-    <h2>API Endpoints <span class="beta-badge">Beta</span></h2>
-    <p style="text-align: center; color: #666; margin-bottom: 40px; font-size: 1.1rem;">
-      Our RESTful API provides programmatic access to marketplace functionality.
-      All endpoints return JSON responses and support CORS for web applications.
-    </p>
-
-    <div class="endpoint-grid">
-      {#each endpoints as endpoint}
-        <div class="endpoint-card">
-          <div class="endpoint-header">
-            <span class="method {endpoint.method.toLowerCase()}">{endpoint.method}</span>
-            <span class="path">{endpoint.path}</span>
-          </div>
-          <p class="endpoint-description">{endpoint.description}</p>
-          {#if endpoint.parameters.length > 0}
-            <div class="parameters">
-              <h4>Parameters:</h4>
-              <div class="param-tags">
-                {#each endpoint.parameters as param}
-                  <span class="param-tag">{param}</span>
-                {/each}
+    <div class="scripts-grid">
+      {#each filteredScripts as script}
+        <div class="script-card">
+          <div class="script-header">
+            <div style="display: flex; align-items: flex-start;">
+              <div class="script-icon">{script.icon}</div>
+              <div class="script-info">
+                <div class="script-title">
+                  {script.title}
+                  {#if script.verified}
+                    <span class="verified-badge">✓ Verified</span>
+                  {/if}
+                </div>
+                <div class="script-category">{script.category}</div>
               </div>
             </div>
-          {/if}
+          </div>
+
+          <p class="script-description">{script.description}</p>
+
+          <div class="script-meta">
+            <div>
+              <div class="script-stats">
+                <div class="script-stat">
+                  ⭐ {script.rating}
+                </div>
+                <div class="script-stat">
+                  📥 {script.downloads.toLocaleString()}
+                </div>
+              </div>
+              <div class="script-author">by {script.author}</div>
+            </div>
+            <div class="script-price">{script.price}</div>
+          </div>
         </div>
       {/each}
     </div>
-  </section>
+  </div>
+</section>
 
-  <section class="coming-soon">
-    <h2>🚀 More Coming Soon</h2>
-    <p>
-      We're actively developing the full marketplace experience including script downloads,
-      user authentication, developer tools, and comprehensive documentation.
-    </p>
-    <p style="font-size: 1rem; opacity: 0.8;">
-      <strong>Status:</strong> API v1.0 in Beta • Frontend in Development • Launch Q1 2025
-    </p>
-  </section>
-</div>
-
+<!-- Footer -->
 <footer class="footer">
-  <div class="container">
-    <p>&copy; 2025 ICP Script Marketplace. Built with ❤️ for the Internet Computer community.</p>
+  <div class="footer-container">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>About ICP Marketplace</h3>
+        <p>Your trusted destination for high-quality Internet Computer scripts and automation tools.</p>
+      </div>
+
+      <div class="footer-section">
+        <h3>Categories</h3>
+        <p><a href="#">Automation</a></p>
+        <p><a href="#">Trading</a></p>
+        <p><a href="#">Security</a></p>
+        <p><a href="#">Analytics</a></p>
+      </div>
+
+      <div class="footer-section">
+        <h3>Developers</h3>
+        <p><a href="#">Submit Script</a></p>
+        <p><a href="#">Developer Guidelines</a></p>
+        <p><a href="#">API Documentation</a></p>
+        <p><a href="#">Community</a></p>
+      </div>
+
+      <div class="footer-section">
+        <h3>Support</h3>
+        <p><a href="#">Help Center</a></p>
+        <p><a href="#">Contact Us</a></p>
+        <p><a href="#">Terms of Service</a></p>
+        <p><a href="#">Privacy Policy</a></p>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; 2025 ICP Script Marketplace. Built with ❤️ for the Internet Computer community.</p>
+    </div>
   </div>
 </footer>
