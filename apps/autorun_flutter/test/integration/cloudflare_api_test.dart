@@ -8,7 +8,7 @@ void main() {
     late MarketplaceOpenApiService apiService;
 
     setUpAll(() async {
-      // Initialize wrangler for testing
+      // Configure test environment (assumes wrangler is running externally)
       await WranglerManager.initialize();
       
       // Configure for local Cloudflare Workers testing
@@ -17,7 +17,7 @@ void main() {
     });
 
     tearDownAll(() async {
-      // Cleanup wrangler processes
+      // Cleanup test configuration
       await WranglerManager.cleanup();
     });
 
