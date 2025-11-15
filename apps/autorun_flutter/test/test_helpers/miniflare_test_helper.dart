@@ -12,10 +12,11 @@ class MiniflareTestHelper {
   static Future<bool> isMiniflareRunning({String? baseUrl}) async {
     try {
       final response = await http.get(
-        Uri.parse('${baseUrl ?? defaultBaseUrl}/api/v1/health'),
+        Uri.parse('${baseUrl ?? defaultBaseUrl}/'),
       ).timeout(const Duration(seconds: 5));
-      
-      return response.statusCode == 200;
+
+      // Any response (including 404) means the server is running
+      return response.statusCode >= 200 && response.statusCode < 500;
     } catch (e) {
       return false;
     }

@@ -12,7 +12,17 @@ void main() {
 
     setUpAll(() async {
       // Setup test environment - REQUIRE server for e2e tests
-      await MiniflareTestHelper.setupMiniflareTestEnvironment();
+      // Wait for server to be ready
+      final serverReady = await MiniflareTestHelper.waitForMiniflare(
+        timeout: Duration(seconds: 10),
+      );
+      if (!serverReady) {
+        throw Exception(
+          'Miniflare server failed to start within timeout. '
+          'Start it with: npm run dev in the cloudflare-api directory. '
+          'E2E tests MUST NOT run in offline mode or use mocks/fallbacks.',
+        );
+      }
     });
 
     setUp(() async {

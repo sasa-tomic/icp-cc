@@ -73,6 +73,9 @@ class MiniflareScriptRepository extends ScriptRepository {
 
 
   Map<String, dynamic> _scriptToApiJson(ScriptRecord script) {
+    // Always generate a fresh timestamp for the API request
+    final timestamp = DateTime.now().toUtc().toIso8601String();
+    
     return {
       'title': script.title,
       'description': script.metadata['description'] ?? '',
@@ -85,7 +88,7 @@ class MiniflareScriptRepository extends ScriptRepository {
       'author_public_key': script.metadata['authorPublicKey'] ?? 'test-public-key-for-icp-compatibility',
       'upload_signature': script.metadata['uploadSignature'] ?? 'test-signature',
       'signature': script.metadata['signature'] ?? 'test-signature',
-      'timestamp': script.metadata['timestamp'] ?? DateTime.now().toIso8601String(),
+      'timestamp': timestamp,
       'version': script.metadata['version'] ?? '1.0.0',
       'price': script.metadata['price'] ?? 0.0,
       'is_public': script.metadata['isPublic'] ?? false,
@@ -152,12 +155,17 @@ class MiniflareScriptRepository extends ScriptRepository {
           return _scriptFromJson(data['data'] as Map<String, dynamic>);
         }
         return null;
-      } else {
+      } else if (response.statusCode == 404) {
         return null;
+      } else {
+        throw Exception('Failed to get script: ${response.statusCode}');
       }
     } catch (e) {
-      // Return null instead of throwing for graceful error handling
-      return null;
+      // For e2e tests, fail if server is not available
+      if (e.toString().contains('Connection') || e.toString().contains('SocketException')) {
+        throw Exception('Failed to get script: $e');
+      }
+      rethrow;
     }
   }
 
