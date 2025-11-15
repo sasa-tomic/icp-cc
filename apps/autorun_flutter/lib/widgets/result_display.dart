@@ -27,6 +27,7 @@ class ResultDisplay extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (title != null)
             Padding(
@@ -479,6 +480,7 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
       margin: const EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
@@ -526,50 +528,48 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
               ),
             )
           else
-            Expanded(
-              child: ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _filteredItems.length,
-                itemBuilder: (context, index) {
-                  final item = _filteredItems[index];
-                  return ListTile(
-                    title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
-                    subtitle: item['subtitle'] != null
-                        ? Text(
-                            item['subtitle'].toString(),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          )
-                        : null,
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (action) => _handleItemAction(context, action, item),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'copy',
-                          child: Row(
-                            children: [
-                              Icon(Icons.copy, size: 16),
-                              SizedBox(width: 8),
-                              Text('Copy'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'details',
-                          child: Row(
-                            children: [
-                              Icon(Icons.info_outline, size: 16),
-                              SizedBox(width: 8),
-                              Text('View Details'),
-                            ],
-                          ),
-                        ),
-                      ],
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+            itemCount: _filteredItems.length,
+            itemBuilder: (context, index) {
+              final item = _filteredItems[index];
+              return ListTile(
+                title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
+                subtitle: item['subtitle'] != null
+                    ? Text(
+                        item['subtitle'].toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : null,
+                trailing: PopupMenuButton<String>(
+                  onSelected: (action) => _handleItemAction(context, action, item),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'copy',
+                      child: Row(
+                        children: [
+                          Icon(Icons.copy, size: 16),
+                          SizedBox(width: 8),
+                          Text('Copy'),
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
+                    const PopupMenuItem(
+                      value: 'details',
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16),
+                          SizedBox(width: 8),
+                          Text('View Details'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
             ),
         ],
       ),

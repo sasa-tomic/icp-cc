@@ -103,12 +103,10 @@ class UiV1Renderer extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(title, style: Theme.of(context).textTheme.titleMedium),
                   ),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: children,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: children,
                 ),
               ],
             ),
