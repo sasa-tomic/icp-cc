@@ -303,13 +303,25 @@ fn json_to_idl_value(
                 serde_json::Value::Object(map) => {
                     for Field { id, ty: fty } in fs {
                         let key = label_to_string(id);
-                        let vv = map.get(&key).ok_or_else(|| {
-                            CanisterClientError::CandidParse(format!("missing field {key}"))
-                        })?;
-                        out.push(IDLField {
-                            id: id.as_ref().clone(),
-                            val: json_to_idl_value(vv, _env, fty)?,
-                        });
+                        if let Some(vv) = map.get(&key) {
+                            out.push(IDLField {
+                                id: id.as_ref().clone(),
+                                val: json_to_idl_value(vv, _env, fty)?,
+                            });
+                        } else {
+                            use candid::types::TypeInner as TI;
+                            match fty.as_ref() {
+                                TI::Opt(_) => out.push(IDLField {
+                                    id: id.as_ref().clone(),
+                                    val: IDLValue::None,
+                                }),
+                                _ => {
+                                    return Err(CanisterClientError::CandidParse(format!(
+                                        "missing field {key}"
+                                    )))
+                                }
+                            }
+                        }
                     }
                 }
                 serde_json::Value::Array(arr) => {
@@ -333,16 +345,62 @@ fn json_to_idl_value(
             }
             IDLValue::Record(out)
         }
-        // Minimal support: variants and functions are not mapped from JSON here
-        Variant(_) | Func(_) | Service(_) => {
-            return Err(CanisterClientError::CandidParse(
-                "unsupported candid type in JSON args".into(),
-            ))
+        // Support variants as { "Case": value }
+        Variant(variants) => {
+            let obj = v.as_object().ok_or_else(|| {
+                CanisterClientError::CandidParse(
+                    "expected object for variant: { \"Case\": value }".into(),
+                )
+            })?;
+            if obj.len() != 1 {
+                return Err(CanisterClientError::CandidParse(
+                    "variant expects exactly one case".into(),
+                ));
+            }
+            let (case_key, case_val) = obj.iter().next().unwrap();
+            let mut found: Option<(usize, Field)> = None;
+            for (idx, field) in variants.iter().enumerate() {
+                if label_to_string(&field.id) == *case_key {
+                    found = Some((
+                        idx,
+                        Field {
+                            id: field.id.clone(),
+                            ty: field.ty.clone(),
+                        },
+                    ));
+                    break;
+                }
+            }
+            let (idx, Field { id, ty }) = found.ok_or_else(|| {
+                CanisterClientError::CandidParse(format!("unknown variant case {case_key}"))
+            })?;
+            use candid::types::TypeInner as TI;
+            let payload = match ty.as_ref() {
+                TI::Null | TI::Reserved | TI::Empty => IDLValue::Null,
+                _ => json_to_idl_value(case_val, _env, &ty)?,
+            };
+            let fld = IDLField {
+                id: id.as_ref().clone(),
+                val: payload,
+            };
+            IDLValue::Variant(VariantValue(Box::new(fld), idx as u64))
         }
-        Unknown | Knot(_) | Var(_) | Class(_, _) | Future => {
-            return Err(CanisterClientError::CandidParse(
-                "unsupported candid type in JSON args".into(),
-            ))
+        // Functions and services remain unsupported for JSON mapping
+        Func(_) | Service(_) => {
+            return Err(CanisterClientError::CandidParse(format!(
+                "unsupported candid type in JSON args: {ty}"
+            )))
+        }
+        Unknown | Knot(_) | Class(_, _) | Future => {
+            return Err(CanisterClientError::CandidParse(format!(
+                "unsupported candid type in JSON args: {ty}"
+            )))
+        }
+        Var(_id) => {
+            // Type variables are not resolved here; treat as unsupported to fail fast
+            return Err(CanisterClientError::CandidParse(format!(
+                "unsupported candid type in JSON args: {ty}"
+            )));
         }
     })
 }
@@ -394,13 +452,20 @@ fn build_args_from_json(
             CanisterClientError::CandidParse("expected JSON array for multiple args".into())
         })?;
         if arr.len() != arg_tys.len() {
-            return Err(CanisterClientError::CandidParse(
-                "args arity mismatch".into(),
-            ));
+            return Err(CanisterClientError::CandidParse(format!(
+                "args arity mismatch: expected {}, got {}",
+                arg_tys.len(),
+                arr.len()
+            )));
         }
         let mut vs = Vec::with_capacity(arg_tys.len());
         for (i, t) in arg_tys.iter().enumerate() {
-            vs.push(json_to_idl_value(&arr[i], &env, t)?);
+            vs.push(json_to_idl_value(&arr[i], &env, t).map_err(|e| {
+                CanisterClientError::CandidParse(format!(
+                    "arg {} decode failed for type {}: {}",
+                    i, t, e
+                ))
+            })?);
         }
         vs
     };
