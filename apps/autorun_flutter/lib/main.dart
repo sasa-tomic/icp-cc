@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'rust/native_bridge.dart';
+import 'config/app_config.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/identity_home_page.dart';
 import 'screens/marketplace_screen.dart';
@@ -9,6 +10,7 @@ import 'screens/scripts_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  AppConfig.debugPrintConfig();
   runApp(const IdentityApp());
 }
 

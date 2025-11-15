@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ICP Autorun (Production)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main.dart",
+            "env": {
+                "MARKETPLACE_API_URL": "https://fra.cloud.appwrite.io/v1"
+            }
+        },
+        {
+            "name": "ICP Autorun (Local Development)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main.dart",
+            "env": {
+                "MARKETPLACE_API_URL": "http://localhost:48080/v1"
+            }
+        },
+        {
+            "name": "ICP Autorun (Debug Mode)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main.dart",
+            "env": {
+                "MARKETPLACE_API_URL": "http://localhost:48080/v1"
+            },
+            "flutterMode": "debug"
+        }
+    ]
+}

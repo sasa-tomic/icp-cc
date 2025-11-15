@@ -149,6 +149,11 @@ appwrite-api-server +args="":
     @echo "==> Starting Appwrite API server (development mode)"
     cd {{root}}/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && npm run dev {{args}}
 
+# Start API server in local development mode
+appwrite-api-server-local +args="":
+    @echo "==> Starting Appwrite API server (local development mode)"
+    cd {{root}}/appwrite-api-server && (npm list >/dev/null 2>&1 || npm install) && APPWRITE_ENDPOINT=http://localhost:48080/v1 npm run dev {{args}}
+
 # Start API server in production mode
 appwrite-api-server-prod +args="":
     @echo "==> Starting Appwrite API server (production mode)"
@@ -172,8 +177,8 @@ appwrite-local-up:
     cd {{root}} && docker compose -f docker-compose.dev.yml up -d
     @echo "==> Waiting for Appwrite to be ready..."
     sleep 30
-    @echo "==> Appwrite Console: http://localhost"
-    @echo "==> Appwrite API: http://localhost/v1"
+    @echo "==> Appwrite Console: http://localhost:48080"
+    @echo "==> Appwrite API: http://localhost:48080/v1"
 
 # Stop local Appwrite development environment
 appwrite-local-down:
@@ -195,20 +200,34 @@ appwrite-local-reset:
 # Deploy marketplace to local Appwrite instance
 appwrite-local-deploy +args="--yes":
     @echo "==> Deploying marketplace to local Appwrite instance"
-    APPWRITE_ENDPOINT=http://localhost/v1 cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- -v deploy {{args}}
+    APPWRITE_ENDPOINT=http://localhost:48080/v1 cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- -v deploy {{args}}
 
 # Start complete development stack (Appwrite + API Server)
 appwrite-dev-stack:
     @echo "==> Starting complete development stack (Appwrite + API Server)"
     just appwrite-local-up
     sleep 45
-    cd {{root}}/appwrite-api-server && APPWRITE_ENDPOINT=http://localhost/v1 npm run dev &
+    cd {{root}}/appwrite-api-server && APPWRITE_ENDPOINT=http://localhost:48080/v1 npm run dev &
 
 # Stop complete development stack
 appwrite-dev-stop:
     @echo "==> Stopping complete development stack"
     pkill -f "appwrite-api-server.*npm run dev" || true
     just appwrite-local-down
+
+# =============================================================================
+# Flutter App Development
+# =============================================================================
+
+# Run Flutter app with local development environment
+flutter-local +args="":
+    @echo "==> Starting Flutter app with local development environment"
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=MARKETPLACE_API_URL=http://localhost:48080/v1 {{args}}
+
+# Run Flutter app with production environment
+flutter-production +args="":
+    @echo "==> Starting Flutter app with production environment"
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=MARKETPLACE_API_URL=https://fra.cloud.appwrite.io/v1 {{args}}
 
 # =============================================================================
 # Help and Information
