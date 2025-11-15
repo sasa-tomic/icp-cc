@@ -1,15 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/services.dart';
 import 'package:icp_autorun/controllers/script_controller.dart';
 import 'package:icp_autorun/models/script_record.dart';
-import 'package:icp_autorun/repository/script_repository.dart';
-import 'package:icp_autorun/screens/scripts_screen.dart';
+import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/widgets/script_app_host.dart';
 
-class MockScriptRepository implements ScriptRepository {
+class MockScriptRepository extends ScriptRepository {
   final Map<String, ScriptRecord> _scripts = {};
 
   @override
@@ -18,18 +16,10 @@ class MockScriptRepository implements ScriptRepository {
   }
 
   @override
-  Future<void> saveScript(ScriptRecord script) async {
-    _scripts[script.id] = script;
-  }
-
-  @override
-  Future<void> deleteScript(String id) async {
-    _scripts.remove(id);
-  }
-
-  @override
-  Future<void> updateScript(ScriptRecord script) async {
-    _scripts[script.id] = script;
+  Future<void> persistScripts(List<ScriptRecord> scripts) async {
+    for (final script in scripts) {
+      _scripts[script.id] = script;
+    }
   }
 }
 
@@ -82,8 +72,8 @@ class MockEnhancedBridge implements ScriptBridge {
   }
 
   @override
-  String? callAuthenticated({required String canisterId, required String method, required String privateKeyB64, String args = '()', String? host}) {
-    return callAnonymous(canisterId: canisterId, method: method, kind: 0, args: args, host: host);
+  String? callAuthenticated({required String canisterId, required String method, required int kind, String? identityId, String? privateKeyB64, String args = '()', String? host}) {
+    return callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
   }
 
   @override
@@ -147,10 +137,10 @@ class MockEnhancedBridge implements ScriptBridge {
 
   String _mockTeaExecution(String script, dynamic arg) {
     // Simple TEA state management for testing
-    final state = {
-      'loaded_data': {},
-      'filtered_data': {},
-      'last_action': null,
+    final Map<String, dynamic> state = {
+      'loaded_data': <dynamic>[],
+      'filtered_data': <dynamic>[],
+      'last_action': '',
     };
 
     // Extract init/update/view logic based on script patterns
@@ -167,7 +157,7 @@ class MockEnhancedBridge implements ScriptBridge {
     if (script.contains('format_and_display')) {
       final items = (state['filtered_data'] as List).map((tx) => {
         'title': 'Transaction ${tx['id']}',
-        'subtitle': '${icp_format_icp(tx['amount'])} • ${tx['type']}',
+        'subtitle': '${formatIcp(tx['amount'])} • ${tx['type']}',
         'data': tx
       }).toList();
 
@@ -199,7 +189,7 @@ class MockEnhancedBridge implements ScriptBridge {
     });
   }
 
-  String icp_format_icp(int value) {
+  String formatIcp(int value) {
     return '${(value / 100000000).toStringAsFixed(8).replaceAll(RegExp(r'\.?0+$'), '')} ICP';
   }
 
@@ -233,9 +223,193 @@ class MockEnhancedBridge implements ScriptBridge {
   @override
   String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) {
     final state = json.decode(stateJson);
-    final data = state['filtered'] ?? state['data'] ?? [];
 
-    // Format data for display
+    // Parse the script to determine which test scenario we're in
+    if (script.contains('Complete Flow Demo')) {
+      // Return the appropriate UI based on current state
+      final children = [
+        {
+          'type': 'section',
+          'props': {'title': 'Complete Flow Demo'},
+          'children': [
+            {'type': 'text', 'props': {'text': 'This demonstrates: Read → Transform → Display'}},
+            {
+              'type': 'row',
+              'children': [
+                {'type': 'button', 'props': {'label': 'Load Data', 'on_press': {'type': 'load_data'}}},
+                {'type': 'button', 'props': {'label': 'Transform', 'on_press': {'type': 'transform'}}},
+                {'type': 'button', 'props': {'label': 'View Enhanced', 'on_press': {'type': 'enhanced'}}},
+              ]
+            }
+          ]
+        }
+      ];
+
+      // Add result sections based on state
+      if (state['raw_data'] != null) {
+        children.add({
+          'type': 'section',
+          'props': {'title': 'Raw Results'},
+          'children': [
+            {
+              'type': 'result_display',
+              'props': {'data': state['raw_data'], 'title': 'Raw Canister Data'}
+            }
+          ]
+        });
+      }
+
+      if (state['processed_data'] != null) {
+        children.add({
+          'type': 'section',
+          'props': {'title': 'Processed Results'},
+          'children': [
+            {
+              'type': 'list',
+              'props': {
+                'enhanced': true,
+                'items': state['processed_data'],
+                'title': 'Transformed Data',
+                'searchable': true
+              }
+            }
+          ]
+        });
+      }
+
+      return json.encode({
+        'ok': true,
+        'result': {
+          'action': 'ui',
+          'ui': {
+            'type': 'column',
+            'children': children
+          }
+        }
+      });
+    }
+
+    if (script.contains('Batch Processing Demo')) {
+      final children = [
+        {
+          'type': 'section',
+          'props': {'title': 'Batch Processing Demo'},
+          'children': [
+            {'type': 'text', 'props': {'text': 'Demonstrates batch canister calls with data transformation'}},
+            {'type': 'button', 'props': {'label': 'Execute Batch Calls', 'on_press': {'type': 'batch_call'}}}
+          ]
+        }
+      ];
+
+      if (state['batch_results'] != null) {
+        children.add({
+          'type': 'section',
+          'props': {'title': 'Raw Batch Results'},
+          'children': [
+            {
+              'type': 'result_display',
+              'props': {'data': state['batch_results'], 'title': 'Canister Responses'}
+            }
+          ]
+        });
+      }
+
+      if (state['processed_items'] != null && (state['processed_items'] as List).isNotEmpty) {
+        children.add({
+          'type': 'section',
+          'props': {'title': 'Processed Results'},
+          'children': [
+            {
+              'type': 'list',
+              'props': {
+                'enhanced': true,
+                'items': state['processed_items'],
+                'title': 'Combined Data View',
+                'searchable': true
+              }
+            }
+          ]
+        });
+      }
+
+      return json.encode({
+        'ok': true,
+        'result': {
+          'action': 'ui',
+          'ui': {
+            'type': 'column',
+            'children': children
+          }
+        }
+      });
+    }
+
+    if (script.contains('Error Handling Demo')) {
+      final children = [
+        {
+          'type': 'section',
+          'props': {'title': 'Error Handling Demo'},
+          'children': [
+            {'type': 'button', 'props': {'label': 'Load Valid Data', 'on_press': {'type': 'load_valid'}}},
+            {'type': 'button', 'props': {'label': 'Trigger Error', 'on_press': {'type': 'trigger_error'}}},
+            {'type': 'button', 'props': {'label': 'Load Empty Data', 'on_press': {'type': 'load_empty'}}}
+          ]
+        }
+      ];
+
+      if (state['error_state'] != null) {
+        children.add({
+          'type': 'section',
+          'props': {'title': 'Error State'},
+          'children': [
+            {
+              'type': 'result_display',
+              'props': {'error': state['error_state'], 'title': 'Error Display'}
+            }
+          ]
+        });
+      }
+
+      if (state['data_state'] == 'valid') {
+        children.add({
+          'type': 'section',
+          'props': {'title': 'Valid Data'},
+          'children': [
+            {
+              'type': 'result_display',
+              'props': {'data': {'status': 'success', 'data': 'Valid data loaded'}}
+            }
+          ]
+        });
+      }
+
+      if (state['data_state'] == 'empty') {
+        children.add({
+          'type': 'section',
+          'props': {'title': 'Empty Data'},
+          'children': [
+            {
+              'type': 'result_display',
+              'props': {'data': {}, 'title': 'Empty Result'}
+            }
+          ]
+        });
+      }
+
+      return json.encode({
+        'ok': true,
+        'result': {
+          'action': 'ui',
+          'ui': {
+            'type': 'column',
+            'children': children
+          }
+        }
+      });
+    }
+
+    // Default fallback
+    final data = state['filtered'] ?? state['data'] ?? [];
     final items = (data as List).map((item) => {
       'title': 'Item ${item['id'] ?? 'unknown'}',
       'subtitle': 'Type: ${item['type'] ?? 'unknown'}',
@@ -267,7 +441,7 @@ void main() {
     setUp(() async {
       repository = MockScriptRepository();
       controller = ScriptController(repository);
-      await controller.initialize();
+      await controller.ensureLoaded();
     });
 
     group('Read → Transform → Display Flow Tests', () {
@@ -360,20 +534,18 @@ end
         ''';
 
         // Create and save the script
-        final script = ScriptRecord(
-          id: 'enhanced-flow-test',
+        final script = await controller.createScript(
           title: 'Enhanced Flow Test',
-          luaSource: enhancedScript,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+          luaSourceOverride: enhancedScript,
         );
-
-        await controller.saveScript(script);
 
         // Build the widget tree
         await tester.pumpWidget(
           MaterialApp(
-            home: ScriptAppHost(script: script),
+            home: ScriptAppHost(
+              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              script: script.luaSource,
+            ),
           ),
         );
 
@@ -500,19 +672,17 @@ function update(msg, state)
 end
         ''';
 
-        final script = ScriptRecord(
-          id: 'batch-flow-test',
+        final script = await controller.createScript(
           title: 'Batch Flow Test',
-          luaSource: batchScript,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+          luaSourceOverride: batchScript,
         );
-
-        await controller.saveScript(script);
 
         await tester.pumpWidget(
           MaterialApp(
-            home: ScriptAppHost(script: script),
+            home: ScriptAppHost(
+              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              script: script.luaSource,
+            ),
           ),
         );
 
@@ -612,19 +782,17 @@ function update(msg, state)
 end
         ''';
 
-        final script = ScriptRecord(
-          id: 'error-handling-test',
+        final script = await controller.createScript(
           title: 'Error Handling Test',
-          luaSource: errorHandlingScript,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+          luaSourceOverride: errorHandlingScript,
         );
-
-        await controller.saveScript(script);
 
         await tester.pumpWidget(
           MaterialApp(
-            home: ScriptAppHost(script: script),
+            home: ScriptAppHost(
+              runtime: ScriptAppRuntime(MockEnhancedBridge()),
+              script: script.luaSource,
+            ),
           ),
         );
 

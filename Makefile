@@ -50,16 +50,16 @@ distclean: clean
 	rm -rf $(ROOT)/apps/autorun_flutter/.gradle || true
 
 test:
-	set -eEu
+	@set -eEu
 	@echo "==> Running Flutter analysis..."
 	@cd $(ROOT)/apps/autorun_flutter && flutter analyze
 	@echo "==> Running Flutter tests..."
 	@cd $(ROOT)/apps/autorun_flutter && flutter test
 	@echo "==> Running Rust linting and tests"
-	cargo clippy --benches --tests --all-features --quiet
-	cargo clippy --quiet
-	cargo fmt --all --quiet
-	cargo nextest run
+	@cargo clippy --benches --tests --all-features --quiet
+	@cargo clippy --quiet
+	@cargo fmt --all --quiet
+	@cargo nextest run
 	@echo "✅ All tests passed!"
 
 # Appwrite deployment targets
