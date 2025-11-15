@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 typedef UiEventHandler = void Function(Map<String, dynamic> msg);
 
@@ -58,7 +59,26 @@ class UiV1Renderer extends StatelessWidget {
         );
       case 'text':
         final String text = (props['text'] ?? '').toString();
-        return Text(text);
+        final bool copyable = (props['copy'] as bool?) ?? false;
+        final String copyLabel = (props['copy_label'] ?? 'Copy').toString();
+        final String copyValue = (props['copy_value'] ?? text).toString();
+        if (!copyable && (props['copy_value'] == null)) {
+          return Text(text);
+        }
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Expanded(child: Text(text)),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 18),
+              tooltip: copyLabel,
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: copyValue));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$copyLabel to clipboard')));
+              },
+            ),
+          ],
+        );
       case 'button':
         final String label = (props['label'] ?? 'Run').toString();
         final bool disabled = (props['disabled'] as bool?) ?? false;
@@ -90,9 +110,22 @@ class UiV1Renderer extends StatelessWidget {
             if (item is Map<String, dynamic>) {
               final String title = (item['title'] ?? '').toString();
               final String? subtitle = (item['subtitle'] as String?);
+              final bool copyable = (item['copy'] as bool?) ?? false;
+              final String copyLabel = (item['copy_label'] ?? 'Copy').toString();
+              final String copyValue = (item['copy_value'] ?? (subtitle?.isNotEmpty == true ? subtitle! : title)).toString();
               return ListTile(
                 title: Text(title),
                 subtitle: (subtitle == null || subtitle.isEmpty) ? null : Text(subtitle),
+                trailing: (copyable || item.containsKey('copy_value'))
+                    ? IconButton(
+                        icon: const Icon(Icons.copy, size: 18),
+                        tooltip: copyLabel,
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: copyValue));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$copyLabel to clipboard')));
+                        },
+                      )
+                    : null,
               );
             }
             return ListTile(title: Text(item.toString()));

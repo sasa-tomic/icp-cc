@@ -26,6 +26,28 @@ fn create_sandboxed_lua() -> Result<Lua, LuaError> {
     Ok(lua)
 }
 
+fn install_json_stdlib(lua: &Lua) -> Result<(), LuaError> {
+    // Define a small stdlib: json.encode / json.decode
+    let json_encode = lua.create_function(|lua, v: LuaValue| {
+        // Convert any Lua value to serde_json::Value, then to string
+        let jv: serde_json::Value = match v.clone() {
+            LuaValue::Nil => serde_json::Value::Null,
+            _ => lua.from_value(v).map_err(LuaError::external)?,
+        };
+        serde_json::to_string(&jv).map_err(LuaError::external)
+    })?;
+    let json_decode = lua.create_function(|lua, s: String| {
+        let v: serde_json::Value = serde_json::from_str(&s).map_err(LuaError::external)?;
+        let lv = lua.to_value(&v).map_err(LuaError::external)?;
+        Ok(lv)
+    })?;
+    let tbl = lua.create_table()?;
+    tbl.set("encode", json_encode)?;
+    tbl.set("decode", json_decode)?;
+    lua.globals().set("json", tbl)?;
+    Ok(())
+}
+
 /// Execute a Lua chunk and return a JSON string per result value.
 /// - Input `script`: Lua source code executed in a sandboxed environment.
 /// - Input `json_arg`: optional JSON value bound to global `arg` inside Lua.
@@ -56,36 +78,8 @@ pub fn execute_lua_json(script: &str, json_arg: Option<&str>) -> Result<String, 
             .map_err(|e| LuaExecError::Lua(e.to_string()))?;
     }
 
-    // Define a small stdlib: json.encode / json.decode
-    {
-        let json_encode = lua
-            .create_function(|lua, v: LuaValue| {
-                // Convert any Lua value to serde_json::Value, then to string
-                let jv: serde_json::Value = match v.clone() {
-                    LuaValue::Nil => serde_json::Value::Null,
-                    _ => lua.from_value(v).map_err(LuaError::external)?,
-                };
-                serde_json::to_string(&jv).map_err(LuaError::external)
-            })
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-        let json_decode = lua
-            .create_function(|lua, s: String| {
-                let v: serde_json::Value = serde_json::from_str(&s).map_err(LuaError::external)?;
-                let lv = lua.to_value(&v).map_err(LuaError::external)?;
-                Ok(lv)
-            })
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-        let tbl = lua
-            .create_table()
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-        tbl.set("encode", json_encode)
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-        tbl.set("decode", json_decode)
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-        lua.globals()
-            .set("json", tbl)
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-    }
+    // Install json helpers
+    install_json_stdlib(&lua).map_err(|e| LuaExecError::Lua(e.to_string()))?;
 
     // Provide a messages accumulator for icp_emit_message helper
     {
@@ -210,6 +204,9 @@ pub fn app_init(script: &str, json_arg: Option<&str>, budget_ms: u64) -> String 
         Ok(l) => l,
         Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
     };
+    if let Err(e) = install_json_stdlib(&lua) {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
     let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
     let chunk = lua.load(script);
     if let Err(e) = chunk.exec() {
@@ -257,6 +254,9 @@ pub fn app_view(script: &str, state_json: &str, budget_ms: u64) -> String {
         Ok(l) => l,
         Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
     };
+    if let Err(e) = install_json_stdlib(&lua) {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
     let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
     if let Err(e) = lua.load(script).exec() {
         return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
@@ -292,6 +292,9 @@ pub fn app_update(script: &str, msg_json: &str, state_json: &str, budget_ms: u64
         Ok(l) => l,
         Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
     };
+    if let Err(e) = install_json_stdlib(&lua) {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
     let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
     if let Err(e) = lua.load(script).exec() {
         return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
@@ -452,5 +455,98 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert!(!v["ok"].as_bool().unwrap());
         assert!(v["error"].as_str().unwrap().contains("invalid state JSON"));
+    }
+
+    #[test]
+    fn sample_app_default_works() {
+        // Keep this in sync with apps/autorun_flutter/lib/controllers/script_controller.dart:kDefaultSampleLua
+        let script = r#"
+            function init(arg)
+              return {
+                count = 0,
+                items = json.decode('[]'),
+                last = nil
+              }, {}
+            end
+
+            function view(state)
+              local children = {
+                { type = "section", props = { title = "Sample UI-enabled Script" }, children = {
+                  { type = "text", props = { text = "Counter: "..tostring(state.count or 0) } },
+                  { type = "row", children = {
+                    { type = "button", props = { label = "Increment", on_press = { type = "inc" } } },
+                    { type = "button", props = { label = "Load ICP samples", on_press = { type = "load_sample" } } }
+                  } }
+                } }
+              }
+              local items = state.items or {}
+              if type(items) == 'table' and #items > 0 then
+                table.insert(children, { type = "section", props = { title = "Loaded results" }, children = {
+                  { type = "list", props = { items = items } }
+                } })
+              end
+              return { type = "column", children = children }
+            end
+
+            function update(msg, state)
+              local t = (msg and msg.type) or ""
+              if t == "inc" then
+                state.count = (state.count or 0) + 1
+                return state, {}
+              end
+              if t == "load_sample" then
+                -- Trigger a batch of canister calls; host will request permission
+                local gov = { label = "gov", kind = 0, canister_id = "rrkah-fqaaa-aaaaa-aaaaq-cai", method = "get_pending_proposals", args = "()" }
+                local ledger = { label = "ledger", kind = 0, canister_id = "ryjl3-tyaaa-aaaaa-aaaba-cai", method = "query_blocks", args = "{\"start\":0,\"length\":3}" }
+                return state, { { kind = "icp_batch", id = "load", items = { gov, ledger } } }
+              end
+              if t == "effect/result" and msg.id == "load" then
+                -- Normalize results into a list for display
+                local items = {}
+                if msg.ok then
+                  for k, v in pairs(msg.data or {}) do
+                    table.insert(items, { title = tostring(k), subtitle = type(v) == 'table' and json.encode(v) or tostring(v) })
+                  end
+                else
+                  table.insert(items, { title = "Error", subtitle = tostring(msg.error or "unknown error") })
+                end
+                state.items = items
+                return state, {}
+              end
+              state.last = msg
+              return state, {}
+            end
+        "#;
+
+        // init should succeed and set count to 0
+        let out = app_init(script, None, 100);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(v["ok"].as_bool().unwrap());
+        assert_eq!(v["state"]["count"].as_i64().unwrap(), 0);
+
+        // view should produce a column ui
+        let st = v["state"].to_string();
+        let vo = app_view(script, &st, 100);
+        let vv: serde_json::Value = serde_json::from_str(&vo).unwrap();
+        assert!(vv["ok"].as_bool().unwrap());
+        assert_eq!(vv["ui"]["type"].as_str().unwrap(), "column");
+
+        // update inc should increment
+        let upo = app_update(script, "{\"type\":\"inc\"}", &st, 100);
+        let vu: serde_json::Value = serde_json::from_str(&upo).unwrap();
+        assert!(vu["ok"].as_bool().unwrap());
+        assert_eq!(vu["state"]["count"].as_i64().unwrap(), 1);
+
+        // load_sample should produce an icp_batch effect with 2 items
+        let up2 = app_update(script, "{\"type\":\"load_sample\"}", &st, 100);
+        let v2: serde_json::Value = serde_json::from_str(&up2).unwrap();
+        assert!(v2["ok"].as_bool().unwrap());
+        let eff = &v2["effects"];
+        assert!(eff.is_array());
+        let arr = eff.as_array().unwrap();
+        assert!(!arr.is_empty());
+        assert_eq!(arr[0]["kind"].as_str().unwrap(), "icp_batch");
+        let items = arr[0]["items"].as_array().unwrap();
+        assert_eq!(items.len(), 2);
     }
 }
