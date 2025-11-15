@@ -86,19 +86,15 @@ appwrite-setup:
 
 appwrite-deploy:
 	@echo "==> Deploying ICP Script Marketplace to Appwrite (using unified Rust CLI)"
-	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli deploy
+	cd $(ROOT)/appwrite-cli && cargo run --bin appwrite-cli -- deploy
 
 appwrite-deploy-dry-run:
 	@echo "==> Dry run: showing what would be deployed to Appwrite (using unified Rust CLI)"
-	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli deploy --dry-run
-
-appwrite-deploy-verbose:
-	@echo "==> Deploying ICP Script Marketplace to Appwrite (verbose mode, using unified Rust CLI)"
-	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli deploy --verbose
+	cd $(ROOT)/appwrite-cli && cargo run --bin appwrite-cli -- deploy --dry-run
 
 appwrite-test:
 	@echo "==> Testing Appwrite deployment configuration (using unified Rust CLI)"
-	cd $(ROOT)/appwrite-cli && ./target/release/appwrite-cli test
+	cd $(ROOT)/appwrite-cli && cargo run --bin appwrite-cli -- test
 
 appwrite-api-server:
 	@echo "==> Starting Appwrite API server (production mode)"
