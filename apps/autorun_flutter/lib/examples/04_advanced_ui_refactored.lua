@@ -1,6 +1,6 @@
--- Enhanced UI Example - Refactored for Clarity
--- This script demonstrates advanced UI features with better organization
--- Based on the original enhanced_output_demo.lua but with improved structure
+-- Advanced UI Example - Refactored for Clarity
+ -- This script demonstrates advanced UI features with better organization
+ -- Based on the original advanced_output_demo.lua but with improved structure
 
 --==============================================================================
 -- INITIALIZATION

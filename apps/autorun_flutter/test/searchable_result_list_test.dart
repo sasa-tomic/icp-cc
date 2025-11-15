@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/widgets/result_display.dart';
 
 void main() {
-  group('EnhancedResultList Widget Tests', () {
+  group('SearchableResultList Widget Tests', () {
     final sampleItems = [
       {'title': 'Item 1', 'subtitle': 'Description 1', 'type': 'transfer'},
       {'title': 'Item 2', 'subtitle': 'Description 2', 'type': 'stake'},
@@ -14,7 +14,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Test List',
             ),
@@ -37,7 +37,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: customTitle,
             ),
@@ -52,7 +52,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Count Test',
             ),
@@ -67,7 +67,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: [],
               title: 'Empty List',
             ),
@@ -83,7 +83,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Search Test',
               searchable: true,
@@ -114,7 +114,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Case Insensitive Test',
               searchable: true,
@@ -142,7 +142,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Multi-field Search',
               searchable: true,
@@ -171,7 +171,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'No Match Search',
               searchable: true,
@@ -191,7 +191,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Clear Search Test',
               searchable: true,
@@ -215,7 +215,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Menu Test',
               searchable: false,
@@ -239,7 +239,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Copy Test',
               searchable: false,
@@ -261,7 +261,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Details Test',
               searchable: false,
@@ -285,7 +285,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Close Dialog Test',
               searchable: false,
@@ -314,7 +314,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: sampleItems,
               title: 'Not Searchable',
               searchable: false,
@@ -338,7 +338,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: incompleteItems,
               title: 'Incomplete Items Test',
             ),
@@ -361,7 +361,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: itemsWithoutData,
               title: 'No Data Field Test',
             ),
@@ -389,7 +389,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedResultList(
+            body: SearchableResultList(
               items: largeItemList,
               title: 'Large List Test',
             ),

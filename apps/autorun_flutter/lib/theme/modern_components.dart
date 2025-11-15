@@ -175,7 +175,7 @@ class ModernNavigationItem {
   final String label;
 }
 
-/// Modern floating action button with enhanced animations
+/// Modern floating action button with smooth animations
 class ModernFloatingActionButton extends StatefulWidget {
   const ModernFloatingActionButton({
     super.key,
@@ -418,7 +418,7 @@ class _ModernCardState extends State<ModernCard>
   }
 }
 
-/// Modern chip with enhanced design
+/// Modern chip with modern design
 class ModernChip extends StatelessWidget {
   const ModernChip({
     super.key,
@@ -514,7 +514,7 @@ class ModernChip extends StatelessWidget {
   }
 }
 
-/// Modern button with enhanced animations and effects
+/// Modern button with smooth animations and effects
 class ModernButton extends StatefulWidget {
   const ModernButton({
     super.key,

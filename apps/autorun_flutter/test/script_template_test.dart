@@ -10,7 +10,7 @@ void main() {
       expect(templateIds, contains('hello_world'));
       expect(templateIds, contains('data_management'));
       expect(templateIds, contains('icp_demo'));
-      expect(templateIds, contains('enhanced_ui'));
+      expect(templateIds, contains('advanced_ui'));
     });
 
     test('Should find template by ID', () {
@@ -61,7 +61,7 @@ void main() {
 
       // Search by tags
       final tagResults = ScriptTemplates.search('filtering');
-      expect(tagResults.length, 2); // data_management and enhanced_ui
+      expect(tagResults.length, 2); // data_management and advanced_ui
 
       // Case insensitive search
       final caseResults = ScriptTemplates.search('ICP');
@@ -102,7 +102,7 @@ void main() {
     test('Should have appropriate difficulty progression', () {
       final beginner = ScriptTemplates.getById('hello_world')!;
       final intermediate = ScriptTemplates.getById('icp_demo')!;
-      final advanced = ScriptTemplates.getById('enhanced_ui')!;
+      final advanced = ScriptTemplates.getById('advanced_ui')!;
 
       // Beginner should be simpler than intermediate
       expect(beginner.luaSource.length, lessThan(intermediate.luaSource.length));
@@ -165,8 +165,8 @@ void main() {
       expect(source, contains('icp_format_icp'));
     });
 
-    test('Enhanced UI template should have advanced features', () {
-      final template = ScriptTemplates.getById('enhanced_ui')!;
+    test('Advanced UI template should have advanced features', () {
+      final template = ScriptTemplates.getById('advanced_ui')!;
       final source = template.luaSource;
 
       // Should demonstrate advanced UI
@@ -179,7 +179,7 @@ void main() {
       expect(source, contains('format_transactions_for_display'));
 
       // Should use many ICP helpers
-      expect(source, contains('icp_enhanced_list'));
+      expect(source, contains('icp_searchable_list'));
       expect(source, contains('icp_sort_items'));
       expect(source, contains('icp_format_timestamp'));
       expect(source, contains('icp_format_icp'));
@@ -210,7 +210,7 @@ void main() {
       // These are the ICP helper functions available in the app
       final availableHelpers = [
         'icp_call', 'icp_batch', 'icp_message', 'icp_ui_list',
-        'icp_result_display', 'icp_enhanced_list', 'icp_section',
+        'icp_result_display',         'icp_searchable_list', 'icp_section',
         'icp_table', 'icp_format_number', 'icp_format_icp',
         'icp_format_timestamp', 'icp_format_bytes', 'icp_truncate',
         'icp_filter_items', 'icp_sort_items', 'icp_group_by'

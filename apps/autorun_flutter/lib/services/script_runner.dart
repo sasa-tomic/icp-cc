@@ -189,19 +189,19 @@ class ScriptRunner {
     ),
     IntegrationInfo(
       id: 'icp_result_display',
-      title: 'Enhanced Result Display',
+      title: 'Result Display',
       description:
           'Display canister call results with enhanced formatting, copy/export capabilities, and smart data visualization.',
       example:
           'return icp_result_display({\n  data = call_result,\n  title = "Query Results",\n  expandable = true,\n  expanded = false\n})',
     ),
     IntegrationInfo(
-      id: 'icp_enhanced_list',
+      id: 'icp_searchable_list',
       title: 'Searchable Result List',
       description:
-          'Display a searchable, filterable list of results with enhanced interaction capabilities.',
+          'Display a searchable, filterable list of results with advanced interaction capabilities.',
       example:
-          'return icp_enhanced_list({\n  items = processed_items,\n  title = "Transactions",\n  searchable = true\n})',
+          'return icp_searchable_list({\n  items = processed_items,\n  title = "Transactions",\n  searchable = true\n})',
     ),
     IntegrationInfo(
       id: 'icp_format_icp',
@@ -223,7 +223,7 @@ class ScriptRunner {
       description:
           'Filter lists of items by field values. Useful for processing canister results.',
       example:
-          'local filtered = icp_filter_items(transactions, "type", "transfer")\nreturn icp_enhanced_list({ items = filtered })',
+          'local filtered = icp_filter_items(transactions, "type", "transfer")\nreturn icp_searchable_list({ items = filtered })',
     ),
     IntegrationInfo(
       id: 'icp_sort_items',
@@ -231,7 +231,7 @@ class ScriptRunner {
       description:
           'Sort lists of items by field values in ascending or descending order.',
       example:
-          'local sorted = icp_sort_items(transactions, "timestamp", false)\nreturn icp_enhanced_list({ items = sorted })',
+          'local sorted = icp_sort_items(transactions, "timestamp", false)\nreturn icp_searchable_list({ items = sorted })',
     ),
   ];
 
@@ -628,7 +628,7 @@ class ScriptRunner {
         'function icp_message(text) return { action = "message", text = tostring(text or "") } end\n'
         'function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end\n'
         'function icp_result_display(spec) spec = spec or {}; return { action = "ui", ui = { type = "result_display", props = spec } } end\n'
-        'function icp_enhanced_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { enhanced = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end\n'
+        'function icp_searchable_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { searchable = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end\n'
         'function icp_section(title, content) return { type = "section", props = { title = title }, children = content and { content } or {} } end\n'
         'function icp_table(data) return { action = "ui", ui = { type = "result_display", props = { data = data, title = "Table Data" } } } end\n'
         'function icp_format_number(value, decimals) return tostring(tonumber(value) or 0) end\n'

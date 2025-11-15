@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../controllers/script_controller.dart';
 import '../models/script_template.dart';
-import '../widgets/enhanced_script_editor.dart';
+import '../widgets/script_editor.dart';
 
-/// Enhanced script creation flow with improved UX and separated concerns
-class EnhancedScriptCreationScreen extends StatefulWidget {
-  const EnhancedScriptCreationScreen({
+/// Script creation flow with improved UX and separated concerns
+class ScriptCreationScreen extends StatefulWidget {
+  const ScriptCreationScreen({
     super.key,
     required this.controller,
     this.initialTemplate,
@@ -15,10 +15,10 @@ class EnhancedScriptCreationScreen extends StatefulWidget {
   final ScriptTemplate? initialTemplate;
 
   @override
-  State<EnhancedScriptCreationScreen> createState() => _EnhancedScriptCreationScreenState();
+  State<ScriptCreationScreen> createState() => _ScriptCreationScreenState();
 }
 
-class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScreen>
+class _ScriptCreationScreenState extends State<ScriptCreationScreen>
     with TickerProviderStateMixin {
   late final TabController _tabController;
   late final TextEditingController _titleController;
@@ -268,7 +268,7 @@ class _EnhancedScriptCreationScreenState extends State<EnhancedScriptCreationScr
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: EnhancedScriptEditor(
+            child: ScriptEditor(
               key: ValueKey(_selectedTemplate?.id ?? 'default'),
               initialCode: _currentCode,
               onCodeChanged: _onCodeChanged,

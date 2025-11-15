@@ -423,9 +423,9 @@ class ResultDisplay extends StatelessWidget {
   }
 }
 
-/// Enhanced result list with filtering and search capabilities
-class EnhancedResultList extends StatefulWidget {
-  const EnhancedResultList({
+/// Searchable result list with filtering and search capabilities
+class SearchableResultList extends StatefulWidget {
+  const SearchableResultList({
     super.key,
     required this.items,
     this.title = 'Results',
@@ -439,10 +439,10 @@ class EnhancedResultList extends StatefulWidget {
   final UiEventHandler? onEvent;
 
   @override
-  State<EnhancedResultList> createState() => _EnhancedResultListState();
+  State<SearchableResultList> createState() => _SearchableResultListState();
 }
 
-class _EnhancedResultListState extends State<EnhancedResultList> {
+class _SearchableResultListState extends State<SearchableResultList> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _filteredItems = [];
 

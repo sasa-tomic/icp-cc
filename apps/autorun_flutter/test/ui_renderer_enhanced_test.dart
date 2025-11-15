@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/widgets/ui_v1_renderer.dart';
 
 void main() {
-  group('UI Renderer Enhanced Features Tests', () {
+  group('UI Renderer Searchable Features Tests', () {
     late Map<String, dynamic> mockEvent;
 
     setUp(() {
@@ -14,17 +14,16 @@ void main() {
       mockEvent = event;
     }
 
-    testWidgets('renders enhanced list with search capability', (WidgetTester tester) async {
+    testWidgets('renders searchable list with search capability', (WidgetTester tester) async {
       final ui = {
         'type': 'list',
         'props': {
-          'enhanced': true,
+          'searchable': true,
           'items': [
             {'title': 'Item 1', 'subtitle': 'Description 1'},
             {'title': 'Item 2', 'subtitle': 'Description 2'},
           ],
-          'title': 'Enhanced Results',
-          'searchable': true,
+          'title': 'Searchable Results',
         }
       };
 
@@ -39,7 +38,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Enhanced Results'), findsOneWidget);
+      expect(find.text('Searchable Results'), findsOneWidget);
       expect(find.text('2/2'), findsOneWidget);
       expect(find.text('Search results...'), findsOneWidget);
       expect(find.byIcon(Icons.search), findsOneWidget);
@@ -47,16 +46,15 @@ void main() {
       expect(find.text('Item 2'), findsOneWidget);
     });
 
-    testWidgets('renders enhanced list without search when disabled', (WidgetTester tester) async {
+    testWidgets('renders searchable list without search when disabled', (WidgetTester tester) async {
       final ui = {
         'type': 'list',
         'props': {
-          'enhanced': true,
+          'searchable': false,
           'items': [
             {'title': 'Item 1'},
           ],
           'title': 'No Search',
-          'searchable': false,
         }
       };
 
@@ -77,14 +75,13 @@ void main() {
       expect(find.text('Item 1'), findsOneWidget);
     });
 
-    testWidgets('renders enhanced list with empty items', (WidgetTester tester) async {
+    testWidgets('renders searchable list with empty items', (WidgetTester tester) async {
       final ui = {
         'type': 'list',
         'props': {
-          'enhanced': true,
-          'items': [],
-          'title': 'Empty Enhanced List',
           'searchable': true,
+          'items': [],
+          'title': 'Empty Searchable List',
         }
       };
 
@@ -99,19 +96,18 @@ void main() {
         ),
       );
 
-      expect(find.text('Empty Enhanced List'), findsOneWidget);
+      expect(find.text('Empty Searchable List'), findsOneWidget);
       expect(find.text('No results found'), findsOneWidget);
     });
 
-    testWidgets('renders enhanced list with default title when not specified', (WidgetTester tester) async {
+    testWidgets('renders searchable list with default title when not specified', (WidgetTester tester) async {
       final ui = {
         'type': 'list',
         'props': {
-          'enhanced': true,
+          'searchable': true,
           'items': [
             {'title': 'Test Item'},
           ],
-          'searchable': true,
         }
       };
 
@@ -236,11 +232,11 @@ void main() {
       expect(find.text('value'), findsOneWidget);
     });
 
-    testWidgets('renders regular list when enhanced is false', (WidgetTester tester) async {
+    testWidgets('renders regular list when searchable is false', (WidgetTester tester) async {
       final ui = {
         'type': 'list',
         'props': {
-          'enhanced': false,
+          'searchable': false,
           'items': [
             {'title': 'Regular Item 1', 'subtitle': 'Subtitle 1', 'copy': true},
             {'title': 'Regular Item 2'},
@@ -266,7 +262,7 @@ void main() {
       expect(find.byType(TextField), findsNothing); // No search in regular mode
     });
 
-    testWidgets('renders regular list without enhanced property', (WidgetTester tester) async {
+    testWidgets('renders regular list without searchable property', (WidgetTester tester) async {
       final ui = {
         'type': 'list',
         'props': {
@@ -295,7 +291,7 @@ void main() {
       final ui = {
         'type': 'list',
         'props': {
-          'enhanced': true,
+          'searchable': true,
           'items': [
             'String item',
             123, // Number item
@@ -327,7 +323,7 @@ void main() {
       final ui = {
         'type': 'list',
         'props': {
-          'enhanced': true,
+          'searchable': true,
           'items': [
             {'title': 'Clickable Item', 'subtitle': 'Click me'},
           ],

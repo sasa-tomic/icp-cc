@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/widgets/enhanced_script_editor.dart';
+import 'package:icp_autorun/widgets/script_editor.dart';
 void main() {
-  group('EnhancedScriptEditor Tests', () {
+  group('ScriptEditor Tests', () {
     late ValueChanged<String> onCodeChanged;
     late String currentCode;
 
@@ -20,7 +20,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: initialCode,
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -30,7 +30,7 @@ void main() {
       );
 
       // Verify the editor is rendered
-      expect(find.byType(EnhancedScriptEditor), findsOneWidget);
+      expect(find.byType(ScriptEditor), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
 
       // Verify initial code is set
@@ -44,7 +44,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: initialCode,
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -65,7 +65,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: '',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -84,7 +84,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: multiLineCode,
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -103,7 +103,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -120,7 +120,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: '',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -138,7 +138,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: '',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -156,7 +156,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: '',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -176,7 +176,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: validCode,
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -194,7 +194,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: '',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -215,7 +215,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: 'readonly code',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -233,7 +233,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: '',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -253,7 +253,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -270,7 +270,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: 'single line',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -294,7 +294,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: EnhancedScriptEditor(
+            body: ScriptEditor(
               initialCode: '',
               onCodeChanged: onCodeChanged,
               language: 'lua',
@@ -322,7 +322,7 @@ void main() {
           await tester.pumpWidget(
             MaterialApp(
               home: Scaffold(
-                body: EnhancedScriptEditor(
+                body: ScriptEditor(
                   initialCode: '',
                   onCodeChanged: (String code) {
                     lintCallCount++;
@@ -356,7 +356,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptEditor(
+              body: ScriptEditor(
                 initialCode: '',
                 onCodeChanged: onCodeChanged,
                 language: 'lua',
@@ -384,7 +384,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptEditor(
+              body: ScriptEditor(
                 initialCode: '',
                 onCodeChanged: onCodeChanged,
                 language: 'lua',
@@ -402,7 +402,7 @@ void main() {
     group('Error Handling', () {
       testWidgets('should handle null onCodeChanged gracefully', (WidgetTester tester) async {
         expect(
-          () => EnhancedScriptEditor(
+          () => ScriptEditor(
             initialCode: 'test',
             onCodeChanged: (String code) {
               // This should not throw
@@ -415,7 +415,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptEditor(
+              body: ScriptEditor(
                 initialCode: 'test',
                 onCodeChanged: onCodeChanged,
                 language: 'lua',
@@ -424,14 +424,14 @@ void main() {
           ),
         );
 
-        expect(find.byType(EnhancedScriptEditor), findsOneWidget);
+        expect(find.byType(ScriptEditor), findsOneWidget);
       });
 
       testWidgets('should handle empty code gracefully', (WidgetTester tester) async {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: EnhancedScriptEditor(
+              body: ScriptEditor(
                 initialCode: '',
                 onCodeChanged: onCodeChanged,
                 language: 'lua',
@@ -447,7 +447,7 @@ void main() {
         await tester.pump();
 
         // Should not crash
-        expect(find.byType(EnhancedScriptEditor), findsOneWidget);
+        expect(find.byType(ScriptEditor), findsOneWidget);
       });
     });
   });

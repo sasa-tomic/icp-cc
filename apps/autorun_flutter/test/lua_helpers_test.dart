@@ -15,7 +15,7 @@ class MockBridge implements ScriptBridge {
 
   @override
   String? luaExec({required String script, String? jsonArg}) {
-    // Mock enhanced helper functions
+    // Mock helper functions
     final arg = jsonArg != null ? json.decode(jsonArg) : null;
 
     // Return appropriate response based on the script content
@@ -70,7 +70,7 @@ class MockBridge implements ScriptBridge {
       });
     }
 
-    if (script.contains('return icp_enhanced_list(') || (script.contains('icp_enhanced_list({') && !script.contains('function icp_enhanced_list'))) {
+    if (script.contains('return icp_searchable_list(') || (script.contains('icp_searchable_list({') && !script.contains('function icp_searchable_list'))) {
       // For the test, check if it's the specific test case and return expected result
       if (script.contains('Search Results')) {
         return json.encode({
@@ -80,13 +80,12 @@ class MockBridge implements ScriptBridge {
             'ui': {
               'type': 'list',
               'props': {
-                'enhanced': true,
+                'searchable': true,
                 'items': [
                   {'title': 'Item 1', 'subtitle': 'Description 1'},
                   {'title': 'Item 2', 'subtitle': 'Description 2'}
                 ],
-                'title': 'Search Results',
-                'searchable': true
+                'title': 'Search Results'
               }
             }
           }
@@ -101,13 +100,12 @@ class MockBridge implements ScriptBridge {
             'ui': {
               'type': 'list',
               'props': {
-                'enhanced': true,
+                'searchable': true,
                 'items': arg?['items'] ?? [
                   {'title': 'Transfer 2', 'type': 'transfer', 'amount': 200000000},
                   {'title': 'Transfer 1', 'type': 'transfer', 'amount': 100000000}
                 ],
-                'title': 'Sorted Transfers',
-                'searchable': true
+                'title': 'Sorted Transfers'
               }
             }
           }
@@ -277,7 +275,7 @@ class MockBridge implements ScriptBridge {
 }
 
 void main() {
-  group('Enhanced Lua Helper Functions Tests', () {
+  group('Lua Helper Functions Tests', () {
     late ScriptRunner runner;
 
     setUp(() {
@@ -326,10 +324,10 @@ void main() {
       });
     });
 
-    group('icp_enhanced_list Helper', () {
-      test('generates enhanced list UI with items', () async {
+    group('icp_searchable_list Helper', () {
+      test('generates searchable list UI with items', () async {
         const script = '''
-          return icp_enhanced_list({
+          return icp_searchable_list({
             items = {
               {title = "Item 1", subtitle = "Description 1"},
               {title = "Item 2", subtitle = "Description 2"}
@@ -351,14 +349,14 @@ void main() {
         expect(ui['type'], equals('list'));
 
         final props = ui['props'] as Map<String, dynamic>;
-        expect(props['enhanced'], isTrue);
+        expect(props['searchable'], isTrue);
         expect(props['title'], equals('Search Results'));
         expect(props['searchable'], isTrue);
       });
 
-      test('generates enhanced list with default settings', () async {
+      test('generates searchable list with default settings', () async {
         const script = '''
-          return icp_enhanced_list({
+          return icp_searchable_list({
             items = {{title = "Single Item"}}
           })
         ''';
@@ -637,8 +635,8 @@ void main() {
           -- Sort by amount descending
           local sorted = icp_sort_items(transfers, "amount", false)
 
-          -- Return as enhanced list
-          return icp_enhanced_list({
+          -- Return as searchable list
+          return icp_searchable_list({
             items = sorted,
             title = "Sorted Transfers"
           })

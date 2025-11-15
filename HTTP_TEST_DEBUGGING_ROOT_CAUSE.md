@@ -79,7 +79,7 @@ Fixed `stats.ts` to use dynamic database pattern like other routes.
 
 ### Debugging HTTP Issues
 1. Check for TestWidgetsFlutterBinding warnings in test output
-2. Use enhanced error logging to inspect response bodies
+2. Use detailed error logging to inspect response bodies
 3. Test API endpoints manually with curl to verify server functionality
 4. Isolate tests to separate files if mixing UI and API testing
 
