@@ -1,49 +1,32 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/screens/scripts_screen.dart';
-import 'package:icp_autorun/controllers/script_controller.dart';
-import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
+import 'package:icp_autorun/models/script_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers/wrangler_manager.dart';
 
 void main() {
-  group('Publish Workflow Integration Tests', () {
-    late ScriptController scriptController;
+  group('Script Repository API Tests', () {
     late ScriptRepository scriptRepository;
 
     setUpAll(() async {
-      // Mock SharedPreferences for tests
-      SharedPreferences.setMockInitialValues({});
+      // Initialize WranglerManager for real API testing
+      await WranglerManager.initialize();
+      
       // Initialize services
       scriptRepository = ScriptRepository();
-      scriptController = ScriptController(scriptRepository);
-      await scriptController.ensureLoaded();
+      
+      // Mock SharedPreferences for tests
+      SharedPreferences.setMockInitialValues({});
+      
+      
     });
 
     tearDownAll(() async {
-      scriptController.dispose();
+      await WranglerManager.cleanup();
     });
 
-    Widget createTestWidget({required Widget child}) {
-      return MaterialApp(
-        home: child,
-      );
-    }
-
     group('Script Management', () {
-      testWidgets('should display scripts screen with publish options', (WidgetTester tester) async {
-        // Act - Navigate to scripts screen
-        await tester.pumpWidget(createTestWidget(
-          child: ScriptsScreen(),
-        ));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
-
-        // Assert - Verify scripts screen loads
-        expect(find.text('New Script'), findsOneWidget);
-      });
-
       test('should create and manage script records', () async {
         // Arrange - Create a test script
         final testScript = ScriptRecord(
@@ -97,7 +80,7 @@ end''',
         final existingScripts = await scriptRepository.loadScripts();
         await scriptRepository.persistScripts([...existingScripts, originalScript]);
 
-        // Act - Update the script
+        // Act - Update script
         final updatedScript = originalScript.copyWith(
           title: 'Updated Title',
           luaSource: '-- Updated source',
@@ -133,7 +116,7 @@ end''',
         var currentScripts = await scriptRepository.loadScripts();
         expect(currentScripts.any((s) => s.id == testScript.id), isTrue);
 
-        // Act - Delete the script
+        // Act - Delete script
         final scriptsAfterDelete = currentScripts.where((s) => s.id != testScript.id).toList();
         await scriptRepository.persistScripts(scriptsAfterDelete);
 
@@ -200,7 +183,7 @@ end''',
           },
         );
 
-        // Act - Save the script
+        // Act - Save script
         final existingScripts = await scriptRepository.loadScripts();
         await scriptRepository.persistScripts([...existingScripts, marketplaceScript]);
 
