@@ -1,6 +1,5 @@
 ## Fixes and urgent improvements
 
-- When making a call to a canister, it should be possible to specify the identity with which to make the call (or make an anonymous call)
 - Use secure store where possible (Android etc) for storing security-sensistive material such as seed or private key
 
 ## ICP Autorun Marketplace - Future Enhancements

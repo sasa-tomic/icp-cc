@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import '../rust/native_bridge.dart';
+import '../models/identity_record.dart';
+import 'identity_repository.dart';
 
 class IntegrationInfo {
   const IntegrationInfo({
@@ -25,6 +27,8 @@ class CanisterCallSpec {
     this.argsJson = '()',
     this.host,
     this.privateKeyB64,
+    this.identityId,
+    this.isAnonymous = false,
   });
 
   /// Logical name to expose this call's JSON output under in the Lua arg
@@ -35,8 +39,16 @@ class CanisterCallSpec {
   final int kind;
   final String argsJson;
   final String? host;
+
+  /// Identity specification options (in order of precedence):
+  /// 1. identityId: Reference to a stored identity by ID
+  /// 2. privateKeyB64: Direct private key specification (legacy)
+  /// 3. isAnonymous: Force anonymous call
+  final String? identityId;
   /// If provided, performs authenticated call; otherwise anonymous
   final String? privateKeyB64;
+  /// If true, forces anonymous call regardless of other identity settings
+  final bool isAnonymous;
 }
 
 class ScriptRunPlan {
@@ -135,9 +147,11 @@ class RustScriptBridge implements ScriptBridge {
 }
 
 class ScriptRunner {
-  ScriptRunner(this._bridge);
+  ScriptRunner(this._bridge, {IdentityRepository? identityRepository})
+      : _identityRepository = identityRepository;
 
   final ScriptBridge _bridge;
+  final IdentityRepository? _identityRepository;
 
   /// Catalog of integrations available to Lua scripts.
   /// Extend this list as new helpers are added in [_injectHelpers].
@@ -175,6 +189,46 @@ class ScriptRunner {
     ),
   ];
 
+  /// Resolve identity specification to a private key or null (for anonymous calls).
+  /// Returns null if anonymous call is requested or if identity resolution fails.
+  Future<String?> _resolveIdentity(CanisterCallSpec spec) async {
+    // 1. Explicit anonymous call takes precedence
+    if (spec.isAnonymous) {
+      return null;
+    }
+
+    // 2. Identity ID reference (takes priority over direct private key)
+    if (spec.identityId != null && spec.identityId!.trim().isNotEmpty) {
+      if (_identityRepository == null) {
+        throw Exception('Identity ID specified but no identity repository provided');
+      }
+
+      try {
+        final List<IdentityRecord> identities = await _identityRepository.loadIdentities();
+        final IdentityRecord? identity = identities.cast<IdentityRecord?>().firstWhere(
+          (id) => id?.id == spec.identityId,
+          orElse: () => null,
+        );
+
+        if (identity == null) {
+          throw Exception('Identity with ID "${spec.identityId}" not found');
+        }
+
+        return identity.privateKey;
+      } catch (e) {
+        throw Exception('Failed to resolve identity "${spec.identityId}": $e');
+      }
+    }
+
+    // 3. Direct private key specification (legacy support)
+    if (spec.privateKeyB64 != null && spec.privateKeyB64!.trim().isNotEmpty) {
+      return spec.privateKeyB64!.trim();
+    }
+
+    // 4. Default to anonymous if no identity specification provided
+    return null;
+  }
+
   /// Execute the plan: call canisters in order, build arg, run Lua.
   /// Fails fast on any call/parse error.
   Future<ScriptRunResult> run(ScriptRunPlan plan) async {
@@ -185,7 +239,14 @@ class ScriptRunner {
     // Collect call outputs as decoded JSON values
     final Map<String, dynamic> callOutputs = <String, dynamic>{};
     for (final CanisterCallSpec spec in plan.calls) {
-      final String? raw = (spec.privateKeyB64 == null || spec.privateKeyB64!.trim().isEmpty)
+      final String? privateKey;
+      try {
+        privateKey = await _resolveIdentity(spec);
+      } catch (e) {
+        return ScriptRunResult(ok: false, error: 'Failed to resolve identity for ${spec.label}: $e');
+      }
+
+      final String? raw = (privateKey == null || privateKey.isEmpty)
           ? _bridge.callAnonymous(
               canisterId: spec.canisterId,
               method: spec.method,
@@ -197,7 +258,7 @@ class ScriptRunner {
               canisterId: spec.canisterId,
               method: spec.method,
               kind: spec.kind,
-              privateKeyB64: spec.privateKeyB64!,
+              privateKeyB64: privateKey,
               args: spec.argsJson,
               host: spec.host,
             );
@@ -241,18 +302,42 @@ class ScriptRunner {
         final String args = (result['args'] as String?) ?? '()';
         final String? host = (result['host'] as String?)?.trim().isEmpty == true ? null : result['host'] as String?;
         final String? key = (result['private_key_b64'] as String?)?.trim();
+        final String? identityId = (result['identity_id'] as String?)?.trim();
+        final bool isAnonymous = (result['is_anonymous'] as bool?) ?? false;
+
         if (canisterId.isEmpty || method.isEmpty) {
           return ScriptRunResult(ok: false, error: 'call action missing canister_id/method');
         }
-        String? callOut;
-        if (key == null || key.isEmpty) {
+
+        // Create a temporary CanisterCallSpec to reuse identity resolution logic
+        final CanisterCallSpec tempSpec = CanisterCallSpec(
+          label: 'follow_up_call',
+          canisterId: canisterId,
+          method: method,
+          kind: kind,
+          argsJson: args,
+          host: host,
+          privateKeyB64: key,
+          identityId: identityId,
+          isAnonymous: isAnonymous,
+        );
+
+        final String? privateKey;
+        try {
+          privateKey = await _resolveIdentity(tempSpec);
+        } catch (e) {
+          return ScriptRunResult(ok: false, error: 'Failed to resolve identity for follow-up call: $e');
+        }
+
+        final String? callOut;
+        if (privateKey == null || privateKey.isEmpty) {
           callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
         } else {
           callOut = _bridge.callAuthenticated(
             canisterId: canisterId,
             method: method,
             kind: kind,
-            privateKeyB64: key,
+            privateKeyB64: privateKey,
             args: args,
             host: host,
           );
@@ -285,18 +370,42 @@ class ScriptRunner {
           final String args = (item['args'] as String?) ?? '()';
           final String? host = (item['host'] as String?)?.trim().isEmpty == true ? null : item['host'] as String?;
           final String? key = (item['private_key_b64'] as String?)?.trim();
+          final String? identityId = (item['identity_id'] as String?)?.trim();
+          final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
+
           if (canisterId.isEmpty || method.isEmpty) {
             return ScriptRunResult(ok: false, error: 'batch call missing canister_id/method');
           }
+
+          // Create a temporary CanisterCallSpec to reuse identity resolution logic
+          final CanisterCallSpec tempSpec = CanisterCallSpec(
+            label: label.isEmpty ? 'batch_call' : label,
+            canisterId: canisterId,
+            method: method,
+            kind: kind,
+            argsJson: args,
+            host: host,
+            privateKeyB64: key,
+            identityId: identityId,
+            isAnonymous: isAnonymous,
+          );
+
+          final String? privateKey;
+          try {
+            privateKey = await _resolveIdentity(tempSpec);
+          } catch (e) {
+            return ScriptRunResult(ok: false, error: 'Failed to resolve identity for batch call "$label": $e');
+          }
+
           String? callOut;
-          if (key == null || key.isEmpty) {
+          if (privateKey == null || privateKey.isEmpty) {
             callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
           } else {
             callOut = _bridge.callAuthenticated(
               canisterId: canisterId,
               method: method,
               kind: kind,
-              privateKeyB64: key,
+              privateKeyB64: privateKey,
               args: args,
               host: host,
             );
@@ -342,18 +451,42 @@ class ScriptRunner {
       final String args = (action['args'] as String?) ?? '()';
       final String? host = (action['host'] as String?)?.trim().isEmpty == true ? null : action['host'] as String?;
       final String? key = (action['private_key_b64'] as String?)?.trim();
+      final String? identityId = (action['identity_id'] as String?)?.trim();
+      final bool isAnonymous = (action['is_anonymous'] as bool?) ?? false;
+
       if (canisterId.isEmpty || method.isEmpty) {
         return ScriptRunResult(ok: false, error: 'call action missing canister_id/method');
       }
+
+      // Create a temporary CanisterCallSpec to reuse identity resolution logic
+      final CanisterCallSpec tempSpec = CanisterCallSpec(
+        label: 'action_call',
+        canisterId: canisterId,
+        method: method,
+        kind: kind,
+        argsJson: args,
+        host: host,
+        privateKeyB64: key,
+        identityId: identityId,
+        isAnonymous: isAnonymous,
+      );
+
+      final String? privateKey;
+      try {
+        privateKey = await _resolveIdentity(tempSpec);
+      } catch (e) {
+        return ScriptRunResult(ok: false, error: 'Failed to resolve identity for action call: $e');
+      }
+
       String? callOut;
-      if (key == null || key.isEmpty) {
+      if (privateKey == null || privateKey.isEmpty) {
         callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
       } else {
         callOut = _bridge.callAuthenticated(
           canisterId: canisterId,
           method: method,
           kind: kind,
-          privateKeyB64: key,
+          privateKeyB64: privateKey,
           args: args,
           host: host,
         );
@@ -385,18 +518,42 @@ class ScriptRunner {
         final String args = (item['args'] as String?) ?? '()';
         final String? host = (item['host'] as String?)?.trim().isEmpty == true ? null : item['host'] as String?;
         final String? key = (item['private_key_b64'] as String?)?.trim();
+        final String? identityId = (item['identity_id'] as String?)?.trim();
+        final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
+
         if (canisterId.isEmpty || method.isEmpty) {
           return ScriptRunResult(ok: false, error: 'batch call missing canister_id/method');
         }
+
+        // Create a temporary CanisterCallSpec to reuse identity resolution logic
+        final CanisterCallSpec tempSpec = CanisterCallSpec(
+          label: label.isEmpty ? 'batch_call' : label,
+          canisterId: canisterId,
+          method: method,
+          kind: kind,
+          argsJson: args,
+          host: host,
+          privateKeyB64: key,
+          identityId: identityId,
+          isAnonymous: isAnonymous,
+        );
+
+        final String? privateKey;
+        try {
+          privateKey = await _resolveIdentity(tempSpec);
+        } catch (e) {
+          return ScriptRunResult(ok: false, error: 'Failed to resolve identity for batch call "$label": $e');
+        }
+
         String? callOut;
-        if (key == null || key.isEmpty) {
+        if (privateKey == null || privateKey.isEmpty) {
           callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
         } else {
           callOut = _bridge.callAuthenticated(
             canisterId: canisterId,
             method: method,
             kind: kind,
-            privateKeyB64: key,
+            privateKeyB64: privateKey,
             args: args,
             host: host,
           );
