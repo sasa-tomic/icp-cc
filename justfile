@@ -55,10 +55,7 @@ test:
     export TEMP="$tmp_dir"
     export TMP="$tmp_dir"
     export XDG_RUNTIME_DIR="$tmp_dir"
-    echo "export TMPDIR=$TMPDIR"
-    echo "export TEMP=$TEMP"
-    echo "export TMP=$TMP"
-    echo "export XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+    echo "Using temp dir: $tmp_dir"
     just rust-tests
     just flutter-tests
     echo "✅ All tests passed! Full output saved to logs/test-output.log"

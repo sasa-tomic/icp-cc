@@ -6,6 +6,7 @@ third_party/
 /.vscode/
 /.claude/settings.local.json
 .tmp/
+.just-tmp/
 
 # Rust workspace
 /target/

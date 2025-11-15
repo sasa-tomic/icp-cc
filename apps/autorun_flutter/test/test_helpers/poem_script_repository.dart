@@ -275,23 +275,53 @@ class PoemScriptRepository extends ScriptRepository {
 
   Future<List<ScriptRecord>> searchScripts(String query) async {
     try {
-      final response = await _client.get(
-        Uri.parse('$baseUrl/api/v1/scripts/search?q=${Uri.encodeComponent(query)}')
+      final response = await _client.post(
+        Uri.parse('$baseUrl/api/v1/scripts/search'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'query': query,
+          'sortBy': 'createdAt',
+          'order': 'desc',
+          'limit': 20,
+          'offset': 0,
+        }),
       );
-      
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        if (data['success'] == true && data['data'] != null) {
-          final Map<String, dynamic> responseData = data['data'];
-          if (responseData['scripts'] != null) {
-            final List<dynamic> scriptsJson = responseData['scripts'];
-            return scriptsJson.map((json) => _scriptFromJson(json)).toList();
-          }
-        }
-        return [];
-      } else {
+
+      if (response.statusCode != 200) {
+        throwDetailedHttpException(
+          operation: 'Failed to search scripts with query "$query"',
+          response: response,
+        );
+      }
+
+      final dynamic decoded = json.decode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Search response was not a JSON object');
+      }
+
+      if (decoded['success'] != true) {
+        final errorMessage =
+            (decoded['error'] ?? 'Unknown search error').toString();
+        throw Exception('Search request failed: $errorMessage');
+      }
+
+      final data = decoded['data'];
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Search response missing data payload');
+      }
+
+      final scriptsJson = data['scripts'];
+      if (scriptsJson == null) {
         return [];
       }
+      if (scriptsJson is! List) {
+        throw Exception('Search scripts payload is not a list');
+      }
+
+      return scriptsJson
+          .whereType<Map<String, dynamic>>()
+          .map(_scriptFromJson)
+          .toList();
     } catch (e) {
       throw Exception('Failed to search scripts: $e');
     }

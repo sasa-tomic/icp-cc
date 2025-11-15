@@ -105,10 +105,190 @@ struct DeleteScriptRequest {
     timestamp: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct SearchQuery {
-    q: String,
-    limit: Option<i32>,
+#[derive(Debug, Deserialize, Default)]
+struct SearchRequest {
+    #[serde(rename = "query")]
+    query: Option<String>,
+    category: Option<String>,
+    #[serde(rename = "canisterId")]
+    canister_id: Option<String>,
+    #[serde(rename = "minRating")]
+    min_rating: Option<f64>,
+    #[serde(rename = "maxPrice")]
+    max_price: Option<f64>,
+    #[serde(rename = "sortBy")]
+    sort_by: Option<String>,
+    #[serde(rename = "order")]
+    sort_order: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
+
+#[derive(Debug)]
+struct SearchResultPayload {
+    scripts: Vec<Script>,
+    total: i64,
+    limit: i64,
+    offset: i64,
+}
+
+async fn run_marketplace_search(
+    pool: &SqlitePool,
+    request: &SearchRequest,
+) -> Result<SearchResultPayload, (StatusCode, String)> {
+    if request.canister_id.is_some() {
+        tracing::debug!("Ignoring canister_id filter; backend does not support it yet");
+    }
+
+    let limit = request.limit.unwrap_or(20);
+    if limit <= 0 || limit > 100 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "limit must be between 1 and 100".to_string(),
+        ));
+    }
+
+    let offset = request.offset.unwrap_or(0);
+    if offset < 0 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "offset must be zero or greater".to_string(),
+        ));
+    }
+
+    let sort_field = request.sort_by.as_deref().unwrap_or("createdAt");
+    let sort_column = match sort_field {
+        "createdAt" => "created_at",
+        "rating" => "rating",
+        "downloads" => "downloads",
+        "price" => "price",
+        "title" => "title",
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "unsupported sort field".to_string(),
+            ));
+        }
+    };
+
+    let sort_order_raw = request.sort_order.as_deref().unwrap_or("desc");
+    let sort_order = match sort_order_raw.to_ascii_lowercase().as_str() {
+        "asc" => "ASC",
+        "desc" => "DESC",
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "order must be 'asc' or 'desc'".to_string(),
+            ));
+        }
+    };
+
+    #[derive(Clone)]
+    enum BindValue {
+        Text(String),
+        Float(f64),
+        Integer(i64),
+        Bool(bool),
+    }
+
+    let mut conditions: Vec<String> = Vec::new();
+    let mut condition_binds: Vec<BindValue> = Vec::new();
+
+    conditions.push("is_public = ?".to_string());
+    condition_binds.push(BindValue::Bool(true));
+
+    if let Some(query) = request
+        .query
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        let like_pattern = format!("%{}%", query);
+        conditions.push("(title LIKE ? OR description LIKE ? OR category LIKE ?)".to_string());
+        condition_binds.push(BindValue::Text(like_pattern.clone()));
+        condition_binds.push(BindValue::Text(like_pattern.clone()));
+        condition_binds.push(BindValue::Text(like_pattern));
+    }
+
+    if let Some(category) = request
+        .category
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        conditions.push("category = ?".to_string());
+        condition_binds.push(BindValue::Text(category.to_string()));
+    }
+
+    if let Some(min_rating) = request.min_rating {
+        conditions.push("rating >= ?".to_string());
+        condition_binds.push(BindValue::Float(min_rating));
+    }
+
+    if let Some(max_price) = request.max_price {
+        conditions.push("price <= ?".to_string());
+        condition_binds.push(BindValue::Float(max_price));
+    }
+
+    let mut where_clause = String::new();
+    if !conditions.is_empty() {
+        where_clause.push_str(" WHERE ");
+        where_clause.push_str(&conditions.join(" AND "));
+    }
+
+    let search_sql = format!(
+        "SELECT {} FROM scripts{} ORDER BY {} {} LIMIT ? OFFSET ?",
+        SCRIPT_COLUMNS, where_clause, sort_column, sort_order
+    );
+
+    let count_sql = format!("SELECT COUNT(*) FROM scripts{}", where_clause);
+
+    let mut search_binds = condition_binds.clone();
+    search_binds.push(BindValue::Integer(limit));
+    search_binds.push(BindValue::Integer(offset));
+
+    let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql);
+    for value in &condition_binds {
+        count_query = match value {
+            BindValue::Text(val) => count_query.bind(val),
+            BindValue::Float(val) => count_query.bind(val),
+            BindValue::Integer(val) => count_query.bind(val),
+            BindValue::Bool(val) => count_query.bind(*val),
+        };
+    }
+
+    let total = count_query.fetch_one(pool).await.map_err(|e| {
+        tracing::error!("Failed to count scripts: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to execute search".to_string(),
+        )
+    })?;
+
+    let mut query = sqlx::query_as::<_, Script>(&search_sql);
+    for value in &search_binds {
+        query = match value {
+            BindValue::Text(val) => query.bind(val),
+            BindValue::Float(val) => query.bind(val),
+            BindValue::Integer(val) => query.bind(*val),
+            BindValue::Bool(val) => query.bind(*val),
+        };
+    }
+
+    let scripts = query.fetch_all(pool).await.map_err(|e| {
+        tracing::error!("Failed to search scripts: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to execute search".to_string(),
+        )
+    })?;
+
+    Ok(SearchResultPayload {
+        scripts,
+        total,
+        limit,
+        offset,
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -1189,47 +1369,34 @@ async fn delete_script(
 
 #[handler]
 async fn search_scripts(
-    Query(params): Query<SearchQuery>,
+    Json(request): Json<SearchRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    let limit = params.limit.unwrap_or(20);
-    let search_term = format!("%{}%", params.q);
+    match run_marketplace_search(&state.pool, &request).await {
+        Ok(result) => {
+            let has_more = result.offset + (result.scripts.len() as i64) < result.total;
 
-    match sqlx::query_as::<_, Script>(&format!(
-        "SELECT {} FROM scripts WHERE (title LIKE ?1 OR description LIKE ?1 OR category LIKE ?1) AND is_public = 1 ORDER BY created_at DESC LIMIT ?2",
-        SCRIPT_COLUMNS
-    ))
-    .bind(&search_term)
-    .bind(limit)
-    .fetch_all(&state.pool)
-    .await
-    {
-        Ok(scripts) => {
             tracing::debug!(
-                "Search for '{}' returned {} results",
-                params.q,
-                scripts.len()
+                "Marketplace search returned {} scripts (offset={}, limit={}, total={})",
+                result.scripts.len(),
+                result.offset,
+                result.limit,
+                result.total
             );
+
             Json(serde_json::json!({
                 "success": true,
                 "data": {
-                    "scripts": scripts,
-                    "total": scripts.len()
+                    "scripts": result.scripts,
+                    "total": result.total,
+                    "hasMore": has_more,
+                    "offset": result.offset,
+                    "limit": result.limit
                 }
             }))
             .into_response()
         }
-        Err(e) => {
-            tracing::error!("Failed to search scripts: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to search scripts"
-                })),
-            )
-                .into_response()
-        }
+        Err((status, message)) => error_response(status, &message),
     }
 }
 
@@ -1696,6 +1863,73 @@ async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
     }
 }
 
+async fn initialize_database(pool: &SqlitePool) {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS scripts (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            category TEXT NOT NULL,
+            lua_source TEXT NOT NULL,
+            author_name TEXT NOT NULL,
+            is_public INTEGER DEFAULT 1,
+            rating REAL DEFAULT 0.0,
+            downloads INTEGER DEFAULT 0,
+            review_count INTEGER DEFAULT 0,
+            version TEXT DEFAULT '1.0.0',
+            price REAL DEFAULT 0.0,
+            tags TEXT DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create scripts table");
+
+    sqlx::query("ALTER TABLE scripts ADD COLUMN version TEXT DEFAULT '1.0.0'")
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query("ALTER TABLE scripts ADD COLUMN price REAL DEFAULT 0.0")
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query("ALTER TABLE scripts ADD COLUMN tags TEXT DEFAULT '[]'")
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS reviews (
+            id TEXT PRIMARY KEY,
+            script_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+            comment TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create reviews table");
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_reviews_script_id ON reviews(script_id)")
+        .execute(pool)
+        .await
+        .expect("Failed to create reviews index");
+
+    tracing::info!("Database initialized successfully");
+}
+
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
     // Initialize tracing with clean, parseable format
@@ -1723,72 +1957,7 @@ async fn main() -> Result<(), std::io::Error> {
         .await
         .expect("Failed to connect to database");
 
-    // Run migrations
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS scripts (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            category TEXT NOT NULL,
-            lua_source TEXT NOT NULL,
-            author_name TEXT NOT NULL,
-            is_public INTEGER DEFAULT 1,
-            rating REAL DEFAULT 0.0,
-            downloads INTEGER DEFAULT 0,
-            review_count INTEGER DEFAULT 0,
-            version TEXT DEFAULT '1.0.0',
-            price REAL DEFAULT 0.0,
-            tags TEXT DEFAULT '[]',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await
-    .expect("Failed to create scripts table");
-
-    // Add new columns if they don't exist (for existing databases)
-    sqlx::query("ALTER TABLE scripts ADD COLUMN version TEXT DEFAULT '1.0.0'")
-        .execute(&pool)
-        .await
-        .ok(); // Ignore error if column already exists
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN price REAL DEFAULT 0.0")
-        .execute(&pool)
-        .await
-        .ok(); // Ignore error if column already exists
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN tags TEXT DEFAULT '[]'")
-        .execute(&pool)
-        .await
-        .ok(); // Ignore error if column already exists
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS reviews (
-            id TEXT PRIMARY KEY,
-            script_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-            comment TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await
-    .expect("Failed to create reviews table");
-
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_reviews_script_id ON reviews(script_id)")
-        .execute(&pool)
-        .await
-        .expect("Failed to create reviews index");
-
-    tracing::info!("Database initialized successfully");
+    initialize_database(&pool).await;
 
     let state = Arc::new(AppState { pool });
 
@@ -1798,7 +1967,7 @@ async fn main() -> Result<(), std::io::Error> {
         .at("/api/v1/ping", get(ping))
         .at("/api/v1/scripts", get(get_scripts).post(create_script))
         .at("/api/v1/scripts/count", get(get_scripts_count))
-        .at("/api/v1/scripts/search", get(search_scripts))
+        .at("/api/v1/scripts/search", post(search_scripts))
         .at("/api/v1/scripts/trending", get(get_trending_scripts))
         .at("/api/v1/scripts/featured", get(get_featured_scripts))
         .at("/api/v1/scripts/compatible", get(get_compatible_scripts))
@@ -1868,6 +2037,8 @@ mod tests {
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use base64::Engine;
     use ed25519_dalek::{Signer, SigningKey};
+    use poem::http::StatusCode;
+    use sqlx::sqlite::SqlitePoolOptions;
 
     #[test]
     fn verify_update_signature_rejects_tampered_payload() {
@@ -1894,6 +2065,157 @@ mod tests {
         assert!(
             verify_script_update_signature(&request, "existing-script").is_err(),
             "tampering payload must invalidate signature verification"
+        );
+    }
+
+    async fn setup_search_state() -> Arc<AppState> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("failed to create in-memory sqlite pool");
+
+        initialize_database(&pool).await;
+
+        insert_script(
+            &pool,
+            ScriptFixture {
+                id: "script-1",
+                title: "Test Script One",
+                category: "Utility",
+                lua_source: "-- script one",
+                rating: 4.5,
+                price: 9.99,
+                downloads: 250,
+                review_count: 5,
+                created_at: "2024-01-01T00:00:00Z",
+            },
+        )
+        .await;
+
+        insert_script(
+            &pool,
+            ScriptFixture {
+                id: "script-2",
+                title: "Another Utility Script",
+                category: "Utility",
+                lua_source: "-- script two",
+                rating: 4.8,
+                price: 14.50,
+                downloads: 300,
+                review_count: 8,
+                created_at: "2024-03-15T12:00:00Z",
+            },
+        )
+        .await;
+
+        insert_script(
+            &pool,
+            ScriptFixture {
+                id: "script-3",
+                title: "Analytics Tool",
+                category: "Analytics",
+                lua_source: "-- script three",
+                rating: 3.2,
+                price: 0.0,
+                downloads: 120,
+                review_count: 2,
+                created_at: "2023-12-10T08:30:00Z",
+            },
+        )
+        .await;
+
+        Arc::new(AppState { pool })
+    }
+
+    struct ScriptFixture<'a> {
+        id: &'a str,
+        title: &'a str,
+        category: &'a str,
+        lua_source: &'a str,
+        rating: f64,
+        price: f64,
+        downloads: i32,
+        review_count: i32,
+        created_at: &'a str,
+    }
+
+    async fn insert_script(pool: &SqlitePool, fixture: ScriptFixture<'_>) {
+        sqlx::query(
+            "INSERT INTO scripts (id, title, description, category, lua_source, author_name, is_public, rating, downloads, review_count, version, price, tags, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'Test Author', 1, ?6, ?7, ?8, '1.0.0', ?9, '[]', ?10, ?10)",
+        )
+        .bind(fixture.id)
+        .bind(fixture.title)
+        .bind(format!("{} description", fixture.title))
+        .bind(fixture.category)
+        .bind(fixture.lua_source)
+        .bind(fixture.rating)
+        .bind(fixture.downloads)
+        .bind(fixture.review_count)
+        .bind(fixture.price)
+        .bind(fixture.created_at)
+        .execute(pool)
+        .await
+        .expect("failed to insert script");
+    }
+
+    #[tokio::test]
+    async fn search_scripts_returns_paginated_results() {
+        let state = setup_search_state().await;
+
+        let request = SearchRequest {
+            query: Some("Utility".to_string()),
+            category: Some("Utility".to_string()),
+            sort_by: Some("createdAt".to_string()),
+            sort_order: Some("desc".to_string()),
+            limit: Some(1),
+            offset: Some(0),
+            ..Default::default()
+        };
+
+        let result = run_marketplace_search(&state.pool, &request)
+            .await
+            .expect("marketplace search should succeed");
+
+        assert_eq!(result.limit, 1, "limit must echo input");
+        assert_eq!(result.offset, 0, "offset must echo input");
+        assert_eq!(result.total, 2, "total must reflect matching rows");
+        assert_eq!(result.scripts.len(), 1, "should return single script page");
+        assert_eq!(
+            result.scripts[0].id, "script-2",
+            "most recent Utility script must be first"
+        );
+        assert!(
+            result.offset + (result.scripts.len() as i64) < result.total,
+            "hasMore must be true when additional rows exist"
+        );
+    }
+
+    #[tokio::test]
+    async fn search_scripts_rejects_invalid_sort_field() {
+        let state = setup_search_state().await;
+
+        let request = SearchRequest {
+            query: Some("Utility".to_string()),
+            sort_by: Some("unsupported".to_string()),
+            sort_order: Some("asc".to_string()),
+            limit: Some(5),
+            offset: Some(0),
+            ..Default::default()
+        };
+
+        let error = run_marketplace_search(&state.pool, &request)
+            .await
+            .expect_err("unsupported sort field must fail");
+
+        assert_eq!(
+            error.0,
+            StatusCode::BAD_REQUEST,
+            "invalid sort should map to 400"
+        );
+        assert!(
+            error.1.contains("sort"),
+            "error message must mention sort validation"
         );
     }
 
