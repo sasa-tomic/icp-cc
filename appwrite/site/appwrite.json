@@ -1,0 +1,155 @@
+{
+  "projectId": "icp-script-marketplace",
+  "orgId": "665e9b58001d9c2dc8c8",
+  "functions": [],
+  "databases": [
+    {
+      "$id": "scripts-db",
+      "name": "Scripts Database",
+      "databaseId": "{{DATABASE_ID}}",
+      "collections": [
+        {
+          "$id": "scripts",
+          "name": "Scripts",
+          "collectionId": "{{SCRIPTS_COLLECTION_ID}}",
+          "type": "documents",
+          "documentSecurity": false,
+          "attributes": [
+            {
+              "key": "title",
+              "type": "string",
+              "required": true,
+              "array": false
+            },
+            {
+              "key": "description",
+              "type": "string",
+              "required": true,
+              "array": false
+            },
+            {
+              "key": "luaSource",
+              "type": "string",
+              "required": true,
+              "array": false
+            },
+            {
+              "key": "price",
+              "type": "double",
+              "required": true,
+              "array": false,
+              "default": 0
+            },
+            {
+              "key": "currency",
+              "type": "string",
+              "required": false,
+              "array": false,
+              "default": "USD"
+            },
+            {
+              "key": "category",
+              "type": "string",
+              "required": true,
+              "array": false
+            },
+            {
+              "key": "tags",
+              "type": "string",
+              "required": false,
+              "array": true
+            },
+            {
+              "key": "canisterIds",
+              "type": "string",
+              "required": false,
+              "array": true
+            },
+            {
+              "key": "iconUrl",
+              "type": "string",
+              "required": false,
+              "array": false
+            },
+            {
+              "key": "screenshots",
+              "type": "string",
+              "required": false,
+              "array": true
+            },
+            {
+              "key": "version",
+              "type": "string",
+              "required": false,
+              "array": false
+            },
+            {
+              "key": "compatibility",
+              "type": "string",
+              "required": false,
+              "array": false
+            },
+            {
+              "key": "isPublic",
+              "type": "boolean",
+              "required": true,
+              "array": false,
+              "default": false
+            },
+            {
+              "key": "isApproved",
+              "type": "boolean",
+              "required": true,
+              "array": false,
+              "default": false
+            },
+            {
+              "key": "authorId",
+              "type": "string",
+              "required": true,
+              "array": false
+            },
+            {
+              "key": "authorName",
+              "type": "string",
+              "required": true,
+              "array": false
+            },
+            {
+              "key": "rating",
+              "type": "double",
+              "required": false,
+              "array": false,
+              "default": 0
+            },
+            {
+              "key": "reviewCount",
+              "type": "integer",
+              "required": false,
+              "array": false,
+              "default": 0
+            },
+            {
+              "key": "verifiedReviewCount",
+              "type": "integer",
+              "required": false,
+              "array": false,
+              "default": 0
+            },
+            {
+              "key": "downloads",
+              "type": "integer",
+              "required": false,
+              "array": false,
+              "default": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "webhooks": [],
+  "keys": [],
+  "buckets": [],
+  "teams": []
+}
