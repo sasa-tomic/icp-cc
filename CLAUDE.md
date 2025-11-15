@@ -17,4 +17,4 @@ When you discover new information that would be helpful for future development w
 - **Add valuable insights** such as common pitfalls, debugging techniques, dependency relationships, or implementation patterns
 
 This helps build a comprehensive knowledge base for the codebase over time
-- Immediately after every change run 'make test' to ensure tests are green and add tests to ensure good test coverage.
+- Immediately after every change run 'just test' to ensure tests are green and add tests to ensure good test coverage.

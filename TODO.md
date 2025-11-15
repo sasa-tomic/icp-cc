@@ -13,9 +13,31 @@
 
 ## Appwrite deployment
 
-- Add the ability to emulate Appwrite or to spin up Appwrite locally (e.g. with docker) for tests
-- Deploy the latest code to the prod appwrite and fix any issues that may arrise
-- Add rust tests with a locally spinned up appwrite that deployment and redeployment works
+### ✅ COMPLETED: Just Build System Implementation
+
+**Features**: Modern, cross-platform build system with better argument handling and error messages
+
+**Implementation Details**:
+- ✅ Created justfile with all build targets
+- ✅ Created installation automation (install-just.sh)
+- ✅ Added natural argument passing (just cmd -- --args)
+- ✅ Enhanced help system and documentation
+- ✅ Improved error handling and cross-platform compatibility
+- ✅ Updated all documentation to reference Just commands
+
+### 🚀 IN PROGRESS: Local Appwrite Docker Compose Setup
+
+**Benefits**: Local development, no production API calls, faster iteration, test isolation
+
+**Implementation Plan**:
+- Deploy latest code to prod Appwrite
+- Create docker-compose.yml with official appwrite/appwrite image
+- Configure API server for local Appwrite endpoint (http://localhost:48080/v1)
+- Update Flutter app with environment switching (local vs production)
+- **Add justfile targets for local development workflow** (completed)
+- Test complete marketplace flow end-to-end locally
+- Add Rust tests with local Appwrite instance
+- Document development workflow for future developers
 
 ## ICP Autorun Marketplace
 
