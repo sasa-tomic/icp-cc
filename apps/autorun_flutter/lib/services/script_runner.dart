@@ -199,12 +199,13 @@ class ScriptRunner {
 
     // 2. Identity ID reference (takes priority over direct private key)
     if (spec.identityId != null && spec.identityId!.trim().isNotEmpty) {
-      if (_identityRepository == null) {
+      final IdentityRepository? repository = _identityRepository;
+      if (repository == null) {
         throw Exception('Identity ID specified but no identity repository provided');
       }
 
       try {
-        final List<IdentityRecord> identities = await _identityRepository!.loadIdentities();
+        final List<IdentityRecord> identities = await repository.loadIdentities();
         final IdentityRecord? identity = identities.cast<IdentityRecord?>().firstWhere(
           (id) => id?.id == spec.identityId,
           orElse: () => null,
