@@ -3,8 +3,22 @@ import '../services/marketplace_open_api_service.dart';
 import '../widgets/enhanced_script_editor.dart';
 import '../widgets/error_display.dart';
 
+class PreFilledUploadData {
+  final String title;
+  final String luaSource;
+  final String authorName;
+
+  PreFilledUploadData({
+    required this.title,
+    required this.luaSource,
+    required this.authorName,
+  });
+}
+
 class ScriptUploadScreen extends StatefulWidget {
-  const ScriptUploadScreen({super.key});
+  const ScriptUploadScreen({super.key, this.preFilledData});
+
+  final PreFilledUploadData? preFilledData;
 
   @override
   State<ScriptUploadScreen> createState() => _ScriptUploadScreenState();
@@ -103,10 +117,21 @@ end
   @override
   void initState() {
     super.initState();
+    
+    // Pre-fill data if provided
+    if (widget.preFilledData != null) {
+      _titleController.text = widget.preFilledData!.title;
+      _luaSource = widget.preFilledData!.luaSource;
+      _authorController.text = widget.preFilledData!.authorName;
+    }
+    
     // Set default category
     _categoryController.text = 'Utilities';
-    // Set default author
-    _authorController.text = 'Anonymous Developer';
+    
+    // Set default author if not pre-filled
+    if (_authorController.text.isEmpty) {
+      _authorController.text = 'Anonymous Developer';
+    }
   }
 
   @override

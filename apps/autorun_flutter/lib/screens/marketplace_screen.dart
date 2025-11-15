@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import '../models/marketplace_script.dart';
 import '../services/marketplace_open_api_service.dart';
+import '../services/download_history_service.dart';
+import '../controllers/script_controller.dart';
+import '../services/script_repository.dart';
 import '../widgets/marketplace_search_bar.dart';
 import '../widgets/script_card.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/error_display.dart';
 import 'script_upload_screen.dart';
+import 'download_history_screen.dart';
 
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({super.key});
@@ -16,10 +20,14 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   final MarketplaceOpenApiService _marketplaceService = MarketplaceOpenApiService();
+  final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
   final TextEditingController _searchController = TextEditingController();
+  late final ScriptController _scriptController;
 
   List<MarketplaceScript> _scripts = [];
   List<String> _categories = [];
+  final Set<String> _downloadingScriptIds = <String>{};
+  Set<String> _downloadedScriptIds = {};
   bool _isLoading = false;
   bool _isLoadingMore = false;
   String? _error;
@@ -34,9 +42,11 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   @override
   void initState() {
     super.initState();
+    _scriptController = ScriptController(ScriptRepository())..addListener(_onChanged);
     _initializeMarketplace();
     _loadScripts();
     _loadCategories();
+    _loadDownloadedScripts();
   }
 
   Future<void> _initializeMarketplace() async {
@@ -155,6 +165,100 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     _loadScripts();
   }
 
+  void _onChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _loadDownloadedScripts() async {
+    try {
+      // Load from download history service
+      final downloadHistory = await _downloadHistoryService.getDownloadHistory();
+      final downloadedIds = downloadHistory
+          .map((record) => record.marketplaceScriptId)
+          .toSet();
+      
+      setState(() {
+        _downloadedScriptIds = downloadedIds;
+      });
+    } catch (e) {
+      debugPrint('Failed to load downloaded scripts: $e');
+    }
+  }
+
+  Future<void> _downloadScript(MarketplaceScript script) async {
+    if (_downloadingScriptIds.contains(script.id)) return;
+
+    setState(() {
+      _downloadingScriptIds.add(script.id);
+    });
+
+    try {
+      // Download script source
+      final luaSource = await _marketplaceService.downloadScript(script.id);
+
+      // Create local script with marketplace metadata
+      final createdScript = await _scriptController.createScript(
+        title: '${script.title} (Marketplace)',
+        emoji: '📦',
+        luaSourceOverride: luaSource,
+        metadata: {
+          'marketplace_id': script.id,
+          'marketplace_title': script.title,
+          'marketplace_author': script.authorName,
+          'marketplace_version': script.version ?? '1.0.0',
+          'downloaded_at': DateTime.now().toIso8601String(),
+        },
+      );
+
+      if (!mounted) return;
+
+      // Add to download history
+      await _downloadHistoryService.addToHistory(
+        marketplaceScriptId: script.id,
+        title: script.title,
+        authorName: script.authorName,
+        version: script.version,
+        localScriptId: createdScript.id,
+      );
+
+      // Update downloaded state
+      setState(() {
+        _downloadedScriptIds.add(script.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${script.title}" downloaded successfully!'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () {
+              // Navigate to scripts tab
+              DefaultTabController.of(context).animateTo(0);
+            },
+          ),
+        ),
+      );
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloadingScriptIds.remove(script.id);
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -163,17 +267,37 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         actions: [
           IconButton(
+            icon: const Icon(Icons.download_for_offline_outlined),
+            onPressed: () => _navigateToDownloadHistory(context),
+            tooltip: 'Download Library',
+          ),
+          IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => _showSearchDialog(context),
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
-              final parts = value.split('_');
-              if (parts.length == 2) {
-                _onSortChanged(parts[0], parts[1]);
+              if (value == 'download_history') {
+                _navigateToDownloadHistory(context);
+              } else {
+                final parts = value.split('_');
+                if (parts.length == 2) {
+                  _onSortChanged(parts[0], parts[1]);
+                }
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'download_history',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_for_offline_outlined),
+                    SizedBox(width: 8),
+                    Text('Download Library'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'createdAt_desc',
                 child: Text('Newest First'),
@@ -334,6 +458,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             return ScriptCard(
               script: script,
               onTap: () => _showScriptDetails(context, script),
+              onDownload: script.price == 0 ? () => _downloadScript(script) : null,
+              isDownloading: _downloadingScriptIds.contains(script.id),
+              isDownloaded: _downloadedScriptIds.contains(script.id),
             );
           },
         ),
@@ -422,9 +549,20 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     );
   }
 
+  void _navigateToDownloadHistory(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => const DownloadHistoryScreen(),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
+    _scriptController
+      ..removeListener(_onChanged)
+      ..dispose();
     super.dispose();
   }
 }

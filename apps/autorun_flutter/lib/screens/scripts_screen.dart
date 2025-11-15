@@ -5,11 +5,13 @@ import '../models/script_record.dart';
 import '../models/script_template.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
+
 import '../rust/native_bridge.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/script_app_host.dart';
 import '../widgets/enhanced_script_editor.dart';
 import 'enhanced_script_creation_screen.dart';
+import 'script_upload_screen.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -21,6 +23,7 @@ class ScriptsScreen extends StatefulWidget {
 class _ScriptsScreenState extends State<ScriptsScreen> {
   late final ScriptController _controller;
   final ScriptAppRuntime _appRuntime = ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
+
 
   @override
   void initState() {
@@ -95,97 +98,120 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
+  Future<void> _publishToMarketplace(ScriptRecord record) async {
+    // Navigate to upload screen with pre-filled data
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => ScriptUploadScreen(
+          preFilledData: PreFilledUploadData(
+            title: record.title,
+            luaSource: record.luaSource,
+            authorName: 'Anonymous Developer', // Default author
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<ScriptRecord> scripts = _controller.scripts;
-    final bool showLoading = _controller.isBusy && scripts.isEmpty;
+    final scripts = _controller.scripts;
+    
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scripts'),
-      ),
-      body: Builder(builder: (context) {
-        if (showLoading) return const Center(child: CircularProgressIndicator());
-        if (scripts.isEmpty) {
-          return const EmptyState(
-            icon: Icons.code,
-            title: 'No scripts yet',
-            subtitle: 'Tap "New script" to add a Lua script.',
-          );
-        }
-        return RefreshIndicator(
-          onRefresh: _controller.refresh,
-          child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 96, top: 8),
-            itemCount: scripts.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final ScriptRecord rec = scripts[index];
-              return Dismissible(
-                key: ValueKey<String>(rec.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: const <Widget>[
-                      Icon(Icons.delete),
-                      SizedBox(width: 8),
-                      Text('Delete'),
-                    ],
+      body: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          if (_controller.isBusy && scripts.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (scripts.isEmpty && !_controller.isBusy) {
+            return EmptyState(
+              icon: Icons.code,
+              title: 'No scripts yet',
+              subtitle: 'Create your first script to get started',
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _controller.refresh,
+            child: ListView.separated(
+              padding: const EdgeInsets.only(bottom: 96, top: 8),
+              itemCount: scripts.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final ScriptRecord rec = scripts[index];
+                return Dismissible(
+                  key: ValueKey<String>(rec.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: const <Widget>[
+                        Icon(Icons.delete),
+                        SizedBox(width: 8),
+                        Text('Delete'),
+                      ],
+                    ),
                   ),
-                ),
-                confirmDismiss: (_) async {
-                  await _controller.deleteScript(rec.id);
-                  return false;
-                },
-                child: ListTile(
-                  leading: CircleAvatar(child: Text((rec.emoji ?? '📜').characters.first)),
-                  title: Text(rec.title),
-                  subtitle: Text('Updated ${rec.updatedAt.toLocal()}'),
-                  onTap: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (_) => _EnhancedScriptEditorDialog(controller: _controller, record: rec),
-                    );
+                  confirmDismiss: (_) async {
+                    await _controller.deleteScript(rec.id);
+                    return false;
                   },
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      IconButton(
-                        tooltip: 'Run',
-                        icon: const Icon(Icons.play_arrow),
-                        onPressed: () => _runScript(rec),
-                      ),
-                      PopupMenuButton<int>(
-                        tooltip: 'More',
-                        itemBuilder: (BuildContext context) => const <PopupMenuEntry<int>>[
-                          PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
-                          PopupMenuItem<int>(value: 2, child: Text('Delete')),
-                        ],
-                        onSelected: (int value) {
-                          switch (value) {
-                            case 1:
-                              showDialog<void>(
-                                context: context,
-                                builder: (_) => _ScriptDetailsDialog(controller: _controller, record: rec),
-                              );
-                              break;
-                            case 2:
-                              _confirmAndDeleteScript(rec);
-                              break;
-                          }
-                        },
-                      ),
-                    ],
+                  child: ListTile(
+                    leading: CircleAvatar(child: Text((rec.emoji ?? '📜').characters.first)),
+                    title: Text(rec.title),
+                    subtitle: Text('Updated ${rec.updatedAt.toLocal()}'),
+                    onTap: () {
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => _EnhancedScriptEditorDialog(controller: _controller, record: rec),
+                      );
+                    },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        IconButton(
+                          tooltip: 'Run',
+                          icon: const Icon(Icons.play_arrow),
+                          onPressed: () => _runScript(rec),
+                        ),
+                        PopupMenuButton<int>(
+                          tooltip: 'More',
+                          itemBuilder: (BuildContext context) => const <PopupMenuEntry<int>>[
+                            PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
+                            PopupMenuItem<int>(value: 2, child: Text('Publish to Marketplace')),
+                            PopupMenuItem<int>(value: 3, child: Text('Delete')),
+                          ],
+                          onSelected: (int value) {
+                            switch (value) {
+                              case 1:
+                                showDialog<void>(
+                                  context: context,
+                                  builder: (_) => _ScriptDetailsDialog(controller: _controller, record: rec),
+                                );
+                                break;
+                              case 2:
+                                _publishToMarketplace(rec);
+                                break;
+                              case 3:
+                                _confirmAndDeleteScript(rec);
+                                break;
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-        );
-      }),
+                );
+              },
+            ),
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'scripts_fab',
         onPressed: _controller.isBusy ? null : _showCreateSheet,
@@ -195,6 +221,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
     );
   }
 }
+
+
 
 // Legacy script creation components replaced by enhanced versions
 

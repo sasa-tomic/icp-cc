@@ -7,6 +7,9 @@ class ScriptCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onFavorite;
   final bool isFavorite;
+  final VoidCallback? onDownload;
+  final bool isDownloading;
+  final bool isDownloaded;
 
   const ScriptCard({
     super.key,
@@ -14,6 +17,9 @@ class ScriptCard extends StatelessWidget {
     required this.onTap,
     this.onFavorite,
     this.isFavorite = false,
+    this.onDownload,
+    this.isDownloading = false,
+    this.isDownloaded = false,
   });
 
   @override
@@ -216,12 +222,39 @@ class ScriptCard extends StatelessWidget {
                       ],
                     ),
 
-                    // Favorite button (if provided)
-                    if (onFavorite != null) ...[
-                      const Spacer(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
+                    // Action buttons
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // Download button
+                        if (onDownload != null)
+                          IconButton(
+                            icon: isDownloading
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  )
+                                : Icon(
+                                    isDownloaded ? Icons.download_done : Icons.download,
+                                    color: isDownloaded 
+                                        ? Colors.green 
+                                        : Theme.of(context).colorScheme.primary,
+                                    size: 20,
+                                  ),
+                            onPressed: isDownloading ? null : onDownload,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: isDownloaded ? 'Downloaded' : 'Download script',
+                          ),
+                        
+                        // Favorite button (if provided)
+                        if (onFavorite != null) ...[
+                          const SizedBox(width: 4),
                           IconButton(
                             icon: Icon(
                               isFavorite ? Icons.favorite : Icons.favorite_border,
@@ -231,10 +264,11 @@ class ScriptCard extends StatelessWidget {
                             onPressed: onFavorite,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
+                            tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
                           ),
                         ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ],
                 ),
               ),
