@@ -174,7 +174,7 @@ just cloudflare-local-logs
 
 # Test API connectivity
 curl http://localhost:8787/health
-curl http://localhost:8787/api/marketplace-stats
+curl http://localhost:8787/api/v1/marketplace-stats
 
 # Check configuration
 just cloudflare-local-config
@@ -231,12 +231,12 @@ cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FR
 
 ### Available Endpoints
 - `GET /health` - Health check
-- `GET /api/marketplace-stats` - Marketplace statistics
-- `GET /api/scripts/featured` - Featured scripts
-- `GET /api/scripts/trending` - Trending scripts
-- `POST /api/scripts/search` - Search scripts
-- `GET /api/scripts/{id}` - Get script details
-- `GET /api/scripts/category/{category}` - Scripts by category
+- `GET /api/v1/marketplace-stats` - Marketplace statistics
+- `GET /api/v1/scripts/featured` - Featured scripts
+- `GET /api/v1/scripts/trending` - Trending scripts
+- `POST /api/v1/scripts/search` - Search scripts
+- `GET /api/v1/scripts/{id}` - Get script details
+- `GET /api/v1/scripts/category/{category}` - Scripts by category
 
 ### Testing Endpoints
 ```bash
@@ -244,12 +244,12 @@ cd cloudflare-api && wrangler d1 execute icp-marketplace-db --command="DELETE FR
 curl http://localhost:8787/health
 
 # Get marketplace stats
-curl http://localhost:8787/api/marketplace-stats
+curl http://localhost:8787/api/v1/marketplace-stats
 
 # Search scripts
 curl -X POST -H "Content-Type: application/json" \
   -d '{"query":"test","limit":5}' \
-  http://localhost:8787/api/scripts/search
+  http://localhost:8787/api/v1/scripts/search
 ```
 
 ## Integration with CI/CD

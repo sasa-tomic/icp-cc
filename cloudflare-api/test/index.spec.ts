@@ -15,16 +15,16 @@ describe('ICP Marketplace API worker', () => {
 	});
 
 	describe('Scripts API', () => {
-		it('/api/scripts returns 500 when database not available', async () => {
-			const request = new Request('http://example.com/api/scripts');
+		it('/api/v1/scripts returns 500 when database not available', async () => {
+			const request = new Request('http://example.com/api/v1/scripts');
 			const response = await SELF.fetch(request);
 			expect(response.status).toBe(500);
 			const data = await response.json();
 			expect(data.success).toBe(false);
 		});
 
-		it('/api/scripts/search rejects GET requests', async () => {
-			const request = new Request('http://example.com/api/scripts/search?q=test');
+		it('/api/v1/scripts/search rejects GET requests', async () => {
+			const request = new Request('http://example.com/api/v1/scripts/search?q=test');
 			const response = await SELF.fetch(request);
 			expect(response.status).toBe(405);
 			const data = await response.json();
@@ -32,8 +32,8 @@ describe('ICP Marketplace API worker', () => {
 			expect(data.error).toBe('Method not allowed');
 		});
 
-		it('/api/scripts/search handles POST requests', async () => {
-			const request = new Request('http://example.com/api/scripts/search', {
+		it('/api/v1/scripts/search handles POST requests', async () => {
+			const request = new Request('http://example.com/api/v1/scripts/search', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ query: 'test' })
@@ -44,8 +44,8 @@ describe('ICP Marketplace API worker', () => {
 			expect(data.success).toBe(false);
 		});
 
-		it('/api/marketplace-stats returns default values when database not available', async () => {
-			const request = new Request('http://example.com/api/marketplace-stats');
+		it('/api/v1/marketplace-stats returns default values when database not available', async () => {
+			const request = new Request('http://example.com/api/v1/marketplace-stats');
 			const response = await SELF.fetch(request);
 			expect(response.status).toBe(500);
 			const data = await response.json();

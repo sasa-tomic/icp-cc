@@ -205,11 +205,11 @@ cloudflare-local-test:
     @echo "==> Testing health endpoint..."
     @curl -s http://localhost:8787/health | jq . || echo "Health check failed"
     @echo "==> Testing marketplace stats..."
-    @curl -s http://localhost:8787/api/marketplace-stats | jq . || echo "Stats endpoint failed"
+    @curl -s http://localhost:8787/api/v1/marketplace-stats | jq . || echo "Stats endpoint failed"
     @echo "==> Testing featured scripts..."
-    @curl -s http://localhost:8787/api/scripts/featured | jq . || echo "Featured scripts failed"
+    @curl -s http://localhost:8787/api/v1/scripts/featured | jq . || echo "Featured scripts failed"
     @echo "==> Testing search endpoint..."
-    @curl -s -X POST -H "Content-Type: application/json" -d '{"query":"test","limit":5}' http://localhost:8787/api/scripts/search | jq . || echo "Search endpoint failed"
+    @curl -s -X POST -H "Content-Type: application/json" -d '{"query":"test","limit":5}' http://localhost:8787/api/v1/scripts/search | jq . || echo "Search endpoint failed"
     @echo "==> ✅ All endpoint tests completed"
 
 # Show local Cloudflare Workers configuration
