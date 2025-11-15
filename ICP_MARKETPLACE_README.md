@@ -82,24 +82,8 @@ This separation ensures:
 
 ### 1. Setup Appwrite Backend
 
-**Option A: Automated Setup (Recommended)**
-
 ```bash
-cd appwrite
-./deploy.sh
-```
-
-**Option B: Manual Setup**
-
-```bash
-# Install Appwrite CLI
-npm install -g appwrite-cli
-
-# Login to Appwrite
-appwrite account login
-
-# Initialize project (Frankfurt region)
-appwrite init project --project-id 68f7fc8b00255b20ed42 --endpoint https://fra.cloud.appwrite.io/v1
+cargo run --bin appwrite-cli -- deploy
 ```
 
 ### 2. Deploy API Server
