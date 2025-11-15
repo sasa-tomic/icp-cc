@@ -20,7 +20,6 @@ BE BRUTALLY HONEST AND OBJECTIVE. You are smart and confident.
 
 # MCP servers that you should use in the project
 - Use context7 mcp server if your task requires working with a library or API
-- Use markdownify to download and convert online or local web pages or other files such as pdf, images, audio, docx, xlsx, pptx, etc. into markdown
 - Use web-search-prime if you ever notice that you don't have the correct information on how to use specific library or software
 
 - **Local Development with Cloudflare Workers**: See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for complete setup guide
