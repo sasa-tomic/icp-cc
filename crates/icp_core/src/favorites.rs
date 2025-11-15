@@ -19,10 +19,29 @@ pub struct FavoriteEntry {
 }
 
 fn config_path() -> PathBuf {
+    // Try multiple fallback paths for better cross-platform compatibility
     if let Some(dir) = dirs::config_dir() {
-        return dir.join("icp-cc").join("favorites.json");
+        let path = dir.join("icp-cc").join("favorites.json");
+        // Try to ensure parent directory exists and is writable
+        if let Some(parent) = path.parent() {
+            if parent.exists() || std::fs::create_dir_all(parent).is_ok() {
+                return path;
+            }
+        }
     }
-    PathBuf::from(".favorites.json")
+
+    // Fallback to home directory
+    if let Some(home) = dirs::home_dir() {
+        let path = home.join(".icp-cc").join("favorites.json");
+        if let Some(parent) = path.parent() {
+            if parent.exists() || std::fs::create_dir_all(parent).is_ok() {
+                return path;
+            }
+        }
+    }
+
+    // Fallback to current directory
+    PathBuf::from(".icp-cc-favorites.json")
 }
 
 fn ensure_parent(path: &Path) -> Result<(), FavoritesError> {

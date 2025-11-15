@@ -1,6 +1,5 @@
 ## Fixes and urgent improvements
 
-- Marking as favorites does not seem to work on Android
 - When making a call to a canister, it should be possible to specify the identity with which to make the call (or make an anonymous call)
 
 ## ICP Autorun Marketplace - Future Enhancements

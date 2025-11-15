@@ -340,6 +340,12 @@ pub unsafe extern "C" fn icp_favorites_add(
     } else {
         Some(CStr::from_ptr(label).to_str().unwrap_or("").to_string())
     };
+
+    // Validate inputs
+    if cid.is_empty() || m.is_empty() {
+        return -2; // Invalid input error
+    }
+
     let entry = fav::FavoriteEntry {
         canister_id: cid.to_string(),
         method: m.to_string(),
@@ -347,7 +353,10 @@ pub unsafe extern "C" fn icp_favorites_add(
     };
     match fav::add(entry) {
         Ok(()) => 0,
-        Err(_) => -1,
+        Err(e) => {
+            eprintln!("Favorites add error: {}", e);
+            -1 // General error
+        }
     }
 }
 
@@ -368,8 +377,17 @@ pub unsafe extern "C" fn icp_favorites_remove(
     } else {
         CStr::from_ptr(method).to_str().unwrap_or("")
     };
+
+    // Validate inputs
+    if cid.is_empty() || m.is_empty() {
+        return -2; // Invalid input error
+    }
+
     match fav::remove(cid, m) {
         Ok(()) => 0,
-        Err(_) => -1,
+        Err(e) => {
+            eprintln!("Favorites remove error: {}", e);
+            -1 // General error
+        }
     }
 }
