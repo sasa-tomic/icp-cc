@@ -1,10 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 
 void main() async {
   final marketplaceService = MarketplaceOpenApiService();
   
-  print('Testing upload with fix...');
-  
+  debugPrint('Testing upload with fix...');
+
   try {
     final uploadedScript = await marketplaceService.uploadScript(
       title: 'Manual Test Script',
@@ -34,17 +35,17 @@ end''',
       version: '1.0.0',
       price: 0.0,
     );
-    
-    print('✅ Upload successful!');
-    print('Script ID: ${uploadedScript.id}');
-    print('Title: ${uploadedScript.title}');
-    print('Category: ${uploadedScript.category}');
-    
+
+    debugPrint('✅ Upload successful!');
+    debugPrint('Script ID: ${uploadedScript.id}');
+    debugPrint('Title: ${uploadedScript.title}');
+    debugPrint('Category: ${uploadedScript.category}');
+
     // Clean up
     await marketplaceService.deleteScript(uploadedScript.id);
-    print('✅ Cleanup completed');
-    
+    debugPrint('✅ Cleanup completed');
+
   } catch (e) {
-    print('❌ Upload failed: $e');
+    debugPrint('❌ Upload failed: $e');
   }
 }

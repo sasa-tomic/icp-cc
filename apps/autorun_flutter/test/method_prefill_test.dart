@@ -12,7 +12,7 @@ void main() {
       await WranglerManager.initialize();
     } catch (e) {
       // If the service isn't available, skip these tests
-      print('Warning: Cloudflare Workers not available, skipping method prefill tests: $e');
+      debugPrint('Warning: Cloudflare Workers not available, skipping method prefill tests: $e');
     }
   });
   testWidgets('prefills method when selecting a well-known canister', (tester) async {

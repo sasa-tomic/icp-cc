@@ -180,7 +180,7 @@ start_wrangler() {
     cd "$CLOUDFLARE_DIR"
 
     # Start wrangler with background execution and logging
-    WRANGLER_LOG=debug nohup wrangler dev --local \
+    WRANGLER_LOG=info nohup wrangler dev --local \
         --config wrangler.local.jsonc \
         --port "$WRANGLER_PORT" \
         --persist-to .wrangler/state \

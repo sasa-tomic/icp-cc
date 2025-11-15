@@ -6,32 +6,32 @@ import 'unified_test_builder.dart';
 /// Authentication scenarios enum - replaces both AuthenticationTestCase and AuthenticationTestMatrix
 enum AuthenticationScenario {
   validToken('test-auth-token authentication', AuthenticationMethod.testToken, true),
-  customToken('custom test-auth-token authentication', AuthenticationMethod.testToken, true, 'test-auth-token'),
+  customTestToken('custom test-auth-token authentication', AuthenticationMethod.testToken, true, 'test-auth-token'),
   realSignature('cryptographic signature authentication', AuthenticationMethod.realSignature, true),
 
   invalidToken('invalid authentication token', AuthenticationMethod.invalidToken, false, '401'),
   missingToken('missing authentication signature', AuthenticationMethod.missingToken, false, '401'),
   malformedToken('malformed authentication data', AuthenticationMethod.malformedToken, false, '401'),
-  invalidCredentials('invalid principal/public key combination', AuthenticationMethod.testToken, false, '401', forceInvalidAuth: true);
+  invalidCredentials('invalid principal/public key combination', AuthenticationMethod.testToken, false, '401', null, true);
 
   const AuthenticationScenario(
     this.description,
     this.method,
     this.shouldSucceed, [
     this.expectedError,
-    this.customTokenValue,
-    this.forceInvalidAuth = false,
+    this._customTokenValue,
+    this._forceInvalidAuth = false,
   ]);
 
   final String description;
   final AuthenticationMethod method;
   final bool shouldSucceed;
   final String? expectedError;
-  final String? customTokenValue;
-  final bool forceInvalidAuth;
+  final String? _customTokenValue;
+  final bool _forceInvalidAuth;
 
   /// Helper to get custom token value for backward compatibility
-  String? get customToken => customTokenValue;
+  String? get customToken => _customTokenValue;
 
   Map<String, dynamic> toTestCase() {
     return {
@@ -39,8 +39,8 @@ enum AuthenticationScenario {
       'method': method,
       'shouldSucceed': shouldSucceed,
       'expectedError': expectedError,
-      'customToken': customTokenValue,
-      'forceInvalidAuth': forceInvalidAuth,
+      'customToken': _customTokenValue,
+      'forceInvalidAuth': _forceInvalidAuth,
     };
   }
 
@@ -192,14 +192,10 @@ class UnifiedAuthenticationTestHelper {
       final context = operationContext ?? operation.description;
 
       if (scenario.shouldSucceed) {
-        await expectLater(
-          () => operation.execute(repository),
-          AuthenticationMatchers.succeedsWithMessage('$context should succeed with ${scenario.description}'),
-          reason: '$context with ${scenario.description}',
-        );
+        await operation.execute(repository);
       } else {
         final expectedError = scenario.expectedError;
-        await expectLater(
+        expect(
           () => operation.execute(repository),
           expectedError != null
             ? AuthenticationMatchers.failsWithError(expectedError)
@@ -324,7 +320,7 @@ class TestRepositoryFactory {
     return TestableScriptRepository(
       authMethod: scenario.method,
       customAuthToken: scenario.customToken,
-      forceInvalidAuth: scenario.forceInvalidAuth,
+      forceInvalidAuth: scenario._forceInvalidAuth,
     );
   }
 

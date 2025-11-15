@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:icp_autorun/config/app_config.dart';
 
 /// Test configuration for external Cloudflare Workers service
@@ -23,9 +24,9 @@ class WranglerManager {
       return;
     }
     
-    print('=== Test Environment Configuration ===');
-    print('Assuming Cloudflare Workers is running externally');
-    print('Target endpoint: $endpoint');
+    debugPrint('=== Test Environment Configuration ===');
+    debugPrint('Assuming Cloudflare Workers is running externally');
+    debugPrint('Target endpoint: $endpoint');
     
     // Set the test endpoint in AppConfig so tests use the correct port
     AppConfig.setTestEndpoint(endpoint);
@@ -34,23 +35,23 @@ class WranglerManager {
     if (!Platform.environment.containsKey('SANDBOX_DISABLED')) {
       await _verifyServiceRunning();
     } else {
-      print('⚠️  Skipping service verification in sandbox environment');
+      debugPrint('⚠️  Skipping service verification in sandbox environment');
     }
     
     _isConfigured = true;
-    print('✅ Test environment configured successfully');
+    debugPrint('✅ Test environment configured successfully');
   }
 
   /// Cleanup - no-op since wrangler is managed externally
   static Future<void> cleanup() async {
-    print('=== Test Environment Cleanup ===');
-    print('Cloudflare Workers management handled externally');
+    debugPrint('=== Test Environment Cleanup ===');
+    debugPrint('Cloudflare Workers management handled externally');
     _isConfigured = false;
   }
 
   /// Verify that the service is actually running and accessible
   static Future<void> _verifyServiceRunning() async {
-    print('Verifying Cloudflare Workers is accessible...');
+    debugPrint('Verifying Cloudflare Workers is accessible...');
     
     final maxAttempts = 10;
     for (int i = 0; i < maxAttempts; i++) {
@@ -61,7 +62,7 @@ class WranglerManager {
         final response = await request.close().timeout(Duration(seconds: 5));
         
         if (response.statusCode == 200) {
-          print('✅ Cloudflare Workers is accessible at $endpoint');
+          debugPrint('✅ Cloudflare Workers is accessible at $endpoint');
           client.close();
           return;
         }
@@ -70,7 +71,7 @@ class WranglerManager {
         if (i == maxAttempts - 1) {
           throw Exception('Cloudflare Workers is not accessible at $endpoint. Please start it with: just cloudflare-test-up');
         }
-        print('Attempt ${i + 1}/$maxAttempts failed, retrying... ($e)');
+        debugPrint('Attempt ${i + 1}/$maxAttempts failed, retrying... ($e)');
         await Future.delayed(Duration(seconds: 2));
       }
     }

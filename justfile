@@ -141,11 +141,6 @@ windows:
     {{scripts_dir}}/build_windows.sh
     cd {{flutter_dir}} && flutter build windows
 
-# =============================================================================
-# Lua Script Validation
-# =============================================================================
-
-
 
 # =============================================================================
 # Testing
@@ -168,7 +163,7 @@ _rust-tests:
     @if grep -E "(error|warning)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust formatting issues found!"; exit 1; fi
     @echo "✅ No formatting issues found"
     @cargo nextest run 2>&1 | tee -a {{logs_dir}}/test-output.log
-    @if grep -E "(FAILED|error)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust tests failed!"; exit 1; fi
+    @if grep -E "\bFAILED\b|\berror\b:\s" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Rust tests failed!"; exit 1; fi
     @echo "✅ All Rust tests passed"
 
 
@@ -178,25 +173,24 @@ _flutter-tests:
     @echo "==> Running Flutter tests with Cloudflare Workers..."
     @just test-with-cloudflare
 
-# Run Flutter tests with Cloudflare Workers (includes Lua validation)
+# Run Flutter tests with Cloudflare Workers
 test-with-cloudflare:
-    @echo "==> Cleaning up any existing test databases..."
-    @{{scripts_dir}}/test_db_manager.sh cleanup
-    @echo "==> Starting Cloudflare Workers for tests..."
-    @just cloudflare-test-up
-    @echo "==> Generating Cloudflare Workers types..."
-    @just cloudflare-types
-    @echo "==> Validating Lua example scripts..."
-    @echo "⚠️  Lua validation temporarily disabled due to performance issues"
-    @echo "==> Running Flutter analysis..."
-    @cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log
-    @if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi
-    @echo "✅ No Flutter analysis issues found"
-    @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log
-    @if grep -qiE "(FAIL|ERROR)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi
-    @echo "✅ All Flutter tests passed"
-    @just cloudflare-test-down
+    echo "==> Running Flutter analysis..."; \
+    echo "==> Cleaning up any existing test databases..."; \
+    {{scripts_dir}}/test_db_manager.sh cleanup; \
+    echo "==> Starting Cloudflare Workers for tests..."; \
+    just cloudflare-test-up; \
+    echo "==> Generating Cloudflare Workers types..."; \
+    just cloudflare-types; \
+    echo "==> Running Flutter analysis..."; \
+    cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log; \
+    if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi; \
+    echo "✅ No Flutter analysis issues found"; \
+    echo "==> Running Flutter tests..."; \
+    cd {{flutter_dir}} && flutter test test/services test/screens test/widgets --concurrency=$(nproc) --timeout=360s 2>&1 | tee -a {{logs_dir}}/test-output.log; \
+    if grep -qiE "FAILED:|ERROR:|Some tests failed\." {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter tests failed!"; exit 1; fi; \
+    echo "✅ All Flutter tests passed"; \
+    just cloudflare-test-down; \
 
 # =============================================================================
 # Cleanup

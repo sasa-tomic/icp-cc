@@ -1,6 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/app_config.dart';
+import 'package:flutter/foundation.dart';
 import '../rust/native_bridge.dart';
 
 class ValidationResult {
@@ -45,23 +44,28 @@ class ScriptValidationService {
   factory ScriptValidationService() => _instance;
   ScriptValidationService._internal();
 
-  String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1';
-  final Duration _timeout = const Duration(seconds: 10);
-
+  
   Future<ValidationResult> validateScript(String luaSource) async {
-    // Try Rust validation first (more accurate and faster)
+    // Use Rust validation only (mlua)
     try {
       final rustResult = await _validateWithRust(luaSource);
       if (rustResult != null) {
         return rustResult;
       }
     } catch (e) {
-      // Fall back to server validation if Rust fails
-      print('Rust validation failed, falling back to server: $e');
+      debugPrint('Rust validation failed: $e');
+      // Return error result if Rust validation fails
+      return ValidationResult(
+        isValid: false,
+        errors: ['Validation failed: ${e.toString()}'],
+        warnings: [],
+        lineCount: luaSource.split('\n').length,
+        characterCount: luaSource.length,
+      );
     }
 
-    // Fallback to server validation (TypeScript)
-    return await _validateWithServer(luaSource);
+    // Should not reach here, but return basic validation as safety net
+    return quickValidate(luaSource);
   }
 
   Future<ValidationResult?> _validateWithRust(String luaSource) async {
@@ -91,45 +95,7 @@ class ScriptValidationService {
     return null;
   }
 
-  Future<ValidationResult> _validateWithServer(String luaSource) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/scripts/validate'),
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: json.encode({
-              'lua_source': luaSource,
-            }),
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResponse = json.decode(response.body) as Map<String, dynamic>;
-        return ValidationResult.fromJson(jsonResponse);
-      } else {
-        // Return error result for non-200 responses
-        return ValidationResult(
-          isValid: false,
-          errors: ['Server error: ${response.statusCode}'],
-          warnings: [],
-          lineCount: 0,
-          characterCount: 0,
-        );
-      }
-    } catch (e) {
-      // Return error result for exceptions
-      return ValidationResult(
-        isValid: false,
-        errors: ['Validation failed: ${e.toString()}'],
-        warnings: [],
-        lineCount: 0,
-        characterCount: 0,
-      );
-    }
-  }
-
+  
   // Quick validation for common issues without server call
   ValidationResult quickValidate(String luaSource) {
     final errors = <String>[];

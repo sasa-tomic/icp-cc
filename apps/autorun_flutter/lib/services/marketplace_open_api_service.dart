@@ -413,44 +413,7 @@ class MarketplaceOpenApiService {
     }
   }
 
-  // Validate script syntax (service that checks if Lua code is valid)
-  Future<ScriptValidationResult> validateScript(String luaSource) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/scripts/validate'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'lua_source': luaSource,
-            }),
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Validation failed');
-      }
-
-      final data = responseData['data'];
-      return ScriptValidationResult(
-        isValid: data['is_valid'] ?? false,
-        errors: List<String>.from(data['errors'] ?? []),
-        warnings: List<String>.from(data['warnings'] ?? []),
-      );
-
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Validate script failed: $e');
-      return ScriptValidationResult(
-        isValid: false,
-        errors: [e.toString()],
-      );
-    }
-  }
-
+  
   // Upload a new script to the marketplace
   Future<MarketplaceScript> uploadScript({
     required String title,

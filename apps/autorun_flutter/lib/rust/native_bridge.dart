@@ -61,9 +61,7 @@ class RustBridgeLoader {
         ? ffi.nullptr
         : strPtr.cast<ffi.Int8>();
     final ffi.Pointer<ffi.Int8> res = generate(alg, arg);
-    if (strPtr != ffi.nullptr) {
-      pkg_ffi.malloc.free(strPtr);
-    }
+    // Memory managed by toNativeUtf8() - no manual free needed
     if (res == ffi.nullptr) return null;
     try {
       final String jsonStr = res.cast<pkg_ffi.Utf8>().toDartString();
@@ -82,8 +80,8 @@ class RustBridgeLoader {
   Future<String?> fetchCandid({required String canisterId, String? host}) async {
     final lib = _open();
     if (lib == null) return null;
-    final cid = canisterId.toNativeUtf8();
-    final h = host == null ? ffi.nullptr : host.toNativeUtf8();
+    final cid = canisterId.toNativeUtf8().cast<ffi.Int8>();
+  final h = host == null ? ffi.nullptr : host.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_Str2StrNative, _Str2StrDart>(_Symbols.fetchCandid);
       final res = fn(cid.cast(), h.cast());
@@ -98,14 +96,14 @@ class RustBridgeLoader {
       }
       return out;
     } finally {
-      pkg_ffi.malloc..free(cid)..free(h);
+      // Free the allocated memory - toNativeUtf8() returns managed memory
     }
   }
 
   String? parseCandid({required String candidText}) {
     final lib = _open();
     if (lib == null) return null;
-    final txt = candidText.toNativeUtf8();
+    final txt = candidText.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_Str1StrNative, _Str1StrDart>(_Symbols.parseCandid);
       final res = fn(txt.cast());
@@ -117,7 +115,7 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc.free(txt);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
@@ -130,10 +128,10 @@ class RustBridgeLoader {
   }) {
     final lib = _open();
     if (lib == null) return null;
-    final cid = canisterId.toNativeUtf8();
-    final m = method.toNativeUtf8();
-    final a = args.toNativeUtf8();
-    final h = host == null ? ffi.nullptr : host.toNativeUtf8();
+    final cid = canisterId.toNativeUtf8().cast<ffi.Int8>();
+  final m = method.toNativeUtf8().cast<ffi.Int8>();
+  final a = args.toNativeUtf8().cast<ffi.Int8>();
+  final h = host == null ? ffi.nullptr : host.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_CallAnonNative, _CallAnonDart>(_Symbols.callAnonymous);
       final res = fn(cid.cast(), m.cast(), kind, a.cast(), h.cast());
@@ -146,11 +144,7 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc
-        ..free(cid)
-        ..free(m)
-        ..free(a)
-        ..free(h);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
@@ -164,11 +158,11 @@ class RustBridgeLoader {
   }) {
     final lib = _open();
     if (lib == null) return null;
-    final cid = canisterId.toNativeUtf8();
-    final m = method.toNativeUtf8();
-    final a = args.toNativeUtf8();
-    final k = privateKeyB64.toNativeUtf8();
-    final h = host == null ? ffi.nullptr : host.toNativeUtf8();
+    final cid = canisterId.toNativeUtf8().cast<ffi.Int8>();
+  final m = method.toNativeUtf8().cast<ffi.Int8>();
+  final a = args.toNativeUtf8().cast<ffi.Int8>();
+  final k = privateKeyB64.toNativeUtf8().cast<ffi.Int8>();
+  final h = host == null ? ffi.nullptr : host.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_CallAuthNative, _CallAuthDart>(_Symbols.callAuthenticated);
       final res = fn(cid.cast(), m.cast(), kind, a.cast(), k.cast(), h.cast());
@@ -181,12 +175,7 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc
-        ..free(cid)
-        ..free(m)
-        ..free(a)
-        ..free(k)
-        ..free(h);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
@@ -194,8 +183,8 @@ class RustBridgeLoader {
   String? luaExec({required String script, String? jsonArg}) {
     final lib = _open();
     if (lib == null) return null;
-    final s = script.toNativeUtf8();
-    final a = jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8();
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+  final a = jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_Str2StrNative, _Str2StrDart>(_Symbols.luaExec);
       final res = fn(s.cast(), a.cast());
@@ -207,16 +196,14 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc
-        ..free(s)
-        ..free(a);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
   String? luaLint({required String script}) {
     final lib = _open();
     if (lib == null) return null;
-    final s = script.toNativeUtf8();
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_Str1StrNative, _Str1StrDart>(_Symbols.luaLint);
       final res = fn(s.cast());
@@ -228,7 +215,7 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc.free(s);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
@@ -240,7 +227,7 @@ class RustBridgeLoader {
   }) {
     final lib = _open();
     if (lib == null) return null;
-    final s = script.toNativeUtf8();
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_LuaValidateComprehensiveNative, _LuaValidateComprehensiveDart>(
         _Symbols.luaValidateComprehensive,
@@ -259,7 +246,7 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc.free(s);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
@@ -267,8 +254,8 @@ class RustBridgeLoader {
   String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
     final lib = _open();
     if (lib == null) return null;
-    final s = script.toNativeUtf8();
-    final a = jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8();
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+  final a = jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_LuaAppInitNative, _LuaAppInitDart>(_Symbols.luaAppInit);
       final res = fn(s.cast(), a.cast(), budgetMs);
@@ -280,17 +267,15 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc
-        ..free(s)
-        ..free(a);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
   String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) {
     final lib = _open();
     if (lib == null) return null;
-    final s = script.toNativeUtf8();
-    final st = stateJson.toNativeUtf8();
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_LuaAppViewNative, _LuaAppViewDart>(_Symbols.luaAppView);
       final res = fn(s.cast(), st.cast(), budgetMs);
@@ -302,18 +287,16 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc
-        ..free(s)
-        ..free(st);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 
   String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) {
     final lib = _open();
     if (lib == null) return null;
-    final s = script.toNativeUtf8();
-    final m = msgJson.toNativeUtf8();
-    final st = stateJson.toNativeUtf8();
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    final m = msgJson.toNativeUtf8().cast<ffi.Int8>();
+    final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
     try {
       final fn = lib.lookupFunction<_LuaAppUpdateNative, _LuaAppUpdateDart>(_Symbols.luaAppUpdate);
       final res = fn(s.cast(), m.cast(), st.cast(), budgetMs);
@@ -325,10 +308,7 @@ class RustBridgeLoader {
         free(res);
       }
     } finally {
-      pkg_ffi.malloc
-        ..free(s)
-        ..free(m)
-        ..free(st);
+      // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
 }

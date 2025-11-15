@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 /// Utility class for generating test signatures for development/testing
 /// This mirrors the TestIdentity functionality from the Cloudflare API
 class TestSignatureUtils {
@@ -59,10 +61,10 @@ class TestSignatureUtils {
 
       final signatureBase64 = base64.encode(signatureBytes);
 
-      print('Generated test signature: ${signatureBase64.substring(0, 20)}...');
+      debugPrint('Generated test signature: ${signatureBase64.substring(0, 20)}...');
       return signatureBase64;
     } catch (error) {
-      print('Failed to generate test signature: $error');
+      debugPrint('Failed to generate test signature: $error');
       throw Exception('Test signature generation failed');
     }
   }

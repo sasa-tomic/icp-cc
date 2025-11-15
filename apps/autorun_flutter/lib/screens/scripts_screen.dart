@@ -255,31 +255,33 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
       });
 
       // Show success feedback and switch to My Scripts tab
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '"${script.title}" added to your library!',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '"${script.title}" added to your library!',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'View Scripts',
+              textColor: Colors.white,
+              onPressed: () {
+                _tabController.animateTo(0); // Switch to My Scripts tab
+              },
+            ),
           ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'View Scripts',
-            textColor: Colors.white,
-            onPressed: () {
-              _tabController.animateTo(0); // Switch to My Scripts tab
-            },
-          ),
-        ),
-      );
+        );
+      }
 
     } catch (e) {
       if (mounted) {
@@ -599,7 +601,9 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                         CircleAvatar(
                           radius: isCompactScreen ? 20 : 24,
                           child: Text(
-                            (rec.emoji ?? '📜').characters.first,
+                            (rec.emoji ?? '📜').isNotEmpty
+                                ? (rec.emoji ?? '📜')[0]
+                                : '📜',
                             style: TextStyle(
                               fontSize: isCompactScreen ? 16 : 20,
                             ),
@@ -951,19 +955,23 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     );
   }
 
-  void _shareScript(BuildContext context, MarketplaceScript script) {
+  void _shareScript(BuildContext context, MarketplaceScript script) async {
     // For now, just copy the script URL to clipboard
     // In a real implementation, you would generate a shareable link
     final shareUrl = 'https://icp-marketplace.com/scripts/${script.id}';
-    
-    Clipboard.setData(ClipboardData(text: shareUrl)).then((_) {
-      ScaffoldMessenger.of(context).showSnackBar(
+
+    // Capture context before async operation
+    final messenger = ScaffoldMessenger.of(context);
+
+    await Clipboard.setData(ClipboardData(text: shareUrl));
+    if (mounted) {
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Script link copied to clipboard!'),
           backgroundColor: Colors.green,
         ),
       );
-    });
+    }
   }
 }
 

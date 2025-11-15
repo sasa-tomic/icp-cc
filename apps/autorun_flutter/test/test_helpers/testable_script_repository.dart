@@ -1,8 +1,26 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
 import 'test_signature_utils.dart';
+
+/// HTTP client wrapper with timeout to prevent infinite hanging in tests
+class _TimeoutClient extends http.BaseClient {
+  final http.Client _inner = http.Client();
+  final Duration _timeout = const Duration(seconds: 10);
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    return await _inner.send(request).timeout(_timeout);
+  }
+
+  @override
+  void close() {
+    _inner.close();
+    super.close();
+  }
+}
 
 /// Extended script repository that allows testing different authentication scenarios
 class TestableScriptRepository extends ScriptRepository {
@@ -19,7 +37,7 @@ class TestableScriptRepository extends ScriptRepository {
     String? customAuthToken,
     bool forceInvalidAuth = false,
   }) : baseUrl = baseUrl ?? 'http://localhost:8787',
-       _client = client ?? http.Client(),
+       _client = client ?? _TimeoutClient(),
        _authMethod = authMethod,
        _customAuthToken = customAuthToken,
        _forceInvalidAuth = forceInvalidAuth;

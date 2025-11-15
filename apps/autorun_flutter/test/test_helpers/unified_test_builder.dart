@@ -1,4 +1,3 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'test_signature_utils.dart';
 

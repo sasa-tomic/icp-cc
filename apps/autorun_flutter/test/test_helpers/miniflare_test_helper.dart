@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
@@ -66,7 +67,7 @@ class MiniflareTestHelper {
     }
     
     if (!isRunning) {
-      print('Warning: Miniflare server not available. Tests will run in offline mode.');
+      debugPrint('Warning: Miniflare server not available. Tests will run in offline mode.');
     }
   }
 
@@ -87,7 +88,7 @@ class MiniflareTestHelper {
       repository.dispose();
     } catch (e) {
       // Silently ignore cleanup errors
-      print('Warning: Failed to cleanup test data: $e');
+      debugPrint('Warning: Failed to cleanup test data: $e');
     }
   }
 }

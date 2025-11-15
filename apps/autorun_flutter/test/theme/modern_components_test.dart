@@ -129,9 +129,9 @@ void main() {
         home: Scaffold(
           body: ModernButton(
             onPressed: onPressed,
-            child: Text(label),
             variant: variant,
             loading: loading,
+            child: Text(label),
           ),
         ),
       );

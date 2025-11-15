@@ -15,7 +15,7 @@ void main() {
         await WranglerManager.initialize();
       } catch (e) {
         // If the service isn't available, skip these tests
-        print('Warning: Cloudflare Workers not available, skipping marketplace tests: $e');
+        debugPrint('Warning: Cloudflare Workers not available, skipping marketplace tests: $e');
       }
     });
     testWidgets('should display single column grid layout on mobile', (WidgetTester tester) async {
