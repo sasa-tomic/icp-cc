@@ -5,12 +5,36 @@
 
 set -euo pipefail
 
-# Configuration
-WRANGLER_PID_FILE="/tmp/wrangler-dev.pid"
-WRANGLER_LOG_FILE="/tmp/wrangler-dev.log"
+# Find repository root by looking for .git directory, fallback to script dir/../
+find_repo_root() {
+    local current_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+    # Navigate up looking for .git directory
+    while [[ "$current_dir" != "/" ]]; do
+        if [[ -d "$current_dir/.git" ]]; then
+            echo "$current_dir"
+            return 0
+        fi
+        current_dir="$(dirname "$current_dir")"
+    done
+
+    # Fallback to script directory parent
+    echo "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+}
+
+# Get repository root
+REPO_ROOT="$(find_repo_root)"
+
+# Configuration (using relative paths from repo root)
+WRANGLER_PID_FILE="$REPO_ROOT/.tmp/wrangler-test.pid"
+WRANGLER_LOG_FILE="$REPO_ROOT/.tmp/wrangler-dev.log"
+CLOUDFLARE_DIR="$REPO_ROOT/cloudflare-api"
 WRANGLER_PORT="8787"
 HEALTH_URL="http://localhost:${WRANGLER_PORT}/api/v1/health"
 TIMEOUT=60
+
+# Ensure .tmp directory exists
+mkdir -p "$(dirname "$WRANGLER_PID_FILE")"
 
 # Colors for output
 RED='\033[0;31m'
@@ -18,6 +42,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Debug: Show paths being used (can be enabled by setting DEBUG=1)
+if [[ "${DEBUG:-0}" == "1" ]]; then
+    echo "==> Repository Root: $REPO_ROOT"
+    echo "==> PID File: $WRANGLER_PID_FILE"
+    echo "==> Log File: $WRANGLER_LOG_FILE"
+    echo "==> Cloudflare Dir: $CLOUDFLARE_DIR"
+fi
 
 # Helper functions
 log_info() {
@@ -103,6 +135,8 @@ stop_wrangler() {
 
     # Cleanup
     rm -f "$WRANGLER_PID_FILE"
+    # Optionally clean up log file on stop (keep for debugging)
+    # rm -f "$WRANGLER_LOG_FILE"
     log_info "Cleanup completed"
 }
 
@@ -110,29 +144,43 @@ stop_wrangler() {
 start_wrangler() {
     log_info "Starting wrangler process in container..."
 
-    # FAIL FAST: Kill any existing processes
+    # Enhanced cleanup: Handle any existing processes or stale state
     if is_running; then
-        log_error "❌ Existing wrangler process detected - FAILING FAST"
-        log_error "This indicates infrastructure state corruption"
+        log_warning "⚠️ Existing wrangler process detected - cleaning up"
         stop_wrangler
-        return 1
+        sleep 2
     fi
 
-    # Check if port is already in use
+    # Additional cleanup: Check for any processes using the port
+    if command -v lsof >/dev/null 2>&1; then
+        local port_pids=$(lsof -ti ":$WRANGLER_PORT" 2>/dev/null || true)
+        if [[ -n "$port_pids" ]]; then
+            log_warning "⚠️ Processes using port $WRANGLER_PORT detected - cleaning up"
+            echo "$port_pids" | xargs -r kill -TERM 2>/dev/null || true
+            sleep 2
+            # Force kill if still running
+            echo "$port_pids" | xargs -r kill -KILL 2>/dev/null || true
+        fi
+    fi
+
+    # Final cleanup: Remove any stale PID file
+    rm -f "$WRANGLER_PID_FILE"
+
+    # Port check now redundant due to cleanup above, but keep as safety net
     if command -v lsof >/dev/null 2>&1; then
         if lsof -i ":$WRANGLER_PORT" >/dev/null 2>&1; then
-            log_error "❌ Port $WRANGLER_PORT is already in use - FAILING FAST"
-            log_error "Another process is using the wrangler port"
+            log_error "❌ Port $WRANGLER_PORT is still in use after cleanup - FAILING FAST"
+            log_error "Another process is blocking the wrangler port"
             return 1
         fi
     fi
 
     # Start wrangler in background
     log_info "Starting wrangler dev server..."
-    cd "/code/icp-cc/cloudflare-api"
+    cd "$CLOUDFLARE_DIR"
 
     # Start wrangler with background execution and logging
-    nohup wrangler dev \
+    WRANGLER_LOG=debug nohup wrangler dev --local \
         --config wrangler.local.jsonc \
         --port "$WRANGLER_PORT" \
         --persist-to .wrangler/state \

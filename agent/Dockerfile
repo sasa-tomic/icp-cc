@@ -73,9 +73,10 @@ RUN mkdir -p ~/.npm-global \
 
 # Install Flutter SDK for ICP-CC project
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \
-    && /home/ubuntu/flutter/bin/flutter config --enable-web \
-    && echo 'export PATH=/home/ubuntu/flutter/bin:$PATH' >> ~/.bashrc \
-    && echo 'export PATH=/home/ubuntu/flutter/bin:$PATH' >> ~/.profile
+    && /home/ubuntu/flutter/bin/flutter config --enable-web
+
+# Add Flutter to PATH
+ENV PATH="/home/ubuntu/flutter/bin:${PATH}"
 
 # Configure git hooks
 COPY --chown=ubuntu:ubuntu agent/git-hooks/ $HOME/.git-hooks/

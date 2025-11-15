@@ -5,6 +5,7 @@ third_party/
 /.idea/
 /.vscode/
 /.claude/settings.local.json
+.tmp/
 
 # Rust workspace
 /target/
@@ -52,3 +53,4 @@ logs/
 test-output.log
 cloudflare-api/wrangler.log
 target/
+node_modules/
