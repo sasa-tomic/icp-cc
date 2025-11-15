@@ -312,7 +312,7 @@ class _ScriptCreateSheetState extends State<_ScriptCreateSheet> {
               icon: _isSubmitting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.bolt),
-              label: const Text('Save'),
+              label: const Text('Continue'),
             ),
           ],
         ),
@@ -543,7 +543,7 @@ class _NewScriptDetailsDialogState extends State<_NewScriptDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Script details'),
+      title: const Text('Name your script'),
       content: Form(
         key: _formKey,
         child: SizedBox(
@@ -580,7 +580,7 @@ class _NewScriptDetailsDialogState extends State<_NewScriptDetailsDialog> {
       ),
       actions: <Widget>[
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        FilledButton(onPressed: _isSubmitting ? null : _save, child: const Text('Save')),
+        FilledButton(onPressed: _isSubmitting ? null : _save, child: const Text('Create script')),
       ],
     );
   }
