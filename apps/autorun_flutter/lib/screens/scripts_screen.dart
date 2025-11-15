@@ -59,6 +59,27 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
     );
   }
 
+  Future<void> _confirmAndDeleteScript(ScriptRecord record) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete script'),
+          content: Text('Delete "${record.title}"? This cannot be undone.'),
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+            FilledButton.tonal(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+          ],
+        );
+      },
+    );
+    if (confirmed == true) {
+      await _controller.deleteScript(record.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Script deleted')));
+    }
+  }
+
   Future<void> _showCreateSheet() async {
     final ScriptRecord? rec = await showModalBottomSheet<ScriptRecord>(
       context: context,
@@ -121,10 +142,35 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
                       builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
                     );
                   },
-                  trailing: IconButton(
-                    tooltip: 'Run',
-                    icon: const Icon(Icons.play_arrow),
-                    onPressed: () => _runScript(rec),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      IconButton(
+                        tooltip: 'Run',
+                        icon: const Icon(Icons.play_arrow),
+                        onPressed: () => _runScript(rec),
+                      ),
+                      PopupMenuButton<int>(
+                        tooltip: 'More',
+                        itemBuilder: (BuildContext context) => const <PopupMenuEntry<int>>[
+                          PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
+                          PopupMenuItem<int>(value: 2, child: Text('Delete')),
+                        ],
+                        onSelected: (int value) {
+                          switch (value) {
+                            case 1:
+                              showDialog<void>(
+                                context: context,
+                                builder: (_) => _ScriptDetailsDialog(controller: _controller, record: rec),
+                              );
+                              break;
+                            case 2:
+                              _confirmAndDeleteScript(rec);
+                              break;
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -345,6 +391,106 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Text('Save'),
         ),
+      ],
+    );
+  }
+}
+
+class _ScriptDetailsDialog extends StatefulWidget {
+  const _ScriptDetailsDialog({required this.controller, required this.record});
+  final ScriptController controller;
+  final ScriptRecord record;
+
+  @override
+  State<_ScriptDetailsDialog> createState() => _ScriptDetailsDialogState();
+}
+
+class _ScriptDetailsDialogState extends State<_ScriptDetailsDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleController;
+  late final TextEditingController _emojiController;
+  late final TextEditingController _imageUrlController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.record.title);
+    _emojiController = TextEditingController(text: widget.record.emoji ?? '');
+    _imageUrlController = TextEditingController(text: widget.record.imageUrl ?? '');
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _emojiController.dispose();
+    _imageUrlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_isSubmitting) return;
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.controller.updateDetails(
+        id: widget.record.id,
+        title: _titleController.text.trim(),
+        emoji: _emojiController.text.trim().isEmpty ? null : _emojiController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isEmpty ? null : _imageUrlController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit details'),
+      content: Form(
+        key: _formKey,
+        child: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+                textInputAction: TextInputAction.next,
+                validator: (v) => (v ?? '').trim().isEmpty ? 'Title is required' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _emojiController,
+                decoration: const InputDecoration(labelText: 'Emoji (optional)', border: OutlineInputBorder()),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _imageUrlController,
+                decoration: const InputDecoration(labelText: 'Image URL (optional)', border: OutlineInputBorder()),
+                textInputAction: TextInputAction.done,
+              ),
+              const SizedBox(height: 8),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Provide either an emoji or an image URL', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(onPressed: _isSubmitting ? null : _save, child: const Text('Save')),
       ],
     );
   }

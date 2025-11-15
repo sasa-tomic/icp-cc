@@ -98,6 +98,37 @@ class ScriptController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateDetails({
+    required String id,
+    required String title,
+    String? emoji,
+    String? imageUrl,
+  }) async {
+    final int idx = _scripts.indexWhere((ScriptRecord r) => r.id == id);
+    if (idx < 0) {
+      throw ArgumentError('Script not found: $id');
+    }
+    final String trimmedTitle = title.trim();
+    if (trimmedTitle.isEmpty) {
+      throw ArgumentError('title is required');
+    }
+    String? finalEmoji = (emoji != null && emoji.trim().isNotEmpty) ? emoji.trim() : null;
+    String? finalImageUrl = (imageUrl != null && imageUrl.trim().isNotEmpty) ? imageUrl.trim() : null;
+    if (finalEmoji == null && finalImageUrl == null) {
+      finalEmoji = '📜';
+    }
+    final ScriptRecord current = _scripts[idx];
+    final ScriptRecord updated = current.copyWith(
+      title: trimmedTitle,
+      emoji: finalEmoji,
+      imageUrl: finalImageUrl,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    _scripts[idx] = updated;
+    await _repository.persistScripts(_scripts);
+    notifyListeners();
+  }
+
   void _setBusy(bool value) {
     if (_isBusy == value) return;
     _isBusy = value;
