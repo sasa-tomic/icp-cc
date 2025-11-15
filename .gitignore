@@ -1,2 +1,59 @@
 vendors/
 target/
+/.idea/
+/.vscode/
+
+# Flutter/Dart build artifacts
+icp_identity_manager/build/
+icp_identity_manager/**/build/
+icp_identity_manager/**/.dart_tool/
+icp_identity_manager/**/.flutter-plugins*
+icp_identity_manager/**/.packages
+icp_identity_manager/**/.metadata
+icp_identity_manager/**/pubspec.lock
+icp_identity_manager/**/ios/Flutter/Flutter.podspec
+icp_identity_manager/**/ios/Pods/
+icp_identity_manager/**/ios/.symlinks/
+icp_identity_manager/**/ios/Flutter/Generated.xcconfig
+icp_identity_manager/**/ios/Flutter/flutter_export_environment.sh
+icp_identity_manager/**/ios/**/*.xcworkspace/
+icp_identity_manager/**/ios/**/*.xcuserdata/
+icp_identity_manager/**/ios/**/DerivedData/
+icp_identity_manager/**/macos/Flutter/ephemeral/
+icp_identity_manager/**/linux/flutter/ephemeral/
+icp_identity_manager/**/windows/flutter/ephemeral/
+
+# Android JNI libs and intermediates
+icp_identity_manager/android/app/src/main/jniLibs/
+icp_identity_manager/android/.gradle/
+icp_identity_manager/android/build/
+icp_identity_manager/android/**/local.properties
+icp_identity_manager/android/**/.cxx/
+
+# Generated native bundles
+icp_identity_manager/**/intermediates_do_not_run/
+icp_identity_manager/**/bundle/
+
+# APK/AAB and unpacked APK contents
+icp_identity_manager/*.apk
+icp_identity_manager/*.aab
+icp_identity_manager/AndroidManifest.xml
+icp_identity_manager/classes.dex
+icp_identity_manager/DebugProbesKt.bin
+icp_identity_manager/resources.arsc
+icp_identity_manager/lib/**
+icp_identity_manager/res/**
+icp_identity_manager/META-INF/**
+icp_identity_manager/META-INF
+icp_identity_manager/assets/**
+icp_identity_manager/assets
+icp_identity_manager/kotlin/**
+icp_identity_manager/kotlin
+icp_identity_manager/kotlin-tooling-metadata.json
+
+# Nested accidental paths
+icp_identity_manager/icp_identity_manager/android/app/src/main/jniLibs/
+
+# Platform-specific caches
+**/.DS_Store
+**/Thumbs.db

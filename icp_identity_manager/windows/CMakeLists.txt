@@ -87,6 +87,28 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     COMPONENT Runtime)
 endif()
 
+# Include Rust DLL (icp_core.dll) if present, or try building it
+set(RUST_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../")
+set(RUST_CRATE_DIR "${RUST_PROJECT_ROOT}/rust/icp_core")
+set(RUST_PROFILE "$<IF:$<CONFIG:Debug>,debug,release>")
+set(RUST_DLL1 "${RUST_CRATE_DIR}/target/${RUST_PROFILE}/icp_core.dll")
+set(RUST_DLL2 "${RUST_PROJECT_ROOT}/target/${RUST_PROFILE}/icp_core.dll")
+set(RUST_DLL "")
+if(EXISTS "${RUST_DLL1}")
+  set(RUST_DLL "${RUST_DLL1}")
+elseif(EXISTS "${RUST_DLL2}")
+  set(RUST_DLL "${RUST_DLL2}")
+endif()
+
+if(NOT RUST_DLL STREQUAL "")
+  message(STATUS "Including Rust DLL: ${RUST_DLL}")
+  install(FILES "${RUST_DLL}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+else()
+  message(FATAL_ERROR "Rust icp_core.dll not found. Run: make windows")
+endif()
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

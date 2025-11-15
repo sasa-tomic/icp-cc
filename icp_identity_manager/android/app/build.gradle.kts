@@ -3,6 +3,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("org.mozilla.rust-android-gradle.rust-android") version "0.9.3" apply false
 }
 
 android {
@@ -47,36 +48,25 @@ android {
             "x86_64" to "x86_64-linux-android",
             "x86" to "i686-linux-android",
         )
-        val projectRoot = project.rootDir.parentFile // icp-cc
-        val rustCrateDir = File(projectRoot, "rust/icp_core")
-        val targetDir1 = File(rustCrateDir, "target")
-        val targetDir2 = File(projectRoot, "target")
+        // Resolve repo root (android/ is two levels under repo root)
+        val repoRoot = project.rootDir.parentFile?.parentFile ?: project.rootDir
+        val rustCrateDir = File(repoRoot, "rust/icp_core")
         val jniLibsDir = File(project.projectDir, "src/main/jniLibs")
 
         tasks.named("merge${variant.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}JniLibFolders").configure {
             doFirst {
-                abiDirs.forEach { (abi, triple) ->
-                    val outDir = File(jniLibsDir, abi)
-                    outDir.mkdirs()
-                    val candidates = listOf(
-                        File(targetDir1, "${triple}/release/libicp_core.so"),
-                        File(targetDir1, "${triple}/debug/libicp_core.so"),
-                        File(targetDir2, "${triple}/release/libicp_core.so"),
-                        File(targetDir2, "${triple}/debug/libicp_core.so"),
-                    )
-                    val src = candidates.firstOrNull { it.exists() }
-                    if (src != null) {
-                        val dst = File(outDir, "libicp_core.so")
-                        src.copyTo(dst, overwrite = true)
-                        println("Copied Rust lib to ${dst}")
-                    } else {
-                        println("Warning: libicp_core.so not found for ABI ${abi}; build Rust targets or set up cargo-ndk")
-                    }
+                val missing = mutableListOf<String>()
+                abiDirs.forEach { (abi, _) ->
+                    val soFile = File(File(jniLibsDir, abi), "libicp_core.so")
+                    if (!soFile.exists()) missing.add(abi)
                 }
+                if (missing.isNotEmpty()) throw GradleException("Missing libicp_core.so for ABIs: ${missing.joinToString(", ")}. Run: make android")
             }
         }
     }
 }
+
+// Deliberately do NOT try to build Rust here; fail fast if missing.
 
 flutter {
     source = "../.."
