@@ -45,6 +45,38 @@ struct Review {
     updated_at: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+struct IdentityProfile {
+    id: String,
+    principal: String,
+    display_name: String,
+    username: Option<String>,
+    contact_email: Option<String>,
+    contact_telegram: Option<String>,
+    contact_twitter: Option<String>,
+    contact_discord: Option<String>,
+    website_url: Option<String>,
+    bio: Option<String>,
+    metadata: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpsertIdentityProfileRequest {
+    principal: String,
+    display_name: String,
+    username: Option<String>,
+    contact_email: Option<String>,
+    contact_telegram: Option<String>,
+    contact_twitter: Option<String>,
+    contact_discord: Option<String>,
+    website_url: Option<String>,
+    bio: Option<String>,
+    #[serde(default)]
+    metadata: Option<serde_json::Value>,
+}
+
 #[derive(Debug, Deserialize)]
 struct ScriptsQuery {
     limit: Option<i32>,
@@ -1096,6 +1128,210 @@ fn resolve_script_visibility(flag: Option<bool>) -> bool {
     flag.unwrap_or(true)
 }
 
+fn sanitize_optional(value: &Option<String>) -> Option<String> {
+    value
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+}
+
+fn identity_profile_to_payload(profile: &IdentityProfile) -> serde_json::Value {
+    let metadata = profile
+        .metadata
+        .as_deref()
+        .and_then(|raw| serde_json::from_str(raw).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    serde_json::json!({
+        "profile": {
+            "id": profile.id,
+            "principal": profile.principal,
+            "displayName": profile.display_name,
+            "username": profile.username,
+            "contactEmail": profile.contact_email,
+            "contactTelegram": profile.contact_telegram,
+            "contactTwitter": profile.contact_twitter,
+            "contactDiscord": profile.contact_discord,
+            "websiteUrl": profile.website_url,
+            "bio": profile.bio,
+            "metadata": metadata,
+            "createdAt": profile.created_at,
+            "updatedAt": profile.updated_at,
+        }
+    })
+}
+
+fn validate_identity_profile_payload(
+    payload: &UpsertIdentityProfileRequest,
+) -> Result<(), (StatusCode, String)> {
+    if payload.principal.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Principal is required to save a profile".to_string(),
+        ));
+    }
+    if payload.display_name.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Display name is required".to_string(),
+        ));
+    }
+    if payload.display_name.trim().len() > 120 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Display name is too long".to_string(),
+        ));
+    }
+
+    if let Some(email) = sanitize_optional(&payload.contact_email) {
+        if !email.contains('@') || !email.contains('.') {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Contact email must be a valid address".to_string(),
+            ));
+        }
+    }
+
+    if let Some(url) = sanitize_optional(&payload.website_url) {
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Website URL must include http(s) scheme".to_string(),
+            ));
+        }
+    }
+
+    if let Some(ref metadata) = payload.metadata {
+        if !metadata.is_object() {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Metadata must be an object".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn encode_metadata(
+    metadata: &Option<serde_json::Value>,
+) -> Result<Option<String>, (StatusCode, String)> {
+    if let Some(value) = metadata {
+        serde_json::to_string(value).map(Some).map_err(|err| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid metadata payload: {}", err),
+            )
+        })
+    } else {
+        Ok(None)
+    }
+}
+
+async fn persist_identity_profile(
+    pool: &SqlitePool,
+    payload: &UpsertIdentityProfileRequest,
+) -> Result<IdentityProfile, (StatusCode, String)> {
+    validate_identity_profile_payload(payload)?;
+    let metadata = encode_metadata(&payload.metadata)?;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let username = sanitize_optional(&payload.username);
+    let contact_email = sanitize_optional(&payload.contact_email);
+    let contact_telegram = sanitize_optional(&payload.contact_telegram);
+    let contact_twitter = sanitize_optional(&payload.contact_twitter);
+    let contact_discord = sanitize_optional(&payload.contact_discord);
+    let website_url = sanitize_optional(&payload.website_url);
+    let bio = sanitize_optional(&payload.bio);
+
+    let display_name = payload.display_name.trim();
+    let principal = payload.principal.trim();
+
+    let record_id = uuid::Uuid::new_v4().to_string();
+
+    sqlx::query(
+        r#"
+        INSERT INTO identity_profiles (
+            id, principal, display_name, username, contact_email, contact_telegram,
+            contact_twitter, contact_discord, website_url, bio, metadata, created_at, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)
+        ON CONFLICT(principal) DO UPDATE SET
+            display_name=excluded.display_name,
+            username=excluded.username,
+            contact_email=excluded.contact_email,
+            contact_telegram=excluded.contact_telegram,
+            contact_twitter=excluded.contact_twitter,
+            contact_discord=excluded.contact_discord,
+            website_url=excluded.website_url,
+            bio=excluded.bio,
+            metadata=excluded.metadata,
+            updated_at=excluded.updated_at
+        "#,
+    )
+    .bind(&record_id)
+    .bind(principal)
+    .bind(display_name)
+    .bind(&username)
+    .bind(&contact_email)
+    .bind(&contact_telegram)
+    .bind(&contact_twitter)
+    .bind(&contact_discord)
+    .bind(&website_url)
+    .bind(&bio)
+    .bind(&metadata)
+    .bind(&now)
+    .execute(pool)
+    .await
+    .map_err(|err| {
+        tracing::error!("Failed to persist identity profile: {}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to save identity profile".to_string(),
+        )
+    })?;
+
+    fetch_identity_profile(pool, principal).await
+}
+
+async fn fetch_identity_profile(
+    pool: &SqlitePool,
+    principal: &str,
+) -> Result<IdentityProfile, (StatusCode, String)> {
+    let trimmed = principal.trim();
+    if trimmed.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Principal is required to load a profile".to_string(),
+        ));
+    }
+
+    sqlx::query_as::<_, IdentityProfile>(
+        r#"
+        SELECT id, principal, display_name, username, contact_email, contact_telegram,
+               contact_twitter, contact_discord, website_url, bio, metadata, created_at, updated_at
+        FROM identity_profiles
+        WHERE principal = ?1
+        "#,
+    )
+    .bind(trimmed)
+    .fetch_optional(pool)
+    .await
+    .map_err(|err| {
+        tracing::error!("Failed to load identity profile: {}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to load identity profile".to_string(),
+        )
+    })?
+    .ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            "Identity profile was not found".to_string(),
+        )
+    })
+}
+
 #[handler]
 async fn create_script(
     Json(req): Json<CreateScriptRequest>,
@@ -1117,7 +1353,8 @@ async fn create_script(
         return *response;
     }
 
-    // Generate ID if not provided
+    // TODO(ux): Replace random UUID IDs with user supplied globally unique slugs or deterministic hashes
+    // so marketplace links remain stable across uploads.
     let script_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -1174,6 +1411,42 @@ async fn create_script(
             )
                 .into_response()
         }
+    }
+}
+
+#[handler]
+async fn upsert_identity_profile(
+    Json(payload): Json<UpsertIdentityProfileRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match persist_identity_profile(&state.pool, &payload).await {
+        Ok(profile) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "data": identity_profile_to_payload(&profile)
+            })),
+        )
+            .into_response(),
+        Err((status, message)) => error_response(status, &message),
+    }
+}
+
+#[handler]
+async fn get_identity_profile(
+    Path(principal): Path<String>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match fetch_identity_profile(&state.pool, &principal).await {
+        Ok(profile) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "data": identity_profile_to_payload(&profile)
+            })),
+        )
+            .into_response(),
+        Err((status, message)) => error_response(status, &message),
     }
 }
 
@@ -1844,26 +2117,39 @@ async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
         );
     }
 
-    match sqlx::query("DELETE FROM scripts")
+    let reset_scripts = sqlx::query("DELETE FROM scripts")
         .execute(&state.pool)
-        .await
-    {
-        Ok(_) => Json(serde_json::json!({
+        .await;
+
+    let reset_reviews = sqlx::query("DELETE FROM reviews")
+        .execute(&state.pool)
+        .await;
+
+    let reset_profiles = sqlx::query("DELETE FROM identity_profiles")
+        .execute(&state.pool)
+        .await;
+
+    if reset_scripts.is_ok() && reset_reviews.is_ok() && reset_profiles.is_ok() {
+        Json(serde_json::json!({
             "success": true,
             "message": "Database reset successfully"
         }))
-        .into_response(),
-        Err(e) => {
-            tracing::error!("Failed to reset database: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to reset database"
-                })),
-            )
-                .into_response()
-        }
+        .into_response()
+    } else {
+        tracing::error!(
+            "Failed to reset database: scripts={:?}, reviews={:?}, profiles={:?}",
+            reset_scripts.err(),
+            reset_reviews.err(),
+            reset_profiles.err()
+        );
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Failed to reset database"
+            })),
+        )
+            .into_response()
     }
 }
 
@@ -1931,6 +2217,36 @@ async fn initialize_database(pool: &SqlitePool) {
         .await
         .expect("Failed to create reviews index");
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS identity_profiles (
+            id TEXT PRIMARY KEY,
+            principal TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            username TEXT,
+            contact_email TEXT,
+            contact_telegram TEXT,
+            contact_twitter TEXT,
+            contact_discord TEXT,
+            website_url TEXT,
+            bio TEXT,
+            metadata TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create identity_profiles table");
+
+    sqlx::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_identity_profiles_principal ON identity_profiles(principal)",
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create identity_profiles index");
+
     tracing::info!("Database initialized successfully");
 }
 
@@ -1988,6 +2304,11 @@ async fn main() -> Result<(), std::io::Error> {
             "/api/v1/scripts/:id/reviews",
             get(get_reviews).post(create_review),
         )
+        .at(
+            "/api/v1/identities/:principal/profile",
+            get(get_identity_profile),
+        )
+        .at("/api/v1/identities/profile", post(upsert_identity_profile))
         .at("/api/v1/marketplace-stats", get(get_marketplace_stats))
         .at("/api/v1/update-script-stats", post(update_script_stats))
         .at("/api/dev/reset-database", post(reset_database))
@@ -2161,6 +2482,106 @@ mod tests {
         .execute(pool)
         .await
         .expect("failed to insert script");
+    }
+
+    async fn setup_identity_state() -> Arc<AppState> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("connect sqlite memory");
+
+        initialize_database(&pool).await;
+        Arc::new(AppState { pool })
+    }
+
+    #[tokio::test]
+    async fn upsert_identity_profile_creates_and_updates() {
+        let state = setup_identity_state().await;
+
+        let request = UpsertIdentityProfileRequest {
+            principal: "aaaaa-aa".to_string(),
+            display_name: "Primary Identity".to_string(),
+            username: Some("icp_builder".to_string()),
+            contact_email: Some("team@example.com".to_string()),
+            contact_telegram: Some("@icp".to_string()),
+            contact_twitter: None,
+            contact_discord: None,
+            website_url: Some("https://internetcomputer.org".to_string()),
+            bio: Some("Building unstoppable tools".to_string()),
+            metadata: Some(serde_json::json!({"headline": "Engineers"})),
+        };
+
+        let created = persist_identity_profile(&state.pool, &request)
+            .await
+            .expect("profile created");
+        assert_eq!(created.principal, "aaaaa-aa");
+        assert_eq!(created.display_name, "Primary Identity");
+        assert_eq!(created.username.as_deref(), Some("icp_builder"));
+
+        let updated_request = UpsertIdentityProfileRequest {
+            principal: "aaaaa-aa".to_string(),
+            display_name: "Primary Identity v2".to_string(),
+            username: Some("icp_bldr".to_string()),
+            contact_email: Some("ops@example.com".to_string()),
+            contact_telegram: Some("@icp".to_string()),
+            contact_twitter: Some("@dfinity".to_string()),
+            contact_discord: Some("icp#1234".to_string()),
+            website_url: Some("https://internetcomputer.org/docs".to_string()),
+            bio: Some("Updated bio".to_string()),
+            metadata: Some(
+                serde_json::json!({"headline": "Engineers", "tags": ["icp", "autorun"]}),
+            ),
+        };
+
+        let updated = persist_identity_profile(&state.pool, &updated_request)
+            .await
+            .expect("profile updated");
+        assert_eq!(updated.principal, "aaaaa-aa");
+        assert_eq!(updated.display_name, "Primary Identity v2");
+        assert_eq!(updated.username.as_deref(), Some("icp_bldr"));
+        assert_eq!(updated.contact_twitter.as_deref(), Some("@dfinity"));
+
+        let retrieved = fetch_identity_profile(&state.pool, "aaaaa-aa")
+            .await
+            .expect("profile retrievable");
+        assert_eq!(retrieved.display_name, "Primary Identity v2");
+    }
+
+    #[tokio::test]
+    async fn upsert_identity_profile_rejects_invalid_email() {
+        let state = setup_identity_state().await;
+
+        let bad_request = UpsertIdentityProfileRequest {
+            principal: "bbbbbb-bb".to_string(),
+            display_name: "Broken".to_string(),
+            username: None,
+            contact_email: Some("invalid-email".to_string()),
+            contact_telegram: None,
+            contact_twitter: None,
+            contact_discord: None,
+            website_url: None,
+            bio: None,
+            metadata: None,
+        };
+
+        let error = persist_identity_profile(&state.pool, &bad_request)
+            .await
+            .expect_err("invalid email must fail");
+        assert_eq!(error.0, StatusCode::BAD_REQUEST);
+        assert!(
+            error.1.contains("email"),
+            "error must mention email validation"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_identity_profile_not_found() {
+        let state = setup_identity_state().await;
+        let error = fetch_identity_profile(&state.pool, "missing-principal")
+            .await
+            .expect_err("missing profile must fail");
+        assert_eq!(error.0, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

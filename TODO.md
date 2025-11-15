@@ -6,6 +6,7 @@
 - Add support in the app and the backend API to fully support signing and verification with secp256k1
 - Extend the UI to support script re-uploading from "My scripts"
 - Extend the UI to support script deletion in the "Marketplace" tab (server would do the request signature checking)
+- Replace random UUID script IDs with a user-supplied globally unique slug (or deterministic hash fallback) so marketplace links remain stable
 
 ### Production Deployment (Priority: HIGH)
 

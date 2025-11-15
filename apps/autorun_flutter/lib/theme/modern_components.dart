@@ -144,16 +144,37 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedSwitcher(
-              duration: AppDesignSystem.durationNormal,
-              child: Icon(
-                isActive ? item.activeIcon : item.icon,
-                key: ValueKey(isActive),
-                color: isActive
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                size: isCompactScreen ? 20 : 24,
-              ),
+            Stack(
+              children: [
+                AnimatedSwitcher(
+                  duration: AppDesignSystem.durationNormal,
+                  child: Icon(
+                    isActive ? item.activeIcon : item.icon,
+                    key: ValueKey(isActive),
+                    color: isActive
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: isCompactScreen ? 20 : 24,
+                  ),
+                ),
+                if (item.showBadge)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.surface,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             SizedBox(height: isCompactScreen ? AppDesignSystem.spacing2 : AppDesignSystem.spacing4),
             AnimatedDefaultTextStyle(
@@ -181,11 +202,15 @@ class ModernNavigationItem {
     required this.icon,
     required this.activeIcon,
     required this.label,
+    this.showBadge = false,
+    this.badgeIcon,
   });
 
   final IconData icon;
   final IconData activeIcon;
   final String label;
+  final bool showBadge;
+  final IconData? badgeIcon;
 }
 
 /// Modern floating action button with smooth animations

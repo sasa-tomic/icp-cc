@@ -45,7 +45,7 @@ void main() {
           reason: 'Marketplace should use single column layout for mobile devices');
 
         // Verify appropriate aspect ratio for mobile cards
-        expect(gridDelegate.childAspectRatio, equals(1.0),
+        expect(gridDelegate.childAspectRatio, equals(1.35),
           reason: 'Card aspect ratio should be optimized for compact mobile viewing');
       } else {
         // If GridView is not found, check if we're in a loading or error state
@@ -96,6 +96,32 @@ void main() {
 
         expect(gridDelegate2.crossAxisCount, equals(1),
           reason: 'Should maintain single column on larger mobile screens');
+      }
+    });
+
+    testWidgets('should prefer multi-column layout on large desktop widths when data is available', (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 900));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MarketplaceScreen(),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+
+      final gridViewFinder = find.byType(GridView);
+      if (gridViewFinder.evaluate().isNotEmpty) {
+        final GridView gridView = tester.widget(gridViewFinder);
+        final gridDelegate = gridView.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+        expect(gridDelegate.crossAxisCount, greaterThanOrEqualTo(2),
+            reason: 'Desktop layout should render multiple columns when viewport is wide enough');
+        expect(gridDelegate.childAspectRatio, equals(1.75),
+            reason: 'Desktop cards should be more compact vertically');
+      } else {
+        final loadingFinder = find.byType(CircularProgressIndicator);
+        final errorFinder = find.byType(ErrorDisplay);
+        final noScriptsFinder = find.text('No scripts found');
+        expect(loadingFinder.evaluate().isNotEmpty || errorFinder.evaluate().isNotEmpty || noScriptsFinder.evaluate().isNotEmpty, true,
+            reason: 'Marketplace should be in loading, error, no scripts, or grid state');
       }
     });
 

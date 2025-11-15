@@ -11,6 +11,7 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/error_display.dart';
 import '../widgets/script_details_dialog.dart';
 import 'download_history_screen.dart';
+import '../utils/responsive_grid_config.dart';
 
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({super.key});
@@ -448,94 +449,99 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           }
           return false;
         },
-        child: GridView.builder(
-          padding: const EdgeInsets.all(16.0),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 1,
-            childAspectRatio: 1.0,
-            crossAxisSpacing: 16.0,
-            mainAxisSpacing: 16.0,
-          ),
-          itemCount: _scripts.length + (_hasMore ? 1 : 0),
-          itemBuilder: (context, index) {
-            if (index == _scripts.length) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final gridConfig = ResponsiveGridConfig.forWidth(constraints.maxWidth);
+            return GridView.builder(
+              padding: const EdgeInsets.all(16.0),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: gridConfig.crossAxisCount,
+                childAspectRatio: gridConfig.childAspectRatio,
+                crossAxisSpacing: 16.0,
+                mainAxisSpacing: 16.0,
+              ),
+              itemCount: _scripts.length + (_hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == _scripts.length) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
 
-            final script = _scripts[index];
-            final isDownloading = _downloadingScriptIds.contains(script.id);
-            final isDownloaded = _downloadedScriptIds.contains(script.id);
-            
-            return Stack(
-              children: [
-                ScriptCard(
-                  script: script,
-                  onTap: () => _showScriptDetails(context, script),
-                  onDownload: script.price == 0 ? () => _downloadScript(script) : null,
-                  isDownloading: isDownloading,
-                  isDownloaded: isDownloaded,
-                  onQuickPreview: () => _showQuickPreview(context, script),
-                  onShare: () => _shareScript(context, script),
-                ),
-                // Download progress overlay
-                if (isDownloading)
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                final script = _scripts[index];
+                final isDownloading = _downloadingScriptIds.contains(script.id);
+                final isDownloaded = _downloadedScriptIds.contains(script.id);
+                
+                return Stack(
+                  children: [
+                    ScriptCard(
+                      script: script,
+                      onTap: () => _showScriptDetails(context, script),
+                      onDownload: script.price == 0 ? () => _downloadScript(script) : null,
+                      isDownloading: isDownloading,
+                      isDownloaded: isDownloaded,
+                      onQuickPreview: () => _showQuickPreview(context, script),
+                      onShare: () => _shareScript(context, script),
+                    ),
+                    // Download progress overlay
+                    if (isDownloading)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Downloading...',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Downloading...',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                // Downloaded indicator
-                if (isDownloaded && !isDownloading)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                    // Downloaded indicator
+                    if (isDownloaded && !isDownloading)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                        ],
+                          child: const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-              ],
+                  ],
+                );
+              },
             );
           },
         ),

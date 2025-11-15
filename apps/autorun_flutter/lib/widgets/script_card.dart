@@ -1,9 +1,15 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/marketplace_script.dart';
 import '../theme/app_design_system.dart';
 import '../theme/modern_components.dart';
+import '../models/identity_record.dart';
+import '../utils/principal.dart';
+import '../services/script_signature_service.dart';
 
 class ScriptCard extends StatelessWidget {
   final MarketplaceScript script;
@@ -194,7 +200,7 @@ class ScriptCard extends StatelessWidget {
 
             // Script information
             Expanded(
-              flex: 3,
+              flex: 4,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.spacing16, vertical: AppDesignSystem.spacing12),
                 child: Column(
@@ -217,10 +223,10 @@ class ScriptCard extends StatelessWidget {
                     ModernChip(
                       label: script.category,
                       selected: true,
-                      backgroundColor: context.colors.primaryContainer,
+                      backgroundColor: context.colors.surfaceContainerHighest,
                     ),
 
-                    const Spacer(),
+                    const SizedBox(height: AppDesignSystem.spacing4),
 
                     // Author and price row
                     Row(
@@ -268,32 +274,10 @@ class ScriptCard extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              // Author identity (principal) - show if available
-                              if (script.authorId.isNotEmpty && script.authorId != 'anonymous')
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 26),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: context.colors.primaryContainer.withValues(alpha: 0.5),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: context.colors.primary.withValues(alpha: 0.3),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      script.authorId.length >= 5
-                                          ? '${script.authorId.substring(0, 5)}...'
-                                          : script.authorId,
-                                      style: context.textStyles.bodySmall.copyWith(
-                                        color: context.colors.onPrimaryContainer,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 9,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 26, top: 4),
+                                child: _buildIdentityBadge(context),
+                              ),
                             ],
                           ),
                         ),
@@ -314,7 +298,7 @@ class ScriptCard extends StatelessWidget {
                       ],
                     ),
 
-                    const SizedBox(height: AppDesignSystem.spacing8),
+                    const SizedBox(height: AppDesignSystem.spacing4),
 
                     // Rating and downloads
                     Row(
@@ -346,7 +330,7 @@ class ScriptCard extends StatelessWidget {
                     ),
 
                     // Action buttons
-                    const SizedBox(height: AppDesignSystem.spacing8),
+                    const SizedBox(height: AppDesignSystem.spacing4),
                     
                     // Prominent download button for free scripts
                     if (onDownload != null && script.price == 0)
@@ -447,5 +431,93 @@ class ScriptCard extends StatelessWidget {
     } else {
       return '${(downloads / 1000000).toStringAsFixed(1)}M';
     }
+  }
+
+  Widget _buildIdentityBadge(BuildContext context) {
+    final principalPrefix = _principalPrefix();
+    final bool isVerified = principalPrefix != null;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    final Color backgroundColor = isVerified
+        ? context.colors.primaryContainer.withValues(alpha: 0.5)
+        : colorScheme.errorContainer.withValues(alpha: 0.5);
+    final Color borderColor = isVerified
+        ? context.colors.primary.withValues(alpha: 0.3)
+        : colorScheme.error.withValues(alpha: 0.3);
+    final Color textColor = isVerified
+        ? context.colors.onPrimaryContainer
+        : colorScheme.onErrorContainer;
+
+    final String label = isVerified
+        ? '${principalPrefix.toLowerCase()}...'
+        : 'UNVERIFIED SIGNATURE';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: Text(
+        label,
+        style: context.textStyles.bodySmall.copyWith(
+          color: textColor,
+          fontWeight: isVerified ? FontWeight.w600 : FontWeight.w700,
+          fontSize: isVerified ? 9 : 8.5,
+          letterSpacing: isVerified ? 0 : 0.2,
+        ),
+      ),
+    );
+  }
+
+  String? _principalPrefix() {
+    final resolved = _resolvePrincipalText();
+    if (resolved == null) return null;
+    final String normalized = resolved.replaceAll('-', '').trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+    return ScriptSignatureService.getShortPrincipal(normalized);
+  }
+
+  String? _resolvePrincipalText() {
+    final String? authorPrincipal = script.authorPrincipal?.trim();
+    if (authorPrincipal != null && authorPrincipal.isNotEmpty) {
+      return authorPrincipal;
+    }
+    return _derivePrincipalFromPublicKey();
+  }
+
+  String? _derivePrincipalFromPublicKey() {
+    final String? publicKey = script.authorPublicKey?.trim();
+    if (publicKey == null || publicKey.isEmpty) return null;
+
+    try {
+      final Uint8List rawBytes = base64Decode(publicKey);
+      if (rawBytes.length == 32) {
+        final principalBytes = PrincipalUtils.principalFromPublicKey(
+          KeyAlgorithm.ed25519,
+          rawBytes,
+        );
+        return PrincipalUtils.toText(principalBytes);
+      }
+
+      if (rawBytes.length == 64 || rawBytes.length == 65) {
+        final Uint8List normalized = rawBytes.length == 65
+            ? rawBytes
+            : Uint8List.fromList(<int>[0x04, ...rawBytes]);
+        final principalBytes = PrincipalUtils.principalFromPublicKey(
+          KeyAlgorithm.secp256k1,
+          normalized,
+        );
+        return PrincipalUtils.toText(principalBytes);
+      }
+
+      debugPrint(
+        'Unsupported public key length (${rawBytes.length}) for script ${script.id}',
+      );
+    } catch (error) {
+      debugPrint('Failed to derive principal for ${script.id}: $error');
+    }
+    return null;
   }
 }

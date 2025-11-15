@@ -1,21 +1,83 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icp_autorun/controllers/identity_controller.dart';
+import 'package:icp_autorun/models/identity_record.dart';
 import 'package:icp_autorun/screens/script_upload_screen.dart';
+import 'package:icp_autorun/services/secure_identity_repository.dart';
+import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'package:icp_autorun/widgets/identity_scope.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _InMemorySecureRepository implements SecureIdentityRepository {
+  _InMemorySecureRepository(this._identities);
+
+  List<IdentityRecord> _identities;
+
+  @override
+  Future<List<IdentityRecord>> loadIdentities() async => List<IdentityRecord>.from(_identities);
+
+  @override
+  Future<void> persistIdentities(List<IdentityRecord> identities) async {
+    _identities = List<IdentityRecord>.from(identities);
+  }
+
+  @override
+  Future<void> deleteIdentitySecureData(String identityId) async {}
+
+  @override
+  Future<void> deleteAllSecureData() async {
+    _identities = <IdentityRecord>[];
+  }
+
+  @override
+  Future<String?> getPrivateKey(String identityId) async => 'private';
+}
 
 void main() {
-  group('ScriptUploadScreen', () {
-    Widget createWidget({PreFilledUploadData? preFilledData}) {
-      return MaterialApp(
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  IdentityRecord testIdentityRecord() {
+    return IdentityRecord(
+      id: 'test-id',
+      label: 'Test Identity',
+      algorithm: KeyAlgorithm.ed25519,
+      publicKey: 'cHVibGlj',
+      privateKey: 'cHJpdmF0ZQ==',
+      mnemonic: 'test mnemonic',
+      createdAt: DateTime.utc(2024, 1, 1),
+    );
+  }
+
+  Future<IdentityController> createControllerWithIdentity() async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final IdentityRecord identity = testIdentityRecord();
+    final IdentityController controller = IdentityController(
+      secureRepository: _InMemorySecureRepository(<IdentityRecord>[identity]),
+      marketplaceService: MarketplaceOpenApiService(),
+      preferences: await SharedPreferences.getInstance(),
+    );
+    await controller.ensureLoaded();
+    await controller.setActiveIdentity(identity.id);
+    return controller;
+  }
+
+  Future<Widget> createWidget({PreFilledUploadData? preFilledData}) async {
+    final IdentityController controller = await createControllerWithIdentity();
+    return IdentityScope(
+      controller: controller,
+      child: MaterialApp(
         home: ScriptUploadScreen(
           preFilledData: preFilledData,
         ),
-      );
-    }
+      ),
+    );
+  }
 
+  group('ScriptUploadScreen', () {
     group('basic UI', () {
       testWidgets('should display upload screen', (WidgetTester tester) async {
         // Act
-        await tester.pumpWidget(createWidget());
+        await tester.pumpWidget(await createWidget());
         await tester.pumpAndSettle();
 
         // Assert
@@ -25,7 +87,7 @@ void main() {
 
        testWidgets('should show form fields', (WidgetTester tester) async {
          // Act
-         await tester.pumpWidget(createWidget());
+         await tester.pumpWidget(await createWidget());
          await tester.pumpAndSettle();
 
           // Assert
@@ -39,8 +101,9 @@ void main() {
           expect(find.text('Compatibility Notes'), findsOneWidget);
           expect(find.text('Icon URL'), findsOneWidget);
           expect(find.text('Screenshots'), findsOneWidget);
-          expect(find.text('Price (in ICP)'), findsOneWidget);
-          expect(find.text('Version'), findsOneWidget);
+        expect(find.text('Price (in ICP)'), findsOneWidget);
+        expect(find.text('Version'), findsOneWidget);
+        expect(find.text('Identity context'), findsOneWidget);
        });
     });
 
@@ -54,7 +117,7 @@ void main() {
          );
 
          // Act
-         await tester.pumpWidget(createWidget(preFilledData: preFilledData));
+         await tester.pumpWidget(await createWidget(preFilledData: preFilledData));
          await tester.pumpAndSettle();
 
          // Assert
@@ -71,7 +134,7 @@ void main() {
         );
 
         // Act
-        await tester.pumpWidget(createWidget(preFilledData: preFilledData));
+        await tester.pumpWidget(await createWidget(preFilledData: preFilledData));
         await tester.pumpAndSettle();
 
         // Assert
@@ -83,7 +146,7 @@ void main() {
     group('form sections', () {
        testWidgets('should display all form sections', (WidgetTester tester) async {
          // Act
-         await tester.pumpWidget(createWidget());
+         await tester.pumpWidget(await createWidget());
          await tester.pumpAndSettle();
 
          // Assert
@@ -98,7 +161,7 @@ void main() {
     group('default values', () {
        testWidgets('should show default values', (WidgetTester tester) async {
          // Act
-         await tester.pumpWidget(createWidget());
+         await tester.pumpWidget(await createWidget());
          await tester.pumpAndSettle();
 
          // Assert
@@ -113,7 +176,7 @@ void main() {
     group('category selection', () {
       testWidgets('should show category dropdown', (WidgetTester tester) async {
         // Act
-        await tester.pumpWidget(createWidget());
+        await tester.pumpWidget(await createWidget());
         await tester.pumpAndSettle();
 
         // Assert
@@ -125,7 +188,7 @@ void main() {
     group('navigation', () {
       testWidgets('should have app bar', (WidgetTester tester) async {
         // Act
-        await tester.pumpWidget(createWidget());
+        await tester.pumpWidget(await createWidget());
         await tester.pumpAndSettle();
 
         // Assert
@@ -143,12 +206,12 @@ void main() {
         );
 
         // Act
-        await tester.pumpWidget(createWidget(preFilledData: preFilledData));
+        await tester.pumpWidget(await createWidget(preFilledData: preFilledData));
         await tester.pumpAndSettle();
 
          // Assert - Should still show form without crashing
          expect(find.byType(ScriptUploadScreen), findsOneWidget);
-         expect(find.byType(TextFormField), findsNWidgets(10));
+         expect(find.text('Identity context'), findsOneWidget);
       });
     });
   });

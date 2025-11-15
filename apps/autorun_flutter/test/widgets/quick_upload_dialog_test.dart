@@ -11,6 +11,7 @@ import 'package:icp_autorun/services/secure_identity_repository.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:icp_autorun/widgets/quick_upload_dialog.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockMarketplaceService extends Mock
     implements MarketplaceOpenApiService {}
@@ -78,11 +79,13 @@ void main() {
     late IdentityController identityController;
     late _MockMarketplaceService marketplaceService;
 
-    setUp(() {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
       identity = _createIdentity(id: 'test-identity', label: 'Test Identity');
       final _FakeSecureIdentityRepository repository =
           _FakeSecureIdentityRepository(<IdentityRecord>[identity]);
       identityController = IdentityController(secureRepository: repository);
+      await identityController.ensureLoaded();
       marketplaceService = _MockMarketplaceService();
     });
 
@@ -121,6 +124,7 @@ void main() {
 
     testWidgets('blocks upload when no identity is selected',
         (WidgetTester tester) async {
+      await identityController.setActiveIdentity(identity.id);
       await pumpDialog(tester);
 
       // Fill required fields that are not pre-populated
@@ -170,8 +174,7 @@ void main() {
       await tester.tap(submitButton);
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Identity is required'), findsOneWidget);
-      expect(find.textContaining('Please select an identity'), findsOneWidget);
+      expect(find.textContaining('Select an identity from the session banner'), findsOneWidget);
       verifyNever(() => marketplaceService.uploadScript(
             title: any(named: 'title'),
             description: any(named: 'description'),

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../controllers/identity_controller.dart';
+import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
 import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
+import '../widgets/identity_profile_sheet.dart';
 
 class IdentityHomePage extends StatefulWidget {
   const IdentityHomePage({super.key});
@@ -106,6 +108,38 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     );
   }
 
+  Future<void> _editIdentityProfile(IdentityRecord record) async {
+    // Ensure profile is loaded before editing
+    await _controller.ensureProfileLoaded(record);
+    
+    final IdentityProfile? existingProfile = _controller.profileForRecord(record);
+    
+    if (!mounted) return;
+    
+    final IdentityProfileDraft? draft = await showIdentityProfileSheet(
+      context: context,
+      identity: record,
+      existingProfile: existingProfile,
+    );
+    
+    if (draft != null && mounted) {
+      try {
+        await _controller.saveProfile(identity: record, draft: draft);
+        if (!mounted) return;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile saved successfully')),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save profile: $error')),
+        );
+      }
+    }
+  }
+
   void _copyToClipboard(String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
     if (!mounted) {
@@ -118,6 +152,9 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     switch (action) {
       case _IdentityAction.showDetails:
         await _showDetailsDialog(record, title: 'Identity details');
+        break;
+      case _IdentityAction.editProfile:
+        await _editIdentityProfile(record);
         break;
       case _IdentityAction.rename:
         await _showRenameDialog(record);
@@ -309,7 +346,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                       child: InkWell(
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          _copyToClipboard('Principal', PrincipalUtils.textFromRecord(record));
+                          _editIdentityProfile(record);
                         },
                         borderRadius: BorderRadius.circular(20),
                          child: Padding(
@@ -421,6 +458,16 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 itemBuilder: (BuildContext context) => <PopupMenuEntry<_IdentityAction>>[
+                                  PopupMenuItem<_IdentityAction>(
+                                    value: _IdentityAction.editProfile,
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.person_rounded, size: 20),
+                                        const SizedBox(width: 12),
+                                        const Text('Edit profile'),
+                                      ],
+                                    ),
+                                  ),
                                   PopupMenuItem<_IdentityAction>(
                                     value: _IdentityAction.showDetails,
                                     child: Row(
@@ -667,4 +714,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction { showDetails, rename, delete }
+enum _IdentityAction { editProfile, showDetails, rename, delete }

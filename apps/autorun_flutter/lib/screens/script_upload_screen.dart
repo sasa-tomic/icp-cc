@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../widgets/error_display.dart';
-import '../widgets/identity_selector.dart';
 import '../services/script_signature_service.dart';
 import '../controllers/identity_controller.dart';
+import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
-import '../services/secure_identity_repository.dart';
 import '../utils/principal.dart';
+import '../widgets/identity_scope.dart';
+import '../widgets/identity_switcher_sheet.dart';
+import '../widgets/identity_profile_sheet.dart';
 
 class PreFilledUploadData {
   final String title;
@@ -33,7 +35,6 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final MarketplaceOpenApiService _marketplaceService =
       MarketplaceOpenApiService();
-  late final IdentityController _identityController;
 
   // Form controllers
   final TextEditingController _titleController = TextEditingController();
@@ -50,10 +51,6 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
       TextEditingController();
   final TextEditingController _priceController =
       TextEditingController(text: '0.0');
-
-  // Identity management
-  IdentityRecord? _selectedIdentity;
-  List<IdentityRecord> _identities = [];
 
   bool _isUploading = false;
   String? _error;
@@ -78,12 +75,6 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   void initState() {
     super.initState();
 
-    // Initialize identity controller
-    _identityController = IdentityController(
-      secureRepository: SecureIdentityRepository(),
-    )..addListener(_onIdentitiesChanged);
-    _identityController.ensureLoaded();
-
     // Pre-fill data if provided
     if (widget.preFilledData != null) {
       _titleController.text = widget.preFilledData!.title;
@@ -99,24 +90,164 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _identityController.removeListener(_onIdentitiesChanged);
-    _identityController.dispose();
-    super.dispose();
-  }
-
-  void _onIdentitiesChanged() {
+  Future<void> _openIdentitySwitcher() async {
+    final IdentityController controller = IdentityScope.of(context, listen: false);
+    final IdentitySwitcherResult? result =
+        await showIdentitySwitcherSheet(context: context, controller: controller);
+    if (!mounted || result == null) {
+      return;
+    }
+    if (result.openIdentityManager) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Use the Identities tab on the home screen to manage identities.'),
+        ),
+      );
+      return;
+    }
+    await controller.setActiveIdentity(result.identityId);
     if (mounted) {
       setState(() {
-        _identities = List.from(_identityController.identities);
-        // Clear selected identity if it no longer exists
-        if (_selectedIdentity != null &&
-            !_identities.contains(_selectedIdentity)) {
-          _selectedIdentity = null;
-        }
+        _error = null;
       });
     }
+    if (!mounted || result.identityId == null) {
+      return;
+    }
+    final IdentityRecord? identity = controller.findById(result.identityId!);
+    if (identity != null) {
+      await _promptForProfile(controller, identity);
+    }
+  }
+
+  Future<void> _promptForProfile(
+    IdentityController controller,
+    IdentityRecord identity,
+  ) async {
+    IdentityProfile? profile = controller.profileForRecord(identity);
+    profile ??= await controller.ensureProfileLoaded(identity);
+    if (!mounted) {
+      return;
+    }
+    if (profile?.isComplete == true) {
+      return;
+    }
+    final IdentityProfileDraft? draft = await showIdentityProfileSheet(
+      context: context,
+      identity: identity,
+      existingProfile: profile,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (draft == null) {
+      return;
+    }
+    await controller.saveProfile(identity: identity, draft: draft);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Identity profile saved')),
+    );
+  }
+
+  Widget _buildIdentityCard(IdentityController controller) {
+    final IdentityRecord? identity = controller.activeIdentity;
+    if (identity == null) {
+      return Card(
+        elevation: 0,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'No identity selected - Publishing requires an identity',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              IconButton(
+                onPressed: _openIdentitySwitcher,
+                icon: const Icon(Icons.swap_horiz_rounded),
+                tooltip: 'Choose identity',
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final String principal = PrincipalUtils.textFromRecord(identity);
+    final bool isComplete = controller.isProfileComplete(identity);
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: isComplete 
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                  : Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
+              child: Icon(
+                Icons.verified_user, 
+                size: 20,
+                color: isComplete 
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.error,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    identity.label.isEmpty ? 'Untitled identity' : identity.label,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    principal.length > 20 ? '${principal.substring(0, 20)}...' : principal,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (!isComplete)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.warning_amber_rounded, 
+                  size: 16, 
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                ),
+              ),
+            IconButton(
+              onPressed: _openIdentitySwitcher,
+              icon: const Icon(Icons.swap_horiz_rounded),
+              tooltip: 'Switch identity',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   Future<void> _uploadScript() async {
@@ -125,9 +256,12 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     }
 
     // Check if identity is selected
-    if (_selectedIdentity == null) {
+    final IdentityController identityController =
+        IdentityScope.of(context, listen: false);
+    final IdentityRecord? activeIdentity = identityController.activeIdentity;
+    if (activeIdentity == null) {
       setState(() {
-        _error = identitySelectionErrorText;
+        _error = 'Select an identity from the session banner before uploading.';
       });
       return;
     }
@@ -205,7 +339,7 @@ end''';
 
       // Sign the script upload
       final signature = await ScriptSignatureService.signScriptUpload(
-        authorIdentity: _selectedIdentity!,
+        authorIdentity: activeIdentity,
         title: title,
         description: description,
         category: category,
@@ -216,7 +350,7 @@ end''';
         timestampIso: timestamp,
       );
 
-      final authorPrincipal = PrincipalUtils.textFromRecord(_selectedIdentity!);
+      final authorPrincipal = PrincipalUtils.textFromRecord(activeIdentity);
 
       // Upload script with signature
       await _marketplaceService.uploadScript(
@@ -233,7 +367,7 @@ end''';
         compatibility: compatibility,
         price: price,
         authorPrincipal: authorPrincipal,
-        authorPublicKey: _selectedIdentity!.publicKey,
+        authorPublicKey: activeIdentity.publicKey,
         signature: signature,
         timestampIso: timestamp,
       );
@@ -274,6 +408,7 @@ end''';
 
   @override
   Widget build(BuildContext context) {
+    final IdentityController identityController = IdentityScope.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Upload Script'),
@@ -375,32 +510,9 @@ end''';
                     const SizedBox(height: 16),
 
                     // Identity Selection Section
-                    _buildSectionHeader('Author Identity (Required)'),
+                    _buildSectionHeader('Identity Context'),
                     const SizedBox(height: 8),
-                    Text(
-                      'Select an identity to sign this script. This proves you are the author.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    IdentitySelectorField(
-                      identities: _identities,
-                      selectedIdentity: _selectedIdentity,
-                      onChanged: (IdentityRecord? value) {
-                        setState(() {
-                          _selectedIdentity = value;
-                          if (_selectedIdentity != null &&
-                              _error == identitySelectionErrorText) {
-                            _error = null;
-                          }
-                        });
-                      },
-                      requirementMessage: identityRequirementMessage,
-                    ),
-
+                    _buildIdentityCard(identityController),
                     const SizedBox(height: 24),
 
                     // Category and Tags Section

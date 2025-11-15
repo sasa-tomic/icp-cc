@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'config/app_config.dart';
+import 'controllers/identity_controller.dart';
+import 'models/identity_record.dart';
 import 'models/script_template.dart';
 import 'rust/native_bridge.dart';
 import 'theme/app_design_system.dart';
@@ -9,6 +11,7 @@ import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
 import 'screens/identity_home_page.dart';
 import 'screens/scripts_screen.dart';
+import 'widgets/identity_scope.dart';
 
 
 Future<void> main() async {
@@ -18,17 +21,40 @@ Future<void> main() async {
   runApp(const IdentityApp());
 }
 
-class IdentityApp extends StatelessWidget {
+class IdentityApp extends StatefulWidget {
   const IdentityApp({super.key});
 
   @override
+  State<IdentityApp> createState() => _IdentityAppState();
+}
+
+class _IdentityAppState extends State<IdentityApp> {
+  late final IdentityController _identityController;
+
+  @override
+  void initState() {
+    super.initState();
+    _identityController = IdentityController();
+    unawaited(_identityController.ensureLoaded());
+  }
+
+  @override
+  void dispose() {
+    _identityController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ICP Autorun',
-      theme: AppDesignSystem.lightTheme,
-      darkTheme: AppDesignSystem.darkTheme,
-      themeMode: ThemeMode.system,
-      home: const MainHomePage(),
+    return IdentityScope(
+      controller: _identityController,
+      child: MaterialApp(
+        title: 'ICP Autorun',
+        theme: AppDesignSystem.lightTheme,
+        darkTheme: AppDesignSystem.darkTheme,
+        themeMode: ThemeMode.system,
+        home: const MainHomePage(),
+      ),
     );
   }
 }
@@ -65,21 +91,22 @@ class _MainHomePageState extends State<MainHomePage> {
       body: SafeArea(
         top: true,
         bottom: true,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Theme.of(context).colorScheme.surface,
-                Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
-                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
-              ],
-            ),
-          ),
-          child: Column(
-            children: [
-              Expanded(
+        child: Column(
+          children: [
+
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
+                      Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+                    ],
+                  ),
+                ),
                 child: IndexedStack(
                   index: _currentIndex,
                   children: <Widget>[
@@ -89,29 +116,33 @@ class _MainHomePageState extends State<MainHomePage> {
                   ],
                 ),
               ),
-              // Minimal bottom padding to account for navigation bar
-              SizedBox(height: 16),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
       bottomNavigationBar: _buildModernNavigationBar(),
     );
   }
 
+
+
   Widget _buildModernNavigationBar() {
+    final IdentityController identityController = IdentityScope.of(context);
+    final bool shouldShowBadge = _shouldShowIdentityBadge(identityController);
+    
     return ModernNavigationBar(
       currentIndex: _currentIndex,
       onTap: (index) {
         setState(() => _currentIndex = index);
       },
-      items: const [
-        ModernNavigationItem(
+      items: [
+        const ModernNavigationItem(
           icon: Icons.code_rounded,
           activeIcon: Icons.code_rounded,
           label: 'Scripts',
         ),
-        ModernNavigationItem(
+        const ModernNavigationItem(
           icon: Icons.bookmark_border_rounded,
           activeIcon: Icons.bookmark_rounded,
           label: 'Bookmarks',
@@ -120,9 +151,18 @@ class _MainHomePageState extends State<MainHomePage> {
           icon: Icons.verified_user_outlined,
           activeIcon: Icons.verified_user_rounded,
           label: 'Identities',
+          showBadge: shouldShowBadge,
         ),
       ],
     );
+  }
+
+  bool _shouldShowIdentityBadge(IdentityController controller) {
+    final IdentityRecord? active = controller.activeIdentity;
+    if (active == null) {
+      return true; // Show badge for anonymous
+    }
+    return !controller.isProfileComplete(active);
   }
 }
  

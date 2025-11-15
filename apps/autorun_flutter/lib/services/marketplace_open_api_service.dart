@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
+import '../models/identity_profile.dart';
 import '../config/app_config.dart';
 
 // Flag to control debug output in tests
@@ -704,6 +705,73 @@ class MarketplaceOpenApiService {
 
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Delete script failed: $e');
+      rethrow;
+    }
+  }
+
+  // Identity profile endpoints
+  Future<IdentityProfile?> fetchIdentityProfile({required String principal}) async {
+    try {
+      final encodedPrincipal = Uri.encodeComponent(principal);
+      final response = await _httpClient
+          .get(Uri.parse('$_baseUrl/identities/$encodedPrincipal/profile'))
+          .timeout(_timeout);
+
+      if (response.statusCode == 404) {
+        return null;
+      }
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Identity profile response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to load identity profile');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Identity profile response missing data field');
+      }
+      return IdentityProfile.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Fetch identity profile failed: $e');
+      rethrow;
+    }
+  }
+
+  Future<IdentityProfile> upsertIdentityProfile(IdentityProfileDraft draft) async {
+    try {
+      final response = await _httpClient
+          .post(
+            Uri.parse('$_baseUrl/identities/profile'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(draft.toJson()),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        final String detail =
+            response.body.isNotEmpty ? response.body : response.reasonPhrase ?? 'Unknown failure';
+        throw Exception('Profile save failed (HTTP ${response.statusCode}): $detail');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Identity profile response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to save identity profile');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Identity profile response missing data');
+      }
+      return IdentityProfile.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Upsert identity profile failed: $e');
       rethrow;
     }
   }

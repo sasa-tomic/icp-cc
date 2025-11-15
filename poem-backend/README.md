@@ -158,6 +158,10 @@ Both environments can run simultaneously. See [LOCAL_DEVELOPMENT.md](./LOCAL_DEV
 2. Implement signature verification for writes
 3. Add reviews functionality
 4. Implement search with filters
+
+## ⚠️ Known Limitations
+
+- Script IDs are currently random UUIDs. They must be replaced with user-provided globally unique slugs (or deterministic hashes) so marketplace links remain stable and shareable. Track this in `TODO.md`.
 5. Add rate limiting
 
 ---

@@ -5,10 +5,12 @@ import '../models/identity_record.dart';
 import '../models/script_record.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
-import '../services/secure_identity_repository.dart';
 import '../utils/principal.dart';
+import '../widgets/identity_scope.dart';
+import '../widgets/identity_switcher_sheet.dart';
+import '../widgets/identity_profile_sheet.dart';
+import '../models/identity_profile.dart';
 import 'error_display.dart';
-import 'identity_selector.dart';
 
 class QuickUploadDialog extends StatefulWidget {
   final ScriptRecord? script; // Optional script to pre-fill from
@@ -34,11 +36,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   late final MarketplaceOpenApiService _marketplaceService;
-  late final IdentityController _identityController;
-  late final bool _ownsIdentityController;
-
-  List<IdentityRecord> _identities = <IdentityRecord>[];
-  IdentityRecord? _selectedIdentity;
 
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
@@ -65,20 +62,16 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     'Business',
   ];
 
+  IdentityController _identityController(BuildContext context, {bool listen = true}) {
+    return widget.identityController ?? IdentityScope.of(context, listen: listen);
+  }
+
   @override
   void initState() {
     super.initState();
 
     _marketplaceService =
         widget.marketplaceService ?? MarketplaceOpenApiService();
-    _identityController = widget.identityController ??
-        IdentityController(
-          secureRepository: SecureIdentityRepository(),
-        );
-    _ownsIdentityController = widget.identityController == null;
-    _identityController.addListener(_onIdentitiesChanged);
-    _identityController.ensureLoaded();
-    _identities = List<IdentityRecord>.from(_identityController.identities);
 
     _titleController = TextEditingController();
     _descriptionController = TextEditingController();
@@ -87,26 +80,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     _priceController = TextEditingController(text: '0.0');
 
     _initializeFromScript();
-  }
-
-  void _onIdentitiesChanged() {
-    if (!mounted) {
-      return;
-    }
-    final List<IdentityRecord> updated =
-        List<IdentityRecord>.from(_identityController.identities);
-    final IdentityRecord? currentSelection = _selectedIdentity;
-    IdentityRecord? resolvedSelection;
-    if (currentSelection != null &&
-        updated.any(
-            (IdentityRecord identity) => identity.id == currentSelection.id)) {
-      resolvedSelection = currentSelection;
-    }
-
-    setState(() {
-      _identities = updated;
-      _selectedIdentity = resolvedSelection;
-    });
   }
 
   void _initializeFromScript() {
@@ -147,10 +120,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
   @override
   void dispose() {
-    _identityController.removeListener(_onIdentitiesChanged);
-    if (_ownsIdentityController) {
-      _identityController.dispose();
-    }
     _titleController.dispose();
     _descriptionController.dispose();
     _authorController.dispose();
@@ -164,9 +133,12 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       return;
     }
 
-    if (_selectedIdentity == null) {
+    final IdentityController controller =
+        _identityController(context, listen: false);
+    final IdentityRecord? identity = controller.activeIdentity;
+    if (identity == null) {
       setState(() {
-        _error = identitySelectionErrorText;
+        _error = 'Select an identity from the session banner before uploading.';
       });
       return;
     }
@@ -220,7 +192,6 @@ function update(msg, state)
 end''';
       }
 
-      final IdentityRecord identity = _selectedIdentity!;
       final String signature = await ScriptSignatureService.signScriptUpload(
         authorIdentity: identity,
         title: title,
@@ -417,39 +388,14 @@ end''';
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Author Identity (Required)',
+                            'Identity context',
                             style: Theme.of(context)
                                 .textTheme
                                 .titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            'Select an identity to sign this script. This is required to publish to the marketplace.',
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                          ),
-                          const SizedBox(height: 12),
-                          IdentitySelectorField(
-                            identities: _identities,
-                            selectedIdentity: _selectedIdentity,
-                            onChanged: (IdentityRecord? value) {
-                              setState(() {
-                                _selectedIdentity = value;
-                                if (value != null &&
-                                    _error == identitySelectionErrorText) {
-                                  _error = null;
-                                }
-                              });
-                            },
-                            requirementMessage: identityRequirementMessage,
-                          ),
+                          _buildIdentityCard(_identityController(context)),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
                             initialValue: _selectedCategory,
@@ -538,6 +484,141 @@ end''';
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildIdentityCard(IdentityController controller) {
+    final IdentityRecord? identity = controller.activeIdentity;
+    if (identity == null) {
+      return Card(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'No identity selected',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Publishing requires a signing identity. Switch identities from the button below.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: _openIdentitySwitcher,
+                icon: const Icon(Icons.verified_user_outlined),
+                label: const Text('Choose identity'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final bool isComplete = controller.isProfileComplete(identity);
+    final String principal = PrincipalUtils.textFromRecord(identity);
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              identity.label.isEmpty ? 'Untitled identity' : identity.label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              principal,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _openIdentitySwitcher,
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  label: const Text('Switch identity'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _promptForProfile(controller, identity),
+                  icon: Icon(isComplete ? Icons.visibility_outlined : Icons.edit_note),
+                  label: Text(isComplete ? 'View profile' : 'Complete profile'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openIdentitySwitcher() async {
+    final IdentityController controller = _identityController(context, listen: false);
+    final IdentitySwitcherResult? result =
+        await showIdentitySwitcherSheet(context: context, controller: controller);
+    if (!mounted || result == null) {
+      return;
+    }
+    if (result.openIdentityManager) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Open the Identities tab on the home screen to manage identities.'),
+        ),
+      );
+      return;
+    }
+    await controller.setActiveIdentity(result.identityId);
+    if (mounted) {
+      setState(() {
+        _error = null;
+      });
+    }
+    if (!mounted || result.identityId == null) {
+      return;
+    }
+    final IdentityRecord? identity = controller.findById(result.identityId!);
+    if (identity != null) {
+      await _promptForProfile(controller, identity);
+    }
+  }
+
+  Future<void> _promptForProfile(
+    IdentityController controller,
+    IdentityRecord identity,
+  ) async {
+    IdentityProfile? profile = controller.profileForRecord(identity);
+    profile ??= await controller.ensureProfileLoaded(identity);
+    if (!mounted) {
+      return;
+    }
+    if (profile?.isComplete == true) {
+      return;
+    }
+    final IdentityProfileDraft? draft = await showIdentityProfileSheet(
+      context: context,
+      identity: identity,
+      existingProfile: profile,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (draft == null) {
+      return;
+    }
+    await controller.saveProfile(identity: identity, draft: draft);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Identity profile saved')),
     );
   }
 }
