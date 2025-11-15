@@ -31,7 +31,7 @@ will actually be made. Any test expecting a real network connection and status c
 - **UI Tests**: Files with `testWidgets` (accept HTTP mocking)
 - **API Tests**: Separate files with only `test` (real HTTP requests)
 
-### 2. Enhanced Error Logging
+### 2. Improved Error Logging
 Updated `HttpTestHelper` to log response bodies for HTTP 400+ errors:
 ```dart
 if (kDebugMode) {
@@ -53,7 +53,7 @@ Fixed `stats.ts` to use dynamic database pattern like other routes.
 ## Files Modified During Investigation
 
 ### Core Fix
-- `apps/autorun_flutter/test/test_helpers/http_test_helper.dart` - Enhanced error logging
+- `apps/autorun_flutter/test/test_helpers/http_test_helper.dart` - Improved error logging
 - `cloudflare-api/src/routes/stats.ts` - Dynamic database support
 
 ### Test Files Restructured  
@@ -92,4 +92,4 @@ Fixed `stats.ts` to use dynamic database pattern like other routes.
 
 ---
 *Documented: 2025-10-26*
-*Investigation led by: Enhanced error logging + systematic test isolation*
+*Investigation led by: Improved error logging + systematic test isolation*

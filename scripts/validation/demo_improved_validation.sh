@@ -153,5 +153,5 @@ else
 fi
 echo
 
-echo "🎉 Enhanced validation demo completed!"
+echo "🎉 Improved validation demo completed!"
 echo "These validations prevent runtime errors before script execution."

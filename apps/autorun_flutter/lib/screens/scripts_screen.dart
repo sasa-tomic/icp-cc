@@ -915,7 +915,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
 
   // Legacy script creation components replaced by improved versions
 
-/// Enhanced script editor dialog with syntax highlighting and improved UX
+/// Improved script editor dialog with syntax highlighting and improved UX
 class _ScriptEditorDialog extends StatefulWidget {
   const _ScriptEditorDialog({required this.controller, required this.record});
   final ScriptController controller;

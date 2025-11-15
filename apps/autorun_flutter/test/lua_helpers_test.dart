@@ -119,13 +119,12 @@ class MockBridge implements ScriptBridge {
           'ui': {
             'type': 'list',
             'props': {
-              'enhanced': true,
+              'searchable': true,
               'items': arg?['items'] ?? [
                 {'title': 'Mock Item 1', 'subtitle': 'Mock Description 1'},
                 {'title': 'Mock Item 2', 'subtitle': 'Mock Description 2'}
               ],
-              'title': arg?['title'] ?? 'Results',
-              'searchable': true
+              'title': arg?['title'] ?? 'Results'
             }
           }
         }

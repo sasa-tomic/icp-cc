@@ -338,7 +338,7 @@ class UiV1Renderer extends StatelessWidget {
         }
 
         // Check if we should use the searchable list view
-        final bool searchable = (props['searchable'] as bool?) ?? (props['enhanced'] as bool?) ?? false;
+        final bool searchable = (props['searchable'] as bool?) ?? false;
         final String title = (props['title'] ?? 'Results').toString();
 
         if (searchable) {

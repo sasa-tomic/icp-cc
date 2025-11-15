@@ -264,7 +264,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
           ),
         ),
 
-        // Enhanced code editor
+        // Improved code editor
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

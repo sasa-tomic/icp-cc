@@ -26,7 +26,7 @@
   - [ ] Auto-populate marketplace metadata from local script analysis
   - [ ] Design progressive disclosure for advanced publishing options
 
-### Enhanced Discovery and Recommendations (Priority: Medium)
+### Improved Discovery and Recommendations (Priority: Medium)
 - Implement smart suggestions based on user behavior and script patterns
   - Create "You might like" section based on local script analysis
   - Show trending scripts in categories user frequently interacts with
@@ -48,7 +48,7 @@
   - Add change logs and release notes for script updates
   - Create seamless update flow that preserves user customizations
 
-### Enhanced Script Cards and Display (Priority: High)
+### Improved Script Cards and Display (Priority: High)
 - Rich script cards with more context and quick actions
   - Add complexity indicators (beginner/intermediate/advanced)
   - Display usage statistics (run count, last used, success rate)
