@@ -4,5 +4,6 @@
   "env": {
     "DISABLE_TELEMETRY": "1",
     "MAX_MCP_OUTPUT_TOKENS": "100000"
-  }
+  },
+  "enableAllProjectMcpServers": true
 }

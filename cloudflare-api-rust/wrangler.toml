@@ -1,0 +1,54 @@
+name = "icp-marketplace-api-rust"
+main = "src/lib.rs"
+compatibility_date = "2025-10-24"
+compatibility_flags = [
+  "global_fetch_strictly_public",
+  "nodejs_compat"
+]
+
+[build]
+command = "cargo install --force worker-build && worker-build --release"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "icp-marketplace-db"
+database_id = "4efecfb3-c6a5-42fb-a3b5-83eea3e215dc"
+
+[[env.production.d1_databases]]
+binding = "TEST_DB"
+database_name = "icp-marketplace-test"
+database_id = "a74f720b-1402-4e54-bc54-3a5472a147ae"
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "icp-marketplace-db"
+database_id = "4efecfb3-c6a5-42fb-a3b5-83eea3e215dc"
+
+[[env.development.d1_databases]]
+binding = "TEST_DB"
+database_name = "icp-marketplace-test"
+database_id = "a74f720b-1402-4e54-bc54-3a5472a147ae"
+
+[[env.local.d1_databases]]
+binding = "DB"
+database_name = "icp-marketplace-db"
+database_id = "4efecfb3-c6a5-42fb-a3b5-83eea3e215dc"
+
+[[env.local.d1_databases]]
+binding = "TEST_DB"
+database_name = "icp-marketplace-test"
+database_id = "a74f720b-1402-4e54-bc54-3a5472a147ae"
+
+[vars]
+ENVIRONMENT = "production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+
+[env.local.vars]
+ENVIRONMENT = "local"
+
+workers_dev = true

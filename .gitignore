@@ -51,3 +51,4 @@ cloudflare-api/.wrangler/
 logs/
 test-output.log
 cloudflare-api/wrangler.log
+target/

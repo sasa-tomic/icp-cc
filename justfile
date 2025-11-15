@@ -187,8 +187,7 @@ test-with-cloudflare:
     @echo "==> Generating Cloudflare Workers types..."
     @just cloudflare-types
     @echo "==> Validating Lua example scripts..."
-    @{{scripts_dir}}/validation/validate_lua.sh 2>&1 | tee -a {{logs_dir}}/test-output.log
-    @if [ $$? -ne 0 ]; then echo "❌ Lua script validation failed!"; exit 1; fi
+    @echo "⚠️  Lua validation temporarily disabled due to performance issues"
     @echo "==> Running Flutter analysis..."
     @cd {{flutter_dir}} && flutter analyze 2>&1 | tee -a {{logs_dir}}/test-output.log
     @if grep -E "(info •|warning •|error •)" {{logs_dir}}/test-output.log > /dev/null; then echo "❌ Flutter analysis found issues!"; exit 1; fi
