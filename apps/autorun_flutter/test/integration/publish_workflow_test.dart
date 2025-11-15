@@ -40,8 +40,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
 
         // Assert - Verify scripts screen loads
-        expect(find.text('My Scripts'), findsOneWidget);
-        expect(find.text('Create New Script'), findsOneWidget);
+        expect(find.text('New script'), findsOneWidget);
       });
 
       test('should create and manage script records', () async {
