@@ -1,6 +1,7 @@
- import 'package:flutter/material.dart';
- import '../services/marketplace_open_api_service.dart';
- import '../widgets/error_display.dart';
+import 'package:flutter/material.dart';
+import '../services/marketplace_open_api_service.dart';
+import '../widgets/error_display.dart';
+import '../widgets/identity_selector.dart';
 import '../services/script_signature_service.dart';
 import '../controllers/identity_controller.dart';
 import '../models/identity_record.dart';
@@ -30,7 +31,8 @@ class ScriptUploadScreen extends StatefulWidget {
 
 class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final MarketplaceOpenApiService _marketplaceService = MarketplaceOpenApiService();
+  final MarketplaceOpenApiService _marketplaceService =
+      MarketplaceOpenApiService();
   late final IdentityController _identityController;
 
   // Form controllers
@@ -42,16 +44,19 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   final TextEditingController _canisterIdsController = TextEditingController();
   final TextEditingController _iconUrlController = TextEditingController();
   final TextEditingController _screenshotsController = TextEditingController();
-  final TextEditingController _versionController = TextEditingController(text: '1.0.0');
-  final TextEditingController _compatibilityController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController(text: '0.0');
+  final TextEditingController _versionController =
+      TextEditingController(text: '1.0.0');
+  final TextEditingController _compatibilityController =
+      TextEditingController();
+  final TextEditingController _priceController =
+      TextEditingController(text: '0.0');
 
   // Identity management
   IdentityRecord? _selectedIdentity;
   List<IdentityRecord> _identities = [];
 
-   bool _isUploading = false;
-   String? _error;
+  bool _isUploading = false;
+  String? _error;
 
   // Available categories
   final List<String> _availableCategories = [
@@ -79,11 +84,11 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     )..addListener(_onIdentitiesChanged);
     _identityController.ensureLoaded();
 
-     // Pre-fill data if provided
-     if (widget.preFilledData != null) {
-       _titleController.text = widget.preFilledData!.title;
-       _authorController.text = widget.preFilledData!.authorName;
-     }
+    // Pre-fill data if provided
+    if (widget.preFilledData != null) {
+      _titleController.text = widget.preFilledData!.title;
+      _authorController.text = widget.preFilledData!.authorName;
+    }
 
     // Set default category
     _categoryController.text = 'Example';
@@ -106,14 +111,13 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
       setState(() {
         _identities = List.from(_identityController.identities);
         // Clear selected identity if it no longer exists
-        if (_selectedIdentity != null && !_identities.contains(_selectedIdentity)) {
+        if (_selectedIdentity != null &&
+            !_identities.contains(_selectedIdentity)) {
           _selectedIdentity = null;
         }
       });
     }
   }
-
-
 
   Future<void> _uploadScript() async {
     if (!_formKey.currentState!.validate()) {
@@ -123,7 +127,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     // Check if identity is selected
     if (_selectedIdentity == null) {
       setState(() {
-        _error = 'Please select an identity to sign the script';
+        _error = identitySelectionErrorText;
       });
       return;
     }
@@ -243,7 +247,6 @@ end''';
 
       // Navigate back
       Navigator.of(context).pop();
-
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -374,95 +377,26 @@ end''';
                     Text(
                       'Select an identity to sign this script. This proves you are the author.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                     const SizedBox(height: 12),
 
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: _selectedIdentity == null
-                            ? Theme.of(context).colorScheme.error
-                            : Theme.of(context).colorScheme.outline,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<IdentityRecord>(
-                          value: _selectedIdentity,
-                          isExpanded: true,
-                          hint: Text(
-                            'Select an identity...',
-                            style: TextStyle(
-                              color: _selectedIdentity == null
-                                ? Theme.of(context).colorScheme.error
-                                : null,
-                            ),
-                          ),
-                          items: _identities.map((identity) {
-                            final principal = PrincipalUtils.textFromRecord(identity);
-                            final shortPrincipal = principal.length >= 5 ? principal.substring(0, 5) : principal;
-                            return DropdownMenuItem<IdentityRecord>(
-                              value: identity,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          identity.label,
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          '$shortPrincipal... (${keyAlgorithmToString(identity.algorithm)})',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (IdentityRecord? value) {
-                            setState(() {
-                              _selectedIdentity = value;
-                            });
-                          },
-                        ),
-                      ),
+                    IdentitySelectorField(
+                      identities: _identities,
+                      selectedIdentity: _selectedIdentity,
+                      onChanged: (IdentityRecord? value) {
+                        setState(() {
+                          _selectedIdentity = value;
+                          if (_selectedIdentity != null &&
+                              _error == identitySelectionErrorText) {
+                            _error = null;
+                          }
+                        });
+                      },
+                      requirementMessage: identityRequirementMessage,
                     ),
-                    if (_selectedIdentity == null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, left: 12),
-                        child: Text(
-                          'Identity is required for script signing',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      ),
 
                     const SizedBox(height: 24),
 
@@ -500,10 +434,14 @@ end''';
                     _buildTextField(
                       controller: _tagsController,
                       label: 'Tags',
-                      hint: 'Enter comma-separated tags (e.g., automation, defi, gaming)',
+                      hint:
+                          'Enter comma-separated tags (e.g., automation, defi, gaming)',
                       validator: (value) {
                         if (value != null && value.trim().isNotEmpty) {
-                          final tags = value.split(',').map((tag) => tag.trim()).toList();
+                          final tags = value
+                              .split(',')
+                              .map((tag) => tag.trim())
+                              .toList();
                           if (tags.length > 10) {
                             return 'Maximum 10 tags allowed';
                           }
@@ -526,7 +464,8 @@ end''';
                     _buildTextField(
                       controller: _canisterIdsController,
                       label: 'Canister IDs',
-                      hint: 'Enter comma-separated canister IDs if this script works with specific canisters',
+                      hint:
+                          'Enter comma-separated canister IDs if this script works with specific canisters',
                     ),
 
                     const SizedBox(height: 16),
@@ -534,7 +473,8 @@ end''';
                     _buildTextField(
                       controller: _compatibilityController,
                       label: 'Compatibility Notes',
-                      hint: 'Describe any compatibility requirements or limitations',
+                      hint:
+                          'Describe any compatibility requirements or limitations',
                       maxLines: 2,
                     ),
 
@@ -568,7 +508,8 @@ end''';
                       controller: _priceController,
                       label: 'Price (in ICP)',
                       hint: 'Set to 0 for free scripts',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Price is required';
@@ -601,8 +542,6 @@ end''';
                       },
                     ),
 
-
-
                     const SizedBox(height: 32),
 
                     // Upload button
@@ -614,10 +553,12 @@ end''';
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.upload),
-                        label: Text(_isUploading ? 'Uploading...' : 'Upload Script'),
+                        label: Text(
+                            _isUploading ? 'Uploading...' : 'Upload Script'),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
@@ -642,8 +583,8 @@ end''';
         Text(
           title,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+                fontWeight: FontWeight.bold,
+              ),
         ),
         const SizedBox(height: 4),
         Container(
@@ -673,7 +614,8 @@ end''';
       maxLines: maxLines,
       keyboardType: keyboardType,
       validator: validator,
-      textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+      textInputAction:
+          maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
     );
   }
 }
