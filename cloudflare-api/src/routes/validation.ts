@@ -1,359 +1,128 @@
 import { Env } from '../types';
 import { JsonResponse } from '../utils';
 
-function validateRequiredFunctions(lua_source: string, errors: string[], warnings: string[]) {
-  // Check for required functions
+interface LuaValidationResult {
+  isSyntaxValid: boolean;
+  hasRequiredFunctions: boolean;
+  syntaxError?: string;
+  missingFunctions: string[];
+}
+
+function validateLuaWithPatterns(lua_source: string): LuaValidationResult {
+  const missingFunctions: string[] = [];
+  const syntaxErrors: string[] = [];
+
+  // Basic syntax validation using patterns
+  const lines = lua_source.split('\n');
+  let inString = false;
+  let stringChar = '';
+  let commentDepth = 0;
+  let braceCount = 0;
+  let parenCount = 0;
+  let bracketCount = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Skip empty lines and comments
+    if (trimmed === '' || trimmed.startsWith('--')) {
+      continue;
+    }
+
+    // Check for basic syntax issues
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
+      const prevChar = j > 0 ? line[j - 1] : '';
+
+      // Handle strings
+      if (!inString && (char === '"' || char === "'")) {
+        inString = true;
+        stringChar = char;
+      } else if (inString && char === stringChar && prevChar !== '\\') {
+        inString = false;
+        stringChar = '';
+      }
+
+      // Count brackets outside of strings
+      if (!inString) {
+        if (char === '{') braceCount++;
+        else if (char === '}') braceCount--;
+        else if (char === '(') parenCount++;
+        else if (char === ')') parenCount--;
+        else if (char === '[') bracketCount++;
+        else if (char === ']') bracketCount--;
+      }
+    }
+
+    // Check for basic syntax errors
+    if (!inString) {
+      // Unclosed brackets at line end might indicate syntax issues
+      if (braceCount < 0 || parenCount < 0 || bracketCount < 0) {
+        syntaxErrors.push(`Line ${i + 1}: Unmatched closing bracket`);
+        break;
+      }
+    }
+  }
+
+  // Check for unmatched opening brackets
+  if (braceCount !== 0) syntaxErrors.push('Unmatched braces {}');
+  if (parenCount !== 0) syntaxErrors.push('Unmatched parentheses ()');
+  if (bracketCount !== 0) syntaxErrors.push('Unmatched brackets []');
+
+  // Check for required functions using pattern matching
   const requiredFunctions = ['init', 'view', 'update'];
-  for (const func of requiredFunctions) {
-    const functionPattern = new RegExp(`function\\s+${func}\\s*\\([^)]*\\)`, 'i');
+
+  for (const funcName of requiredFunctions) {
+    // Look for function definition: function name( or function name (
+    const functionPattern = new RegExp(`function\\s+${funcName}\\s*\\(`, 'm');
     if (!functionPattern.test(lua_source)) {
-      errors.push(`Required function '${func}' not found - script will not execute properly`);
+      missingFunctions.push(funcName);
     }
   }
-  
-  // Validate function signatures
-  const initMatch = lua_source.match(/function\s+init\s*\([^)]*\)/i);
-  if (initMatch && initMatch[0].includes(',')) {
-    errors.push('init() function should accept at most one parameter (arg)');
-  }
-  
-  const viewMatch = lua_source.match(/function\s+view\s*\([^)]*\)/i);
-  if (!viewMatch || !viewMatch[0].includes('state')) {
-    warnings.push('view() function should accept a state parameter');
-  }
-  
-  const updateMatch = lua_source.match(/function\s+update\s*\([^)]*\)/i);
-  if (!updateMatch || !updateMatch[0].includes('msg') || !updateMatch[0].includes('state')) {
-    warnings.push('update() function should accept msg and state parameters');
-  }
-}
 
-function validateEventHandlers(lua_source: string, errors: string[], warnings: string[]) {
-  // Extract event handlers from UI definitions
-  const eventHandlerPattern = /on_(press|change|submit|input)\s*=\s*\{\s*type\s*:\s*["']([^"']+)["']/g;
-  const eventHandlers: string[] = [];
-  let match;
-  
-  while ((match = eventHandlerPattern.exec(lua_source)) !== null) {
-    eventHandlers.push(match[2]);
-  }
-  
-  // Extract message types from update function
-  const messageTypePattern = /msg\.type\s*==\s*["']([^"']+)["']/g;
-  const messageTypes: string[] = [];
-  
-  while ((match = messageTypePattern.exec(lua_source)) !== null) {
-    messageTypes.push(match[1]);
-  }
-  
-  // Check for unhandled events
-  for (const handler of eventHandlers) {
-    if (!messageTypes.includes(handler)) {
-      warnings.push(`Event handler '${handler}' has no corresponding case in update() function`);
-    }
-  }
-  
-  // Check for orphaned message handlers
-  for (const messageType of messageTypes) {
-    if (!eventHandlers.includes(messageType) && !messageType.startsWith('effect/')) {
-      warnings.push(`Message handler '${messageType}' has no corresponding UI event handler`);
-    }
-  }
-}
-
-function validateICPIntegration(lua_source: string, errors: string[], warnings: string[]) {
-  const context = getValidationContext(lua_source);
-  
-  // Validate canister ID patterns with context awareness
-  const canisterIdPattern = /canister_id\s*=\s*["']([^"']+)["']/g;
-  let match;
-  
-  while ((match = canisterIdPattern.exec(lua_source)) !== null) {
-    const canisterId = match[1];
-    
-    // Allow test/mock IDs in examples and tests
-    if (context.isExample || context.isTest) {
-      if (/^(test|mock|demo|example)/i.test(canisterId)) {
-        continue; // Skip validation for obvious test IDs
-      }
-    }
-    
-    // Basic canister ID validation (ICP canister IDs follow specific patterns)
-    if (!/^[a-z0-9-]{10,63}$/.test(canisterId) || !canisterId.includes('-')) {
-      if (context.isProduction) {
-        errors.push(`Invalid canister ID format: ${canisterId}. Expected format: xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxx-xxx`);
-      } else {
-        warnings.push(`Potentially invalid canister ID format: ${canisterId}`);
-      }
-    }
-  }
-  
-  // Validate effect handling
-  const effectCallPattern = /kind\s*=\s*["']icp_call["']/g;
-  const hasEffectCalls = effectCallPattern.test(lua_source);
-  
-  if (hasEffectCalls) {
-    const effectHandlerPattern = /effect\/result/i;
-    if (!effectHandlerPattern.test(lua_source)) {
-      if (context.isProduction) {
-        errors.push('Script uses ICP calls but missing effect/result handler in update() function');
-      } else {
-        warnings.push('Script uses ICP calls but missing effect/result handler in update() function');
-      }
-    }
-  }
-  
-  // Validate canister call structure
-  const canisterCallPattern = /\{\s*canister_id\s*:\s*["'][^"']+["'][^}]*method\s*:\s*["'][^"']+["'][^}]*kind\s*:\s*\d+/g;
-  const calls = lua_source.match(canisterCallPattern);
-  
-  if (calls) {
-    for (const call of calls) {
-      if (!call.includes('args')) {
-        warnings.push('Canister call missing args field - may cause runtime errors');
-      }
-    }
-  }
-}
-
-function validateDataStructures(lua_source: string, errors: string[], warnings: string[]) {
-  const context = getValidationContext(lua_source);
-  
-  // Check for potential undefined state access (only in production)
-  if (context.isProduction) {
-    const stateAccessPattern = /state\.(\w+)/g;
-    let match;
-    
-    while ((match = stateAccessPattern.exec(lua_source)) !== null) {
-      const stateField = match[1];
-      // Skip common state fields that might be set dynamically
-      if (['last_action', 'show_info', 'counter', 'balance', 'transactions'].includes(stateField)) {
-        continue;
-      }
-      
-      // Check if this state field is initialized in init function
-      const initPattern = new RegExp(`${stateField}\\s*=`, 'i');
-      if (!initPattern.test(lua_source)) {
-        warnings.push(`State field 'state.${stateField}' may be undefined - ensure it's initialized in init()`);
-      }
-    }
-  }
-  
-  // Check for table operations that might cause issues (higher threshold)
-  const tableInsertPattern = /table\.insert\([^,]+,\s*[^)]+\)/g;
-  const tableInserts = lua_source.match(tableInsertPattern);
-  if (tableInserts && tableInserts.length > 100) {
-    warnings.push('Many table.insert operations detected - consider pre-allocating tables for better performance');
-  }
-  
-  // Check for string concatenation in loops (performance issue) - only in production
-  if (context.isProduction) {
-    const loopPattern = /for\s+.*\s+do\s*[\s\S]*?end/g;
-    const loops = lua_source.match(loopPattern);
-    if (loops) {
-      for (const loop of loops) {
-        if (loop.includes('..') && loop.match(/\.\./g)?.length > 5) {
-          warnings.push('String concatenation in loop detected - consider using table.concat for better performance');
-        }
-      }
-    }
-  }
-}
-
-function validatePerformancePatterns(lua_source: string, errors: string[], warnings: string[]) {
-  const context = getValidationContext(lua_source);
-  
-  // More sophisticated infinite loop detection
-  const whileLoops = lua_source.match(/while\s+true\s+do\s*[\s\S]*?end/g);
-  if (whileLoops) {
-    for (const loop of whileLoops) {
-      // Check if break/return is in a conditional that can be reached
-      const hasConditionalBreak = /\bif\b.*\bbreak\b/.test(loop);
-      const hasConditionalReturn = /\bif\b.*\breturn\b/.test(loop);
-      
-      if (!hasConditionalBreak && !hasConditionalReturn) {
-        errors.push('Potential infinite loop - while true without conditional break/return');
-      }
-    }
-  }
-  
-  // Check for recursive function calls without base case (only in production)
-  if (context.isProduction) {
-    const functionDefinitions = lua_source.match(/function\s+(\w+)\s*\([^)]*\)/g);
-    if (functionDefinitions) {
-      for (const funcDef of functionDefinitions) {
-        const funcName = funcDef.match(/function\s+(\w+)/)?.[1];
-        if (funcName && funcName !== 'init' && funcName !== 'view' && funcName !== 'update') {
-          const funcCalls = lua_source.match(new RegExp(`${funcName}\\s*\\(`, 'g'));
-          if (funcCalls && funcCalls.length > 1) {
-            // This might be recursive - check for base case
-            const funcBody = lua_source.match(new RegExp(`function\\s+${funcName}\\s*\\([^)]*\\)[\\s\\S]*?end`));
-            if (funcBody && !funcBody[0].includes('if') && !funcBody[0].includes('return')) {
-              warnings.push(`Recursive function '${funcName}' may be missing base case`);
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  // Check for extremely large numbers (increased threshold)
-  const largeNumbers = lua_source.match(/\b\d{15,}\b/g);
-  if (largeNumbers) {
-    warnings.push('Very large numbers detected - ensure they fit within Lua number limits');
-  }
-  
-  // Only warn about table.insert in loops for high counts (increased threshold)
-  const tableInsertMatches = lua_source.match(/table\.insert/g);
-  if (tableInsertMatches && tableInsertMatches.length > 50) {
-    warnings.push('Many table.insert operations detected - consider optimizing for better performance');
-  }
-}
-
-function getValidationContext(lua_source: string) {
-  const isExample = /--\s*(example|demo|tutorial|sample)/i.test(lua_source);
-  const isTest = /--\s*(test|spec|unit)/i.test(lua_source);
-  const isProduction = !isExample && !isTest;
-  
-  return { isExample, isTest, isProduction };
-}
-
-function validateSecurityPatterns(lua_source: string, errors: string[], warnings: string[]) {
-  const context = getValidationContext(lua_source);
-  
-  // Always block dangerous functions regardless of context
-  const loadStringPattern = /loadstring\s*\(/;
-  if (loadStringPattern.test(lua_source)) {
-    errors.push('loadstring() function detected - potential security risk');
-  }
-  
-  const dofilePattern = /dofile\s*\(/;
-  if (dofilePattern.test(lua_source)) {
-    errors.push('dofile() function detected - potential security risk');
-  }
-  
-  // More sophisticated secret detection with context awareness
-  if (context.isProduction) {
-    // Only check for real-looking secrets in production
-    const secretPatterns = [
-      { 
-        pattern: /private_key\s*=\s*["'][a-zA-Z0-9+/]{40,}["']/, 
-        message: 'Hardcoded private key detected (appears to be real)' 
-      },
-      { 
-        pattern: /(password|token|api_key)\s*=\s*["'][^"'\s]{20,}["']/, 
-        message: 'Potential hardcoded secret detected' 
-      }
-    ];
-    
-    for (const { pattern, message } of secretPatterns) {
-      if (pattern.test(lua_source)) {
-        errors.push(`${message} - use environment variables or secure storage`);
-      }
-    }
-  } else {
-    // In examples/tests, only warn about obvious secrets
-    if (/(sk-[a-zA-Z0-9]{32,}|pk_[a-zA-Z0-9]+)/.test(lua_source)) {
-      warnings.push('Potential real secret detected in example/test code');
-    }
-  }
-  
-  // Refined XSS detection - only flag actual dangerous patterns
-  const dangerousHtmlPatterns = [
-    /<script[^>]*>.*?<\/script>/i,  // Complete script tags
-    /javascript:[^"'\s]/i,           // Actual javascript: URLs
+  // Additional syntax checks
+  const dangerousPatterns = [
+    { pattern: /loadstring\s*\(/, message: 'loadstring() function not allowed' },
+    { pattern: /dofile\s*\(/, message: 'dofile() function not allowed' },
+    { pattern: /os\.execute/, message: 'os.execute() not allowed' },
+    { pattern: /io\.open/, message: 'io.open() not allowed' },
+    { pattern: /io\.popen/, message: 'io.popen() not allowed' },
+    { pattern: /loadfile\s*\(/, message: 'loadfile() not allowed' },
+    { pattern: /require\s*\(/, message: 'require() not allowed' },
   ];
-  
-  for (const pattern of dangerousHtmlPatterns) {
-    if (pattern.test(lua_source)) {
-      errors.push('Dangerous HTML/JavaScript pattern detected');
-    }
-  }
-  
-  // Check for network operations with context awareness
-  const urlPatterns = lua_source.match(/https?:\/\/[^\s"']+/g);
-  if (urlPatterns) {
-    for (const url of urlPatterns) {
-      if (url.includes('localhost') || url.includes('127.0.0.1')) {
-        if (context.isProduction) {
-          errors.push(`Localhost URL in production code: ${url}`);
-        } else {
-          warnings.push(`Localhost URL detected: ${url} - ensure this is intentional`);
-        }
-      }
-      if (!url.startsWith('https://') && context.isProduction) {
-        warnings.push(`Insecure HTTP URL detected: ${url} - consider using HTTPS`);
-      }
-    }
-  }
-}
 
-function validateUINodes(lua_source: string, errors: string[], warnings: string[]) {
-  // Look for UI nodes with type field using Lua syntax
-  // Only match type fields that are likely UI nodes (in return statements or function calls)
-  const returnStatements = lua_source.match(/return\s*\{[\s\S]*?\}/g) || [];
-  const functionCalls = lua_source.match(/\w+\s*\([^)]*\)\s*\{[\s\S]*?\}/g) || [];
-  
-  const uiContexts = [...returnStatements, ...functionCalls];
-  
-  for (const context of uiContexts) {
-    const typeMatches = context.match(/type\s*=\s*["']([^"']*)["']/g);
-    
-    if (typeMatches) {
-      for (const typeMatch of typeMatches) {
-        const type = typeMatch.match(/["']([^"']*)["']/)?.[1];
-        if (!type || type.trim() === '') {
-          errors.push('UI node with empty type found');
-        }
+  for (const { pattern, message } of dangerousPatterns) {
+    if (pattern.test(lua_source)) {
+      syntaxErrors.push(message);
+    }
+  }
+
+  // Check for basic Lua syntax errors
+  if (syntaxErrors.length === 0) {
+    // Check for common syntax mistakes
+    const commonErrors = [
+      { pattern: /function\s+\w+\s*[^(\s]/, message: 'Invalid function definition - missing parentheses' },
+      { pattern: /\bif\b.*\bthen\b\s*$/m, message: 'Incomplete if statement' },
+      { pattern: /\bthen\b.*\belse\b.*\bthen\b/m, message: 'Invalid if-else structure' },
+      { pattern: /\bfor\b.*\bdo\b\s*$/m, message: 'Incomplete for loop' },
+      { pattern: /\bwhile\b.*\bdo\b\s*$/m, message: 'Incomplete while loop' },
+      { pattern: /\bdo\b.*\bend\b/m, message: 'Loop structure without proper closing' },
+    ];
+
+    for (const { pattern, message } of commonErrors) {
+      if (pattern.test(lua_source)) {
+        syntaxErrors.push(message);
       }
     }
   }
-  
-  // Look for conditional rendering patterns that might produce false values
-  const conditionalPatterns = lua_source.match(/\w+\s+and\s*\{[^}]*\}/g);
-  if (conditionalPatterns) {
-    for (const pattern of conditionalPatterns) {
-      // Check if the conditional might produce false instead of nil
-      if (!pattern.includes('type')) {
-        errors.push('Conditional UI expression missing type field - this will cause "UI node missing type" error');
-      }
-    }
-  }
-  
-  // Check for common UI node types
-  const validTypes = ['column', 'row', 'section', 'text', 'button', 'toggle', 'input'];
-  const allTypeMatches = lua_source.match(/type\s*=\s*["']([^"']+)["']/g);
-  
-  if (allTypeMatches) {
-    for (const typeMatch of allTypeMatches) {
-      const type = typeMatch.match(/["']([^"']+)["']/)?.[1];
-      if (type && !validTypes.includes(type)) {
-        warnings.push(`Unknown UI node type: "${type}" - valid types are: ${validTypes.join(', ')}`);
-      }
-    }
-  }
-  
-  // Look for table literals that might be UI nodes without type
-  // This is a simple heuristic - look for tables in return statements
-  const returnMatches = lua_source.match(/return\s*\{[\s\S]*?\}/g);
-  if (returnMatches) {
-    for (const match of returnMatches) {
-      // Find nested tables that don't have type
-      const nestedTables = match.match(/\{[^{}]*\}/g);
-      if (nestedTables) {
-        for (const table of nestedTables) {
-          // Skip if this is a props or children table
-          if (!table.includes('props') && !table.includes('children') && 
-              table.includes('{') && table.includes('}') && !table.includes('type')) {
-            // Check if this looks like a UI node (has other UI properties)
-            if (table.includes('props') || table.includes('children')) {
-              errors.push('UI node missing type field');
-  }
-}
-        }
-      }
-    }
-  }
+
+  return {
+    isSyntaxValid: syntaxErrors.length === 0,
+    hasRequiredFunctions: missingFunctions.length === 0,
+    syntaxError: syntaxErrors.length > 0 ? syntaxErrors.join('; ') : undefined,
+    missingFunctions
+  };
 }
 
 export async function handleScriptValidationRequest(request: Request, env: Env): Promise<Response> {
@@ -374,122 +143,66 @@ export async function handleScriptValidationRequest(request: Request, env: Env):
     // Basic validation
     if (lua_source.trim().length === 0) {
       errors.push('Lua source cannot be empty');
+      return JsonResponse.success({
+        is_valid: false,
+        errors,
+        warnings,
+        line_count: 0,
+        character_count: 0,
+      });
     }
 
-    // Check for potentially dangerous functions
-    const dangerousPatterns = [
-      { pattern: /os\.execute/, message: 'os.execute() - potentially dangerous system call' },
-      { pattern: /io\.open/, message: 'io.open() - file system access not allowed' },
-      { pattern: /io\.popen/, message: 'io.popen() - process execution not allowed' },
-      { pattern: /dofile/, message: 'dofile() - file loading not allowed' },
-      { pattern: /loadfile/, message: 'loadfile() - file loading not allowed' },
-      { pattern: /require/, message: 'require() - module loading not allowed' },
-      { pattern: /debug\.getregistry/, message: 'debug.getregistry() - debug access not allowed' },
-      { pattern: /package\.loadlib/, message: 'package.loadlib() - library loading not allowed' },
+    // Critical security checks (always block these)
+    const criticalSecurityPatterns = [
+      { pattern: /loadstring\s*\(/, message: 'loadstring() function detected - potential security risk' },
+      { pattern: /dofile\s*\(/, message: 'dofile() function detected - potential security risk' },
+      { pattern: /os\.execute/, message: 'os.execute() - system execution not allowed' },
     ];
 
-    for (const { pattern, message } of dangerousPatterns) {
+    for (const { pattern, message } of criticalSecurityPatterns) {
+      if (pattern.test(lua_source)) {
+        errors.push(message);
+      }
+    }
+
+    // Use lightweight pattern-based validation
+    const vmResult = validateLuaWithPatterns(lua_source);
+
+    // Add syntax errors if any
+    if (!vmResult.isSyntaxValid) {
+      errors.push(vmResult.syntaxError || 'Syntax error in Lua script');
+    }
+
+    // Add missing function errors
+    for (const missingFunc of vmResult.missingFunctions) {
+      errors.push(`Required function '${missingFunc}' not found - script will not execute properly`);
+    }
+
+    // Additional warnings for potentially problematic patterns
+    const warningPatterns = [
+      { pattern: /io\.open/, message: 'io.open() - file system access not allowed in sandboxed environment' },
+      { pattern: /io\.popen/, message: 'io.popen() - process execution not allowed in sandboxed environment' },
+      { pattern: /loadfile/, message: 'loadfile() - file loading not allowed in sandboxed environment' },
+      { pattern: /require/, message: 'require() - module loading not allowed in sandboxed environment' },
+    ];
+
+    for (const { pattern, message } of warningPatterns) {
       if (pattern.test(lua_source)) {
         warnings.push(message);
       }
     }
 
-    // Check for basic Lua syntax errors (improved checks)
-    const lines = lua_source.split('\n');
-    let openBraces = 0;
-    let openParens = 0;
-    let openBrackets = 0;
-    let inString = false;
-    let stringChar = '';
-    let inComment = false;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
-      // Reset comment state for each line
-      inComment = false;
-      
-      for (let j = 0; j < line.length; j++) {
-        const char = line[j];
-        const prevChar = j > 0 ? line[j - 1] : '';
-        
-        // Handle comments
-        if (!inString && !inComment && char === '-' && prevChar === '-') {
-          inComment = true;
-          break; // Skip rest of line
-        }
-        
-        // Handle strings
-        if (!inComment) {
-          if (!inString && (char === '"' || char === "'")) {
-            inString = true;
-            stringChar = char;
-          } else if (inString && char === stringChar && prevChar !== '\\') {
-            inString = false;
-            stringChar = '';
-          }
-        }
-        
-        // Count brackets only when not in strings or comments
-        if (!inString && !inComment) {
-          if (char === '{') openBraces++;
-          else if (char === '}') openBraces--;
-          else if (char === '(') openParens++;
-          else if (char === ')') openParens--;
-          else if (char === '[') openBrackets++;
-          else if (char === ']') openBrackets--;
-          
-          // Check for immediate unmatched closing
-          if (openBraces < 0) {
-            errors.push(`Unmatched closing brace on line ${i + 1}`);
-            openBraces = 0;
-          }
-          if (openParens < 0) {
-            errors.push(`Unmatched closing parenthesis on line ${i + 1}`);
-            openParens = 0;
-          }
-          if (openBrackets < 0) {
-            errors.push(`Unmatched closing bracket on line ${i + 1}`);
-            openBrackets = 0;
-          }
-        }
-      }
-    }
-
-    // Check for unclosed brackets at end of file
-    if (openBraces > 0) errors.push(`${openBraces} unclosed brace(s) at end of file`);
-    if (openParens > 0) errors.push(`${openParens} unclosed parenthesis(es) at end of file`);
-    if (openBrackets > 0) errors.push(`${openBrackets} unclosed bracket(s) at end of file`);
-
-    // Check for common Lua patterns
-    if (!/function\s+\w+/.test(lua_source) && !/local\s+function\s+\w+/.test(lua_source)) {
-      warnings.push('No function definitions found - script may not be executable');
-    }
-
-    if (!/return/.test(lua_source)) {
-      warnings.push('No return statement found - script may not produce output');
-    }
-
-    // Check for ICP-specific patterns
-    if (!/icp_/.test(lua_source)) {
-      warnings.push('No ICP-specific functions found - script may not interact with canisters');
-    }
-
-    // Static validations
-    validateUINodes(lua_source, errors, warnings);
-    validateRequiredFunctions(lua_source, errors, warnings);
-    validateEventHandlers(lua_source, errors, warnings);
-    validateICPIntegration(lua_source, errors, warnings);
-    validateDataStructures(lua_source, errors, warnings);
-    validatePerformancePatterns(lua_source, errors, warnings);
-    validateSecurityPatterns(lua_source, errors, warnings);
-
     const result = {
       is_valid: errors.length === 0,
       errors,
       warnings,
-      line_count: lines.length,
+      line_count: lua_source.split('\n').length,
       character_count: lua_source.length,
+      vm_validation: {
+        syntax_valid: vmResult.isSyntaxValid,
+        has_required_functions: vmResult.hasRequiredFunctions,
+        missing_functions: vmResult.missingFunctions,
+      }
     };
 
     return JsonResponse.success(result);
