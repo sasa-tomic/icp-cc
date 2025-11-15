@@ -4,7 +4,7 @@ mod routes;
 
 use worker::*;
 use utils::*;
-use routes::{scripts, search, reviews, validation, stats};
+use routes::{scripts, search, reviews, stats};
 use types::AppEnv;
 
 #[event(fetch)]
@@ -56,10 +56,7 @@ async fn fetch(req: Request, env: worker::Env, _ctx: Context) -> Result<Response
             stats::handle_update_script_stats_request(req, &app_env).await
         }
 
-        "/api/v1/scripts/validate" => {
-            validation::handle_script_validation_request(req, &app_env).await
-        }
-
+  
         "/api/v1/scripts/count" => {
             scripts::handle_scripts_count_request(req, &app_env).await
         }

@@ -557,101 +557,32 @@ fn validate_performance_patterns(
     context: &ValidationContext,
     result: &mut ValidationResult,
 ) {
-    // Infinite loop detection - simplified approach
-    if script.contains("while true do") || script.contains("while	true do") {
-        // Look for while true loops and check if they have break/return
-        let lines: Vec<&str> = script.lines().collect();
-        let mut in_while_loop = false;
-        let mut while_loop_content = Vec::new();
-
-        for line in &lines {
-            if line.trim().contains("while true do") || line.trim().contains("while	true do") {
-                in_while_loop = true;
-                continue;
-            }
-
-            if in_while_loop {
-                if line.trim() == "end" {
-                    // Check if loop has conditional break or return
-                    let loop_content = while_loop_content.join("\n");
-                    if !loop_content.contains("if")
-                        || (!loop_content.contains("break") && !loop_content.contains("return"))
-                    {
-                        result.syntax_errors.push(
-                            "Potential infinite loop - while true without conditional break/return"
-                                .to_string(),
-                        );
-                    }
-                    in_while_loop = false;
-                    while_loop_content.clear();
-                } else {
-                    while_loop_content.push(line.to_string());
-                }
-            }
-        }
-    }
-
-    // Recursive function detection (production only) - simplified approach
+    // Recursive function detection (production only) - much simplified approach
     if context.is_production {
-        // Simple heuristic: check for function calls that match function names
-        let lines: Vec<&str> = script.lines().collect();
-        let mut function_names = Vec::new();
+        // Very simple heuristic - just warn about any function that calls itself
+        // Avoid complex parsing that can cause high CPU usage
+        let lines: Vec<(usize, &str)> = script.lines().enumerate().take(100).collect(); // Limit to first 100 lines for safety
 
-        for line in &lines {
+        for (_line_num, line) in lines {
             let trimmed = line.trim();
             if trimmed.starts_with("function ")
                 && !trimmed.starts_with("function init(")
                 && !trimmed.starts_with("function view(")
                 && !trimmed.starts_with("function update(")
             {
-                // Extract function name
-                if let Some(space_pos) = trimmed.find(' ') {
-                    let name_part = &trimmed[space_pos + 1..];
-                    if let Some(paren_pos) = name_part.find('(') {
-                        let func_name = &name_part[..paren_pos];
+                // Extract function name - simple approach
+                if let Some(start) = trimmed.find("function ") {
+                    let after_func = &trimmed[start + 9..];
+                    if let Some(paren_start) = after_func.find('(') {
+                        let func_name = after_func[..paren_start].trim();
                         if !func_name.is_empty() {
-                            function_names.push(func_name.to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Check for recursive calls
-        for func_name in &function_names {
-            let call_pattern = format!("{}(", func_name);
-            let mut call_count = 0;
-            for line in &lines {
-                if line.contains(&call_pattern) {
-                    call_count += 1;
-                }
-            }
-
-            if call_count > 1 {
-                // This might be recursive - check if function has if/return
-                let mut func_body = Vec::new();
-                let mut in_function = false;
-
-                for line in &lines {
-                    let trimmed = line.trim();
-                    if trimmed.starts_with(&format!("function {}(", func_name)) {
-                        in_function = true;
-                        continue;
-                    }
-
-                    if in_function {
-                        if trimmed == "end" {
-                            let body = func_body.join("\n");
-                            if !body.contains("if") && !body.contains("return") {
+                            let call_pattern = format!("{}(", func_name);
+                            if script.matches(&call_pattern).count() > 1 {
                                 result.warnings.push(format!(
-                                    "Recursive function '{}' may be missing base case",
+                                    "Function '{}' may be recursive - ensure base case exists",
                                     func_name
                                 ));
                             }
-                            in_function = false;
-                            func_body.clear();
-                        } else {
-                            func_body.push(line.to_string());
                         }
                     }
                 }

@@ -10,10 +10,7 @@
 		"global_fetch_strictly_public",
 		"nodejs_compat"
 	],
-	"build": {
-		"command": "worker-build --release"
-	},
-
+	
 	"observability": {
 		"enabled": true
 	},

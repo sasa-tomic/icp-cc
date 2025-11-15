@@ -1,0 +1,19 @@
+{
+  "name": "icp-marketplace-api-rust-local",
+  "version": "0.1.0",
+  "description": "ICP Script Marketplace API built with Rust and Cloudflare Workers",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "wasm-pack build --target bundler --out-dir build --release",
+    "dev": "node --max-old-space-size=4096 ./node_modules/.bin/wrangler dev --config wrangler.local.jsonc",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types --config wrangler.local.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.3"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0"
+  }
+}
