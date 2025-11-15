@@ -35,6 +35,7 @@ TOOL=""
 COMMAND=""
 DETACH=false
 REBUILD=true
+OTHER_ARGS=()
 
 # Helper functions
 log_info() {
@@ -56,7 +57,7 @@ log_error() {
 # Show usage
 show_help() {
     cat << EOF
-AI coding agent Docker Wrapper - Safe containerized environment for ICP-CC
+AI coding agent Docker Wrapper - Safe containerized environment
 
 USAGE:
     $0 [OPTIONS] TOOL [COMMAND]
@@ -64,8 +65,7 @@ USAGE:
 OPTIONS:
     -h, --help          Show this help message
     -d, --detach        Run in detached mode
-        --rebuild       Rebuild Docker image before running
-        --no-build      Skip building Docker image before running (default)
+        --no-build      Skip building Docker image before running, run the existing image if available, without checking
     -f, --file FILE     Use specific docker-compose file (default: <repo-root>/agent/docker-compose.yml)
 
 TOOLS:
@@ -79,7 +79,7 @@ EXAMPLES:
     $0 happy                         # Start Happy Coder
     $0 codex                         # Start Codex
     $0 bash                          # Start a bash shell
-    $0 claude --rebuild              # Rebuild image and run Claude Code
+    $0 claude --no-build             # Run Claude Code without rebuilding
     $0 claude "just test"            # Run ICP-CC tests in container with Claude Code
     $0 claude "just cloudflare-local-up"  # Start Cloudflare Workers for local development
     $0 happy --detach                # Start Happy Coder in background
@@ -91,7 +91,7 @@ ICP-CC SPECIFIC EXAMPLES:
 
 REQUIREMENTS:
     - Docker and Docker Compose must be installed
-    - Must specify a tool: claude, happy, bash, or shell
+    - Must specify a tool: claude, happy, codex, bash, or shell
 
 This wrapper provides a safe way to run Claude Code or Happy Coder with full access to the ICP-CC project
 while keeping your host system isolated through containerization.
@@ -107,10 +107,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -d|--detach)
             DETACH=true
-            shift
-            ;;
-        --rebuild)
-            REBUILD=true
             shift
             ;;
         --no-build)
@@ -131,19 +127,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
-        -*)
-            log_error "Unknown option: $1"
-            show_help
-            exit 1
-            ;;
         *)
             if [[ -z "$TOOL" ]]; then
                 log_error "Must specify a tool: claude, happy, codex, bash"
                 show_help
                 exit 1
             fi
-            COMMAND="$*"
-            break
+            # Collect all remaining arguments for the tool
+            OTHER_ARGS+=("$1")
+            shift
             ;;
     esac
 done
@@ -197,9 +189,27 @@ run_tool() {
     if [[ "$SHELL_MODE" == "true" ]]; then
         log_info "Starting shell in container..."
         docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" exec "$SERVICE_NAME" bash
-    elif [[ -n "$COMMAND" ]]; then
-        log_info "Running command in container: $COMMAND"
-        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" exec "$SERVICE_NAME" bash -c "$COMMAND"
+    elif [[ ${#OTHER_ARGS[@]} -gt 0 ]]; then
+        log_info "Running $TOOL with arguments: ${OTHER_ARGS[*]}"
+        # Set up tool-specific command
+        case "$TOOL" in
+            claude)
+                tool_command="claude --dangerously-skip-permissions"
+                ;;
+            happy)
+                tool_command="happy --yolo"
+                ;;
+            codex)
+                tool_command="codex --yolo"
+                ;;
+            bash|shell)
+                tool_command="bash"
+                ;;
+        esac
+
+        log_info "Full command: $tool_command ${OTHER_ARGS[*]}"
+        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" run --rm "$SERVICE_NAME" $tool_command "${OTHER_ARGS[@]}"
+        return
     else
         # Set up tool-specific command
         case "$TOOL" in
@@ -227,7 +237,7 @@ run_tool() {
         log_warning "Press Ctrl+D to exit $TOOL"
 
         # Use docker compose run for interactive session instead of up
-        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" run --rm "$SERVICE_NAME" $tool_command "$@"
+        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" run --rm "$SERVICE_NAME" $tool_command "${OTHER_ARGS[@]}"
     fi
 }
 
