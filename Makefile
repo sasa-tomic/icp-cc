@@ -4,7 +4,7 @@ SHELL := /bin/bash
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 S := $(ROOT)/scripts
 
-.PHONY: help all linux android android-emulator macos ios windows clean test
+.PHONY: help all linux android android-emulator macos ios windows clean distclean test
 .DEFAULT_GOAL := help
 
 help:
@@ -40,7 +40,14 @@ windows:
 
 clean:
 	rm -rf $(ROOT)/apps/autorun_flutter/android/app/src/main/jniLibs/* || true
+	rm -rf $(ROOT)/apps/autorun_flutter/build || true
 	rm -f $(ROOT)/apps/autorun_flutter/build/linux/x64/*/bundle/lib/libicp_core.* || true
+	rm -rf $(ROOT)/apps/autorun_flutter/linux/flutter/ephemeral || true
+
+distclean: clean
+	rm -rf $(ROOT)/target || true
+	rm -rf $(ROOT)/apps/autorun_flutter/.dart_tool || true
+	rm -rf $(ROOT)/apps/autorun_flutter/.gradle || true
 
 test:
 	@set -euo pipefail
