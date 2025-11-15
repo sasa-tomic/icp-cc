@@ -17,7 +17,7 @@ See [QUICKSTART.md](./QUICKSTART.md) for step-by-step setup (2-5 minutes).
 **Local Development:**
 ```bash
 cp .env.example .env && cargo run
-# API at http://127.0.0.1:8080
+# API at http://127.0.0.1:58100
 ```
 
 **Docker Deployment:**
@@ -52,8 +52,8 @@ just docker-deploy-prod      # https://icp-mp.kalaj.org (+ http://localhost:5810
 ## 🧪 Testing
 
 ```bash
-curl http://127.0.0.1:8080/api/v1/health | jq .
-curl http://127.0.0.1:8080/api/v1/marketplace-stats | jq .
+curl http://127.0.0.1:58100/api/v1/health | jq .
+curl http://127.0.0.1:58100/api/v1/marketplace-stats | jq .
 ```
 
 See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for full testing guide.

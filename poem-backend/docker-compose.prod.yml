@@ -4,7 +4,7 @@ services:
     container_name: icp-marketplace-api-prod
     restart: unless-stopped
     ports:
-      - "58100:8080"
+      - "58100:58100"
 
   cloudflared:
     image: cloudflare/cloudflared:latest

@@ -13,7 +13,7 @@
 cd poem-backend
 cp .env.example .env
 cargo run
-# API available at http://127.0.0.1:8080
+# API available at http://127.0.0.1:58100
 ```
 
 See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for details.
