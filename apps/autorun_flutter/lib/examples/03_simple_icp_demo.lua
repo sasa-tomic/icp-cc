@@ -304,6 +304,8 @@ function handle_icp_response(msg, state)
     if msg.ok then
       state.balance = msg.data.balance or 0
       state.last_action = "Balance query successful: " .. format_icp(state.balance) .. " ICP"
+      -- Set balance_loaded flag for async response handling
+      state.balance_loaded = true
     else
       state.last_action = "Balance query failed: " .. (msg.error or "Unknown error")
     end
@@ -314,6 +316,8 @@ function handle_icp_response(msg, state)
       local blocks = msg.data.blocks or {}
       state.transactions = blocks
       state.last_action = "Transaction query successful: " .. #blocks .. " transactions found"
+      -- Set transactions_loaded flag for async response handling
+      state.transactions_loaded = true
     else
       state.last_action = "Transaction query failed: " .. (msg.error or "Unknown error")
     end

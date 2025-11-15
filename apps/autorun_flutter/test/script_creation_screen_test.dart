@@ -10,6 +10,48 @@ import 'package:icp_autorun/screens/script_creation_screen.dart';
 
 import 'script_creation_screen_test.mocks.dart';
 
+// Test template with actual Lua code to avoid empty source validation
+const _testLuaCode = '''-- Test Script
+function init(arg)
+  return { counter = 0 }, {}
+end
+
+function view(state)
+  return {
+    type = "section",
+    props = { title = "Test" },
+    children = {
+      {
+        type = "text",
+        props = { text = "Counter: " .. state.counter }
+      }
+    }
+  }
+end
+
+function update(msg, state)
+  if msg.type == "increment" then
+    state.counter = state.counter + 1
+  end
+  return state, {}
+end
+''';
+
+// Test template class that overrides luaSource to return test code
+class TestScriptTemplate extends ScriptTemplate {
+  const TestScriptTemplate({
+    required super.id,
+    required super.title,
+    required super.description,
+    required super.emoji,
+    required super.level,
+    required super.tags,
+  });
+
+  @override
+  String get luaSource => _testLuaCode;
+}
+
 @GenerateMocks([ScriptController, ScriptRecord])
 void main() {
   group('ScriptCreationScreen Tests', () {
@@ -19,8 +61,8 @@ void main() {
     setUp(() {
       mockController = MockScriptController();
 
-      // Create a test template
-      testTemplate = const ScriptTemplate(
+      // Create a test template with actual Lua code
+      testTemplate = const TestScriptTemplate(
         id: 'test_template',
         title: 'Test Template',
         description: 'A test template for unit testing',
@@ -333,9 +375,9 @@ void main() {
 
       // Try to create script
       await tester.tap(find.text('CREATE'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      // Should show error message
+      // Should show error message in SnackBar
       expect(find.text('Failed to create script: Exception: Creation failed'), findsOneWidget);
     });
 

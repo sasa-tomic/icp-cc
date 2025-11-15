@@ -367,6 +367,12 @@ function sort_transactions(transactions, sort_config)
   return sorted
 end
 
+function get_sorted_transactions(state)
+  -- Get filtered transactions first, then apply sorting
+  local filtered = get_filtered_transactions(state)
+  return sort_transactions(filtered, state.sort_config)
+end
+
 function format_transactions_for_ui(transactions)
   local ui_elements = {}
 
