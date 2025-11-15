@@ -532,7 +532,7 @@ function update(msg, state)
     return state, {}
 
   -- Handle ICP call responses
-  elseif action_type == "effect_result" then
+  elseif action_type == "effect/result" then
     return handle_icp_response(msg, state)
 
   else
