@@ -153,29 +153,726 @@ pub fn execute_lua_json(script: &str, json_arg: Option<&str>) -> Result<String, 
     Ok(response.to_string())
 }
 
+#[derive(Debug, Clone)]
+pub struct ValidationContext {
+    pub is_example: bool,
+    pub is_test: bool,
+    pub is_production: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidationResult {
+    pub is_valid: bool,
+    pub syntax_errors: Vec<String>,
+    pub warnings: Vec<String>,
+    pub line_count: usize,
+    pub character_count: usize,
+}
+
+/// Comprehensive Lua script validation covering syntax, security, performance, and ICP-specific patterns
+pub fn validate_lua_comprehensive(
+    script: &str,
+    context: Option<ValidationContext>,
+) -> ValidationResult {
+    let ctx = context.unwrap_or_else(|| ValidationContext {
+        is_example: is_example_script(script),
+        is_test: is_test_script(script),
+        is_production: !is_example_script(script) && !is_test_script(script),
+    });
+
+    let mut result = ValidationResult {
+        is_valid: true,
+        syntax_errors: Vec::new(),
+        warnings: Vec::new(),
+        line_count: script.lines().count(),
+        character_count: script.len(),
+    };
+
+    // 1. Basic validation
+    validate_basic(script, &mut result);
+
+    // 2. MLua syntax validation (most reliable)
+    if result.is_valid {
+        validate_mlua_syntax(script, &mut result);
+    }
+
+    // 3. Required functions validation
+    if result.is_valid {
+        validate_required_functions(script, &mut result);
+    }
+
+    // 4. Event handler validation
+    validate_event_handlers(script, &mut result);
+
+    // 5. Security validation
+    validate_security_patterns(script, &ctx, &mut result);
+
+    // 6. ICP integration validation
+    validate_icp_integration(script, &ctx, &mut result);
+
+    // 7. Performance validation
+    validate_performance_patterns(script, &ctx, &mut result);
+
+    // 8. Data structure validation
+    validate_data_structures(script, &ctx, &mut result);
+
+    // 9. UI node validation
+    validate_ui_nodes(script, &mut result);
+
+    result.is_valid = result.syntax_errors.is_empty();
+    result
+}
+
 /// Lint a Lua script without executing it.
 /// Returns a JSON string: { ok: boolean, errors: [ { message } ] }
 pub fn lint_lua(script: &str) -> String {
-    let lua = match create_sandboxed_lua() {
-        Ok(l) => l,
-        Err(e) => {
-            return serde_json::json!({"ok": false, "errors": [{"message": e.to_string()}]})
-                .to_string()
+    let result = validate_lua_comprehensive(script, None);
+
+    serde_json::json!({
+        "ok": result.is_valid,
+        "errors": result.syntax_errors.iter().map(|e| serde_json::json!({"message": e})).collect::<Vec<_>>(),
+        "warnings": result.warnings,
+        "line_count": result.line_count,
+        "character_count": result.character_count
+    }).to_string()
+}
+
+// Helper functions for comprehensive validation
+
+fn validate_basic(script: &str, result: &mut ValidationResult) {
+    if script.trim().is_empty() {
+        result
+            .syntax_errors
+            .push("Lua source cannot be empty".to_string());
+    }
+}
+
+fn validate_mlua_syntax(script: &str, result: &mut ValidationResult) {
+    match create_sandboxed_lua() {
+        Ok(lua) => {
+            let chunk = lua.load(script);
+            match chunk.into_function() {
+                Ok(_) => {} // Syntax is valid
+                Err(e) => {
+                    result.syntax_errors.push(format!("Syntax error: {}", e));
+                }
+            }
         }
-    };
-    let chunk = lua.load(script);
-    let compile_res = chunk.into_function();
-    match compile_res {
-        Ok(_) => serde_json::json!({"ok": true, "errors": []}).to_string(),
         Err(e) => {
-            let msg = e.to_string();
-            serde_json::json!({
-                "ok": false,
-                "errors": [{"message": msg}],
-            })
-            .to_string()
+            result
+                .syntax_errors
+                .push(format!("Failed to create Lua environment: {}", e));
         }
     }
+}
+
+fn validate_required_functions(script: &str, result: &mut ValidationResult) {
+    // Check for each required function
+    if !script.contains("function init(") && !script.contains("function init (") {
+        result.syntax_errors.push(
+            "Required function 'init' not found - script will not execute properly".to_string(),
+        );
+    }
+    if !script.contains("function view(") && !script.contains("function view (") {
+        result.syntax_errors.push(
+            "Required function 'view' not found - script will not execute properly".to_string(),
+        );
+    }
+    if !script.contains("function update(") && !script.contains("function update (") {
+        result.syntax_errors.push(
+            "Required function 'update' not found - script will not execute properly".to_string(),
+        );
+    }
+
+    // Validate function signatures
+    if let Some(init_match) = script.find("function init(") {
+        let init_section = &script[init_match..];
+        if let Some(end_pos) = init_section.find(')') {
+            let init_sig = &init_section[..=end_pos];
+            if init_sig.contains(',') {
+                result
+                    .warnings
+                    .push("init() function should accept at most one parameter (arg)".to_string());
+            }
+        }
+    }
+
+    if let Some(view_match) = script.find("function view(") {
+        let view_section = &script[view_match..];
+        if !view_section.contains("state") {
+            result
+                .warnings
+                .push("view() function should accept a state parameter".to_string());
+        }
+    }
+
+    if let Some(update_match) = script.find("function update(") {
+        let update_section = &script[update_match..];
+        if !update_section.contains("msg") || !update_section.contains("state") {
+            result
+                .warnings
+                .push("update() function should accept msg and state parameters".to_string());
+        }
+    }
+}
+
+fn validate_event_handlers(script: &str, result: &mut ValidationResult) {
+    // Extract event handlers from UI definitions
+    let event_handler_regex =
+        regex::Regex::new(r#"on_(press|change|submit|input)\s*=\s*\{\s*type\s*:\s*"([^"]+)""#)
+            .unwrap_or_else(|_| regex::Regex::new(r"dummy").unwrap());
+
+    let mut event_handlers = Vec::new();
+    for cap in event_handler_regex.captures_iter(script) {
+        if let Some(handler) = cap.get(2) {
+            event_handlers.push(handler.as_str().to_string());
+        }
+    }
+
+    // Extract message types from update function
+    let message_type_regex = regex::Regex::new(r#"msg\.type\s*==\s*"([^"]+)""#)
+        .unwrap_or_else(|_| regex::Regex::new(r"dummy").unwrap());
+
+    let mut message_types = Vec::new();
+    for cap in message_type_regex.captures_iter(script) {
+        if let Some(msg_type) = cap.get(1) {
+            message_types.push(msg_type.as_str().to_string());
+        }
+    }
+
+    // Check for unhandled events
+    for handler in &event_handlers {
+        if !message_types.contains(handler) && !handler.starts_with("effect/") {
+            result.warnings.push(format!(
+                "Event handler '{}' has no corresponding case in update() function",
+                handler
+            ));
+        }
+    }
+
+    // Check for orphaned message handlers
+    for msg_type in &message_types {
+        if !event_handlers.contains(msg_type) && !msg_type.starts_with("effect/") {
+            result.warnings.push(format!(
+                "Message handler '{}' has no corresponding UI event handler",
+                msg_type
+            ));
+        }
+    }
+}
+
+fn validate_security_patterns(
+    script: &str,
+    context: &ValidationContext,
+    result: &mut ValidationResult,
+) {
+    // Always block dangerous functions
+    let dangerous_patterns = [
+        (
+            "loadstring(",
+            "loadstring() function detected - potential security risk",
+        ),
+        (
+            "dofile(",
+            "dofile() function detected - potential security risk",
+        ),
+        (
+            "os.execute",
+            "os.execute() - potentially dangerous system call",
+        ),
+        ("io.open", "io.open() - file system access not allowed"),
+        ("io.popen", "io.popen() - process execution not allowed"),
+        ("loadfile", "loadfile() - file loading not allowed"),
+        ("require(", "require() - module loading not allowed"),
+        (
+            "debug.getregistry",
+            "debug.getregistry() - debug access not allowed",
+        ),
+        (
+            "package.loadlib",
+            "package.loadlib() - library loading not allowed",
+        ),
+    ];
+
+    for (pattern, message) in &dangerous_patterns {
+        if script.contains(pattern) {
+            result.syntax_errors.push(message.to_string());
+        }
+    }
+
+    // Secret detection with context awareness
+    if context.is_production {
+        // Use simple string matching for secrets instead of regex
+        if script.contains("private_key") && script.contains('"') {
+            result.syntax_errors.push(
+                "Hardcoded private key detected - use environment variables or secure storage"
+                    .to_string(),
+            );
+        }
+        if (script.contains("password") || script.contains("token") || script.contains("api_key"))
+            && script.contains('"')
+            && script.len() > 100
+        {
+            result.syntax_errors.push(
+                "Potential hardcoded secret detected - use environment variables or secure storage"
+                    .to_string(),
+            );
+        }
+    } else {
+        // In examples/tests, only warn about obvious secrets
+        if script.contains("sk-") || script.contains("pk_") {
+            result
+                .warnings
+                .push("Potential real secret detected in example/test code".to_string());
+        }
+    }
+
+    // XSS detection - simple string matching
+    if script.contains("<script") || script.contains("javascript:") {
+        result
+            .syntax_errors
+            .push("Dangerous HTML/JavaScript pattern detected".to_string());
+    }
+
+    // Network URL validation - simple string matching
+    if script.contains("http://") || script.contains("https://") {
+        let words: Vec<&str> = script.split_whitespace().collect();
+        for word in words {
+            if word.starts_with("http://") || word.starts_with("https://") {
+                let url =
+                    word.trim_matches(|c| c == ',' || c == ';' || c == ')' || c == '(' || c == '"');
+                if url.contains("localhost") || url.contains("127.0.0.1") {
+                    if context.is_production {
+                        result
+                            .syntax_errors
+                            .push(format!("Localhost URL in production code: {}", url));
+                    } else {
+                        result.warnings.push(format!(
+                            "Localhost URL detected: {} - ensure this is intentional",
+                            url
+                        ));
+                    }
+                }
+                if url.starts_with("http://") && context.is_production {
+                    result.warnings.push(format!(
+                        "Insecure HTTP URL detected: {} - consider using HTTPS",
+                        url
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn validate_icp_integration(
+    script: &str,
+    context: &ValidationContext,
+    result: &mut ValidationResult,
+) {
+    // Validate canister ID patterns with context awareness
+    // Simple string matching approach to avoid regex compilation in loops
+    let mut pos = 0;
+    while let Some(canister_start) = script[pos..].find("canister_id") {
+        let absolute_start = pos + canister_start;
+        let remaining = &script[absolute_start..];
+
+        if let Some(quote_start) = remaining.find('"') {
+            let quote_pos = absolute_start + quote_start;
+            if let Some(quote_end) = script[quote_pos + 1..].find('"') {
+                let absolute_end = quote_pos + 1 + quote_end;
+                let canister_id = &script[quote_pos + 1..absolute_end];
+
+                // Allow test/mock IDs in examples and tests
+                if context.is_example || context.is_test {
+                    let canister_lower = canister_id.to_lowercase();
+                    if canister_lower.starts_with("test")
+                        || canister_lower.starts_with("mock")
+                        || canister_lower.starts_with("demo")
+                        || canister_lower.starts_with("example")
+                    {
+                        pos = absolute_end;
+                        continue;
+                    }
+                }
+
+                // Basic canister ID validation
+                if canister_id.len() < 10 || canister_id.len() > 63 || !canister_id.contains('-') {
+                    if context.is_production {
+                        result.syntax_errors.push(format!("Invalid canister ID format: {}. Expected format: xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxx-xxx", canister_id));
+                    } else {
+                        result.warnings.push(format!(
+                            "Potentially invalid canister ID format: {}",
+                            canister_id
+                        ));
+                    }
+                }
+
+                pos = absolute_end;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    // Validate effect handling
+    if script.contains(r#"kind = "icp_call""#) {
+        let script_lower = script.to_lowercase();
+        if !script_lower.contains("effect/result") {
+            if context.is_production {
+                result.syntax_errors.push(
+                    "Script uses ICP calls but missing effect/result handler in update() function"
+                        .to_string(),
+                );
+            } else {
+                result.warnings.push(
+                    "Script uses ICP calls but missing effect/result handler in update() function"
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    // Validate canister call structure - simple string matching
+    if script.contains("canister_id") && script.contains("method") && script.contains("kind") {
+        // Look for canister call patterns that might be missing args
+        let lines: Vec<&str> = script.lines().collect();
+        for line in &lines {
+            if line.contains("canister_id")
+                && line.contains("method")
+                && line.contains("kind")
+                && !line.contains("args")
+            {
+                result.warnings.push(
+                    "Canister call missing args field - may cause runtime errors".to_string(),
+                );
+            }
+        }
+    }
+}
+
+fn validate_performance_patterns(
+    script: &str,
+    context: &ValidationContext,
+    result: &mut ValidationResult,
+) {
+    // Infinite loop detection - simplified approach
+    if script.contains("while true do") || script.contains("while	true do") {
+        // Look for while true loops and check if they have break/return
+        let lines: Vec<&str> = script.lines().collect();
+        let mut in_while_loop = false;
+        let mut while_loop_content = Vec::new();
+
+        for line in &lines {
+            if line.trim().contains("while true do") || line.trim().contains("while	true do") {
+                in_while_loop = true;
+                continue;
+            }
+
+            if in_while_loop {
+                if line.trim() == "end" {
+                    // Check if loop has conditional break or return
+                    let loop_content = while_loop_content.join("\n");
+                    if !loop_content.contains("if")
+                        || (!loop_content.contains("break") && !loop_content.contains("return"))
+                    {
+                        result.syntax_errors.push(
+                            "Potential infinite loop - while true without conditional break/return"
+                                .to_string(),
+                        );
+                    }
+                    in_while_loop = false;
+                    while_loop_content.clear();
+                } else {
+                    while_loop_content.push(line.to_string());
+                }
+            }
+        }
+    }
+
+    // Recursive function detection (production only) - simplified approach
+    if context.is_production {
+        // Simple heuristic: check for function calls that match function names
+        let lines: Vec<&str> = script.lines().collect();
+        let mut function_names = Vec::new();
+
+        for line in &lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("function ")
+                && !trimmed.starts_with("function init(")
+                && !trimmed.starts_with("function view(")
+                && !trimmed.starts_with("function update(")
+            {
+                // Extract function name
+                if let Some(space_pos) = trimmed.find(' ') {
+                    let name_part = &trimmed[space_pos + 1..];
+                    if let Some(paren_pos) = name_part.find('(') {
+                        let func_name = &name_part[..paren_pos];
+                        if !func_name.is_empty() {
+                            function_names.push(func_name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for recursive calls
+        for func_name in &function_names {
+            let call_pattern = format!("{}(", func_name);
+            let mut call_count = 0;
+            for line in &lines {
+                if line.contains(&call_pattern) {
+                    call_count += 1;
+                }
+            }
+
+            if call_count > 1 {
+                // This might be recursive - check if function has if/return
+                let mut func_body = Vec::new();
+                let mut in_function = false;
+
+                for line in &lines {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with(&format!("function {}(", func_name)) {
+                        in_function = true;
+                        continue;
+                    }
+
+                    if in_function {
+                        if trimmed == "end" {
+                            let body = func_body.join("\n");
+                            if !body.contains("if") && !body.contains("return") {
+                                result.warnings.push(format!(
+                                    "Recursive function '{}' may be missing base case",
+                                    func_name
+                                ));
+                            }
+                            in_function = false;
+                            func_body.clear();
+                        } else {
+                            func_body.push(line.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Large number detection - simple string matching
+    let words: Vec<&str> = script.split_whitespace().collect();
+    for word in words {
+        if word.chars().all(|c| c.is_ascii_digit()) && word.len() >= 15 {
+            result.warnings.push(
+                "Very large numbers detected - ensure they fit within Lua number limits"
+                    .to_string(),
+            );
+            break;
+        }
+    }
+
+    // Table insert performance warning
+    let table_insert_count = script.matches("table.insert").count();
+    if table_insert_count > 50 {
+        result.warnings.push(
+            "Many table.insert operations detected - consider optimizing for better performance"
+                .to_string(),
+        );
+    }
+}
+
+fn validate_data_structures(
+    script: &str,
+    context: &ValidationContext,
+    result: &mut ValidationResult,
+) {
+    // Undefined state access detection (production only) - simplified approach
+    if context.is_production {
+        // Find state.field patterns using simple string matching
+        let lines: Vec<&str> = script.lines().collect();
+        let mut state_fields = Vec::new();
+
+        for line in &lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("state.") {
+                if let Some(dot_pos) = trimmed.find('.') {
+                    let field_part = &trimmed[dot_pos + 1..];
+                    // Extract field name (until first non-word character)
+                    let field_end = field_part
+                        .find(|c: char| !c.is_alphanumeric() && c != '_')
+                        .unwrap_or(field_part.len());
+                    let field = &field_part[..field_end];
+
+                    // Skip common state fields that might be set dynamically
+                    if ![
+                        "last_action",
+                        "show_info",
+                        "counter",
+                        "balance",
+                        "transactions",
+                    ]
+                    .contains(&field)
+                    {
+                        state_fields.push(field.to_string());
+                    }
+                }
+            }
+        }
+
+        // Check if these state fields are initialized in init function
+        for field in &state_fields {
+            let init_pattern = format!("{} = ", field);
+            if !script.contains(&init_pattern) && !script.contains(&format!("{}=", field)) {
+                result.warnings.push(format!(
+                    "State field 'state.{}' may be undefined - ensure it's initialized in init()",
+                    field
+                ));
+            }
+        }
+    }
+
+    // String concatenation in loops (performance issue - production only) - simplified
+    if context.is_production
+        && script.contains("for")
+        && script.contains("do")
+        && script.contains("..")
+    {
+        let lines: Vec<&str> = script.lines().collect();
+        let mut in_for_loop = false;
+        let mut loop_content = Vec::new();
+
+        for line in &lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("for ") && trimmed.contains(" do") {
+                in_for_loop = true;
+                continue;
+            }
+
+            if in_for_loop {
+                if trimmed == "end" {
+                    let loop_str = loop_content.join("\n");
+                    let concat_count = loop_str.matches("..").count();
+                    if concat_count > 5 {
+                        result.warnings.push("String concatenation in loop detected - consider using table.concat for better performance".to_string());
+                    }
+                    in_for_loop = false;
+                    loop_content.clear();
+                } else {
+                    loop_content.push(line.to_string());
+                }
+            }
+        }
+    }
+
+    // Table operations threshold
+    let table_insert_matches = script.matches("table.insert").count();
+    if table_insert_matches > 100 {
+        result.warnings.push("Many table.insert operations detected - consider pre-allocating tables for better performance".to_string());
+    }
+}
+
+fn validate_ui_nodes(script: &str, result: &mut ValidationResult) {
+    // Check for conditional rendering patterns that might produce false values
+    let lines: Vec<&str> = script.lines().collect();
+    for line in &lines {
+        if line.contains(" and {") && !line.contains("type") {
+            result.syntax_errors.push("Conditional UI expression missing type field - this will cause \"UI node missing type\" error".to_string());
+        }
+    }
+
+    // Check for empty type values - simplified approach
+    if script.contains("type = ") {
+        let lines: Vec<&str> = script.lines().collect();
+        for line in &lines {
+            if line.contains("type = ") {
+                // Look for type = "" patterns
+                if line.contains("type = \"\"") || line.contains("type = ''") {
+                    result
+                        .syntax_errors
+                        .push("UI node with empty type found".to_string());
+                }
+            }
+        }
+    }
+
+    // Check for valid UI node types - simplified approach
+    let valid_types = [
+        "column", "row", "section", "text", "button", "toggle", "input",
+    ];
+    let lines: Vec<&str> = script.lines().collect();
+    for line in &lines {
+        if line.contains("type = ") {
+            // Extract type value
+            if let Some(start) = line.find("type = ") {
+                let type_part = &line[start + 7..];
+                if let Some(end) = type_part.find('"') {
+                    if let Some(value_start) = type_part[..end].rfind('"') {
+                        let type_value = &type_part[value_start + 1..end];
+                        if !type_value.is_empty() && !valid_types.contains(&type_value) {
+                            result.warnings.push(format!(
+                                "Unknown UI node type: \"{}\" - valid types are: {}",
+                                type_value,
+                                valid_types.join(", ")
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Look for missing type fields in return statements - simplified
+    if script.contains("return {") {
+        let lines: Vec<&str> = script.lines().collect();
+        let mut in_return = false;
+        let mut brace_count = 0;
+
+        for line in &lines {
+            let trimmed = line.trim();
+            if trimmed == "return {" {
+                in_return = true;
+                brace_count = 1;
+                continue;
+            }
+
+            if in_return {
+                // Count braces to track nested structures
+                brace_count += trimmed.matches('{').count() as i32;
+                brace_count -= trimmed.matches('}').count() as i32;
+
+                // Check if this line looks like a table literal without type
+                if trimmed.starts_with('{')
+                    && trimmed.contains('}')
+                    && !trimmed.contains("type")
+                    && (trimmed.contains("props") || trimmed.contains("children"))
+                {
+                    result
+                        .syntax_errors
+                        .push("UI node missing type field".to_string());
+                }
+
+                if brace_count <= 0 {
+                    in_return = false;
+                }
+            }
+        }
+    }
+}
+
+// Helper functions for context detection
+fn is_example_script(script: &str) -> bool {
+    let script_lower = script.to_lowercase();
+    script_lower.contains("-- example")
+        || script_lower.contains("-- demo")
+        || script_lower.contains("-- tutorial")
+        || script_lower.contains("-- sample")
+}
+
+fn is_test_script(script: &str) -> bool {
+    let script_lower = script.to_lowercase();
+    script_lower.contains("-- test")
+        || script_lower.contains("-- spec")
+        || script_lower.contains("-- unit")
 }
 
 // ---- TEA-style app helpers ----
@@ -379,6 +1076,123 @@ pub fn app_update(script: &str, msg_json: &str, state_json: &str, budget_ms: u64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_comprehensive_validation_system() {
+        // Test 1: Valid production script
+        let valid_script = r#"
+function init(arg)
+  return { count = 0 }, {}
+end
+
+function view(state)
+  return { type = "text", props = { text = "Count: " .. tostring(state.count) } }
+end
+
+function update(msg, state)
+  if msg.type == "inc" then
+    state.count = state.count + 1
+    return state, {}
+  end
+  return state, {}
+end
+"#;
+        let result = validate_lua_comprehensive(
+            valid_script,
+            Some(ValidationContext {
+                is_example: false,
+                is_test: false,
+                is_production: true,
+            }),
+        );
+        assert!(result.is_valid);
+        assert!(result.syntax_errors.is_empty());
+        assert_eq!(result.line_count, 16);
+        assert!(result.character_count > 0);
+
+        // Test 2: Script with security issues
+        let security_script = r#"
+function init(arg)
+  loadstring("print('hello')")
+  return { count = 0 }, {}
+end
+
+function view(state)
+  return { type = "text", props = { text = "Count: " .. tostring(state.count) } }
+end
+
+function update(msg, state)
+  if msg.type == "inc" then
+    state.count = state.count + 1
+    return state, {}
+  end
+  return state, {}
+end
+"#;
+        let result = validate_lua_comprehensive(
+            security_script,
+            Some(ValidationContext {
+                is_example: false,
+                is_test: false,
+                is_production: true,
+            }),
+        );
+        assert!(!result.is_valid);
+        assert!(!result.syntax_errors.is_empty());
+        assert!(result
+            .syntax_errors
+            .iter()
+            .any(|e| e.contains("loadstring")));
+
+        // Test 3: Example script (more lenient about secrets)
+        let example_script = r#"
+-- EXAMPLE: This is a demo script
+function init(arg)
+  local privateKey = "sk-test123456789"
+  return { count = 0, key = privateKey }, {}
+end
+
+function view(state)
+  return { type = "text", props = { text = "Count: " .. tostring(state.count) } }
+end
+
+function update(msg, state)
+  if msg.type == "inc" then
+    state.count = state.count + 1
+    return state, {}
+  end
+  return state, {}
+end
+"#;
+        let result = validate_lua_comprehensive(
+            example_script,
+            Some(ValidationContext {
+                is_example: true,
+                is_test: false,
+                is_production: false,
+            }),
+        );
+        assert!(result.is_valid); // Should be valid for example context
+        assert!(result.warnings.iter().any(|w| w.contains("secret"))); // But should warn about secrets
+
+        // Test 4: Script missing required functions
+        let incomplete_script = r#"
+function init(arg)
+  return { count = 0 }, {}
+end
+// Missing view and update functions
+"#;
+        let result = validate_lua_comprehensive(incomplete_script, None);
+        assert!(!result.is_valid);
+        assert!(result
+            .syntax_errors
+            .iter()
+            .any(|e| e.contains("view") && e.contains("not found")));
+        assert!(result
+            .syntax_errors
+            .iter()
+            .any(|e| e.contains("update") && e.contains("not found")));
+    }
 
     #[test]
     fn simple_math() {
