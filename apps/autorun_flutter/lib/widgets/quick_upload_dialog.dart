@@ -95,14 +95,17 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     }
     final List<IdentityRecord> updated =
         List<IdentityRecord>.from(_identityController.identities);
-    IdentityRecord? selected = _selectedIdentity;
-    if (selected != null &&
-        !updated.any((IdentityRecord identity) => identity.id == selected.id)) {
-      selected = null;
+    final IdentityRecord? currentSelection = _selectedIdentity;
+    IdentityRecord? resolvedSelection;
+    if (currentSelection != null &&
+        updated.any(
+            (IdentityRecord identity) => identity.id == currentSelection.id)) {
+      resolvedSelection = currentSelection;
     }
+
     setState(() {
       _identities = updated;
-      _selectedIdentity = selected;
+      _selectedIdentity = resolvedSelection;
     });
   }
 
@@ -184,6 +187,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       final String authorName = _authorController.text.trim();
       final double price = double.tryParse(_priceController.text.trim()) ?? 0.0;
       const String version = '1.0.0';
+      final String timestamp = DateTime.now().toUtc().toIso8601String();
 
       // Use the actual Lua source from the script, or pre-filled code, or generate default
       String luaSource;
@@ -225,6 +229,7 @@ end''';
         luaSource: luaSource,
         version: version,
         tags: tags,
+        timestampIso: timestamp,
       );
       final String authorPrincipal = PrincipalUtils.textFromRecord(identity);
 
@@ -240,6 +245,7 @@ end''';
         authorPrincipal: authorPrincipal,
         authorPublicKey: identity.publicKey,
         signature: signature,
+        timestampIso: timestamp,
       );
 
       if (!mounted) return;
@@ -504,6 +510,7 @@ end''';
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
+                          key: const Key('quick-upload-submit'),
                           onPressed: _isUploading ? null : _uploadScript,
                           icon: _isUploading
                               ? const SizedBox(

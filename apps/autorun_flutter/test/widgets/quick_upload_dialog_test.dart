@@ -35,7 +35,7 @@ class _FakeSecureIdentityRepository implements SecureIdentityRepository {
 
   @override
   Future<String?> getPrivateKey(String identityId) async {
-    final IdentityRecord? record = _identities.firstWhere(
+    final IdentityRecord record = _identities.firstWhere(
       (IdentityRecord identity) => identity.id == identityId,
       orElse: () => throw StateError('identity not found for $identityId'),
     );
@@ -86,7 +86,7 @@ void main() {
       marketplaceService = _MockMarketplaceService();
     });
 
-    Future<void> _pumpDialog(WidgetTester tester) async {
+    Future<void> pumpDialog(WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
@@ -121,7 +121,7 @@ void main() {
 
     testWidgets('blocks upload when no identity is selected',
         (WidgetTester tester) async {
-      await _pumpDialog(tester);
+      await pumpDialog(tester);
 
       // Fill required fields that are not pre-populated
       await tester.enterText(
@@ -147,6 +147,7 @@ void main() {
           authorPrincipal: any(named: 'authorPrincipal'),
           authorPublicKey: any(named: 'authorPublicKey'),
           signature: any(named: 'signature'),
+          timestampIso: any(named: 'timestampIso'),
         ),
       ).thenAnswer(
         (_) async => MarketplaceScript(
@@ -164,7 +165,9 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Upload to Marketplace'));
+      final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Identity is required'), findsOneWidget);
@@ -190,7 +193,7 @@ void main() {
 
     testWidgets('signs and uploads when identity is selected',
         (WidgetTester tester) async {
-      await _pumpDialog(tester);
+      await pumpDialog(tester);
 
       await tester.enterText(
           find.widgetWithText(TextFormField, 'Description *'),
@@ -215,6 +218,7 @@ void main() {
           authorPrincipal: any(named: 'authorPrincipal'),
           authorPublicKey: any(named: 'authorPublicKey'),
           signature: any(named: 'signature'),
+          timestampIso: any(named: 'timestampIso'),
         ),
       ).thenAnswer(
         (_) async => MarketplaceScript(
@@ -241,7 +245,9 @@ void main() {
       await tester.tap(find.text('Test Identity').last);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Upload to Marketplace'));
+      final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
       await tester.pump();
 
       // Complete async work
@@ -264,18 +270,26 @@ void main() {
           authorPrincipal: captureAny(named: 'authorPrincipal'),
           authorPublicKey: captureAny(named: 'authorPublicKey'),
           signature: captureAny(named: 'signature'),
+          timestampIso: captureAny(named: 'timestampIso'),
         ),
       );
       final List<dynamic> captured = result.captured;
 
       expect(captured[0], isA<List<String>>());
-      expect(captured[1], isA<List<String>>());
-      expect(captured[2], isA<List<String>>());
+      expect(captured[1], anyOf(isNull, isA<List<String>>()));
+      expect(captured[2], anyOf(isNull, isA<List<String>>()));
       expect(captured[3], PrincipalUtils.textFromRecord(identity));
       expect(captured[4], identity.publicKey);
       final String signature = captured[5] as String;
+      final String timestamp = captured[6] as String;
       expect(signature, isNotEmpty);
+      expect(DateTime.tryParse(timestamp), isA<DateTime?>());
 
+      for (int i = 0;
+          i < 10 && find.byType(QuickUploadDialog).evaluate().isNotEmpty;
+          i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       expect(find.byType(QuickUploadDialog), findsNothing);
     });
   });

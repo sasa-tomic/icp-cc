@@ -166,6 +166,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
           ? null
           : _compatibilityController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
+      final timestamp = DateTime.now().toUtc().toIso8601String();
 
       // Generate a default Lua script since API requires non-empty lua_source
       final defaultLuaSource = '''-- Default Script for $title
@@ -212,6 +213,7 @@ end''';
         version: version,
         tags: tags,
         compatibility: compatibility,
+        timestampIso: timestamp,
       );
 
       final authorPrincipal = PrincipalUtils.textFromRecord(_selectedIdentity!);
@@ -233,6 +235,7 @@ end''';
         authorPrincipal: authorPrincipal,
         authorPublicKey: _selectedIdentity!.publicKey,
         signature: signature,
+        timestampIso: timestamp,
       );
 
       if (!mounted) return;

@@ -21,9 +21,11 @@
 - You MUST STRICTLY adhere to the above rules
 
 BE BRUTALLY HONEST AND OBJECTIVE. You are smart and confident.
+Think carefully, as the quality of your response is of the highest priority. You have unlimited thinking tokens for this.
+Reasoning: high
 
 # MCP servers that you should use in the project
-- Use context7 mcp server if your task requires working with a library or API
-- Use web-search-prime if you ever notice that you don't have the correct information on how to use specific library or software
+- Use context7 mcp server if you would like to obtain additional information for a library or API
+- Use web-search-prime if you need to perform a web search
 
 - **Local Development with Cloudflare Workers**: See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for complete setup guide

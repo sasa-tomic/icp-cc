@@ -11,11 +11,22 @@ bool suppressDebugOutput = false;
 class MarketplaceOpenApiService {
   static final MarketplaceOpenApiService _instance = MarketplaceOpenApiService._internal();
   factory MarketplaceOpenApiService() => _instance;
-  MarketplaceOpenApiService._internal();
+  MarketplaceOpenApiService._internal() : _httpClient = http.Client();
 
   String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1'; // API endpoints
   final Duration _timeout = const Duration(seconds: 45);
+  http.Client _httpClient;
   static const int defaultSearchLimit = 20;
+
+  @visibleForTesting
+  void overrideHttpClient(http.Client client) {
+    _httpClient = client;
+  }
+
+  @visibleForTesting
+  void resetHttpClient() {
+    _httpClient = http.Client();
+  }
 
   // Search scripts with advanced filtering
   Future<MarketplaceSearchResult> searchScripts({
@@ -47,7 +58,7 @@ class MarketplaceOpenApiService {
       if (minRating != null) requestBody['minRating'] = minRating;
       if (maxPrice != null) requestBody['maxPrice'] = maxPrice;
       
-      final response = await http
+      final response = await _httpClient
           .post(
             Uri.parse(url),
             headers: {'Content-Type': 'application/json'},
@@ -97,7 +108,7 @@ class MarketplaceOpenApiService {
   // Get script details by ID
   Future<MarketplaceScript> getScriptDetails(String scriptId) async {
     try {
-      final response = await http
+      final response = await _httpClient
           .get(Uri.parse('$_baseUrl/scripts/$scriptId'))
           .timeout(_timeout);
 
@@ -131,7 +142,7 @@ class MarketplaceOpenApiService {
   // Get featured scripts
   Future<List<MarketplaceScript>> getFeaturedScripts({int limit = 10}) async {
     try {
-      final response = await http
+      final response = await _httpClient
           .get(Uri.parse('$_baseUrl/scripts/featured?limit=$limit'))
           .timeout(_timeout);
 
@@ -159,7 +170,7 @@ class MarketplaceOpenApiService {
   // Get trending scripts
   Future<List<MarketplaceScript>> getTrendingScripts({int limit = 10}) async {
     try {
-      final response = await http
+      final response = await _httpClient
           .get(Uri.parse('$_baseUrl/scripts/trending?limit=$limit'))
           .timeout(_timeout);
 
@@ -200,7 +211,7 @@ class MarketplaceOpenApiService {
         'sort_order': sortOrder,
       });
 
-      final response = await http.get(uri).timeout(_timeout);
+      final response = await _httpClient.get(uri).timeout(_timeout);
 
       if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
@@ -237,7 +248,7 @@ class MarketplaceOpenApiService {
         if (verifiedOnly) 'verified_only': 'true',
       });
 
-      final response = await http.get(uri).timeout(_timeout);
+      final response = await _httpClient.get(uri).timeout(_timeout);
 
       if (response.statusCode > 299) {
         throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
@@ -340,7 +351,7 @@ class MarketplaceOpenApiService {
     try {
       final url = '$_baseUrl/marketplace-stats';
       if (!suppressDebugOutput) debugPrint('GET request URL: $url');
-      final response = await http
+      final response = await _httpClient
           .get(Uri.parse(url))
           .timeout(_timeout);
 
@@ -381,7 +392,7 @@ class MarketplaceOpenApiService {
         }
       }
 
-      final response = await http
+      final response = await _httpClient
           .post(
             Uri.parse('$_baseUrl/scripts/compatible'),
             headers: {'Content-Type': 'application/json'},
@@ -431,6 +442,7 @@ class MarketplaceOpenApiService {
     String? authorPrincipal,
     String? authorPublicKey,
     String? signature,
+    String? timestampIso,
   }) async {
     try {
       final requestBodyMap = <String, dynamic>{
@@ -463,6 +475,9 @@ class MarketplaceOpenApiService {
       if (signature != null) {
         requestBodyMap['signature'] = signature;
       }
+      if (timestampIso != null) {
+        requestBodyMap['timestamp'] = timestampIso;
+      }
       
       final requestBody = jsonEncode(requestBodyMap);
       
@@ -471,7 +486,7 @@ class MarketplaceOpenApiService {
         debugPrint('Request body: $requestBody');
       }
       
-      final response = await http
+      final response = await _httpClient
           .post(
             Uri.parse('$_baseUrl/scripts'),
             headers: {'Content-Type': 'application/json'},
@@ -485,24 +500,28 @@ class MarketplaceOpenApiService {
           debugPrint('Response body: ${response.body}');
           debugPrint('Reason phrase: "${response.reasonPhrase}"');
         }
-        if (response.body.isEmpty) {
-          throw Exception('Upload failed: HTTP $response.statusCode $response.reasonPhrase');
-        }
-        try {
-          final responseData = jsonDecode(response.body);
-          throw Exception(responseData['error'] ?? 'Upload failed: HTTP $response.statusCode $response.reasonPhrase');
-        } catch (e) {
-          throw Exception('Upload failed: HTTP $response.statusCode $response.reasonPhrase');
-        }
+        final errorMessage = _buildUploadErrorMessage(
+          statusCode: response.statusCode,
+          reasonPhrase: response.reasonPhrase,
+          responseBody: response.body,
+        );
+        throw Exception(errorMessage);
       }
 
       if (response.body.isEmpty) {
-        throw Exception('Upload failed: Empty response from server');
+        throw Exception('Upload failed (HTTP ${response.statusCode}): Empty response from server');
       }
       
       final responseData = jsonDecode(response.body);
       if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Upload failed');
+        final errorDetail = responseData['error']?.toString();
+        throw Exception(
+          _buildUploadErrorMessage(
+            statusCode: response.statusCode,
+            reasonPhrase: response.reasonPhrase,
+            serverError: errorDetail,
+          ),
+        );
       }
 
       final data = responseData['data'];
@@ -545,6 +564,47 @@ class MarketplaceOpenApiService {
     }
   }
 
+  String _buildUploadErrorMessage({
+    required int statusCode,
+    String? reasonPhrase,
+    String? responseBody,
+    Object? serverError,
+  }) {
+    String? detail;
+
+    if (serverError != null) {
+      final serverText = serverError.toString().trim();
+      if (serverText.isNotEmpty) {
+        detail = serverText;
+      }
+    }
+
+    if (detail == null && responseBody != null) {
+      final bodyText = responseBody.trim();
+      if (bodyText.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(bodyText);
+          if (decoded is Map<String, dynamic>) {
+            final errorValue = decoded['error']?.toString().trim();
+            if (errorValue != null && errorValue.isNotEmpty) {
+              detail = errorValue;
+            }
+          }
+        } catch (_) {
+          // Ignore JSON decoding issues and fall back to raw body sample.
+        }
+
+        detail ??= bodyText.length > 200 ? '${bodyText.substring(0, 200)}...' : bodyText;
+      }
+    }
+
+    detail ??= reasonPhrase?.trim().isNotEmpty == true
+        ? reasonPhrase!.trim()
+        : 'Unknown error from server';
+
+    return 'Upload failed (HTTP $statusCode): $detail';
+  }
+
   // Update an existing script
   Future<MarketplaceScript> updateScript(
     String scriptId, {
@@ -578,7 +638,7 @@ class MarketplaceOpenApiService {
       if (authorPrincipal != null) body['author_principal'] = authorPrincipal;
       if (signature != null) body['signature'] = signature;
 
-      final response = await http
+      final response = await _httpClient
           .put(
             Uri.parse('$_baseUrl/scripts/$scriptId'),
             headers: {'Content-Type': 'application/json'},
@@ -622,7 +682,7 @@ class MarketplaceOpenApiService {
       if (authorPrincipal != null) body['author_principal'] = authorPrincipal;
       if (signature != null) body['signature'] = signature;
 
-      final response = await http
+      final response = await _httpClient
           .post(
             Uri.parse('$_baseUrl/scripts/$scriptId/delete'),
             headers: {'Content-Type': 'application/json'},
