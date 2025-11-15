@@ -37,23 +37,15 @@ function update(msg, state)
 end
 ''';
 
-// Test template class that overrides luaSource to return test code
-class TestScriptTemplate extends ScriptTemplate {
-  const TestScriptTemplate({
-    required super.id,
-    required super.title,
-    required super.description,
-    required super.emoji,
-    required super.level,
-    required super.tags,
-  });
-
-  @override
-  String get luaSource => _testLuaCode;
-}
-
 @GenerateMocks([ScriptController, ScriptRecord])
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    ScriptTemplates.resetForTest();
+    await ScriptTemplates.ensureInitialized();
+  });
+
   group('ScriptCreationScreen Tests', () {
     late MockScriptController mockController;
     late ScriptTemplate testTemplate;
@@ -62,13 +54,14 @@ void main() {
       mockController = MockScriptController();
 
       // Create a test template with actual Lua code
-      testTemplate = const TestScriptTemplate(
+      testTemplate = ScriptTemplate(
         id: 'test_template',
         title: 'Test Template',
         description: 'A test template for unit testing',
         emoji: '🧪',
         level: 'beginner',
         tags: ['test', 'unit'],
+        preloadedLuaSource: _testLuaCode,
       );
     });
 

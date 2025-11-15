@@ -5,9 +5,10 @@ void main() {
   // Initialize Flutter bindings for asset loading
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // Ensure templates are loaded before running tests
-  // Access templates to trigger initialization
-  ScriptTemplates.templates;
+  setUpAll(() async {
+    ScriptTemplates.resetForTest();
+    await ScriptTemplates.ensureInitialized();
+  });
   group('ScriptTemplate Tests', () {
     test('Should have all required templates available', () {
       expect(ScriptTemplates.templates.length, 4, reason: 'Should have exactly 4 built-in templates');

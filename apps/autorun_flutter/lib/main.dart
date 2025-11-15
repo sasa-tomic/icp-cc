@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import 'rust/native_bridge.dart';
 import 'config/app_config.dart';
+import 'models/script_template.dart';
+import 'rust/native_bridge.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
@@ -10,8 +11,9 @@ import 'screens/identity_home_page.dart';
 import 'screens/scripts_screen.dart';
 
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ScriptTemplates.ensureInitialized();
   AppConfig.debugPrintConfig();
   runApp(const IdentityApp());
 }

@@ -36,11 +36,32 @@ all: linux android
 
 # Run all tests (Rust + Flutter)
 test:
-    @echo "==> Running tests (output saved to logs/test-output.log)"
-    @mkdir -p {{logs_dir}}
-    @just rust-tests
-    @just flutter-tests
-    @echo "✅ All tests passed! Full output saved to logs/test-output.log"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Running tests (output saved to logs/test-output.log)"
+    mkdir -p "{{logs_dir}}"
+    mkdir -p "{{root}}/.tmp"
+    tmp_dir=$(mktemp -d "{{root}}/.tmp/just-test-XXXXXX")
+    cleanup() {
+        local exit_code=$1
+        if [ "$exit_code" -eq 0 ]; then
+            rm -rf "$tmp_dir"
+        else
+            echo "==> Preserving temp dir for debugging: $tmp_dir" >&2
+        fi
+    }
+    trap 'cleanup "$?"' EXIT
+    export TMPDIR="$tmp_dir"
+    export TEMP="$tmp_dir"
+    export TMP="$tmp_dir"
+    export XDG_RUNTIME_DIR="$tmp_dir"
+    echo "export TMPDIR=$TMPDIR"
+    echo "export TEMP=$TEMP"
+    echo "export TMP=$TMP"
+    echo "export XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+    just rust-tests
+    just flutter-tests
+    echo "✅ All tests passed! Full output saved to logs/test-output.log"
 
 # Clean build artifacts
 clean:

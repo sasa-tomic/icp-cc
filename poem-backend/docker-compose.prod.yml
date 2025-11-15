@@ -2,8 +2,9 @@
 services:
   api:
     container_name: icp-marketplace-api-prod
+    restart: unless-stopped
     ports:
-      - "58100:8080"  # Prod port (for local testing before tunnel)
+      - "58100:8080"
 
   cloudflared:
     image: cloudflare/cloudflared:latest

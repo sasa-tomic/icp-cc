@@ -3,6 +3,12 @@ import 'package:icp_autorun/models/script_template.dart';
 
 /// Focused syntax tests that would have caught the original advanced UI issue
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    ScriptTemplates.resetForTest();
+    await ScriptTemplates.ensureInitialized();
+  });
 
   group('Script Template Syntax Tests', () {
 

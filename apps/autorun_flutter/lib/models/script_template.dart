@@ -1,5 +1,6 @@
 
-import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// Model for a script template that users can select when creating new scripts
 class ScriptTemplate {
@@ -11,8 +12,10 @@ class ScriptTemplate {
   final String? _filePath; // Path to the actual Lua file
   final List<String> tags;
   final bool isRecommended;
+  final String? _initialLuaSource;
+  String? _cachedLuaSource;
 
-  const ScriptTemplate({
+  ScriptTemplate({
     required this.id,
     required this.title,
     required this.description,
@@ -20,22 +23,56 @@ class ScriptTemplate {
     required this.level,
     required this.tags,
     String? filePath,
+    String? preloadedLuaSource,
     this.isRecommended = false,
-  }) : _filePath = filePath;
+  })  : _filePath = filePath,
+        _initialLuaSource = preloadedLuaSource,
+        assert(
+          preloadedLuaSource == null || preloadedLuaSource.trim().isNotEmpty,
+          'preloadedLuaSource for $id cannot be empty',
+        );
 
-  /// Read the Lua source from the actual file at compilation time
+  /// Lua source associated with this template.
+  /// Throws if the source has not been loaded (fail fast requirement).
   String get luaSource {
-    if (_filePath != null) {
-      try {
-        final file = File(_filePath);
-        if (file.existsSync()) {
-          return file.readAsStringSync();
-        }
-      } catch (e) {
-        // Fallback to embedded content or empty string if file can't be read
-      }
+    final String? source = _cachedLuaSource ?? _initialLuaSource;
+    if (source == null) {
+      throw StateError(
+        'Lua source for template "$id" has not been loaded. '
+        'Call ScriptTemplates.ensureInitialized() before accessing templates.',
+      );
     }
-    return '';
+    return source;
+  }
+
+  /// Load the Lua source from the provided [AssetBundle].
+  Future<void> load(AssetBundle bundle) async {
+    if (_cachedLuaSource != null || _initialLuaSource != null) {
+      _cachedLuaSource ??= _initialLuaSource;
+      return;
+    }
+
+    final String? path = _filePath;
+    if (path == null || path.trim().isEmpty) {
+      throw StateError(
+        'Template "$id" is missing an asset file path. '
+        'Assign a valid filePath or provide preloadedLuaSource.',
+      );
+    }
+
+    try {
+      final String assetContent = await bundle.loadString(path, cache: false);
+      if (assetContent.trim().isEmpty) {
+        throw StateError(
+          'Lua source loaded from "$path" for template "$id" is empty.',
+        );
+      }
+      _cachedLuaSource = assetContent;
+    } on FlutterError catch (error) {
+      throw StateError(
+        'Failed to load Lua template asset "$path" for "$id": ${error.message}',
+      );
+    }
   }
 
   @override
@@ -50,6 +87,7 @@ class ScriptTemplate {
           level == other.level &&
           _filePath == other._filePath &&
           tags == other.tags &&
+          _initialLuaSource == other._initialLuaSource &&
           isRecommended == other.isRecommended;
 
   @override
@@ -60,6 +98,7 @@ class ScriptTemplate {
       emoji.hashCode ^
       level.hashCode ^
       _filePath.hashCode ^
+      _initialLuaSource.hashCode ^
       tags.hashCode ^
       isRecommended.hashCode;
 }
@@ -68,19 +107,25 @@ class ScriptTemplate {
 class ScriptTemplates {
   static List<ScriptTemplate> _templates = [];
   static bool _initialized = false;
+  static Future<void>? _initialization;
 
-  /// Get all templates (loads from files on first access)
+  /// Get all templates after initialization.
   static List<ScriptTemplate> get templates {
-    if (!_initialized) {
-      _initializeTemplates();
-      _initialized = true;
-    }
+    _assertInitialized();
     return _templates;
   }
 
-  /// Initialize templates - creates all templates with file paths
-  static void _initializeTemplates() {
-    _templates = [
+  /// Ensure templates have been loaded from assets.
+  static Future<void> ensureInitialized({AssetBundle? bundle}) {
+    if (_initialized) {
+      return SynchronousFuture<void>(null);
+    }
+    _initialization ??= _loadTemplates(bundle ?? rootBundle);
+    return _initialization!;
+  }
+
+  static Future<void> _loadTemplates(AssetBundle bundle) async {
+    final List<ScriptTemplate> templates = [
       ScriptTemplate(
         id: 'hello_world',
         title: 'Hello World',
@@ -125,9 +170,15 @@ class ScriptTemplates {
         isRecommended: false,
       ),
     ];
+    for (final ScriptTemplate template in templates) {
+      await template.load(bundle);
+    }
+    _templates = templates;
+    _initialized = true;
   }
 
   static ScriptTemplate? getById(String id) {
+    _assertInitialized();
     try {
       return templates.firstWhere((template) => template.id == id);
     } catch (e) {
@@ -136,19 +187,37 @@ class ScriptTemplates {
   }
 
   static List<ScriptTemplate> getByLevel(String level) {
+    _assertInitialized();
     return templates.where((template) => template.level == level).toList();
   }
 
   static List<ScriptTemplate> getRecommended() {
+    _assertInitialized();
     return templates.where((template) => template.isRecommended).toList();
   }
 
   static List<ScriptTemplate> search(String query) {
+    _assertInitialized();
     final lowerQuery = query.toLowerCase();
     return templates.where((template) {
       return template.title.toLowerCase().contains(lowerQuery) ||
           template.description.toLowerCase().contains(lowerQuery) ||
           template.tags.any((tag) => tag.toLowerCase().contains(lowerQuery));
     }).toList();
+  }
+
+  static void _assertInitialized() {
+    if (!_initialized) {
+      throw StateError(
+        'ScriptTemplates.ensureInitialized() must be awaited before accessing templates.',
+      );
+    }
+  }
+
+  @visibleForTesting
+  static void resetForTest() {
+    _templates = [];
+    _initialized = false;
+    _initialization = null;
   }
 }
