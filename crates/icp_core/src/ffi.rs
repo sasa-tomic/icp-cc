@@ -255,6 +255,67 @@ pub unsafe extern "C" fn icp_lua_lint(script: *const c_char) -> *mut c_char {
     CString::new(json).unwrap().into_raw()
 }
 
+// ---- TEA-style Lua app FFI ----
+/// # Safety
+/// - All pointers must be null or valid, null-terminated C strings.
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_lua_app_init(
+    script: *const c_char,
+    json_arg: *const c_char,
+    budget_ms: u64,
+) -> *mut c_char {
+    if script.is_null() {
+        return null_c_string();
+    }
+    let s = CStr::from_ptr(script).to_str().unwrap_or("");
+    let arg_opt = if json_arg.is_null() {
+        None
+    } else {
+        Some(CStr::from_ptr(json_arg).to_str().unwrap_or(""))
+    };
+    let out = lua_engine::app_init(s, arg_opt, budget_ms);
+    CString::new(out).unwrap().into_raw()
+}
+
+/// # Safety
+/// - All pointers must be null or valid, null-terminated C strings.
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_lua_app_view(
+    script: *const c_char,
+    state_json: *const c_char,
+    budget_ms: u64,
+) -> *mut c_char {
+    if script.is_null() || state_json.is_null() {
+        return null_c_string();
+    }
+    let s = CStr::from_ptr(script).to_str().unwrap_or("");
+    let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
+    let out = lua_engine::app_view(s, st, budget_ms);
+    CString::new(out).unwrap().into_raw()
+}
+
+/// # Safety
+/// - All pointers must be null or valid, null-terminated C strings.
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_lua_app_update(
+    script: *const c_char,
+    msg_json: *const c_char,
+    state_json: *const c_char,
+    budget_ms: u64,
+) -> *mut c_char {
+    if script.is_null() || msg_json.is_null() || state_json.is_null() {
+        return null_c_string();
+    }
+    let s = CStr::from_ptr(script).to_str().unwrap_or("");
+    let m = CStr::from_ptr(msg_json).to_str().unwrap_or("");
+    let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
+    let out = lua_engine::app_update(s, m, st, budget_ms);
+    CString::new(out).unwrap().into_raw()
+}
+
 /// # Safety
 /// - `canister_id`, `method`, and `label` must be either null or valid, null-terminated
 ///   C strings.

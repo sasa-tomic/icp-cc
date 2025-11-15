@@ -80,6 +80,11 @@ abstract class ScriptBridge {
 
   String? luaExec({required String script, String? jsonArg});
   String? luaLint({required String script});
+
+  // TEA-style app
+  String? luaAppInit({required String script, String? jsonArg, int budgetMs});
+  String? luaAppView({required String script, required String stateJson, int budgetMs});
+  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs});
 }
 
 class RustScriptBridge implements ScriptBridge {
@@ -111,6 +116,21 @@ class RustScriptBridge implements ScriptBridge {
   @override
   String? luaLint({required String script}) {
     return _bridge.luaLint(script: script);
+  }
+
+  @override
+  String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
+    return _bridge.luaAppInit(script: script, jsonArg: jsonArg, budgetMs: budgetMs);
+  }
+
+  @override
+  String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) {
+    return _bridge.luaAppView(script: script, stateJson: stateJson, budgetMs: budgetMs);
+  }
+
+  @override
+  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) {
+    return _bridge.luaAppUpdate(script: script, msgJson: msgJson, stateJson: stateJson, budgetMs: budgetMs);
   }
 }
 
@@ -403,5 +423,47 @@ class ScriptRunner {
         'function icp_message(text) return { action = "message", text = tostring(text or "") } end\n'
         'function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end\n';
     return '$helpers$src';
+  }
+}
+
+/// Runtime host for TEA-style Lua app: init/view/update + effects execution.
+class ScriptAppRuntime {
+  ScriptAppRuntime(this._bridge);
+  final ScriptBridge _bridge;
+
+  Future<Map<String, dynamic>> init({required String script, Map<String, dynamic>? initialArg, int budgetMs = 50}) async {
+    final String? out = _bridge.luaAppInit(script: script, jsonArg: initialArg == null ? null : json.encode(initialArg), budgetMs: budgetMs);
+    if (out == null || out.trim().isEmpty) {
+      throw StateError('luaAppInit returned empty');
+    }
+    final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
+    if ((obj['ok'] as bool?) != true) {
+      throw StateError('luaAppInit error: ${obj['error']}');
+    }
+    return obj;
+  }
+
+  Future<Map<String, dynamic>> view({required String script, required Map<String, dynamic> state, int budgetMs = 50}) async {
+    final String? out = _bridge.luaAppView(script: script, stateJson: json.encode(state), budgetMs: budgetMs);
+    if (out == null || out.trim().isEmpty) {
+      throw StateError('luaAppView returned empty');
+    }
+    final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
+    if ((obj['ok'] as bool?) != true) {
+      throw StateError('luaAppView error: ${obj['error']}');
+    }
+    return obj;
+  }
+
+  Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs = 50}) async {
+    final String? out = _bridge.luaAppUpdate(script: script, msgJson: json.encode(msg), stateJson: json.encode(state), budgetMs: budgetMs);
+    if (out == null || out.trim().isEmpty) {
+      throw StateError('luaAppUpdate returned empty');
+    }
+    final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
+    if ((obj['ok'] as bool?) != true) {
+      throw StateError('luaAppUpdate error: ${obj['error']}');
+    }
+    return obj;
   }
 }

@@ -1,6 +1,7 @@
 use mlua::prelude::*;
 use mlua::LuaSerdeExt;
 use serde_json::Value as JsonValue;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LuaExecError {
@@ -156,6 +157,189 @@ pub fn lint_lua(script: &str) -> String {
             .to_string()
         }
     }
+}
+
+// ---- TEA-style app helpers ----
+
+fn install_time_hook(lua: &Lua, budget: Duration) -> Result<(), LuaError> {
+    // Abort execution if the time budget is exceeded. We check every N instructions.
+    let start = Instant::now();
+    // Use a small Rc to capture start time; mlua's hook takes a closure.
+    lua.set_hook(
+        mlua::HookTriggers {
+            every_nth_instruction: Some(20_000),
+            ..Default::default()
+        },
+        move |_, _dbg| {
+            if start.elapsed() > budget {
+                Err(LuaError::RuntimeError("execution timeout".to_string()))
+            } else {
+                Ok(mlua::VmState::Continue)
+            }
+        },
+    )
+}
+
+fn call_lua_fn2(
+    lua: &Lua,
+    fname: &str,
+    a: LuaValue,
+    b: Option<LuaValue>,
+) -> Result<LuaMultiValue, LuaError> {
+    let globals = lua.globals();
+    let func: LuaFunction = globals.get(fname)?;
+    match b {
+        Some(bv) => func.call::<LuaMultiValue>((a, bv)),
+        None => func.call::<LuaMultiValue>((a,)),
+    }
+}
+
+fn to_lua_value(lua: &Lua, json: &serde_json::Value) -> Result<LuaValue, LuaError> {
+    lua.to_value(json)
+}
+
+fn from_lua_value<T: serde::de::DeserializeOwned>(lua: &Lua, v: LuaValue) -> Result<T, LuaError> {
+    match v {
+        LuaValue::Nil => serde_json::from_str("null").map_err(LuaError::external),
+        _ => lua.from_value(v),
+    }
+}
+
+pub fn app_init(script: &str, json_arg: Option<&str>, budget_ms: u64) -> String {
+    let lua = match create_sandboxed_lua() {
+        Ok(l) => l,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
+    let chunk = lua.load(script);
+    if let Err(e) = chunk.exec() {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
+    let arg_json = json_arg.unwrap_or("null");
+    let arg_val: serde_json::Value = match serde_json::from_str(arg_json) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid arg JSON: {}", e)})
+                .to_string()
+        }
+    };
+    let arg_lua = match to_lua_value(&lua, &arg_val) {
+        Ok(v) => v,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let mv = match call_lua_fn2(&lua, "init", arg_lua, None) {
+        Ok(v) => v,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    // Expect (state, effects)
+    let mut iter = mv.into_iter();
+    let state_v = iter.next().unwrap_or(LuaValue::Nil);
+    let effects_v = iter.next().unwrap_or(LuaValue::Nil);
+    let state_json: serde_json::Value = match from_lua_value(&lua, state_v) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid state: {}", e)})
+                .to_string()
+        }
+    };
+    let effects_json: serde_json::Value = match from_lua_value(&lua, effects_v) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid effects: {}", e)})
+                .to_string()
+        }
+    };
+    serde_json::json!({"ok": true, "state": state_json, "effects": effects_json}).to_string()
+}
+
+pub fn app_view(script: &str, state_json: &str, budget_ms: u64) -> String {
+    let lua = match create_sandboxed_lua() {
+        Ok(l) => l,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
+    if let Err(e) = lua.load(script).exec() {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
+    let state_val: serde_json::Value = match serde_json::from_str(state_json) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid state JSON: {}", e)})
+                .to_string()
+        }
+    };
+    let state_lua = match to_lua_value(&lua, &state_val) {
+        Ok(v) => v,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let mv = match call_lua_fn2(&lua, "view", state_lua, None) {
+        Ok(v) => v,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let ui_v = mv.into_iter().next().unwrap_or(LuaValue::Nil);
+    let ui_json: serde_json::Value = match from_lua_value(&lua, ui_v) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid ui: {}", e)})
+                .to_string()
+        }
+    };
+    serde_json::json!({"ok": true, "ui": ui_json}).to_string()
+}
+
+pub fn app_update(script: &str, msg_json: &str, state_json: &str, budget_ms: u64) -> String {
+    let lua = match create_sandboxed_lua() {
+        Ok(l) => l,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
+    if let Err(e) = lua.load(script).exec() {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
+    let msg_val: serde_json::Value = match serde_json::from_str(msg_json) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid msg JSON: {}", e)})
+                .to_string()
+        }
+    };
+    let state_val: serde_json::Value = match serde_json::from_str(state_json) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid state JSON: {}", e)})
+                .to_string()
+        }
+    };
+    let msg_lua = match to_lua_value(&lua, &msg_val) {
+        Ok(v) => v,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let state_lua = match to_lua_value(&lua, &state_val) {
+        Ok(v) => v,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let mv = match call_lua_fn2(&lua, "update", msg_lua, Some(state_lua)) {
+        Ok(v) => v,
+        Err(e) => return serde_json::json!({"ok": false, "error": e.to_string()}).to_string(),
+    };
+    let mut iter = mv.into_iter();
+    let state_v = iter.next().unwrap_or(LuaValue::Nil);
+    let effects_v = iter.next().unwrap_or(LuaValue::Nil);
+    let state_json_out: serde_json::Value = match from_lua_value(&lua, state_v) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid state: {}", e)})
+                .to_string()
+        }
+    };
+    let effects_json: serde_json::Value = match from_lua_value(&lua, effects_v) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid effects: {}", e)})
+                .to_string()
+        }
+    };
+    serde_json::json!({"ok": true, "state": state_json_out, "effects": effects_json}).to_string()
 }
 
 #[cfg(test)]

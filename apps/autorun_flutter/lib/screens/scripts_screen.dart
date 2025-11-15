@@ -7,7 +7,7 @@ import '../services/script_repository.dart';
 import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/empty_state.dart';
-import '../widgets/script_ui_renderer.dart';
+import '../widgets/script_app_host.dart';
 import '../widgets/integrations_help.dart';
 
 class ScriptsScreen extends StatefulWidget {
@@ -19,7 +19,7 @@ class ScriptsScreen extends StatefulWidget {
 
 class _ScriptsScreenState extends State<ScriptsScreen> {
   late final ScriptController _controller;
-  final ScriptRunner _runner = ScriptRunner(RustScriptBridge(const RustBridgeLoader()));
+  final ScriptAppRuntime _appRuntime = ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
 
   @override
   void initState() {
@@ -42,60 +42,14 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _runScript(ScriptRecord record) async {
-    // Minimal first run: no pre-calls, just run Lua with empty input
-    final plan = ScriptRunPlan(luaSource: record.luaSource, calls: const <CanisterCallSpec>[], initialArg: const <String, dynamic>{});
-    final res = await _runner.run(plan);
+    // Launch persistent app host for TEA-style scripts
     if (!mounted) return;
-    if (!res.ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Run failed: ${res.error}')));
-      return;
-    }
-    final dynamic out = res.result;
-    if (out is Map<String, dynamic> && (out['action'] as String?) == 'ui') {
-      showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Script UI'),
-          content: SingleChildScrollView(
-            child: ScriptUiRenderer(runner: _runner, uiSpec: out),
-          ),
-          actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-          ],
-        ),
-      );
-      return;
-    }
-    if (out is Map<String, dynamic> && (out['action'] as String?) == 'message') {
-      showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Script UI'),
-          content: SingleChildScrollView(
-            child: ScriptUiRenderer(
-              runner: _runner,
-              uiSpec: const <String, dynamic>{
-                'action': 'ui',
-                'ui': <String, dynamic>{'type': 'list', 'items': <dynamic>[], 'buttons': <dynamic>[]},
-              } ,
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-          ],
-        ),
-      );
-      return;
-    }
-    showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-              title: const Text('Script result'),
-              content: SingleChildScrollView(child: SelectableText(JsonEncoder.withIndent('  ').convert(res.result))),
-              actions: <Widget>[
-                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-              ],
-            ));
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(record.title)),
+        body: ScriptAppHost(runtime: _appRuntime, script: record.luaSource, initialArg: const <String, dynamic>{}),
+      ),
+    ));
   }
 
   Future<void> _confirmAndDeleteScript(ScriptRecord record) async {
