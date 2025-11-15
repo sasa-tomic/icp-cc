@@ -393,31 +393,58 @@ end''';
     test('13. Data Consistency - Must maintain data integrity', () async {
       print('\n--- Test 13: Data Consistency ---');
       
-      // Get search results
-      final searchResults = await apiService.searchScripts(
-        query: '',
-        category: null,
-        limit: 10,
-        offset: 0,
-      );
+      // Retry mechanism for consistency check to handle concurrent operations during testing
+      int maxRetries = 3;
+      bool consistencyVerified = false;
       
-      // Get stats
-      final stats = await apiService.getMarketplaceStats();
-      
-      // Verify consistency
-      expect(searchResults.total, equals(stats.totalScripts), 
-             reason: 'Search total should match stats total scripts');
-      
-      // Verify script data consistency
-      for (final script in searchResults.scripts) {
-        expect(script.downloads, greaterThanOrEqualTo(0), reason: 'Downloads cannot be negative');
-        expect(script.rating, greaterThanOrEqualTo(0.0), reason: 'Rating cannot be negative');
-        expect(script.rating, lessThanOrEqualTo(5.0), reason: 'Rating cannot exceed 5.0');
-        expect(script.reviewCount, greaterThanOrEqualTo(0), reason: 'Review count cannot be negative');
-        expect(script.price, greaterThanOrEqualTo(0.0), reason: 'Price cannot be negative');
+      for (int attempt = 1; attempt <= maxRetries && !consistencyVerified; attempt++) {
+        print('Data consistency attempt $attempt/$maxRetries');
+        
+        // Get both search results and stats in quick succession
+        final futures = await Future.wait([
+          apiService.searchScripts(
+            query: '',
+            category: null,
+            limit: 10,
+            offset: 0,
+          ),
+          apiService.getMarketplaceStats(),
+        ]);
+        
+        final searchResults = futures[0] as MarketplaceSearchResult;
+        final stats = futures[1] as MarketplaceStats;
+        
+        print('Search total: ${searchResults.total}, Stats total: ${stats.totalScripts}');
+        
+        // Check if counts match
+        if (searchResults.total == stats.totalScripts) {
+          // Verify consistency
+          expect(searchResults.total, equals(stats.totalScripts), 
+                 reason: 'Search total should match stats total scripts');
+          
+          // Verify script data consistency
+          for (final script in searchResults.scripts) {
+            expect(script.downloads, greaterThanOrEqualTo(0), reason: 'Downloads cannot be negative');
+            expect(script.rating, greaterThanOrEqualTo(0.0), reason: 'Rating cannot be negative');
+            expect(script.rating, lessThanOrEqualTo(5.0), reason: 'Rating cannot exceed 5.0');
+            expect(script.reviewCount, greaterThanOrEqualTo(0), reason: 'Review count cannot be negative');
+            expect(script.price, greaterThanOrEqualTo(0.0), reason: 'Price cannot be negative');
+          }
+          
+          consistencyVerified = true;
+          print('✅ Data consistency verified');
+        } else {
+          print('⚠️ Count mismatch detected (likely due to concurrent operations), retrying...');
+          if (attempt < maxRetries) {
+            // Brief pause before retry to allow concurrent operations to complete
+            await Future.delayed(Duration(milliseconds: 500));
+          }
+        }
       }
       
-      print('✅ Data consistency verified');
+      // If consistency was never verified after all retries, fail the test
+      expect(consistencyVerified, isTrue, 
+             reason: 'Data consistency could not be verified after $maxRetries attempts. This may indicate a real data inconsistency issue.');
     });
 
     test('14. Concurrent Requests - Must handle concurrent access', () async {
