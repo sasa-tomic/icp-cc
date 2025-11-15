@@ -12,26 +12,9 @@ scripts_dir := root + "/scripts"
 # Platform detection
 platform := if `uname` == "Darwin" { "macos" } else if `uname` == "Linux" { "linux" } else { "unknown" }
 
-# Default target - show help if no command given
+# Default target - show dynamic help
 default:
-    @echo "Justfile for ICP-CC project"
-    @echo ""
-    @echo "Common commands:"
-    @echo "  just                    # Show all available commands"
-    @echo "  just build               # Build current platform"
-    @echo "  just test               # Run all tests"
-    @echo "  just clean              # Clean build artifacts"
-    @echo ""
-    @echo "Appwrite commands:"
-    @echo "  just appwrite-deploy     # Deploy to Appwrite"
-    @echo "  just appwrite-setup      # Setup Appwrite tools"
-    @echo ""
-    @echo "Examples with arguments:"
-    @echo "  just appwrite-deploy -- --dry-run     # Deploy with dry-run"
-    @echo "  just appwrite-test -- --verbose       # Test with verbose output"
-    @echo "  just appwrite-local-deploy -- --force # Force deploy to local"
-    @echo ""
-    @echo "Run 'just --list' to see all available commands"
+    @{{scripts_dir}}/dynamic-just-help.sh
 
 # =============================================================================
 # Build Targets
