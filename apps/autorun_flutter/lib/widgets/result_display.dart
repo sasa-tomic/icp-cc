@@ -478,100 +478,105 @@ class _EnhancedResultListState extends State<EnhancedResultList> {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.title,
-                        style: Theme.of(context).textTheme.titleMedium,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${_filteredItems.length}/${widget.items.length}',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 12,
+                      Text(
+                        '${_filteredItems.length}/${widget.items.length}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                if (widget.searchable && widget.items.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search results...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
+                    ],
                   ),
-                ],
-              ],
-            ),
-          ),
-          if (_filteredItems.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'No results found',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-            itemCount: _filteredItems.length,
-            itemBuilder: (context, index) {
-              final item = _filteredItems[index];
-              return ListTile(
-                title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
-                subtitle: item['subtitle'] != null
-                    ? Text(
-                        item['subtitle'].toString(),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    : null,
-                trailing: PopupMenuButton<String>(
-                  onSelected: (action) => _handleItemAction(context, action, item),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'copy',
-                      child: Row(
-                        children: [
-                          Icon(Icons.copy, size: 16),
-                          SizedBox(width: 8),
-                          Text('Copy'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'details',
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline, size: 16),
-                          SizedBox(width: 8),
-                          Text('View Details'),
-                        ],
+                  if (widget.searchable && widget.items.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        labelText: 'Search results...',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                        isDense: true,
                       ),
                     ),
                   ],
-                ),
-              );
-            },
+                ],
+              ),
             ),
-        ],
+            if (_filteredItems.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'No results found',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _filteredItems.length,
+                  itemBuilder: (context, index) {
+                    final item = _filteredItems[index];
+                    return ListTile(
+                      title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
+                      subtitle: item['subtitle'] != null
+                          ? Text(
+                              item['subtitle'].toString(),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          : null,
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (action) => _handleItemAction(context, action, item),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'copy',
+                            child: Row(
+                              children: [
+                                Icon(Icons.copy, size: 16),
+                                SizedBox(width: 8),
+                                Text('Copy'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'details',
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, size: 16),
+                                SizedBox(width: 8),
+                                Text('View Details'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
