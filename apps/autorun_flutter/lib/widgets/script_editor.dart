@@ -198,19 +198,12 @@ class _ScriptEditorState extends State<ScriptEditor> {
 
   Widget _buildToolbar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.topRight,
-          colors: [
-            Theme.of(context).colorScheme.surfaceContainerHighest,
-            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-          ],
-        ),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(16),
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
         ),
         border: Border(
           bottom: BorderSide(
@@ -221,206 +214,100 @@ class _ScriptEditorState extends State<ScriptEditor> {
       ),
       child: Row(
         children: [
-          // Language indicator with modern design
+          // Compact language indicator
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.secondary,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.code_rounded,
-                  size: 14,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  widget.language.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
+            child: Text(
+              widget.language.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
 
-          // Theme selector with modern design
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: DropdownButton<String>(
-              value: _selectedTheme,
-              underline: const SizedBox(),
-              isDense: true,
-              icon: Icon(
-                Icons.palette_rounded,
-                size: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              items: _themes.keys.map((theme) {
-                return DropdownMenuItem<String>(
-                  value: theme,
-                  child: Text(
-                    theme.replaceAll('-', ' ').split(' ').map((word) =>
-                      word[0].toUpperCase() + word.substring(1)
-                    ).join(' '),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+          // Compact theme selector
+          DropdownButton<String>(
+            value: _selectedTheme,
+            underline: const SizedBox(),
+            isDense: true,
+            iconSize: 14,
+            dropdownColor: Theme.of(context).colorScheme.surface,
+            items: _themes.keys.map((theme) {
+              return DropdownMenuItem<String>(
+                value: theme,
+                child: Text(
+                  theme.split('-').map((word) => word[0].toUpperCase()).join(''),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
-                );
-              }).toList(),
-              onChanged: (String? theme) {
-                if (theme != null) {
-                  HapticFeedback.selectionClick();
-                  setState(() => _selectedTheme = theme);
-                }
-              },
-            ),
+                ),
+              );
+            }).toList(),
+            onChanged: (String? theme) {
+              if (theme != null) {
+                setState(() => _selectedTheme = theme);
+              }
+            },
           ),
 
           const Spacer(),
 
-          // Stats section
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Lines: $_currentLineCount',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Chars: ${_controller.text.length}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSecondaryContainer,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 12),
-
-          // Actions with modern design
+          // Compact stats and actions
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (widget.showIntegrations) ...[
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Tooltip(
-                    message: 'Code snippets & integrations',
-                    child: IconButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        _showIntegrationsHelp();
-                      },
-                      icon: Icon(
-                        Icons.extension_rounded,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Tooltip(
-                  message: 'Format code',
-                  child: IconButton(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      _formatCode();
-                    },
-                    icon: Icon(
-                      Icons.format_align_left_rounded,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                  ),
+              // Compact stats
+              Text(
+                'L:$_currentLineCount C:${_controller.text.length}',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-
               const SizedBox(width: 8),
 
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Tooltip(
-                  message: 'Copy code',
+              // Compact action buttons
+              if (widget.showIntegrations) ...[
+                Tooltip(
+                  message: 'Code snippets',
                   child: IconButton(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      _copyCode();
-                    },
-                    icon: Icon(
-                      Icons.copy_rounded,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.tertiary,
-                    ),
+                    onPressed: _showIntegrationsHelp,
+                    icon: Icon(Icons.extension, size: 16),
+                    iconSize: 16,
                     visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(4),
                   ),
+                ),
+              ],
+              Tooltip(
+                message: 'Format code',
+                child: IconButton(
+                  onPressed: _formatCode,
+                  icon: Icon(Icons.format_align_left, size: 16),
+                  iconSize: 16,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
+                ),
+              ),
+              Tooltip(
+                message: 'Copy code',
+                child: IconButton(
+                  onPressed: _copyCode,
+                  icon: Icon(Icons.copy, size: 16),
+                  iconSize: 16,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
                 ),
               ),
             ],
@@ -432,26 +319,16 @@ class _ScriptEditorState extends State<ScriptEditor> {
 
   Widget _buildStatusBar() {
     final hasError = _lintError != null;
-    
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        gradient: hasError
-            ? LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.8),
-                  Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.4),
-                ],
-              )
-            : LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                  Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                ],
-              ),
+        color: hasError
+            ? Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3)
+            : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(16),
-          bottomRight: Radius.circular(16),
+          bottomLeft: Radius.circular(8),
+          bottomRight: Radius.circular(8),
         ),
         border: Border(
           top: BorderSide(
@@ -464,93 +341,31 @@ class _ScriptEditorState extends State<ScriptEditor> {
       ),
       child: Row(
         children: [
-          // Status indicator with animation
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: hasError
-                  ? Theme.of(context).colorScheme.error
-                  : Theme.of(context).colorScheme.primary,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: (hasError
-                          ? Theme.of(context).colorScheme.error
-                          : Theme.of(context).colorScheme.primary)
-                      .withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(
-              hasError ? Icons.error_rounded : Icons.check_circle_rounded,
-              size: 14,
-              color: Colors.white,
-            ),
+          // Compact status indicator
+          Icon(
+            hasError ? Icons.error : Icons.check_circle,
+            size: 12,
+            color: hasError
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).colorScheme.primary,
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
 
           // Status text
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  hasError ? 'Syntax Error' : 'Code Valid',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: hasError
-                        ? Theme.of(context).colorScheme.error
-                        : Theme.of(context).colorScheme.primary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                if (hasError) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    _lintError ?? '',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.8),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // Additional stats
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  '${_controller.text.length} chars',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
+            child: Text(
+              hasError ? (_lintError ?? 'Syntax Error') : 'Valid',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: hasError
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.primary,
               ),
-            ],
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ),
         ],
       ),

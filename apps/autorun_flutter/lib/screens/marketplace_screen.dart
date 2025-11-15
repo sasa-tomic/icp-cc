@@ -455,7 +455,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           padding: const EdgeInsets.all(16.0),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 1,
-            childAspectRatio: 1.2,
+            childAspectRatio: 1.0,
             crossAxisSpacing: 16.0,
             mainAxisSpacing: 16.0,
           ),
