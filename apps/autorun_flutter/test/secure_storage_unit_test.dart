@@ -11,8 +11,8 @@ void main() {
         id: 'test-1',
         label: 'Test Identity',
         algorithm: KeyAlgorithm.ed25519,
-        publicKey: 'dGVzdC1wdWJsaWM=',
-        privateKey: 'dGVzdC1wcml2YXRl',
+        publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        privateKey: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
         mnemonic: 'test abandon abandon able about above absent act',
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
@@ -22,8 +22,8 @@ void main() {
       expect(jsonMap['id'], 'test-1');
       expect(jsonMap['label'], 'Test Identity');
       expect(jsonMap['algorithm'], 'ed25519');
-      expect(jsonMap['publicKey'], 'dGVzdC1wdWJsaWM=');
-      expect(jsonMap['privateKey'], 'dGVzdC1wcml2YXRl');
+      expect(jsonMap['publicKey'], 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
+      expect(jsonMap['privateKey'], 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=');
       expect(jsonMap['mnemonic'], 'test abandon abandon able about above absent act');
       expect(jsonMap['createdAt'], '2024-01-01T00:00:00.000Z');
 
@@ -43,8 +43,8 @@ void main() {
         id: 'test-2',
         label: 'Original Label',
         algorithm: KeyAlgorithm.secp256k1,
-        publicKey: 'dGVzdC1wdWJsaWMy',
-        privateKey: 'dGVzdC1wcml2YXRlMg',
+        publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        privateKey: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
         mnemonic: 'original mnemonic phrase',
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
@@ -82,8 +82,8 @@ void main() {
         id: 'export-test-1',
         label: 'Export Test',
         algorithm: KeyAlgorithm.ed25519,
-        publicKey: 'dGVzdC1wdWJsaWM=',
-        privateKey: 'dGVzdC1wcml2YXRl',
+        publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        privateKey: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
         mnemonic: 'export mnemonic abandon able about above absent act',
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );

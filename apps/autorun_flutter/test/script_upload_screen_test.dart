@@ -2,15 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:icp_autorun/screens/script_upload_screen.dart';
+import 'package:icp_autorun/controllers/identity_controller.dart';
+import 'package:icp_autorun/widgets/identity_scope.dart';
 
 void main() {
   group('ScriptUploadScreen Tests', () {
+    Widget createWidget({required Widget child}) {
+      final identityController = IdentityController();
+      return IdentityScope(
+        controller: identityController,
+        child: MaterialApp(
+          home: child,
+        ),
+      );
+    }
 
     testWidgets('Script upload screen displays correctly', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptUploadScreen(),
-        ),
+        createWidget(child: ScriptUploadScreen()),
       );
 
       // Check that the screen title is displayed
@@ -31,9 +40,7 @@ void main() {
 
     testWidgets('Title field is present and accepts input', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptUploadScreen(),
-        ),
+        createWidget(child: ScriptUploadScreen()),
       );
 
       // Find title field
@@ -50,9 +57,7 @@ void main() {
 
     testWidgets('Category dropdown is present', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptUploadScreen(),
-        ),
+        createWidget(child: ScriptUploadScreen()),
       );
 
       // Find category dropdown
@@ -62,9 +67,7 @@ void main() {
 
     testWidgets('Upload button is present', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptUploadScreen(),
-        ),
+        createWidget(child: ScriptUploadScreen()),
       );
 
       // Check that upload button exists
@@ -73,9 +76,7 @@ void main() {
 
     testWidgets('Form contains validation elements', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptUploadScreen(),
-        ),
+        createWidget(child: ScriptUploadScreen()),
       );
 
       // Check that form exists

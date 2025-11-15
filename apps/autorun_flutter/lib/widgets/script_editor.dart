@@ -464,9 +464,10 @@ class _ScriptEditorState extends State<ScriptEditor> {
           maxLines: widget.maxLines,
           readOnly: widget.readOnly,
           gutterStyle: GutterStyle(
-            showErrors: true,
-            showFoldingHandles: true,
+            showErrors: _showLineNumbers, // Only show errors when line numbers are shown
+            showFoldingHandles: _showLineNumbers, // Only show folding handles when line numbers are shown
             showLineNumbers: _showLineNumbers,
+            width: _showLineNumbers ? 40 : 0, // Eliminate gutter width when line numbers are hidden
           ),
           textStyle: const TextStyle(
             fontSize: 14,

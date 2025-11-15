@@ -150,6 +150,16 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
 
   Future<void> _handleAction(_IdentityAction action, IdentityRecord record) async {
     switch (action) {
+      case _IdentityAction.setActive:
+        await _controller.setActiveIdentity(record.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${record.label} is now the active identity'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        break;
       case _IdentityAction.showDetails:
         await _showDetailsDialog(record, title: 'Identity details');
         break;
@@ -334,14 +344,23 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                   final IdentityRecord record = identities[index];
                   final String principalText = PrincipalUtils.textFromRecord(record);
                   final String principalPrefix = principalText.length >= 8 ? principalText.substring(0, 8) : principalText;
+                  final bool isActive = record.id == _controller.activeIdentityId;
                   
                   return Hero(
                     tag: 'identity_${record.id}',
                     child: Card(
-                      elevation: 4,
-                      shadowColor: Colors.black.withValues(alpha: 0.1),
+                      elevation: isActive ? 8 : 4,
+                      shadowColor: isActive 
+                          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)
+                          : Colors.black.withValues(alpha: 0.1),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
+                        side: isActive 
+                            ? BorderSide(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 2,
+                              )
+                            : BorderSide.none,
                       ),
                       child: InkWell(
                         onTap: () {
@@ -361,31 +380,64 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                    gradient: LinearGradient(
                                      begin: Alignment.topLeft,
                                      end: Alignment.bottomRight,
-                                     colors: [
-                                       Theme.of(context).colorScheme.primary,
-                                       Theme.of(context).colorScheme.secondary,
-                                     ],
+                                     colors: isActive
+                                         ? [
+                                             Theme.of(context).colorScheme.primary,
+                                             Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                                           ]
+                                         : [
+                                             Theme.of(context).colorScheme.primary,
+                                             Theme.of(context).colorScheme.secondary,
+                                           ],
                                    ),
                                    shape: BoxShape.circle,
                                    boxShadow: [
                                      BoxShadow(
-                                       color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                                       blurRadius: 10,
+                                       color: isActive
+                                           ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                                           : Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                       blurRadius: isActive ? 12 : 10,
                                        offset: const Offset(0, 4),
                                      ),
                                    ],
                                  ),
-                                 child: Center(
-                                   child: Text(
-                                     record.label.isNotEmpty 
-                                         ? record.label.substring(0, 2).toUpperCase()
-                                         : '#',
-                                     style: TextStyle(
-                                       color: Colors.white,
-                                       fontWeight: FontWeight.w700,
-                                       fontSize: MediaQuery.of(context).size.width < 380 ? 18 : 20,
+                                 child: Stack(
+                                   children: [
+                                     Center(
+                                       child: Text(
+                                         record.label.isNotEmpty 
+                                             ? record.label.substring(0, 2).toUpperCase()
+                                             : '#',
+                                         style: TextStyle(
+                                           color: Colors.white,
+                                           fontWeight: FontWeight.w700,
+                                           fontSize: MediaQuery.of(context).size.width < 380 ? 18 : 20,
+                                         ),
+                                       ),
                                      ),
-                                   ),
+                                     if (isActive)
+                                       Positioned(
+                                         right: 0,
+                                         bottom: 0,
+                                         child: Container(
+                                           width: 18,
+                                           height: 18,
+                                           decoration: BoxDecoration(
+                                             color: Colors.white,
+                                             shape: BoxShape.circle,
+                                             border: Border.all(
+                                               color: Theme.of(context).colorScheme.primary,
+                                               width: 2,
+                                             ),
+                                           ),
+                                           child: Icon(
+                                             Icons.check_rounded,
+                                             size: 12,
+                                             color: Theme.of(context).colorScheme.primary,
+                                           ),
+                                         ),
+                                       ),
+                                   ],
                                  ),
                                ),
                                
@@ -407,28 +459,54 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                        maxLines: 1,
                                      ),
                                      SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
-                                     Container(
-                                       padding: EdgeInsets.symmetric(
-                                         horizontal: MediaQuery.of(context).size.width < 380 ? 10 : 12, 
-                                         vertical: MediaQuery.of(context).size.width < 380 ? 4 : 6,
-                                       ),
-                                       decoration: BoxDecoration(
-                                         color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
-                                         borderRadius: BorderRadius.circular(MediaQuery.of(context).size.width < 380 ? 10 : 12),
-                                         border: Border.all(
-                                           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                                           width: 1,
+                                     Row(
+                                       children: [
+                                         Container(
+                                           padding: EdgeInsets.symmetric(
+                                             horizontal: MediaQuery.of(context).size.width < 380 ? 10 : 12, 
+                                             vertical: MediaQuery.of(context).size.width < 380 ? 4 : 6,
+                                           ),
+                                           decoration: BoxDecoration(
+                                             color: isActive
+                                                 ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.8)
+                                                 : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
+                                             borderRadius: BorderRadius.circular(MediaQuery.of(context).size.width < 380 ? 10 : 12),
+                                             border: Border.all(
+                                               color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                               width: 1,
+                                             ),
+                                           ),
+                                           child: Text(
+                                             '$principalPrefix...',
+                                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                               color: isActive
+                                                   ? Theme.of(context).colorScheme.onPrimary
+                                                   : Theme.of(context).colorScheme.onPrimaryContainer,
+                                               fontWeight: FontWeight.w600,
+                                               fontSize: MediaQuery.of(context).size.width < 380 ? 10 : 11,
+                                               letterSpacing: 0.5,
+                                             ),
+                                           ),
                                          ),
-                                       ),
-                                       child: Text(
-                                         '$principalPrefix...',
-                                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                           color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                           fontWeight: FontWeight.w600,
-                                           fontSize: MediaQuery.of(context).size.width < 380 ? 10 : 11,
-                                           letterSpacing: 0.5,
-                                         ),
-                                       ),
+                                         if (isActive) ...[
+                                           const SizedBox(width: 6),
+                                           Container(
+                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                             decoration: BoxDecoration(
+                                               color: Theme.of(context).colorScheme.primary,
+                                               borderRadius: BorderRadius.circular(8),
+                                             ),
+                                             child: Text(
+                                               'ACTIVE',
+                                               style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                 color: Theme.of(context).colorScheme.onPrimary,
+                                                 fontWeight: FontWeight.w700,
+                                                 fontSize: 9,
+                                               ),
+                                             ),
+                                           ),
+                                         ],
+                                       ],
                                      ),
                                      SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
                                      Text(
@@ -458,6 +536,17 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 itemBuilder: (BuildContext context) => <PopupMenuEntry<_IdentityAction>>[
+                                  if (!isActive)
+                                    PopupMenuItem<_IdentityAction>(
+                                      value: _IdentityAction.setActive,
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.check_circle_outline_rounded, size: 20, color: Colors.green),
+                                          const SizedBox(width: 12),
+                                          const Text('Set as active'),
+                                        ],
+                                      ),
+                                    ),
                                   PopupMenuItem<_IdentityAction>(
                                     value: _IdentityAction.editProfile,
                                     child: Row(
@@ -714,4 +803,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction { editProfile, showDetails, rename, delete }
+enum _IdentityAction { setActive, editProfile, showDetails, rename, delete }

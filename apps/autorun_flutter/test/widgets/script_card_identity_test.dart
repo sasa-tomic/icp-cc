@@ -21,7 +21,7 @@ void main() {
         authorId: authorId,
         authorName: authorName,
         authorPrincipal: principal,
-        authorPublicKey: 'dGVzdC1wdWJsaWMta2V5',
+        authorPublicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
         uploadSignature: 'c2lnbmF0dXJl',
         price: 0.0,
         currency: 'USD',
@@ -67,11 +67,32 @@ void main() {
     });
 
     testWidgets('highlights unverified signature state when principal is missing', (tester) async {
-      final scriptWithoutPrincipal = buildScript(
-        principal: null,
+      final now = DateTime.now();
+      MarketplaceScript scriptWithoutPrincipal = MarketplaceScript(
+        id: 'script-2',
+        title: 'Unsigned Script',
+        description: 'Test description',
+        category: 'Utility',
+        tags: const ['utility'],
         authorId: 'anonymous',
         authorName: 'Unknown',
-        title: 'Unsigned Script',
+        authorPrincipal: null,
+        authorPublicKey: null, // No public key to trigger unverified state
+        uploadSignature: null,
+        price: 0.0,
+        currency: 'USD',
+        downloads: 42,
+        rating: 4.5,
+        reviewCount: 10,
+        luaSource: 'return {}',
+        iconUrl: null,
+        screenshots: const [],
+        canisterIds: const [],
+        compatibility: null,
+        version: '1.0.0',
+        isPublic: true,
+        createdAt: now,
+        updatedAt: now,
       );
 
       await tester.pumpWidget(

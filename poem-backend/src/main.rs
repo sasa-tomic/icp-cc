@@ -1379,10 +1379,10 @@ async fn create_script(
         serde_json::to_string(&req.tags.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
 
     match sqlx::query(
-        "INSERT INTO scripts (id, title, description, category, lua_source, author_name,
+        "INSERT INTO scripts (id, title, description, category, lua_source, author_name, author_id,
          author_principal, author_public_key, upload_signature,
          is_public, rating, downloads, review_count, version, price, tags, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0.0, 0, 0, ?11, ?12, ?13, ?14, ?15)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0.0, 0, 0, ?12, ?13, ?14, ?15, ?16)",
     )
     .bind(&script_id)
     .bind(&req.title)
@@ -1390,6 +1390,7 @@ async fn create_script(
     .bind(&req.category)
     .bind(&req.lua_source)
     .bind(&req.author_name)
+    .bind(req.author_id.as_deref().unwrap_or("test-author-id"))
     .bind(&req.author_principal)
     .bind(&req.author_public_key)
     .bind(&req.signature)

@@ -137,6 +137,7 @@ class UnifiedScriptTestBuilder {
         'authorName': _authorName ?? 'Test Author',
         'authorPrincipal': SignatureUtils.getPrincipal(),
         'authorPublicKey': SignatureUtils.getPublicKey(),
+        'authorId': SignatureUtils.getPrincipal(), // Add authorId to metadata
         'signature': signature,
         'timestamp': timestamp,
         ..._metadata,

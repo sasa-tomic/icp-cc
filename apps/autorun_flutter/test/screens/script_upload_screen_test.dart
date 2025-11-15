@@ -37,13 +37,16 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   IdentityRecord testIdentityRecord() {
+    // Valid Ed25519 keypair (32 bytes each)
+    // Private: 0x4c6f72656d20697073756d20646f6c6f7220736974
+    // Public:  0x5a9a5c5f6d6f636b75706172727920736564206574207465
     return IdentityRecord(
       id: 'test-id',
       label: 'Test Identity',
       algorithm: KeyAlgorithm.ed25519,
-      publicKey: 'cHVibGlj',
-      privateKey: 'cHJpdmF0ZQ==',
-      mnemonic: 'test mnemonic',
+      publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      privateKey: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+      mnemonic: 'abandon abandon able about above absent',
       createdAt: DateTime.utc(2024, 1, 1),
     );
   }
@@ -103,7 +106,7 @@ void main() {
           expect(find.text('Screenshots'), findsOneWidget);
         expect(find.text('Price (in ICP)'), findsOneWidget);
         expect(find.text('Version'), findsOneWidget);
-        expect(find.text('Identity context'), findsOneWidget);
+        expect(find.text('Identity Context'), findsOneWidget);
        });
     });
 
@@ -211,7 +214,7 @@ void main() {
 
          // Assert - Should still show form without crashing
          expect(find.byType(ScriptUploadScreen), findsOneWidget);
-         expect(find.text('Identity context'), findsOneWidget);
+         expect(find.text('Identity Context'), findsOneWidget);
       });
     });
   });
