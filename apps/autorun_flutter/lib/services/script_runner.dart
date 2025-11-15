@@ -426,11 +426,19 @@ class ScriptRunner {
   }
 }
 
+/// Minimal interface to decouple UI from concrete runtime for testing.
+abstract class IScriptAppRuntime {
+  Future<Map<String, dynamic>> init({required String script, Map<String, dynamic>? initialArg, int budgetMs});
+  Future<Map<String, dynamic>> view({required String script, required Map<String, dynamic> state, int budgetMs});
+  Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs});
+}
+
 /// Runtime host for TEA-style Lua app: init/view/update + effects execution.
-class ScriptAppRuntime {
+class ScriptAppRuntime implements IScriptAppRuntime {
   ScriptAppRuntime(this._bridge);
   final ScriptBridge _bridge;
 
+  @override
   Future<Map<String, dynamic>> init({required String script, Map<String, dynamic>? initialArg, int budgetMs = 50}) async {
     final String? out = _bridge.luaAppInit(script: script, jsonArg: initialArg == null ? null : json.encode(initialArg), budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
@@ -443,6 +451,7 @@ class ScriptAppRuntime {
     return obj;
   }
 
+  @override
   Future<Map<String, dynamic>> view({required String script, required Map<String, dynamic> state, int budgetMs = 50}) async {
     final String? out = _bridge.luaAppView(script: script, stateJson: json.encode(state), budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
@@ -455,6 +464,7 @@ class ScriptAppRuntime {
     return obj;
   }
 
+  @override
   Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs = 50}) async {
     final String? out = _bridge.luaAppUpdate(script: script, msgJson: json.encode(msg), stateJson: json.encode(state), budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
