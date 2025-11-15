@@ -13,7 +13,7 @@ class MarketplaceOpenApiService {
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal();
 
-  final String _baseUrl = '${AppConfig.apiEndpoint}/api/v1'; // API endpoints
+  String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1'; // API endpoints
   final Duration _timeout = const Duration(seconds: 30);
   static const int defaultSearchLimit = 20;
 

@@ -130,8 +130,15 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       final authorName = _authorController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
 
-       // Generate a default Lua script since API requires non-empty lua_source
-       final defaultLuaSource = '''-- Default Script
+        // Use the actual Lua source from the script, or pre-filled code, or generate default
+        String luaSource;
+        if (widget.script?.luaSource != null && widget.script!.luaSource.isNotEmpty) {
+          luaSource = widget.script!.luaSource;
+        } else if (widget.preFilledCode != null && widget.preFilledCode!.isNotEmpty) {
+          luaSource = widget.preFilledCode!;
+        } else {
+          // Generate a default Lua script since API requires non-empty lua_source
+          luaSource = '''-- Default Script
 function init(arg)
   return {
     message = "Hello from $title!"
@@ -150,17 +157,18 @@ end
 function update(msg, state)
   return state, {}
 end''';
+        }
 
-       await _marketplaceService.uploadScript(
-         title: title,
-         description: description,
-         category: _selectedCategory,
-         tags: tags,
-         luaSource: defaultLuaSource,
-         authorName: authorName,
-         price: price,
-         version: '1.0.0',
-       );
+        await _marketplaceService.uploadScript(
+          title: title,
+          description: description,
+          category: _selectedCategory,
+          tags: tags,
+          luaSource: luaSource,
+          authorName: authorName,
+          price: price,
+          version: '1.0.0',
+        );
 
       if (!mounted) return;
 
