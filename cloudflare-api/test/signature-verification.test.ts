@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { TestIdentity, SignatureEnforcement, SignaturePayload } from '../src/utils';
+import { TestIdentity, SignatureEnforcement, SignaturePayload, SignatureVerifier } from '../src/utils';
 
 describe('Signature Verification Utilities', () => {
   // Mock environment for testing
@@ -44,6 +44,93 @@ describe('Signature Verification Utilities', () => {
       expect(testDelete.author_principal).toBe(TestIdentity.getPrincipal());
       expect(testDelete.signature).toBeDefined();
       expect(testDelete.timestamp).toBeDefined();
+    });
+  });
+
+  describe('SignatureVerifier', () => {
+    it('should create canonical JSON payload with deterministic ordering', () => {
+      const payload = {
+        z: 'last',
+        a: 'first',
+        m: 'middle',
+        action: 'upload',
+        timestamp: '2023-01-01T00:00:00.000Z'
+      };
+
+      const canonical = SignatureVerifier.createCanonicalPayload(payload);
+      const expected = JSON.stringify({
+        a: 'first',
+        action: 'upload',
+        m: 'middle',
+        timestamp: '2023-01-01T00:00:00.000Z',
+        z: 'last'
+      });
+
+      expect(canonical).toBe(expected);
+    });
+
+    it('should generate consistent signatures for identical payloads', () => {
+      const payload = {
+        action: 'upload',
+        title: 'Test Script',
+        author_principal: 'test-principal',
+        timestamp: '2023-01-01T00:00:00.000Z'
+      };
+
+      const signature1 = SignatureVerifier.generateSignature(payload, 'test-secret');
+      const signature2 = SignatureVerifier.generateSignature(payload, 'test-secret');
+
+      expect(signature1).toBe(signature2);
+      expect(signature1).toMatch(/^[A-Za-z0-9+/]+={0,2}$/); // Base64 format
+    });
+
+    it('should generate different signatures for different payloads', () => {
+      const payload1 = { action: 'upload', title: 'Script A', timestamp: '2023-01-01T00:00:00.000Z' };
+      const payload2 = { action: 'upload', title: 'Script B', timestamp: '2023-01-01T00:00:00.000Z' };
+
+      const signature1 = SignatureVerifier.generateSignature(payload1, 'test-secret');
+      const signature2 = SignatureVerifier.generateSignature(payload2, 'test-secret');
+
+      expect(signature1).not.toBe(signature2);
+    });
+
+    it('should verify signatures correctly', () => {
+      const payload = {
+        action: 'upload',
+        title: 'Test Script',
+        author_principal: 'test-principal',
+        timestamp: '2023-01-01T00:00:00.000Z'
+      };
+
+      const signature = SignatureVerifier.generateSignature(payload, 'test-secret');
+      const isValid = SignatureVerifier.verifySignature(signature, payload, 'test-secret');
+
+      expect(isValid).toBe(true);
+    });
+
+    it('should reject invalid signatures', () => {
+      const payload = {
+        action: 'upload',
+        title: 'Test Script',
+        author_principal: 'test-principal',
+        timestamp: '2023-01-01T00:00:00.000Z'
+      };
+
+      const wrongSignature = SignatureVerifier.generateSignature(payload, 'wrong-secret');
+      const isValid = SignatureVerifier.verifySignature(wrongSignature, payload, 'test-secret');
+
+      expect(isValid).toBe(false);
+    });
+
+    it('should handle malformed signatures gracefully', () => {
+      const payload = { action: 'upload', timestamp: '2023-01-01T00:00:00.000Z' };
+
+      expect(() => {
+        SignatureVerifier.verifySignature('invalid-signature', payload, 'test-secret');
+      }).not.toThrow();
+
+      const isValid = SignatureVerifier.verifySignature('invalid-signature', payload, 'test-secret');
+      expect(isValid).toBe(false);
     });
   });
 
@@ -148,6 +235,103 @@ describe('Signature Verification Utilities', () => {
       const isValid = await SignatureEnforcement.enforceSignatureVerification(
         mockEnv,
         testDelete.signature,
+        payload,
+        TestIdentity.getPublicKey()
+      );
+
+      expect(isValid).toBe(true);
+    });
+
+    it('should reject requests without author_principal', async () => {
+      const payload: SignaturePayload = {
+        action: 'upload',
+        title: 'Test',
+        timestamp: new Date().toISOString()
+      };
+
+      const isValid = await SignatureEnforcement.enforceSignatureVerification(
+        mockEnv,
+        'some-signature',
+        payload,
+        TestIdentity.getPublicKey()
+      );
+
+      expect(isValid).toBe(false);
+    });
+
+    it('should reject requests without public_key', async () => {
+      const payload: SignaturePayload = {
+        action: 'upload',
+        title: 'Test',
+        author_principal: TestIdentity.getPrincipal(),
+        timestamp: new Date().toISOString()
+      };
+
+      const isValid = await SignatureEnforcement.enforceSignatureVerification(
+        mockEnv,
+        'some-signature',
+        payload,
+        undefined
+      );
+
+      expect(isValid).toBe(false);
+    });
+
+    it('should reject requests with mismatched author_principal in production', async () => {
+      const payload: SignaturePayload = {
+        action: 'upload',
+        title: 'Test',
+        author_principal: 'different-principal',
+        timestamp: new Date().toISOString()
+      };
+
+      const isValid = await SignatureEnforcement.enforceSignatureVerification(
+        mockEnv,
+        'some-signature',
+        payload,
+        'different-public-key'
+      );
+
+      expect(isValid).toBe(false);
+    });
+
+    it('should handle empty payload fields gracefully', async () => {
+      const payload: SignaturePayload = {
+        action: 'upload',
+        title: '',
+        description: '',
+        category: '',
+        lua_source: '',
+        author_principal: TestIdentity.getPrincipal(),
+        timestamp: new Date().toISOString()
+      };
+
+      const signature = SignatureVerifier.generateSignature(payload, TestIdentity.getSecretKey());
+      const isValid = await SignatureEnforcement.enforceSignatureVerification(
+        mockEnv,
+        signature,
+        payload,
+        TestIdentity.getPublicKey()
+      );
+
+      expect(isValid).toBe(true);
+    });
+
+    it('should handle null and undefined values in payload', async () => {
+      const payload: SignaturePayload = {
+        action: 'upload',
+        title: 'Test Script',
+        author_principal: TestIdentity.getPrincipal(),
+        timestamp: new Date().toISOString(),
+        description: null as any,
+        tags: undefined as any,
+        compatibility: null as any
+      };
+
+      const signature = SignatureVerifier.generateSignature(payload, TestIdentity.getSecretKey());
+      const isValid = await SignatureEnforcement.enforceSignatureVerification(
+        mockEnv,
+        signature,
         payload,
         TestIdentity.getPublicKey()
       );

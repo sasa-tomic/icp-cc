@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 /// Utility class for generating test signatures for development/testing
 /// This mirrors the TestIdentity functionality from the Cloudflare API
@@ -119,7 +118,6 @@ class TestSignatureUtils {
       'author_principal': getPrincipal(),
       'signature': signature,
       'timestamp': timestamp,
-      ...?updates,
     };
   }
 
