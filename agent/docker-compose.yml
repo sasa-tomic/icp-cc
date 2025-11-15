@@ -1,0 +1,44 @@
+services:
+  agent:
+    build:
+      context: ..
+      dockerfile: agent/Dockerfile
+    image: icp-cc-claude:latest
+    container_name: icp-cc-claude-dev
+    environment:
+      # Development environment variables for ICP-CC project
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
+      - HOME=/home/ubuntu
+    volumes:
+      # Mount the entire repository directory to /code
+      - ..:/code
+      # Mount some other configuration from home directory
+      - ${HOME}/.claude.json:/home/ubuntu/.claude.json
+      - ${HOME}/.claude:/home/ubuntu/.claude
+      - ${HOME}/.happy:/home/ubuntu/.happy
+      # Cache volumes for rust tooling and dependencies (controlled by ubuntu user)
+      - rustup-cache:/usr/local/rustup
+      - cargo-cache:/home/ubuntu/.cargo
+      - home-cache:/home/ubuntu/.cache
+    working_dir: /code
+    stdin_open: true
+    tty: true
+    ports:
+      # Expose Cloudflare Workers API port and Flutter web port
+      - "8787:8787"  # Cloudflare Workers API
+      - "3000:3000"  # Flutter web development
+    networks:
+      - icp-cc-network
+
+volumes:
+  rustup-cache:
+    driver: local
+  cargo-cache:
+    driver: local
+  home-cache:
+    driver: local
+
+networks:
+  icp-cc-network:
+    driver: bridge

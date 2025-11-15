@@ -4,6 +4,7 @@ vendors/
 third_party/
 /.idea/
 /.vscode/
+/.claude/settings.local.json
 
 # Rust workspace
 /target/
