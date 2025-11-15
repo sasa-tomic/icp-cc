@@ -8,7 +8,8 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 APP_DIR="$ROOT/icp_identity_manager"
 # Default AVD and system image; override via env if desired
-AVD_NAME=${AVD_NAME:-sdk_gphone64_x86_64}
+# Use the stock AVD name that usually ships with Android Studio
+AVD_NAME=${AVD_NAME:-Medium_Phone_API_35}
 ANDROID_API_LEVEL=${ANDROID_API_LEVEL:-35}
 ANDROID_SYSIMG=${ANDROID_SYSIMG:-system-images;android-${ANDROID_API_LEVEL};google_apis;x86_64}
 

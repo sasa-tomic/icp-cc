@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Ensure Android emulator is running, then run flutter on it.
 
-AVD_NAME="sdk_gphone64_x86_64"
+AVD_NAME="Medium_Phone_API_35"
 
 if ! command -v flutter >/dev/null 2>&1; then
   echo "flutter not found on PATH" >&2
