@@ -4,6 +4,9 @@ use std::time::Duration;
 
 use super::config::{AppConfig, AttributeType, IndexType};
 
+#[cfg(test)]
+mod tests;
+
 // Type alias to reduce complexity warnings
 type AttributeDefinition = (
     &'static str,
@@ -339,7 +342,7 @@ impl DatabaseManager {
     }
 
     // Helper methods to get attributes for each collection type
-    fn get_scripts_attributes(&self) -> Vec<AttributeDefinition> {
+    pub fn get_scripts_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
             (
                 "title",
@@ -471,10 +474,31 @@ impl DatabaseManager {
                 false,
                 Some(serde_json::Value::Bool(false)),
             ),
+            (
+                "createdAt",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "updatedAt",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "isDeleted",
+                AttributeType::Boolean,
+                None,
+                false,
+                Some(serde_json::Value::Bool(false)),
+            ),
         ]
     }
 
-    fn get_users_attributes(&self) -> Vec<AttributeDefinition> {
+    pub fn get_users_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
             (
                 "userId",
@@ -565,7 +589,7 @@ impl DatabaseManager {
         ]
     }
 
-    fn get_reviews_attributes(&self) -> Vec<AttributeDefinition> {
+    pub fn get_reviews_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
             (
                 "userId",
@@ -612,7 +636,7 @@ impl DatabaseManager {
         ]
     }
 
-    fn get_purchases_attributes(&self) -> Vec<AttributeDefinition> {
+    pub fn get_purchases_attributes(&self) -> Vec<AttributeDefinition> {
         vec![
             (
                 "userId",
@@ -953,6 +977,27 @@ impl DatabaseManager {
             ),
             (
                 "isApproved",
+                AttributeType::Boolean,
+                None,
+                false,
+                Some(serde_json::Value::Bool(false)),
+            ),
+            (
+                "createdAt",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "updatedAt",
+                AttributeType::Integer,
+                None,
+                false,
+                Some(serde_json::Value::Number(serde_json::Number::from(0))),
+            ),
+            (
+                "isDeleted",
                 AttributeType::Boolean,
                 None,
                 false,
