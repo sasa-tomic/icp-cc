@@ -89,12 +89,17 @@ class RustBridgeLoader {
       if (res == ffi.nullptr) {
         return _fetchCandidHttp(canisterId: canisterId, host: host);
       }
+      String? out;
       try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
+        final String s = res.cast<pkg_ffi.Utf8>().toDartString();
+        out = s.trim().isEmpty
+            ? await _fetchCandidHttp(canisterId: canisterId, host: host)
+            : s;
       } finally {
         final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
         free(res);
       }
+      return out;
     } finally {
       pkg_ffi.malloc..free(cid)..free(h);
     }

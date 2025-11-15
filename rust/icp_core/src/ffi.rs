@@ -51,35 +51,37 @@ fn null_c_string() -> *mut c_char {
 
 // ---- Canister client FFI (JSON strings in/out) ----
 
+/// # Safety
+/// - `canister_id` and `host` must be either null or valid, null-terminated C strings.
+/// - The returned pointer, when non-null, points to a heap-allocated C string owned by Rust
+///   and must be freed by calling `icp_free_string` exactly once.
+/// - This function performs FFI boundary conversions and must not be called concurrently with
+///   a free of the returned pointer.
 #[no_mangle]
 pub unsafe extern "C" fn icp_fetch_candid(
     canister_id: *const c_char,
     host: *const c_char,
 ) -> *mut c_char {
-    #[cfg(not(feature = "network"))]
-    {
-        let _ = (canister_id, host);
-        return null_c_string();
-    }
-    #[cfg(feature = "network")]
-    {
-        let cid = if canister_id.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(canister_id).to_str().unwrap_or("")
-        };
-        let host_opt = if host.is_null() {
-            None
-        } else {
-            Some(CStr::from_ptr(host).to_str().unwrap_or(""))
-        };
-        match canister_client::fetch_candid(cid, host_opt) {
-            Ok(s) => CString::new(s).unwrap().into_raw(),
-            Err(_) => null_c_string(),
-        }
+    let cid = if canister_id.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(canister_id).to_str().unwrap_or("")
+    };
+    let host_opt = if host.is_null() {
+        None
+    } else {
+        Some(CStr::from_ptr(host).to_str().unwrap_or(""))
+    };
+    match canister_client::fetch_candid(cid, host_opt) {
+        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Err(_) => null_c_string(),
     }
 }
 
+/// # Safety
+/// - `candid_text` must be either null or a valid, null-terminated C string.
+/// - The returned pointer, when non-null, points to a heap-allocated C string owned by Rust
+///   and must be freed by calling `icp_free_string` exactly once.
 #[no_mangle]
 pub unsafe extern "C" fn icp_parse_candid(candid_text: *const c_char) -> *mut c_char {
     if candid_text.is_null() {
@@ -95,6 +97,12 @@ pub unsafe extern "C" fn icp_parse_candid(candid_text: *const c_char) -> *mut c_
     }
 }
 
+/// # Safety
+/// - `canister_id`, `method`, `arg_candid`, and `host` must be either null or valid,
+///   null-terminated C strings.
+/// - `kind` must be one of 0 (query), 1 (update), or 2 (composite query).
+/// - The returned pointer, when non-null, points to a heap-allocated C string owned by Rust
+///   and must be freed by calling `icp_free_string` exactly once.
 #[no_mangle]
 pub unsafe extern "C" fn icp_call_anonymous(
     canister_id: *const c_char,
@@ -103,45 +111,45 @@ pub unsafe extern "C" fn icp_call_anonymous(
     arg_candid: *const c_char,
     host: *const c_char,
 ) -> *mut c_char {
-    #[cfg(not(feature = "network"))]
-    {
-        let _ = (canister_id, method, kind, arg_candid, host);
-        return null_c_string();
-    }
-    #[cfg(feature = "network")]
-    {
-        let cid = if canister_id.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(canister_id).to_str().unwrap_or("")
-        };
-        let m = if method.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(method).to_str().unwrap_or("")
-        };
-        let a = if arg_candid.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(arg_candid).to_str().unwrap_or("")
-        };
-        let host_opt = if host.is_null() {
-            None
-        } else {
-            Some(CStr::from_ptr(host).to_str().unwrap_or(""))
-        };
-        let mk = match kind {
-            2 => MethodKind::CompositeQuery,
-            1 => MethodKind::Update,
-            _ => MethodKind::Query,
-        };
-        match canister_client::call_anonymous(cid, m, mk, a, host_opt) {
-            Ok(s) => CString::new(s).unwrap().into_raw(),
-            Err(_) => null_c_string(),
-        }
+    let cid = if canister_id.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(canister_id).to_str().unwrap_or("")
+    };
+    let m = if method.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(method).to_str().unwrap_or("")
+    };
+    let a = if arg_candid.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(arg_candid).to_str().unwrap_or("")
+    };
+    let host_opt = if host.is_null() {
+        None
+    } else {
+        Some(CStr::from_ptr(host).to_str().unwrap_or(""))
+    };
+    let mk = match kind {
+        2 => MethodKind::CompositeQuery,
+        1 => MethodKind::Update,
+        _ => MethodKind::Query,
+    };
+    match canister_client::call_anonymous(cid, m, mk, a, host_opt) {
+        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Err(_) => null_c_string(),
     }
 }
 
+/// # Safety
+/// - `canister_id`, `method`, `arg_candid`, `ed25519_private_key_b64`, and `host` must be
+///   either null or valid, null-terminated C strings.
+/// - `ed25519_private_key_b64` must contain a base64-encoded 32-byte Ed25519 private key when
+///   non-null/non-empty.
+/// - `kind` must be one of 0 (query), 1 (update), or 2 (composite query).
+/// - The returned pointer, when non-null, points to a heap-allocated C string owned by Rust
+///   and must be freed by calling `icp_free_string` exactly once.
 #[no_mangle]
 pub unsafe extern "C" fn icp_call_authenticated(
     canister_id: *const c_char,
@@ -151,60 +159,48 @@ pub unsafe extern "C" fn icp_call_authenticated(
     ed25519_private_key_b64: *const c_char,
     host: *const c_char,
 ) -> *mut c_char {
-    #[cfg(not(feature = "network"))]
-    {
-        let _ = (
-            canister_id,
-            method,
-            kind,
-            arg_candid,
-            ed25519_private_key_b64,
-            host,
-        );
-        return null_c_string();
-    }
-    #[cfg(feature = "network")]
-    {
-        let cid = if canister_id.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(canister_id).to_str().unwrap_or("")
-        };
-        let m = if method.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(method).to_str().unwrap_or("")
-        };
-        let a = if arg_candid.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(arg_candid).to_str().unwrap_or("")
-        };
-        let k = if ed25519_private_key_b64.is_null() {
-            ""
-        } else {
-            CStr::from_ptr(ed25519_private_key_b64)
-                .to_str()
-                .unwrap_or("")
-        };
-        let host_opt = if host.is_null() {
-            None
-        } else {
-            Some(CStr::from_ptr(host).to_str().unwrap_or(""))
-        };
-        let mk = match kind {
-            2 => MethodKind::CompositeQuery,
-            1 => MethodKind::Update,
-            _ => MethodKind::Query,
-        };
-        match canister_client::call_authenticated(cid, m, mk, a, k, host_opt) {
-            Ok(s) => CString::new(s).unwrap().into_raw(),
-            Err(_) => null_c_string(),
-        }
+    let cid = if canister_id.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(canister_id).to_str().unwrap_or("")
+    };
+    let m = if method.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(method).to_str().unwrap_or("")
+    };
+    let a = if arg_candid.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(arg_candid).to_str().unwrap_or("")
+    };
+    let k = if ed25519_private_key_b64.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(ed25519_private_key_b64)
+            .to_str()
+            .unwrap_or("")
+    };
+    let host_opt = if host.is_null() {
+        None
+    } else {
+        Some(CStr::from_ptr(host).to_str().unwrap_or(""))
+    };
+    let mk = match kind {
+        2 => MethodKind::CompositeQuery,
+        1 => MethodKind::Update,
+        _ => MethodKind::Query,
+    };
+    match canister_client::call_authenticated(cid, m, mk, a, k, host_opt) {
+        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Err(_) => null_c_string(),
     }
 }
 
 // Favorites
+/// # Safety
+/// - The returned pointer, when non-null, points to a heap-allocated C string owned by Rust
+///   and must be freed by calling `icp_free_string` exactly once.
 #[no_mangle]
 pub unsafe extern "C" fn icp_favorites_list() -> *mut c_char {
     let entries = fav::list().unwrap_or_default();
@@ -212,6 +208,9 @@ pub unsafe extern "C" fn icp_favorites_list() -> *mut c_char {
     CString::new(json).unwrap().into_raw()
 }
 
+/// # Safety
+/// - `canister_id`, `method`, and `label` must be either null or valid, null-terminated
+///   C strings.
 #[no_mangle]
 pub unsafe extern "C" fn icp_favorites_add(
     canister_id: *const c_char,
@@ -244,6 +243,8 @@ pub unsafe extern "C" fn icp_favorites_add(
     }
 }
 
+/// # Safety
+/// - `canister_id` and `method` must be either null or valid, null-terminated C strings.
 #[no_mangle]
 pub unsafe extern "C" fn icp_favorites_remove(
     canister_id: *const c_char,
