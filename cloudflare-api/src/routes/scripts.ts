@@ -1,5 +1,5 @@
 import { Env, Script } from './types';
-import { JsonResponse, DatabaseService } from '../utils';
+import { JsonResponse, DatabaseService, SignatureVerifier, SignaturePayload, SignatureEnforcement, TestIdentity } from '../utils';
 
 export async function handleScriptsRequest(request: Request, env: Env): Promise<Response> {
   const db = new DatabaseService(env);
@@ -7,7 +7,7 @@ export async function handleScriptsRequest(request: Request, env: Env): Promise<
 
   switch (request.method) {
     case 'POST':
-      return createScript(request, db);
+      return createScript(request, db, env);
     case 'GET':
       return getScripts(url, db);
     default:
@@ -15,9 +15,10 @@ export async function handleScriptsRequest(request: Request, env: Env): Promise<
   }
 }
 
-async function createScript(request: Request, db: DatabaseService): Promise<Response> {
+async function createScript(request: Request, db: DatabaseService, env: Env): Promise<Response> {
   try {
-    const {
+    const requestBody = await request.json();
+  const {
       title,
       description,
       category,
@@ -33,8 +34,9 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
       is_public = true,
       author_principal,
       author_public_key,
-      signature
-    } = await request.json();
+      signature,
+      timestamp: clientTimestamp
+    } = requestBody;
 
     // Validate required fields
     if (!title || !description || !category || !lua_source || !author_name) {
@@ -57,17 +59,30 @@ async function createScript(request: Request, db: DatabaseService): Promise<Resp
 
     const database = db.getDatabase();
 
-    // TODO: Implement signature verification if provided
-    if (signature && author_principal && author_public_key) {
-      console.log('Signature verification requested for script creation:', {
-        scriptId,
-        authorPrincipal: author_principal,
-        signature: signature?.substring(0, 20) + '...',
-        hasPublicKey: !!author_public_key
-      });
+    // Enforce signature verification consistently across all environments
+    // For development/testing, use TestIdentity utilities to generate valid signatures
+    const payload: SignaturePayload = {
+      action: 'upload',
+      title,
+      description,
+      category,
+      lua_source: lua_source,
+      version,
+      tags: tags || [],
+      compatibility: compatibility || undefined,
+      author_principal: author_principal || '',
+      timestamp: clientTimestamp || new Date().toISOString()
+    };
 
-      // In a production implementation, you would verify the signature here
-      // For now, we'll store the signature and public key for later verification
+    const isSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
+      env,
+      signature,
+      payload,
+      author_public_key
+    );
+
+    if (!isSignatureValid) {
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
     await database.prepare(`
@@ -153,9 +168,9 @@ export async function handleScriptByIdRequest(request: Request, env: Env, id: st
     case 'GET':
       return getScript(id, db, includePrivate);
     case 'PUT':
-      return updateScript(id, request, db);
+      return updateScript(id, request, db, env);
     case 'DELETE':
-      return deleteScript(id, request, db);
+      return deleteScript(id, request, db, env);
     default:
       return JsonResponse.error('Method not allowed', 405);
   }
@@ -267,7 +282,7 @@ async function getScript(id: string, db: DatabaseService, includePrivate = false
   }
 }
 
-async function updateScript(id: string, request: Request, db: DatabaseService): Promise<Response> {
+async function updateScript(id: string, request: Request, db: DatabaseService, env: Env): Promise<Response> {
   try {
     if (!id) {
       return JsonResponse.error('Script ID is required', 400);
@@ -276,13 +291,15 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
     const updateData = await request.json();
     const now = new Date().toISOString();
 
-    // Check if signature and author_principal are provided
+    // Get the database connection
+    const database = db.getDatabase();
+
+    // Enforce signature verification consistently across all environments
     if (!updateData.signature || !updateData.author_principal) {
-      return JsonResponse.error('Signature and author_principal are required for script updates', 401);
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
-    // Get the existing script to verify ownership
-    const database = db.getDatabase();
+    // Get the existing script to verify ownership and retrieve public key
     const existingScript = await database.prepare(`
       SELECT author_principal, author_public_key FROM scripts WHERE id = ?
     `).bind(id).first();
@@ -296,24 +313,34 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
       return JsonResponse.error('Author principal does not match script author', 403);
     }
 
-    // TODO: Implement proper signature verification using stored public key
-    if (existingScript.author_public_key) {
-      console.log('Signature verification requested for script update:', {
-        scriptId: id,
-        authorPrincipal: updateData.author_principal,
-        hasStoredPublicKey: !!existingScript.author_public_key,
-        signature: updateData.signature?.substring(0, 20) + '...'
-      });
+    if (!existingScript.author_public_key) {
+      return JsonResponse.error('No public key stored for script, cannot verify signature', 401);
+    }
 
-      // In a production implementation, you would:
-      // 1. Create the canonical payload for verification
-      // 2. Verify the signature using the stored public key
-      // 3. Only proceed if verification succeeds
+    // Create the payload that should have been signed
+    const payload: SignaturePayload = {
+      action: 'update',
+      script_id: id,
+      author_principal: updateData.author_principal,
+      timestamp: updateData.timestamp || new Date().toISOString()
+    };
 
-      // For now, we'll log the verification request and proceed
-      console.log('Signature verification would be performed here with stored public key');
-    } else {
-      console.warn('No public key stored for script, cannot verify signature:', id);
+    // Add the fields being updated to the payload (exclude signature and timestamp from the payload itself)
+    Object.keys(updateData).forEach(key => {
+      if (key !== 'signature' && key !== 'timestamp' && updateData[key] !== undefined) {
+        payload[key] = updateData[key];
+      }
+    });
+
+    const isSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
+      env,
+      updateData.signature,
+      payload,
+      existingScript.author_public_key
+    );
+
+    if (!isSignatureValid) {
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
     // Build dynamic update query (excluding signature from database update)
@@ -359,7 +386,7 @@ async function updateScript(id: string, request: Request, db: DatabaseService): 
   }
 }
 
-async function deleteScript(id: string, request: Request, db: DatabaseService): Promise<Response> {
+async function deleteScript(id: string, request: Request, db: DatabaseService, env: Env): Promise<Response> {
   try {
     if (!id) {
       return JsonResponse.error('Script ID is required', 400);
@@ -367,13 +394,15 @@ async function deleteScript(id: string, request: Request, db: DatabaseService): 
 
     const deleteData = await request.json();
 
-    // Check if signature and author_principal are provided
+    // Get the database connection
+    const database = db.getDatabase();
+
+    // Enforce signature verification consistently across all environments
     if (!deleteData.signature || !deleteData.author_principal) {
-      return JsonResponse.error('Signature and author_principal are required for script deletion', 401);
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
-    // Get the existing script to verify ownership
-    const database = db.getDatabase();
+    // Get the existing script to verify ownership and retrieve public key
     const existingScript = await database.prepare(`
       SELECT author_principal, author_public_key FROM scripts WHERE id = ?
     `).bind(id).first();
@@ -387,24 +416,27 @@ async function deleteScript(id: string, request: Request, db: DatabaseService): 
       return JsonResponse.error('Author principal does not match script author', 403);
     }
 
-    // TODO: Implement proper signature verification using stored public key
-    if (existingScript.author_public_key) {
-      console.log('Signature verification requested for script deletion:', {
-        scriptId: id,
-        authorPrincipal: deleteData.author_principal,
-        hasStoredPublicKey: !!existingScript.author_public_key,
-        signature: deleteData.signature?.substring(0, 20) + '...'
-      });
+    if (!existingScript.author_public_key) {
+      return JsonResponse.error('No public key stored for script, cannot verify signature', 401);
+    }
 
-      // In a production implementation, you would:
-      // 1. Create the canonical payload for verification
-      // 2. Verify the signature using the stored public key
-      // 3. Only proceed if verification succeeds
+    // Create the payload that should have been signed
+    const payload: SignaturePayload = {
+      action: 'delete',
+      script_id: id,
+      author_principal: deleteData.author_principal,
+      timestamp: deleteData.timestamp || new Date().toISOString()
+    };
 
-      // For now, we'll log the verification request and proceed
-      console.log('Signature verification would be performed here with stored public key');
-    } else {
-      console.warn('No public key stored for script, cannot verify signature:', id);
+    const isSignatureValid = await SignatureEnforcement.enforceSignatureVerification(
+      env,
+      deleteData.signature,
+      payload,
+      existingScript.author_public_key
+    );
+
+    if (!isSignatureValid) {
+      return SignatureEnforcement.createSignatureErrorResponse();
     }
 
     const result = await database.prepare(`

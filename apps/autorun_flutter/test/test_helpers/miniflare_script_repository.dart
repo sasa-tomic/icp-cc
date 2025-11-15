@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
+import 'test_signature_utils.dart';
 
 /// Repository implementation that uses a real Miniflare deployment
 /// for end-to-end testing instead of in-memory mocks.
@@ -43,12 +44,18 @@ class MiniflareScriptRepository extends ScriptRepository {
   Future<void> persistScripts(List<ScriptRecord> scripts) async {
     try {
       for (final script in scripts) {
+        // Generate proper signature for script creation
+        final baseScriptData = _scriptToApiJson(script);
+        final scriptData = TestSignatureUtils.createTestScriptRequest(
+          overrides: baseScriptData,
+        );
+
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
-          body: json.encode(_scriptToApiJson(script)),
+          body: json.encode(scriptData),
         );
-        
+
         if (response.statusCode != 200 && response.statusCode != 201) {
           throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
         }
@@ -150,11 +157,8 @@ class MiniflareScriptRepository extends ScriptRepository {
 
   Future<void> deleteScript(String id) async {
     try {
-      // The backend now requires signature and author_principal for deletion
-      final deleteData = {
-        'signature': 'test-delete-signature',
-        'author_principal': 'test-author-principal',
-      };
+      // Generate proper signature for script deletion
+      final deleteData = TestSignatureUtils.createTestDeleteRequest(id);
 
       final response = await _client.delete(
         Uri.parse('$baseUrl/api/v1/scripts/$id'),
@@ -305,10 +309,12 @@ class MiniflareScriptRepository extends ScriptRepository {
       );
 
       if (checkResponse.statusCode == 200) {
-        // For updates, include signature data for verification
-        final updateData = _scriptToApiJson(script);
-        updateData['signature'] = 'test-update-signature';
-        updateData['author_principal'] = 'test-author-principal';
+        // Generate proper signature for script update
+        final baseUpdateData = _scriptToApiJson(script);
+        final updateData = TestSignatureUtils.createTestUpdateRequest(
+          script.id,
+          updates: baseUpdateData,
+        );
 
         final response = await _client.put(
           Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
@@ -322,11 +328,16 @@ class MiniflareScriptRepository extends ScriptRepository {
 
         return script.id;
       } else {
-        // For new scripts, create without signature verification
+        // Generate proper signature for new script creation
+        final baseScriptData = _scriptToApiJson(script);
+        final scriptData = TestSignatureUtils.createTestScriptRequest(
+          overrides: baseScriptData,
+        );
+
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
-          body: json.encode(_scriptToApiJson(script)),
+          body: json.encode(scriptData),
         );
 
         if (response.statusCode != 200 && response.statusCode != 201) {
