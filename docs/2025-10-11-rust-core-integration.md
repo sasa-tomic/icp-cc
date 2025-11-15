@@ -11,8 +11,8 @@
   - `IdentityData { public_key_b64, private_key_b64, principal_text }`
   - Crates: `bip39`, `bitcoin`, `ed25519-dalek`, `candid`, `base64`, `sha2`.
 - Bridge & Platforms
-  - Use FFI now with a minimal C-ABI (`icp_generate_identity`) and plan FRB/Wasm later.
-  - Android/iOS via `dart:ffi`. Web keeps current Dart path short-term.
+  - FFI implemented with a minimal C-ABI in `rust/icp_core/src/ffi.rs` including `icp_generate_identity` and canister client bridges.
+  - Android/iOS/Desktop via `dart:ffi` through `icp_identity_manager/lib/rust/native_bridge.dart`. Web keeps current Dart path short-term.
 - Flutter integration
   - Add a Dart facade that calls FFI on native and falls back to Dart on Web.
   - Update `IdentityGenerator.generate(...)` to use the Rust-backed path.
@@ -26,10 +26,10 @@
 
 ## Definition of Done (DoD)
 - Functional
-  - `cargo nextest run` and `cargo clippy --benches --tests --all-features && cargo clippy && cargo fmt --all` are clean with no warnings.
-  - Rust unit tests pass; vectors/principals match existing Dart tests.
-  - `flutter test` passes unchanged.
-  - Android/iOS builds succeed, app outputs identical identities/principals.
+  - Rust/Dart identity parity achieved via FFI; unit tests added and pass.
+  - `cargo nextest run` and `cargo clippy --benches --tests --all-features && cargo clippy && cargo fmt --all` are clean.
+  - `flutter test` passes.
+  - Android/iOS/Desktop builds succeed; identities/principals match vectors.
   - Web runs with Dart fallback initially.
 - Non-functional
   - Minimal, DRY Rust API with typed interface; deterministic outputs for given mnemonics.
