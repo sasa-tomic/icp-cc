@@ -2,16 +2,18 @@
 
 (none)
 
+## Update the list of tasks
+
+- If some task needs to be broken down into smaller actions, add them all as nested subtasks into this TODO.md document
+- Whenever some task is completed or found to be already done, REMOVE it from this TODO.md document
+- If a whole section is empty, leave a placeholder: `(none)`
+- Check if this document is well organized and structured and if not, reorganize and restructure to IMPROVE it.
+- clarify in this document if some task is particularly complex or difficult to do and try to break it down to smaller tasks
+
 ## ICP Autorun Marketplace
 
-### Database Schema Improvements (completed ✅)
-- ~~Add missing fields to Scripts collection:~~
-  - ~~`createdAt`: timestamp for script creation~~
-  - ~~`updatedAt`: timestamp for last modification~~
-  - ~~`version`: script versioning support~~
-  - ~~`isDeleted`: soft delete support~~
-- ~~Add Users collection for authenticated users~~
-- ~~Add Reviews collection for future review functionality~~
+- add support from the app to upload scripts to the marketplace
+- add support for searching for scripts in the marketplace: both without and with a search substring. The database side should do a FTS for the name of the script and the canister ids, for now
 
 ### Payment Processing (next)
 - Integrate with icpay.org for script payments
