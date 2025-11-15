@@ -7,7 +7,7 @@
             "type": "dart",
             "program": "lib/main.dart",
             "env": {
-                "APPWRITE_ENDPOINT": "https://fra.cloud.appwrite.io/v1"
+                "APPWRITE_ENDPOINT": "https://icp-autorun.appwrite.network/v1"
             }
         },
         {

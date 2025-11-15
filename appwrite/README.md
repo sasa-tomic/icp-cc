@@ -49,27 +49,40 @@ User reviews and ratings with:
 - Verified purchase indicators
 - Moderation status
 
-### Cloud Functions
+### Site API Routes
 
-#### Search Scripts (`search_scripts`)
+This project uses Appwrite Sites with API routes instead of separate Cloud Functions. The API endpoints are:
+
+#### Search Scripts (`/api/search_scripts`)
 Advanced search functionality with:
 - Full-text search across multiple fields
 - Category and canister ID filtering
 - Rating and price filtering
 - Customizable sorting and pagination
 
-#### Process Purchase (`process_purchase`)
+#### Process Purchase (`/api/process_purchase`)
 Handles script purchases including:
 - Purchase validation
 - Duplicate purchase prevention
 - Download count updates
 - Payment processing integration
 
-#### Update Script Stats (`update_script_stats`)
+#### Update Script Stats (`/api/update_script_stats`)
 Automatically updates script statistics when:
 - New reviews are submitted
 - Ratings are modified
 - Download counts change
+
+#### Additional API Routes
+- `/api/scripts` - CRUD operations for scripts
+- `/api/scripts/[id]` - Get/update/delete specific script
+- `/api/scripts/featured` - Get featured scripts
+- `/api/scripts/trending` - Get trending scripts
+- `/api/scripts/category/[category]` - Get scripts by category
+- `/api/scripts/[id]/reviews` - Get script reviews
+- `/api/scripts/compatible` - Get scripts compatible with canisters
+- `/api/scripts/validate` - Validate Lua script syntax
+- `/api/get_marketplace_stats` - Get marketplace statistics
 
 ### Storage
 
@@ -86,7 +99,7 @@ File storage for:
 The Flutter app uses these configuration values (in `lib/utils/appwrite_config.dart`):
 
 ```dart
-static const String endpoint = 'https://fra.cloud.appwrite.io/v1';
+static const String endpoint = 'https://icp-autorun.appwrite.network/v1';
 static const String projectId = '68f7fc8b00255b20ed42';
 ```
 
@@ -155,7 +168,7 @@ final session = await authService.loginUser(
 ### Logs
 
 Monitor your Appwrite project logs for:
-- Function execution errors
+- API route execution errors
 - Failed authentication attempts
 - Database operation failures
 - Unusual activity patterns
@@ -163,7 +176,7 @@ Monitor your Appwrite project logs for:
 ### Performance
 
 - Optimize database queries with proper indexes
-- Monitor function execution times
+- Monitor API route response times
 - Set up alerts for high error rates
 - Regular backup of important data
 
@@ -184,12 +197,17 @@ All collections are accessible via Appwrite's REST API. The standard endpoints a
 - `PUT /v1/databases/{databaseId}/collections/{collectionId}/documents/{documentId}`
 - `DELETE /v1/databases/{databaseId}/collections/{collectionId}/documents/{documentId}`
 
-### Functions API
+### Site API
 
-Execute cloud functions via:
+Access API routes via:
 
 ```
-POST /v1/functions/{functionId}/executions
+https://icp-autorun.appwrite.network/api/{endpoint}
+```
+
+For local development:
+```
+http://localhost:5173/api/{endpoint}
 ```
 
 ## Troubleshooting
@@ -198,7 +216,7 @@ POST /v1/functions/{functionId}/executions
 
 1. **CORS Errors**: Ensure your Flutter app's origin is added to allowed domains
 2. **Permission Errors**: Check collection permissions and API key scopes
-3. **Function Timeouts**: Optimize function code for better performance
+3. **API Route Errors**: Check site deployment logs for troubleshooting
 4. **File Upload Errors**: Verify file size and format restrictions
 
 ### Debug Mode
