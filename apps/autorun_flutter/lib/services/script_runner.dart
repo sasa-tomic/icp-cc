@@ -148,7 +148,7 @@ class ScriptRunner {
       description:
           'Perform a single canister method call. Supports anonymous or authenticated calls. Returns the raw JSON result.',
       example:
-          'return icp_call({\n  canister_id = "aaaaa-aa",\n  method = "greet",\n  kind = 0, -- 0=query, 1=update, 2=composite\n  args = "(\"World\")"\n})',
+          'return icp_call({\n  canister_id = "aaaaa-aa",\n  method = "greet",\n  kind = 0, -- 0=query, 1=update, 2=composite\n  args = "(".."World"..")"\n})',
     ),
     IntegrationInfo(
       id: 'icp_batch',
@@ -156,7 +156,7 @@ class ScriptRunner {
       description:
           'Execute multiple canister calls and return a map of label→result. Each item can include canister_id, method, kind, args, host, private_key_b64.',
       example:
-          'local a = { label = "gov", canister_id = "rrkah-fqaaa-aaaaa-aaaaq-cai", method = "get_pending_proposals", kind = 0, args = "()" }\nlocal b = { label = "ledger", canister_id = "ryjl3-tyaaa-aaaaa-aaaba-cai", method = "query_blocks", kind = 0, args = "{\\"start\\":0,\\"length\\":10}" }\nreturn icp_batch({ a, b })',
+          'local a = { label = "gov", canister_id = "rrkah-fqaaa-aaaaa-aaaaq-cai", method = "get_pending_proposals", kind = 0, args = "()" }\nlocal b = { label = "ledger", canister_id = "ryjl3-tyaaa-aaaaa-aaaba-cai", method = "query_blocks", kind = 0, args = "{".."start"..":0,".."length"..":10}" }\nreturn icp_batch({ a, b })',
     ),
     IntegrationInfo(
       id: 'icp_message',
