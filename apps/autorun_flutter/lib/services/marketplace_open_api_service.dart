@@ -246,7 +246,8 @@ class MarketplaceOpenApiService {
   // Get marketplace categories
   List<String> getCategories() {
     return const [
-      'All',
+      'Example',
+      'Uncategorized',
       'Gaming',
       'Finance',
       'DeFi',

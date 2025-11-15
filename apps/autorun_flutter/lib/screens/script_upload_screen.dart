@@ -102,6 +102,8 @@ end
 
   // Available categories
   final List<String> _availableCategories = [
+    'Example',
+    'Uncategorized',
     'Gaming',
     'Finance',
     'DeFi',
@@ -126,7 +128,7 @@ end
     }
     
     // Set default category
-    _categoryController.text = 'Utilities';
+    _categoryController.text = 'Example';
     
     // Set default author if not pre-filled
     if (_authorController.text.isEmpty) {

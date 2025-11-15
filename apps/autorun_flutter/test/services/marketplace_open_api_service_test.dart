@@ -87,6 +87,8 @@ void main() {
       final categories = service.getCategories();
 
       expect(categories, contains('All'));
+      expect(categories, contains('Example'));
+      expect(categories, contains('Uncategorized'));
       expect(categories, contains('Gaming'));
       expect(categories, contains('Finance'));
       expect(categories, contains('DeFi'));
@@ -97,7 +99,7 @@ void main() {
       expect(categories, contains('Education'));
       expect(categories, contains('Entertainment'));
       expect(categories, contains('Business'));
-      expect(categories.length, equals(11));
+      expect(categories.length, equals(13));
     });
 
     test('should handle marketplace stats correctly', () async {

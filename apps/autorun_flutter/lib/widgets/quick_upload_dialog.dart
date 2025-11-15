@@ -30,12 +30,14 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   late final TextEditingController _priceController;
 
   String _luaSource = '';
-  String _selectedCategory = 'Utilities';
+  String _selectedCategory = 'Example';
   bool _isUploading = false;
   String? _error;
   ScriptValidationResult? _validationResult;
 
   final List<String> _availableCategories = [
+    'Example',
+    'Uncategorized',
     'Gaming',
     'Finance',
     'DeFi',

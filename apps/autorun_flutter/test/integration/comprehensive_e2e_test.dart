@@ -207,7 +207,7 @@ void main() {
       }
       
       // Check for required categories
-      final requiredCategories = ['All', 'Gaming', 'Finance', 'DeFi', 'NFT', 'Social', 'Utilities', 'Development', 'Education', 'Entertainment', 'Business'];
+      final requiredCategories = ['All', 'Example', 'Uncategorized', 'Gaming', 'Finance', 'DeFi', 'NFT', 'Social', 'Utilities', 'Development', 'Education', 'Entertainment', 'Business'];
       for (final required in requiredCategories) {
         expect(categories, contains(required), reason: 'Must contain required category: $required');
       }
