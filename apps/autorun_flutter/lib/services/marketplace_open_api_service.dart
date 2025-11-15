@@ -614,8 +614,10 @@ class MarketplaceOpenApiService {
   // Delete a script
   Future<bool> deleteScript(String scriptId, {String? authorPrincipal, String? signature}) async {
     try {
+      final timestamp = DateTime.now().toIso8601String();
       final body = <String, dynamic>{
         'action': 'delete',
+        'timestamp': timestamp,
       };
       if (authorPrincipal != null) body['author_principal'] = authorPrincipal;
       if (signature != null) body['signature'] = signature;

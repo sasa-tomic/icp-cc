@@ -323,14 +323,17 @@ class MiniflareScriptRepository extends ScriptRepository {
       );
 
       if (checkResponse.statusCode == 200) {
-        // Generate proper signature for script update
-        final baseUpdateData = _scriptToApiJson(script);
-
-        // Use simplified authorization token for updates
-        final updateData = Map<String, dynamic>.from(baseUpdateData);
-        updateData['signature'] = 'test-auth-token';
-        updateData['action'] = 'update';
-        updateData['script_id'] = script.id;
+        // Generate proper signature for script update using test utilities
+        final updateData = TestSignatureUtils.createTestUpdateRequest(script.id, updates: {
+          'title': script.title,
+          'description': script.metadata['description'] ?? '',
+          'category': script.metadata['category'] ?? 'Development',
+          'lua_source': script.luaSource,
+          'tags': script.metadata['tags'] ?? [],
+          'version': script.metadata['version'] ?? '1.0.0',
+          'price': script.metadata['price'] ?? 0.0,
+          'is_public': script.metadata['isPublic'] ?? false,
+        });
 
         
         final response = await _client.put(
