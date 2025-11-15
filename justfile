@@ -350,38 +350,92 @@ flutter-production +args="":
     cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=https://api.icp-marketplace.example.com {{args}}
 
 # =============================================================================
-# Docker Deployment with Cloudflare Tunnel
+# Docker Deployment
 # =============================================================================
 
-# Deploy Poem API with Docker Compose and Cloudflare Tunnel
-docker-deploy:
-    @echo "==> Deploying with Docker Compose + Cloudflare Tunnel"
+# Compose file selection
+compose_prod := "docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+compose_dev := "docker compose -f docker-compose.yml -f docker-compose.dev.yml"
+
+# Deploy to production with Docker Compose and Cloudflare Tunnel
+docker-deploy-prod:
+    @echo "==> Deploying to PRODUCTION with Docker Compose + Cloudflare Tunnel"
     cd {{api_dir}} && ./scripts/start-tunnel.sh
 
-# Start Docker containers
-docker-up:
-    @echo "==> Starting Docker containers"
-    cd {{api_dir}} && export $$(cat .env.tunnel | xargs) && docker compose up -d
+# Deploy to local development (no tunnel)
+docker-deploy-dev:
+    @echo "==> Deploying to DEVELOPMENT (local only)"
+    cd {{api_dir}} && ./scripts/start-dev.sh
 
-# Stop Docker containers
+# Default deploy (use prod)
+docker-deploy: docker-deploy-prod
+
+# Start production Docker containers
+docker-up-prod:
+    @echo "==> Starting production Docker containers"
+    cd {{api_dir}} && export $$(cat .env | xargs) && {{compose_prod}} up -d
+
+# Start development Docker containers
+docker-up-dev:
+    @echo "==> Starting development Docker containers"
+    cd {{api_dir}} && {{compose_dev}} up -d
+
+# Stop production Docker containers
+docker-down-prod:
+    @echo "==> Stopping production Docker containers"
+    cd {{api_dir}} && {{compose_prod}} down
+
+# Stop development Docker containers
+docker-down-dev:
+    @echo "==> Stopping development Docker containers"
+    cd {{api_dir}} && {{compose_dev}} down
+
+# Stop all Docker containers (both prod and dev)
 docker-down:
-    @echo "==> Stopping Docker containers"
-    cd {{api_dir}} && docker compose down
+    @echo "==> Stopping all Docker containers"
+    cd {{api_dir}} && {{compose_prod}} down && {{compose_dev}} down
 
-# View Docker logs
-docker-logs:
-    @echo "==> Viewing Docker logs (Ctrl+C to stop)"
-    cd {{api_dir}} && docker compose logs -f
+# View production Docker logs
+docker-logs-prod:
+    @echo "==> Viewing production Docker logs (Ctrl+C to stop)"
+    cd {{api_dir}} && {{compose_prod}} logs -f
 
-# Rebuild and restart Docker containers
-docker-rebuild:
-    @echo "==> Rebuilding and restarting Docker containers"
-    cd {{api_dir}} && export $$(cat .env.tunnel | xargs) && docker compose up -d --build
+# View development Docker logs
+docker-logs-dev:
+    @echo "==> Viewing development Docker logs (Ctrl+C to stop)"
+    cd {{api_dir}} && {{compose_dev}} logs -f
 
-# Check Docker container status
+# View Docker logs (default to dev)
+docker-logs: docker-logs-dev
+
+# Rebuild and restart production Docker containers
+docker-rebuild-prod:
+    @echo "==> Rebuilding and restarting production Docker containers"
+    cd {{api_dir}} && export $$(cat .env | xargs) && {{compose_prod}} up -d --build
+
+# Rebuild and restart development Docker containers
+docker-rebuild-dev:
+    @echo "==> Rebuilding and restarting development Docker containers"
+    cd {{api_dir}} && {{compose_dev}} up -d --build
+
+# Check production Docker container status
+docker-status-prod:
+    @echo "==> Checking production Docker container status"
+    cd {{api_dir}} && {{compose_prod}} ps
+
+# Check development Docker container status
+docker-status-dev:
+    @echo "==> Checking development Docker container status"
+    cd {{api_dir}} && {{compose_dev}} ps
+
+# Check all Docker container status
 docker-status:
-    @echo "==> Checking Docker container status"
-    cd {{api_dir}} && docker compose ps
+    @echo "==> Checking all Docker container status"
+    @echo "Production:"
+    cd {{api_dir}} && {{compose_prod}} ps
+    @echo ""
+    @echo "Development:"
+    cd {{api_dir}} && {{compose_dev}} ps
 
 # =============================================================================
 # Help and Information

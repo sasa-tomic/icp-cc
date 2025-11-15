@@ -1,0 +1,19 @@
+# Production overrides - adds Cloudflare Tunnel
+services:
+  api:
+    container_name: icp-marketplace-api-prod
+    ports:
+      - "58100:8080"  # Prod port (for local testing before tunnel)
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: icp-marketplace-tunnel-prod
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN
+    networks:
+      - api-network
+    depends_on:
+      api:
+        condition: service_healthy

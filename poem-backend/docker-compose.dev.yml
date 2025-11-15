@@ -1,0 +1,10 @@
+# Development overrides - exposes port locally, different DB, debug logging
+services:
+  api:
+    container_name: icp-marketplace-api-dev
+    environment:
+      - RUST_LOG=debug
+      - DATABASE_URL=sqlite:///data/dev.db?mode=rwc
+      - ENVIRONMENT=development
+    ports:
+      - "58000:8080"  # Dev port (avoids conflict with just api-up on 8080)

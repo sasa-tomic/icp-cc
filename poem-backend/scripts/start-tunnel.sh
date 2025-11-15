@@ -8,8 +8,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}ICP Marketplace API - Docker Deployment${NC}"
-echo "=========================================="
+echo -e "${GREEN}ICP Marketplace API - Production Deployment${NC}"
+echo "==============================================="
 echo
 
 # Change to the script's directory parent (poem-backend)
@@ -70,7 +70,7 @@ echo
 echo -e "${YELLOW}Building and starting services...${NC}"
 echo
 
-if docker compose up -d --build; then
+if docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build; then
     echo
     echo -e "${GREEN}=========================================="
     echo "Containers Started!"
@@ -84,12 +84,12 @@ if docker compose up -d --build; then
     sleep 5
 
     # Check if tunnel connected successfully
-    if docker compose logs cloudflared 2>&1 | grep -q "Registered tunnel connection connIndex="; then
+    if docker compose -f docker-compose.yml -f docker-compose.prod.yml logs cloudflared 2>&1 | grep -q "Registered tunnel connection connIndex="; then
         echo -e "${GREEN}✓${NC} Tunnel connected successfully!"
         echo
         echo "Your API is now accessible at:"
         echo -e "  ${BLUE}https://icp-mp.kalaj.org/api/v1/health${NC}"
-    elif docker compose logs cloudflared 2>&1 | grep -q "Unauthorized"; then
+    elif docker compose -f docker-compose.yml -f docker-compose.prod.yml logs cloudflared 2>&1 | grep -q "Unauthorized"; then
         echo -e "${RED}✗${NC} Tunnel authentication failed!"
         echo
         echo "This means:"
@@ -108,10 +108,10 @@ if docker compose up -d --build; then
     fi
     echo
     echo "Useful commands:"
-    echo -e "  ${BLUE}docker compose logs -f${NC}           # View logs"
-    echo -e "  ${BLUE}docker compose ps${NC}                # Check status"
-    echo -e "  ${BLUE}docker compose restart cloudflared${NC} # Restart tunnel"
-    echo -e "  ${BLUE}docker compose down${NC}              # Stop services"
+    echo -e "  ${BLUE}just docker-logs-prod${NC}     # View logs"
+    echo -e "  ${BLUE}just docker-status-prod${NC}   # Check status"
+    echo -e "  ${BLUE}just docker-rebuild-prod${NC}  # Rebuild"
+    echo -e "  ${BLUE}just docker-down-prod${NC}     # Stop services"
     echo
 else
     echo
@@ -120,7 +120,7 @@ else
     echo "==========================================${NC}"
     echo
     echo "Check the logs for errors:"
-    echo -e "  ${BLUE}docker compose logs${NC}"
+    echo -e "  ${BLUE}just docker-logs-prod${NC}"
     echo
     exit 1
 fi

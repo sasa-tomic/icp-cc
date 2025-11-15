@@ -20,10 +20,14 @@ cp .env.example .env && cargo run
 # API at http://127.0.0.1:8080
 ```
 
-**Production Deployment:**
+**Docker Deployment:**
 ```bash
-./scripts/start-tunnel.sh
-# API at https://icp-mp.kalaj.org
+# Development (local)
+just docker-deploy-dev  # http://localhost:58000
+
+# Production (with Cloudflare Tunnel)
+cp .env.tunnel.example .env  # Add TUNNEL_TOKEN
+just docker-deploy-prod      # https://icp-mp.kalaj.org (+ http://localhost:58100)
 ```
 
 ## 📋 API Endpoints
@@ -136,8 +140,17 @@ See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md#troubleshooting) for common is
 
 ## 🚀 Deployment
 
-- **Production:** [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) - Docker + Cloudflare Tunnel with TLS
-- **Local:** [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) - SQLite-based development setup
+**DRY Docker Compose Setup:**
+- `docker-compose.yml` - Base config (shared)
+- `docker-compose.dev.yml` - Dev overrides (local port, dev DB, debug)
+- `docker-compose.prod.yml` - Prod overrides (adds CF Tunnel)
+
+**Commands:**
+```bash
+just docker-{deploy,logs,status,rebuild,down}-{dev,prod}
+```
+
+Both environments can run simultaneously. See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for details.
 
 ## 🚢 Next Steps
 
