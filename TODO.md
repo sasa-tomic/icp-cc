@@ -2,6 +2,13 @@
 
 ## Immediate Tasks (Ready to Start)
 
+- Adjust the UI to align it closely with fantastic UX on mobile devices that typically have narrow screen - much taller than wide.
+- Make the script size more compact in the marketplace. We are now consuming a lot of vertical space for each script.
+- When uploading a script, mandatory sign it with the identity (private key) of the script author. When listing the script show the identity of the author as an ICP principal (first 5 characters should be enough for now).
+- In requests to update or delete the script, sign the request in a reliable way with the private key (identity) of the script author and at the server side compare that the request signer matches the script author. Allow script updates or deletions if the signatures of author + requestor match.
+- Extend the UI to support script re-uploading from "My scripts"
+- Extend the UI to support script deletion in the "Marketplace" tab (server would do the request signature checking)
+
 ### Production Deployment (Priority: HIGH)
 
 ## Production Readiness Checklist (Priority: CRITICAL)

@@ -60,10 +60,10 @@ class BookmarksScreen extends StatelessWidget {
           ),
           child: SingleChildScrollView(
             padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: 20 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: 16 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,8 +112,11 @@ class BookmarksScreen extends StatelessWidget {
     required String subtitle,
     required IconData icon,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompactScreen = screenWidth < 380;
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompactScreen ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -123,7 +126,7 @@ class BookmarksScreen extends StatelessWidget {
             Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(isCompactScreen ? 12 : 16),
         border: Border.all(
           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
           width: 1,
@@ -132,7 +135,7 @@ class BookmarksScreen extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(isCompactScreen ? 10 : 12),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
               shape: BoxShape.circle,
@@ -140,10 +143,10 @@ class BookmarksScreen extends StatelessWidget {
             child: Icon(
               icon,
               color: Theme.of(context).colorScheme.primary,
-              size: 24,
+              size: isCompactScreen ? 20 : 24,
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isCompactScreen ? 12 : 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,17 +155,19 @@ class BookmarksScreen extends StatelessWidget {
                   title,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w700,
-                    fontSize: 20,
+                    fontSize: isCompactScreen ? 18 : 20,
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: isCompactScreen ? 2 : 4),
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 14,
+                    fontSize: isCompactScreen ? 12 : 14,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -325,43 +330,58 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
      final viewInsets = MediaQuery.of(context).viewInsets;
      final safeAreaPadding = MediaQuery.of(context).padding;
      
-     return Padding(
-       padding: EdgeInsets.only(
-         bottom: viewInsets.bottom + safeAreaPadding.bottom,
-         left: 16,
-         right: 16,
-         top: 16,
-       ),
-       child: ListView(
-        padding: const EdgeInsets.all(16),
-        shrinkWrap: true,
-        children: <Widget>[
-          Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
+      final screenWidth = MediaQuery.of(context).size.width;
+      final isCompactScreen = screenWidth < 380;
+      
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: viewInsets.bottom + safeAreaPadding.bottom,
+          left: isCompactScreen ? 8 : 16,
+          right: isCompactScreen ? 8 : 16,
+          top: isCompactScreen ? 8 : 16,
+        ),
+        child: ListView(
+         padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
+         shrinkWrap: true,
+         children: <Widget>[
+           Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge?.copyWith(
+             fontSize: isCompactScreen ? 20 : 24,
+           )),
+           SizedBox(height: isCompactScreen ? 8 : 12),
           ExpansionTile(
             initiallyExpanded: false,
             title: const Text('Connection (optional)'),
             subtitle: const Text('Canister ID and Replica host'),
             children: <Widget>[
-              TextField(
-                key: const Key('canisterField'),
-                controller: _canisterController,
-                decoration: const InputDecoration(
-                  labelText: 'Canister ID',
-                  border: OutlineInputBorder(),
-                ),
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _hostController,
-                decoration: const InputDecoration(
-                  labelText: 'Replica Host (optional)',
-                  hintText: 'https://ic0.app',
-                  border: OutlineInputBorder(),
-                ),
-                textInputAction: TextInputAction.done,
-              ),
+               TextField(
+                 key: const Key('canisterField'),
+                 controller: _canisterController,
+                 decoration: InputDecoration(
+                   labelText: 'Canister ID',
+                   border: const OutlineInputBorder(),
+                   contentPadding: EdgeInsets.symmetric(
+                     horizontal: isCompactScreen ? 12 : 16,
+                     vertical: isCompactScreen ? 12 : 16,
+                   ),
+                 ),
+                 style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
+                 textInputAction: TextInputAction.next,
+               ),
+               SizedBox(height: isCompactScreen ? 6 : 8),
+               TextField(
+                 controller: _hostController,
+                 decoration: InputDecoration(
+                   labelText: 'Replica Host (optional)',
+                   hintText: 'https://ic0.app',
+                   border: const OutlineInputBorder(),
+                   contentPadding: EdgeInsets.symmetric(
+                     horizontal: isCompactScreen ? 12 : 16,
+                     vertical: isCompactScreen ? 12 : 16,
+                   ),
+                 ),
+                 style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
+                 textInputAction: TextInputAction.done,
+               ),
             ],
           ),
           const SizedBox(height: 8),
@@ -808,7 +828,7 @@ class _WellKnownList extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _items.length,
-      separatorBuilder: (BuildContext _, int __) => const SizedBox(height: 12),
+      separatorBuilder: (BuildContext _, int __) => const SizedBox(height: 8),
       itemBuilder: (BuildContext context, int index) {
         final e = _items[index];
         return Card(
@@ -958,7 +978,7 @@ class _BookmarksListState extends State<_BookmarksList> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _entries.length,
-      separatorBuilder: (BuildContext _, int __) => const SizedBox(height: 12),
+      separatorBuilder: (BuildContext _, int __) => const SizedBox(height: 8),
       itemBuilder: (BuildContext context, int index) {
         final entry = _entries[index];
         final cid = entry.canisterId;

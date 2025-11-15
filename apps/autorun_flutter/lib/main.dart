@@ -59,6 +59,8 @@ class _MainHomePageState extends State<MainHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    
     return Scaffold(
       body: SafeArea(
         top: true,
@@ -66,12 +68,12 @@ class _MainHomePageState extends State<MainHomePage> {
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: [
                 Theme.of(context).colorScheme.surface,
                 Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
-                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
               ],
             ),
           ),
@@ -87,8 +89,8 @@ class _MainHomePageState extends State<MainHomePage> {
                   ],
                 ),
               ),
-              // Add bottom padding to account for navigation bar height
-              const SizedBox(height: 100), // Approximate navigation bar height + safe area
+              // Dynamic bottom padding based on screen size and safe area
+              SizedBox(height: 80 + bottomPadding.clamp(0, 34)), // Compact navigation + safe area
             ],
           ),
         ),

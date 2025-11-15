@@ -285,14 +285,14 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             return RefreshIndicator(
               onRefresh: _controller.refresh,
               child: ListView.separated(
-                padding: EdgeInsets.only(
-                  left: 20,
-                  right: 20,
-                  top: 20,
-                  bottom: 20 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
-                ),
+               padding: EdgeInsets.only(
+                 left: 16,
+                 right: 16,
+                 top: 16,
+                 bottom: 16 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
+               ),
                 itemCount: identities.length,
-                separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 16),
+                 separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12),
                 itemBuilder: (BuildContext context, int index) {
                   final IdentityRecord record = identities[index];
                   final String principalText = PrincipalUtils.textFromRecord(record);
@@ -312,90 +312,97 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                           _copyToClipboard('Principal', PrincipalUtils.textFromRecord(record));
                         },
                         borderRadius: BorderRadius.circular(20),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Row(
-                            children: [
-                              // Avatar with gradient
-                              Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Theme.of(context).colorScheme.primary,
-                                      Theme.of(context).colorScheme.secondary,
-                                    ],
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    record.label.isNotEmpty 
-                                        ? record.label.substring(0, 2).toUpperCase()
-                                        : '#',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 20,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              
-                              const SizedBox(width: 20),
+                         child: Padding(
+                           padding: EdgeInsets.all(MediaQuery.of(context).size.width < 380 ? 16 : 20),
+                           child: Row(
+                             children: [
+                               // Avatar with gradient
+                               Container(
+                                 width: MediaQuery.of(context).size.width < 380 ? 50 : 60,
+                                 height: MediaQuery.of(context).size.width < 380 ? 50 : 60,
+                                 decoration: BoxDecoration(
+                                   gradient: LinearGradient(
+                                     begin: Alignment.topLeft,
+                                     end: Alignment.bottomRight,
+                                     colors: [
+                                       Theme.of(context).colorScheme.primary,
+                                       Theme.of(context).colorScheme.secondary,
+                                     ],
+                                   ),
+                                   shape: BoxShape.circle,
+                                   boxShadow: [
+                                     BoxShadow(
+                                       color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                       blurRadius: 10,
+                                       offset: const Offset(0, 4),
+                                     ),
+                                   ],
+                                 ),
+                                 child: Center(
+                                   child: Text(
+                                     record.label.isNotEmpty 
+                                         ? record.label.substring(0, 2).toUpperCase()
+                                         : '#',
+                                     style: TextStyle(
+                                       color: Colors.white,
+                                       fontWeight: FontWeight.w700,
+                                       fontSize: MediaQuery.of(context).size.width < 380 ? 18 : 20,
+                                     ),
+                                   ),
+                                 ),
+                               ),
+                               
+                               SizedBox(width: MediaQuery.of(context).size.width < 380 ? 16 : 20),
                               
                               // Identity info
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      record.label,
-                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 18,
-                                        letterSpacing: -0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        '$principalPrefix...',
-                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 11,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _subtitleFor(record),
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        fontSize: 12,
-                                      ),
-                                    ),
+                                     Text(
+                                       record.label,
+                                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                         fontWeight: FontWeight.w700,
+                                         fontSize: MediaQuery.of(context).size.width < 380 ? 16 : 18,
+                                         letterSpacing: -0.5,
+                                       ),
+                                       overflow: TextOverflow.ellipsis,
+                                       maxLines: 1,
+                                     ),
+                                     SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                                     Container(
+                                       padding: EdgeInsets.symmetric(
+                                         horizontal: MediaQuery.of(context).size.width < 380 ? 10 : 12, 
+                                         vertical: MediaQuery.of(context).size.width < 380 ? 4 : 6,
+                                       ),
+                                       decoration: BoxDecoration(
+                                         color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
+                                         borderRadius: BorderRadius.circular(MediaQuery.of(context).size.width < 380 ? 10 : 12),
+                                         border: Border.all(
+                                           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                           width: 1,
+                                         ),
+                                       ),
+                                       child: Text(
+                                         '$principalPrefix...',
+                                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                           color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                           fontWeight: FontWeight.w600,
+                                           fontSize: MediaQuery.of(context).size.width < 380 ? 10 : 11,
+                                           letterSpacing: 0.5,
+                                         ),
+                                       ),
+                                     ),
+                                     SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                                     Text(
+                                       _subtitleFor(record),
+                                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                         color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                         fontSize: MediaQuery.of(context).size.width < 380 ? 11 : 12,
+                                       ),
+                                       overflow: TextOverflow.ellipsis,
+                                       maxLines: 1,
+                                     ),
                                   ],
                                 ),
                               ),

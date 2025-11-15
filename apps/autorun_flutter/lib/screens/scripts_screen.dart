@@ -513,7 +513,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           // Positioned FAB above navigation bar with safe area awareness
           Positioned(
             right: 16,
-            bottom: MediaQuery.of(context).padding.bottom + 120, // Account for safe area + navigation bar
+            bottom: MediaQuery.of(context).padding.bottom + 70, // Positioned closer to bottom
             child: _tabController.index == 0 
               ? AnimatedFab(
                   heroTag: 'scripts_fab',
@@ -554,11 +554,19 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         return RefreshIndicator(
           onRefresh: _controller.refresh,
           child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 32, top: 8),
+            padding: EdgeInsets.only(
+              bottom: 32 + MediaQuery.of(context).padding.bottom, 
+              top: 8,
+              left: 8,
+              right: 8,
+            ),
             itemCount: scripts.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final ScriptRecord rec = scripts[index];
+              final screenWidth = MediaQuery.of(context).size.width;
+              final isCompactScreen = screenWidth < 380;
+              
               return Dismissible(
                 key: ValueKey<String>(rec.id),
                 direction: DismissDirection.endToStart,
@@ -579,133 +587,181 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                   await _controller.deleteScript(rec.id);
                   return false;
                 },
-                child: ListTile(
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(child: Text((rec.emoji ?? '📜').characters.first)),
-                      if (_isPublishedToMarketplace(rec))
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: const Icon(
-                              Icons.cloud_upload,
-                              size: 10,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(child: Text(rec.title)),
-                      if (_isPublishedToMarketplace(rec))
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                          ),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: isCompactScreen ? 12 : 16,
+                      vertical: 4,
+                    ),
+                    leading: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: isCompactScreen ? 20 : 24,
                           child: Text(
-                            'Published',
+                            (rec.emoji ?? '📜').characters.first,
                             style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.green[700],
-                              fontWeight: FontWeight.bold,
+                              fontSize: isCompactScreen ? 16 : 20,
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                  subtitle: Text('Updated ${rec.updatedAt.toLocal()}'),
-                  onTap: () {
-                    showDialog<void>(
-                      context: context,
-                                builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
-                    );
-                  },
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      // Quick action buttons
-                      IconButton(
-                        tooltip: 'Run Script',
-                        icon: const Icon(Icons.play_arrow),
-                        onPressed: () => _runScript(rec),
-                      ),
-                      
-                      // Quick publish button for scripts not yet published
-                      if (!_isPublishedToMarketplace(rec))
-                        IconButton(
-                          tooltip: 'Publish to Marketplace',
-                          icon: const Icon(Icons.cloud_upload),
-                          onPressed: () => _publishToMarketplace(rec),
+                        if (_isPublishedToMarketplace(rec))
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: isCompactScreen ? 14 : 16,
+                              height: isCompactScreen ? 14 : 16,
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: Icon(
+                                Icons.cloud_upload,
+                                size: isCompactScreen ? 8 : 10,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                rec.title,
+                                style: TextStyle(
+                                  fontSize: isCompactScreen ? 14 : 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                            if (_isPublishedToMarketplace(rec)) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isCompactScreen ? 4 : 6, 
+                                  vertical: isCompactScreen ? 1 : 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  'Published',
+                                  style: TextStyle(
+                                    fontSize: isCompactScreen ? 8 : 10,
+                                    color: Colors.green[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      
-                      // More actions menu
-                      PopupMenuButton<int>(
-                        tooltip: 'More Actions',
-                        itemBuilder: (BuildContext context) {
-                          final List<PopupMenuEntry<int>> items = [
-                            const PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
-                            const PopupMenuItem<int>(value: 2, child: Text('Edit code…')),
-                          ];
+                        SizedBox(height: isCompactScreen ? 2 : 4),
+                        Text(
+                          'Updated ${rec.updatedAt.toLocal()}',
+                          style: TextStyle(
+                            fontSize: isCompactScreen ? 11 : 12,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      showDialog<void>(
+                        context: context,
+                                  builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
+                      );
+                    },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        // Quick action buttons - only show on larger screens
+                        if (!isCompactScreen) ...[
+                          IconButton(
+                            tooltip: 'Run Script',
+                            icon: const Icon(Icons.play_arrow),
+                            onPressed: () => _runScript(rec),
+                          ),
                           
-                          if (!_isPublishedToMarketplace(rec)) {
-                            items.add(const PopupMenuItem<int>(value: 3, child: Text('Publish to Marketplace')));
-                          } else {
-                            items.add(const PopupMenuItem<int>(value: 4, child: Text('View in Marketplace')));
-                          }
-                          
-                          items.add(const PopupMenuItem<int>(value: 5, child: Text('Duplicate')));
-                          items.add(const PopupMenuItem<int>(value: 6, child: Text('Export')));
-                          items.add(const PopupMenuDivider());
-                          items.add(const PopupMenuItem<int>(value: 7, child: Text('Delete')));
-                          
-                          return items;
-                        },
-                        onSelected: (int value) {
-                          switch (value) {
-                            case 1:
-                              showDialog<void>(
-                                context: context,
-                                builder: (_) => _ScriptDetailsDialog(controller: _controller, record: rec),
-                              );
-                              break;
-                            case 2:
-                              showDialog<void>(
-                                context: context,
-                      builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
-                              );
-                              break;
-                            case 3:
-                              _publishToMarketplace(rec);
-                              break;
-                            case 4:
-                              _viewInMarketplace(rec);
-                              break;
-                            case 5:
-                              _duplicateScript(rec);
-                              break;
-                            case 6:
-                              _exportScript(rec);
-                              break;
-                            case 7:
-                              _confirmAndDeleteScript(rec);
-                              break;
-                          }
-                        },
-                      ),
-                    ],
+                          // Quick publish button for scripts not yet published
+                          if (!_isPublishedToMarketplace(rec))
+                            IconButton(
+                              tooltip: 'Publish to Marketplace',
+                              icon: const Icon(Icons.cloud_upload),
+                              onPressed: () => _publishToMarketplace(rec),
+                            ),
+                        ],
+                        
+                        // More actions menu - always show
+                        PopupMenuButton<int>(
+                          tooltip: 'More Actions',
+                          icon: Icon(
+                            Icons.more_vert,
+                            size: isCompactScreen ? 20 : 24,
+                          ),
+                          itemBuilder: (BuildContext context) {
+                            final List<PopupMenuEntry<int>> items = [
+                              const PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
+                              const PopupMenuItem<int>(value: 2, child: Text('Edit code…')),
+                            ];
+                            
+                            if (!_isPublishedToMarketplace(rec)) {
+                              items.add(const PopupMenuItem<int>(value: 3, child: Text('Publish to Marketplace')));
+                            } else {
+                              items.add(const PopupMenuItem<int>(value: 4, child: Text('View in Marketplace')));
+                            }
+                            
+                            items.add(const PopupMenuItem<int>(value: 5, child: Text('Duplicate')));
+                            items.add(const PopupMenuItem<int>(value: 6, child: Text('Export')));
+                            items.add(const PopupMenuDivider());
+                            items.add(const PopupMenuItem<int>(value: 7, child: Text('Delete')));
+                            
+                            return items;
+                          },
+                          onSelected: (int value) {
+                            switch (value) {
+                              case 1:
+                                showDialog<void>(
+                                  context: context,
+                                  builder: (_) => _ScriptDetailsDialog(controller: _controller, record: rec),
+                                );
+                                break;
+                              case 2:
+                                showDialog<void>(
+                                  context: context,
+                        builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
+                                );
+                                break;
+                              case 3:
+                                _publishToMarketplace(rec);
+                                break;
+                              case 4:
+                                _viewInMarketplace(rec);
+                                break;
+                              case 5:
+                                _duplicateScript(rec);
+                                break;
+                              case 6:
+                                _exportScript(rec);
+                                break;
+                              case 7:
+                                _confirmAndDeleteScript(rec);
+                                break;
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -800,13 +856,13 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           }
           return false;
         },
-        child: GridView.builder(
-          padding: const EdgeInsets.all(16.0),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.75,
-            crossAxisSpacing: 16.0,
-            mainAxisSpacing: 16.0,
+        child:         GridView.builder(
+          padding: EdgeInsets.all(MediaQuery.of(context).size.width < 380 ? 12.0 : 16.0),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: MediaQuery.of(context).size.width < 380 ? 1 : 2,
+            childAspectRatio: MediaQuery.of(context).size.width < 380 ? 1.2 : 0.75,
+            crossAxisSpacing: MediaQuery.of(context).size.width < 380 ? 12.0 : 16.0,
+            mainAxisSpacing: MediaQuery.of(context).size.width < 380 ? 12.0 : 16.0,
           ),
           itemCount: _marketplaceScripts.length + (_hasMore ? 1 : 0),
           itemBuilder: (context, index) {
@@ -979,114 +1035,136 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
    Widget build(BuildContext context) {
      final screenSize = MediaQuery.of(context).size;
      final safeAreaPadding = MediaQuery.of(context).padding;
+     final isCompactScreen = screenSize.width < 400;
      
      return Dialog(
        insetPadding: EdgeInsets.symmetric(
-         horizontal: 16 + safeAreaPadding.left,
-         vertical: 24 + safeAreaPadding.top,
+         horizontal: isCompactScreen ? 8 + safeAreaPadding.left : 16 + safeAreaPadding.left,
+         vertical: isCompactScreen ? 16 + safeAreaPadding.top : 24 + safeAreaPadding.top,
        ),
        child: Container(
-         width: screenSize.width * 0.9,
-         height: screenSize.height * 0.8,
+         width: screenSize.width * (isCompactScreen ? 0.95 : 0.9),
+         height: screenSize.height * (isCompactScreen ? 0.85 : 0.8),
          constraints: BoxConstraints(
-           minWidth: 800,
-           minHeight: 600,
-           maxWidth: screenSize.width - (32 + safeAreaPadding.horizontal),
-           maxHeight: screenSize.height - (48 + safeAreaPadding.vertical),
+           minWidth: isCompactScreen ? screenSize.width * 0.8 : 800,
+           minHeight: isCompactScreen ? 400 : 600,
+           maxWidth: screenSize.width - (isCompactScreen ? 16 : 32 + safeAreaPadding.horizontal),
+           maxHeight: screenSize.height - (isCompactScreen ? 32 : 48 + safeAreaPadding.vertical),
          ),
         child: Column(
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.edit,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Edit Script',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                        Text(
-                          widget.record.title,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
+             // Header
+             Container(
+               padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
+               decoration: BoxDecoration(
+                 color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
+                 borderRadius: const BorderRadius.only(
+                   topLeft: Radius.circular(12),
+                   topRight: Radius.circular(12),
+                 ),
+               ),
+               child: Row(
+                 children: [
+                   Icon(
+                     Icons.edit,
+                     color: Theme.of(context).colorScheme.primary,
+                     size: isCompactScreen ? 20 : 24,
+                   ),
+                   SizedBox(width: isCompactScreen ? 8 : 12),
+                   Expanded(
+                     child: Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         Text(
+                           'Edit Script',
+                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                 fontWeight: FontWeight.bold,
+                                 fontSize: isCompactScreen ? 18 : 22,
+                               ),
+                         ),
+                         Text(
+                           widget.record.title,
+                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                 fontSize: isCompactScreen ? 12 : 14,
+                               ),
+                           overflow: TextOverflow.ellipsis,
+                           maxLines: 1,
+                         ),
+                       ],
+                     ),
+                   ),
+                   IconButton(
+                     onPressed: () => Navigator.of(context).pop(),
+                     icon: const Icon(Icons.close),
+                     iconSize: isCompactScreen ? 20 : 24,
+                   ),
+                 ],
+               ),
+             ),
 
-            // Editor
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: ScriptEditor(
-                  initialCode: widget.record.luaSource,
-                  onCodeChanged: _onCodeChanged,
-                  language: 'lua',
-                  showIntegrations: true,
-                  minLines: 25,
-                ),
-              ),
-            ),
+             // Editor
+             Expanded(
+               child: Padding(
+                 padding: EdgeInsets.all(isCompactScreen ? 8 : 16),
+                 child: ScriptEditor(
+                   initialCode: widget.record.luaSource,
+                   onCodeChanged: _onCodeChanged,
+                   language: 'lua',
+                   showIntegrations: !isCompactScreen,
+                   minLines: isCompactScreen ? 15 : 25,
+                 ),
+               ),
+             ),
 
-            // Footer with actions
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.3),
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: _saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save),
-                    label: const Text('Save Changes'),
-                  ),
-                ],
-              ),
-            ),
+             // Footer with actions
+             Container(
+               padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
+               decoration: BoxDecoration(
+                 color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.3),
+                 border: Border(
+                   top: BorderSide(
+                     color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                   ),
+                 ),
+               ),
+               child: Row(
+                 mainAxisAlignment: MainAxisAlignment.end,
+                 children: [
+                   if (!isCompactScreen) ...[
+                     TextButton(
+                       onPressed: () => Navigator.of(context).pop(),
+                       child: const Text('Cancel'),
+                     ),
+                     const SizedBox(width: 12),
+                   ],
+                   FilledButton.icon(
+                     onPressed: _saving ? null : _save,
+                     icon: _saving
+                         ? SizedBox(
+                             width: isCompactScreen ? 14 : 16,
+                             height: isCompactScreen ? 14 : 16,
+                             child: CircularProgressIndicator(strokeWidth: 2),
+                           )
+                         : Icon(Icons.save, size: isCompactScreen ? 18 : 20),
+                     label: Text(isCompactScreen ? 'Save' : 'Save Changes'),
+                     style: FilledButton.styleFrom(
+                       padding: EdgeInsets.symmetric(
+                         horizontal: isCompactScreen ? 12 : 16,
+                         vertical: isCompactScreen ? 8 : 12,
+                       ),
+                     ),
+                   ),
+                   if (isCompactScreen) ...[
+                     const SizedBox(width: 8),
+                     TextButton(
+                       onPressed: () => Navigator.of(context).pop(),
+                       child: const Text('Cancel'),
+                     ),
+                   ],
+                 ],
+               ),
+             ),
           ],
         ),
       ),
