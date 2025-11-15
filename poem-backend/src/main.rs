@@ -139,6 +139,58 @@ struct AppState {
 
 const SCRIPT_COLUMNS: &str = "id, title, description, category, lua_source, author_name, is_public, rating, downloads, review_count, version, price, tags, created_at, updated_at";
 
+#[cfg(test)]
+mod signature_tests {
+    use super::*;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use base64::Engine;
+    use ed25519_dalek::{Signer, SigningKey};
+
+    #[test]
+    fn dart_generated_update_signature_verifies() {
+        let secret_key_bytes = [11u8; 32];
+        let signing_key = SigningKey::from_bytes(&secret_key_bytes);
+        let public_key_b64 = BASE64_STANDARD.encode(signing_key.verifying_key().as_bytes());
+
+        let mut canonical_payload = serde_json::json!({
+            "action": "update",
+            "script_id": "41935708-8561-4424-a42f-cba44e26785a",
+            "timestamp": "2025-11-06T13:36:31.766449Z",
+            "author_principal": "yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae",
+            "author_public_key": public_key_b64,
+            "title": "Updated Title",
+            "description": "Test script for unit testing",
+            "category": "Testing",
+            "lua_source": "function init(arg)\n  return { message = \"Hello from test script!\" }, {}\nend\n\nfunction view(state)\n  return { type = \"text\", text = state.message }\nend\n\nfunction update(msg, state)\n  if msg.type == \"test\" then\n    state.message = \"Updated!\"\n  end\n  return state, {}\nend",
+            "version": "2.0.0",
+            "price": 0.0,
+            "is_public": true,
+            "tags": ["test", "unit"]
+        });
+
+        let canonical_json = create_canonical_payload(&canonical_payload);
+        let signature = signing_key.sign(canonical_json.as_bytes());
+        let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
+
+        if let serde_json::Value::Object(ref mut map) = canonical_payload {
+            map.insert(
+                "signature".to_string(),
+                serde_json::Value::String(signature_b64.clone()),
+            );
+        } else {
+            panic!("Expected canonical payload to be an object");
+        }
+
+        let req: UpdateScriptRequest =
+            serde_json::from_value(canonical_payload).expect("valid canonical update request");
+
+        assert!(
+            verify_script_update_signature(&req, "41935708-8561-4424-a42f-cba44e26785a").is_ok(),
+            "Expected canonical payload signature to verify successfully"
+        );
+    }
+}
+
 fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
 }
@@ -401,6 +453,104 @@ fn verify_script_deletion_signature(
     )))
 }
 
+fn build_canonical_update_payload(
+    req: &UpdateScriptRequest,
+    script_id: &str,
+) -> Result<serde_json::Value, Box<Response>> {
+    if let Some(body_script_id) = &req.script_id {
+        if body_script_id != script_id {
+            return Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Signed script_id does not match request path",
+            )));
+        }
+    }
+
+    let action = req.action.as_deref().unwrap_or("update");
+    if action != "update" {
+        return Err(Box::new(error_response(
+            StatusCode::BAD_REQUEST,
+            "Invalid action for script update signature verification",
+        )));
+    }
+
+    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
+        Box::new(error_response(
+            StatusCode::UNAUTHORIZED,
+            "Missing author_principal for signature verification",
+        ))
+    })?;
+
+    let mut payload = serde_json::Map::new();
+    payload.insert(
+        "action".to_string(),
+        serde_json::Value::String("update".to_string()),
+    );
+    payload.insert(
+        "script_id".to_string(),
+        serde_json::Value::String(script_id.to_string()),
+    );
+    payload.insert(
+        "author_principal".to_string(),
+        serde_json::Value::String(author_principal.clone()),
+    );
+
+    if let Some(timestamp) = &req.timestamp {
+        payload.insert(
+            "timestamp".to_string(),
+            serde_json::Value::String(timestamp.clone()),
+        );
+    }
+
+    let insert_optional_string =
+        |key: &str,
+         value: &Option<String>,
+         map: &mut serde_json::Map<String, serde_json::Value>| {
+            if let Some(content) = value {
+                map.insert(key.to_string(), serde_json::Value::String(content.clone()));
+            }
+        };
+
+    insert_optional_string("title", &req.title, &mut payload);
+    insert_optional_string("description", &req.description, &mut payload);
+    insert_optional_string("category", &req.category, &mut payload);
+    insert_optional_string("lua_source", &req.lua_source, &mut payload);
+    insert_optional_string("version", &req.version, &mut payload);
+
+    if let Some(tags) = &req.tags {
+        let mut sorted_tags = tags.clone();
+        sorted_tags.sort();
+        let tag_values = sorted_tags
+            .into_iter()
+            .map(serde_json::Value::String)
+            .collect::<Vec<_>>();
+        payload.insert("tags".to_string(), serde_json::Value::Array(tag_values));
+    }
+
+    if let Some(price) = req.price {
+        let number = serde_json::Number::from_f64(price).ok_or_else(|| {
+            Box::new(error_response(
+                StatusCode::BAD_REQUEST,
+                "Invalid price value for signature verification",
+            ))
+        })?;
+        payload.insert("price".to_string(), serde_json::Value::Number(number));
+    }
+
+    if let Some(is_public) = req.is_public {
+        payload.insert("is_public".to_string(), serde_json::Value::Bool(is_public));
+    }
+
+    if let Some(author_public_key) = &req.author_public_key {
+        payload.insert(
+            "author_public_key".to_string(),
+            serde_json::Value::String(author_public_key.clone()),
+        );
+    }
+
+    Ok(serde_json::Value::Object(payload))
+}
+
 /// Verifies script update signature
 fn verify_script_update_signature(
     req: &UpdateScriptRequest,
@@ -423,50 +573,7 @@ fn verify_script_update_signature(
         ))
     })?;
 
-    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_principal for signature verification",
-        ))
-    })?;
-
-    // Reconstruct the payload that was signed
-    let mut payload = serde_json::json!({
-        "action": "update",
-        "script_id": script_id,
-        "author_principal": author_principal,
-    });
-
-    // Add all update fields that were signed
-    if let Some(ref title) = req.title {
-        payload["title"] = serde_json::Value::String(title.clone());
-    }
-    if let Some(ref description) = req.description {
-        payload["description"] = serde_json::Value::String(description.clone());
-    }
-    if let Some(ref category) = req.category {
-        payload["category"] = serde_json::Value::String(category.clone());
-    }
-    if let Some(ref lua_source) = req.lua_source {
-        payload["lua_source"] = serde_json::Value::String(lua_source.clone());
-    }
-    if let Some(ref version) = req.version {
-        payload["version"] = serde_json::Value::String(version.clone());
-    }
-    if let Some(ref tags) = req.tags {
-        let mut sorted_tags = tags.clone();
-        sorted_tags.sort();
-        payload["tags"] = serde_json::json!(sorted_tags);
-    }
-    if let Some(price) = req.price {
-        payload["price"] = serde_json::json!(price);
-    }
-    if let Some(is_public) = req.is_public {
-        payload["is_public"] = serde_json::Value::Bool(is_public);
-    }
-    if let Some(ref timestamp) = req.timestamp {
-        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
-    }
+    let payload = build_canonical_update_payload(req, script_id)?;
 
     // Create canonical JSON
     let canonical_json = create_canonical_payload(&payload);
@@ -1687,4 +1794,86 @@ async fn main() -> Result<(), std::io::Error> {
     let listener = TcpListener::bind(actual_addr);
 
     Server::new(listener).run(app).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use base64::Engine;
+    use ed25519_dalek::{Signer, SigningKey};
+
+    #[test]
+    fn verify_update_signature_rejects_tampered_payload() {
+        let tampered_json = r#"{
+            "action":"update",
+            "script_id":"existing-script",
+            "timestamp":"2025-11-06T14:22:44.069472Z",
+            "author_principal":"yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae",
+            "title":"Tampered Title",
+            "description":"Updated description",
+            "category":"Utility",
+            "lua_source":"-- updated",
+            "tags":["modified","updated"],
+            "version":"2.0.0",
+            "price":1.0,
+            "is_public":true,
+            "author_public_key":"HeNS5EzTM2clk/IzSnMOGAqvKQ3omqFtSA3llONOKWE=",
+            "signature":"c0HBe9ELBP1/pQiFOrnPEbUq9mYt+MSAr23YknlIg2+3ErC/DB/9LDq5F/FxCudj+COY8l/VNASZspj6h7zPBA=="
+        }"#;
+
+        let request: UpdateScriptRequest =
+            serde_json::from_str(tampered_json).expect("valid tampered request json");
+
+        assert!(
+            verify_script_update_signature(&request, "existing-script").is_err(),
+            "tampering payload must invalidate signature verification"
+        );
+    }
+
+    #[test]
+    fn verify_update_signature_includes_author_public_key_in_signed_payload() {
+        let secret_key_bytes = [7u8; 32];
+        let signing_key = SigningKey::from_bytes(&secret_key_bytes);
+        let public_key_b64 = BASE64_STANDARD.encode(signing_key.verifying_key().as_bytes());
+
+        let mut canonical_payload = serde_json::json!({
+            "action": "update",
+            "script_id": "script-123",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "author_principal": "principal-1",
+            "author_public_key": public_key_b64,
+            "title": "Title",
+            "description": "Desc",
+            "category": "Utility",
+            "lua_source": "-- body",
+            "tags": ["alpha", "beta"],
+            "version": "1.0.0",
+            "price": 1.5,
+            "is_public": true
+        });
+
+        let canonical_json = create_canonical_payload(&canonical_payload);
+        let signature = signing_key.sign(canonical_json.as_bytes());
+        let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
+
+        if let serde_json::Value::Object(ref mut map) = canonical_payload {
+            map.insert(
+                "signature".to_string(),
+                serde_json::Value::String(signature_b64.clone()),
+            );
+        } else {
+            panic!("expected canonical payload to be an object");
+        }
+
+        let request_json =
+            serde_json::to_string(&canonical_payload).expect("canonical payload serializable");
+        let request: UpdateScriptRequest =
+            serde_json::from_str(&request_json).expect("valid update request json");
+
+        assert!(
+            verify_script_update_signature(&request, "script-123").is_ok(),
+            "signature including author_public_key must verify successfully"
+        );
+    }
 }

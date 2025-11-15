@@ -6,6 +6,7 @@ import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'test_identity_factory.dart';
+import 'http_response_utils.dart';
 
 /// Repository implementation that uses the Poem API server for end-to-end tests.
 class PoemScriptRepository extends ScriptRepository {
@@ -50,7 +51,10 @@ class PoemScriptRepository extends ScriptRepository {
         }
         return [];
       } else {
-        throw Exception('Failed to load scripts: ${response.statusCode}');
+        throwDetailedHttpException(
+          operation: 'Failed to load scripts',
+          response: response,
+        );
       }
     } catch (e) {
       // For e2e tests, fail if server is not available
@@ -69,6 +73,10 @@ class PoemScriptRepository extends ScriptRepository {
         final scriptData = Map<String, dynamic>.from(baseScriptData);
         scriptData['action'] = 'upload';
 
+        File('poem_debug.log').writeAsStringSync(
+          'create ${script.id}: ${json.encode(scriptData)}\n',
+          mode: FileMode.append,
+        );
 
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
@@ -77,9 +85,10 @@ class PoemScriptRepository extends ScriptRepository {
         );
 
 
-        if (response.statusCode != 200 && response.statusCode != 201) {
-          throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
-        }
+        ensureSuccessStatus(
+          response: response,
+          operation: 'Failed to save script ${script.id}',
+        );
 
         _assertSuccessfulMutation(response, 'persist script ${script.id}');
       }
@@ -208,7 +217,10 @@ class PoemScriptRepository extends ScriptRepository {
       } else if (response.statusCode == 404) {
         return null;
       } else {
-        throw Exception('Failed to get script: ${response.statusCode}');
+        throwDetailedHttpException(
+          operation: 'Failed to get script',
+          response: response,
+        );
       }
     } catch (e) {
       // For e2e tests, fail if server is not available
@@ -249,7 +261,10 @@ class PoemScriptRepository extends ScriptRepository {
       );
 
       if (response.statusCode != 200 && response.statusCode != 204 && response.statusCode != 404) {
-        throw Exception('Failed to delete script $id: ${response.statusCode}');
+        throwDetailedHttpException(
+          operation: 'Failed to delete script $id',
+          response: response,
+        );
       }
 
       _assertSuccessfulMutation(response, 'delete script $id');
@@ -338,26 +353,16 @@ class PoemScriptRepository extends ScriptRepository {
     try {
       // Generate proper signature for publish
       final identity = await TestIdentityFactory.getEd25519Identity();
-      final principal = PrincipalUtils.textFromRecord(identity);
-      final timestamp = DateTime.now().toUtc().toIso8601String();
-      final signature = await ScriptSignatureService.signScriptUpdate(
+      final updateRequest = await ScriptSignatureService.buildSignedUpdateRequest(
         authorIdentity: identity,
         scriptId: script.id,
         updates: {'is_public': true},
-        timestampIso: timestamp,
       );
 
       final response = await _client.post(
         Uri.parse('$baseUrl/api/v1/scripts/${script.id}/publish'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'action': 'update',
-          'is_public': true,
-          'author_principal': principal,
-          'author_public_key': identity.publicKey,
-          'signature': signature,
-          'timestamp': timestamp,
-        }),
+        body: json.encode(updateRequest),
       );
 
       if (response.statusCode == 200) {
@@ -367,7 +372,10 @@ class PoemScriptRepository extends ScriptRepository {
         }
         throw Exception('Failed to publish script: unexpected response');
       } else {
-        throw Exception('Failed to publish script: ${response.statusCode}');
+        throwDetailedHttpException(
+          operation: 'Failed to publish script',
+          response: response,
+        );
       }
     } catch (e) {
       throw Exception('Failed to publish script: $e');
@@ -394,7 +402,10 @@ class PoemScriptRepository extends ScriptRepository {
         }
         throw Exception('Failed to get scripts count: unexpected response');
       } else {
-        throw Exception('Failed to get scripts count: ${response.statusCode}');
+        throwDetailedHttpException(
+          operation: 'Failed to get scripts count',
+          response: response,
+        );
       }
     } catch (e) {
       throw Exception('Failed to get scripts count: $e');
@@ -419,9 +430,8 @@ class PoemScriptRepository extends ScriptRepository {
       if (checkResponse.statusCode == 200) {
         // Generate proper signature for script update
         final identity = await TestIdentityFactory.getEd25519Identity();
-        final principal = PrincipalUtils.textFromRecord(identity);
 
-        final updates = {
+        final updates = <String, dynamic>{
           'title': script.title,
           'description': script.metadata['description'] ?? '',
           'category': script.metadata['category'] ?? 'Development',
@@ -430,27 +440,36 @@ class PoemScriptRepository extends ScriptRepository {
               .map((tag) => tag.toString())
               .toList(),
           'version': (script.metadata['version'] ?? '1.0.0').toString(),
-          'price': script.metadata['price'] ?? 0.0,
-          'is_public': script.metadata['isPublic'] ?? false,
         };
 
-        final timestamp = DateTime.now().toUtc().toIso8601String();
-        final signature = await ScriptSignatureService.signScriptUpdate(
+        if (script.metadata.containsKey('price')) {
+          final priceValue = script.metadata['price'];
+          if (priceValue is num) {
+            updates['price'] = priceValue.toDouble();
+          } else {
+            final parsed = double.tryParse(priceValue.toString());
+            if (parsed != null) {
+              updates['price'] = parsed;
+            }
+          }
+        }
+        if (script.metadata.containsKey('isPublic')) {
+          final dynamic isPublicValue = script.metadata['isPublic'];
+          if (isPublicValue is bool) {
+            updates['is_public'] = isPublicValue;
+          } else if (isPublicValue is num) {
+            updates['is_public'] = isPublicValue != 0;
+          } else if (isPublicValue is String) {
+            updates['is_public'] =
+                isPublicValue.toLowerCase() == 'true' || isPublicValue == '1';
+          }
+        }
+
+        final updateData = await ScriptSignatureService.buildSignedUpdateRequest(
           authorIdentity: identity,
           scriptId: script.id,
           updates: updates,
-          timestampIso: timestamp,
         );
-
-        final updateData = {
-          'action': 'update',
-          ...updates,
-          'script_id': script.id,
-          'author_principal': principal,
-          'author_public_key': identity.publicKey,
-          'signature': signature,
-          'timestamp': timestamp,
-        };
 
         if (!updateData.containsKey('version')) {
           throw Exception('Update payload missing version for ${script.id}');
@@ -469,9 +488,12 @@ class PoemScriptRepository extends ScriptRepository {
         );
 
 
-        if (response.statusCode != 200 && response.statusCode != 201) {
-          throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
-        }
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throwDetailedHttpException(
+          operation: 'Failed to save script ${script.id}',
+          response: response,
+        );
+      }
 
         _assertSuccessfulMutation(response, 'update script ${script.id}');
         return script.id;
@@ -492,7 +514,10 @@ class PoemScriptRepository extends ScriptRepository {
 
 
         if (response.statusCode != 200 && response.statusCode != 201) {
-          throw Exception('Failed to save script ${script.id}: ${response.statusCode}');
+          throwDetailedHttpException(
+            operation: 'Failed to save script ${script.id}',
+            response: response,
+          );
         }
 
         _assertSuccessfulMutation(response, 'create script ${script.id}');
@@ -528,8 +553,10 @@ class PoemScriptRepository extends ScriptRepository {
       if (decoded is Map<String, dynamic>) {
         final success = decoded['success'];
         if (success is bool && !success) {
-          final error = decoded['error'] ?? decoded['message'] ?? decoded['details'] ?? 'unknown error';
-          throw Exception('Failed to $operation: ${response.statusCode} - $error');
+          throwDetailedHttpException(
+            operation: 'Failed to $operation',
+            response: response,
+          );
         }
       }
     } catch (_) {

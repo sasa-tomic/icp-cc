@@ -8,6 +8,7 @@ import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'test_identity_factory.dart';
+import 'http_response_utils.dart';
 
 /// HTTP client wrapper with timeout to prevent infinite hanging in tests
 class _TimeoutClient extends http.BaseClient {
@@ -79,9 +80,10 @@ class TestableScriptRepository extends ScriptRepository {
           body: json.encode(scriptData),
         );
 
-        if (response.statusCode != 200 && response.statusCode != 201) {
-          throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
-        }
+        ensureSuccessStatus(
+          response: response,
+          operation: 'Failed to save script ${script.id}',
+        );
 
         _assertSuccessfulMutation(response, 'persist script ${script.id}');
       }
@@ -118,11 +120,10 @@ class TestableScriptRepository extends ScriptRepository {
           );
 
           if (response.statusCode != 200 && response.statusCode != 201) {
-            // Don't retry authentication or client errors
-            if (response.statusCode == 401 || response.statusCode == 403 || response.statusCode >= 400 && response.statusCode < 500) {
-              throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
-            }
-            throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
+            throwDetailedHttpException(
+              operation: 'Failed to save script ${script.id}',
+              response: response,
+            );
           }
 
           _assertSuccessfulMutation(response, 'update script ${script.id}');
@@ -138,11 +139,10 @@ class TestableScriptRepository extends ScriptRepository {
           );
 
           if (response.statusCode != 200 && response.statusCode != 201) {
-            // Don't retry authentication or client errors
-            if (response.statusCode == 401 || response.statusCode == 403 || response.statusCode >= 400 && response.statusCode < 500) {
-              throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
-            }
-            throw Exception('Failed to save script ${script.id}: ${response.statusCode} - ${response.body}');
+            throwDetailedHttpException(
+              operation: 'Failed to save script ${script.id}',
+              response: response,
+            );
           }
 
           _assertSuccessfulMutation(response, 'create script ${script.id}');
@@ -189,8 +189,10 @@ class TestableScriptRepository extends ScriptRepository {
       );
 
       if (response.statusCode != 200 && response.statusCode != 204 && response.statusCode != 404) {
-        // Throw with status code for authentication error detection
-        throw Exception('Failed to delete script $id: ${response.statusCode} - ${response.body}');
+        throwDetailedHttpException(
+          operation: 'Failed to delete script $id',
+          response: response,
+        );
       }
     } catch (e) {
       // Rethrow with original exception details
@@ -264,12 +266,17 @@ class TestableScriptRepository extends ScriptRepository {
           if (resolvedScriptId == null || resolvedScriptId.isEmpty) {
             throw Exception('script_id is required for authenticated update signing');
           }
-          signature = await ScriptSignatureService.signScriptUpdate(
+          final Map<String, dynamic> signedUpdate =
+              await ScriptSignatureService.buildSignedUpdateRequest(
             authorIdentity: identity,
             scriptId: resolvedScriptId,
             updates: scriptData,
             timestampIso: timestamp,
           );
+          scriptData
+            ..removeWhere((key, _) => signedUpdate.containsKey(key))
+            ..addAll(signedUpdate);
+          signature = signedUpdate['signature'] as String;
         } else {
           // Default to upload signature for unknown actions
           signature = await ScriptSignatureService.signScriptUpload(
@@ -401,8 +408,10 @@ class TestableScriptRepository extends ScriptRepository {
       if (decoded is Map<String, dynamic>) {
         final success = decoded['success'];
         if (success is bool && !success) {
-          final error = decoded['error'] ?? decoded['message'] ?? 'unknown error';
-          throw Exception('Failed to $operation: ${response.statusCode} - $error');
+          throwDetailedHttpException(
+            operation: 'Failed to $operation',
+            response: response,
+          );
         }
       }
     } catch (error) {

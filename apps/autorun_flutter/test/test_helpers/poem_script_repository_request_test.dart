@@ -17,7 +17,7 @@ void main() {
         metadata: const {
           'description': 'Updated description',
           'category': 'Utility',
-          'tags': ['updated'],
+          'tags': ['updated', 'modified'],
           'version': '2.0.0',
           'price': 1.0,
           'isPublic': true,
@@ -51,6 +51,10 @@ void main() {
       expect(capturedPayload['action'], equals('update'));
       expect(capturedPayload['signature'], isNotEmpty);
       expect(capturedPayload['author_principal'], isNotEmpty);
+      expect(capturedPayload['author_public_key'], isNotEmpty);
+      expect(capturedPayload['timestamp'], isNotEmpty);
+      expect(capturedPayload['script_id'], equals(script.id));
+      expect(capturedPayload['tags'], equals(['modified', 'updated']));
 
       repository.dispose();
     });
@@ -77,6 +81,8 @@ void main() {
       expect(capturedPayload['action'], equals('delete'));
       expect(capturedPayload['signature'], isNotEmpty);
       expect(capturedPayload['author_principal'], isNotEmpty);
+      expect(capturedPayload['author_public_key'], isNotEmpty);
+      expect(capturedPayload['timestamp'], isNotEmpty);
 
       repository.dispose();
     });

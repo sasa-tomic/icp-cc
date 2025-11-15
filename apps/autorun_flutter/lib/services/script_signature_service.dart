@@ -47,20 +47,13 @@ class ScriptSignatureService {
     Map<String, dynamic>? updates,
     String? timestampIso,
   }) async {
-    _assertScriptId(scriptId);
-
-    final String resolvedTimestamp =
-        timestampIso ?? DateTime.now().toUtc().toIso8601String();
-
-    // Create the canonical payload to sign
-    final payload = _createUpdatePayload(
+    final request = await buildSignedUpdateRequest(
+      authorIdentity: authorIdentity,
       scriptId: scriptId,
-      updates: updates,
-      authorPrincipal: PrincipalUtils.textFromRecord(authorIdentity),
-      timestampIso: resolvedTimestamp,
+      updates: updates ?? const {},
+      timestampIso: timestampIso,
     );
-
-    return await _signPayload(authorIdentity, payload);
+    return request['signature'] as String;
   }
 
   /// Sign a script deletion request with the author's private key
@@ -240,6 +233,48 @@ class ScriptSignatureService {
     }
 
     return sanitized;
+  }
+
+  /// Prepare update fields for canonical signing and request payloads
+  /// Ensures clients send exactly what gets signed.
+  static Map<String, dynamic> canonicalizeUpdateFields(
+      Map<String, dynamic> updates) {
+    return _sanitizeUpdateFields(Map<String, dynamic>.from(updates));
+  }
+
+  /// Build a fully-signed update request payload that matches the canonical
+  /// payload used for signature generation. Consumers should prefer this helper
+  /// when constructing HTTP bodies to guarantee byte-for-byte parity with the
+  /// signing input.
+  static Future<Map<String, dynamic>> buildSignedUpdateRequest({
+    required IdentityRecord authorIdentity,
+    required String scriptId,
+    required Map<String, dynamic> updates,
+    String? timestampIso,
+  }) async {
+    _assertScriptId(scriptId);
+
+    final Map<String, dynamic> sanitizedUpdates =
+        _sanitizeUpdateFields(Map<String, dynamic>.from(updates));
+    final String resolvedTimestamp =
+        timestampIso ?? DateTime.now().toUtc().toIso8601String();
+    final String authorPrincipal = PrincipalUtils.textFromRecord(authorIdentity);
+
+    final Map<String, dynamic> canonicalPayload = _createUpdatePayload(
+      scriptId: scriptId,
+      updates: sanitizedUpdates,
+      authorPrincipal: authorPrincipal,
+      timestampIso: resolvedTimestamp,
+    );
+
+    final String signature =
+        await _signPayload(authorIdentity, canonicalPayload);
+
+    return {
+      ...canonicalPayload,
+      'author_public_key': authorIdentity.publicKey,
+      'signature': signature,
+    };
   }
 
   static void _assertScriptId(String scriptId) {

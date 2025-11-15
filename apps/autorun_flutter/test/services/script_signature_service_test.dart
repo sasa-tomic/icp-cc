@@ -192,6 +192,74 @@ void main() {
       );
     });
   });
+
+  test('canonicalizeUpdateFields sorts tags and filters unsupported keys', () {
+    final canonical = ScriptSignatureService.canonicalizeUpdateFields({
+      'tags': ['beta', 'alpha'],
+      'price': '2.5',
+      'lua_source': '-- code',
+      'unknown': 'ignore-me',
+      'is_public': true,
+    });
+
+    expect(canonical.containsKey('unknown'), isFalse);
+    expect(canonical['tags'], equals(['alpha', 'beta']));
+    expect(canonical['price'], equals(2.5));
+    expect(canonical['lua_source'], equals('-- code'));
+    expect(canonical['is_public'], isTrue);
+  });
+
+  test('buildSignedUpdateRequest returns canonical payload with valid signature', () async {
+    const scriptId = 'script-321';
+    final timestamp = '2025-03-03T03:03:03Z';
+    final localIdentity = await TestIdentityFactory.getEd25519Identity();
+    final localPrincipal = PrincipalUtils.textFromRecord(localIdentity);
+    final localPublicKey = SimplePublicKey(
+      base64Decode(localIdentity.publicKey),
+      type: KeyPairType.ed25519,
+    );
+    final localAlgorithm = Ed25519();
+
+    final request = await ScriptSignatureService.buildSignedUpdateRequest(
+      authorIdentity: localIdentity,
+      scriptId: scriptId,
+      updates: {
+        'title': 'Update Title',
+        'tags': ['delta', 'alpha'],
+        'price': '3.5',
+        'is_public': true,
+      },
+      timestampIso: timestamp,
+    );
+
+    expect(request['action'], equals('update'));
+    expect(request['script_id'], equals(scriptId));
+    expect(request['author_principal'], equals(localPrincipal));
+    expect(request['author_public_key'], equals(localIdentity.publicKey));
+    expect(request['tags'], equals(['alpha', 'delta']));
+    expect(request['price'], equals(3.5));
+    expect(request['timestamp'], equals(timestamp));
+
+    final payloadForVerification = _canonicalJsonEncode({
+      'action': 'update',
+      'script_id': scriptId,
+      'title': 'Update Title',
+      'tags': ['alpha', 'delta'],
+      'price': 3.5,
+      'is_public': true,
+      'author_principal': localPrincipal,
+      'timestamp': timestamp,
+    });
+
+    final signature = request['signature'] as String;
+    final isValid = await _verifySignature(
+      localAlgorithm,
+      signature,
+      payloadForVerification,
+      localPublicKey,
+    );
+    expect(isValid, isTrue);
+  });
 }
 
 Future<bool> _verifySignature(
