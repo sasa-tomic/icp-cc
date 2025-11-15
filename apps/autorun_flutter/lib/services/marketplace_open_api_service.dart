@@ -59,8 +59,8 @@ class MarketplaceOpenApiService {
 
       final data = responseData['data'];
       final scripts = (data['scripts'] as List)
-          .where((script) => script is Map<String, dynamic>)
-          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .whereType<Map<String, dynamic>>()
+          .map((script) => MarketplaceScript.fromJson(script))
           .toList();
 
       return MarketplaceSearchResult(
@@ -129,8 +129,8 @@ class MarketplaceOpenApiService {
 
       final data = responseData['data'] as List;
       return data
-          .where((script) => script is Map<String, dynamic>)
-          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .whereType<Map<String, dynamic>>()
+          .map((script) => MarketplaceScript.fromJson(script))
           .toList();
 
     } catch (e) {
@@ -157,8 +157,8 @@ class MarketplaceOpenApiService {
 
       final data = responseData['data'] as List;
       return data
-          .where((script) => script is Map<String, dynamic>)
-          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .whereType<Map<String, dynamic>>()
+          .map((script) => MarketplaceScript.fromJson(script))
           .toList();
 
     } catch (e) {
@@ -196,8 +196,8 @@ class MarketplaceOpenApiService {
 
       final data = responseData['data'] as List;
       return data
-          .where((script) => script is Map<String, dynamic>)
-          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .whereType<Map<String, dynamic>>()
+          .map((script) => MarketplaceScript.fromJson(script))
           .toList();
 
     } catch (e) {
@@ -233,8 +233,8 @@ class MarketplaceOpenApiService {
 
       final data = responseData['data'] as List;
       return data
-          .where((review) => review is Map<String, dynamic>)
-          .map((review) => ScriptReview.fromJson(review as Map<String, dynamic>))
+          .whereType<Map<String, dynamic>>()
+          .map((review) => ScriptReview.fromJson(review))
           .toList();
 
     } catch (e) {
@@ -384,8 +384,8 @@ class MarketplaceOpenApiService {
 
       final data = responseData['data'] as List;
       return data
-          .where((script) => script is Map<String, dynamic>)
-          .map((script) => MarketplaceScript.fromJson(script as Map<String, dynamic>))
+          .whereType<Map<String, dynamic>>()
+          .map((script) => MarketplaceScript.fromJson(script))
           .toList();
 
     } catch (e) {

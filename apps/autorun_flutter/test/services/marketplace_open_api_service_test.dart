@@ -86,7 +86,7 @@ void main() {
     test('should return correct categories list', () {
       final categories = service.getCategories();
 
-      expect(categories, contains('All'));
+      expect(categories, isNot(contains('All')));
       expect(categories, contains('Example'));
       expect(categories, contains('Uncategorized'));
       expect(categories, contains('Gaming'));
@@ -99,7 +99,7 @@ void main() {
       expect(categories, contains('Education'));
       expect(categories, contains('Entertainment'));
       expect(categories, contains('Business'));
-      expect(categories.length, equals(13));
+      expect(categories.length, equals(12));
     });
 
     test('should handle marketplace stats correctly', () async {

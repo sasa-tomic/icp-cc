@@ -12,7 +12,7 @@ export async function handleMarketplaceStatsRequest(request: Request, env: Env):
     // Get total scripts count
     const totalScriptsResult = await db.env.DB.prepare(`
       SELECT COUNT(*) as count FROM scripts 
-      WHERE is_public = 1 AND is_approved = 1
+      WHERE is_public = 1
     `).first();
 
     // Get total verified authors
@@ -24,7 +24,7 @@ export async function handleMarketplaceStatsRequest(request: Request, env: Env):
     // Get all scripts for stats calculation
     const allScriptsResult = await db.env.DB.prepare(`
       SELECT downloads, rating FROM scripts 
-      WHERE is_public = 1 AND is_approved = 1
+      WHERE is_public = 1
     `).all();
 
     // Calculate total downloads and average rating
@@ -56,7 +56,7 @@ export async function handleMarketplaceStatsRequest(request: Request, env: Env):
     const categoryStats: any = {};
     const scriptsByCategory = await db.env.DB.prepare(`
       SELECT category, downloads, rating FROM scripts 
-      WHERE is_public = 1 AND is_approved = 1
+      WHERE is_public = 1
     `).all();
 
     scriptsByCategory.results.forEach((script: any) => {
@@ -187,7 +187,7 @@ async function updateAuthorStats(db: D1Database, authorId: string): Promise<void
   const authorScripts = await db.prepare(`
     SELECT COUNT(*) as count, AVG(rating) as avg_rating 
     FROM scripts 
-    WHERE author_id = ? AND is_public = 1 AND is_approved = 1
+    WHERE author_id = ? AND is_public = 1
   `).bind(authorId).first();
 
   // Update author stats
