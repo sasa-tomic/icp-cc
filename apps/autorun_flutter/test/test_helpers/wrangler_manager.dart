@@ -53,7 +53,7 @@ class WranglerManager {
       try {
         final client = HttpClient();
         client.connectionTimeout = Duration(seconds: 5);
-        final request = await client.getUrl(Uri.parse('$endpoint/health'));
+        final request = await client.getUrl(Uri.parse('$endpoint/api/v1/health'));
         final response = await request.close().timeout(Duration(seconds: 5));
         
         if (response.statusCode == 200) {
