@@ -1,6 +1,6 @@
 ## Fixes and urgent improvements
 
-- Use secure store (such as system keychain) on Linux, Mac, Windows for storing ALL security-sensistive material such as seed or private key. Remove all ability for storing such sensitive materials in an insecure location.
+✅ COMPLETED: Use secure store (such as system keychain) on Linux, Mac, Windows for storing ALL security-sensistive material such as seed or private key. Remove all ability for storing such sensitive materials in an insecure location.
 
 ## ICP Autorun Marketplace - Future Enhancements
 

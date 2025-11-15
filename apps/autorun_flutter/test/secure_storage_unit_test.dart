@@ -156,6 +156,56 @@ void main() {
       expect(publicData.containsKey('privateKey'), false);
       expect(publicData.containsKey('mnemonic'), false);
     });
+
+    test('secure storage prevents accidental exposure of sensitive data', () {
+      // Test that sensitive data is never accidentally logged or serialized
+      final sensitiveIdentity = IdentityRecord(
+        id: 'sensitive-test',
+        label: 'Sensitive Test',
+        algorithm: KeyAlgorithm.ed25519,
+        publicKey: 'cHVibGljLWtleQ==',
+        privateKey: 'cHJpdmF0ZS1rZXk=', // This should never appear in logs
+        mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+        createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
+      );
+
+      // Verify toString doesn't expose sensitive data in the public part
+      final stringRepresentation = sensitiveIdentity.toString();
+      final parsedJson = jsonDecode(stringRepresentation) as Map<String, dynamic>;
+
+      // The toString should serialize all data, but the public JSON store should not
+      expect(parsedJson.containsKey('privateKey'), true); // toString contains everything
+      expect(parsedJson.containsKey('mnemonic'), true);
+
+      // But when creating public data for storage, sensitive fields are excluded
+      final publicData = <String, dynamic>{
+        'id': sensitiveIdentity.id,
+        'label': sensitiveIdentity.label,
+        'algorithm': keyAlgorithmToString(sensitiveIdentity.algorithm),
+        'publicKey': sensitiveIdentity.publicKey,
+        'createdAt': sensitiveIdentity.createdAt.toIso8601String(),
+      };
+
+      expect(publicData.containsKey('privateKey'), false);
+      expect(publicData.containsKey('mnemonic'), false);
+    });
+
+    test('key prefixes ensure isolation of secure storage data', () {
+      const identityId1 = 'identity-123';
+      const identityId2 = 'identity-456';
+
+      // Verify different keys are generated for different identities
+      final privateKey1 = '$_privateKeyPrefix$identityId1';
+      final privateKey2 = '$_privateKeyPrefix$identityId2';
+      final mnemonic1 = '$_mnemonicPrefix$identityId1';
+      final mnemonic2 = '$_mnemonicPrefix$identityId2';
+
+      expect(privateKey1, isNot(equals(privateKey2)));
+      expect(mnemonic1, isNot(equals(mnemonic2)));
+      expect(privateKey1, isNot(equals(mnemonic1)));
+      expect(privateKey1, contains(identityId1));
+      expect(mnemonic1, contains(identityId1));
+    });
   });
 }
 

@@ -40,11 +40,6 @@ class _MockSecureIdentityRepository implements SecureIdentityRepository {
   Future<String?> getPrivateKey(String identityId) async {
     return _privateKeys[identityId];
   }
-
-  @override
-  Future<void> migrateFromInsecureStorage(List<IdentityRecord> insecureIdentities) async {
-    // No-op for tests
-  }
 }
 
 class _FakeBridge implements ScriptBridge {

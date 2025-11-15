@@ -1,15 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/identity_record.dart';
-import '../services/identity_repository.dart';
 import '../services/secure_identity_repository.dart';
 import '../utils/identity_generator.dart';
 
 class IdentityController extends ChangeNotifier {
-  IdentityController(this._repository, {SecureIdentityRepository? secureRepository})
+  IdentityController({SecureIdentityRepository? secureRepository})
       : _secureRepository = secureRepository ?? SecureIdentityRepository();
 
-  final IdentityRepository _repository;
   final SecureIdentityRepository _secureRepository;
   final List<IdentityRecord> _identities = <IdentityRecord>[];
 
@@ -31,21 +29,8 @@ class IdentityController extends ChangeNotifier {
   Future<void> refresh() async {
     _setBusy(true);
     try {
-      // First, try to load from secure storage
-      List<IdentityRecord> records = await _secureRepository.loadIdentities();
-
-      // If no secure identities exist, try to migrate from insecure storage
-      if (records.isEmpty) {
-        final List<IdentityRecord> insecureRecords = await _repository.loadIdentities();
-        if (insecureRecords.isNotEmpty) {
-          // Migrate to secure storage
-          await _secureRepository.migrateFromInsecureStorage(insecureRecords);
-          records = await _secureRepository.loadIdentities();
-
-          // Clear the old insecure storage after successful migration
-          await _repository.persistIdentities(<IdentityRecord>[]);
-        }
-      }
+      // Load identities from secure storage only
+      final List<IdentityRecord> records = await _secureRepository.loadIdentities();
 
       _identities
         ..clear()

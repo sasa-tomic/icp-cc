@@ -179,12 +179,4 @@ class SecureIdentityRepository {
     }
   }
 
-  /// Migrates data from the old insecure storage to the new secure storage
-  Future<void> migrateFromInsecureStorage(
-    List<IdentityRecord> insecureIdentities,
-  ) async {
-    if (insecureIdentities.isNotEmpty) {
-      await persistIdentities(insecureIdentities);
-    }
   }
-}
