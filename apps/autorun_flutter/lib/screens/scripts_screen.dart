@@ -52,6 +52,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   List<MarketplaceScript> _marketplaceScripts = [];
   List<String> _categories = [];
   final Set<String> _downloadingScriptIds = <String>{};
+  final Map<String, double> _downloadProgress = <String, double>{}; // Track download progress 0.0 to 1.0
   Set<String> _downloadedScriptIds = {};
   bool _isMarketplaceLoading = false;
   bool _isLoadingMore = false;
@@ -227,9 +228,21 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
 
     setState(() {
       _downloadingScriptIds.add(script.id);
+      _downloadProgress[script.id] = 0.0;
     });
 
     try {
+      // Simulate download progress for better UX (files are small, so we fake it)
+      final progressUpdates = [0.3, 0.6, 0.9];
+      for (final progress in progressUpdates) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) {
+          setState(() {
+            _downloadProgress[script.id] = progress;
+          });
+        }
+      }
+
       // Download script source
       final luaSource = await _marketplaceService.downloadScript(script.id);
 
@@ -305,6 +318,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
       if (mounted) {
         setState(() {
           _downloadingScriptIds.remove(script.id);
+          _downloadProgress.remove(script.id);
         });
       }
     }
@@ -924,22 +938,37 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                             color: Colors.black.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Downloading...',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(
+                                    value: _downloadProgress[script.id],
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                    backgroundColor: Colors.white.withValues(alpha: 0.3),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    '${((_downloadProgress[script.id] ?? 0.0) * 100).toInt()}%',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Downloading...',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

@@ -10,6 +10,7 @@ services:
       - RUST_LOG=${RUST_LOG:-info}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/marketplace.db?mode=rwc}
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - PORT=58000
     volumes:
       - ./data:/data
     ports:

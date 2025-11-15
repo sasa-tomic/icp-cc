@@ -46,6 +46,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
   String _selectedCategory = 'Example';
   bool _isUploading = false;
+  double _uploadProgress = 0.0; // Track upload progress 0.0 to 1.0
   String? _error;
   int _currentStep = 0; // 0 = form, 1 = code preview
 
@@ -195,10 +196,22 @@ end''';
 
     setState(() {
       _isUploading = true;
+      _uploadProgress = 0.0;
       _error = null;
     });
 
     try {
+      // Simulate upload progress for better UX (files are small, so we fake it)
+      final progressUpdates = [0.2, 0.4, 0.6];
+      for (final progress in progressUpdates) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) {
+          setState(() {
+            _uploadProgress = progress;
+          });
+        }
+      }
+
       final String title = _titleController.text.trim();
       final String description = _descriptionController.text.trim();
       final List<String> tags = _tagsController.text
@@ -242,6 +255,13 @@ function update(msg, state)
 end''';
       }
 
+      // Update progress: signing
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 0.75;
+        });
+      }
+
       final String signature = await ScriptSignatureService.signScriptUpload(
         authorIdentity: identity,
         title: title,
@@ -253,6 +273,13 @@ end''';
         timestampIso: timestamp,
       );
       final String authorPrincipal = PrincipalUtils.textFromRecord(identity);
+
+      // Update progress: uploading
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 0.9;
+        });
+      }
 
       await _marketplaceService.uploadScript(
         title: title,
@@ -296,6 +323,7 @@ end''';
       if (mounted) {
         setState(() {
           _isUploading = false;
+          _uploadProgress = 0.0;
         });
       }
     }
@@ -542,17 +570,19 @@ end''';
                             key: const Key('quick-upload-submit'),
                             onPressed: _isUploading ? null : _uploadScript,
                             icon: _isUploading
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
+                                      value: _uploadProgress,
                                       strokeWidth: 2,
                                       color: Colors.white,
+                                      backgroundColor: Colors.white.withValues(alpha: 0.3),
                                     ),
                                   )
                                 : const Icon(Icons.upload),
                             label: Text(_isUploading
-                                ? 'Uploading...'
+                                ? 'Uploading ${(_uploadProgress * 100).toInt()}%'
                                 : 'Upload to Marketplace'),
                             style: FilledButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 16),
