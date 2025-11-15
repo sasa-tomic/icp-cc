@@ -18,133 +18,137 @@ end
 -- UI RENDERING
 --==============================================================================
 function view(state)
-  return {
-    type = "column",
+  local children = {
+    -- Header Section
+    {
+      type = "section",
+      props = { title = "Simple ICP Demo" },
+      children = {
+        {
+          type = "text",
+          props = {
+            text = "Demonstrates basic ICP blockchain integration",
+            style = "subtitle"
+          }
+        },
+        {
+          type = "toggle",
+          props = {
+            label = "Show Info",
+            value = state.show_info,
+            on_change = { type = "toggle_info" }
+          }
+        }
+      }
+    }
+  }
+
+  -- Info Section (conditional)
+  if state.show_info then
+    table.insert(children, {
+      type = "section",
+      props = { title = "About This Demo" },
+      children = {
+        {
+          type = "text",
+          props = {
+            text = "This script shows how to interact with ICP canisters. Click the buttons below to make real blockchain calls."
+          }
+        },
+        {
+          type = "text",
+          props = {
+            text = "Canister ID: ryjl3-tyaaa-aaaaa-aaaba-cai (ICP Ledger)",
+            style = "small"
+          }
+        }
+      }
+    })
+  end
+
+  -- Actions Section
+  table.insert(children, {
+    type = "section",
+    props = { title = "Actions" },
     children = {
-      -- Header Section
       {
-        type = "section",
-        props = { title = "Simple ICP Demo" },
-        children = {
-          {
-            type = "text",
-            props = {
-              text = "Demonstrates basic ICP blockchain integration",
-              style = "subtitle"
-            }
-          },
-          {
-            type = "toggle",
-            props = {
-              label = "Show Info",
-              value = state.show_info,
-              on_change = { type = "toggle_info" }
-            }
-          }
+        type = "button",
+        props = {
+          label = "Get Account Balance",
+          on_press = { type = "get_balance" }
         }
       },
-
-      -- Info Section (conditional)
-      (state.show_info and {
-        type = "section",
-        props = { title = "About This Demo" },
-        children = {
-          {
-            type = "text",
-            props = {
-              text = "This script shows how to interact with ICP canisters. Click the buttons below to make real blockchain calls."
-            }
-          },
-          {
-            type = "text",
-            props = {
-              text = "Canister ID: ryjl3-tyaaa-aaaaa-aaaba-cai (ICP Ledger)",
-              style = "small"
-            }
-          }
-        }
-      }) or nil,
-
-      -- Actions Section
       {
-        type = "section",
-        props = { title = "Actions" },
+        type = "button",
+        props = {
+          label = "Get Recent Transactions",
+          on_press = { type = "get_transactions" }
+        }
+      },
+      {
+        type = "button",
+        props = {
+          label = "Clear Results",
+          on_press = { type = "clear" }
+        }
+      }
+    }
+  })
+
+  -- Counter Demo
+  table.insert(children, {
+    type = "section",
+    props = { title = "Simple Counter" },
+    children = {
+      {
+        type = "text",
+        props = {
+          text = "Counter: " .. state.counter
+        }
+      },
+      {
+        type = "row",
         children = {
           {
             type = "button",
             props = {
-              label = "Get Account Balance",
-              on_press = { type = "get_balance" }
+              label = "Increment",
+              on_press = { type = "increment" }
             }
           },
           {
             type = "button",
             props = {
-              label = "Get Recent Transactions",
-              on_press = { type = "get_transactions" }
-            }
-          },
-          {
-            type = "button",
-            props = {
-              label = "Clear Results",
-              on_press = { type = "clear" }
-            }
-          }
-        }
-      },
-
-      -- Counter Demo
-      {
-        type = "section",
-        props = { title = "Simple Counter" },
-        children = {
-          {
-            type = "text",
-            props = {
-              text = "Counter: " .. state.counter
-            }
-          },
-          {
-            type = "row",
-            children = {
-              {
-                type = "button",
-                props = {
-                  label = "Increment",
-                  on_press = { type = "increment" }
-                }
-              },
-              {
-                type = "button",
-                props = {
-                  label = "Reset",
-                  on_press = { type = "reset" }
-                }
-              }
-            }
-          }
-        }
-      },
-
-      -- Results Section
-      render_results_section(state),
-
-      -- Status Section
-      {
-        type = "section",
-        props = { title = "Status" },
-        children = {
-          {
-            type = "text",
-            props = {
-              text = "Last action: " .. state.last_action,
-              style = "small"
+              label = "Reset",
+              on_press = { type = "reset" }
             }
           }
         }
       }
     }
+  })
+
+  -- Results Section
+  table.insert(children, render_results_section(state))
+
+  -- Status Section
+  table.insert(children, {
+    type = "section",
+    props = { title = "Status" },
+    children = {
+      {
+        type = "text",
+        props = {
+          text = "Last action: " .. state.last_action,
+          style = "small"
+        }
+      }
+    }
+  })
+
+  return {
+    type = "column",
+    children = children
   }
 end
 

@@ -260,6 +260,9 @@ server-init +args="":
 # Start local Cloudflare Workers development environment
 cloudflare-local-up:
     @echo "==> Starting local Cloudflare Workers development environment"
+    pkill -f wrangler
+    sleep 0.5
+    pgrep -f wrangler && pkill -9 -f wrangler
     cd {{cloudflare_dir}} && wrangler dev --config wrangler.local.jsonc --port {{cloudflare_port}} --persist-to .wrangler/state &
     @just wait-for-cloudflare-internal 30
 
