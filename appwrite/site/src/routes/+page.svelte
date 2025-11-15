@@ -74,6 +74,8 @@
     isLoading = true;
     error = null;
 
+    console.log('🔄 Fetching scripts from API...');
+
     try {
       const response = await fetch('/api/search_scripts', {
         method: 'POST',
@@ -87,11 +89,14 @@
         })
       });
 
+      console.log('📡 API Response status:', response.status, response.statusText);
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
+      console.log('📦 API Response data:', result);
 
       if (result.success) {
         realScripts = result.data.scripts.map(script => ({
@@ -107,12 +112,14 @@
           icon: getCategoryIcon(script.category),
           isMock: false
         }));
+        console.log('✅ Successfully loaded', realScripts.length, 'scripts');
       } else {
         throw new Error(result.error || 'Failed to fetch scripts');
       }
     } catch (err) {
-      console.error('Failed to fetch scripts:', err);
+      console.error('❌ Failed to fetch scripts:', err);
       error = err.message;
+      console.log('📝 Error details:', err.message, '- will show mock data only');
     } finally {
       isLoading = false;
       hasLoaded = true;
@@ -141,11 +148,16 @@
     statsLoading = true;
     statsError = null;
 
+    console.log('📊 Fetching marketplace stats from API...');
+
     try {
       const response = await fetch('/api/get_marketplace_stats');
+      console.log('📈 Stats API Response status:', response.status, response.statusText);
 
       if (response.ok) {
         const result = await response.json();
+        console.log('📈 Stats API Response data:', result);
+
         if (result.success) {
           stats = {
             totalScripts: result.data.totalScripts || 0,
@@ -153,11 +165,17 @@
             totalAuthors: result.data.totalAuthors || 0,
             averageRating: result.data.averageRating || 0
           };
+          console.log('✅ Successfully loaded stats:', stats);
+        } else {
+          console.log('⚠️ Stats API returned success=false');
         }
+      } else {
+        console.log('❌ Stats API returned HTTP error:', response.status);
       }
     } catch (err) {
-      console.error('Failed to fetch stats:', err);
+      console.error('❌ Failed to fetch stats:', err);
       statsError = err.message;
+      console.log('📝 Stats error details:', err.message, '- using fallback numbers');
       // Use realistic fallback numbers for a new marketplace
       stats = {
         totalScripts: 12,
@@ -373,16 +391,16 @@
     }
 
     [data-theme="dark"] {
-      /* Dark theme - Modern marketplace palette */
-      --bg-primary: #0f172a;
-      --bg-secondary: #1e293b;
-      --bg-tertiary: #334155;
+      /* Dark theme - Improved readability palette */
+      --bg-primary: #1e293b;
+      --bg-secondary: #334155;
+      --bg-tertiary: #475569;
       --bg-accent: #1e3a5f;
-      --bg-glass: rgba(15, 23, 42, 0.95);
+      --bg-glass: rgba(30, 41, 59, 0.95);
       --bg-overlay: rgba(255, 255, 255, 0.1);
 
-      --text-primary: #f8fafc;
-      --text-secondary: #cbd5e1;
+      --text-primary: #f1f5f9;
+      --text-secondary: #e2e8f0;
       --text-muted: #94a3b8;
       --text-accent: #38bdf8;
       --text-inverse: #0f172a;
@@ -394,21 +412,21 @@
       --accent-danger: #f87171;
       --accent-success: #4ade80;
 
-      --border-primary: #334155;
-      --border-secondary: #475569;
+      --border-primary: #475569;
+      --border-secondary: #64748b;
       --border-accent: #0ea5e9;
 
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.25);
-      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3);
-      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
-      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
-      --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.7);
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
+      --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.8);
 
       --gradient-primary: linear-gradient(135deg, #0ea5e9 0%, #a78bfa 100%);
       --gradient-secondary: linear-gradient(135deg, #10b981 0%, #0ea5e9 100%);
       --gradient-accent: linear-gradient(135deg, #fbbf24 0%, #f87171 100%);
-      --gradient-hero: linear-gradient(135deg, #1e3a5f 0%, #1e293b 50%, #0f172a 100%);
-      --gradient-glass: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
+      --gradient-hero: linear-gradient(135deg, #1e3a5f 0%, #334155 50%, #1e293b 100%);
+      --gradient-glass: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(51, 65, 85, 0.95) 100%);
     }
 
     :global(body) {
