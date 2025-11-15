@@ -221,7 +221,7 @@ run_tool() {
         log_warning "Press Ctrl+D to exit $TOOL"
 
         # Use docker compose run for interactive session instead of up
-        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" run --rm "$SERVICE_NAME" $tool_command
+        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" run --rm "$SERVICE_NAME" $tool_command "$@"
     fi
 }
 

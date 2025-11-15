@@ -19,6 +19,7 @@ services:
       # Mount some other configuration from home directory
       - ${HOME}/.claude.json:/home/ubuntu/.claude.json
       - ${HOME}/.claude:/home/ubuntu/.claude
+      - ${HOME}/.codex:/home/ubuntu/.codex
       - ${HOME}/.happy:/home/ubuntu/.happy
       # Cache volumes for rust tooling and dependencies (controlled by ubuntu user)
       - rustup-cache:/usr/local/rustup
