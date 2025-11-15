@@ -67,7 +67,7 @@ services:
       - redis
 #      - clamav
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -179,7 +179,7 @@ services:
     networks:
       - appwrite
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     labels:
       - "traefik.enable=true"
       - "traefik.constraint-label-stack=appwrite"
@@ -221,7 +221,7 @@ services:
       - mariadb
       - redis
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -252,7 +252,7 @@ services:
       - redis
       - mariadb
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -280,7 +280,7 @@ services:
       - redis
       - mariadb
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -317,7 +317,7 @@ services:
       - appwrite-builds:/storage/builds:rw
       - appwrite-certificates:/storage/certificates:rw
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -375,7 +375,7 @@ services:
       - redis
       - mariadb
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -408,7 +408,7 @@ services:
       - appwrite-builds:/storage/builds:rw
       - appwrite-uploads:/storage/uploads:rw
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -476,7 +476,7 @@ services:
       - appwrite-config:/storage/config:rw
       - appwrite-certificates:/storage/certificates:rw
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -511,7 +511,7 @@ services:
       - mariadb
       - openruntimes-executor
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -550,7 +550,7 @@ services:
     depends_on:
       - redis
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -588,7 +588,7 @@ services:
     depends_on:
       - redis
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -641,7 +641,7 @@ services:
     depends_on:
       - mariadb
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -675,7 +675,7 @@ services:
     depends_on:
       - redis
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -715,7 +715,7 @@ services:
       - redis
       - mariadb
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -746,7 +746,7 @@ services:
       - redis
       - mariadb
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -776,7 +776,7 @@ services:
       - redis
       - mariadb
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -806,7 +806,7 @@ services:
       - mariadb
       - redis
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -833,7 +833,7 @@ services:
       - mariadb
       - redis
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -860,7 +860,7 @@ services:
       - mariadb
       - redis
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ENV
       - _APP_WORKER_PER_CORE
@@ -883,7 +883,7 @@ services:
     networks:
       - appwrite
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - _APP_ASSISTANT_OPENAI_API_KEY
       
@@ -914,7 +914,7 @@ services:
       # It's not possible to share mount file between 2 containers without host mount (copying is too slow)
       - /tmp:/tmp:rw
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - OPR_EXECUTOR_INACTIVE_TRESHOLD=$_APP_COMPUTE_INACTIVE_THRESHOLD
       - OPR_EXECUTOR_MAINTENANCE_INTERVAL=$_APP_COMPUTE_MAINTENANCE_INTERVAL
@@ -959,7 +959,7 @@ services:
     volumes:
       - appwrite-mariadb:/var/lib/mysql:rw
     env_file:
-      - appwrite-local.env
+      - marketplace-local.env
     environment:
       - MYSQL_ROOT_PASSWORD=${_APP_DB_ROOT_PASS}
       - MYSQL_DATABASE=${_APP_DB_SCHEMA}

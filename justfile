@@ -217,7 +217,7 @@ flutter-local +args="":
 # Run Flutter app with production environment
 flutter-production +args="":
     @echo "==> Starting Flutter app with production environment"
-    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1 {{args}}
+    cd {{root}}/apps/autorun_flutter && flutter run -d chrome --dart-define=APPWRITE_ENDPOINT=https://icp-autorun.appwrite.network/v1 {{args}}
 
 # =============================================================================
 # Help and Information

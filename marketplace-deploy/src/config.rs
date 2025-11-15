@@ -133,7 +133,7 @@ impl IndexType {
 pub enum DeployComponents {
     Database,
     Collections,
-    Functions,
+    Sites,
     Storage,
     All,
 }
