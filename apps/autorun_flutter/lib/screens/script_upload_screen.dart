@@ -125,7 +125,36 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     IdentityRecord identity,
   ) async {
     IdentityProfile? profile = controller.profileForRecord(identity);
-    profile ??= await controller.ensureProfileLoaded(identity);
+
+    // Show loading indicator while fetching profile from server
+    if (profile == null && mounted) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) => const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading profile...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      profile = await controller.ensureProfileLoaded(identity);
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+      }
+    }
+
     if (!mounted) {
       return;
     }

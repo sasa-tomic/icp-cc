@@ -109,11 +109,41 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   }
 
   Future<void> _editIdentityProfile(IdentityRecord record) async {
+    // Show loading indicator while fetching profile from server
+    final IdentityProfile? cachedProfile = _controller.profileForRecord(record);
+
+    if (cachedProfile == null && mounted) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) => const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading profile...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     // Ensure profile is loaded before editing
     await _controller.ensureProfileLoaded(record);
-    
+
+    // Close loading dialog if it was shown
+    if (cachedProfile == null && mounted) {
+      Navigator.of(context).pop();
+    }
+
     final IdentityProfile? existingProfile = _controller.profileForRecord(record);
-    
+
     if (!mounted) return;
     
     final IdentityProfileDraft? draft = await showIdentityProfileSheet(
