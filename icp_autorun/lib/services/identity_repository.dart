@@ -24,8 +24,9 @@ class IdentityRepository {
     }
 
     Directory directory;
-    if (_overrideDirectory != null) {
-      directory = _overrideDirectory!;
+    final Directory? override = _overrideDirectory;
+    if (override != null) {
+      directory = override;
     } else {
       try {
         directory = await getApplicationSupportDirectory();

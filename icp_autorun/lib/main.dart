@@ -134,8 +134,7 @@ class IdentityHomePage extends StatefulWidget {
 
 class _IdentityHomePageState extends State<IdentityHomePage> {
   late final IdentityController _controller;
-  final RustBridgeLoader _bridge = const RustBridgeLoader();
-  String? _lastResult;
+  // Removed unused fields after UI reorg
 
   @override
   void initState() {
@@ -696,10 +695,9 @@ class _WellKnownList extends StatelessWidget {
 }
 
 class _CanisterClientSheet extends StatefulWidget {
-  const _CanisterClientSheet({required this.bridge, this.initialCanisterId, this.initialMethod});
+  const _CanisterClientSheet({required this.bridge, this.initialCanisterId});
   final RustBridgeLoader bridge;
   final String? initialCanisterId;
-  final String? initialMethod;
 
   @override
   State<_CanisterClientSheet> createState() => _CanisterClientSheetState();
