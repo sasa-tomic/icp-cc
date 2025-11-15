@@ -249,8 +249,8 @@ async fn handle_bootstrap(
 
     success_message(&format!("D1 database created with ID: {}", db_id));
 
-    // Update wrangler.jsonc with database ID
-    update_wrangler_config(&cloudflare_dir, &database_name, &db_id)?;
+    // Update wrangler config with database ID
+    update_wrangler_config(&cloudflare_dir, &database_name, &db_id, target)?;
 
     // Run database migrations
     info_message("Running database migrations...");
@@ -332,8 +332,15 @@ fn update_wrangler_config(
     cloudflare_dir: &std::path::Path,
     database_name: &str,
     database_id: &str,
+    target: &str,
 ) -> Result<()> {
-    let config_path = cloudflare_dir.join("wrangler.jsonc");
+    let config_file = if target == "local" {
+        "wrangler.local.jsonc"
+    } else {
+        "wrangler.prod.jsonc"
+    };
+
+    let config_path = cloudflare_dir.join(config_file);
     let config_content = std::fs::read_to_string(&config_path)?;
 
     // Update database configuration
@@ -348,7 +355,7 @@ fn update_wrangler_config(
         );
 
     std::fs::write(&config_path, updated_content)?;
-    success_message("Updated wrangler.jsonc with database configuration");
+    success_message(&format!("Updated {} with database configuration", config_file));
 
     Ok(())
 }
