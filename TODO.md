@@ -13,7 +13,7 @@
 
 ## ICP Autorun Marketplace
 
-- add support for searching for scripts in the marketplace: both without and with a search substring. The database side should search for substrings or FTS in the name of the script and the canister ids, for now
+(none)
 
 ### Payment Processing (next)
 - Integrate with icpay.org for script payments
