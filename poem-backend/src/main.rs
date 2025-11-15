@@ -171,17 +171,27 @@ async fn get_scripts(
 #[handler]
 async fn get_script(
     Path(script_id): Path<String>,
+    Query(query): Query<ScriptsQuery>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match sqlx::query_as::<_, Script>(
+    let include_private = query.include_private.unwrap_or(false);
+
+    let sql = if include_private {
+        "SELECT id, title, description, category, lua_source, author_name, is_public,
+                rating, downloads, review_count, created_at, updated_at
+         FROM scripts
+         WHERE id = ?1"
+    } else {
         "SELECT id, title, description, category, lua_source, author_name, is_public,
                 rating, downloads, review_count, created_at, updated_at
          FROM scripts
          WHERE id = ?1 AND is_public = 1"
-    )
-    .bind(&script_id)
-    .fetch_optional(&state.pool)
-    .await
+    };
+
+    match sqlx::query_as::<_, Script>(sql)
+        .bind(&script_id)
+        .fetch_optional(&state.pool)
+        .await
     {
         Ok(Some(script)) => Json(serde_json::json!({
             "success": true,
@@ -197,7 +207,7 @@ async fn get_script(
         )
             .into_response(),
         Err(e) => {
-            tracing::error!("Failed to get script: {}", e);
+            tracing::error!("Failed to get script {}: {}", script_id, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
@@ -267,6 +277,410 @@ async fn get_marketplace_stats(Data(state): Data<&Arc<AppState>>) -> Response {
 }
 
 #[handler]
+async fn create_script(
+    Json(req): Json<CreateScriptRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    // In development mode, accept test auth tokens
+    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
+        && req.signature.as_deref() == Some("test-auth-token");
+
+    if !is_test_auth && req.signature.is_none() {
+        tracing::warn!("Script creation rejected: missing signature");
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Missing authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // Generate ID if not provided
+    let script_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let is_public = req.is_public.unwrap_or(false);
+
+    match sqlx::query(
+        "INSERT INTO scripts (id, title, description, category, lua_source, author_name,
+         is_public, rating, downloads, review_count, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0.0, 0, 0, ?8, ?9)"
+    )
+    .bind(&script_id)
+    .bind(&req.title)
+    .bind(&req.description)
+    .bind(&req.category)
+    .bind(&req.lua_source)
+    .bind(&req.author_name)
+    .bind(is_public as i32)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(_) => {
+            tracing::info!("Created script: {} (public: {})", script_id, is_public);
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "success": true,
+                    "data": {
+                        "id": script_id,
+                        "title": req.title,
+                        "created_at": now
+                    }
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to create script: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to create script: {}", e)
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn update_script(
+    Path(script_id): Path<String>,
+    Json(req): Json<UpdateScriptRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    // In development mode, accept test auth tokens
+    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
+        && req.signature.as_deref() == Some("test-auth-token");
+
+    if !is_test_auth && req.signature.is_none() {
+        tracing::warn!("Script update rejected for {}: missing signature", script_id);
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Missing authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // Check if script exists
+    let exists: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1")
+        .bind(&script_id)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
+
+    if exists.unwrap_or(0) == 0 {
+        tracing::warn!("Script update failed: {} not found", script_id);
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Script not found"
+            })),
+        )
+            .into_response();
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Build dynamic update query
+    let mut updates = vec!["updated_at = ?"];
+    let mut query_str = "UPDATE scripts SET ".to_string();
+
+    if req.title.is_some() {
+        updates.push("title = ?");
+    }
+    if req.description.is_some() {
+        updates.push("description = ?");
+    }
+    if req.category.is_some() {
+        updates.push("category = ?");
+    }
+    if req.lua_source.is_some() {
+        updates.push("lua_source = ?");
+    }
+    if req.is_public.is_some() {
+        updates.push("is_public = ?");
+    }
+
+    query_str.push_str(&updates.join(", "));
+    query_str.push_str(" WHERE id = ?");
+
+    let mut query = sqlx::query(&query_str).bind(&now);
+
+    if let Some(title) = &req.title {
+        query = query.bind(title);
+    }
+    if let Some(description) = &req.description {
+        query = query.bind(description);
+    }
+    if let Some(category) = &req.category {
+        query = query.bind(category);
+    }
+    if let Some(lua_source) = &req.lua_source {
+        query = query.bind(lua_source);
+    }
+    if let Some(is_public) = req.is_public {
+        query = query.bind(is_public as i32);
+    }
+
+    query = query.bind(&script_id);
+
+    match query.execute(&state.pool).await {
+        Ok(_) => {
+            tracing::info!("Updated script: {}", script_id);
+            Json(serde_json::json!({
+                "success": true,
+                "data": {
+                    "id": script_id,
+                    "updated_at": now
+                }
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to update script {}: {}", script_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to update script: {}", e)
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn delete_script(
+    Path(script_id): Path<String>,
+    Json(req): Json<DeleteScriptRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    // In development mode, accept test auth tokens
+    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
+        && req.signature.as_deref() == Some("test-auth-token");
+
+    if !is_test_auth && req.signature.is_none() {
+        tracing::warn!("Script deletion rejected for {}: missing signature", script_id);
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Missing authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    match sqlx::query("DELETE FROM scripts WHERE id = ?1")
+        .bind(&script_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                tracing::info!("Deleted script: {}", script_id);
+                Json(serde_json::json!({
+                    "success": true,
+                    "message": "Script deleted successfully"
+                }))
+                .into_response()
+            } else {
+                tracing::warn!("Script deletion failed: {} not found", script_id);
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "error": "Script not found"
+                    })),
+                )
+                    .into_response()
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to delete script {}: {}", script_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to delete script: {}", e)
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn search_scripts(
+    Query(params): Query<SearchQuery>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    let limit = params.limit.unwrap_or(20);
+    let search_term = format!("%{}%", params.q);
+
+    match sqlx::query_as::<_, Script>(
+        "SELECT id, title, description, category, lua_source, author_name, is_public,
+                rating, downloads, review_count, created_at, updated_at
+         FROM scripts
+         WHERE (title LIKE ?1 OR description LIKE ?1 OR category LIKE ?1) AND is_public = 1
+         ORDER BY created_at DESC
+         LIMIT ?2"
+    )
+    .bind(&search_term)
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(scripts) => {
+            tracing::debug!("Search for '{}' returned {} results", params.q, scripts.len());
+            Json(serde_json::json!({
+                "success": true,
+                "data": {
+                    "scripts": scripts,
+                    "total": scripts.len()
+                }
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to search scripts: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to search scripts"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn get_scripts_by_category(
+    Path(category): Path<String>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match sqlx::query_as::<_, Script>(
+        "SELECT id, title, description, category, lua_source, author_name, is_public,
+                rating, downloads, review_count, created_at, updated_at
+         FROM scripts
+         WHERE category = ?1 AND is_public = 1
+         ORDER BY created_at DESC"
+    )
+    .bind(&category)
+    .fetch_all(&state.pool)
+    .await
+    {
+        Ok(scripts) => {
+            tracing::debug!("Category '{}' has {} scripts", category, scripts.len());
+            Json(serde_json::json!({
+                "success": true,
+                "data": scripts
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to get scripts by category: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": "Failed to get scripts by category"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
+async fn publish_script(
+    Path(script_id): Path<String>,
+    Json(req): Json<UpdateScriptRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    // In development mode, accept test auth tokens
+    let is_test_auth = env::var("ENVIRONMENT").unwrap_or_default() == "development"
+        && req.signature.as_deref() == Some("test-auth-token");
+
+    if !is_test_auth && req.signature.is_none() {
+        tracing::warn!("Script publish rejected for {}: missing signature", script_id);
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Missing authentication signature"
+            })),
+        )
+            .into_response();
+    }
+
+    // Check if script exists
+    let exists: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1")
+        .bind(&script_id)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
+
+    if exists.unwrap_or(0) == 0 {
+        tracing::warn!("Script publish failed: {} not found", script_id);
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Script not found"
+            })),
+        )
+            .into_response();
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    match sqlx::query("UPDATE scripts SET is_public = 1, updated_at = ?1 WHERE id = ?2")
+        .bind(&now)
+        .bind(&script_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(_) => {
+            tracing::info!("Published script: {}", script_id);
+            Json(serde_json::json!({
+                "success": true,
+                "data": {
+                    "id": script_id,
+                    "updated_at": now
+                }
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to publish script {}: {}", script_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to publish script: {}", e)
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[handler]
 async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
     if env::var("ENVIRONMENT").unwrap_or_default() != "development" {
         return (
@@ -304,12 +718,16 @@ async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
-    // Initialize tracing
+    // Initialize tracing with clean, parseable format
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive(tracing::Level::INFO.into()),
         )
+        .with_target(false)  // Don't show target module
+        .with_thread_ids(false)  // Don't show thread IDs
+        .with_line_number(false)  // Don't show line numbers
+        .compact()  // Use compact format for cleaner output
         .init();
 
     // Load environment variables
@@ -356,9 +774,12 @@ async fn main() -> Result<(), std::io::Error> {
     let app = Route::new()
         .at("/api/v1/health", get(health_check))
         .at("/api/v1/ping", get(ping))
-        .at("/api/v1/scripts", get(get_scripts))
+        .at("/api/v1/scripts", get(get_scripts).post(create_script))
         .at("/api/v1/scripts/count", get(get_scripts_count))
-        .at("/api/v1/scripts/:id", get(get_script))
+        .at("/api/v1/scripts/search", get(search_scripts))
+        .at("/api/v1/scripts/category/:category", get(get_scripts_by_category))
+        .at("/api/v1/scripts/:id", get(get_script).put(update_script).delete(delete_script))
+        .at("/api/v1/scripts/:id/publish", post(publish_script))
         .at("/api/v1/marketplace-stats", get(get_marketplace_stats))
         .at("/api/dev/reset-database", post(reset_database))
         .with(Cors::new())
