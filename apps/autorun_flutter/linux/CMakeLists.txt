@@ -106,29 +106,22 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
-# Include Rust FFI library (libicp_core.so). Fail fast if missing.
-set(RUST_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../")
+# Include Rust FFI library (libicp_core.so). Always use release artifact built by Makefile.
+set(RUST_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../")
 set(RUST_CRATE_DIR "${RUST_PROJECT_ROOT}/crates/icp_core")
-if(CMAKE_BUILD_TYPE MATCHES "Debug")
-  set(RUST_PROFILE "debug")
+
+set(RUST_LIB_RELEASE_1 "${RUST_CRATE_DIR}/target/release/libicp_core.so")
+set(RUST_LIB_RELEASE_2 "${RUST_PROJECT_ROOT}/target/release/libicp_core.so")
+
+if(EXISTS "${RUST_LIB_RELEASE_1}")
+  set(RUST_LIB_PATH "${RUST_LIB_RELEASE_1}")
+elseif(EXISTS "${RUST_LIB_RELEASE_2}")
+  set(RUST_LIB_PATH "${RUST_LIB_RELEASE_2}")
 else()
-  set(RUST_PROFILE "release")
-endif()
-
-set(RUST_LIB_CANDIDATE_1 "${RUST_CRATE_DIR}/target/${RUST_PROFILE}/libicp_core.so")
-set(RUST_LIB_CANDIDATE_2 "${RUST_PROJECT_ROOT}/target/${RUST_PROFILE}/libicp_core.so")
-set(RUST_LIB_PATH "")
-if(EXISTS "${RUST_LIB_CANDIDATE_1}")
-  set(RUST_LIB_PATH "${RUST_LIB_CANDIDATE_1}")
-elseif(EXISTS "${RUST_LIB_CANDIDATE_2}")
-  set(RUST_LIB_PATH "${RUST_LIB_CANDIDATE_2}")
-endif()
-
-if(RUST_LIB_PATH STREQUAL "")
   message(FATAL_ERROR "Rust libicp_core.so not found. Run: make linux")
 endif()
 
-message(STATUS "Including Rust library: ${RUST_LIB_PATH}")
+message(STATUS "Including Rust library (release): ${RUST_LIB_PATH}")
 install(FILES "${RUST_LIB_PATH}"
   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)

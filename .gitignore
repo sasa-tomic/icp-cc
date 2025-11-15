@@ -53,9 +53,7 @@ icp_identity_manager/assets
 icp_identity_manager/kotlin/**
 icp_identity_manager/kotlin
 icp_identity_manager/kotlin-tooling-metadata.json
-
-# Nested accidental paths
-icp_identity_manager/icp_identity_manager/android/app/src/main/jniLibs/
+apps/autorun_flutter/android/app/src/main/jniLibs/
 
 # Platform-specific caches
 **/.DS_Store
