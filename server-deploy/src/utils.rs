@@ -1,6 +1,6 @@
+use anyhow::Result;
 use colored::*;
 use std::path::PathBuf;
-use anyhow::Result;
 
 /// Get project root directory by searching up the directory tree for a .git directory.
 /// Falls back to current working directory if no .git directory is found.

@@ -7,9 +7,7 @@ mod config;
 mod utils;
 
 use config::{AppConfig, DeployComponents};
-use utils::{
-    error_message, info_message, section_header, success_message,
-};
+use utils::{error_message, info_message, section_header, success_message};
 
 #[derive(Parser)]
 #[command(
@@ -119,12 +117,17 @@ async fn handle_bootstrap(
     yes: bool,
     target: &str,
 ) -> Result<()> {
-    section_header(&format!("Bootstrapping Cloudflare Workers Instance ({})", target));
+    section_header(&format!(
+        "Bootstrapping Cloudflare Workers Instance ({})",
+        target
+    ));
 
     // Confirm bootstrap operation
     if !yes {
         let confirm = dialoguer::Confirm::new()
-            .with_prompt("This will create a new D1 database and deploy Cloudflare Worker. Continue?")
+            .with_prompt(
+                "This will create a new D1 database and deploy Cloudflare Worker. Continue?",
+            )
             .default(false)
             .interact()?;
 
@@ -137,7 +140,7 @@ async fn handle_bootstrap(
     // Change to cloudflare-api directory
     let repo_root = utils::get_project_root()?;
     let cloudflare_dir = repo_root.join("cloudflare-api");
-    
+
     if !cloudflare_dir.exists() {
         return Err(anyhow!("cloudflare-api directory not found"));
     }
@@ -151,13 +154,16 @@ async fn handle_bootstrap(
         .map_err(|e| anyhow!("Failed to create D1 database: {}", e))?;
 
     if !db_output.status.success() {
-        return Err(anyhow!("D1 database creation failed: {}", String::from_utf8_lossy(&db_output.stderr)));
+        return Err(anyhow!(
+            "D1 database creation failed: {}",
+            String::from_utf8_lossy(&db_output.stderr)
+        ));
     }
 
     // Extract database ID from output
     let db_output_str = String::from_utf8_lossy(&db_output.stdout);
     let db_id = extract_database_id(&db_output_str)?;
-    
+
     success_message(&format!("D1 database created with ID: {}", db_id));
 
     // Update wrangler.jsonc with database ID
@@ -166,13 +172,22 @@ async fn handle_bootstrap(
     // Run database migrations
     info_message("Running database migrations...");
     let migrate_output = std::process::Command::new("wrangler")
-        .args(["d1", "execute", &database_name, "--file", "migrations/0001_initial_schema.sql"])
+        .args([
+            "d1",
+            "execute",
+            &database_name,
+            "--file",
+            "migrations/0001_initial_schema.sql",
+        ])
         .current_dir(&cloudflare_dir)
         .output()
         .map_err(|e| anyhow!("Failed to run migrations: {}", e))?;
 
     if !migrate_output.status.success() {
-        return Err(anyhow!("Database migrations failed: {}", String::from_utf8_lossy(&migrate_output.stderr)));
+        return Err(anyhow!(
+            "Database migrations failed: {}",
+            String::from_utf8_lossy(&migrate_output.stderr)
+        ));
     }
 
     success_message("Database migrations completed");
@@ -186,14 +201,17 @@ async fn handle_bootstrap(
         .map_err(|e| anyhow!("Failed to deploy Worker: {}", e))?;
 
     if !deploy_output.status.success() {
-        return Err(anyhow!("Worker deployment failed: {}", String::from_utf8_lossy(&deploy_output.stderr)));
+        return Err(anyhow!(
+            "Worker deployment failed: {}",
+            String::from_utf8_lossy(&deploy_output.stderr)
+        ));
     }
 
     success_message("Cloudflare Worker deployed successfully!");
-    
+
     // Get worker URL
     let worker_url = get_worker_url(&worker_name)?;
-    
+
     // Save configuration
     let mut config = AppConfig::load(target)?;
     config.worker_name = worker_name.clone();
@@ -206,7 +224,7 @@ async fn handle_bootstrap(
     info_message(&format!("Worker: {}", worker_name));
     info_message(&format!("Database: {}", database_name));
     info_message(&format!("Worker URL: {}", worker_url));
-    
+
     success_message("You can now test API endpoints and update your Flutter app configuration");
 
     Ok(())
@@ -225,23 +243,33 @@ fn extract_database_id(output: &str) -> Result<String> {
             }
         }
     }
-    Err(anyhow!("Could not extract database ID from wrangler output"))
+    Err(anyhow!(
+        "Could not extract database ID from wrangler output"
+    ))
 }
 
-fn update_wrangler_config(cloudflare_dir: &std::path::Path, database_name: &str, database_id: &str) -> Result<()> {
+fn update_wrangler_config(
+    cloudflare_dir: &std::path::Path,
+    database_name: &str,
+    database_id: &str,
+) -> Result<()> {
     let config_path = cloudflare_dir.join("wrangler.jsonc");
     let config_content = std::fs::read_to_string(&config_path)?;
-    
+
     // Update database configuration
     let updated_content = config_content
-        .replace(&format!("\"database_name\": \"icp-marketplace-db\""), 
-                  &format!("\"database_name\": \"{}\"", database_name))
-        .replace("\"database_id\": \"local\"", 
-                  &format!("\"database_id\": \"{}\"", database_id));
-    
+        .replace(
+            &format!("\"database_name\": \"icp-marketplace-db\""),
+            &format!("\"database_name\": \"{}\"", database_name),
+        )
+        .replace(
+            "\"database_id\": \"local\"",
+            &format!("\"database_id\": \"{}\"", database_id),
+        );
+
     std::fs::write(&config_path, updated_content)?;
     success_message("Updated wrangler.jsonc with database configuration");
-    
+
     Ok(())
 }
 
@@ -305,7 +333,9 @@ async fn handle_deploy(
     // Confirm deployment
     if !dry_run && !yes {
         let confirm = Confirm::new()
-            .with_prompt("This will deploy marketplace infrastructure to Cloudflare Workers. Continue?")
+            .with_prompt(
+                "This will deploy marketplace infrastructure to Cloudflare Workers. Continue?",
+            )
             .default(false)
             .interact()?;
 
@@ -328,7 +358,7 @@ async fn handle_deploy(
     // Change to cloudflare-api directory
     let repo_root = utils::get_project_root()?;
     let cloudflare_dir = repo_root.join("cloudflare-api");
-    
+
     if !cloudflare_dir.exists() {
         return Err(anyhow!("cloudflare-api directory not found"));
     }
@@ -346,7 +376,10 @@ async fn handle_deploy(
                 .map_err(|e| anyhow!("Failed to deploy Worker: {}", e))?;
 
             if !deploy_output.status.success() {
-                return Err(anyhow!("Worker deployment failed: {}", String::from_utf8_lossy(&deploy_output.stderr)));
+                return Err(anyhow!(
+                    "Worker deployment failed: {}",
+                    String::from_utf8_lossy(&deploy_output.stderr)
+                ));
             }
         }
         pb.tick();
@@ -360,13 +393,22 @@ async fn handle_deploy(
         } else {
             pb.set_message("Running database migrations...");
             let migrate_output = std::process::Command::new("wrangler")
-                .args(["d1", "execute", &config.database_name, "--file", "migrations/0001_initial_schema.sql"])
+                .args([
+                    "d1",
+                    "execute",
+                    &config.database_name,
+                    "--file",
+                    "migrations/0001_initial_schema.sql",
+                ])
                 .current_dir(&cloudflare_dir)
                 .output()
                 .map_err(|e| anyhow!("Failed to run migrations: {}", e))?;
 
             if !migrate_output.status.success() {
-                return Err(anyhow!("Database migrations failed: {}", String::from_utf8_lossy(&migrate_output.stderr)));
+                return Err(anyhow!(
+                    "Database migrations failed: {}",
+                    String::from_utf8_lossy(&migrate_output.stderr)
+                ));
             }
         }
         pb.tick();
@@ -376,7 +418,10 @@ async fn handle_deploy(
     pb.finish_with_message("Cloudflare Workers deployment completed!");
 
     if !dry_run {
-        success_message(&format!("Worker deployed successfully: {}", config.worker_name));
+        success_message(&format!(
+            "Worker deployed successfully: {}",
+            config.worker_name
+        ));
         info_message(&format!("Database: {}", config.database_name));
         if !config.worker_url.is_empty() {
             info_message(&format!("Worker URL: {}", config.worker_url));
@@ -409,7 +454,7 @@ async fn handle_clean(yes: bool, target: &str) -> Result<()> {
     // Change to cloudflare-api directory
     let repo_root = utils::get_project_root()?;
     let cloudflare_dir = repo_root.join("cloudflare-api");
-    
+
     if !cloudflare_dir.exists() {
         return Err(anyhow!("cloudflare-api directory not found"));
     }
@@ -422,7 +467,10 @@ async fn handle_clean(yes: bool, target: &str) -> Result<()> {
         .map_err(|e| anyhow!("Failed to delete D1 database: {}", e))?;
 
     if !delete_db_output.status.success() {
-        error_message(&format!("D1 database deletion warning: {}", String::from_utf8_lossy(&delete_db_output.stderr)));
+        error_message(&format!(
+            "D1 database deletion warning: {}",
+            String::from_utf8_lossy(&delete_db_output.stderr)
+        ));
     } else {
         success_message("D1 database deleted successfully");
     }
@@ -435,7 +483,10 @@ async fn handle_clean(yes: bool, target: &str) -> Result<()> {
         .map_err(|e| anyhow!("Failed to delete Worker: {}", e))?;
 
     if !delete_worker_output.status.success() {
-        error_message(&format!("Worker deletion warning: {}", String::from_utf8_lossy(&delete_worker_output.stderr)));
+        error_message(&format!(
+            "Worker deletion warning: {}",
+            String::from_utf8_lossy(&delete_worker_output.stderr)
+        ));
     } else {
         success_message("Cloudflare Worker deleted successfully");
     }
