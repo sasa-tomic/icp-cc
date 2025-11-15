@@ -44,7 +44,13 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
     try {
       final initOut = await widget.runtime.init(script: widget.script, initialArg: widget.initialArg);
       final Map<String, dynamic> st = (initOut['state'] as Map<String, dynamic>? ?? const <String, dynamic>{});
+      final Map<String, dynamic>? initUi = initOut['ui'] as Map<String, dynamic>?;
       final List<dynamic> fx = _effectsListOf(initOut['effects']);
+      // If the runtime provides an initial UI in init(), render it immediately for faster first paint.
+      if (initUi != null) {
+        if (!mounted) return;
+        setState(() { _state = st; _ui = initUi; });
+      }
       await _applyStateAndRender(st);
       await _executeEffects(fx);
     } catch (e, st) {
