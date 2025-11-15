@@ -2,7 +2,7 @@
 
 ## Immediate Tasks (Ready to Start)
 
-- Adjust the prod build of the flutter app to use API endpoint (prefix): https://icp-mp.kalaj.org/api/v1/
+- ✅ Adjust the prod build of the flutter app to use API endpoint (prefix): https://icp-mp.kalaj.org/api/v1/
 
 ### Production Deployment (Priority: HIGH)
 - [ ] Set up Cloudflare account and authenticate with wrangler
@@ -15,16 +15,14 @@
 - [ ] Configure monitoring and error tracking
 - [ ] Set up backup and disaster recovery procedures
 
-### Environment Setup & Configuration
-- [x] Run `just test-machine` to ensure all tests are passing
-- [x] Update git status and commit any remaining changes
+
 
 
 
 ### Quick Wins
 
-- [ ] Create basic script download API endpoint structure
-- [ ] Add input validation to existing API endpoints
+- [ ] Add download analytics and history tracking
+- [ ] Implement script file download mechanism
 
 ## Production Readiness Checklist (Priority: CRITICAL)
 
@@ -38,7 +36,7 @@
 - [ ] **CDN Setup**: Configure Cloudflare CDN for static assets
 
 ### Security & Compliance
-- [ ] **Input Validation**: Add comprehensive input validation to all API endpoints
+- ✅ **Input Validation**: Comprehensive input validation already implemented
 - [ ] **Rate Limiting**: Implement rate limiting to prevent abuse
 - [ ] **CORS Configuration**: Set proper CORS headers for production domain
 - [ ] **Security Headers**: Add security headers (CSP, HSTS, etc.)
@@ -70,16 +68,94 @@
 - [ ] **User Documentation**: Update user guides for production environment
 - [ ] **API Documentation**: Generate and publish comprehensive API docs
 
-## Active Development Tasks
+## UX Improvements & Marketplace Integration
 
+### Unified Script Management Interface (Priority: High)
+- Create hybrid view combining local and marketplace scripts
+  - Add source badges (Local/Marketplace) to distinguish script origins
+  - Implement unified search across both local and marketplace scripts
+  - Add smart filtering by source, category, tags, and usage frequency
+  - Create batch operations for managing multiple scripts simultaneously
+  - Design unified script cards with consistent actions and information
 
+### Seamless Publishing Workflow (Priority: High)  
+- Add "Publish to Marketplace" directly from local scripts
+  - Auto-populate marketplace metadata from local script analysis
+  - Create pre-filled templates based on script content and patterns
+  - Implement one-click publishing for simple scripts with minimal metadata
+  - Design progressive disclosure for advanced publishing options
+  - Add real-time validation and compatibility checking before publishing
+
+### Enhanced Discovery and Recommendations (Priority: Medium)
+- Implement smart suggestions based on user behavior and script patterns
+  - Create "You might like" section based on local script analysis
+  - Show trending scripts in categories user frequently interacts with
+  - Implement similar script recommendations based on code analysis
+  - Add collaborative filtering from users with similar script patterns
+  - Create personalized marketplace homepage per user
+
+### Improved Script Creation Flow (Priority: Medium)
+- Enhance template system with marketplace integration
+  - Mix marketplace templates with built-in templates in creation flow
+  - Add "Based on your scripts" suggestions when creating new scripts
+  - Implement real-time validation and ICP canister compatibility checking
+  - Create preview mode to test scripts before saving locally
+  - Add AI-powered suggestions for script improvements and optimizations
+
+### Script Version Management (Priority: Medium)
+- Implement version control and update notifications
+  - Add update notifications for downloaded marketplace scripts
+  - Create version history and rollback options for marketplace scripts
+  - Implement auto-update preferences per script with user control
+  - Add change logs and release notes for script updates
+  - Create seamless update flow that preserves user customizations
+
+### Enhanced Script Cards and Display (Priority: High)
+- Rich script cards with more context and quick actions
+  - Add complexity indicators (beginner/intermediate/advanced)
+  - Display usage statistics (run count, last used, success rate)
+  - Create quick action buttons for common tasks (run, edit, share, publish)
+  - Add script preview showing key functionality and canister interactions
+  - Implement visual indicators for script status (needs update, new version available)
+
+### Collaborative Features (Priority: Low)
+- Add social and collaborative elements to script management
+  - Create script sharing via shareable links
+  - Implement forking functionality for marketplace scripts
+  - Add community ratings and reviews integration
+  - Create script collections and playlists for organization
+  - Add script commenting and discussion features
+
+### Quick Actions Integration (Priority: High)
+- Add marketplace actions directly to scripts tab
+  - "Download to Local" one-click action from marketplace cards
+  - "Publish to Marketplace" from local script context menu
+  - "Check for Updates" for downloaded marketplace scripts
+  - "View in Marketplace" for local scripts with published versions
+  - "Share Script" with marketplace link generation
+
+### Search and Discovery Enhancements (Priority: Medium)
+- Improve search functionality across script sources
+  - Implement fuzzy search with typo tolerance
+  - Add search suggestions based on user's script patterns
+  - Create advanced search filters (complexity, canister type, usage)
+  - Add saved searches and search history
+  - Implement search result highlighting and relevance scoring
+
+### Error Handling and User Feedback (Priority: Medium)
+- Improve error handling and user guidance
+  - Add contextual error messages with suggested fixes
+  - Create guided workflows for common script operations
+  - Implement progress indicators for long-running operations
+  - Add undo/redo functionality for script management actions
+  - Create help tooltips and contextual guidance throughout app
 
 ## Marketplace Features
 
 ### Script Downloads & Installation (Priority: High)
-- Create script download functionality
-  - Build script download API endpoint
-  - Add download tracking and analytics: store stats in the DB
+- Enhance existing script retrieval with file download functionality
+  - Add actual file download mechanism (currently JSON-only)
+  - Implement download analytics and history tracking
   - Create script installation guides and documentation, with step-by-step guidance
   - Design one-click download and installation flow
   - Implement version management and update notifications
@@ -87,7 +163,7 @@
   - Design rollback mechanism for script updates
   - Create script preview functionality (code snippets, screenshots, reviews)
   - Analyze and research if other assets such as images and sound would be good to package with scripts
-  - Maybe add verification of script integrity and checksums: sha256 of each script
+  - Add verification of script integrity and checksums: sha256 of each script
   - Add download history and library management for users
 
 ### Payment Processing Integration (Priority: Medium)
@@ -122,15 +198,7 @@
   - Secure API endpoints with authentication middleware
 
 ### Security (Priority: Medium - Ongoing)
-- Implement comprehensive input validation for API endpoints
-  - Add request/response schema validation
-  - Implement SQL injection and XSS prevention
-  - Add Lua code syntax validation and security scanning
-  - Integrate Lua linter and security analyzer
-  - Create sandboxed execution environment
-  - Sanitize user-generated content to prevent XSS attacks
-  - Implement content sanitization middleware
-  - Add CSP headers and security best practices
+- Add CSP headers and security best practices
   - Add content filtering and moderation system
   - Design content moderation workflow
   - Implement automated content classification
@@ -143,9 +211,8 @@
 - **Testability**: pure functions (init/view/update) are directly testable
 
 ### Feature Enhancements (Priority: High)
-- E2E integration tests covering read→transform→display and read→transform→call
 - Create security audit logs for script execution
-- Add richer UI elements: tables with columns
+- Add tables with columns to UI elements
 - Support paginated lists and loading states driven by Lua
 - Add menu to pick common UI elements/actions in script editor: button, canister method call, message, list
 - Provide input bindings so button actions can incorporate user-entered values
@@ -153,8 +220,7 @@
 - Theming and layout presets for script UIs
 
 ### Security Enhancements (Priority: Medium - Later)
-- Implement script sandboxing and security scanning
-- Security: sandbox Lua (whitelist helpers only)
+- (none - sandboxing already implemented)
 
 ### Architecture and Contracts
 
@@ -168,45 +234,18 @@
 
 ### Implementation Plan (Complex - Breakdown Required)
 
-**Phase 1: Rust Core (High Priority)**
-- Add Lua app runtime that loads script once, locates `init/view/update`, and calls them with JSON bridges
-  - Research and integrate mlua or similar Lua runtime
-  - Implement JSON serialization/deserialization for Lua types
-  - Create error handling and timeout mechanisms
-  - Add per-call time/step limits and input/output validation
-  - Implement resource monitoring and limits
-  - Add input schema validation using serde
-  - Serialize/deserialize `state`, `msg`, `ui`, `effects` using serde/json
-  - New FFI functions:
-  - `icp_lua_app_init(json_arg) -> { ok, state, effects, error? }`
-  - `icp_lua_app_view(state) -> { ok, ui, error? }`
-  - `icp_lua_app_update(msg, state) -> { ok, state, effects, error? }`
-
-**Phase 2: Dart Bridge (High Priority)**
-- Extend `RustBridgeLoader` and `ScriptBridge` to expose `luaAppInit/View/Update`
-  - Update FFI bindings to include new Lua app functions
-  - Create Dart wrapper classes for Lua app state management
-  - Add error handling and type safety
-
-**Phase 3: Flutter Host + Renderer (High Priority)**
-- New `ScriptAppHost` widget manages state, runs init/view/update, renders UI, dispatches msgs
-  - Implement state management for Lua app lifecycle
-  - Create event dispatch system for message passing
-  - Implement UI v1 renderer (column, row, text, button, list)
-  - Extend existing UI renderer to support new widget types
-  - Add interactive element support
-  - Implement effects executor for `icp_call`/`icp_batch`; dispatch result msgs to update
-  - Create effect execution queue and batch processing
-  - Handle async operations and result routing
-  - Validate schemas and fail fast with surfaced errors
-  - Add comprehensive error reporting
-  - Implement user-friendly error display
-
-**Phase 4: Integration (Medium Priority)**
-- Update `ScriptsScreen` to launch `ScriptAppHost` instead of one-shot dialog
-  - Refactor existing script execution flow
-  - Maintain backward compatibility
-  - Provide migration shim for old `return icp_ui_list(...)` (optional)
+**Phase 1-4: COMPLETED**
+- ✅ Lua app runtime with `init/view/update` functions
+- ✅ JSON serialization/deserialization for Lua types
+- ✅ Error handling and timeout mechanisms with instruction counting
+- ✅ Per-call time/step limits and input/output validation
+- ✅ Resource monitoring and limits
+- ✅ Complete FFI functions: `icp_lua_app_init/view/update`
+- ✅ Dart bridge with `ScriptAppHost` widget
+- ✅ UI v1 renderer with all widget types
+- ✅ Effects executor for `icp_call`/`icp_batch`
+- ✅ Event dispatch system and state management
+- ✅ Integration with existing `ScriptsScreen`
 
 **Phase 5: Testing (Ongoing)**
 - Flutter: widget tests for host loop, event dispatch, effect result handling, and renderer
@@ -216,24 +255,19 @@
 
 ### Testing & Quality Assurance (Ongoing)
 #### Comprehensive Testing Strategy
-- ✅ **COMPLETED**: Flutter E2E integration tests with real Cloudflare D1 database (20 tests covering all API endpoints)
-- ✅ **COMPLETED**: Real Cloudflare D1 local instance setup with proper schema and test data
-- ✅ **COMPLETED**: All integration tests passing with zero tolerance for errors
+
 - Flutter: widget tests for host loop, event dispatch, effect result handling, and renderer
   - Add integration tests for complete Lua app lifecycle
   - Create performance tests for complex scripts
   - Add accessibility testing for generated UI
 
 #### Development Infrastructure
-- ✅ **COMPLETED**: Real Cloudflare D1 database integration (no mocks used in tests)
-- ✅ **COMPLETED**: Local D1 database with proper schema initialization via migrations
-- ✅ **COMPLETED**: All Flutter integration tests with real Cloudflare Workers endpoints
 - ⏳ Add Rust tests with local Cloudflare Workers instance
 - ⏳ Document development workflow for future developers
 - ⏳ Implement CI/CD pipeline with security scanning
 
 #### Database & Testing Infrastructure
-- **IMPORTANT**: Current E2E tests use REAL Cloudflare D1 database (not mocks)
+- ✅ **IMPORTANT**: Current E2E tests use REAL Cloudflare D1 database (not mocks)
   - Local D1 instance: `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite`
   - Database initialized with proper schema via `wrangler d1 execute icp-marketplace-db --local --file=migrations/0001_initial_schema.sql`
   - Test data includes 1 real script for comprehensive API testing
@@ -300,7 +334,7 @@
 - **Local Development**: ✅ Running on http://localhost:8787 with all endpoints functional
 - **Infrastructure**: Automated deployment tool (server-deploy) handles complete infrastructure + worker deployment
 - **Production**: 🚀 READY FOR DEPLOYMENT - See Production Readiness Checklist above
-- [x] Implement `server-deploy bootstrap` command for fresh environment setup
+
 - [ ] Deploy to production Cloudflare Workers environment
 - [ ] Implement blue-green deployment strategy for zero downtime
 - [ ] Add rollback procedures for failed deployments
@@ -325,4 +359,4 @@
 
 ---
 
-*Last Updated: 2025-10-25 - Production Readiness Checklist Added*
+*Last Updated: 2025-10-26 - Updated with codebase analysis - many features already implemented*
