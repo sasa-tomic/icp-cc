@@ -181,7 +181,7 @@ test-with-cloudflare:
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | tee -a {{logs_dir}}/test-output.log
     @cd {{flutter_dir}} && flutter analyze --quiet 2>&1 | grep -E "(info •|warning •|error •)" && { echo "❌ Flutter analysis found issues!"; exit 1; } || echo "✅ No Flutter analysis issues found"
     @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --concurrency $(nproc) --timeout=360s --quiet 2>&1 > {{logs_dir}}/test-output.log
+    @cd {{flutter_dir}} && flutter test --concurrency $(nproc) --timeout=360s --quiet 2>&1 | sed 's/.*\r//' > {{logs_dir}}/test-output.log
     @if [ $? -ne 0 ]; then { grep -iE "(FAIL|ERROR)" {{logs_dir}}/test-output.log ; echo "❌ Flutter tests failed!"; exit 1; }; else echo "✅ All Flutter tests passed"; fi
     @echo "==> Stopping Cloudflare Workers..."
     @just cloudflare-test-down
@@ -304,7 +304,8 @@ cloudflare-test-up:
             cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --file=migrations/0001_initial_schema.sql >/dev/null 2>&1 || echo "Database schema already exists"
             cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM scripts;" >/dev/null 2>&1 || echo "Scripts table already empty"
             cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM reviews;" >/dev/null 2>&1 || echo "Reviews table already empty"  
-            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM script_stats;" >/dev/null 2>&1 || echo "Script stats table already empty"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM purchases;" >/dev/null 2>&1 || echo "Purchases table already empty"
+            cd "{{cloudflare_dir}}" && wrangler d1 execute icp-marketplace-db --command="DELETE FROM users;" >/dev/null 2>&1 || echo "Users table already empty"
             echo "==> ✅ Database setup complete for tests"
             
             exit 0
