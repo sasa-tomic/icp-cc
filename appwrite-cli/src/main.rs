@@ -30,7 +30,7 @@ struct Cli {
     #[arg(short, long)]
     verbose: bool,
 
-    /// Deployment target (local or prod)
+    /// Deployment target name (arbitrary, e.g., local, prod, staging)
     #[arg(long, global = true, default_value = "prod")]
     target: String,
 
@@ -103,34 +103,52 @@ async fn handle_init(
     api_key: Option<String>,
     target: &str,
 ) -> Result<()> {
-    let endpoint = if target == "local" {
-        "http://localhost:48080/v1"
-    } else {
-        "https://fra.cloud.appwrite.io/v1"
-    };
-
     section_header(&format!("Initializing ICP Script Marketplace ({})", target));
 
+    // Interactive endpoint selection for better UX
+    let default_endpoint = match target {
+        "local" => "http://localhost:48080/v1",
+        "prod" => "https://fra.cloud.appwrite.io/v1",
+        _ => "",
+    };
+
     let config = if let (Some(project_id), Some(api_key)) = (project_id, api_key) {
-        AppConfig::new(project_id, api_key, endpoint.to_string())
+        let endpoint = if !default_endpoint.is_empty() {
+            default_endpoint.to_string()
+        } else {
+            Input::<String>::new()
+                .with_prompt("Appwrite Endpoint URL")
+                .interact()?
+        };
+        AppConfig::new(project_id, api_key, endpoint)
     } else {
         // Interactive mode
         let project_id = Input::<String>::new()
             .with_prompt("Appwrite Project ID")
-            .default("68f7fc8b00255b20ed42".to_string())
             .interact()?;
 
         let api_key = Input::<String>::new()
             .with_prompt("Appwrite API Key")
             .interact()?;
 
-        AppConfig::new(project_id, api_key, endpoint.to_string())
+        let endpoint = if !default_endpoint.is_empty() {
+            Input::<String>::new()
+                .with_prompt("Appwrite Endpoint URL")
+                .default(default_endpoint.to_string())
+                .interact()?
+        } else {
+            Input::<String>::new()
+                .with_prompt("Appwrite Endpoint URL")
+                .interact()?
+        };
+
+        AppConfig::new(project_id, api_key, endpoint)
     };
 
-    config.save()?;
+    config.save(target)?;
     success_message(&format!(
         "Configuration saved to {:?}",
-        AppConfig::config_path()
+        AppConfig::config_path(target)
     ));
 
     Ok(())
@@ -143,24 +161,16 @@ async fn handle_deploy(
     clean: bool,
     target: &str,
 ) -> Result<()> {
-    // Update configuration to use the correct endpoint based on target
-    let mut config = AppConfig::load()?;
-
-    if target == "local" && !config.endpoint.contains("localhost") {
-        config.endpoint = "http://localhost:48080/v1".to_string();
-        config.save()?;
-    } else if target == "prod" && config.endpoint.contains("localhost") {
-        config.endpoint = "https://fra.cloud.appwrite.io/v1".to_string();
-        config.save()?;
-    }
+    // Load configuration for target
+    let config = AppConfig::load(target)?;
     if dry_run {
         section_header("DRY RUN - Deployment Preview");
     } else {
         section_header("Deploying ICP Script Marketplace");
     }
 
-    // Load configuration
-    let config = AppConfig::load()?;
+    // Use the already loaded config
+    let config = config.clone();
     if !config.is_complete() {
         error_message("Configuration incomplete. Run 'appwrite-cli init' first.");
         return Err(anyhow!("Configuration incomplete"));
@@ -356,7 +366,7 @@ async fn handle_clean(yes: bool, target: &str) -> Result<()> {
         }
     }
 
-    let config = AppConfig::load()?;
+    let config = AppConfig::load(target)?;
     if !config.is_complete() {
         return Err(anyhow!("Configuration incomplete"));
     }
@@ -390,7 +400,7 @@ async fn handle_clean(yes: bool, target: &str) -> Result<()> {
 async fn handle_config(target: &str) -> Result<()> {
     section_header(&format!("Current Configuration ({})", target));
 
-    let config = AppConfig::load()?;
+    let config = AppConfig::load(target)?;
 
     println!("Project ID: {}", config.project_id);
     println!("Endpoint: {}", config.endpoint);
@@ -400,7 +410,7 @@ async fn handle_config(target: &str) -> Result<()> {
     println!("Reviews Collection: {}", config.reviews_collection_id);
     println!("Purchases Collection: {}", config.purchases_collection_id);
     println!("Storage Bucket: {}", config.storage_bucket_id);
-    println!("Config File: {:?}", AppConfig::config_path());
+    println!("Config File: {:?}", AppConfig::config_path(target));
 
     if config.api_key.is_empty() {
         error_message("API Key not configured");
@@ -418,7 +428,7 @@ async fn handle_config(target: &str) -> Result<()> {
 async fn handle_test(target: &str) -> Result<()> {
     section_header("Testing configuration and connectivity");
 
-    let config = AppConfig::load()?;
+    let config = AppConfig::load(target)?;
     if !config.is_complete() {
         error_message("Configuration incomplete. Run 'appwrite-cli init' first.");
         return Err(anyhow!("Configuration incomplete"));
