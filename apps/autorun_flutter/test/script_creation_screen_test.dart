@@ -80,10 +80,14 @@ void main() {
         ),
       );
 
+      // Switch to details tab to see template information
+      await tester.tap(find.text('DETAILS'));
+      await tester.pumpAndSettle();
+
       // Verify provided template is loaded
-      expect(find.text(testTemplate.title), findsOneWidget);
-      expect(find.text(testTemplate.description), findsOneWidget);
-      expect(find.text(testTemplate.emoji), findsOneWidget);
+      expect(find.text(testTemplate.title), findsAtLeastNWidgets(1));
+      expect(find.text(testTemplate.description), findsAtLeastNWidgets(1));
+      expect(find.text(testTemplate.emoji), findsAtLeastNWidgets(1));
     });
 
     testWidgets('should show code editor tab by default', (WidgetTester tester) async {
@@ -103,6 +107,9 @@ void main() {
           ),
         ),
       );
+
+      // Wait for UI to render
+      await tester.pumpAndSettle();
 
       // Verify code editor is visible
       expect(find.byType(TabBarView), findsOneWidget);

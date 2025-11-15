@@ -49,6 +49,19 @@ class _ScriptEditorState extends State<ScriptEditor> {
     'monokai-sublime': monokaiSublimeTheme,
   };
 
+  String _getDisplayName(String themeKey) {
+    switch (themeKey) {
+      case 'vs2015':
+        return 'Vs2015';
+      case 'atom-one-dark':
+        return 'Atom One Dark';
+      case 'monokai-sublime':
+        return 'Monokai Sublime';
+      default:
+        return themeKey;
+    }
+  }
+
   @override
   void didUpdateWidget(ScriptEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -233,20 +246,20 @@ class _ScriptEditorState extends State<ScriptEditor> {
 
           const SizedBox(width: 6),
 
-          // Compact theme selector
+          // Theme selector
           DropdownButton<String>(
             value: _selectedTheme,
             underline: const SizedBox(),
             isDense: true,
-            iconSize: 14,
+            iconSize: 16,
             dropdownColor: Theme.of(context).colorScheme.surface,
             items: _themes.keys.map((theme) {
               return DropdownMenuItem<String>(
                 value: theme,
                 child: Text(
-                  theme.split('-').map((word) => word[0].toUpperCase()).join(''),
+                  _getDisplayName(theme),
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
@@ -262,50 +275,63 @@ class _ScriptEditorState extends State<ScriptEditor> {
 
           const Spacer(),
 
-          // Compact stats and actions
+          // Stats and actions
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Compact stats
+              // Line count
               Text(
-                'L:$_currentLineCount C:${_controller.text.length}',
+                'Lines: $_currentLineCount',
                 style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
 
-              // Compact action buttons
+              // Character count
+              Text(
+                'Chars: ${_controller.text.length}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Action buttons
               if (widget.showIntegrations) ...[
                 Tooltip(
                   message: 'Code snippets',
                   child: IconButton(
                     onPressed: _showIntegrationsHelp,
-                    icon: Icon(Icons.extension, size: 16),
-                    iconSize: 16,
+                    icon: Icon(Icons.extension_rounded),
+                    iconSize: 18,
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.all(4),
                   ),
                 ),
+                const SizedBox(width: 4),
               ],
               Tooltip(
                 message: 'Format code',
                 child: IconButton(
                   onPressed: _formatCode,
-                  icon: Icon(Icons.format_align_left, size: 16),
-                  iconSize: 16,
+                  icon: Icon(Icons.format_align_left_rounded),
+                  iconSize: 18,
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.all(4),
                 ),
               ),
+              const SizedBox(width: 4),
               Tooltip(
                 message: 'Copy code',
                 child: IconButton(
                   onPressed: _copyCode,
-                  icon: Icon(Icons.copy, size: 16),
-                  iconSize: 16,
+                  icon: Icon(Icons.copy_rounded),
+                  iconSize: 18,
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.all(4),
                 ),
@@ -343,7 +369,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
         children: [
           // Compact status indicator
           Icon(
-            hasError ? Icons.error : Icons.check_circle,
+            hasError ? Icons.error_rounded : Icons.check_circle_rounded,
             size: 12,
             color: hasError
                 ? Theme.of(context).colorScheme.error
@@ -355,9 +381,9 @@ class _ScriptEditorState extends State<ScriptEditor> {
           // Status text
           Expanded(
             child: Text(
-              hasError ? (_lintError ?? 'Syntax Error') : 'Valid',
+              hasError ? (_lintError ?? 'Syntax Error') : 'Code Valid',
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: hasError
                     ? Theme.of(context).colorScheme.error

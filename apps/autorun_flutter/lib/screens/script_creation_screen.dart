@@ -196,7 +196,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
           child: Row(
             children: [
               Text(
-                'Template:',
+                'Template',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -205,7 +205,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButtonFormField<ScriptTemplate>(
-                  value: _selectedTemplate,
+                  initialValue: _selectedTemplate,
                   decoration: const InputDecoration(
                     hintText: 'Choose template',
                     border: InputBorder.none,
@@ -332,6 +332,80 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
 
           const SizedBox(height: 16),
 
+          // Current template info
+          if (_selectedTemplate != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.description, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Current Template',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Text(
+                          _selectedTemplate!.emoji,
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedTemplate!.title,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _selectedTemplate!.description,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                              const SizedBox(height: 8),
+                              // Display tags
+                              if (_selectedTemplate!.tags.isNotEmpty)
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: _selectedTemplate!.tags
+                                      .map((tag) => Chip(
+                                            label: Text(
+                                              tag,
+                                              style: Theme.of(context).textTheme.bodySmall,
+                                            ),
+                                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                            visualDensity: VisualDensity.compact,
+                                          ))
+                                      .toList(),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
           // Details form
           Card(
             child: Padding(
@@ -407,69 +481,8 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
               ),
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          // Template info card
-          if (_selectedTemplate != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Template Information',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          _selectedTemplate!.emoji,
-                          style: const TextStyle(fontSize: 32),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedTemplate!.title,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _selectedTemplate!.description,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 4,
-                                runSpacing: 4,
-                                children: _selectedTemplate!.tags.map((tag) {
-                                  return Chip(
-                                    label: Text(
-                                      tag,
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                                                      );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );
-  }}
+  }
+}
