@@ -18,4 +18,6 @@
 - Use context7 mcp server if your task requires working with a library or API
 - Use markdownify to download and convert online or local web pages or other files such as pdf, images, audio, docx, xlsx, pptx, etc. into markdown
 - Use web-search-prime if you ever notice that you don't have the correct information on how to use specific library or software
-- Use appwrite-docs and appwrite-api if your task is to write or update an appwrite application to get the latest docs or manage deployments, respectively 
+- Use appwrite-docs and appwrite-api if your task is to write or update an appwrite application to get the latest docs or manage deployments, respectively
+
+- **Local Development with Appwrite**: See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for complete setup guide 

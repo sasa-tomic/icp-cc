@@ -30,6 +30,10 @@ struct Cli {
     #[arg(short, long)]
     verbose: bool,
 
+    /// Deployment target (local or prod)
+    #[arg(long, global = true, default_value = "prod")]
+    target: String,
+
     /// Dry run (don't make actual changes)
     #[arg(long, global = true, conflicts_with = "yes")]
     dry_run: bool,
@@ -50,10 +54,6 @@ enum Commands {
         /// Appwrite API key
         #[arg(long)]
         api_key: Option<String>,
-
-        /// Appwrite endpoint
-        #[arg(long, default_value = "https://fra.cloud.appwrite.io/v1")]
-        endpoint: String,
     },
     /// Deploy complete marketplace infrastructure
     Deploy {
@@ -88,26 +88,31 @@ async fn main() -> Result<()> {
         Commands::Init {
             project_id,
             api_key,
-            endpoint,
-        } => handle_init(project_id, api_key, endpoint).await,
+        } => handle_init(project_id, api_key, &cli.target).await,
         Commands::Deploy { components, clean } => {
-            handle_deploy(cli.yes, components, cli.dry_run, clean).await
+            handle_deploy(cli.yes, components, cli.dry_run, clean, &cli.target).await
         }
-        Commands::Clean => handle_clean(cli.yes).await,
-        Commands::Config => handle_config().await,
-        Commands::Test => handle_test().await,
+        Commands::Clean => handle_clean(cli.yes, &cli.target).await,
+        Commands::Config => handle_config(&cli.target).await,
+        Commands::Test => handle_test(&cli.target).await,
     }
 }
 
 async fn handle_init(
     project_id: Option<String>,
     api_key: Option<String>,
-    endpoint: String,
+    target: &str,
 ) -> Result<()> {
-    section_header("Initializing ICP Script Marketplace");
+    let endpoint = if target == "local" {
+        "http://localhost:48080/v1"
+    } else {
+        "https://fra.cloud.appwrite.io/v1"
+    };
+
+    section_header(&format!("Initializing ICP Script Marketplace ({})", target));
 
     let config = if let (Some(project_id), Some(api_key)) = (project_id, api_key) {
-        AppConfig::new(project_id, api_key, endpoint)
+        AppConfig::new(project_id, api_key, endpoint.to_string())
     } else {
         // Interactive mode
         let project_id = Input::<String>::new()
@@ -119,7 +124,7 @@ async fn handle_init(
             .with_prompt("Appwrite API Key")
             .interact()?;
 
-        AppConfig::new(project_id, api_key, endpoint)
+        AppConfig::new(project_id, api_key, endpoint.to_string())
     };
 
     config.save()?;
@@ -136,7 +141,18 @@ async fn handle_deploy(
     components: Option<Vec<DeployComponents>>,
     dry_run: bool,
     clean: bool,
+    target: &str,
 ) -> Result<()> {
+    // Update configuration to use the correct endpoint based on target
+    let mut config = AppConfig::load()?;
+
+    if target == "local" && !config.endpoint.contains("localhost") {
+        config.endpoint = "http://localhost:48080/v1".to_string();
+        config.save()?;
+    } else if target == "prod" && config.endpoint.contains("localhost") {
+        config.endpoint = "https://fra.cloud.appwrite.io/v1".to_string();
+        config.save()?;
+    }
     if dry_run {
         section_header("DRY RUN - Deployment Preview");
     } else {
@@ -325,7 +341,7 @@ async fn handle_deploy(
     Ok(())
 }
 
-async fn handle_clean(yes: bool) -> Result<()> {
+async fn handle_clean(yes: bool, target: &str) -> Result<()> {
     section_header("Cleaning up marketplace resources");
 
     if !yes {
@@ -371,8 +387,8 @@ async fn handle_clean(yes: bool) -> Result<()> {
     Ok(())
 }
 
-async fn handle_config() -> Result<()> {
-    section_header("Current Configuration");
+async fn handle_config(target: &str) -> Result<()> {
+    section_header(&format!("Current Configuration ({})", target));
 
     let config = AppConfig::load()?;
 
@@ -399,7 +415,7 @@ async fn handle_config() -> Result<()> {
     Ok(())
 }
 
-async fn handle_test() -> Result<()> {
+async fn handle_test(target: &str) -> Result<()> {
     section_header("Testing configuration and connectivity");
 
     let config = AppConfig::load()?;

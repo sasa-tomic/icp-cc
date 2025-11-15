@@ -131,6 +131,10 @@ appwrite-setup:
     cd {{root}}/appwrite-cli && cargo build --release
 
 # Deploy to Appwrite with flexible arguments
+appwrite +args="":
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- {{args}}
+
+# Deploy to Appwrite with flexible arguments
 appwrite-deploy +args="":
     @echo "==> Deploying ICP Script Marketplace to Appwrite"
     cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- deploy {{args}}
@@ -197,10 +201,25 @@ appwrite-local-reset:
     docker system prune -f
     @echo "==> Local Appwrite environment reset complete"
 
+# Initialize local Appwrite configuration
+appwrite-local-init +args="":
+    @echo "==> Initializing local Appwrite configuration"
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local init {{args}}
+
 # Deploy marketplace to local Appwrite instance
 appwrite-local-deploy +args="--yes":
     @echo "==> Deploying marketplace to local Appwrite instance"
-    APPWRITE_ENDPOINT=http://localhost:48080/v1 cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- -v deploy {{args}}
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local -v deploy {{args}}
+
+# Test local Appwrite configuration
+appwrite-local-test +args="":
+    @echo "==> Testing local Appwrite configuration"
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local test {{args}}
+
+# Show local Appwrite configuration
+appwrite-local-config:
+    @echo "==> Showing local Appwrite configuration"
+    cd {{root}}/appwrite-cli && cargo run --bin appwrite-cli -- --target local config
 
 # Start complete development stack (Appwrite + API Server)
 appwrite-dev-stack:
