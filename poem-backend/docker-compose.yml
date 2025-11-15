@@ -1,0 +1,42 @@
+services:
+  # ICP Marketplace API (Poem-based)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: icp-marketplace-api:latest
+    container_name: icp-marketplace-api
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=sqlite:///data/marketplace.db?mode=rwc
+    volumes:
+      - ./data:/data
+    ports:
+      - "8080"
+    networks:
+      - tunnel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+  # Cloudflare Tunnel (token-based, no local files needed)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: icp-marketplace-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN
+    networks:
+      - tunnel-network
+    depends_on:
+      api:
+        condition: service_healthy
+
+networks:
+  tunnel-network:
+    driver: bridge

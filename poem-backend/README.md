@@ -12,26 +12,19 @@ A minimal, robust REST API backend built with Rust and Poem framework, replacing
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Rust 1.75+ (`rustup install stable`)
+See [QUICKSTART.md](./QUICKSTART.md) for step-by-step setup (2-5 minutes).
 
-### Run Locally
-
+**Local Development:**
 ```bash
-cd poem-backend
-
-# Copy environment config
-cp .env.example .env
-
-# Run the server (compiles and starts)
-cargo run
-
-# Or build release version for better performance
-cargo build --release
-./target/release/icp-marketplace-api
+cp .env.example .env && cargo run
+# API at http://127.0.0.1:8080
 ```
 
-The API will be available at `http://127.0.0.1:8080`
+**Production Deployment:**
+```bash
+./scripts/start-tunnel.sh
+# API at https://icp-mp.kalaj.org
+```
 
 ## 📋 API Endpoints
 
@@ -55,18 +48,11 @@ The API will be available at `http://127.0.0.1:8080`
 ## 🧪 Testing
 
 ```bash
-# Test health endpoint
 curl http://127.0.0.1:8080/api/v1/health | jq .
-
-# Get all scripts
-curl http://127.0.0.1:8080/api/v1/scripts | jq .
-
-# Get marketplace stats
 curl http://127.0.0.1:8080/api/v1/marketplace-stats | jq .
-
-# Reset database (dev only)
-curl -X POST http://127.0.0.1:8080/api/dev/reset-database | jq .
 ```
+
+See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for full testing guide.
 
 ## 📁 Project Structure
 
@@ -83,14 +69,7 @@ poem-backend/
 
 ## ⚙️ Configuration
 
-Edit `.env` file:
-
-```bash
-DATABASE_URL=sqlite:./data/dev.db
-PORT=8080
-ENVIRONMENT=development
-RUST_LOG=info,icp_marketplace_api=debug
-```
+See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for environment variables.
 
 ## 🔄 Phase 2 - PostgreSQL Support
 
@@ -145,24 +124,7 @@ CREATE TABLE scripts (
 
 ## 🐛 Troubleshooting
 
-**Port already in use:**
-```bash
-# Kill existing process
-pkill -f icp-marketplace-api
-# Or change PORT in .env
-```
-
-**Database permission errors:**
-```bash
-chmod 755 data/
-chmod 644 data/dev.db
-```
-
-**Clean rebuild:**
-```bash
-cargo clean
-cargo build
-```
+See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md#troubleshooting) for common issues and solutions.
 
 ## 📦 Dependencies
 
@@ -172,6 +134,11 @@ cargo build
 - **serde** - Serialization/deserialization
 - **chrono** - Date/time handling
 
+## 🚀 Deployment
+
+- **Production:** [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) - Docker + Cloudflare Tunnel with TLS
+- **Local:** [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) - SQLite-based development setup
+
 ## 🚢 Next Steps
 
 1. Add POST endpoints for creating scripts
@@ -179,7 +146,6 @@ cargo build
 3. Add reviews functionality
 4. Implement search with filters
 5. Add rate limiting
-6. Deploy to CloudFlare as a container
 
 ---
 

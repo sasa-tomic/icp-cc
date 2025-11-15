@@ -1,21 +1,12 @@
 # SQLite database files
 data/
 
-# Node.js dependencies and build artifacts
-node_modules/
-dist/
+# Logs
 *.log
 logs/
-
-# Wrangler
-.wrangler/
-.dev.vars
-
-# npm
-package-lock.json
 
 # macOS
 .DS_Store
 
-# Cloudflare Tunnel credentials
-cloudflared/*.json
+# Cloudflare Tunnel token
+.env

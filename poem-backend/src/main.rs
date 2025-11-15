@@ -128,42 +128,78 @@ struct AppState {
     pool: SqlitePool,
 }
 
+const SCRIPT_COLUMNS: &str = "id, title, description, category, lua_source, author_name, is_public, rating, downloads, review_count, version, price, tags, created_at, updated_at";
+
+fn is_development() -> bool {
+    env::var("ENVIRONMENT").unwrap_or_default() == "development"
+}
+
+fn error_response(status: StatusCode, error: &str) -> Response {
+    (
+        status,
+        Json(serde_json::json!({
+            "success": false,
+            "error": error
+        })),
+    )
+        .into_response()
+}
+
+/// Validates authentication signature
+fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Box<Response>> {
+    match signature {
+        None => {
+            tracing::warn!("{} rejected: missing signature", operation);
+            Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Missing authentication signature",
+            )))
+        }
+        Some(sig)
+            if sig.is_empty() || sig == "invalid-auth-token" || sig == "invalid-signature" =>
+        {
+            tracing::warn!("{} rejected: invalid signature", operation);
+            Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Invalid authentication signature",
+            )))
+        }
+        Some(sig) if !is_development() && sig != "test-auth-token" => {
+            tracing::warn!(
+                "{} rejected: signature validation not implemented",
+                operation
+            );
+            Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Invalid authentication signature",
+            )))
+        }
+        Some(_) => Ok(()),
+    }
+}
+
 /// Validates principal and public key fields for authentication
-/// Returns an error response if invalid patterns are detected
 fn validate_credentials(
     author_principal: Option<&str>,
     author_public_key: Option<&str>,
 ) -> Result<(), Box<Response>> {
-    // Check for known invalid patterns
     if let Some(principal) = author_principal {
         if principal == "invalid-principal" || principal.contains("invalid") {
             tracing::warn!("Authentication rejected: invalid principal pattern detected");
-            return Err(Box::new(
-                (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({
-                        "success": false,
-                        "error": "Invalid principal/public key combination"
-                    })),
-                )
-                    .into_response(),
-            ));
+            return Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Invalid principal/public key combination",
+            )));
         }
     }
 
     if let Some(public_key) = author_public_key {
         if public_key == "invalid-public-key" || public_key.contains("invalid") {
             tracing::warn!("Authentication rejected: invalid public key pattern detected");
-            return Err(Box::new(
-                (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({
-                        "success": false,
-                        "error": "Invalid principal/public key combination"
-                    })),
-                )
-                    .into_response(),
-            ));
+            return Err(Box::new(error_response(
+                StatusCode::UNAUTHORIZED,
+                "Invalid principal/public key combination",
+            )));
         }
     }
 
@@ -174,7 +210,7 @@ fn validate_credentials(
 async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "success": true,
-        "message": "ICP Marketplace API (Rust + Poem) is running",
+        "message": "ICP Marketplace API is running",
         "environment": env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
         "timestamp": chrono::Utc::now().to_rfc3339()
     }))
@@ -197,32 +233,30 @@ async fn get_scripts(
     let limit = params.limit.unwrap_or(20);
     let offset = params.offset.unwrap_or(0);
 
-    let query = if let Some(category) = params.category {
-        sqlx::query_as::<_, Script>(
-            "SELECT id, title, description, category, lua_source, author_name, is_public,
-                    rating, downloads, review_count, version, price, tags, created_at, updated_at
-             FROM scripts
-             WHERE category = ?1 AND is_public = 1
-             ORDER BY created_at DESC
-             LIMIT ?2 OFFSET ?3",
-        )
-        .bind(category)
-        .bind(limit)
-        .bind(offset)
+    let scripts = if let Some(category) = params.category {
+        let sql = format!(
+            "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 ORDER BY created_at DESC LIMIT ?2 OFFSET ?3",
+            SCRIPT_COLUMNS
+        );
+        sqlx::query_as::<_, Script>(&sql)
+            .bind(category)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&state.pool)
+            .await
     } else {
-        sqlx::query_as::<_, Script>(
-            "SELECT id, title, description, category, lua_source, author_name, is_public,
-                    rating, downloads, review_count, version, price, tags, created_at, updated_at
-             FROM scripts
-             WHERE is_public = 1
-             ORDER BY created_at DESC
-             LIMIT ?1 OFFSET ?2",
-        )
-        .bind(limit)
-        .bind(offset)
+        let sql = format!(
+            "SELECT {} FROM scripts WHERE is_public = 1 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
+            SCRIPT_COLUMNS
+        );
+        sqlx::query_as::<_, Script>(&sql)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&state.pool)
+            .await
     };
 
-    match query.fetch_all(&state.pool).await {
+    match scripts {
         Ok(scripts) => {
             let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
                 .fetch_one(&state.pool)
@@ -241,14 +275,7 @@ async fn get_scripts(
         }
         Err(e) => {
             tracing::error!("Failed to get scripts: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get scripts"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get scripts")
         }
     }
 }
@@ -262,18 +289,15 @@ async fn get_script(
     let include_private = query.include_private.unwrap_or(false);
 
     let sql = if include_private {
-        "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, version, price, tags, created_at, updated_at
-         FROM scripts
-         WHERE id = ?1"
+        format!("SELECT {} FROM scripts WHERE id = ?1", SCRIPT_COLUMNS)
     } else {
-        "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, version, price, tags, created_at, updated_at
-         FROM scripts
-         WHERE id = ?1 AND is_public = 1"
+        format!(
+            "SELECT {} FROM scripts WHERE id = ?1 AND is_public = 1",
+            SCRIPT_COLUMNS
+        )
     };
 
-    match sqlx::query_as::<_, Script>(sql)
+    match sqlx::query_as::<_, Script>(&sql)
         .bind(&script_id)
         .fetch_optional(&state.pool)
         .await
@@ -366,52 +390,10 @@ async fn create_script(
     Json(req): Json<CreateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens and generated signatures
-    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
-
-    if req.signature.is_none() {
-        tracing::warn!("Script creation rejected: missing signature");
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Missing authentication signature"
-            })),
-        )
-            .into_response();
+    if let Err(response) = validate_signature(req.signature.as_deref(), "Script creation") {
+        return *response;
     }
 
-    let signature = req.signature.as_deref().unwrap_or("");
-
-    // Reject invalid signatures (empty or known invalid patterns)
-    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
-    {
-        tracing::warn!("Script creation rejected: invalid signature");
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    // In development, accept test-auth-token or any base64-looking signature
-    if !is_development && signature != "test-auth-token" {
-        // In production, would validate cryptographic signature here
-        tracing::warn!("Script creation rejected: signature validation not implemented");
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    // Validate principal and public key
     if let Err(response) = validate_credentials(
         req.author_principal.as_deref(),
         req.author_public_key.as_deref(),
@@ -485,57 +467,11 @@ async fn update_script(
     Json(req): Json<UpdateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens and generated signatures
-    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
-
-    if req.signature.is_none() {
-        tracing::warn!(
-            "Script update rejected for {}: missing signature",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Missing authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    let signature = req.signature.as_deref().unwrap_or("");
-
-    // Reject invalid signatures (empty or known invalid patterns)
-    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
-    {
-        tracing::warn!(
-            "Script update rejected for {}: invalid signature",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    // In development, accept test-auth-token or any base64-looking signature
-    if !is_development && signature != "test-auth-token" {
-        tracing::warn!(
-            "Script update rejected for {}: signature validation not implemented",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
+    if let Err(response) = validate_signature(
+        req.signature.as_deref(),
+        &format!("Script update for {}", script_id),
+    ) {
+        return *response;
     }
 
     // Check if script exists
@@ -659,60 +595,13 @@ async fn delete_script(
     Json(req): Json<DeleteScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens and generated signatures
-    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
-
-    if req.signature.is_none() {
-        tracing::warn!(
-            "Script deletion rejected for {}: missing signature",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Missing authentication signature"
-            })),
-        )
-            .into_response();
+    if let Err(response) = validate_signature(
+        req.signature.as_deref(),
+        &format!("Script deletion for {}", script_id),
+    ) {
+        return *response;
     }
 
-    let signature = req.signature.as_deref().unwrap_or("");
-
-    // Reject invalid signatures (empty or known invalid patterns)
-    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
-    {
-        tracing::warn!(
-            "Script deletion rejected for {}: invalid signature",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    // In development, accept test-auth-token or any base64-looking signature
-    if !is_development && signature != "test-auth-token" {
-        tracing::warn!(
-            "Script deletion rejected for {}: signature validation not implemented",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    // Validate principal
     if let Err(response) = validate_credentials(req.author_principal.as_deref(), None) {
         return *response;
     }
@@ -764,14 +653,10 @@ async fn search_scripts(
     let limit = params.limit.unwrap_or(20);
     let search_term = format!("%{}%", params.q);
 
-    match sqlx::query_as::<_, Script>(
-        "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, version, price, tags, created_at, updated_at
-         FROM scripts
-         WHERE (title LIKE ?1 OR description LIKE ?1 OR category LIKE ?1) AND is_public = 1
-         ORDER BY created_at DESC
-         LIMIT ?2",
-    )
+    match sqlx::query_as::<_, Script>(&format!(
+        "SELECT {} FROM scripts WHERE (title LIKE ?1 OR description LIKE ?1 OR category LIKE ?1) AND is_public = 1 ORDER BY created_at DESC LIMIT ?2",
+        SCRIPT_COLUMNS
+    ))
     .bind(&search_term)
     .bind(limit)
     .fetch_all(&state.pool)
@@ -811,13 +696,10 @@ async fn get_scripts_by_category(
     Path(category): Path<String>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match sqlx::query_as::<_, Script>(
-        "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, version, price, tags, created_at, updated_at
-         FROM scripts
-         WHERE category = ?1 AND is_public = 1
-         ORDER BY created_at DESC",
-    )
+    match sqlx::query_as::<_, Script>(&format!(
+        "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 ORDER BY created_at DESC",
+        SCRIPT_COLUMNS
+    ))
     .bind(&category)
     .fetch_all(&state.pool)
     .await
@@ -850,57 +732,11 @@ async fn publish_script(
     Json(req): Json<UpdateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // In development mode, accept test auth tokens and generated signatures
-    let is_development = env::var("ENVIRONMENT").unwrap_or_default() == "development";
-
-    if req.signature.is_none() {
-        tracing::warn!(
-            "Script publish rejected for {}: missing signature",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Missing authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    let signature = req.signature.as_deref().unwrap_or("");
-
-    // Reject invalid signatures (empty or known invalid patterns)
-    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
-    {
-        tracing::warn!(
-            "Script publish rejected for {}: invalid signature",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
-    }
-
-    // In development, accept test-auth-token or any base64-looking signature
-    if !is_development && signature != "test-auth-token" {
-        tracing::warn!(
-            "Script publish rejected for {}: signature validation not implemented",
-            script_id
-        );
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Invalid authentication signature"
-            })),
-        )
-            .into_response();
+    if let Err(response) = validate_signature(
+        req.signature.as_deref(),
+        &format!("Script publish for {}", script_id),
+    ) {
+        return *response;
     }
 
     // Check if script exists
@@ -1145,14 +981,10 @@ async fn create_review(
 
 #[handler]
 async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
-    match sqlx::query_as::<_, Script>(
-        "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, version, price, tags, created_at, updated_at
-         FROM scripts
-         WHERE is_public = 1 AND rating >= 4.0
-         ORDER BY downloads DESC
-         LIMIT 20",
-    )
+    match sqlx::query_as::<_, Script>(&format!(
+        "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= 4.0 ORDER BY downloads DESC LIMIT 20",
+        SCRIPT_COLUMNS
+    ))
     .fetch_all(&state.pool)
     .await
     {
@@ -1177,14 +1009,10 @@ async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
 
 #[handler]
 async fn get_featured_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
-    match sqlx::query_as::<_, Script>(
-        "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, version, price, tags, created_at, updated_at
-         FROM scripts
-         WHERE is_public = 1 AND rating >= 4.5
-         ORDER BY rating DESC
-         LIMIT 10",
-    )
+    match sqlx::query_as::<_, Script>(&format!(
+        "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= 4.5 ORDER BY rating DESC LIMIT 10",
+        SCRIPT_COLUMNS
+    ))
     .fetch_all(&state.pool)
     .await
     {
@@ -1214,14 +1042,10 @@ async fn get_compatible_scripts(
 ) -> Response {
     // For now, return all public scripts sorted by rating
     // In the future, this could filter by canister compatibility
-    match sqlx::query_as::<_, Script>(
-        "SELECT id, title, description, category, lua_source, author_name, is_public,
-                rating, downloads, review_count, version, price, tags, created_at, updated_at
-         FROM scripts
-         WHERE is_public = 1
-         ORDER BY rating DESC
-         LIMIT 20",
-    )
+    match sqlx::query_as::<_, Script>(&format!(
+        "SELECT {} FROM scripts WHERE is_public = 1 ORDER BY rating DESC LIMIT 20",
+        SCRIPT_COLUMNS
+    ))
     .fetch_all(&state.pool)
     .await
     {
@@ -1295,15 +1119,11 @@ async fn update_script_stats(
 
 #[handler]
 async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
-    if env::var("ENVIRONMENT").unwrap_or_default() != "development" {
-        return (
+    if !is_development() {
+        return error_response(
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Database reset only available in development"
-            })),
-        )
-            .into_response();
+            "Database reset only available in development",
+        );
     }
 
     match sqlx::query("DELETE FROM scripts")
@@ -1456,7 +1276,7 @@ async fn main() -> Result<(), std::io::Error> {
 
     // Start server
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("[::]:{}", port);
 
     tracing::info!("Starting server on http://{}", addr);
 

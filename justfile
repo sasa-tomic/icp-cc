@@ -350,43 +350,38 @@ flutter-production +args="":
     cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=https://api.icp-marketplace.example.com {{args}}
 
 # =============================================================================
-# Cloudflare Container Deployment
+# Docker Deployment with Cloudflare Tunnel
 # =============================================================================
 
-# Deploy Poem API to Cloudflare Containers
-cf-deploy:
-    @echo "==> Deploying to Cloudflare Containers"
-    cd {{api_dir}} && ./scripts/deploy-cloudflare.sh
+# Deploy Poem API with Docker Compose and Cloudflare Tunnel
+docker-deploy:
+    @echo "==> Deploying with Docker Compose + Cloudflare Tunnel"
+    cd {{api_dir}} && ./scripts/start-tunnel.sh
 
-# Deploy to Cloudflare (dry-run mode)
-cf-deploy-dry:
-    @echo "==> Running deployment dry-run"
-    cd {{api_dir}} && ./scripts/deploy-cloudflare.sh --dry-run
+# Start Docker containers
+docker-up:
+    @echo "==> Starting Docker containers"
+    cd {{api_dir}} && export $$(cat .env.tunnel | xargs) && docker compose up -d
 
-# Check Cloudflare container status
-cf-status:
-    @echo "==> Checking Cloudflare container status"
-    cd {{api_dir}} && npx wrangler containers list
+# Stop Docker containers
+docker-down:
+    @echo "==> Stopping Docker containers"
+    cd {{api_dir}} && docker compose down
 
-# View Cloudflare container images
-cf-images:
-    @echo "==> Listing Cloudflare container images"
-    cd {{api_dir}} && npx wrangler containers images list
+# View Docker logs
+docker-logs:
+    @echo "==> Viewing Docker logs (Ctrl+C to stop)"
+    cd {{api_dir}} && docker compose logs -f
 
-# Tail Cloudflare Worker logs
-cf-logs:
-    @echo "==> Tailing Cloudflare Worker logs (Ctrl+C to stop)"
-    cd {{api_dir}} && npx wrangler tail
+# Rebuild and restart Docker containers
+docker-rebuild:
+    @echo "==> Rebuilding and restarting Docker containers"
+    cd {{api_dir}} && export $$(cat .env.tunnel | xargs) && docker compose up -d --build
 
-# Login to Cloudflare (required for first deployment)
-cf-login:
-    @echo "==> Logging in to Cloudflare"
-    cd {{api_dir}} && npx wrangler login
-
-# Install Cloudflare deployment dependencies
-cf-setup:
-    @echo "==> Installing Cloudflare deployment dependencies"
-    cd {{api_dir}} && npm install
+# Check Docker container status
+docker-status:
+    @echo "==> Checking Docker container status"
+    cd {{api_dir}} && docker compose ps
 
 # =============================================================================
 # Help and Information

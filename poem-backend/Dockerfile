@@ -1,9 +1,13 @@
 # Build stage
-FROM rust:1.75 as builder
+# Cloudflare Containers require linux/amd64 architecture
+FROM --platform=linux/amd64 rust:1.91 as builder
 WORKDIR /app
 
-# Install musl target for static binary
-RUN rustup target add x86_64-unknown-linux-musl
+# Install musl target and toolchain for static binary
+RUN rustup target add x86_64-unknown-linux-musl && \
+    apt-get update && \
+    apt-get install -y musl-tools musl-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy Cargo files
 COPY Cargo.toml Cargo.lock ./
@@ -20,18 +24,22 @@ COPY src ./src
 RUN cargo build --release --target x86_64-unknown-linux-musl
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM --platform=linux/amd64 debian:bookworm-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN useradd -r -s /bin/false appuser
 
+# Create data directory with proper permissions
+RUN mkdir -p /data && chown appuser:appuser /data
+
 # Copy binary from builder stage
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/icp-marketplace-api-poem /usr/local/bin/api-server
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/icp-marketplace-api /usr/local/bin/api-server
 
 # Set permissions
 RUN chown appuser:appuser /usr/local/bin/api-server
