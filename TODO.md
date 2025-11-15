@@ -26,6 +26,7 @@
 - [x] Add appwrite-cli bootstrap automation to marketplace-deploy tool
 - [ ] Create basic script download API endpoint structure
 - [ ] Add input validation to existing API endpoints
+- [ ] Clean up all remaining references to the failed Appwrite experiment throughout the codebase
 
 ## Active Development Tasks
 
