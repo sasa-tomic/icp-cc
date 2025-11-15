@@ -11,7 +11,7 @@ import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
 
 import '../rust/native_bridge.dart';
-import '../widgets/empty_state.dart';
+import '../widgets/modern_empty_state.dart';
 import '../widgets/script_app_host.dart';
 import '../widgets/enhanced_script_editor.dart';
 import '../widgets/quick_upload_dialog.dart';
@@ -21,6 +21,7 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/error_display.dart';
 import '../widgets/script_details_dialog.dart';
 import '../widgets/animated_fab.dart';
+
 
 import '../widgets/page_transitions.dart';
 import 'enhanced_script_creation_screen.dart';
@@ -532,7 +533,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         }
 
         if (scripts.isEmpty && !_controller.isBusy) {
-          return EmptyState(
+          return ModernEmptyState(
             icon: Icons.code_rounded,
             title: 'Your Script Library is Empty',
             subtitle: 'Start building amazing ICP scripts with our intuitive editor and powerful marketplace',
@@ -771,7 +772,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     }
 
     if (_marketplaceScripts.isEmpty) {
-      return EmptyState(
+      return ModernEmptyState(
         icon: Icons.search_off_rounded,
         title: 'No Scripts Found',
         subtitle: 'Try adjusting your search terms or browse different categories to discover amazing scripts',
