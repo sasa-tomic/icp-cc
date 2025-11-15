@@ -41,7 +41,7 @@ void main() {
       });
 
       test('formatIcp with custom decimals', () {
-        expect(DataTransformer.formatIcp(123456789, decimals: 4), equals('12.3456 ICP'));
+        expect(DataTransformer.formatIcp(1234560000, decimals: 4), equals('12.3456 ICP'));
         expect(DataTransformer.formatIcp(100000000, decimals: 2), equals('1.00 ICP'));
       });
 
