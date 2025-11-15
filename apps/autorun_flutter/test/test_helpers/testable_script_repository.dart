@@ -105,8 +105,11 @@ class TestableScriptRepository extends ScriptRepository {
 
         if (checkResponse.statusCode == 200) {
           // Update existing script
-          final updateData = await _createAuthenticatedScriptData(script, 'update');
-          updateData['script_id'] = script.id;
+          final updateData = await _createAuthenticatedScriptData(
+            script,
+            'update',
+            scriptId: script.id,
+          );
 
           final response = await _client.put(
             Uri.parse('$baseUrl/api/v1/scripts/${script.id}'),
@@ -195,21 +198,28 @@ class TestableScriptRepository extends ScriptRepository {
     }
   }
 
-  Future<Map<String, dynamic>> _createAuthenticatedScriptData(ScriptRecord script, String action) async {
-    final timestamp = DateTime.now().toIso8601String();
-    
+  Future<Map<String, dynamic>> _createAuthenticatedScriptData(
+    ScriptRecord script,
+    String action, {
+    String? scriptId,
+  }) async {
+    final timestamp = DateTime.now().toUtc().toIso8601String();
+
+    final List<String> tags = _normalizeTags(script.metadata['tags']);
+    final String version = (script.metadata['version'] ?? '1.0.0').toString();
+
     final baseScriptData = {
       'title': script.title,
       'description': script.metadata['description'] ?? '',
       'category': script.metadata['category'] ?? 'Development',
-      'tags': script.metadata['tags'] ?? [],
+      'tags': tags,
       'lua_source': script.luaSource,
       'author_name': script.metadata['authorName'] ?? 'Anonymous',
       'author_id': script.metadata['authorId'] ?? 'test-author-id',
       'author_principal': script.metadata['authorPrincipal'] ?? '2vxsx-fae',
       'author_public_key': script.metadata['authorPublicKey'] ?? 'test-public-key-for-icp-compatibility',
       'upload_signature': script.metadata['uploadSignature'] ?? 'test-signature',
-      'version': script.metadata['version'] ?? '1.0.0',
+      'version': version,
       'price': script.metadata['price'] ?? 0.0,
       'is_public': script.metadata['isPublic'] ?? false,
       'timestamp': timestamp, // Always include timestamp
@@ -217,6 +227,9 @@ class TestableScriptRepository extends ScriptRepository {
 
     final scriptData = Map<String, dynamic>.from(baseScriptData);
     scriptData['action'] = action;
+    if (scriptId != null) {
+      scriptData['script_id'] = scriptId;
+    }
 
     // Add authentication based on the method
     switch (_authMethod) {
@@ -243,13 +256,19 @@ class TestableScriptRepository extends ScriptRepository {
             category: scriptData['category'],
             luaSource: scriptData['lua_source'],
             version: scriptData['version'],
-            tags: List<String>.from(scriptData['tags'] ?? []),
+            tags: List<String>.from(scriptData['tags'] ?? const <String>[]),
+            timestampIso: timestamp,
           );
         } else if (action == 'update') {
+          final String? resolvedScriptId = scriptData['script_id'] as String?;
+          if (resolvedScriptId == null || resolvedScriptId.isEmpty) {
+            throw Exception('script_id is required for authenticated update signing');
+          }
           signature = await ScriptSignatureService.signScriptUpdate(
             authorIdentity: identity,
-            scriptId: scriptData['script_id'] ?? '',
+            scriptId: resolvedScriptId,
             updates: scriptData,
+            timestampIso: timestamp,
           );
         } else {
           // Default to upload signature for unknown actions
@@ -260,11 +279,15 @@ class TestableScriptRepository extends ScriptRepository {
             category: scriptData['category'],
             luaSource: scriptData['lua_source'],
             version: scriptData['version'],
-            tags: List<String>.from(scriptData['tags'] ?? []),
+            tags: List<String>.from(scriptData['tags'] ?? const <String>[]),
+            timestampIso: timestamp,
           );
         }
 
         scriptData['signature'] = signature;
+        if (action == 'upload') {
+          scriptData['upload_signature'] = signature;
+        }
         break;
 
       case AuthenticationMethod.invalidToken:
@@ -289,7 +312,7 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   Future<Map<String, dynamic>> _createAuthenticatedDeleteData(String id) async {
-    final timestamp = DateTime.now().toIso8601String();
+    final timestamp = DateTime.now().toUtc().toIso8601String();
     
     final baseDeleteData = {
       'script_id': id,
@@ -315,6 +338,7 @@ class TestableScriptRepository extends ScriptRepository {
         final signature = await ScriptSignatureService.signScriptDeletion(
           authorIdentity: identity,
           scriptId: id,
+          timestampIso: timestamp,
         );
 
         baseDeleteData['signature'] = signature;
@@ -393,4 +417,11 @@ enum AuthenticationMethod {
   invalidToken,
   missingToken,
   malformedToken,
+}
+
+List<String> _normalizeTags(dynamic rawTags) {
+  if (rawTags is List) {
+    return rawTags.map((dynamic value) => value.toString()).toList();
+  }
+  return <String>[];
 }

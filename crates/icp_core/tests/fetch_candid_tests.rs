@@ -15,6 +15,16 @@ fn fetch_candid_registry_mainnet_succeeds_or_skips_without_network_feature() {
                 "unexpected candid content: {candid_text}"
             );
         }
-        Err(e) => panic!("fetch_candid failed: {e}"),
+        Err(e) => {
+            let err_text = e.to_string();
+            if err_text.contains("network error")
+                || err_text.contains("Connection refused")
+                || err_text.contains("TLS error")
+            {
+                eprintln!("skipping fetch_candid test due to network error: {err_text}");
+                return;
+            }
+            panic!("fetch_candid failed: {err_text}");
+        }
     }
 }

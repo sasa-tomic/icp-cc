@@ -119,7 +119,7 @@ void main() {
         final emptyScript = UnifiedScriptTestBuilder.create().asEmpty().build();
 
         await UnifiedAuthenticationTestHelper.runTestWithScenario(
-          scenario: AuthenticationScenario.validToken,
+          scenario: AuthenticationScenario.realSignature,
           operation: CreateScriptOperation(emptyScript),
           operationContext: 'Empty values test',
         );
@@ -134,7 +134,7 @@ void main() {
             .build();
 
         await UnifiedAuthenticationTestHelper.runTestWithScenario(
-          scenario: AuthenticationScenario.validToken,
+          scenario: AuthenticationScenario.realSignature,
           operation: CreateScriptOperation(longScript),
           operationContext: 'Long content test',
         );

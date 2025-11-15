@@ -110,6 +110,7 @@ class PoemScriptRepository extends ScriptRepository {
       tags: (script.metadata['tags'] as List<dynamic>? ?? const [])
           .map((tag) => tag.toString())
           .toList(),
+      timestampIso: timestamp,
     );
 
     return {
@@ -223,17 +224,20 @@ class PoemScriptRepository extends ScriptRepository {
       // Generate proper signature for script deletion
       final identity = await TestIdentityFactory.getEd25519Identity();
       final principal = PrincipalUtils.textFromRecord(identity);
+      final timestamp = DateTime.now().toUtc().toIso8601String();
       final signature = await ScriptSignatureService.signScriptDeletion(
         authorIdentity: identity,
         scriptId: id,
+        timestampIso: timestamp,
       );
 
       final deleteData = {
+        'action': 'delete',
         'script_id': id,
         'author_principal': principal,
         'author_public_key': identity.publicKey,
         'signature': signature,
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
+        'timestamp': timestamp,
       };
 
       final response = await _client.delete(
@@ -335,21 +339,24 @@ class PoemScriptRepository extends ScriptRepository {
       // Generate proper signature for publish
       final identity = await TestIdentityFactory.getEd25519Identity();
       final principal = PrincipalUtils.textFromRecord(identity);
+      final timestamp = DateTime.now().toUtc().toIso8601String();
       final signature = await ScriptSignatureService.signScriptUpdate(
         authorIdentity: identity,
         scriptId: script.id,
         updates: {'is_public': true},
+        timestampIso: timestamp,
       );
 
       final response = await _client.post(
         Uri.parse('$baseUrl/api/v1/scripts/${script.id}/publish'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
+          'action': 'update',
           'is_public': true,
           'author_principal': principal,
           'author_public_key': identity.publicKey,
           'signature': signature,
-          'timestamp': DateTime.now().toUtc().toIso8601String(),
+          'timestamp': timestamp,
         }),
       );
 
@@ -427,19 +434,22 @@ class PoemScriptRepository extends ScriptRepository {
           'is_public': script.metadata['isPublic'] ?? false,
         };
 
+        final timestamp = DateTime.now().toUtc().toIso8601String();
         final signature = await ScriptSignatureService.signScriptUpdate(
           authorIdentity: identity,
           scriptId: script.id,
           updates: updates,
+          timestampIso: timestamp,
         );
 
         final updateData = {
+          'action': 'update',
           ...updates,
           'script_id': script.id,
           'author_principal': principal,
           'author_public_key': identity.publicKey,
           'signature': signature,
-          'timestamp': DateTime.now().toUtc().toIso8601String(),
+          'timestamp': timestamp,
         };
 
         if (!updateData.containsKey('version')) {

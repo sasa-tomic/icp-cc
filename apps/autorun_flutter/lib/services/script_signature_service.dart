@@ -19,8 +19,11 @@ class ScriptSignatureService {
     required String version,
     required List<String> tags,
     String? compatibility,
+    String? timestampIso,
   }) async {
-    // Create the canonical payload to sign
+    final String resolvedTimestamp =
+        timestampIso ?? DateTime.now().toUtc().toIso8601String();
+
     final payload = _createUploadPayload(
       title: title,
       description: description,
@@ -30,6 +33,7 @@ class ScriptSignatureService {
       tags: tags,
       compatibility: compatibility,
       authorPrincipal: PrincipalUtils.textFromRecord(authorIdentity),
+      timestampIso: resolvedTimestamp,
     );
 
     return await _signPayload(authorIdentity, payload);
@@ -41,12 +45,19 @@ class ScriptSignatureService {
     required IdentityRecord authorIdentity,
     required String scriptId,
     Map<String, dynamic>? updates,
+    String? timestampIso,
   }) async {
+    _assertScriptId(scriptId);
+
+    final String resolvedTimestamp =
+        timestampIso ?? DateTime.now().toUtc().toIso8601String();
+
     // Create the canonical payload to sign
     final payload = _createUpdatePayload(
       scriptId: scriptId,
       updates: updates,
       authorPrincipal: PrincipalUtils.textFromRecord(authorIdentity),
+      timestampIso: resolvedTimestamp,
     );
 
     return await _signPayload(authorIdentity, payload);
@@ -57,11 +68,18 @@ class ScriptSignatureService {
   static Future<String> signScriptDeletion({
     required IdentityRecord authorIdentity,
     required String scriptId,
+    String? timestampIso,
   }) async {
+    _assertScriptId(scriptId);
+
+    final String resolvedTimestamp =
+        timestampIso ?? DateTime.now().toUtc().toIso8601String();
+
     // Create the canonical payload to sign
     final payload = _createDeletePayload(
       scriptId: scriptId,
       authorPrincipal: PrincipalUtils.textFromRecord(authorIdentity),
+      timestampIso: resolvedTimestamp,
     );
 
     return await _signPayload(authorIdentity, payload);
@@ -77,7 +95,9 @@ class ScriptSignatureService {
     required List<String> tags,
     String? compatibility,
     required String authorPrincipal,
+    required String timestampIso,
   }) {
+    final List<String> sortedTags = List<String>.from(tags)..sort();
     return {
       'action': 'upload',
       'title': title,
@@ -85,10 +105,11 @@ class ScriptSignatureService {
       'category': category,
       'lua_source': luaSource,
       'version': version,
-      'tags': tags..sort(), // Sort for deterministic ordering
-      if (compatibility != null) 'compatibility': compatibility,
+      'tags': sortedTags,
+      if (compatibility != null && compatibility.isNotEmpty)
+        'compatibility': compatibility,
       'author_principal': authorPrincipal,
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'timestamp': timestampIso,
     };
   }
 
@@ -97,26 +118,33 @@ class ScriptSignatureService {
     required String scriptId,
     Map<String, dynamic>? updates,
     required String authorPrincipal,
+    required String timestampIso,
   }) {
-    return {
+    final Map<String, dynamic> payload = {
       'action': 'update',
       'script_id': scriptId,
-      if (updates != null) ...updates,
+      'timestamp': timestampIso,
       'author_principal': authorPrincipal,
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
     };
+
+    if (updates != null) {
+      payload.addAll(_sanitizeUpdateFields(updates));
+    }
+
+    return payload;
   }
 
   /// Create a canonical payload for script deletions
   static Map<String, dynamic> _createDeletePayload({
     required String scriptId,
     required String authorPrincipal,
+    required String timestampIso,
   }) {
     return {
       'action': 'delete',
       'script_id': scriptId,
       'author_principal': authorPrincipal,
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'timestamp': timestampIso,
     };
   }
 
@@ -164,6 +192,60 @@ class ScriptSignatureService {
     }
 
     return jsonEncode(sortedMap);
+  }
+
+  static Map<String, dynamic> _sanitizeUpdateFields(
+      Map<String, dynamic> updates) {
+    const allowedKeys = <String>{
+      'title',
+      'description',
+      'category',
+      'lua_source',
+      'version',
+      'tags',
+      'price',
+      'is_public',
+    };
+
+    final Map<String, dynamic> sanitized = <String, dynamic>{};
+    for (final entry in updates.entries) {
+      final String key = entry.key;
+      final dynamic value = entry.value;
+      if (!allowedKeys.contains(key) || value == null) {
+        continue;
+      }
+
+      if (key == 'tags') {
+        if (value is List) {
+          final List<String> sortedTags =
+              value.map((dynamic e) => e.toString()).toList()..sort();
+          sanitized[key] = sortedTags;
+        }
+        continue;
+      }
+
+      if (key == 'price') {
+        if (value is num) {
+          sanitized[key] = value.toDouble();
+        } else {
+          final double? parsed = double.tryParse(value.toString());
+          if (parsed != null) {
+            sanitized[key] = parsed;
+          }
+        }
+        continue;
+      }
+
+      sanitized[key] = value;
+    }
+
+    return sanitized;
+  }
+
+  static void _assertScriptId(String scriptId) {
+    if (scriptId.trim().isEmpty) {
+      throw ArgumentError('scriptId must not be empty for signing operations');
+    }
   }
 
   /// Verify a signature against a payload and public key

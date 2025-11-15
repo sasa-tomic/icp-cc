@@ -5,8 +5,19 @@ import 'unified_test_builder.dart';
 
 /// Authentication scenarios enum - replaces both AuthenticationTestCase and AuthenticationTestMatrix
 enum AuthenticationScenario {
-  validToken('test-auth-token authentication', AuthenticationMethod.testToken, true),
-  customTestToken('custom test-auth-token authentication', AuthenticationMethod.testToken, true, 'test-auth-token'),
+  validToken(
+    'test-auth-token authentication (legacy)',
+    AuthenticationMethod.testToken,
+    false,
+    '401',
+  ),
+  customTestToken(
+    'custom test-auth-token authentication (legacy)',
+    AuthenticationMethod.testToken,
+    false,
+    '401',
+    'test-auth-token',
+  ),
   realSignature('cryptographic signature authentication', AuthenticationMethod.realSignature, true),
 
   invalidToken('invalid authentication token', AuthenticationMethod.invalidToken, false, '401'),

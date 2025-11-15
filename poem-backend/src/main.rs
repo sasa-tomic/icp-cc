@@ -71,6 +71,7 @@ struct CreateScriptRequest {
     version: Option<String>,
     price: Option<f64>,
     is_public: Option<bool>,
+    compatibility: Option<String>,
     tags: Option<Vec<String>>,
     action: Option<String>,
 }
@@ -317,6 +318,9 @@ fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<R
         sorted_tags.sort();
         payload["tags"] = serde_json::json!(sorted_tags);
     }
+    if let Some(ref compatibility) = req.compatibility {
+        payload["compatibility"] = serde_json::Value::String(compatibility.clone());
+    }
 
     // Create canonical JSON
     let canonical_json = create_canonical_payload(&payload);
@@ -453,6 +457,12 @@ fn verify_script_update_signature(
         let mut sorted_tags = tags.clone();
         sorted_tags.sort();
         payload["tags"] = serde_json::json!(sorted_tags);
+    }
+    if let Some(price) = req.price {
+        payload["price"] = serde_json::json!(price);
+    }
+    if let Some(is_public) = req.is_public {
+        payload["is_public"] = serde_json::Value::Bool(is_public);
     }
     if let Some(ref timestamp) = req.timestamp {
         payload["timestamp"] = serde_json::Value::String(timestamp.clone());

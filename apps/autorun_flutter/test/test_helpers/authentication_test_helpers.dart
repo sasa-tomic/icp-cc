@@ -197,15 +197,6 @@ class AuthenticationTestCase {
 class AuthenticationTestCases {
   static const List<AuthenticationTestCase> validCases = [
     AuthenticationTestCase(
-      name: 'test-auth-token',
-      method: AuthenticationMethod.testToken,
-    ),
-    AuthenticationTestCase(
-      name: 'custom test-auth-token',
-      method: AuthenticationMethod.testToken,
-      customToken: 'test-auth-token',
-    ),
-    AuthenticationTestCase(
       name: 'real cryptographic signature',
       method: AuthenticationMethod.realSignature,
     ),
@@ -227,6 +218,19 @@ class AuthenticationTestCases {
     AuthenticationTestCase(
       name: 'malformed authentication',
       method: AuthenticationMethod.malformedToken,
+      shouldSucceed: false,
+      expectedError: '401',
+    ),
+    AuthenticationTestCase(
+      name: 'legacy test-auth-token',
+      method: AuthenticationMethod.testToken,
+      shouldSucceed: false,
+      expectedError: '401',
+    ),
+    AuthenticationTestCase(
+      name: 'custom legacy test-auth-token',
+      method: AuthenticationMethod.testToken,
+      customToken: 'test-auth-token',
       shouldSucceed: false,
       expectedError: '401',
     ),
