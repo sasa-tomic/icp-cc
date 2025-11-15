@@ -14,6 +14,10 @@ pub struct AppEnv {
 // Implement conversion from worker::Env to our AppEnv
 impl From<worker::Env> for AppEnv {
     fn from(env: worker::Env) -> Self {
+        // For testing, always use TEST_DB binding
+        // In production, this should be based on ENVIRONMENT variable
+        let test_db_name = Some("icp-marketplace-test".to_string());
+
         Self {
             db: env.d1("DB").unwrap_or_else(|_| {
                 // Fallback for environments without D1
@@ -23,8 +27,8 @@ impl From<worker::Env> for AppEnv {
                 // Fallback for environments without TEST_DB
                 panic!("D1 database binding 'TEST_DB' not found in environment")
             }),
-            environment: "development".to_string(), // TODO: Get from environment
-            test_db_name: None, // TODO: Get from environment
+            environment: "local".to_string(),
+            test_db_name,
         }
     }
 }

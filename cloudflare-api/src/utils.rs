@@ -231,8 +231,10 @@ impl<'a> DatabaseService<'a> {
     pub fn get_database(&self) -> &worker::D1Database {
         // If TEST_DB_NAME is specified, use dynamic database selection
         if self.env.test_db_name.is_some() {
+            console_log!("Using TEST_DB database (test_db_name: {:?})", self.env.test_db_name);
             &self.env.test_db
         } else {
+            console_log!("Using PROD database (test_db_name: None)");
             &self.env.db
         }
     }
