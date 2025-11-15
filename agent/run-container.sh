@@ -177,7 +177,7 @@ build_image() {
     if [[ "$REBUILD" == "true" ]]; then
         log_info "Rebuilding Docker image with BuildKit..."
         # Enable BuildX for faster parallel builds
-        DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker-compose -f "$COMPOSE_FILE" build --pull
+        DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose -f "$COMPOSE_FILE" build --pull
     fi
 }
 
@@ -194,10 +194,10 @@ run_tool() {
     # Set up the command based on mode and tool
     if [[ "$SHELL_MODE" == "true" ]]; then
         log_info "Starting shell in container..."
-        docker-compose -f "$COMPOSE_FILE" "${docker_args[@]}" exec "$SERVICE_NAME" bash
+        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" exec "$SERVICE_NAME" bash
     elif [[ -n "$COMMAND" ]]; then
         log_info "Running command in container: $COMMAND"
-        docker-compose -f "$COMPOSE_FILE" "${docker_args[@]}" exec "$SERVICE_NAME" bash -c "$COMMAND"
+        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" exec "$SERVICE_NAME" bash -c "$COMMAND"
     else
         # Set up tool-specific command
         case "$TOOL" in
@@ -217,19 +217,24 @@ run_tool() {
 
         log_info "Container provides isolation while giving $TOOL full ICP-CC project access"
         log_info "Available ports: 8787 (Cloudflare Workers API), 3000 (Flutter web)"
+        log_info "Wrangler runs as managed process within container for efficiency"
         log_warning "Press Ctrl+D to exit $TOOL"
 
-        # Use docker-compose run for interactive session instead of up
-        docker-compose -f "$COMPOSE_FILE" "${docker_args[@]}" run --rm "$SERVICE_NAME" $tool_command
+        # Use docker compose run for interactive session instead of up
+        docker compose -f "$COMPOSE_FILE" "${docker_args[@]}" run --rm "$SERVICE_NAME" $tool_command
     fi
 }
 
 # Cleanup function
 cleanup() {
     if [[ "$DETACH" == "true" ]]; then
-        log_info "Stopping detached container..."
-        docker-compose -f "$COMPOSE_FILE" down
+        log_info "Stopping detached containers..."
+        docker compose -f "$COMPOSE_FILE" down
     fi
+
+    # Always stop wrangler process to ensure clean state for next run
+    log_info "Cleaning up wrangler process..."
+    docker compose -f "$COMPOSE_FILE" exec -T agent agent/wrangler-manager.sh stop >/dev/null 2>&1 || true
 }
 
 # Set up signal handlers
