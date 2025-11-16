@@ -1,6 +1,6 @@
-use base64::{engine::general_purpose, Engine as _};
-use ed25519_dalek::{Signature as Ed25519Signature, Verifier, VerifyingKey as Ed25519VerifyingKey};
-use k256::ecdsa::{Signature as Secp256k1Signature, VerifyingKey as Secp256k1VerifyingKey};
+mod auth;
+
+use auth::{create_canonical_payload, verify_ed25519_signature, verify_secp256k1_signature};
 use poem::{
     get, handler,
     http::StatusCode,
@@ -11,7 +11,6 @@ use poem::{
     EndpointExt, IntoResponse, Response, Route, Server,
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use sqlx::{sqlite::SqlitePool, FromRow};
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
 
@@ -482,102 +481,7 @@ fn error_response(status: StatusCode, error: &str) -> Response {
         .into_response()
 }
 
-/// Verifies an Ed25519 signature (ICP standard)
-fn verify_ed25519_signature(
-    signature_b64: &str,
-    payload: &[u8],
-    public_key_b64: &str,
-) -> Result<(), String> {
-    // Decode signature
-    let signature_bytes = general_purpose::STANDARD
-        .decode(signature_b64)
-        .map_err(|e| format!("Invalid Ed25519 signature encoding: {}", e))?;
-
-    let signature = Ed25519Signature::from_slice(&signature_bytes)
-        .map_err(|e| format!("Invalid Ed25519 signature format: {}", e))?;
-
-    // Decode public key
-    let public_key_bytes = general_purpose::STANDARD
-        .decode(public_key_b64)
-        .map_err(|e| format!("Invalid Ed25519 public key encoding: {}", e))?;
-
-    let verifying_key = Ed25519VerifyingKey::from_bytes(
-        public_key_bytes
-            .as_slice()
-            .try_into()
-            .map_err(|_| "Invalid Ed25519 public key length".to_string())?,
-    )
-    .map_err(|e| format!("Invalid Ed25519 public key: {}", e))?;
-
-    // Verify signature
-    verifying_key
-        .verify(payload, &signature)
-        .map_err(|e| format!("Ed25519 signature verification failed: {}", e))?;
-
-    Ok(())
-}
-
-/// Verifies a secp256k1 ECDSA signature (ICP standard)
-fn verify_secp256k1_signature(
-    signature_b64: &str,
-    payload: &[u8],
-    public_key_b64: &str,
-) -> Result<(), String> {
-    // Decode signature
-    let signature_bytes = general_purpose::STANDARD
-        .decode(signature_b64)
-        .map_err(|e| format!("Invalid secp256k1 signature encoding: {}", e))?;
-
-    let signature = Secp256k1Signature::from_slice(&signature_bytes)
-        .map_err(|e| format!("Invalid secp256k1 signature format: {}", e))?;
-
-    // Decode public key
-    let public_key_bytes = general_purpose::STANDARD
-        .decode(public_key_b64)
-        .map_err(|e| format!("Invalid secp256k1 public key encoding: {}", e))?;
-
-    let verifying_key = Secp256k1VerifyingKey::from_sec1_bytes(&public_key_bytes)
-        .map_err(|e| format!("Invalid secp256k1 public key: {}", e))?;
-
-    // For secp256k1, ICP uses SHA-256 hash of the message
-    let mut hasher = Sha256::new();
-    hasher.update(payload);
-    let message_hash = hasher.finalize();
-
-    // Verify signature
-    verifying_key
-        .verify(&message_hash, &signature)
-        .map_err(|e| format!("secp256k1 signature verification failed: {}", e))?;
-
-    Ok(())
-}
-
-/// Creates canonical JSON payload for signature verification
-/// Keys must be sorted alphabetically for deterministic output
-fn create_canonical_payload(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Object(map) => {
-            let mut sorted_keys: Vec<&String> = map.keys().collect();
-            sorted_keys.sort();
-
-            let mut result = String::from("{");
-            for (i, key) in sorted_keys.iter().enumerate() {
-                if i > 0 {
-                    result.push(',');
-                }
-                result.push('"');
-                result.push_str(key);
-                result.push_str("\":");
-                result.push_str(&create_canonical_payload(&map[*key]));
-            }
-            result.push('}');
-            result
-        }
-        _ => serde_json::to_string(value).unwrap_or_default(),
-    }
-}
-
-/// Validates authentication signature with real cryptographic verification
+/// Validates authentication signature - no test backdoors!
 fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Box<Response>> {
     match signature {
         None => {
@@ -595,11 +499,6 @@ fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Bo
                 StatusCode::UNAUTHORIZED,
                 "Invalid authentication signature",
             )))
-        }
-        Some("test-auth-token") => {
-            // Bypass signature verification for test token
-            tracing::info!("{} proceeding with test auth token", operation);
-            Ok(())
         }
         Some(_) => Ok(()), // Signature present, verification happens in specific handlers
     }
@@ -930,32 +829,15 @@ fn verify_script_publish_signature(
     )))
 }
 
-/// Validates principal and public key fields for authentication
-fn validate_credentials(
+/// Validates principal and public key fields for authentication (wrapper for auth module)
+fn validate_credentials_wrapper(
     author_principal: Option<&str>,
     author_public_key: Option<&str>,
 ) -> Result<(), Box<Response>> {
-    if let Some(principal) = author_principal {
-        if principal == "invalid-principal" || principal.contains("invalid") {
-            tracing::warn!("Authentication rejected: invalid principal pattern detected");
-            return Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Invalid principal/public key combination",
-            )));
-        }
-    }
-
-    if let Some(public_key) = author_public_key {
-        if public_key == "invalid-public-key" || public_key.contains("invalid") {
-            tracing::warn!("Authentication rejected: invalid public key pattern detected");
-            return Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Invalid principal/public key combination",
-            )));
-        }
-    }
-
-    Ok(())
+    auth::validate_credentials(author_principal, author_public_key).map_err(|e| {
+        tracing::warn!("Authentication rejected: {}", e);
+        Box::new(error_response(StatusCode::UNAUTHORIZED, &e.to_string()))
+    })
 }
 
 #[handler]
@@ -1354,7 +1236,7 @@ async fn create_script(
         return *response;
     }
 
-    if let Err(response) = validate_credentials(
+    if let Err(response) = validate_credentials_wrapper(
         req.author_principal.as_deref(),
         req.author_public_key.as_deref(),
     ) {
@@ -1614,7 +1496,7 @@ async fn delete_script(
         return *response;
     }
 
-    if let Err(response) = validate_credentials(req.author_principal.as_deref(), None) {
+    if let Err(response) = validate_credentials_wrapper(req.author_principal.as_deref(), None) {
         return *response;
     }
 

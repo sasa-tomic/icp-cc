@@ -39,7 +39,7 @@ class TestableScriptRepository extends ScriptRepository {
   TestableScriptRepository({
     String? baseUrl,
     http.Client? client,
-    AuthenticationMethod authMethod = AuthenticationMethod.testToken,
+    AuthenticationMethod authMethod = AuthenticationMethod.realSignature,
     String? customAuthToken,
     bool forceInvalidAuth = false,
     KeyAlgorithm signatureAlgorithm = KeyAlgorithm.ed25519,

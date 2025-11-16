@@ -6,13 +6,13 @@ import 'unified_test_builder.dart';
 /// Authentication scenarios enum - replaces both AuthenticationTestCase and AuthenticationTestMatrix
 enum AuthenticationScenario {
   validToken(
-    'test-auth-token authentication (legacy)',
+    'test-auth-token authentication (removed - no longer supported)',
     AuthenticationMethod.testToken,
     false,
     '401',
   ),
   customTestToken(
-    'custom test-auth-token authentication (legacy)',
+    'custom test-auth-token authentication (removed - no longer supported)',
     AuthenticationMethod.testToken,
     false,
     '401',
@@ -23,7 +23,7 @@ enum AuthenticationScenario {
   invalidToken('invalid authentication token', AuthenticationMethod.invalidToken, false, '401'),
   missingToken('missing authentication signature', AuthenticationMethod.missingToken, false, '401'),
   malformedToken('malformed authentication data', AuthenticationMethod.malformedToken, false, '401'),
-  invalidCredentials('invalid principal/public key combination', AuthenticationMethod.testToken, false, '401', null, true);
+  invalidCredentials('invalid principal/public key combination', AuthenticationMethod.realSignature, false, '401', null, true);
 
   const AuthenticationScenario(
     this.description,
