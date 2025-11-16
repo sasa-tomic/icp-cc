@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -156,10 +158,23 @@ end
 ''';
 
 class ScriptController extends ChangeNotifier {
-  ScriptController(this._repository);
+  ScriptController(this._repository) {
+    // Listen to repository changes from other controller instances
+    _repositorySubscription = _repository.scriptsStream.listen((scripts) {
+      // Only update if this is an external change (not from this controller)
+      if (_scripts.length != scripts.length ||
+          !_areScriptListsEqual(_scripts, scripts)) {
+        _scripts
+          ..clear()
+          ..addAll(scripts);
+        notifyListeners();
+      }
+    });
+  }
 
   final ScriptRepository _repository;
   final List<ScriptRecord> _scripts = <ScriptRecord>[];
+  StreamSubscription<List<ScriptRecord>>? _repositorySubscription;
 
   bool _initialized = false;
   bool _isBusy = false;
@@ -285,5 +300,22 @@ class ScriptController extends ChangeNotifier {
     if (_isBusy == value) return;
     _isBusy = value;
     notifyListeners();
+  }
+
+  bool _areScriptListsEqual(List<ScriptRecord> list1, List<ScriptRecord> list2) {
+    if (list1.length != list2.length) return false;
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i].id != list2[i].id ||
+          list1[i].updatedAt != list2[i].updatedAt) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  void dispose() {
+    _repositorySubscription?.cancel();
+    super.dispose();
   }
 }

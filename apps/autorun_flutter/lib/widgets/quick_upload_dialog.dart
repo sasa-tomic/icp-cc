@@ -397,7 +397,12 @@ end''';
                   ? Form(
                       key: _formKey,
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20),
+                        padding: EdgeInsets.only(
+                          left: 20,
+                          right: 20,
+                          top: 20,
+                          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

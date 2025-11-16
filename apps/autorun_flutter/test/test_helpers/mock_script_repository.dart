@@ -4,6 +4,8 @@ import 'package:icp_autorun/services/script_repository.dart';
 /// Mock script repository for testing purposes
 /// Used in widget tests where real HTTP requests are not allowed
 class MockScriptRepository extends ScriptRepository {
+  MockScriptRepository() : super.internal();
+
   final List<ScriptRecord> _scripts = [];
   bool _shouldFail = false;
 

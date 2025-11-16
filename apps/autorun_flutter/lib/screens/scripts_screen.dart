@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../controllers/script_controller.dart';
@@ -38,10 +39,12 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   late final ScriptController _controller;
   late final TabController _tabController;
   final ScriptAppRuntime _appRuntime = ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
+  final ValueNotifier<bool> _showFab = ValueNotifier<bool>(true);
+
   void _handleTabChange() {
     if (!mounted) return;
-    // Force rebuild so the floating action button swaps when switching tabs
-    setState(() {});
+    // Update FAB visibility without full rebuild
+    _showFab.value = _tabController.index == 0;
   }
   
   // Marketplace properties
@@ -56,6 +59,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   Set<String> _downloadedScriptIds = {};
   bool _isMarketplaceLoading = false;
   bool _isLoadingMore = false;
+  bool _isSearching = false; // Add search loading state
   String? _marketplaceError;
   int _offset = 0;
   bool _hasMore = true;
@@ -71,9 +75,10 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     super.initState();
     _tabController = TabController(length: 2, vsync: this)
       ..addListener(_handleTabChange);
-    _controller = ScriptController(ScriptRepository())..addListener(_onChanged);
+    _controller = ScriptController(ScriptRepository.instance)..addListener(_onChanged);
     _controller.ensureLoaded();
     _initializeMarketplace();
+    _loadSavedCategory();
     _loadMarketplaceScripts();
     _loadCategories();
     _loadDownloadedScripts();
@@ -85,6 +90,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
       ..removeListener(_handleTabChange)
       ..dispose();
     _searchController.dispose();
+    _showFab.dispose();
     _controller
       ..removeListener(_onChanged)
       ..dispose();
@@ -187,6 +193,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
 
   void _onSearchChanged(String query) {
     _searchQuery = query;
+    setState(() => _isSearching = true);
     _debouncedSearch();
   }
 
@@ -194,14 +201,28 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted && _searchController.text == _searchQuery) {
         _loadMarketplaceScripts();
+        setState(() => _isSearching = false);
       }
     });
   }
 
-  void _onCategoryChanged(String category) {
+  Future<void> _loadSavedCategory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedCategory = prefs.getString('last_selected_category');
+    if (savedCategory != null && mounted) {
+      setState(() {
+        _selectedCategory = savedCategory;
+      });
+    }
+  }
+
+  void _onCategoryChanged(String category) async {
     setState(() {
       _selectedCategory = category;
     });
+    // Persist category selection
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_selected_category', category);
     _loadMarketplaceScripts();
   }
 
@@ -418,24 +439,40 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
       ),
     );
     
-    if (uploaded == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Script published successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    if (uploaded == true) {
+      // Refresh downloaded scripts to include the newly published one
+      await _loadDownloadedScripts();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Script published successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
   }
 
   void _viewInMarketplace(ScriptRecord record) {
+    // Extract the original marketplace title from metadata if available
+    final marketplaceTitle = record.metadata['marketplace_title'] as String? ??
+                             record.title.replaceAll(' (Marketplace)', '');
+
     // Switch to marketplace tab
     _tabController.animateTo(1);
-    
+
+    // Set search query and trigger search
+    setState(() {
+      _searchController.text = marketplaceTitle;
+      _searchQuery = marketplaceTitle;
+    });
+    _loadMarketplaceScripts();
+
     // Show a snackbar to indicate the action
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Switched to Marketplace to find "${record.title}"'),
+        content: Text('Searching marketplace for "$marketplaceTitle"'),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -527,8 +564,13 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
             ],
           ),
           // Positioned FAB above navigation bar with better spacing
-          if (_tabController.index == 0)
-            Positioned(
+          ValueListenableBuilder<bool>(
+            valueListenable: _showFab,
+            builder: (context, show, child) {
+              if (!show) return const SizedBox.shrink();
+              return child!;
+            },
+            child: Positioned(
               right: 16,
               bottom: MediaQuery.of(context).padding.bottom + 90, // Better spacing from navigation bar
               child: AnimatedFab(
@@ -538,6 +580,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                 label: 'New Script',
               ),
             ),
+          ),
         ],
       ),
     );
@@ -597,7 +640,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                   // Implement soft delete with undo
                   final deletedScript = rec;
                   final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  final scriptRepository = ScriptRepository();
+                  final scriptRepository = ScriptRepository.instance;
 
                   // Delete the script
                   await _controller.deleteScript(rec.id);
@@ -822,16 +865,23 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      child: MarketplaceSearchBar(
-        controller: _searchController,
-        onChanged: _onSearchChanged,
-        onClear: () {
-          _searchController.clear();
-          _onSearchChanged('');
-        },
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16.0),
+          child: MarketplaceSearchBar(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            onClear: () {
+              _searchController.clear();
+              _onSearchChanged('');
+            },
+          ),
+        ),
+        if (_isSearching)
+          const LinearProgressIndicator(minHeight: 2),
+      ],
     );
   }
 

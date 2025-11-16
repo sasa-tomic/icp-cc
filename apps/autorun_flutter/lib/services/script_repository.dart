@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,11 +8,32 @@ import 'package:path_provider/path_provider.dart';
 import '../models/script_record.dart';
 
 class ScriptRepository {
-  ScriptRepository({Directory? overrideDirectory}) : _overrideDirectory = overrideDirectory;
+  // Singleton pattern
+  static ScriptRepository? _instance;
+  static ScriptRepository get instance {
+    _instance ??= ScriptRepository.internal();
+    return _instance!;
+  }
+
+  factory ScriptRepository({Directory? overrideDirectory}) {
+    if (overrideDirectory != null) {
+      // For testing: create a new instance with override directory
+      return ScriptRepository.internal(overrideDirectory: overrideDirectory);
+    }
+    return instance;
+  }
+
+  ScriptRepository.internal({Directory? overrideDirectory}) : _overrideDirectory = overrideDirectory;
 
   final Directory? _overrideDirectory;
   bool _initialized = false;
   File? _storeFile;
+
+  // Broadcast stream for script changes
+  final StreamController<List<ScriptRecord>> _scriptsController =
+      StreamController<List<ScriptRecord>>.broadcast();
+
+  Stream<List<ScriptRecord>> get scriptsStream => _scriptsController.stream;
 
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
@@ -80,5 +102,12 @@ class ScriptRepository {
       'scripts': scripts.map((ScriptRecord s) => s.toJson()).toList(),
     };
     await file.writeAsString(jsonEncode(payload));
+
+    // Notify all listeners about the change
+    _scriptsController.add(List<ScriptRecord>.unmodifiable(scripts));
+  }
+
+  void dispose() {
+    _scriptsController.close();
   }
 }

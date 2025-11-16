@@ -16,8 +16,10 @@ class PoemScriptRepository extends ScriptRepository {
   PoemScriptRepository({
     String? baseUrl,
     http.Client? client,
+    Directory? overrideDirectory,
   }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
-       _client = client ?? http.Client();
+       _client = client ?? http.Client(),
+       super.internal(overrideDirectory: overrideDirectory);
 
   static String _getDefaultBaseUrl() {
     try {

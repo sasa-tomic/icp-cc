@@ -43,12 +43,14 @@ class TestableScriptRepository extends ScriptRepository {
     String? customAuthToken,
     bool forceInvalidAuth = false,
     KeyAlgorithm signatureAlgorithm = KeyAlgorithm.ed25519,
+    Directory? overrideDirectory,
   }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
        _client = client ?? _TimeoutClient(),
        _authMethod = authMethod,
        _customAuthToken = customAuthToken,
        _forceInvalidAuth = forceInvalidAuth,
-       _signatureAlgorithm = signatureAlgorithm;
+       _signatureAlgorithm = signatureAlgorithm,
+       super.internal(overrideDirectory: overrideDirectory);
 
   static String _getDefaultBaseUrl() {
     try {

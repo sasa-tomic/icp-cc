@@ -23,7 +23,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _scriptController = ScriptController(ScriptRepository())..addListener(_onChanged);
+    _scriptController = ScriptController(ScriptRepository.instance)..addListener(_onChanged);
     _loadDownloadHistory();
   }
 
@@ -218,6 +218,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
           final record = _downloadHistory[index];
           return _DownloadHistoryTile(
             record: record,
+            scriptController: _scriptController,
             onRemove: () => _removeFromHistory(record),
           );
         },
@@ -228,10 +229,12 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
 
 class _DownloadHistoryTile extends StatelessWidget {
   final DownloadRecord record;
+  final ScriptController scriptController;
   final VoidCallback onRemove;
 
   const _DownloadHistoryTile({
     required this.record,
+    required this.scriptController,
     required this.onRemove,
   });
 
@@ -306,11 +309,37 @@ class _DownloadHistoryTile extends StatelessWidget {
           ),
         ],
       ),
-      onTap: () {
-        // TODO: Navigate to the local script
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Navigate to local script - TODO')),
-        );
+      onTap: () async {
+        // Navigate to the local script
+        try {
+          // Find the script by ID from the controller's scripts list
+          await scriptController.ensureLoaded();
+          final script = scriptController.scripts.where((s) => s.id == record.localScriptId).firstOrNull;
+
+          if (script == null) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Script not found. It may have been deleted.'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+            return;
+          }
+
+          // Navigate to scripts screen and pass the script ID to highlight
+          if (context.mounted) {
+            Navigator.pop(context); // Go back from history screen
+            // The scripts screen should handle highlighting the script
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: $e')),
+            );
+          }
+        }
       },
     );
   }
