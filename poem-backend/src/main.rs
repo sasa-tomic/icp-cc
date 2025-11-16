@@ -956,117 +956,25 @@ async fn update_script(
         return *response;
     }
 
-    // Check if script exists
-    let exists: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1")
-        .bind(&script_id)
-        .fetch_optional(&state.pool)
-        .await
-        .unwrap_or(None);
-
-    if exists.unwrap_or(0) == 0 {
-        tracing::warn!("Script update failed: {} not found", script_id);
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Script not found"
-            })),
-        )
-            .into_response();
-    }
-
-    let now = chrono::Utc::now().to_rfc3339();
-
-    tracing::info!(
-        "Update request for {} with version {:?}",
-        script_id,
-        req.version
-    );
-
-    // Build dynamic update query
-    let mut updates = vec!["updated_at = ?"];
-    let mut query_str = "UPDATE scripts SET ".to_string();
-
-    if req.title.is_some() {
-        updates.push("title = ?");
-    }
-    if req.description.is_some() {
-        updates.push("description = ?");
-    }
-    if req.category.is_some() {
-        updates.push("category = ?");
-    }
-    if req.lua_source.is_some() {
-        updates.push("lua_source = ?");
-    }
-    if req.is_public.is_some() {
-        updates.push("is_public = ?");
-    }
-    if req.version.is_some() {
-        updates.push("version = ?");
-    }
-    if req.price.is_some() {
-        updates.push("price = ?");
-    }
-    if req.tags.is_some() {
-        updates.push("tags = ?");
-    }
-
-    query_str.push_str(&updates.join(", "));
-    query_str.push_str(" WHERE id = ?");
-
-    let mut query = sqlx::query(&query_str).bind(&now);
-
-    if let Some(title) = &req.title {
-        query = query.bind(title);
-    }
-    if let Some(description) = &req.description {
-        query = query.bind(description);
-    }
-    if let Some(category) = &req.category {
-        query = query.bind(category);
-    }
-    if let Some(lua_source) = &req.lua_source {
-        query = query.bind(lua_source);
-    }
-    if let Some(is_public) = req.is_public {
-        query = query.bind(is_public as i32);
-    }
-    if let Some(version) = &req.version {
-        query = query.bind(version);
-    }
-    if let Some(price) = req.price {
-        query = query.bind(price);
-    }
-    if let Some(tags) = &req.tags {
-        let tags_json = serde_json::to_string(tags).unwrap_or_else(|_| "[]".to_string());
-        query = query.bind(tags_json);
-    }
-
-    query = query.bind(&script_id);
-
-    match query.execute(&state.pool).await {
-        Ok(_) => {
-            tracing::info!("Updated script: {}", script_id);
+    // Update script via service
+    match state.script_service.update_script(&script_id, req).await {
+        Ok(script) => {
+            tracing::info!("Updated script: {} (version: {})", script.id, script.version);
             Json(serde_json::json!({
                 "success": true,
                 "data": {
-                    "id": script_id,
-                    "updated_at": now
+                    "id": script.id,
+                    "updated_at": script.updated_at
                 }
             }))
             .into_response()
         }
         Err(e) => {
             tracing::error!("Failed to update script {}: {}", script_id, e);
-            (
+            error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": format!("Failed to update script: {}", e)
-                })),
+                &format!("Failed to update script: {}", e),
             )
-                .into_response()
         }
     }
 }
@@ -1084,41 +992,38 @@ async fn delete_script(
         return *response;
     }
 
-    match sqlx::query("DELETE FROM scripts WHERE id = ?1")
-        .bind(&script_id)
-        .execute(&state.pool)
-        .await
-    {
-        Ok(result) => {
-            if result.rows_affected() > 0 {
-                tracing::info!("Deleted script: {}", script_id);
-                Json(serde_json::json!({
-                    "success": true,
-                    "message": "Script deleted successfully"
-                }))
-                .into_response()
-            } else {
-                tracing::warn!("Script deletion failed: {} not found", script_id);
-                (
-                    StatusCode::NOT_FOUND,
+    // Check if script exists
+    match state.script_service.check_script_exists(&script_id).await {
+        Ok(true) => {
+            // Delete script via service
+            match state.script_service.delete_script(&script_id).await {
+                Ok(()) => {
+                    tracing::info!("Deleted script: {}", script_id);
                     Json(serde_json::json!({
-                        "success": false,
-                        "error": "Script not found"
-                    })),
-                )
+                        "success": true,
+                        "message": "Script deleted successfully"
+                    }))
                     .into_response()
+                }
+                Err(e) => {
+                    tracing::error!("Failed to delete script {}: {}", script_id, e);
+                    error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        &format!("Failed to delete script: {}", e),
+                    )
+                }
             }
         }
+        Ok(false) => {
+            tracing::warn!("Script deletion failed: {} not found", script_id);
+            error_response(StatusCode::NOT_FOUND, "Script not found")
+        }
         Err(e) => {
-            tracing::error!("Failed to delete script {}: {}", script_id, e);
-            (
+            tracing::error!("Failed to check script existence: {}", e);
+            error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": format!("Failed to delete script: {}", e)
-                })),
+                "Failed to check script existence",
             )
-                .into_response()
         }
     }
 }
@@ -1204,54 +1109,25 @@ async fn publish_script(
         return *response;
     }
 
-    // Check if script exists
-    let exists: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1")
-        .bind(&script_id)
-        .fetch_optional(&state.pool)
-        .await
-        .unwrap_or(None);
-
-    if exists.unwrap_or(0) == 0 {
-        tracing::warn!("Script publish failed: {} not found", script_id);
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Script not found"
-            })),
-        )
-            .into_response();
-    }
-
-    let now = chrono::Utc::now().to_rfc3339();
-
-    match sqlx::query("UPDATE scripts SET is_public = 1, updated_at = ?1 WHERE id = ?2")
-        .bind(&now)
-        .bind(&script_id)
-        .execute(&state.pool)
-        .await
-    {
-        Ok(_) => {
-            tracing::info!("Published script: {}", script_id);
+    // Publish script via service
+    match state.script_service.publish_script(&script_id).await {
+        Ok(script) => {
+            tracing::info!("Published script: {} (is_public: {})", script.id, script.is_public);
             Json(serde_json::json!({
                 "success": true,
                 "data": {
-                    "id": script_id,
-                    "updated_at": now
+                    "id": script.id,
+                    "updated_at": script.updated_at
                 }
             }))
             .into_response()
         }
         Err(e) => {
             tracing::error!("Failed to publish script {}: {}", script_id, e);
-            (
+            error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": format!("Failed to publish script: {}", e)
-                })),
+                &format!("Failed to publish script: {}", e),
             )
-                .into_response()
         }
     }
 }
