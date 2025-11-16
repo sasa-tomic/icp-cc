@@ -117,17 +117,20 @@ rust-tests:
 
 # Run Flutter tests
 flutter-tests:
-    @echo "==> Running Flutter tests with API server..."
-    @just api-up
-    @echo "==> Running Flutter analysis..."
-    @cd {{flutter_dir}} && flutter analyze 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
-    @if grep -qE "(info •|warning •|error •)" {{logs_dir}}/test-output.log; then echo "❌ Flutter analysis found issues!"; exit 1; fi
-    @echo "✅ No Flutter analysis issues found"
-    @echo "==> Running Flutter tests..."
-    @cd {{flutter_dir}} && flutter test --reporter=github --concurrency=$(nproc) --timeout=360s 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
-    @if grep -qiE "❌ " {{logs_dir}}/test-output.log; then echo "❌ Flutter tests failed!"; exit 1; fi
-    @echo "✅ All Flutter tests passed"
-    @just api-down
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Running Flutter tests with API server..."
+    # Ensure API server is stopped on exit
+    trap 'just api-down' EXIT
+    just api-up
+    echo "==> Running Flutter analysis..."
+    cd {{flutter_dir}} && flutter analyze 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
+    if grep -qE "(info •|warning •|error •)" {{logs_dir}}/test-output.log; then echo "❌ Flutter analysis found issues!"; exit 1; fi
+    echo "✅ No Flutter analysis issues found"
+    echo "==> Running Flutter tests..."
+    cd {{flutter_dir}} && flutter test --reporter=github --concurrency=$(nproc) --timeout=360s 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
+    if grep -qiE "❌ " {{logs_dir}}/test-output.log; then echo "❌ Flutter tests failed!"; exit 1; fi
+    echo "✅ All Flutter tests passed"
 
 # =============================================================================
 # Local API Server (Cargo-based Development)
@@ -148,9 +151,17 @@ api-up port="0":
     if [ -f "{{api_pid_file}}" ]; then
         pid=$(cat "{{api_pid_file}}")
         if kill -0 "$pid" 2>/dev/null; then
-            api_port=$(cat "{{api_port_file}}")
-            echo "==> API server already running with PID $pid on port $api_port"
-            exit 0
+            if [ -f "{{api_port_file}}" ]; then
+                api_port=$(cat "{{api_port_file}}")
+                echo "==> API server already running with PID $pid on port $api_port"
+                exit 0
+            else
+                echo "==> Warning: PID file exists but port file missing, cleaning up..."
+                rm -f "{{api_pid_file}}"
+            fi
+        else
+            echo "==> Cleaning up stale PID file..."
+            rm -f "{{api_pid_file}}" "{{api_port_file}}"
         fi
     fi
 
@@ -179,6 +190,11 @@ api-up port="0":
     done
     echo "==> ❌ API server failed to start within $timeout seconds"
     echo "==> Check logs at: {{logs_dir}}/api-server.log"
+    # Cleanup on failure
+    if [ -f "{{api_pid_file}}" ]; then
+        kill -TERM $(cat "{{api_pid_file}}") 2>/dev/null || true
+        rm -f "{{api_pid_file}}" "{{api_port_file}}"
+    fi
     exit 1
 
 # Stop API server
