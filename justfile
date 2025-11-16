@@ -14,7 +14,7 @@ root := `pwd`
 scripts_dir := root + "/scripts"
 logs_dir := root + "/logs"
 flutter_dir := root + "/apps/autorun_flutter"
-api_dir := root + "/poem-backend"
+api_dir := root + "/backend"
 
 # API server runtime state
 tmp_dir := root + "/.just-tmp"
@@ -315,11 +315,6 @@ docker-deploy-dev:
     @echo "==> Deploying to DEVELOPMENT (local only)"
     cd {{api_dir}} && ./scripts/start-dev.sh
 
-# Build Docker binary natively (required before docker build)
-docker-build:
-    @echo "==> Building Docker binary natively"
-    cd {{api_dir}} && ./scripts/build-docker-binary.sh
-
 # Start Docker containers (env: prod or dev)
 docker-up env="dev":
     #!/usr/bin/env bash
@@ -380,7 +375,7 @@ docker-status env="all":
     fi
 
 # Rebuild and restart Docker containers (env: prod or dev)
-docker-rebuild env="dev": docker-build
+docker-rebuild env="dev":
     #!/usr/bin/env bash
     set -euo pipefail
     if [ "{{env}}" = "prod" ]; then

@@ -95,7 +95,7 @@ icp-cc/
 │       │   ├── theme/
 │       │   └── rust/                 # Rust FFI bridge
 │       └── pubspec.yaml
-├── poem-backend/                     # Rust REST API
+├── backend/                     # Rust REST API
 │   ├── src/
 │   │   └── main.rs (2795 lines)      # ALL BACKEND CODE IN ONE FILE
 │   ├── Cargo.toml
@@ -539,9 +539,9 @@ CREATE TABLE identity_profiles (
 ### Core Backend (Rust)
 | File | Lines | Purpose |
 |------|-------|---------|
-| `/poem-backend/src/main.rs` | 2795 | All backend code (monolithic) |
-| `/poem-backend/Cargo.toml` | 40 | Rust dependencies |
-| `/poem-backend/.env` | 376 | Environment configuration |
+| `/backend/src/main.rs` | 2795 | All backend code (monolithic) |
+| `/backend/Cargo.toml` | 40 | Rust dependencies |
+| `/backend/.env` | 376 | Environment configuration |
 
 ### Core Frontend (Flutter)
 | File | Lines | Purpose |
@@ -664,7 +664,7 @@ CREATE TABLE identity_profiles (
 
 ### Database Limitations
 1. **Script IDs are random UUIDs** - Should be user-provided slugs for stable marketplace links
-   - This is documented in `/poem-backend/README.md` line 164
+   - This is documented in `/backend/README.md` line 164
    - Must fix before production
 
 2. **Profile updates unprotected** - Anyone knowing a principal can update profile

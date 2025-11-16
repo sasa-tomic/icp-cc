@@ -70,7 +70,7 @@ docker run cloudflare/cloudflared:latest tunnel --no-autoupdate run --token eyJh
 
 ### Step 4: Save Token Locally
 
-Create `.env.tunnel` file in the `poem-backend` directory:
+Create `.env.tunnel` file in the `backend` directory:
 
 ```bash
 # Copy the example file
@@ -245,7 +245,7 @@ nslookup icp-mp.kalaj.org
 
 The SQLite database is stored in `./data/marketplace.db` on your host machine:
 
-- **Location**: `poem-backend/data/marketplace.db`
+- **Location**: `backend/data/marketplace.db`
 - **Automatic Creation**: Database file and schema are created automatically on first startup
 - **Backups**: Simply copy the `data/` directory
 - **Direct Access**: You can query the database directly with any SQLite client

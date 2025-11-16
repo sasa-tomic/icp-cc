@@ -1217,22 +1217,21 @@ async fn main() -> Result<(), std::io::Error> {
             panic!("Failed to bind to address {}: {}", addr, error);
         }
     };
-    let actual_addr = std_listener
-        .local_addr()
-        .expect("Failed to get local address");
 
-    // Get the actual port (important for port 0 -> random port)
-    let actual_port = actual_addr.port();
+    let free_port = std_listener
+        .local_addr()
+        .expect("Failed to get local address")
+        .port();
 
     // Construct the final bind address using the actual port
     let final_bind_addr = if bind_addr.starts_with("[::]") {
-        format!("[::]:{}", actual_port)
+        format!("[::]:{}", free_port)
     } else {
-        format!("0.0.0.0:{}", actual_port)
+        format!("0.0.0.0:{}", free_port)
     };
 
     // Log the actual listening address for external tools to parse
-    tracing::info!("listening addr=socket://{}", final_bind_addr);
+    tracing::info!("listening on addr=socket://{}", final_bind_addr);
 
     // Close the std listener since we just needed it for the address
     drop(std_listener);

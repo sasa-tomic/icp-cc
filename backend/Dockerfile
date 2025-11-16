@@ -1,6 +1,4 @@
-# Simplified Dockerfile - Binary is built natively and injected
-# Run: ./scripts/build-docker-binary.sh before docker build
-# Or use: just docker-build
+# Binary is built natively and injected
 
 FROM --platform=linux/amd64 debian:trixie-slim
 
@@ -16,8 +14,8 @@ RUN useradd -r -s /bin/false appuser
 # Create data directory with proper permissions
 RUN mkdir -p /data && chown appuser:appuser /data
 
-# Copy pre-built binary (must be built with ./scripts/build-docker-binary.sh)
-COPY target/docker/icp-marketplace-api /usr/local/bin/api-server
+# Copy pre-built binary (must be built with cargo build --release)
+COPY target/release/icp-marketplace-api /usr/local/bin/api-server
 
 # Set permissions
 RUN chown appuser:appuser /usr/local/bin/api-server && \

@@ -61,7 +61,7 @@ See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for full testing guide.
 ## 📁 Project Structure
 
 ```
-poem-backend/
+backend/
 ├── src/
 │   └── main.rs          # All application code (clean & minimal)
 ├── data/

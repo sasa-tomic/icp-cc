@@ -120,7 +120,7 @@ just api-down
 
 ### Local Environment
 - **Poem API Server**: http://127.0.0.1:[random-port] (port stored in `/tmp/icp-api.port`)
-- **SQLite Database**: `poem-backend/data/dev.db`
+- **SQLite Database**: `backend/data/dev.db`
 - **Health Check**: `http://127.0.0.1:[port]/api/v1/health`
 - **API Endpoints**: `http://127.0.0.1:[port]/api/*`
 
@@ -212,11 +212,11 @@ cat logs/test-output.log
 
 ### Backup Local Data
 ```bash
-# SQLite database is at poem-backend/data/dev.db
-cp poem-backend/data/dev.db poem-backend/data/backup.db
+# SQLite database is at backend/data/dev.db
+cp backend/data/dev.db poem-backend/data/backup.db
 
 # Restore from backup
-cp poem-backend/data/backup.db poem-backend/data/dev.db
+cp backend/data/backup.db poem-backend/data/dev.db
 just api-restart
 ```
 
@@ -227,7 +227,7 @@ just api-reset
 
 # Or manually delete the database
 just api-down
-rm poem-backend/data/dev.db
+rm backend/data/dev.db
 just api-up
 ```
 

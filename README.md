@@ -73,7 +73,7 @@ just api-logs           # View server logs
 
 - `apps/autorun_flutter`: Flutter application
 - `crates/icp_core`: Rust FFI crate (cdylib)
-- `poem-backend/`: Poem-based API server implementation
+- `backend/`: Poem-based API server implementation
 - `justfile`: Modern build configuration (replaces Makefile)
 - `scripts/`: Build and bootstrap helpers
 - `docs/`: Architecture and build documentation

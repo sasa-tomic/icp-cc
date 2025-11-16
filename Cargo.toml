@@ -1,6 +1,6 @@
 [workspace]
 members = [
   "crates/icp_core",
-  "poem-backend",
+  "backend",
 ]
 resolver = "2"

@@ -12,7 +12,7 @@ echo -e "${GREEN}ICP Marketplace API - Development Deployment${NC}"
 echo "============================================="
 echo
 
-# Change to the script's directory parent (poem-backend)
+# Change to the script's directory parent (backend)
 cd "$(dirname "$0")/.."
 
 # Check if Docker is installed

@@ -10,7 +10,7 @@
 ## Local Development (2 minutes)
 
 ```bash
-cd poem-backend
+cd backend
 cp .env.example .env
 cargo run
 # API available at http://127.0.0.1:58000

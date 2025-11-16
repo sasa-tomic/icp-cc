@@ -232,7 +232,7 @@ pub async fn create_script(&self, req: CreateScriptRequest) -> Result<Script, sq
 ## Current File Structure
 
 ```
-poem-backend/src/
+backend/src/
 ├── main.rs (1,565 lines) - HTTP handlers + routing + tests
 ├── auth.rs (existing) - Core auth verification
 ├── db.rs (221 lines) - Database initialization
@@ -300,7 +300,7 @@ Currently `pool` is accessed directly in one place (script_service.rs:159).
 
 ### Run Tests
 ```bash
-cd poem-backend
+cd backend
 cargo test
 ```
 
