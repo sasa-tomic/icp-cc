@@ -207,35 +207,33 @@ pub struct AuthenticatedScriptRequest {
     pub author_public_key: Option<String>,
 }
 
-/// Verify script operation signature
-#[allow(dead_code)]
-pub fn verify_script_operation_signature(
-    req: &impl AsRef<str>,
+/// Verify script operation signature with full payload
+/// This unifies all script signature verification (upload, update, delete, publish)
+pub fn verify_operation_signature(
+    signature: Option<&str>,
+    public_key: Option<&str>,
+    principal: Option<&str>,
     payload: &serde_json::Value,
-    author_principal: Option<&str>,
-    author_public_key: Option<&str>,
 ) -> Result<(), AuthError> {
-    let signature = req.as_ref();
+    let sig = signature.ok_or_else(|| AuthError::MissingField("signature".to_string()))?;
 
-    if signature.is_empty() {
-        return Err(AuthError::MissingField("signature".to_string()));
+    if sig.is_empty() {
+        return Err(AuthError::InvalidSignature("Empty signature".to_string()));
     }
 
-    let public_key = author_public_key
-        .ok_or_else(|| AuthError::MissingField("author_public_key".to_string()))?;
+    let pub_key = public_key.ok_or_else(|| AuthError::MissingField("author_public_key".to_string()))?;
 
-    let _principal =
-        author_principal.ok_or_else(|| AuthError::MissingField("author_principal".to_string()))?;
+    let _principal_val = principal.ok_or_else(|| AuthError::MissingField("author_principal".to_string()))?;
 
     // Validate credentials
-    validate_credentials(author_principal, Some(public_key))?;
+    validate_credentials(principal, Some(pub_key))?;
 
     // Create canonical JSON
     let canonical_json = create_canonical_payload(payload);
     let payload_bytes = canonical_json.as_bytes();
 
     // Verify signature
-    verify_signature(signature, payload_bytes, public_key)?;
+    verify_signature(sig, payload_bytes, pub_key)?;
 
     Ok(())
 }

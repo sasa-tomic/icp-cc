@@ -1,7 +1,14 @@
 mod auth;
+mod errors;
+mod models;
+mod repositories;
+mod responses;
+mod services;
 
-use auth::{create_canonical_payload, verify_ed25519_signature, verify_secp256k1_signature};
+use auth::{create_canonical_payload, verify_operation_signature, AuthError};
+use models::*;
 use poem::{
+    error::ResponseError,
     get, handler,
     http::StatusCode,
     listener::TcpListener,
@@ -10,166 +17,9 @@ use poem::{
     web::{Data, Json, Path, Query},
     EndpointExt, IntoResponse, Response, Route, Server,
 };
-use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::SqlitePool, FromRow};
+use responses::error_response;
+use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
-
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-struct Script {
-    id: String,
-    title: String,
-    description: String,
-    category: String,
-    tags: Option<String>,
-    lua_source: String,
-    author_name: String,
-    author_id: String,
-    author_principal: Option<String>,
-    author_public_key: Option<String>,
-    upload_signature: Option<String>,
-    canister_ids: Option<String>,
-    icon_url: Option<String>,
-    screenshots: Option<String>,
-    version: String,
-    compatibility: Option<String>,
-    price: f64,
-    is_public: bool,
-    downloads: i32,
-    rating: f64,
-    review_count: i32,
-    created_at: String,
-    updated_at: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-struct Review {
-    id: String,
-    script_id: String,
-    user_id: String,
-    rating: i32,
-    comment: Option<String>,
-    created_at: String,
-    updated_at: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
-struct IdentityProfile {
-    id: String,
-    principal: String,
-    display_name: String,
-    username: Option<String>,
-    contact_email: Option<String>,
-    contact_telegram: Option<String>,
-    contact_twitter: Option<String>,
-    contact_discord: Option<String>,
-    website_url: Option<String>,
-    bio: Option<String>,
-    metadata: Option<String>,
-    created_at: String,
-    updated_at: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct UpsertIdentityProfileRequest {
-    principal: String,
-    display_name: String,
-    username: Option<String>,
-    contact_email: Option<String>,
-    contact_telegram: Option<String>,
-    contact_twitter: Option<String>,
-    contact_discord: Option<String>,
-    website_url: Option<String>,
-    bio: Option<String>,
-    #[serde(default)]
-    metadata: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ScriptsQuery {
-    limit: Option<i32>,
-    offset: Option<i32>,
-    category: Option<String>,
-    #[serde(rename = "includePrivate")]
-    include_private: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct CreateScriptRequest {
-    title: String,
-    description: String,
-    category: String,
-    lua_source: String,
-    author_name: String,
-    author_id: Option<String>,
-    author_principal: Option<String>,
-    author_public_key: Option<String>,
-    upload_signature: Option<String>,
-    signature: Option<String>,
-    timestamp: Option<String>,
-    version: Option<String>,
-    price: Option<f64>,
-    is_public: Option<bool>,
-    compatibility: Option<String>,
-    tags: Option<Vec<String>>,
-    action: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct UpdateScriptRequest {
-    title: Option<String>,
-    description: Option<String>,
-    category: Option<String>,
-    lua_source: Option<String>,
-    version: Option<String>,
-    price: Option<f64>,
-    is_public: Option<bool>,
-    tags: Option<Vec<String>>,
-    signature: Option<String>,
-    timestamp: Option<String>,
-    script_id: Option<String>,
-    author_principal: Option<String>,
-    author_public_key: Option<String>,
-    action: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct DeleteScriptRequest {
-    script_id: Option<String>,
-    author_principal: Option<String>,
-    author_public_key: Option<String>,
-    signature: Option<String>,
-    timestamp: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct SearchRequest {
-    #[serde(rename = "query")]
-    query: Option<String>,
-    category: Option<String>,
-    #[serde(rename = "canisterId")]
-    canister_id: Option<String>,
-    #[serde(rename = "minRating")]
-    min_rating: Option<f64>,
-    #[serde(rename = "maxPrice")]
-    max_price: Option<f64>,
-    #[serde(rename = "sortBy")]
-    sort_by: Option<String>,
-    #[serde(rename = "order")]
-    sort_order: Option<String>,
-    limit: Option<i64>,
-    offset: Option<i64>,
-}
-
-#[derive(Debug)]
-struct SearchResultPayload {
-    scripts: Vec<Script>,
-    total: i64,
-    limit: i64,
-    offset: i64,
-}
 
 async fn run_marketplace_search(
     pool: &SqlitePool,
@@ -330,34 +180,6 @@ async fn run_marketplace_search(
     })
 }
 
-#[derive(Debug, Deserialize)]
-struct ReviewsQuery {
-    limit: Option<i32>,
-    offset: Option<i32>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateReviewRequest {
-    #[serde(rename = "userId")]
-    user_id: String,
-    rating: i32,
-    comment: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct UpdateStatsRequest {
-    #[serde(rename = "scriptId")]
-    script_id: String,
-    #[serde(rename = "incrementDownloads")]
-    increment_downloads: Option<i32>,
-}
-
-struct AppState {
-    pool: SqlitePool,
-}
-
-const SCRIPT_COLUMNS: &str = "id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at";
-
 #[cfg(test)]
 mod signature_tests {
     use super::*;
@@ -470,16 +292,6 @@ fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
 }
 
-fn error_response(status: StatusCode, error: &str) -> Response {
-    (
-        status,
-        Json(serde_json::json!({
-            "success": false,
-            "error": error
-        })),
-    )
-        .into_response()
-}
 
 /// Validates authentication signature - no test backdoors!
 fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Box<Response>> {
@@ -506,23 +318,6 @@ fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Bo
 
 /// Verifies script upload signature
 fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<Response>> {
-    let signature = match &req.signature {
-        Some(sig) => sig,
-        None => {
-            return Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Missing signature for verification",
-            )))
-        }
-    };
-
-    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_public_key for signature verification",
-        ))
-    })?;
-
     let author_principal = req.author_principal.as_ref().ok_or_else(|| {
         Box::new(error_response(
             StatusCode::UNAUTHORIZED,
@@ -530,7 +325,7 @@ fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<R
         ))
     })?;
 
-    // Reconstruct the payload that was signed
+    // Build the payload that was signed
     let mut payload = serde_json::json!({
         "action": "upload",
         "title": &req.title,
@@ -554,24 +349,13 @@ fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<R
         payload["compatibility"] = serde_json::Value::String(compatibility.clone());
     }
 
-    // Create canonical JSON
-    let canonical_json = create_canonical_payload(&payload);
-    let payload_bytes = canonical_json.as_bytes();
-
-    // Try Ed25519 first, then secp256k1
-    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    tracing::warn!("Signature verification failed for script upload");
-    Err(Box::new(error_response(
-        StatusCode::UNAUTHORIZED,
-        "Invalid authentication signature",
-    )))
+    // Verify using unified function
+    verify_operation_signature(
+        req.signature.as_deref(),
+        req.author_public_key.as_deref(),
+        req.author_principal.as_deref(),
+        &payload,
+    ).map_err(|e| Box::new(e.as_response()))
 }
 
 /// Verifies script deletion signature
@@ -579,23 +363,6 @@ fn verify_script_deletion_signature(
     req: &DeleteScriptRequest,
     script_id: &str,
 ) -> Result<(), Box<Response>> {
-    let signature = match &req.signature {
-        Some(sig) => sig,
-        None => {
-            return Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Missing signature for verification",
-            )))
-        }
-    };
-
-    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_public_key for signature verification",
-        ))
-    })?;
-
     let author_principal = req.author_principal.as_ref().ok_or_else(|| {
         Box::new(error_response(
             StatusCode::UNAUTHORIZED,
@@ -603,7 +370,7 @@ fn verify_script_deletion_signature(
         ))
     })?;
 
-    // Reconstruct the payload
+    // Build the payload
     let mut payload = serde_json::json!({
         "action": "delete",
         "script_id": script_id,
@@ -614,23 +381,13 @@ fn verify_script_deletion_signature(
         payload["timestamp"] = serde_json::Value::String(timestamp.clone());
     }
 
-    let canonical_json = create_canonical_payload(&payload);
-    let payload_bytes = canonical_json.as_bytes();
-
-    // Try both signature types
-    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    tracing::warn!("Signature verification failed for script deletion");
-    Err(Box::new(error_response(
-        StatusCode::UNAUTHORIZED,
-        "Invalid authentication signature",
-    )))
+    // Verify using unified function
+    verify_operation_signature(
+        req.signature.as_deref(),
+        req.author_public_key.as_deref(),
+        req.author_principal.as_deref(),
+        &payload,
+    ).map_err(|e| Box::new(e.as_response()))
 }
 
 fn build_canonical_update_payload(
@@ -729,43 +486,15 @@ fn verify_script_update_signature(
     req: &UpdateScriptRequest,
     script_id: &str,
 ) -> Result<(), Box<Response>> {
-    let signature = match &req.signature {
-        Some(sig) => sig,
-        None => {
-            return Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Missing signature for verification",
-            )))
-        }
-    };
-
-    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_public_key for signature verification",
-        ))
-    })?;
-
     let payload = build_canonical_update_payload(req, script_id)?;
 
-    // Create canonical JSON
-    let canonical_json = create_canonical_payload(&payload);
-    let payload_bytes = canonical_json.as_bytes();
-
-    // Try Ed25519 first, then secp256k1
-    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    tracing::warn!("Signature verification failed for script update");
-    Err(Box::new(error_response(
-        StatusCode::UNAUTHORIZED,
-        "Invalid authentication signature",
-    )))
+    // Verify using unified function
+    verify_operation_signature(
+        req.signature.as_deref(),
+        req.author_public_key.as_deref(),
+        req.author_principal.as_deref(),
+        &payload,
+    ).map_err(|e| Box::new(e.as_response()))
 }
 
 /// Verifies script publish signature
@@ -773,23 +502,6 @@ fn verify_script_publish_signature(
     req: &UpdateScriptRequest,
     script_id: &str,
 ) -> Result<(), Box<Response>> {
-    let signature = match &req.signature {
-        Some(sig) => sig,
-        None => {
-            return Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Missing signature for verification",
-            )))
-        }
-    };
-
-    let public_key = req.author_public_key.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_public_key for signature verification",
-        ))
-    })?;
-
     let author_principal = req.author_principal.as_ref().ok_or_else(|| {
         Box::new(error_response(
             StatusCode::UNAUTHORIZED,
@@ -797,7 +509,7 @@ fn verify_script_publish_signature(
         ))
     })?;
 
-    // Reconstruct the payload that was signed for publish
+    // Build the payload for publish
     let mut payload = serde_json::json!({
         "action": "update",
         "script_id": script_id,
@@ -809,24 +521,13 @@ fn verify_script_publish_signature(
         payload["timestamp"] = serde_json::Value::String(timestamp.clone());
     }
 
-    // Create canonical JSON
-    let canonical_json = create_canonical_payload(&payload);
-    let payload_bytes = canonical_json.as_bytes();
-
-    // Try Ed25519 first, then secp256k1
-    if let Ok(()) = verify_ed25519_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    if let Ok(()) = verify_secp256k1_signature(signature, payload_bytes, public_key) {
-        return Ok(());
-    }
-
-    tracing::warn!("Signature verification failed for script publish");
-    Err(Box::new(error_response(
-        StatusCode::UNAUTHORIZED,
-        "Invalid authentication signature",
-    )))
+    // Verify using unified function
+    verify_operation_signature(
+        req.signature.as_deref(),
+        req.author_public_key.as_deref(),
+        req.author_principal.as_deref(),
+        &payload,
+    ).map_err(|e| Box::new(e.as_response()))
 }
 
 /// Validates principal and public key fields for authentication (wrapper for auth module)
