@@ -1,4 +1,5 @@
 mod auth;
+mod db;
 mod errors;
 mod middleware;
 mod models;
@@ -232,7 +233,7 @@ mod signature_tests {
                 .expect("valid canonical update request");
 
         assert!(
-            verify_script_update_signature(&req, "41935708-8561-4424-a42f-cba44e26785a").is_ok(),
+            middleware::auth::verify_script_update_signature(&req, "41935708-8561-4424-a42f-cba44e26785a").is_ok(),
             "Expected canonical payload signature to verify successfully"
         );
     }
@@ -284,7 +285,7 @@ mod signature_tests {
                 .expect("valid update request json");
 
         assert!(
-            verify_script_update_signature(&request, "script-123").is_ok(),
+            middleware::auth::verify_script_update_signature(&request, "script-123").is_ok(),
             "extra fields outside canonical payload must not affect signature verification"
         );
     }
@@ -295,192 +296,6 @@ fn is_development() -> bool {
 }
 
 /// Builds the canonical payload for script upload signature verification
-fn build_upload_payload(req: &CreateScriptRequest) -> Result<serde_json::Value, Box<Response>> {
-    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_principal for signature verification",
-        ))
-    })?;
-
-    let mut payload = serde_json::json!({
-        "action": "upload",
-        "title": &req.title,
-        "description": &req.description,
-        "category": &req.category,
-        "lua_source": &req.lua_source,
-        "version": req.version.as_deref().unwrap_or("1.0.0"),
-        "author_principal": author_principal,
-    });
-
-    // Add optional fields
-    if let Some(ref timestamp) = req.timestamp {
-        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
-    }
-    if let Some(ref tags) = req.tags {
-        let mut sorted_tags = tags.clone();
-        sorted_tags.sort();
-        payload["tags"] = serde_json::json!(sorted_tags);
-    }
-    if let Some(ref compatibility) = req.compatibility {
-        payload["compatibility"] = serde_json::Value::String(compatibility.clone());
-    }
-
-    Ok(payload)
-}
-
-/// Builds the canonical payload for script deletion signature verification
-fn build_deletion_payload(
-    req: &DeleteScriptRequest,
-    script_id: &str,
-) -> Result<serde_json::Value, Box<Response>> {
-    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_principal for signature verification",
-        ))
-    })?;
-
-    let mut payload = serde_json::json!({
-        "action": "delete",
-        "script_id": script_id,
-        "author_principal": author_principal,
-    });
-
-    if let Some(ref timestamp) = req.timestamp {
-        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
-    }
-
-    Ok(payload)
-}
-
-fn build_canonical_update_payload(
-    req: &UpdateScriptRequest,
-    script_id: &str,
-) -> Result<serde_json::Value, Box<Response>> {
-    if let Some(body_script_id) = &req.script_id {
-        if body_script_id != script_id {
-            return Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Signed script_id does not match request path",
-            )));
-        }
-    }
-
-    let action = req.action.as_deref().unwrap_or("update");
-    if action != "update" {
-        return Err(Box::new(error_response(
-            StatusCode::BAD_REQUEST,
-            "Invalid action for script update signature verification",
-        )));
-    }
-
-    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_principal for signature verification",
-        ))
-    })?;
-
-    let mut payload = serde_json::Map::new();
-    payload.insert(
-        "action".to_string(),
-        serde_json::Value::String("update".to_string()),
-    );
-    payload.insert(
-        "script_id".to_string(),
-        serde_json::Value::String(script_id.to_string()),
-    );
-    payload.insert(
-        "author_principal".to_string(),
-        serde_json::Value::String(author_principal.clone()),
-    );
-
-    if let Some(timestamp) = &req.timestamp {
-        payload.insert(
-            "timestamp".to_string(),
-            serde_json::Value::String(timestamp.clone()),
-        );
-    }
-
-    let insert_optional_string =
-        |key: &str,
-         value: &Option<String>,
-         map: &mut serde_json::Map<String, serde_json::Value>| {
-            if let Some(content) = value {
-                map.insert(key.to_string(), serde_json::Value::String(content.clone()));
-            }
-        };
-
-    insert_optional_string("title", &req.title, &mut payload);
-    insert_optional_string("description", &req.description, &mut payload);
-    insert_optional_string("category", &req.category, &mut payload);
-    insert_optional_string("lua_source", &req.lua_source, &mut payload);
-    insert_optional_string("version", &req.version, &mut payload);
-
-    if let Some(tags) = &req.tags {
-        let mut sorted_tags = tags.clone();
-        sorted_tags.sort();
-        let tag_values = sorted_tags
-            .into_iter()
-            .map(serde_json::Value::String)
-            .collect::<Vec<_>>();
-        payload.insert("tags".to_string(), serde_json::Value::Array(tag_values));
-    }
-
-    if let Some(price) = req.price {
-        let number = serde_json::Number::from_f64(price).ok_or_else(|| {
-            Box::new(error_response(
-                StatusCode::BAD_REQUEST,
-                "Invalid price value for signature verification",
-            ))
-        })?;
-        payload.insert("price".to_string(), serde_json::Value::Number(number));
-    }
-
-    if let Some(is_public) = req.is_public {
-        payload.insert("is_public".to_string(), serde_json::Value::Bool(is_public));
-    }
-
-    Ok(serde_json::Value::Object(payload))
-}
-
-/// Verifies script update signature (used in tests)
-fn verify_script_update_signature(
-    req: &UpdateScriptRequest,
-    script_id: &str,
-) -> Result<(), Box<Response>> {
-    middleware::verify_request_auth(req, "Script update", || {
-        build_canonical_update_payload(req, script_id)
-    })
-}
-
-/// Builds the canonical payload for script publish signature verification
-fn build_publish_payload(
-    req: &UpdateScriptRequest,
-    script_id: &str,
-) -> Result<serde_json::Value, Box<Response>> {
-    let author_principal = req.author_principal.as_ref().ok_or_else(|| {
-        Box::new(error_response(
-            StatusCode::UNAUTHORIZED,
-            "Missing author_principal for signature verification",
-        ))
-    })?;
-
-    let mut payload = serde_json::json!({
-        "action": "update",
-        "script_id": script_id,
-        "is_public": true,
-        "author_principal": author_principal,
-    });
-
-    if let Some(ref timestamp) = req.timestamp {
-        payload["timestamp"] = serde_json::Value::String(timestamp.clone());
-    }
-
-    Ok(payload)
-}
-
 #[handler]
 async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
@@ -798,7 +613,7 @@ async fn create_script(
 ) -> Response {
     // Verify authentication
     if let Err(response) = middleware::verify_request_auth(&req, "Script creation", || {
-        build_upload_payload(&req)
+        middleware::auth::build_upload_payload(&req)
     }) {
         return *response;
     }
@@ -886,7 +701,7 @@ async fn update_script(
 ) -> Response {
     // Verify authentication
     if let Err(response) = middleware::verify_request_auth(&req, "Script update", || {
-        build_canonical_update_payload(&req, &script_id)
+        middleware::auth::build_canonical_update_payload(&req, &script_id)
     }) {
         return *response;
     }
@@ -922,7 +737,7 @@ async fn delete_script(
 ) -> Response {
     // Verify authentication
     if let Err(response) = middleware::verify_request_auth(&req, "Script deletion", || {
-        build_deletion_payload(&req, &script_id)
+        middleware::auth::build_deletion_payload(&req, &script_id)
     }) {
         return *response;
     }
@@ -1025,7 +840,7 @@ async fn publish_script(
 ) -> Response {
     // Verify authentication
     if let Err(response) = middleware::verify_request_auth(&req, "Script publish", || {
-        build_publish_payload(&req, &script_id)
+        middleware::auth::build_publish_payload(&req, &script_id)
     }) {
         return *response;
     }
@@ -1246,225 +1061,6 @@ async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
     }
 }
 
-async fn initialize_database(pool: &SqlitePool) {
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS scripts (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            category TEXT NOT NULL,
-            tags TEXT,
-            lua_source TEXT NOT NULL,
-            author_name TEXT NOT NULL,
-            author_id TEXT NOT NULL,
-            author_principal TEXT,
-            author_public_key TEXT,
-            upload_signature TEXT,
-            canister_ids TEXT,
-            icon_url TEXT,
-            screenshots TEXT,
-            version TEXT NOT NULL DEFAULT '1.0.0',
-            compatibility TEXT,
-            price REAL NOT NULL DEFAULT 0.0,
-            is_public INTEGER NOT NULL DEFAULT 1,
-            downloads INTEGER NOT NULL DEFAULT 0,
-            rating REAL NOT NULL DEFAULT 0.0,
-            review_count INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-        "#,
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create scripts table");
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN tags TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN author_id TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN author_principal TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN author_public_key TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN upload_signature TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN canister_ids TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN icon_url TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN screenshots TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query("ALTER TABLE scripts ADD COLUMN compatibility TEXT")
-        .execute(pool)
-        .await
-        .ok();
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS reviews (
-            id TEXT PRIMARY KEY,
-            script_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-            comment TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
-        )
-        "#,
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create reviews table");
-
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_reviews_script_id ON reviews(script_id)")
-        .execute(pool)
-        .await
-        .expect("Failed to create reviews index");
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS identity_profiles (
-            id TEXT PRIMARY KEY,
-            principal TEXT NOT NULL UNIQUE,
-            display_name TEXT NOT NULL,
-            username TEXT,
-            contact_email TEXT,
-            contact_telegram TEXT,
-            contact_twitter TEXT,
-            contact_discord TEXT,
-            website_url TEXT,
-            bio TEXT,
-            metadata TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-        "#,
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create identity_profiles table");
-
-    sqlx::query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_identity_profiles_principal ON identity_profiles(principal)",
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create identity_profiles index");
-
-    // Passkeys table for WebAuthn credentials
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS passkeys (
-            id TEXT PRIMARY KEY,
-            user_principal TEXT NOT NULL,
-            credential_id BLOB NOT NULL UNIQUE,
-            public_key BLOB NOT NULL,
-            counter INTEGER NOT NULL DEFAULT 0,
-            device_name TEXT,
-            device_type TEXT,
-            created_at TEXT NOT NULL,
-            last_used_at TEXT,
-            FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal) ON DELETE CASCADE
-        )
-        "#,
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create passkeys table");
-
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_passkeys_user_principal ON passkeys(user_principal)",
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create passkeys user_principal index");
-
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_passkeys_credential_id ON passkeys(credential_id)")
-        .execute(pool)
-        .await
-        .expect("Failed to create passkeys credential_id index");
-
-    // Recovery codes table for vault password recovery
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS recovery_codes (
-            id TEXT PRIMARY KEY,
-            user_principal TEXT NOT NULL,
-            code_hash TEXT NOT NULL,
-            used INTEGER NOT NULL DEFAULT 0,
-            used_at TEXT,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal) ON DELETE CASCADE
-        )
-        "#,
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create recovery_codes table");
-
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_principal ON recovery_codes(user_principal)",
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create recovery_codes user_principal index");
-
-    // Encrypted vault storage for user credentials
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS user_vaults (
-            id TEXT PRIMARY KEY,
-            user_principal TEXT NOT NULL UNIQUE,
-            encrypted_data BLOB NOT NULL,
-            salt BLOB NOT NULL,
-            nonce BLOB NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal) ON DELETE CASCADE
-        )
-        "#,
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create user_vaults table");
-
-    sqlx::query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_vaults_principal ON user_vaults(user_principal)",
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create user_vaults principal index");
-
-    tracing::info!("Database initialized successfully");
-}
-
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
     // Initialize tracing with clean, parseable format
@@ -1492,7 +1088,7 @@ async fn main() -> Result<(), std::io::Error> {
         .await
         .expect("Failed to connect to database");
 
-    initialize_database(&pool).await;
+    db::initialize_database(&pool).await;
 
     let state = Arc::new(AppState {
         script_service: ScriptService::new(pool.clone()),
@@ -1608,7 +1204,7 @@ mod tests {
             serde_json::from_str(tampered_json).expect("valid tampered request json");
 
         assert!(
-            verify_script_update_signature(&request, "existing-script").is_err(),
+            middleware::auth::verify_script_update_signature(&request, "existing-script").is_err(),
             "tampering payload must invalidate signature verification"
         );
     }
@@ -1620,7 +1216,7 @@ mod tests {
             .await
             .expect("failed to create in-memory sqlite pool");
 
-        initialize_database(&pool).await;
+        db::initialize_database(&pool).await;
 
         insert_script(
             &pool,
@@ -1716,7 +1312,7 @@ mod tests {
             .await
             .expect("connect sqlite memory");
 
-        initialize_database(&pool).await;
+        db::initialize_database(&pool).await;
         Arc::new(AppState {
             script_service: ScriptService::new(pool.clone()),
             review_service: ReviewService::new(pool.clone()),
@@ -1933,7 +1529,7 @@ mod tests {
                 .expect("valid update request json");
 
         assert!(
-            verify_script_update_signature(&request, "script-123").is_ok(),
+            middleware::auth::verify_script_update_signature(&request, "script-123").is_ok(),
             "author_public_key should be ignored by signature verification logic"
         );
     }
@@ -1961,7 +1557,7 @@ mod tests {
             serde_json::from_str(request_json).expect("valid fixture request json");
 
         assert!(
-            verify_script_update_signature(&request, "93e91d19-ce61-4497-821e-4d32c03c6cc2")
+            middleware::auth::verify_script_update_signature(&request, "93e91d19-ce61-4497-821e-4d32c03c6cc2")
                 .is_ok(),
             "fixture payload signature should verify successfully"
         );
