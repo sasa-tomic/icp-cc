@@ -176,6 +176,9 @@ pub struct UpdateStatsRequest {
 
 pub struct AppState {
     pub pool: sqlx::SqlitePool,
+    pub script_service: crate::services::ScriptService,
+    pub review_service: crate::services::ReviewService,
+    pub identity_service: crate::services::IdentityService,
 }
 
 #[derive(Debug, Deserialize)]

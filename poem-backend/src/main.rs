@@ -7,6 +7,7 @@ mod services;
 
 use auth::{create_canonical_payload, verify_operation_signature, AuthError};
 use models::*;
+use services::{IdentityService, ReviewService, ScriptService};
 use poem::{
     error::ResponseError,
     get, handler,
@@ -936,6 +937,7 @@ async fn create_script(
     Json(req): Json<CreateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
+    // Authentication checks
     if let Err(response) = validate_signature(req.signature.as_deref(), "Script creation") {
         return *response;
     }
@@ -947,58 +949,22 @@ async fn create_script(
         return *response;
     }
 
-    // Verify cryptographic signature if not using test token
     if let Err(response) = verify_script_upload_signature(&req) {
         return *response;
     }
 
-    // TODO(ux): Replace random UUID IDs with user supplied globally unique slugs or deterministic hashes
-    // so marketplace links remain stable across uploads.
-    let script_id = uuid::Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().to_rfc3339();
-
-    let is_public = resolve_script_visibility(req.is_public);
-
-    let version = req.version.as_deref().unwrap_or("1.0.0");
-    let price = req.price.unwrap_or(0.0);
-    let tags =
-        serde_json::to_string(&req.tags.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
-
-    match sqlx::query(
-        "INSERT INTO scripts (id, title, description, category, lua_source, author_name, author_id,
-         author_principal, author_public_key, upload_signature,
-         is_public, rating, downloads, review_count, version, price, tags, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0.0, 0, 0, ?12, ?13, ?14, ?15, ?16)",
-    )
-    .bind(&script_id)
-    .bind(&req.title)
-    .bind(&req.description)
-    .bind(&req.category)
-    .bind(&req.lua_source)
-    .bind(&req.author_name)
-    .bind(req.author_id.as_deref().unwrap_or("test-author-id"))
-    .bind(&req.author_principal)
-    .bind(&req.author_public_key)
-    .bind(&req.signature)
-    .bind(is_public as i32)
-    .bind(version)
-    .bind(price)
-    .bind(&tags)
-    .bind(&now)
-    .bind(&now)
-    .execute(&state.pool)
-    .await
-    {
-        Ok(_) => {
-            tracing::info!("Created script: {} (public: {})", script_id, is_public);
+    // Create script via service
+    match state.script_service.create_script(req).await {
+        Ok(script) => {
+            tracing::info!("Created script: {} (public: {})", script.id, script.is_public);
             (
                 StatusCode::CREATED,
                 Json(serde_json::json!({
                     "success": true,
                     "data": {
-                        "id": script_id,
-                        "title": req.title,
-                        "created_at": now
+                        "id": script.id,
+                        "title": script.title,
+                        "created_at": script.created_at
                     }
                 })),
             )
@@ -1006,14 +972,10 @@ async fn create_script(
         }
         Err(e) => {
             tracing::error!("Failed to create script: {}", e);
-            (
+            error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": format!("Failed to create script: {}", e)
-                })),
+                &format!("Failed to create script: {}", e),
             )
-                .into_response()
         }
     }
 }
@@ -2005,7 +1967,12 @@ async fn main() -> Result<(), std::io::Error> {
 
     initialize_database(&pool).await;
 
-    let state = Arc::new(AppState { pool });
+    let state = Arc::new(AppState {
+        script_service: ScriptService::new(pool.clone()),
+        review_service: ReviewService::new(pool.clone()),
+        identity_service: IdentityService::new(pool.clone()),
+        pool,
+    });
 
     // Build app
     let app = Route::new()
@@ -2176,7 +2143,12 @@ mod tests {
         )
         .await;
 
-        Arc::new(AppState { pool })
+        Arc::new(AppState {
+            script_service: ScriptService::new(pool.clone()),
+            review_service: ReviewService::new(pool.clone()),
+            identity_service: IdentityService::new(pool.clone()),
+            pool,
+        })
     }
 
     struct ScriptFixture<'a> {
@@ -2218,7 +2190,12 @@ mod tests {
             .expect("connect sqlite memory");
 
         initialize_database(&pool).await;
-        Arc::new(AppState { pool })
+        Arc::new(AppState {
+            script_service: ScriptService::new(pool.clone()),
+            review_service: ReviewService::new(pool.clone()),
+            identity_service: IdentityService::new(pool.clone()),
+            pool,
+        })
     }
 
     #[tokio::test]
