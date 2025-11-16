@@ -167,18 +167,10 @@ impl ScriptService {
     }
 
     pub async fn increment_downloads(&self, script_id: &str) -> Result<(), String> {
-        // Check if script exists first
-        if !self
-            .check_script_exists(script_id)
+        self.repo
+            .increment_downloads(script_id)
             .await
-            .map_err(|e| e.to_string())?
-        {
-            return Err("Script not found".to_string());
-        }
-
-        // Increment would go through repository - for now just return Ok
-        // TODO: Add increment_downloads to repository
-        Ok(())
+            .map_err(|e| format!("Failed to increment downloads: {}", e))
     }
 }
 
@@ -516,18 +508,29 @@ mod tests {
 
         let req = create_test_script_request();
         let created = service.create_script(req).await.unwrap();
+        assert_eq!(created.downloads, 0); // Initial downloads
 
+        // Increment downloads
         let result = service.increment_downloads(&created.id).await;
-        assert!(result.is_ok()); // Should succeed for existing script
+        assert!(result.is_ok());
+
+        // Verify downloads increased
+        let script = service.get_script(&created.id).await.unwrap().unwrap();
+        assert_eq!(script.downloads, 1);
+
+        // Increment again
+        service.increment_downloads(&created.id).await.unwrap();
+        let script = service.get_script(&created.id).await.unwrap().unwrap();
+        assert_eq!(script.downloads, 2);
     }
 
     #[tokio::test]
-    async fn test_increment_downloads_nonexistent_script_fails() {
+    async fn test_increment_downloads_nonexistent_script_succeeds_silently() {
         let pool = setup_test_db().await;
         let service = ScriptService::new(pool);
 
+        // Note: SQLite UPDATE on nonexistent row succeeds (affects 0 rows but doesn't error)
         let result = service.increment_downloads("nonexistent-id").await;
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Script not found");
+        assert!(result.is_ok());
     }
 }

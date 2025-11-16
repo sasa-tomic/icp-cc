@@ -217,6 +217,14 @@ impl ScriptRepository {
         Ok(())
     }
 
+    pub async fn increment_downloads(&self, script_id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE scripts SET downloads = downloads + 1 WHERE id = ?1")
+            .bind(script_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn search(
         &self,
         request: &SearchRequest,
