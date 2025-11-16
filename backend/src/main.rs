@@ -1,16 +1,16 @@
 mod auth;
 mod db;
-mod errors;
 mod middleware;
 mod models;
 mod repositories;
 mod responses;
 mod services;
 
-use auth::{create_canonical_payload, verify_operation_signature};
+#[cfg(test)]
+use auth::create_canonical_payload;
+
 use models::*;
 use poem::{
-    error::ResponseError,
     get, handler,
     http::StatusCode,
     listener::TcpListener,
@@ -24,6 +24,7 @@ use services::{IdentityService, ReviewService, ScriptService};
 use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
 
+#[cfg(test)]
 async fn run_marketplace_search(
     pool: &SqlitePool,
     request: &SearchRequest,
@@ -407,10 +408,12 @@ async fn get_marketplace_stats(Data(state): Data<&Arc<AppState>>) -> Response {
     }
 }
 
+#[cfg(test)]
 fn resolve_script_visibility(flag: Option<bool>) -> bool {
     flag.unwrap_or(true)
 }
 
+#[cfg(test)]
 fn sanitize_optional(value: &Option<String>) -> Option<String> {
     value
         .as_ref()
@@ -456,6 +459,7 @@ fn identity_profile_to_payload(profile: &IdentityProfile) -> serde_json::Value {
     })
 }
 
+#[cfg(test)]
 fn validate_identity_profile_payload(
     payload: &UpsertIdentityProfileRequest,
 ) -> Result<(), (StatusCode, String)> {
@@ -508,6 +512,7 @@ fn validate_identity_profile_payload(
     Ok(())
 }
 
+#[cfg(test)]
 fn encode_metadata(
     metadata: &Option<serde_json::Value>,
 ) -> Result<Option<String>, (StatusCode, String)> {
@@ -523,6 +528,7 @@ fn encode_metadata(
     }
 }
 
+#[cfg(test)]
 async fn persist_identity_profile(
     pool: &SqlitePool,
     payload: &UpsertIdentityProfileRequest,
@@ -588,6 +594,7 @@ async fn persist_identity_profile(
     fetch_identity_profile(pool, principal).await
 }
 
+#[cfg(test)]
 async fn fetch_identity_profile(
     pool: &SqlitePool,
     principal: &str,
