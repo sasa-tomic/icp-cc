@@ -507,37 +507,10 @@ async fn get_scripts(
 ) -> Response {
     let limit = params.limit.unwrap_or(20);
     let offset = params.offset.unwrap_or(0);
+    let include_private = params.include_private.unwrap_or(false);
 
-    let scripts = if let Some(category) = params.category {
-        let sql = format!(
-            "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 ORDER BY created_at DESC LIMIT ?2 OFFSET ?3",
-            SCRIPT_COLUMNS
-        );
-        sqlx::query_as::<_, Script>(&sql)
-            .bind(category)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&state.pool)
-            .await
-    } else {
-        let sql = format!(
-            "SELECT {} FROM scripts WHERE is_public = 1 ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
-            SCRIPT_COLUMNS
-        );
-        sqlx::query_as::<_, Script>(&sql)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&state.pool)
-            .await
-    };
-
-    match scripts {
-        Ok(scripts) => {
-            let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
-                .fetch_one(&state.pool)
-                .await
-                .unwrap_or(0);
-
+    match state.script_service.get_scripts(limit, offset, params.category, include_private).await {
+        Ok((scripts, total)) => {
             Json(serde_json::json!({
                 "success": true,
                 "data": {
@@ -577,10 +550,7 @@ async fn get_script(
 
 #[handler]
 async fn get_scripts_count(Data(state): Data<&Arc<AppState>>) -> Response {
-    match sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
-        .fetch_one(&state.pool)
-        .await
-    {
+    match state.script_service.get_scripts_count().await {
         Ok(count) => Json(serde_json::json!({
             "success": true,
             "data": { "count": count }
@@ -588,47 +558,29 @@ async fn get_scripts_count(Data(state): Data<&Arc<AppState>>) -> Response {
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get count: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get count"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get count")
         }
     }
 }
 
 #[handler]
 async fn get_marketplace_stats(Data(state): Data<&Arc<AppState>>) -> Response {
-    let scripts_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
-        .fetch_one(&state.pool)
-        .await
-        .unwrap_or(0);
-
-    let total_downloads: i64 =
-        sqlx::query_scalar("SELECT COALESCE(SUM(downloads), 0) FROM scripts WHERE is_public = 1")
-            .fetch_one(&state.pool)
-            .await
-            .unwrap_or(0);
-
-    let avg_rating: Option<f64> =
-        sqlx::query_scalar("SELECT AVG(rating) FROM scripts WHERE is_public = 1 AND rating > 0")
-            .fetch_one(&state.pool)
-            .await
-            .ok();
-
-    Json(serde_json::json!({
-        "success": true,
-        "data": {
-            "totalScripts": scripts_count,
-            "totalDownloads": total_downloads,
-            "averageRating": avg_rating.unwrap_or(0.0),
-            "timestamp": chrono::Utc::now().to_rfc3339()
+    match state.script_service.get_marketplace_stats().await {
+        Ok((scripts_count, total_downloads, avg_rating)) => Json(serde_json::json!({
+            "success": true,
+            "data": {
+                "totalScripts": scripts_count,
+                "totalDownloads": total_downloads,
+                "averageRating": avg_rating,
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            }
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get marketplace stats: {}", e);
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get marketplace stats")
         }
-    }))
-    .into_response()
+    }
 }
 
 fn resolve_script_visibility(flag: Option<bool>) -> bool {
@@ -1016,7 +968,7 @@ async fn search_scripts(
     Json(request): Json<SearchRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match run_marketplace_search(&state.pool, &request).await {
+    match state.script_service.search_scripts(&request).await {
         Ok(result) => {
             let has_more = result.offset + (result.scripts.len() as i64) < result.total;
 
@@ -1049,14 +1001,7 @@ async fn get_scripts_by_category(
     Path(category): Path<String>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match sqlx::query_as::<_, Script>(&format!(
-        "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 ORDER BY created_at DESC",
-        SCRIPT_COLUMNS
-    ))
-    .bind(&category)
-    .fetch_all(&state.pool)
-    .await
-    {
+    match state.script_service.get_scripts_by_category(&category, 100).await {
         Ok(scripts) => {
             tracing::debug!("Category '{}' has {} scripts", category, scripts.len());
             Json(serde_json::json!({
@@ -1067,14 +1012,7 @@ async fn get_scripts_by_category(
         }
         Err(e) => {
             tracing::error!("Failed to get scripts by category: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get scripts by category"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get scripts by category")
         }
     }
 }
@@ -1179,13 +1117,7 @@ async fn create_review(
 
 #[handler]
 async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
-    match sqlx::query_as::<_, Script>(&format!(
-        "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= 4.0 ORDER BY downloads DESC LIMIT 20",
-        SCRIPT_COLUMNS
-    ))
-    .fetch_all(&state.pool)
-    .await
-    {
+    match state.script_service.get_trending(20).await {
         Ok(scripts) => Json(serde_json::json!({
             "success": true,
             "data": scripts
@@ -1193,27 +1125,14 @@ async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get trending scripts: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get trending scripts"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get trending scripts")
         }
     }
 }
 
 #[handler]
 async fn get_featured_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
-    match sqlx::query_as::<_, Script>(&format!(
-        "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= 4.5 ORDER BY rating DESC LIMIT 10",
-        SCRIPT_COLUMNS
-    ))
-    .fetch_all(&state.pool)
-    .await
-    {
+    match state.script_service.get_featured(4.5, 10, 10).await {
         Ok(scripts) => Json(serde_json::json!({
             "success": true,
             "data": scripts
@@ -1221,14 +1140,7 @@ async fn get_featured_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get featured scripts: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get featured scripts"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get featured scripts")
         }
     }
 }
@@ -1238,15 +1150,8 @@ async fn get_compatible_scripts(
     Query(_params): Query<ScriptsQuery>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // For now, return all public scripts sorted by rating
-    // In the future, this could filter by canister compatibility
-    match sqlx::query_as::<_, Script>(&format!(
-        "SELECT {} FROM scripts WHERE is_public = 1 ORDER BY rating DESC LIMIT 20",
-        SCRIPT_COLUMNS
-    ))
-    .fetch_all(&state.pool)
-    .await
-    {
+    // For now, return all compatible scripts
+    match state.script_service.get_compatible("all", 20).await {
         Ok(scripts) => Json(serde_json::json!({
             "success": true,
             "data": scripts
@@ -1254,14 +1159,7 @@ async fn get_compatible_scripts(
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get compatible scripts: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get compatible scripts"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get compatible scripts")
         }
     }
 }
@@ -1273,12 +1171,7 @@ async fn update_script_stats(
 ) -> Response {
     if let Some(increment) = req.increment_downloads {
         if increment > 0 {
-            match sqlx::query("UPDATE scripts SET downloads = downloads + ?1 WHERE id = ?2")
-                .bind(increment)
-                .bind(&req.script_id)
-                .execute(&state.pool)
-                .await
-            {
+            match state.script_service.increment_downloads(&req.script_id).await {
                 Ok(_) => {
                     tracing::info!("Updated download count for script: {}", req.script_id);
                     Json(serde_json::json!({
@@ -1289,14 +1182,7 @@ async fn update_script_stats(
                 }
                 Err(e) => {
                     tracing::error!("Failed to update stats for script {}: {}", req.script_id, e);
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({
-                            "success": false,
-                            "error": "Failed to update stats"
-                        })),
-                    )
-                        .into_response()
+                    error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to update stats")
                 }
             }
         } else {
