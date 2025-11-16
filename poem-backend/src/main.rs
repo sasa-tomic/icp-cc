@@ -558,48 +558,19 @@ async fn get_scripts(
 #[handler]
 async fn get_script(
     Path(script_id): Path<String>,
-    Query(query): Query<ScriptsQuery>,
+    Query(_query): Query<ScriptsQuery>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    let include_private = query.include_private.unwrap_or(false);
-
-    let sql = if include_private {
-        format!("SELECT {} FROM scripts WHERE id = ?1", SCRIPT_COLUMNS)
-    } else {
-        format!(
-            "SELECT {} FROM scripts WHERE id = ?1 AND is_public = 1",
-            SCRIPT_COLUMNS
-        )
-    };
-
-    match sqlx::query_as::<_, Script>(&sql)
-        .bind(&script_id)
-        .fetch_optional(&state.pool)
-        .await
-    {
+    match state.script_service.get_script(&script_id).await {
         Ok(Some(script)) => Json(serde_json::json!({
             "success": true,
             "data": script
         }))
         .into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Script not found"
-            })),
-        )
-            .into_response(),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "Script not found"),
         Err(e) => {
             tracing::error!("Failed to get script {}: {}", script_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get script"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get script")
         }
     }
 }
@@ -912,7 +883,7 @@ async fn upsert_identity_profile(
     Json(payload): Json<UpsertIdentityProfileRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match persist_identity_profile(&state.pool, &payload).await {
+    match state.identity_service.upsert_profile(payload).await {
         Ok(profile) => (
             StatusCode::OK,
             Json(serde_json::json!({
@@ -921,7 +892,15 @@ async fn upsert_identity_profile(
             })),
         )
             .into_response(),
-        Err((status, message)) => error_response(status, &message),
+        Err(message) => {
+            tracing::warn!("Failed to upsert identity profile: {}", message);
+            let status = if message.contains("email") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &message)
+        }
     }
 }
 
@@ -930,8 +909,8 @@ async fn get_identity_profile(
     Path(principal): Path<String>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match fetch_identity_profile(&state.pool, &principal).await {
-        Ok(profile) => (
+    match state.identity_service.get_profile(&principal).await {
+        Ok(Some(profile)) => (
             StatusCode::OK,
             Json(serde_json::json!({
                 "success": true,
@@ -939,7 +918,11 @@ async fn get_identity_profile(
             })),
         )
             .into_response(),
-        Err((status, message)) => error_response(status, &message),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "Identity profile not found"),
+        Err(message) => {
+            tracing::error!("Failed to get identity profile: {}", message);
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, &message)
+        }
     }
 }
 
@@ -1141,47 +1124,21 @@ async fn get_reviews(
     let limit = params.limit.unwrap_or(20);
     let offset = params.offset.unwrap_or(0);
 
-    match sqlx::query_as::<_, Review>(
-        "SELECT id, script_id, user_id, rating, comment, created_at, updated_at
-         FROM reviews
-         WHERE script_id = ?1
-         ORDER BY created_at DESC
-         LIMIT ?2 OFFSET ?3",
-    )
-    .bind(&script_id)
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(&state.pool)
-    .await
-    {
-        Ok(reviews) => {
-            let total: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM reviews WHERE script_id = ?1")
-                    .bind(&script_id)
-                    .fetch_one(&state.pool)
-                    .await
-                    .unwrap_or(0);
-
+    match state.review_service.get_reviews(&script_id, limit, offset).await {
+        Ok((reviews, total)) => {
             Json(serde_json::json!({
                 "success": true,
                 "data": {
                     "reviews": reviews,
                     "total": total,
-                    "hasMore": (offset + limit) < total as i32
+                    "hasMore": (offset + limit) < total
                 }
             }))
             .into_response()
         }
         Err(e) => {
             tracing::error!("Failed to get reviews for script {}: {}", script_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "Failed to get reviews"
-                })),
-            )
-                .into_response()
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get reviews")
         }
     }
 }
@@ -1192,130 +1149,30 @@ async fn create_review(
     Json(req): Json<CreateReviewRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // Validate rating
-    if req.rating < 1 || req.rating > 5 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Rating must be between 1 and 5"
-            })),
-        )
-            .into_response();
-    }
-
-    // Check if script exists
-    let script_exists: Option<i64> =
-        sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1")
-            .bind(&script_id)
-            .fetch_optional(&state.pool)
-            .await
-            .unwrap_or(None);
-
-    if script_exists.unwrap_or(0) == 0 {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Script not found"
-            })),
-        )
-            .into_response();
-    }
-
-    // Check if user already reviewed this script
-    let existing_review: Option<i64> =
-        sqlx::query_scalar("SELECT COUNT(*) FROM reviews WHERE script_id = ?1 AND user_id = ?2")
-            .bind(&script_id)
-            .bind(&req.user_id)
-            .fetch_optional(&state.pool)
-            .await
-            .unwrap_or(None);
-
-    if existing_review.unwrap_or(0) > 0 {
-        return (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "You have already reviewed this script"
-            })),
-        )
-            .into_response();
-    }
-
-    let review_id = format!("{}_{}", script_id, req.user_id);
-    let now = chrono::Utc::now().to_rfc3339();
-
-    match sqlx::query(
-        "INSERT INTO reviews (id, script_id, user_id, rating, comment, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-    )
-    .bind(&review_id)
-    .bind(&script_id)
-    .bind(&req.user_id)
-    .bind(req.rating)
-    .bind(&req.comment)
-    .bind(&now)
-    .bind(&now)
-    .execute(&state.pool)
-    .await
-    {
-        Ok(_) => {
-            // Update script rating and review count
-            let avg_rating: Option<f64> =
-                sqlx::query_scalar("SELECT AVG(rating) FROM reviews WHERE script_id = ?1")
-                    .bind(&script_id)
-                    .fetch_one(&state.pool)
-                    .await
-                    .ok();
-
-            let review_count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM reviews WHERE script_id = ?1")
-                    .bind(&script_id)
-                    .fetch_one(&state.pool)
-                    .await
-                    .unwrap_or(0);
-
-            sqlx::query("UPDATE scripts SET rating = ?1, review_count = ?2 WHERE id = ?3")
-                .bind(avg_rating.unwrap_or(0.0))
-                .bind(review_count)
-                .bind(&script_id)
-                .execute(&state.pool)
-                .await
-                .ok();
-
-            tracing::info!(
-                "Created review for script {} by user {}",
-                script_id,
-                req.user_id
-            );
-
+    match state.review_service.create_review(&script_id, req).await {
+        Ok(review) => {
+            tracing::info!("Created review for script {} by user {}", script_id, review.user_id);
             (
                 StatusCode::CREATED,
                 Json(serde_json::json!({
                     "success": true,
-                    "data": {
-                        "id": review_id,
-                        "script_id": script_id,
-                        "user_id": req.user_id,
-                        "rating": req.rating,
-                        "comment": req.comment,
-                        "created_at": now
-                    }
+                    "data": review
                 })),
             )
                 .into_response()
         }
-        Err(e) => {
-            tracing::error!("Failed to create review: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": format!("Failed to create review: {}", e)
-                })),
-            )
-                .into_response()
+        Err(err_msg) => {
+            tracing::warn!("Failed to create review: {}", err_msg);
+            let status = if err_msg.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else if err_msg.contains("already reviewed") {
+                StatusCode::CONFLICT
+            } else if err_msg.contains("must be between") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &err_msg)
         }
     }
 }
