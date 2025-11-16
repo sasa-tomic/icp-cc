@@ -423,7 +423,18 @@ fn identity_profile_to_payload(profile: &IdentityProfile) -> serde_json::Value {
     let metadata = profile
         .metadata
         .as_deref()
-        .and_then(|raw| serde_json::from_str(raw).ok())
+        .and_then(|raw| match serde_json::from_str(raw) {
+            Ok(json) => Some(json),
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to parse metadata for profile {}: {} (raw: {})",
+                    profile.id,
+                    e,
+                    raw
+                );
+                None
+            }
+        })
         .unwrap_or_else(|| serde_json::json!({}));
 
     serde_json::json!({
