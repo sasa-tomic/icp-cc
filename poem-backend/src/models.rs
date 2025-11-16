@@ -188,3 +188,48 @@ pub struct ReviewsQuery {
 }
 
 pub const SCRIPT_COLUMNS: &str = "id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at";
+
+// Implement AuthenticatedRequest trait for request types
+use crate::middleware::AuthenticatedRequest;
+
+impl AuthenticatedRequest for CreateScriptRequest {
+    fn signature(&self) -> Option<&str> {
+        self.signature.as_deref()
+    }
+
+    fn author_principal(&self) -> Option<&str> {
+        self.author_principal.as_deref()
+    }
+
+    fn author_public_key(&self) -> Option<&str> {
+        self.author_public_key.as_deref()
+    }
+}
+
+impl AuthenticatedRequest for UpdateScriptRequest {
+    fn signature(&self) -> Option<&str> {
+        self.signature.as_deref()
+    }
+
+    fn author_principal(&self) -> Option<&str> {
+        self.author_principal.as_deref()
+    }
+
+    fn author_public_key(&self) -> Option<&str> {
+        self.author_public_key.as_deref()
+    }
+}
+
+impl AuthenticatedRequest for DeleteScriptRequest {
+    fn signature(&self) -> Option<&str> {
+        self.signature.as_deref()
+    }
+
+    fn author_principal(&self) -> Option<&str> {
+        self.author_principal.as_deref()
+    }
+
+    fn author_public_key(&self) -> Option<&str> {
+        self.author_public_key.as_deref()
+    }
+}

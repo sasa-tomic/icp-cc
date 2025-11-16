@@ -1,11 +1,12 @@
 mod auth;
 mod errors;
+mod middleware;
 mod models;
 mod repositories;
 mod responses;
 mod services;
 
-use auth::{create_canonical_payload, verify_operation_signature, AuthError};
+use auth::{create_canonical_payload, verify_operation_signature};
 use models::*;
 use services::{IdentityService, ReviewService, ScriptService};
 use poem::{
@@ -293,31 +294,8 @@ fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
 }
 
-/// Validates authentication signature - no test backdoors!
-fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Box<Response>> {
-    match signature {
-        None => {
-            tracing::warn!("{} rejected: missing signature", operation);
-            Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Missing authentication signature",
-            )))
-        }
-        Some(sig)
-            if sig.is_empty() || sig == "invalid-auth-token" || sig == "invalid-signature" =>
-        {
-            tracing::warn!("{} rejected: invalid signature", operation);
-            Err(Box::new(error_response(
-                StatusCode::UNAUTHORIZED,
-                "Invalid authentication signature",
-            )))
-        }
-        Some(_) => Ok(()), // Signature present, verification happens in specific handlers
-    }
-}
-
-/// Verifies script upload signature
-fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<Response>> {
+/// Builds the canonical payload for script upload signature verification
+fn build_upload_payload(req: &CreateScriptRequest) -> Result<serde_json::Value, Box<Response>> {
     let author_principal = req.author_principal.as_ref().ok_or_else(|| {
         Box::new(error_response(
             StatusCode::UNAUTHORIZED,
@@ -325,7 +303,6 @@ fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<R
         ))
     })?;
 
-    // Build the payload that was signed
     let mut payload = serde_json::json!({
         "action": "upload",
         "title": &req.title,
@@ -349,21 +326,14 @@ fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<R
         payload["compatibility"] = serde_json::Value::String(compatibility.clone());
     }
 
-    // Verify using unified function
-    verify_operation_signature(
-        req.signature.as_deref(),
-        req.author_public_key.as_deref(),
-        req.author_principal.as_deref(),
-        &payload,
-    )
-    .map_err(|e| Box::new(e.as_response()))
+    Ok(payload)
 }
 
-/// Verifies script deletion signature
-fn verify_script_deletion_signature(
+/// Builds the canonical payload for script deletion signature verification
+fn build_deletion_payload(
     req: &DeleteScriptRequest,
     script_id: &str,
-) -> Result<(), Box<Response>> {
+) -> Result<serde_json::Value, Box<Response>> {
     let author_principal = req.author_principal.as_ref().ok_or_else(|| {
         Box::new(error_response(
             StatusCode::UNAUTHORIZED,
@@ -371,7 +341,6 @@ fn verify_script_deletion_signature(
         ))
     })?;
 
-    // Build the payload
     let mut payload = serde_json::json!({
         "action": "delete",
         "script_id": script_id,
@@ -382,14 +351,7 @@ fn verify_script_deletion_signature(
         payload["timestamp"] = serde_json::Value::String(timestamp.clone());
     }
 
-    // Verify using unified function
-    verify_operation_signature(
-        req.signature.as_deref(),
-        req.author_public_key.as_deref(),
-        req.author_principal.as_deref(),
-        &payload,
-    )
-    .map_err(|e| Box::new(e.as_response()))
+    Ok(payload)
 }
 
 fn build_canonical_update_payload(
@@ -483,28 +445,21 @@ fn build_canonical_update_payload(
     Ok(serde_json::Value::Object(payload))
 }
 
-/// Verifies script update signature
+/// Verifies script update signature (used in tests)
 fn verify_script_update_signature(
     req: &UpdateScriptRequest,
     script_id: &str,
 ) -> Result<(), Box<Response>> {
-    let payload = build_canonical_update_payload(req, script_id)?;
-
-    // Verify using unified function
-    verify_operation_signature(
-        req.signature.as_deref(),
-        req.author_public_key.as_deref(),
-        req.author_principal.as_deref(),
-        &payload,
-    )
-    .map_err(|e| Box::new(e.as_response()))
+    middleware::verify_request_auth(req, "Script update", || {
+        build_canonical_update_payload(req, script_id)
+    })
 }
 
-/// Verifies script publish signature
-fn verify_script_publish_signature(
+/// Builds the canonical payload for script publish signature verification
+fn build_publish_payload(
     req: &UpdateScriptRequest,
     script_id: &str,
-) -> Result<(), Box<Response>> {
+) -> Result<serde_json::Value, Box<Response>> {
     let author_principal = req.author_principal.as_ref().ok_or_else(|| {
         Box::new(error_response(
             StatusCode::UNAUTHORIZED,
@@ -512,7 +467,6 @@ fn verify_script_publish_signature(
         ))
     })?;
 
-    // Build the payload for publish
     let mut payload = serde_json::json!({
         "action": "update",
         "script_id": script_id,
@@ -524,25 +478,7 @@ fn verify_script_publish_signature(
         payload["timestamp"] = serde_json::Value::String(timestamp.clone());
     }
 
-    // Verify using unified function
-    verify_operation_signature(
-        req.signature.as_deref(),
-        req.author_public_key.as_deref(),
-        req.author_principal.as_deref(),
-        &payload,
-    )
-    .map_err(|e| Box::new(e.as_response()))
-}
-
-/// Validates principal and public key fields for authentication (wrapper for auth module)
-fn validate_credentials_wrapper(
-    author_principal: Option<&str>,
-    author_public_key: Option<&str>,
-) -> Result<(), Box<Response>> {
-    auth::validate_credentials(author_principal, author_public_key).map_err(|e| {
-        tracing::warn!("Authentication rejected: {}", e);
-        Box::new(error_response(StatusCode::UNAUTHORIZED, &e.to_string()))
-    })
+    Ok(payload)
 }
 
 #[handler]
@@ -937,19 +873,10 @@ async fn create_script(
     Json(req): Json<CreateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // Authentication checks
-    if let Err(response) = validate_signature(req.signature.as_deref(), "Script creation") {
-        return *response;
-    }
-
-    if let Err(response) = validate_credentials_wrapper(
-        req.author_principal.as_deref(),
-        req.author_public_key.as_deref(),
-    ) {
-        return *response;
-    }
-
-    if let Err(response) = verify_script_upload_signature(&req) {
+    // Verify authentication
+    if let Err(response) = middleware::verify_request_auth(&req, "Script creation", || {
+        build_upload_payload(&req)
+    }) {
         return *response;
     }
 
@@ -1022,15 +949,10 @@ async fn update_script(
     Json(req): Json<UpdateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    if let Err(response) = validate_signature(
-        req.signature.as_deref(),
-        &format!("Script update for {}", script_id),
-    ) {
-        return *response;
-    }
-
-    // Verify cryptographic signature if not using test token
-    if let Err(response) = verify_script_update_signature(&req, &script_id) {
+    // Verify authentication
+    if let Err(response) = middleware::verify_request_auth(&req, "Script update", || {
+        build_canonical_update_payload(&req, &script_id)
+    }) {
         return *response;
     }
 
@@ -1155,19 +1077,10 @@ async fn delete_script(
     Json(req): Json<DeleteScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    if let Err(response) = validate_signature(
-        req.signature.as_deref(),
-        &format!("Script deletion for {}", script_id),
-    ) {
-        return *response;
-    }
-
-    if let Err(response) = validate_credentials_wrapper(req.author_principal.as_deref(), None) {
-        return *response;
-    }
-
-    // Verify cryptographic signature if not using test token
-    if let Err(response) = verify_script_deletion_signature(&req, &script_id) {
+    // Verify authentication
+    if let Err(response) = middleware::verify_request_auth(&req, "Script deletion", || {
+        build_deletion_payload(&req, &script_id)
+    }) {
         return *response;
     }
 
@@ -1284,15 +1197,10 @@ async fn publish_script(
     Json(req): Json<UpdateScriptRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    if let Err(response) = validate_signature(
-        req.signature.as_deref(),
-        &format!("Script publish for {}", script_id),
-    ) {
-        return *response;
-    }
-
-    // Verify cryptographic signature if not using test token
-    if let Err(response) = verify_script_publish_signature(&req, &script_id) {
+    // Verify authentication
+    if let Err(response) = middleware::verify_request_auth(&req, "Script publish", || {
+        build_publish_payload(&req, &script_id)
+    }) {
         return *response;
     }
 
