@@ -184,10 +184,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
     async fn setup_test_db() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .connect(":memory:")
-            .await
-            .unwrap();
+        let pool = SqlitePoolOptions::new().connect(":memory:").await.unwrap();
         crate::db::initialize_database(&pool).await;
         pool
     }
@@ -476,7 +473,10 @@ mod tests {
         req2.category = "game".to_string();
         service.create_script(req2).await.unwrap();
 
-        let scripts = service.get_scripts_by_category("utility", 10).await.unwrap();
+        let scripts = service
+            .get_scripts_by_category("utility", 10)
+            .await
+            .unwrap();
         assert_eq!(scripts.len(), 1);
         assert_eq!(scripts[0].category, "utility");
     }

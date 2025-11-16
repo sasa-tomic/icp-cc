@@ -117,10 +117,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
     async fn setup_test_db() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .connect(":memory:")
-            .await
-            .unwrap();
+        let pool = SqlitePoolOptions::new().connect(":memory:").await.unwrap();
         crate::db::initialize_database(&pool).await;
         pool
     }
@@ -260,7 +257,11 @@ mod tests {
         let script_id = create_test_script(&pool).await;
 
         // Initial state - no reviews
-        let script = script_service.get_script(&script_id).await.unwrap().unwrap();
+        let script = script_service
+            .get_script(&script_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(script.rating, 0.0);
         assert_eq!(script.review_count, 0);
 
@@ -268,7 +269,11 @@ mod tests {
         let req1 = create_test_review_request("user-1", 5);
         service.create_review(&script_id, req1).await.unwrap();
 
-        let script = script_service.get_script(&script_id).await.unwrap().unwrap();
+        let script = script_service
+            .get_script(&script_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(script.rating, 5.0);
         assert_eq!(script.review_count, 1);
 
@@ -276,7 +281,11 @@ mod tests {
         let req2 = create_test_review_request("user-2", 3);
         service.create_review(&script_id, req2).await.unwrap();
 
-        let script = script_service.get_script(&script_id).await.unwrap().unwrap();
+        let script = script_service
+            .get_script(&script_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(script.rating, 4.0); // Average: (5 + 3) / 2 = 4.0
         assert_eq!(script.review_count, 2);
 
@@ -284,7 +293,11 @@ mod tests {
         let req3 = create_test_review_request("user-3", 4);
         service.create_review(&script_id, req3).await.unwrap();
 
-        let script = script_service.get_script(&script_id).await.unwrap().unwrap();
+        let script = script_service
+            .get_script(&script_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(script.rating, 4.0); // Average: (5 + 3 + 4) / 3 = 4.0
         assert_eq!(script.review_count, 3);
     }

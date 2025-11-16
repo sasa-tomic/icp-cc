@@ -1185,8 +1185,8 @@ async fn main() -> Result<(), std::io::Error> {
     tracing::info!("Starting server on http://{}", addr);
 
     // Bind once to get the actual address (important for port 0 -> random port)
-    let std_listener = match StdTcpListener::bind(&addr) {
-        Ok(listener) => listener,
+    let (std_listener, bind_addr) = match StdTcpListener::bind(&addr) {
+        Ok(listener) => (listener, addr.clone()),
         Err(error) if error.kind() == ErrorKind::PermissionDenied => {
             let ipv4_addr = format!("0.0.0.0:{}", port);
 
@@ -1197,7 +1197,10 @@ async fn main() -> Result<(), std::io::Error> {
                 ipv4_addr
             );
 
-            StdTcpListener::bind(&ipv4_addr).expect("Failed to bind to IPv4 fallback address")
+            (
+                StdTcpListener::bind(&ipv4_addr).expect("Failed to bind to IPv4 fallback address"),
+                ipv4_addr,
+            )
         }
         Err(error) => {
             panic!("Failed to bind to address {}: {}", addr, error);
@@ -1207,14 +1210,24 @@ async fn main() -> Result<(), std::io::Error> {
         .local_addr()
         .expect("Failed to get local address");
 
+    // Get the actual port (important for port 0 -> random port)
+    let actual_port = actual_addr.port();
+
+    // Construct the final bind address using the actual port
+    let final_bind_addr = if bind_addr.starts_with("[::]") {
+        format!("[::]:{}", actual_port)
+    } else {
+        format!("0.0.0.0:{}", actual_port)
+    };
+
     // Log the actual listening address for external tools to parse
-    tracing::info!("listening addr=socket://{}", actual_addr);
+    tracing::info!("listening addr=socket://{}", final_bind_addr);
 
     // Close the std listener since we just needed it for the address
     drop(std_listener);
 
     // Now bind with Poem's listener
-    let listener = TcpListener::bind(actual_addr);
+    let listener = TcpListener::bind(final_bind_addr);
 
     Server::new(listener).run(app).await
 }

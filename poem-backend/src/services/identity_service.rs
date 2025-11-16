@@ -66,10 +66,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
     async fn setup_test_db() -> SqlitePool {
-        let pool = SqlitePoolOptions::new()
-            .connect(":memory:")
-            .await
-            .unwrap();
+        let pool = SqlitePoolOptions::new().connect(":memory:").await.unwrap();
         crate::db::initialize_database(&pool).await;
         pool
     }
@@ -139,7 +136,10 @@ mod tests {
         // But updated fields
         assert_eq!(profile2.display_name, "Updated User");
         assert_eq!(profile2.username, Some("updateduser".to_string()));
-        assert_eq!(profile2.contact_email, Some("updated@example.com".to_string()));
+        assert_eq!(
+            profile2.contact_email,
+            Some("updated@example.com".to_string())
+        );
         assert_eq!(profile2.bio, Some("Updated bio".to_string()));
     }
 
@@ -309,11 +309,7 @@ mod tests {
         service.upsert_profile(req2).await.unwrap();
 
         // Get profile should return updated version
-        let profile = service
-            .get_profile("principal-1")
-            .await
-            .unwrap()
-            .unwrap();
+        let profile = service.get_profile("principal-1").await.unwrap().unwrap();
         assert_eq!(profile.display_name, "Updated Name");
     }
 }
