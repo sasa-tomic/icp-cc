@@ -43,14 +43,14 @@ class TestableScriptRepository extends ScriptRepository {
     String? customAuthToken,
     bool forceInvalidAuth = false,
     KeyAlgorithm signatureAlgorithm = KeyAlgorithm.ed25519,
-    Directory? overrideDirectory,
+    super.overrideDirectory,
   }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
        _client = client ?? _TimeoutClient(),
        _authMethod = authMethod,
        _customAuthToken = customAuthToken,
        _forceInvalidAuth = forceInvalidAuth,
        _signatureAlgorithm = signatureAlgorithm,
-       super.internal(overrideDirectory: overrideDirectory);
+       super.internal();
 
   static String _getDefaultBaseUrl() {
     try {
@@ -382,6 +382,7 @@ class TestableScriptRepository extends ScriptRepository {
     throw UnimplementedError('getAllScripts not implemented for test repository');
   }
 
+  @override
   void dispose() {
     _client.close();
   }

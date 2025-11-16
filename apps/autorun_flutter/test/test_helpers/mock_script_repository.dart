@@ -142,6 +142,7 @@ class MockScriptRepository extends ScriptRepository {
     return List.from(_scripts);
   }
 
+  @override
   void dispose() {
     _scripts.clear();
   }
