@@ -1,46 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/models/identity_record.dart';
-import 'package:icp_autorun/services/secure_identity_repository.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 
-class _MockSecureIdentityRepository implements SecureIdentityRepository {
-  final Map<String, String> _privateKeys = {};
-  final List<IdentityRecord> _identities = [];
-
-  void addIdentity(IdentityRecord identity, String privateKey) {
-    _identities.add(identity);
-    _privateKeys[identity.id] = privateKey;
-  }
-
-  @override
-  Future<List<IdentityRecord>> loadIdentities() async {
-    return List.unmodifiable(_identities);
-  }
-
-  @override
-  Future<void> persistIdentities(List<IdentityRecord> identities) async {
-    // No-op for tests
-  }
-
-  @override
-  Future<void> deleteIdentitySecureData(String identityId) async {
-    _privateKeys.remove(identityId);
-    _identities.removeWhere((id) => id.id == identityId);
-  }
-
-  @override
-  Future<void> deleteAllSecureData() async {
-    _privateKeys.clear();
-    _identities.clear();
-  }
-
-  @override
-  Future<String?> getPrivateKey(String identityId) async {
-    return _privateKeys[identityId];
-  }
-}
+import 'test_helpers/fake_secure_identity_repository.dart';
+import 'test_helpers/test_identity_factory.dart';
 
 class _FakeBridge implements ScriptBridge {
   _FakeBridge({required this.responses});
@@ -139,40 +103,27 @@ void main() {
 
   group('ScriptRunner Identity Resolution Tests', () {
     late _FakeBridge bridge;
-    late _MockSecureIdentityRepository secureRepo;
+    late FakeSecureIdentityRepository secureRepo;
+    late String testIdentityId1;
+    late String testPrivateKey1;
+    late String testIdentityId2;
+    late String testPrivateKey2;
 
     setUp(() async {
       bridge = _FakeBridge(responses: {
         'test-canister::method': json.encode({'result': 'success'}),
       });
 
-      secureRepo = _MockSecureIdentityRepository();
+      // Create test identities using TestIdentityFactory for real cryptographic keys
+      final identity1 = await TestIdentityFactory.fromSeed(1);
+      final identity2 = await TestIdentityFactory.fromSeed(2);
 
-      // Create test identities
-      final identities = [
-        IdentityRecord(
-          id: 'test-id-1',
-          label: 'Test Identity 1',
-          algorithm: KeyAlgorithm.ed25519,
-          publicKey: 'dGVzdF9wdWJsaWNfa2V5XzE=',
-          privateKey: 'test_private_key_1',
-          mnemonic: 'test mnemonic one',
-          createdAt: DateTime.now(),
-        ),
-        IdentityRecord(
-          id: 'test-id-2',
-          label: 'Test Identity 2',
-          algorithm: KeyAlgorithm.ed25519,
-          publicKey: 'dGVzdF9wdWJsaWNfa2V5XzI=',
-          privateKey: 'test_private_key_2',
-          mnemonic: 'test mnemonic two',
-          createdAt: DateTime.now(),
-        ),
-      ];
+      testIdentityId1 = identity1.id;
+      testPrivateKey1 = identity1.privateKey;
+      testIdentityId2 = identity2.id;
+      testPrivateKey2 = identity2.privateKey;
 
-      // Add identities to mock repository
-      secureRepo.addIdentity(identities[0], 'test_private_key_1');
-      secureRepo.addIdentity(identities[1], 'test_private_key_2');
+      secureRepo = FakeSecureIdentityRepository([identity1, identity2]);
     });
 
     test('CanisterCallSpec with identityId uses authenticated call with resolved identity', () async {
@@ -185,7 +136,7 @@ void main() {
             canisterId: 'test-canister',
             method: 'method',
             kind: 0,
-            identityId: 'test-id-1',
+            identityId: testIdentityId1,
           ),
         ],
       );
@@ -196,7 +147,7 @@ void main() {
       // Verify that an authenticated call was made with the resolved private key
       expect(bridge.callLog.length, 1);
       expect(bridge.callLog.first['type'], 'authenticated');
-      expect(bridge.callLog.first['privateKeyB64'], 'test_private_key_1');
+      expect(bridge.callLog.first['privateKeyB64'], testPrivateKey1);
       bridge.callLog.clear();
     });
 
@@ -284,7 +235,7 @@ void main() {
             method: 'method',
             kind: 0,
             privateKeyB64: 'should_be_ignored',
-            identityId: 'test-id-2',
+            identityId: testIdentityId2,
           ),
         ],
       );
@@ -295,7 +246,7 @@ void main() {
       // Verify that identityId takes priority over privateKeyB64
       expect(bridge.callLog.length, 1);
       expect(bridge.callLog.first['type'], 'authenticated');
-      expect(bridge.callLog.first['privateKeyB64'], 'test_private_key_2');
+      expect(bridge.callLog.first['privateKeyB64'], testPrivateKey2);
       bridge.callLog.clear();
     });
 

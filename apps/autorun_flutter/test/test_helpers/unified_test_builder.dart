@@ -6,7 +6,7 @@ class SignatureUtils {
   static String getPrincipal() => TestSignatureUtils.getPrincipal();
   static String getPublicKey() => TestSignatureUtils.getPublicKey();
   static String generateTestSignature(Map<String, dynamic> payload) =>
-      TestSignatureUtils.generateTestSignature(payload);
+      TestSignatureUtils.generateTestSignatureSync(payload);
 }
 
 /// Unified test builder that consolidates ScriptTestBuilder and ScriptTestData functionality
@@ -109,6 +109,8 @@ class UnifiedScriptTestBuilder {
   ScriptRecord build() {
     final now = DateTime.now();
     final timestamp = _createdAt?.toIso8601String() ?? now.toIso8601String();
+    final principal = SignatureUtils.getPrincipal();
+    final publicKey = SignatureUtils.getPublicKey();
 
     // Create signature payload
     final signaturePayload = {
@@ -119,7 +121,7 @@ class UnifiedScriptTestBuilder {
       'lua_source': _luaSource ?? 'print("Test script")',
       'version': _metadata['version'] ?? '1.0.0',
       'tags': _metadata['tags'] ?? [],
-      'author_principal': SignatureUtils.getPrincipal(),
+      'author_principal': principal,
       'timestamp': timestamp,
     };
 
@@ -135,9 +137,9 @@ class UnifiedScriptTestBuilder {
         'description': _description ?? 'Test script description',
         'category': _category ?? 'Testing',
         'authorName': _authorName ?? 'Test Author',
-        'authorPrincipal': SignatureUtils.getPrincipal(),
-        'authorPublicKey': SignatureUtils.getPublicKey(),
-        'authorId': SignatureUtils.getPrincipal(), // Add authorId to metadata
+        'authorPrincipal': principal,
+        'authorPublicKey': publicKey,
+        'authorId': principal, // Add authorId to metadata
         'signature': signature,
         'timestamp': timestamp,
         ..._metadata,
@@ -206,6 +208,9 @@ class TestTemplates {
   /// Create update request data with proper signature
   static Map<String, dynamic> createTestUpdateRequest(String scriptId, {Map<String, dynamic>? updates}) {
     final timestamp = DateTime.now().toIso8601String();
+    final principal = SignatureUtils.getPrincipal();
+    final publicKey = SignatureUtils.getPublicKey();
+
     final signaturePayload = {
       'action': 'update',
       'script_id': scriptId,
@@ -218,8 +223,8 @@ class TestTemplates {
     return {
       'signature': signature,
       'timestamp': timestamp,
-      'author_principal': SignatureUtils.getPrincipal(),
-      'author_public_key': SignatureUtils.getPublicKey(),
+      'author_principal': principal,
+      'author_public_key': publicKey,
       ...?updates,
     };
   }

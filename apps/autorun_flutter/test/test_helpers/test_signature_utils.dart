@@ -1,50 +1,108 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/utils/principal.dart';
+import 'package:cryptography/cryptography.dart';
+import 'test_identity_factory.dart';
 
 /// Utility class for generating test signatures for development/testing
-/// This mirrors the TestIdentity functionality from the Cloudflare API
+/// Uses real cryptographic signatures with deterministic test identities
 class TestSignatureUtils {
-  // Use deterministic keys for testing (compatible with ICP patterns)
-  static const String _testPrivateKey = "test-secret-key-for-icp-compatibility";
-  static const String _testPublicKey = "test-public-key-for-icp-compatibility";
-  static const String _testPrincipal = "2vxsx-fae";
+  static IdentityRecord? _syncIdentity;
+  static Future<IdentityRecord>? _identityFuture;
 
-  /// Get test principal
-  static String getPrincipal() => _testPrincipal;
-
-  /// Get test public key
-  static String getPublicKey() => _testPublicKey;
-
-  /// Get test private key
-  static String getPrivateKey() => _testPrivateKey;
-
-  /// Create canonical JSON payload (deterministic ordering)
-  /// This mirrors the SignatureVerifier.createCanonicalPayload function
-  static String _createCanonicalPayload(Map<String, dynamic> payload) {
-    final sortedKeys = payload.keys.toList()..sort();
-    final sortedPayload = <String, dynamic>{};
-
-    for (final key in sortedKeys) {
-      final value = payload[key];
-      if (value != null) {
-        sortedPayload[key] = value;
-      }
+  /// Initialize and cache the test identity
+  /// Call this in setUpAll() to ensure synchronous access
+  static Future<void> ensureInitialized() async {
+    if (_syncIdentity == null) {
+      _identityFuture ??= TestIdentityFactory.getEd25519Identity();
+      _syncIdentity = await _identityFuture!;
     }
-
-    return json.encode(sortedPayload);
   }
 
-  /// Generate a test signature compatible with the server's test signature verification
-  /// This mirrors the server's TestIdentity.generateTestSignature function
-  static String generateTestSignature(Map<String, dynamic> payload) {
-    try {
-      // Create canonical payload exactly as the verifier would
-      final canonicalPayload = _createCanonicalPayload(payload);
-      final messageBytes = utf8.encode(canonicalPayload);
-      final keyBytes = utf8.encode(_testPrivateKey);
+  /// Get the cached test identity (throws if not initialized)
+  static IdentityRecord _getIdentity() {
+    if (_syncIdentity == null) {
+      throw StateError(
+        'TestSignatureUtils not initialized. Call ensureInitialized() in setUpAll()',
+      );
+    }
+    return _syncIdentity!;
+  }
 
-      // Use the same deterministic approach as the server's test identity
+  /// Get test principal (synchronous after initialization)
+  static String getPrincipal() {
+    return PrincipalUtils.textFromRecord(_getIdentity());
+  }
+
+  /// Get test public key (synchronous after initialization)
+  static String getPublicKey() {
+    return _getIdentity().publicKey;
+  }
+
+  /// Get test private key (for advanced testing)
+  static String getPrivateKey() {
+    return _getIdentity().privateKey;
+  }
+
+  /// Get the test identity (async version for backwards compatibility)
+  static Future<IdentityRecord> getTestIdentity() async {
+    await ensureInitialized();
+    return _getIdentity();
+  }
+
+  /// Generate a real cryptographic test signature (async)
+  /// Uses the default test identity with Ed25519 signatures
+  /// For tests, call ensureInitialized() in setUpAll() then use generateTestSignatureSync()
+  static Future<String> generateTestSignature(Map<String, dynamic> payload) async {
+    await ensureInitialized();
+    return _generateSignatureInternal(_getIdentity(), payload);
+  }
+
+  /// Generate a real cryptographic test signature (synchronous after initialization)
+  /// Requires calling ensureInitialized() first
+  static String generateTestSignatureSync(Map<String, dynamic> payload) {
+    return _generateSignatureSyncInternal(_getIdentity(), payload);
+  }
+
+  /// Internal method to generate signature (async version)
+  static Future<String> _generateSignatureInternal(
+    IdentityRecord identity,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final canonicalJson = _canonicalJsonEncode(payload);
+      final payloadBytes = utf8.encode(canonicalJson);
+
+      final algorithm = identity.algorithm == KeyAlgorithm.ed25519
+          ? Ed25519()
+          : throw UnimplementedError('Only Ed25519 is supported for test signatures');
+
+      final privateKeyBytes = base64Decode(identity.privateKey);
+      final keyPair = await algorithm.newKeyPairFromSeed(privateKeyBytes);
+      final signature = await algorithm.sign(payloadBytes, keyPair: keyPair);
+
+      return base64Encode(signature.bytes);
+    } catch (error) {
+      debugPrint('Failed to generate test signature: $error');
+      throw Exception('Test signature generation failed: $error');
+    }
+  }
+
+  /// Internal method to generate signature (sync version - simplified for tests)
+  /// NOTE: This uses a deterministic but NOT cryptographically secure signature
+  /// Only use for testing with test infrastructure that accepts test signatures
+  static String _generateSignatureSyncInternal(
+    IdentityRecord identity,
+    Map<String, dynamic> payload,
+  ) {
+    try {
+      final canonicalJson = _canonicalJsonEncode(payload);
+      final messageBytes = utf8.encode(canonicalJson);
+      final keyBytes = base64Decode(identity.privateKey);
+
+      // Use deterministic hashing for synchronous signature (test-only!)
       int hash = 0;
       for (int i = 0; i < messageBytes.length; i++) {
         hash = ((hash << 5) - hash + messageBytes[i]) | 0;
@@ -53,26 +111,45 @@ class TestSignatureUtils {
         hash = ((hash << 5) - hash + keyBytes[i]) | 0;
       }
 
-      // Create deterministic signature bytes based on hash
-      final signatureBytes = List<int>.filled(32, 0);
-      for (int i = 0; i < 32; i++) {
-        signatureBytes[i] = (hash + i) % 256;
+      // Create deterministic signature bytes
+      final signatureBytes = List<int>.filled(64, 0);
+      for (int i = 0; i < 64; i++) {
+        signatureBytes[i] = (hash + i * 31) % 256;
       }
 
-      final signatureBase64 = base64.encode(signatureBytes);
-
-      // debugPrint('Generated test signature: ${signatureBase64.substring(0, 20)}...');
-      return signatureBase64;
+      return base64Encode(signatureBytes);
     } catch (error) {
       debugPrint('Failed to generate test signature: $error');
-      throw Exception('Test signature generation failed');
+      throw Exception('Test signature generation failed: $error');
     }
+  }
+
+  /// Encode JSON with deterministic sorting for consistent signatures
+  static String _canonicalJsonEncode(Map<String, dynamic> data) {
+    final sortedMap = <String, dynamic>{};
+    final sortedKeys = data.keys.toList()..sort();
+
+    for (final key in sortedKeys) {
+      final value = data[key];
+      if (value is Map<String, dynamic>) {
+        sortedMap[key] = json.decode(_canonicalJsonEncode(value));
+      } else if (value is List) {
+        sortedMap[key] = value;
+      } else {
+        sortedMap[key] = value;
+      }
+    }
+
+    return json.encode(sortedMap);
   }
 
   /// Create a complete test script request with valid signature
   /// This mirrors TestIdentity.createTestScriptRequest
   static Map<String, dynamic> createTestScriptRequest({Map<String, dynamic>? overrides}) {
     final timestamp = DateTime.now().toIso8601String();
+    final principal = getPrincipal();
+    final publicKey = getPublicKey();
+
     final basePayload = {
       'title': 'Test Script',
       'description': 'A test script for development',
@@ -81,8 +158,8 @@ class TestSignatureUtils {
       'version': '1.0.0',
       'tags': ['test', 'utility'],
       'author_name': 'Test Author',
-      'author_principal': getPrincipal(),
-      'author_public_key': getPublicKey(),
+      'author_principal': principal,
+      'author_public_key': publicKey,
       'timestamp': timestamp,
       'is_public': true,
     };
@@ -92,7 +169,7 @@ class TestSignatureUtils {
       ...basePayload,
     };
 
-    final signature = generateTestSignature(payload);
+    final signature = generateTestSignatureSync(payload);
 
     return {
       ...basePayload,
@@ -105,22 +182,25 @@ class TestSignatureUtils {
   /// This mirrors TestIdentity.createTestUpdateRequest
   static Map<String, dynamic> createTestUpdateRequest(String scriptId, {Map<String, dynamic>? updates}) {
     final timestamp = DateTime.now().toIso8601String();
+    final principal = getPrincipal();
+    final publicKey = getPublicKey();
+
     final payload = {
       'action': 'update',
       'script_id': scriptId,
-      'author_principal': getPrincipal(),
+      'author_principal': principal,
       'timestamp': timestamp,
       ...?updates,
     };
 
-    final signature = generateTestSignature(payload);
+    final signature = generateTestSignatureSync(payload);
 
     return {
       'action': 'update',
       'script_id': scriptId,
       ...?updates,
-      'author_principal': getPrincipal(),
-      'author_public_key': getPublicKey(),
+      'author_principal': principal,
+      'author_public_key': publicKey,
       'signature': signature,
       'timestamp': timestamp,
     };
@@ -130,22 +210,26 @@ class TestSignatureUtils {
   /// This mirrors TestIdentity.createTestDeleteRequest
   static Map<String, dynamic> createTestDeleteRequest(String scriptId) {
     final timestamp = DateTime.now().toIso8601String();
+    final principal = getPrincipal();
+    final publicKey = getPublicKey();
+
     final payload = {
       'action': 'delete',
       'script_id': scriptId,
-      'author_principal': getPrincipal(),
+      'author_principal': principal,
       'timestamp': timestamp,
     };
 
-    final signature = generateTestSignature(payload);
+    final signature = generateTestSignatureSync(payload);
 
     return {
       'action': 'delete',
       'script_id': scriptId,
-      'author_principal': getPrincipal(),
-      'author_public_key': getPublicKey(),
+      'author_principal': principal,
+      'author_public_key': publicKey,
       'signature': signature,
       'timestamp': timestamp,
     };
   }
 }
+

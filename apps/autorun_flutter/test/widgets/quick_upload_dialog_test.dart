@@ -1,72 +1,20 @@
-import 'dart:convert';
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/identity_controller.dart';
 import 'package:icp_autorun/models/identity_record.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
-import 'package:icp_autorun/services/secure_identity_repository.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:icp_autorun/widgets/quick_upload_dialog.dart';
 import 'package:icp_autorun/widgets/identity_scope.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers/fake_secure_identity_repository.dart';
+import '../test_helpers/test_identity_factory.dart';
+
 class _MockMarketplaceService extends Mock
     implements MarketplaceOpenApiService {}
-
-class _FakeSecureIdentityRepository implements SecureIdentityRepository {
-  final List<IdentityRecord> _identities;
-
-  _FakeSecureIdentityRepository(this._identities);
-
-  @override
-  Future<List<IdentityRecord>> loadIdentities() async =>
-      List.unmodifiable(_identities);
-
-  @override
-  Future<void> persistIdentities(List<IdentityRecord> identities) async {}
-
-  @override
-  Future<void> deleteIdentitySecureData(String identityId) async {}
-
-  @override
-  Future<void> deleteAllSecureData() async {}
-
-  @override
-  Future<String?> getPrivateKey(String identityId) async {
-    final IdentityRecord record = _identities.firstWhere(
-      (IdentityRecord identity) => identity.id == identityId,
-      orElse: () => throw StateError('identity not found for $identityId'),
-    );
-    return record.privateKey;
-  }
-}
-
-IdentityRecord _createIdentity({
-  required String id,
-  required String label,
-}) {
-  final List<int> seed = List<int>.generate(32, (int index) => index);
-  final String privateKey = base64Encode(seed);
-
-  final random = Random(id.hashCode);
-  final List<int> publicKeyBytes =
-      List<int>.generate(32, (_) => random.nextInt(256));
-  final String publicKey = base64Encode(publicKeyBytes);
-
-  return IdentityRecord(
-    id: id,
-    label: label,
-    algorithm: KeyAlgorithm.ed25519,
-    publicKey: publicKey,
-    privateKey: privateKey,
-    mnemonic: 'test mnemonic for $label',
-    createdAt: DateTime.now(),
-  );
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -82,9 +30,8 @@ void main() {
 
     setUp(() async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
-      identity = _createIdentity(id: 'test-identity', label: 'Test Identity');
-      final _FakeSecureIdentityRepository repository =
-          _FakeSecureIdentityRepository(<IdentityRecord>[identity]);
+      identity = await TestIdentityFactory.getEd25519Identity();
+      final repository = FakeSecureIdentityRepository(<IdentityRecord>[identity]);
       identityController = IdentityController(secureRepository: repository);
       await identityController.ensureLoaded();
       await identityController.setActiveIdentity(identity.id);

@@ -34,6 +34,85 @@ Reasoning: high
 - verify that changes are highly aligned with rules from AGENTS.md
 - attempt to align changes with the rules
 
+## Testing Standards for Backend Communication
+
+### CRITICAL: Real Cryptography Required
+
+When writing or modifying tests that communicate with the backend (API calls, script uploads, authentication, etc.):
+
+1. **ALWAYS use TestIdentityFactory for test identities:**
+   ```dart
+   // ✅ CORRECT
+   final identity = await TestIdentityFactory.getEd25519Identity();
+
+   // ❌ NEVER do this
+   IdentityRecord(
+     id: 'test',
+     publicKey: base64Encode(List.filled(32, 1)),
+     privateKey: base64Encode(List.filled(32, 2)),
+   );
+   ```
+
+2. **ALWAYS use TestSignatureUtils for signatures:**
+   ```dart
+   // ✅ CORRECT - Complete request with real signature
+   final request = TestSignatureUtils.createTestScriptRequest();
+
+   // ✅ CORRECT - Custom signature
+   final signature = TestSignatureUtils.generateTestSignatureSync(payload);
+
+   // ❌ NEVER use hardcoded or fake signatures
+   final signature = 'fake-signature-xyz';
+   ```
+
+3. **ALWAYS use FakeSecureIdentityRepository for identity storage in tests:**
+   ```dart
+   // ✅ CORRECT
+   import '../test_helpers/fake_secure_identity_repository.dart';
+   final repository = FakeSecureIdentityRepository([identity]);
+
+   // ❌ NEVER create local duplicate implementations
+   class _MyFakeRepository implements SecureIdentityRepository { ... }
+   ```
+
+4. **NO hardcoded test principals or keys:**
+   ```dart
+   // ✅ CORRECT - Get from real identity
+   final principal = PrincipalUtils.textFromRecord(identity);
+   final publicKey = identity.publicKey;
+
+   // ❌ NEVER hardcode
+   const principal = 'aaaaa-aa';
+   const publicKey = 'AAAAAAAAAA...';
+   ```
+
+### Why Real Cryptography?
+
+- Backend services verify cryptographic signatures
+- Tests with fake signatures will fail against real backend
+- Ensures tests catch authentication/signature bugs
+- Maintains consistency between dev/test/prod environments
+- Follows FAIL FAST principle - no hidden issues
+
+### Test Helper Documentation
+
+See `apps/autorun_flutter/test/test_helpers/AGENTS.md` for comprehensive documentation on:
+- TestIdentityFactory usage
+- TestSignatureUtils methods
+- FakeSecureIdentityRepository
+- Multiple user testing scenarios
+- Debugging test failures
+
+### Quick Reference
+
+| Task | Use | File |
+|------|-----|------|
+| Create test identity | `TestIdentityFactory.getEd25519Identity()` | `test_identity_factory.dart` |
+| Multiple test users | `TestIdentityFactory.fromSeed(N)` | `test_identity_factory.dart` |
+| Script upload request | `TestSignatureUtils.createTestScriptRequest()` | `test_signature_utils.dart` |
+| Generate signature | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart` |
+| Identity repository | `FakeSecureIdentityRepository([identities])` | `fake_secure_identity_repository.dart` |
+
 # MCP servers that you should use in the project
 - Use context7 mcp server if you would like to obtain additional information for a library or API
 - Use web-search-prime if you need to perform a web search

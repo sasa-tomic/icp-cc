@@ -1,61 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/identity_controller.dart';
-import 'package:icp_autorun/models/identity_record.dart';
 import 'package:icp_autorun/screens/script_upload_screen.dart';
-import 'package:icp_autorun/services/secure_identity_repository.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/identity_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _InMemorySecureRepository implements SecureIdentityRepository {
-  _InMemorySecureRepository(this._identities);
-
-  List<IdentityRecord> _identities;
-
-  @override
-  Future<List<IdentityRecord>> loadIdentities() async => List<IdentityRecord>.from(_identities);
-
-  @override
-  Future<void> persistIdentities(List<IdentityRecord> identities) async {
-    _identities = List<IdentityRecord>.from(identities);
-  }
-
-  @override
-  Future<void> deleteIdentitySecureData(String identityId) async {}
-
-  @override
-  Future<void> deleteAllSecureData() async {
-    _identities = <IdentityRecord>[];
-  }
-
-  @override
-  Future<String?> getPrivateKey(String identityId) async => 'private';
-}
+import '../test_helpers/fake_secure_identity_repository.dart';
+import '../test_helpers/test_identity_factory.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  IdentityRecord testIdentityRecord() {
-    // Valid Ed25519 keypair (32 bytes each)
-    // Private: 0x4c6f72656d20697073756d20646f6c6f7220736974
-    // Public:  0x5a9a5c5f6d6f636b75706172727920736564206574207465
-    return IdentityRecord(
-      id: 'test-id',
-      label: 'Test Identity',
-      algorithm: KeyAlgorithm.ed25519,
-      publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-      privateKey: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
-      mnemonic: 'abandon abandon able about above absent',
-      createdAt: DateTime.utc(2024, 1, 1),
-    );
-  }
-
   Future<IdentityController> createControllerWithIdentity() async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    final IdentityRecord identity = testIdentityRecord();
-    final IdentityController controller = IdentityController(
-      secureRepository: _InMemorySecureRepository(<IdentityRecord>[identity]),
+    final identity = await TestIdentityFactory.getEd25519Identity();
+    final controller = IdentityController(
+      secureRepository: FakeSecureIdentityRepository([identity]),
       marketplaceService: MarketplaceOpenApiService(),
       preferences: await SharedPreferences.getInstance(),
     );

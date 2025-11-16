@@ -7,46 +7,11 @@ import 'package:icp_autorun/controllers/identity_controller.dart';
 import 'package:icp_autorun/models/identity_profile.dart';
 import 'package:icp_autorun/models/identity_record.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
-import 'package:icp_autorun/services/secure_identity_repository.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _FakeSecureIdentityRepository implements SecureIdentityRepository {
-  _FakeSecureIdentityRepository(List<IdentityRecord> seed) : _identities = List.of(seed);
-
-  List<IdentityRecord> _identities;
-
-  @override
-  Future<List<IdentityRecord>> loadIdentities() async => List<IdentityRecord>.from(_identities);
-
-  @override
-  Future<void> persistIdentities(List<IdentityRecord> identities) async {
-    _identities = List<IdentityRecord>.from(identities);
-  }
-
-  @override
-  Future<void> deleteIdentitySecureData(String identityId) async {}
-
-  @override
-  Future<void> deleteAllSecureData() async {
-    _identities = <IdentityRecord>[];
-  }
-
-  @override
-  Future<String?> getPrivateKey(String identityId) async => 'private-key-$identityId';
-}
-
-IdentityRecord _sampleIdentity({String id = 'identity-1', String label = 'Primary'}) {
-  return IdentityRecord(
-    id: id,
-    label: label,
-    algorithm: KeyAlgorithm.ed25519,
-    publicKey: base64Encode(List<int>.filled(32, 1)),
-    privateKey: base64Encode(List<int>.filled(32, 2)),
-    mnemonic: 'sample mnemonic words twelve',
-    createdAt: DateTime.utc(2024, 1, 1),
-  );
-}
+import '../test_helpers/fake_secure_identity_repository.dart';
+import '../test_helpers/test_identity_factory.dart';
 
 MarketplaceOpenApiService _mockProfileService(IdentityProfile profile) {
   final MarketplaceOpenApiService service = MarketplaceOpenApiService();
@@ -109,10 +74,12 @@ void main() {
 
     test('loads identities and persists active selection', () async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final identity1 = await TestIdentityFactory.fromSeed(1);
+      final identity2 = await TestIdentityFactory.fromSeed(2);
       final IdentityController controller = IdentityController(
-        secureRepository: _FakeSecureIdentityRepository(<IdentityRecord>[
-          _sampleIdentity(id: 'id-1', label: 'Primary Identity'),
-          _sampleIdentity(id: 'id-2', label: 'Secondary Identity'),
+        secureRepository: FakeSecureIdentityRepository(<IdentityRecord>[
+          identity1,
+          identity2,
         ]),
         marketplaceService: MarketplaceOpenApiService(),
         preferences: prefs,
@@ -123,8 +90,8 @@ void main() {
       expect(controller.activeIdentity, isNull);
 
       await controller.setActiveIdentity(controller.identities.last.id);
-      expect(controller.activeIdentityId, equals('id-2'));
-      expect(prefs.getString('active_identity_id'), equals('id-2'));
+      expect(controller.activeIdentityId, equals(identity2.id));
+      expect(prefs.getString('active_identity_id'), equals(identity2.id));
 
       await controller.setActiveIdentity(null);
       expect(controller.activeIdentity, isNull);
@@ -132,8 +99,9 @@ void main() {
     });
 
     test('setActiveIdentity throws when id is unknown', () async {
+      final identity = await TestIdentityFactory.getEd25519Identity();
       final IdentityController controller = IdentityController(
-        secureRepository: _FakeSecureIdentityRepository(<IdentityRecord>[_sampleIdentity()]),
+        secureRepository: FakeSecureIdentityRepository(<IdentityRecord>[identity]),
         marketplaceService: MarketplaceOpenApiService(),
         preferences: await SharedPreferences.getInstance(),
       );
@@ -146,7 +114,7 @@ void main() {
     });
 
     test('saveProfile caches profile and marks identity complete', () async {
-      final IdentityRecord record = _sampleIdentity();
+      final IdentityRecord record = await TestIdentityFactory.getEd25519Identity();
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final IdentityProfile profile = IdentityProfile(
         id: 'profile-1',
@@ -164,7 +132,7 @@ void main() {
         updatedAt: DateTime.utc(2024, 1, 1),
       );
       final IdentityController controller = IdentityController(
-        secureRepository: _FakeSecureIdentityRepository(<IdentityRecord>[record]),
+        secureRepository: FakeSecureIdentityRepository(<IdentityRecord>[record]),
         marketplaceService: _mockProfileService(profile),
         preferences: prefs,
       );
