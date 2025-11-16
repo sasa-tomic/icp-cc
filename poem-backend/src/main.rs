@@ -292,7 +292,6 @@ fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
 }
 
-
 /// Validates authentication signature - no test backdoors!
 fn validate_signature(signature: Option<&str>, operation: &str) -> Result<(), Box<Response>> {
     match signature {
@@ -355,7 +354,8 @@ fn verify_script_upload_signature(req: &CreateScriptRequest) -> Result<(), Box<R
         req.author_public_key.as_deref(),
         req.author_principal.as_deref(),
         &payload,
-    ).map_err(|e| Box::new(e.as_response()))
+    )
+    .map_err(|e| Box::new(e.as_response()))
 }
 
 /// Verifies script deletion signature
@@ -387,7 +387,8 @@ fn verify_script_deletion_signature(
         req.author_public_key.as_deref(),
         req.author_principal.as_deref(),
         &payload,
-    ).map_err(|e| Box::new(e.as_response()))
+    )
+    .map_err(|e| Box::new(e.as_response()))
 }
 
 fn build_canonical_update_payload(
@@ -494,7 +495,8 @@ fn verify_script_update_signature(
         req.author_public_key.as_deref(),
         req.author_principal.as_deref(),
         &payload,
-    ).map_err(|e| Box::new(e.as_response()))
+    )
+    .map_err(|e| Box::new(e.as_response()))
 }
 
 /// Verifies script publish signature
@@ -527,7 +529,8 @@ fn verify_script_publish_signature(
         req.author_public_key.as_deref(),
         req.author_principal.as_deref(),
         &payload,
-    ).map_err(|e| Box::new(e.as_response()))
+    )
+    .map_err(|e| Box::new(e.as_response()))
 }
 
 /// Validates principal and public key fields for authentication (wrapper for auth module)

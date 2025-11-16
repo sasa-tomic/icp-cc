@@ -10,7 +10,10 @@ impl IdentityRepository {
         Self { pool }
     }
 
-    pub async fn find_by_principal(&self, principal: &str) -> Result<Option<IdentityProfile>, sqlx::Error> {
+    pub async fn find_by_principal(
+        &self,
+        principal: &str,
+    ) -> Result<Option<IdentityProfile>, sqlx::Error> {
         sqlx::query_as::<_, IdentityProfile>(
             "SELECT id, principal, display_name, username, contact_email, contact_telegram,
                     contact_twitter, contact_discord, website_url, bio, metadata, created_at, updated_at
@@ -53,7 +56,7 @@ impl IdentityRepository {
                 bio = excluded.bio,
                 metadata = excluded.metadata,
                 updated_at = excluded.updated_at
-            "#
+            "#,
         )
         .bind(id)
         .bind(principal)

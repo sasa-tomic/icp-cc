@@ -221,9 +221,11 @@ pub fn verify_operation_signature(
         return Err(AuthError::InvalidSignature("Empty signature".to_string()));
     }
 
-    let pub_key = public_key.ok_or_else(|| AuthError::MissingField("author_public_key".to_string()))?;
+    let pub_key =
+        public_key.ok_or_else(|| AuthError::MissingField("author_public_key".to_string()))?;
 
-    let _principal_val = principal.ok_or_else(|| AuthError::MissingField("author_principal".to_string()))?;
+    let _principal_val =
+        principal.ok_or_else(|| AuthError::MissingField("author_principal".to_string()))?;
 
     // Validate credentials
     validate_credentials(principal, Some(pub_key))?;

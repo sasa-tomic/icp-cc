@@ -18,7 +18,13 @@ impl ScriptRepository {
             .await
     }
 
-    pub async fn find_all(&self, limit: i32, offset: i32, category: Option<String>, include_private: bool) -> Result<Vec<Script>, sqlx::Error> {
+    pub async fn find_all(
+        &self,
+        limit: i32,
+        offset: i32,
+        category: Option<String>,
+        include_private: bool,
+    ) -> Result<Vec<Script>, sqlx::Error> {
         let category_filter = if let Some(cat) = category {
             format!(" AND category = '{}'", cat)
         } else {
@@ -80,7 +86,7 @@ impl ScriptRepository {
                 author_principal, author_public_key, upload_signature, version, price,
                 is_public, compatibility, tags, created_at, updated_at
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
-            "#
+            "#,
         )
         .bind(id)
         .bind(title)
@@ -196,7 +202,12 @@ impl ScriptRepository {
         Ok(())
     }
 
-    pub async fn update_stats(&self, script_id: &str, rating: f64, review_count: i32) -> Result<(), sqlx::Error> {
+    pub async fn update_stats(
+        &self,
+        script_id: &str,
+        rating: f64,
+        review_count: i32,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE scripts SET rating = ?1, review_count = ?2 WHERE id = ?3")
             .bind(rating)
             .bind(review_count)
@@ -206,7 +217,10 @@ impl ScriptRepository {
         Ok(())
     }
 
-    pub async fn search(&self, request: &SearchRequest) -> Result<SearchResultPayload, (poem::http::StatusCode, String)> {
+    pub async fn search(
+        &self,
+        request: &SearchRequest,
+    ) -> Result<SearchResultPayload, (poem::http::StatusCode, String)> {
         use poem::http::StatusCode;
 
         if request.canister_id.is_some() {
@@ -311,10 +325,12 @@ impl ScriptRepository {
             };
         }
 
-        let total = count_query
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to count scripts: {}", e)))?;
+        let total = count_query.fetch_one(&self.pool).await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to count scripts: {}", e),
+            )
+        })?;
 
         let search_sql = format!(
             "SELECT {} FROM scripts WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
@@ -329,10 +345,12 @@ impl ScriptRepository {
             };
         }
 
-        let scripts = query
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch scripts: {}", e)))?;
+        let scripts = query.fetch_all(&self.pool).await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to fetch scripts: {}", e),
+            )
+        })?;
 
         Ok(SearchResultPayload {
             scripts,
@@ -342,7 +360,11 @@ impl ScriptRepository {
         })
     }
 
-    pub async fn get_by_category(&self, category: &str, limit: i32) -> Result<Vec<Script>, sqlx::Error> {
+    pub async fn get_by_category(
+        &self,
+        category: &str,
+        limit: i32,
+    ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
             "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 ORDER BY created_at DESC LIMIT ?2",
             SCRIPT_COLUMNS
@@ -365,7 +387,12 @@ impl ScriptRepository {
             .await
     }
 
-    pub async fn get_featured(&self, min_rating: f64, min_downloads: i32, limit: i32) -> Result<Vec<Script>, sqlx::Error> {
+    pub async fn get_featured(
+        &self,
+        min_rating: f64,
+        min_downloads: i32,
+        limit: i32,
+    ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
             "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= ?1 AND downloads >= ?2 ORDER BY rating DESC, downloads DESC LIMIT ?3",
             SCRIPT_COLUMNS
@@ -378,7 +405,11 @@ impl ScriptRepository {
             .await
     }
 
-    pub async fn get_compatible(&self, compatibility: &str, limit: i32) -> Result<Vec<Script>, sqlx::Error> {
+    pub async fn get_compatible(
+        &self,
+        compatibility: &str,
+        limit: i32,
+    ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
             "SELECT {} FROM scripts WHERE is_public = 1 AND (compatibility IS NULL OR compatibility LIKE ?1) ORDER BY created_at DESC LIMIT ?2",
             SCRIPT_COLUMNS
@@ -392,19 +423,22 @@ impl ScriptRepository {
     }
 
     pub async fn get_marketplace_stats(&self) -> Result<(i64, i64, f64), sqlx::Error> {
-        let scripts_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
-            .fetch_one(&self.pool)
-            .await?;
-
-        let total_downloads: i64 =
-            sqlx::query_scalar("SELECT COALESCE(SUM(downloads), 0) FROM scripts WHERE is_public = 1")
+        let scripts_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
                 .fetch_one(&self.pool)
                 .await?;
 
-        let avg_rating: Option<f64> =
-            sqlx::query_scalar("SELECT AVG(rating) FROM scripts WHERE is_public = 1 AND rating > 0")
-                .fetch_one(&self.pool)
-                .await?;
+        let total_downloads: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(downloads), 0) FROM scripts WHERE is_public = 1",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let avg_rating: Option<f64> = sqlx::query_scalar(
+            "SELECT AVG(rating) FROM scripts WHERE is_public = 1 AND rating > 0",
+        )
+        .fetch_one(&self.pool)
+        .await?;
 
         Ok((scripts_count, total_downloads, avg_rating.unwrap_or(0.0)))
     }

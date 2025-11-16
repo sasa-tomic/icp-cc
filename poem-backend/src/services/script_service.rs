@@ -1,4 +1,4 @@
-use crate::models::{CreateScriptRequest, UpdateScriptRequest, Script};
+use crate::models::{CreateScriptRequest, Script, UpdateScriptRequest};
 use crate::repositories::ScriptRepository;
 use chrono::Utc;
 use sqlx::SqlitePool;
@@ -20,7 +20,9 @@ impl ScriptService {
         let version = req.version.as_deref().unwrap_or("1.0.0");
         let price = req.price.unwrap_or(0.0);
         let is_public = resolve_script_visibility(req.is_public);
-        let tags_json = req.tags.map(|tags| serde_json::to_string(&tags).unwrap_or_default());
+        let tags_json = req
+            .tags
+            .map(|tags| serde_json::to_string(&tags).unwrap_or_default());
 
         self.repo
             .create(
@@ -43,9 +45,10 @@ impl ScriptService {
             )
             .await?;
 
-        self.repo.find_by_id(&script_id).await?.ok_or_else(|| {
-            sqlx::Error::RowNotFound
-        })
+        self.repo
+            .find_by_id(&script_id)
+            .await?
+            .ok_or_else(|| sqlx::Error::RowNotFound)
     }
 
     pub async fn update_script(
@@ -54,7 +57,9 @@ impl ScriptService {
         req: UpdateScriptRequest,
     ) -> Result<Script, sqlx::Error> {
         let now = Utc::now().to_rfc3339();
-        let tags_json = req.tags.map(|tags| serde_json::to_string(&tags).unwrap_or_default());
+        let tags_json = req
+            .tags
+            .map(|tags| serde_json::to_string(&tags).unwrap_or_default());
 
         self.repo
             .update(
@@ -71,9 +76,10 @@ impl ScriptService {
             )
             .await?;
 
-        self.repo.find_by_id(script_id).await?.ok_or_else(|| {
-            sqlx::Error::RowNotFound
-        })
+        self.repo
+            .find_by_id(script_id)
+            .await?
+            .ok_or_else(|| sqlx::Error::RowNotFound)
     }
 
     pub async fn delete_script(&self, script_id: &str) -> Result<(), sqlx::Error> {
@@ -84,9 +90,10 @@ impl ScriptService {
         let now = Utc::now().to_rfc3339();
         self.repo.publish(script_id, &now).await?;
 
-        self.repo.find_by_id(script_id).await?.ok_or_else(|| {
-            sqlx::Error::RowNotFound
-        })
+        self.repo
+            .find_by_id(script_id)
+            .await?
+            .ok_or_else(|| sqlx::Error::RowNotFound)
     }
 
     pub async fn get_script(&self, script_id: &str) -> Result<Option<Script>, sqlx::Error> {
