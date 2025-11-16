@@ -9,7 +9,6 @@ mod services;
 
 use auth::{create_canonical_payload, verify_operation_signature};
 use models::*;
-use services::{IdentityService, ReviewService, ScriptService};
 use poem::{
     error::ResponseError,
     get, handler,
@@ -21,6 +20,7 @@ use poem::{
     EndpointExt, IntoResponse, Response, Route, Server,
 };
 use responses::error_response;
+use services::{IdentityService, ReviewService, ScriptService};
 use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
 
@@ -233,7 +233,11 @@ mod signature_tests {
                 .expect("valid canonical update request");
 
         assert!(
-            middleware::auth::verify_script_update_signature(&req, "41935708-8561-4424-a42f-cba44e26785a").is_ok(),
+            middleware::auth::verify_script_update_signature(
+                &req,
+                "41935708-8561-4424-a42f-cba44e26785a"
+            )
+            .is_ok(),
             "Expected canonical payload signature to verify successfully"
         );
     }
@@ -324,18 +328,20 @@ async fn get_scripts(
     let offset = params.offset.unwrap_or(0);
     let include_private = params.include_private.unwrap_or(false);
 
-    match state.script_service.get_scripts(limit, offset, params.category, include_private).await {
-        Ok((scripts, total)) => {
-            Json(serde_json::json!({
-                "success": true,
-                "data": {
-                    "scripts": scripts,
-                    "total": total,
-                    "hasMore": (offset + limit) < total as i32
-                }
-            }))
-            .into_response()
-        }
+    match state
+        .script_service
+        .get_scripts(limit, offset, params.category, include_private)
+        .await
+    {
+        Ok((scripts, total)) => Json(serde_json::json!({
+            "success": true,
+            "data": {
+                "scripts": scripts,
+                "total": total,
+                "hasMore": (offset + limit) < total as i32
+            }
+        }))
+        .into_response(),
         Err(e) => {
             tracing::error!("Failed to get scripts: {}", e);
             error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get scripts")
@@ -393,7 +399,10 @@ async fn get_marketplace_stats(Data(state): Data<&Arc<AppState>>) -> Response {
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get marketplace stats: {}", e);
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get marketplace stats")
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get marketplace stats",
+            )
         }
     }
 }
@@ -621,7 +630,11 @@ async fn create_script(
     // Create script via service
     match state.script_service.create_script(req).await {
         Ok(script) => {
-            tracing::info!("Created script: {} (public: {})", script.id, script.is_public);
+            tracing::info!(
+                "Created script: {} (public: {})",
+                script.id,
+                script.is_public
+            );
             (
                 StatusCode::CREATED,
                 Json(serde_json::json!({
@@ -709,7 +722,11 @@ async fn update_script(
     // Update script via service
     match state.script_service.update_script(&script_id, req).await {
         Ok(script) => {
-            tracing::info!("Updated script: {} (version: {})", script.id, script.version);
+            tracing::info!(
+                "Updated script: {} (version: {})",
+                script.id,
+                script.version
+            );
             Json(serde_json::json!({
                 "success": true,
                 "data": {
@@ -816,7 +833,11 @@ async fn get_scripts_by_category(
     Path(category): Path<String>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match state.script_service.get_scripts_by_category(&category, 100).await {
+    match state
+        .script_service
+        .get_scripts_by_category(&category, 100)
+        .await
+    {
         Ok(scripts) => {
             tracing::debug!("Category '{}' has {} scripts", category, scripts.len());
             Json(serde_json::json!({
@@ -827,7 +848,10 @@ async fn get_scripts_by_category(
         }
         Err(e) => {
             tracing::error!("Failed to get scripts by category: {}", e);
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get scripts by category")
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get scripts by category",
+            )
         }
     }
 }
@@ -848,7 +872,11 @@ async fn publish_script(
     // Publish script via service
     match state.script_service.publish_script(&script_id).await {
         Ok(script) => {
-            tracing::info!("Published script: {} (is_public: {})", script.id, script.is_public);
+            tracing::info!(
+                "Published script: {} (is_public: {})",
+                script.id,
+                script.is_public
+            );
             Json(serde_json::json!({
                 "success": true,
                 "data": {
@@ -877,18 +905,20 @@ async fn get_reviews(
     let limit = params.limit.unwrap_or(20);
     let offset = params.offset.unwrap_or(0);
 
-    match state.review_service.get_reviews(&script_id, limit, offset).await {
-        Ok((reviews, total)) => {
-            Json(serde_json::json!({
-                "success": true,
-                "data": {
-                    "reviews": reviews,
-                    "total": total,
-                    "hasMore": (offset + limit) < total
-                }
-            }))
-            .into_response()
-        }
+    match state
+        .review_service
+        .get_reviews(&script_id, limit, offset)
+        .await
+    {
+        Ok((reviews, total)) => Json(serde_json::json!({
+            "success": true,
+            "data": {
+                "reviews": reviews,
+                "total": total,
+                "hasMore": (offset + limit) < total
+            }
+        }))
+        .into_response(),
         Err(e) => {
             tracing::error!("Failed to get reviews for script {}: {}", script_id, e);
             error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get reviews")
@@ -904,7 +934,11 @@ async fn create_review(
 ) -> Response {
     match state.review_service.create_review(&script_id, req).await {
         Ok(review) => {
-            tracing::info!("Created review for script {} by user {}", script_id, review.user_id);
+            tracing::info!(
+                "Created review for script {} by user {}",
+                script_id,
+                review.user_id
+            );
             (
                 StatusCode::CREATED,
                 Json(serde_json::json!({
@@ -940,7 +974,10 @@ async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get trending scripts: {}", e);
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get trending scripts")
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get trending scripts",
+            )
         }
     }
 }
@@ -955,7 +992,10 @@ async fn get_featured_scripts(Data(state): Data<&Arc<AppState>>) -> Response {
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get featured scripts: {}", e);
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get featured scripts")
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get featured scripts",
+            )
         }
     }
 }
@@ -974,7 +1014,10 @@ async fn get_compatible_scripts(
         .into_response(),
         Err(e) => {
             tracing::error!("Failed to get compatible scripts: {}", e);
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to get compatible scripts")
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get compatible scripts",
+            )
         }
     }
 }
@@ -986,7 +1029,11 @@ async fn update_script_stats(
 ) -> Response {
     if let Some(increment) = req.increment_downloads {
         if increment > 0 {
-            match state.script_service.increment_downloads(&req.script_id).await {
+            match state
+                .script_service
+                .increment_downloads(&req.script_id)
+                .await
+            {
                 Ok(_) => {
                     tracing::info!("Updated download count for script: {}", req.script_id);
                     Json(serde_json::json!({
@@ -1557,8 +1604,11 @@ mod tests {
             serde_json::from_str(request_json).expect("valid fixture request json");
 
         assert!(
-            middleware::auth::verify_script_update_signature(&request, "93e91d19-ce61-4497-821e-4d32c03c6cc2")
-                .is_ok(),
+            middleware::auth::verify_script_update_signature(
+                &request,
+                "93e91d19-ce61-4497-821e-4d32c03c6cc2"
+            )
+            .is_ok(),
             "fixture payload signature should verify successfully"
         );
     }

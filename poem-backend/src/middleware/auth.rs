@@ -1,7 +1,7 @@
 use poem::{http::StatusCode, Response};
 
 use crate::auth::verify_operation_signature;
-use crate::models::{CreateScriptRequest, UpdateScriptRequest, DeleteScriptRequest};
+use crate::models::{CreateScriptRequest, DeleteScriptRequest, UpdateScriptRequest};
 use crate::responses::error_response;
 
 /// Trait for requests that contain authentication information
@@ -238,7 +238,6 @@ pub fn build_publish_payload(
     if let Some(ref timestamp) = req.timestamp {
         payload["timestamp"] = serde_json::Value::String(timestamp.clone());
     }
-
 
     Ok(payload)
 }

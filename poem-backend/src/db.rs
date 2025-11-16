@@ -1,6 +1,5 @@
 use sqlx::SqlitePool;
-pub 
-async fn initialize_database(pool: &SqlitePool) {
+pub async fn initialize_database(pool: &SqlitePool) {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS scripts (
@@ -218,4 +217,3 @@ async fn initialize_database(pool: &SqlitePool) {
 
     tracing::info!("Database initialized successfully");
 }
-
