@@ -20,9 +20,10 @@
 - If ready (minimal, DRY, YAGNI), commit changes
 - You MUST STRICTLY adhere to the above rules
 
+This is a greenfield development. It's important to fix any issue properly, rather than in a backward-compatible way.
+In other words: we care about good design. We do not yet care about backward compatibility. Change anything needed to get the right architecture, organization, and code structure.
+
 BE BRUTALLY HONEST AND OBJECTIVE. You are smart and confident.
-Think carefully, as the quality of your response is of the highest priority. You have unlimited thinking tokens for this.
-Reasoning: high
 
 # CRITICAL: During development
 

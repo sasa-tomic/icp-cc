@@ -594,7 +594,6 @@ impl AccountService {
 mod tests {
     use super::*;
     use crate::db::initialize_database;
-    use base64::{engine::general_purpose, Engine as _};
     use ed25519_dalek::{Signer, SigningKey};
     use sqlx::sqlite::SqlitePoolOptions;
 
@@ -612,14 +611,18 @@ mod tests {
         seed[..16].copy_from_slice(&uuid_bytes);
         seed[16..].copy_from_slice(&uuid_bytes);
         let signing_key = SigningKey::from_bytes(&seed);
-        let public_key = general_purpose::STANDARD.encode(signing_key.verifying_key().to_bytes());
+        // Return hex-encoded public key (matches Flutter app format)
+        let public_key = hex::encode(signing_key.verifying_key().to_bytes());
         (signing_key, public_key)
     }
 
     fn sign_payload(signing_key: &SigningKey, payload: &str) -> String {
-        // Ed25519 signs the payload directly (no hash - dalek lib does it internally)
+        // Standard Ed25519: sign message directly (RFC 8032)
+        // The algorithm does SHA-512 internally as part of the signature process
         let signature = signing_key.sign(payload.as_bytes());
-        general_purpose::STANDARD.encode(signature.to_bytes())
+
+        // Return hex-encoded signature (matches Flutter app format)
+        hex::encode(signature.to_bytes())
     }
 
     #[tokio::test]

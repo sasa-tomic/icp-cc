@@ -75,17 +75,19 @@ Every state-changing request must include:
 **Signing Process**:
 1. Construct canonical JSON (alphabetically ordered fields, no whitespace)
 2. UTF-8 encode to bytes
-3. Compute SHA-256 hash
-4. Sign hash with Ed25519 private key
-5. Encode signature as hex or base64
+3. Sign with private key (algorithm-specific):
+   - **Ed25519**: Sign message directly (standard RFC 8032 - algorithm does SHA-512 internally)
+   - **secp256k1**: Compute SHA-256 hash then sign (ECDSA requirement)
+4. Encode signature as hex
 
 **Verification Process**:
 1. Receive payload + signature + public key
 2. Reconstruct canonical JSON
 3. UTF-8 encode to bytes
-4. Compute SHA-256 hash
-5. Verify signature using provided public key
-6. Ensure public key belongs to account (for non-registration)
+4. Verify signature using provided public key (algorithm-specific):
+   - **Ed25519**: Verify against message directly
+   - **secp256k1**: Compute SHA-256 hash then verify
+5. Ensure public key belongs to account (for non-registration)
 
 ## Username Validation
 

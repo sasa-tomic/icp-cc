@@ -188,15 +188,26 @@ async fn run_marketplace_search(
 #[cfg(test)]
 mod signature_tests {
     use super::*;
-    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-    use base64::Engine;
     use ed25519_dalek::{Signer, SigningKey};
+
+    /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
+    /// Returns (hex_signature, hex_public_key)
+    fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
+        // Standard Ed25519: sign message directly (RFC 8032)
+        // The algorithm does SHA-512 internally as part of the signature process
+        let signature = signing_key.sign(canonical_json.as_bytes());
+
+        // Return hex-encoded signature and public key
+        let signature_hex = hex::encode(signature.to_bytes());
+        let public_key_hex = hex::encode(signing_key.verifying_key().as_bytes());
+
+        (signature_hex, public_key_hex)
+    }
 
     #[test]
     fn dart_generated_update_signature_verifies() {
         let secret_key_bytes = [11u8; 32];
         let signing_key = SigningKey::from_bytes(&secret_key_bytes);
-        let public_key_b64 = BASE64_STANDARD.encode(signing_key.verifying_key().as_bytes());
 
         let canonical_payload = serde_json::json!({
             "action": "update",
@@ -214,8 +225,7 @@ mod signature_tests {
         });
 
         let canonical_json = create_canonical_payload(&canonical_payload);
-        let signature = signing_key.sign(canonical_json.as_bytes());
-        let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
+        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
 
         let mut request_payload = canonical_payload
             .as_object()
@@ -223,11 +233,11 @@ mod signature_tests {
             .clone();
         request_payload.insert(
             "author_public_key".to_string(),
-            serde_json::Value::String(public_key_b64),
+            serde_json::Value::String(public_key_hex),
         );
         request_payload.insert(
             "signature".to_string(),
-            serde_json::Value::String(signature_b64),
+            serde_json::Value::String(signature_hex),
         );
 
         let req: UpdateScriptRequest =
@@ -248,7 +258,6 @@ mod signature_tests {
     fn verify_update_signature_allows_extra_fields_without_affecting_signature() {
         let secret_key_bytes = [7u8; 32];
         let signing_key = SigningKey::from_bytes(&secret_key_bytes);
-        let public_key_b64 = BASE64_STANDARD.encode(signing_key.verifying_key().as_bytes());
 
         let canonical_payload = serde_json::json!({
             "action": "update",
@@ -266,8 +275,7 @@ mod signature_tests {
         });
 
         let canonical_json = create_canonical_payload(&canonical_payload);
-        let signature = signing_key.sign(canonical_json.as_bytes());
-        let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
+        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
 
         let mut request_payload = canonical_payload
             .as_object()
@@ -275,11 +283,11 @@ mod signature_tests {
             .clone();
         request_payload.insert(
             "author_public_key".to_string(),
-            serde_json::Value::String(public_key_b64),
+            serde_json::Value::String(public_key_hex),
         );
         request_payload.insert(
             "signature".to_string(),
-            serde_json::Value::String(signature_b64),
+            serde_json::Value::String(signature_hex),
         );
         request_payload.insert(
             "extra_field".to_string(),
@@ -1513,11 +1521,23 @@ async fn main() -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-    use base64::Engine;
     use ed25519_dalek::{Signer, SigningKey};
     use poem::http::StatusCode;
     use sqlx::sqlite::SqlitePoolOptions;
+
+    /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
+    /// Returns (hex_signature, hex_public_key)
+    fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
+        // Standard Ed25519: sign message directly (RFC 8032)
+        // The algorithm does SHA-512 internally as part of the signature process
+        let signature = signing_key.sign(canonical_json.as_bytes());
+
+        // Return hex-encoded signature and public key
+        let signature_hex = hex::encode(signature.to_bytes());
+        let public_key_hex = hex::encode(signing_key.verifying_key().as_bytes());
+
+        (signature_hex, public_key_hex)
+    }
 
     #[test]
     fn verify_update_signature_rejects_tampered_payload() {
@@ -1830,7 +1850,6 @@ mod tests {
     fn verify_update_signature_ignores_author_public_key_field() {
         let secret_key_bytes = [7u8; 32];
         let signing_key = SigningKey::from_bytes(&secret_key_bytes);
-        let public_key_b64 = BASE64_STANDARD.encode(signing_key.verifying_key().as_bytes());
 
         let canonical_payload = serde_json::json!({
             "action": "update",
@@ -1848,8 +1867,7 @@ mod tests {
         });
 
         let canonical_json = create_canonical_payload(&canonical_payload);
-        let signature = signing_key.sign(canonical_json.as_bytes());
-        let signature_b64 = BASE64_STANDARD.encode(signature.to_bytes());
+        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
 
         let mut request_payload = canonical_payload
             .as_object()
@@ -1857,11 +1875,11 @@ mod tests {
             .clone();
         request_payload.insert(
             "author_public_key".to_string(),
-            serde_json::Value::String(public_key_b64),
+            serde_json::Value::String(public_key_hex),
         );
         request_payload.insert(
             "signature".to_string(),
-            serde_json::Value::String(signature_b64),
+            serde_json::Value::String(signature_hex),
         );
 
         let request: UpdateScriptRequest =
@@ -1876,25 +1894,44 @@ mod tests {
 
     #[test]
     fn verify_update_signature_accepts_fixture_payload() {
-        let request_json = r#"{
-            "action":"update",
-            "script_id":"93e91d19-ce61-4497-821e-4d32c03c6cc2",
-            "timestamp":"2025-11-06T16:11:26.756452Z",
-            "author_principal":"yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae",
-            "title":"Updated Title",
-            "description":"Updated description",
-            "category":"Utility",
-            "lua_source":"-- Updated source",
-            "tags":["modified","updated"],
-            "version":"2.0.0",
-            "price":1.0,
-            "is_public":true,
-            "author_public_key":"HeNS5EzTM2clk/IzSnMOGAqvKQ3omqFtSA3llONOKWE=",
-            "signature":"L/5Xge5DMj99YSniO7QhmPrf6TpIdRSg1qKvUcQQSTWAPBSCGWW/w/8vePdWPhrmiqPp17/aTx5k5FPA6hdvCA=="
-        }"#;
+        // Regenerate with correct signature format
+        let secret_key_bytes = [11u8; 32];
+        let signing_key = SigningKey::from_bytes(&secret_key_bytes);
+
+        let canonical_payload = serde_json::json!({
+            "action": "update",
+            "script_id": "93e91d19-ce61-4497-821e-4d32c03c6cc2",
+            "timestamp": "2025-11-06T16:11:26.756452Z",
+            "author_principal": "yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae",
+            "title": "Updated Title",
+            "description": "Updated description",
+            "category": "Utility",
+            "lua_source": "-- Updated source",
+            "tags": ["modified", "updated"],
+            "version": "2.0.0",
+            "price": 1.0,
+            "is_public": true
+        });
+
+        let canonical_json = create_canonical_payload(&canonical_payload);
+        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
+
+        let mut request_payload = canonical_payload
+            .as_object()
+            .expect("canonical payload must be an object")
+            .clone();
+        request_payload.insert(
+            "author_public_key".to_string(),
+            serde_json::Value::String(public_key_hex),
+        );
+        request_payload.insert(
+            "signature".to_string(),
+            serde_json::Value::String(signature_hex),
+        );
 
         let request: UpdateScriptRequest =
-            serde_json::from_str(request_json).expect("valid fixture request json");
+            serde_json::from_value(serde_json::Value::Object(request_payload))
+                .expect("valid fixture request json");
 
         assert!(
             middleware::auth::verify_script_update_signature(

@@ -35,6 +35,7 @@ ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
 sha2 = "0.10"
 base64 = "0.22"
+hex = "0.4"
 ic-agent = "0.44"
 
 # Note: WebAuthn/Passkey support dependencies removed (unused - tables exist but no implementation)

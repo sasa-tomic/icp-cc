@@ -117,14 +117,15 @@ class AccountSignatureService {
     );
   }
 
-  /// Sign a canonical payload using Ed25519
+  /// Sign a canonical payload using standard cryptographic algorithms
   ///
   /// Process:
   /// 1. Encode payload to canonical JSON (sorted keys)
   /// 2. UTF-8 encode to bytes
-  /// 3. SHA-256 hash the bytes
-  /// 4. Sign the hash with Ed25519 private key
-  /// 5. Hex encode the signature
+  /// 3. Sign with algorithm-specific process:
+  ///    - Ed25519: Sign message directly (standard RFC 8032)
+  ///    - secp256k1: SHA-256 hash then sign (ECDSA requirement)
+  /// 4. Hex encode the signature
   static Future<String> _signPayload({
     required IdentityRecord identity,
     required Map<String, dynamic> payload,
@@ -135,40 +136,40 @@ class AccountSignatureService {
     // 2. UTF-8 encode
     final payloadBytes = utf8.encode(canonicalJson);
 
-    // 3. SHA-256 hash
-    final sha256 = Sha256();
-    final hash = await sha256.hash(payloadBytes);
-
-    // 4. Sign the hash
+    // 3. Sign (algorithm-specific)
     final privateKeyBytes = base64Decode(identity.privateKey);
 
-    final signature = await _signHash(
-      hashBytes: hash.bytes,
+    final signature = await _signMessage(
+      messageBytes: payloadBytes,
       privateKeyBytes: privateKeyBytes,
       algorithm: identity.algorithm,
     );
 
-    // 5. Hex encode
+    // 4. Hex encode
     return _bytesToHex(signature);
   }
 
-  /// Sign a hash with the private key
-  static Future<List<int>> _signHash({
-    required List<int> hashBytes,
+  /// Sign a message with the private key (algorithm-specific)
+  static Future<List<int>> _signMessage({
+    required List<int> messageBytes,
     required List<int> privateKeyBytes,
     required KeyAlgorithm algorithm,
   }) async {
     switch (algorithm) {
       case KeyAlgorithm.ed25519:
+        // Standard Ed25519: sign message directly (RFC 8032)
+        // The algorithm does SHA-512 internally as part of the signature process
         final ed25519 = Ed25519();
         final keyPair = await ed25519.newKeyPairFromSeed(privateKeyBytes);
         final signature = await ed25519.sign(
-          hashBytes,
+          messageBytes,
           keyPair: keyPair,
         );
         return signature.bytes;
 
       case KeyAlgorithm.secp256k1:
+        // Standard secp256k1: SHA-256 hash then sign (ECDSA requirement)
+        // TODO: Implement secp256k1 with Rust FFI bridge
         throw UnimplementedError(
           'secp256k1 signatures require Rust FFI bridge - use Ed25519 for now',
         );

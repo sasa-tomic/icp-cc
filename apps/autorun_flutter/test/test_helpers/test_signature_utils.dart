@@ -67,6 +67,7 @@ class TestSignatureUtils {
   }
 
   /// Internal method to generate signature (async version)
+  /// Per ACCOUNT_PROFILES_DESIGN.md: Standard Ed25519 (sign message directly)
   static Future<String> _generateSignatureInternal(
     IdentityRecord identity,
     Map<String, dynamic> payload,
@@ -81,6 +82,9 @@ class TestSignatureUtils {
 
       final privateKeyBytes = base64Decode(identity.privateKey);
       final keyPair = await algorithm.newKeyPairFromSeed(privateKeyBytes);
+
+      // Standard Ed25519: sign message directly (RFC 8032)
+      // The algorithm does SHA-512 internally as part of the signature process
       final signature = await algorithm.sign(payloadBytes, keyPair: keyPair);
 
       return base64Encode(signature.bytes);
