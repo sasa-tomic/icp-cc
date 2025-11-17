@@ -44,42 +44,36 @@ impl<E: Endpoint> Endpoint for AdminAuthEndpoint<E> {
                     } else {
                         // Invalid token
                         tracing::warn!("Admin authentication failed: invalid token");
-                        Ok(Response::builder()
-                            .status(StatusCode::UNAUTHORIZED)
-                            .body(
-                                serde_json::json!({
-                                    "success": false,
-                                    "error": "Invalid admin credentials"
-                                })
-                                .to_string(),
-                            ))
+                        Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(
+                            serde_json::json!({
+                                "success": false,
+                                "error": "Invalid admin credentials"
+                            })
+                            .to_string(),
+                        ))
                     }
                 } else {
                     // Invalid format
                     tracing::warn!("Admin authentication failed: invalid header format");
-                    Ok(Response::builder()
-                        .status(StatusCode::UNAUTHORIZED)
-                        .body(
-                            serde_json::json!({
-                                "success": false,
-                                "error": "Invalid authorization header format. Use: Bearer <token>"
-                            })
-                            .to_string(),
-                        ))
+                    Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(
+                        serde_json::json!({
+                            "success": false,
+                            "error": "Invalid authorization header format. Use: Bearer <token>"
+                        })
+                        .to_string(),
+                    ))
                 }
             }
             None => {
                 // Missing header
                 tracing::warn!("Admin authentication failed: missing authorization header");
-                Ok(Response::builder()
-                    .status(StatusCode::UNAUTHORIZED)
-                    .body(
-                        serde_json::json!({
-                            "success": false,
-                            "error": "Admin authentication required"
-                        })
-                        .to_string(),
-                    ))
+                Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(
+                    serde_json::json!({
+                        "success": false,
+                        "error": "Admin authentication required"
+                    })
+                    .to_string(),
+                ))
             }
         }
     }

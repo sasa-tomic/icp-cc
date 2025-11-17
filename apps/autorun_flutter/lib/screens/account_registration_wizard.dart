@@ -110,7 +110,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
               child: Icon(
                 Icons.account_circle_outlined,
                 size: 100,
-                color: AppDesignSystem.primaryLight.withOpacity(0.3),
+                color: AppDesignSystem.primaryLight.withValues(alpha: 0.3),
               ),
             ),
             const SizedBox(height: 32),
@@ -257,10 +257,10 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppDesignSystem.accentLight.withOpacity(0.1),
+              color: AppDesignSystem.accentLight.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppDesignSystem.accentLight.withOpacity(0.3),
+                color: AppDesignSystem.accentLight.withValues(alpha: 0.3),
               ),
             ),
             child: Row(

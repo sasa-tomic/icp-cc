@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../controllers/identity_controller.dart';
+import '../controllers/account_controller.dart';
+import '../models/account.dart';
 import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
@@ -10,6 +12,8 @@ import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/identity_profile_sheet.dart';
+import 'account_registration_wizard.dart';
+import 'account_profile_screen.dart';
 
 class IdentityHomePage extends StatefulWidget {
   const IdentityHomePage({super.key});
@@ -20,6 +24,7 @@ class IdentityHomePage extends StatefulWidget {
 
 class _IdentityHomePageState extends State<IdentityHomePage> {
   late final IdentityController _controller;
+  late final AccountController _accountController;
 
   @override
   void initState() {
@@ -27,7 +32,9 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     _controller = IdentityController(
       secureRepository: SecureIdentityRepository(),
     )..addListener(_onControllerChanged);
+    _accountController = AccountController()..addListener(_onControllerChanged);
     unawaited(_controller.ensureLoaded());
+    unawaited(_loadAccountsForIdentities());
   }
 
   @override
@@ -35,10 +42,53 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     _controller
       ..removeListener(_onControllerChanged)
       ..dispose();
+    _accountController
+      ..removeListener(_onControllerChanged)
+      ..dispose();
     super.dispose();
   }
 
   void _onControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _loadAccountsForIdentities() async {
+    await _controller.ensureLoaded();
+    // Accounts are populated when user registers or explicitly fetches them
+    // We rely on AccountController's cache populated by previous operations
+  }
+
+  Future<void> _navigateToAccountRegistration(IdentityRecord identity) async {
+    final Account? createdAccount = await Navigator.push<Account>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AccountRegistrationWizard(
+          identity: identity,
+          accountController: _accountController,
+        ),
+      ),
+    );
+
+    if (createdAccount != null && mounted) {
+      // Navigate to account profile after successful registration
+      await _navigateToAccountProfile(createdAccount, identity);
+    }
+  }
+
+  Future<void> _navigateToAccountProfile(Account account, IdentityRecord identity) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AccountProfileScreen(
+          account: account,
+          accountController: _accountController,
+          currentIdentity: identity,
+        ),
+      ),
+    );
+    // Refresh state after returning from profile
     if (mounted) {
       setState(() {});
     }
@@ -539,6 +589,8 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                        ],
                                      ),
                                      SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                                     _buildAccountStatus(record),
+                                     SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
                                      Text(
                                        _subtitleFor(record),
                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -651,6 +703,96 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}';
     final String algorithm = keyAlgorithmToString(record.algorithm).toUpperCase();
     return '$algorithm • $timestamp';
+  }
+
+  Widget _buildAccountStatus(IdentityRecord record) {
+    final Account? account = _accountController.accountForIdentity(record);
+
+    if (account != null) {
+      // Show account badge
+      return InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _navigateToAccountProfile(account, record);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.check_circle,
+                size: 14,
+                color: Theme.of(context).colorScheme.tertiary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '@${account.username}',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onTertiaryContainer,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // Show register button
+      return InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _navigateToAccountRegistration(record);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 14,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Register an Account',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.add_circle_outline,
+                size: 14,
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 }
 

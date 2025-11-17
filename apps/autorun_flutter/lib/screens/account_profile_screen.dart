@@ -187,8 +187,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: _account.isAtMaxKeys
-                        ? AppDesignSystem.warningLight.withOpacity(0.2)
-                        : AppDesignSystem.accentLight.withOpacity(0.2),
+                        ? AppDesignSystem.warningLight.withValues(alpha: 0.2)
+                        : AppDesignSystem.accentLight.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -262,7 +262,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isActive
-                ? AppDesignSystem.successLight.withOpacity(0.3)
+                ? AppDesignSystem.successLight.withValues(alpha: 0.3)
                 : AppDesignSystem.neutral300,
           ),
         ),
@@ -303,7 +303,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: AppDesignSystem.warningLight.withOpacity(0.2),
+                      color: AppDesignSystem.warningLight.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(

@@ -87,10 +87,10 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppDesignSystem.errorLight.withOpacity(0.1),
+                  color: AppDesignSystem.errorLight.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppDesignSystem.errorLight.withOpacity(0.3),
+                    color: AppDesignSystem.errorLight.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -222,7 +222,7 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppDesignSystem.accentLight.withOpacity(0.1)
+              ? AppDesignSystem.accentLight.withValues(alpha: 0.1)
               : AppDesignSystem.neutral50,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
