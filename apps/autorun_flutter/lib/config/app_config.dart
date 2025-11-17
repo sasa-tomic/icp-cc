@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 class AppConfig {
-  static const String _cloudflareEndpoint = String.fromEnvironment(
-    'CLOUDFLARE_ENDPOINT',
+  static const String _apiEndpoint = String.fromEnvironment(
+    'PUBLIC_API_ENDPOINT',
     defaultValue: 'https://icp-mp.kalaj.org',
   );
 
@@ -17,7 +17,7 @@ class AppConfig {
     if (_isTestMode && _testServiceEndpoint != null) {
       return _testServiceEndpoint!;
     }
-    return _cloudflareEndpoint;
+    return _apiEndpoint;
   }
   
   static String get cloudflareEndpoint => apiEndpoint;

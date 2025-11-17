@@ -7,5 +7,5 @@ echo "Cloudflare Endpoint: https://icp-mp.kalaj.org"
 cd "$(dirname "$0")/.."
 
 flutter run -d chrome \
-  --dart-define=CLOUDFLARE_ENDPOINT=https://icp-mp.kalaj.org \
+  --dart-define=PUBLIC_API_ENDPOINT=https://icp-mp.kalaj.org \
   "$@"
