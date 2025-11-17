@@ -1781,6 +1781,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "ed25519-dalek",
+ "ic-agent",
  "k256",
  "poem",
  "serde",

@@ -1,9 +1,12 @@
 use base64::{engine::general_purpose, Engine as _};
+use chrono::Utc;
 use ed25519_dalek::{Signature as Ed25519Signature, Verifier, VerifyingKey as Ed25519VerifyingKey};
+use ic_agent::export::Principal;
 use k256::ecdsa::{Signature as Secp256k1Signature, VerifyingKey as Secp256k1VerifyingKey};
 use poem::{error::ResponseError, http::StatusCode};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use sqlx::SqlitePool;
 use std::fmt;
 
 /// Authenticated user with verified public key and principal
@@ -240,6 +243,126 @@ pub fn verify_operation_signature(
     Ok(())
 }
 
+/// Derives an IC principal from an Ed25519 public key (base64 encoded)
+/// Backend MUST compute principal, NEVER trust user-provided principals
+pub fn derive_ic_principal(public_key_b64: &str) -> Result<String, String> {
+    // Decode public key
+    let public_key_bytes = general_purpose::STANDARD
+        .decode(public_key_b64)
+        .map_err(|e| format!("Invalid public key encoding: {}", e))?;
+
+    // Create self-authenticating principal from public key
+    // IC uses DER encoding for Ed25519 public keys
+    let principal = Principal::self_authenticating(&public_key_bytes);
+
+    Ok(principal.to_text())
+}
+
+/// Reserved usernames that cannot be registered
+const RESERVED_USERNAMES: &[&str] = &[
+    "admin",
+    "api",
+    "system",
+    "root",
+    "support",
+    "moderator",
+    "icp",
+    "administrator",
+    "test",
+    "null",
+    "undefined",
+];
+
+/// Validates and normalizes a username according to account profile rules
+/// - Length: 3-32 characters
+/// - Characters: [a-z0-9_-] (lowercase alphanumeric, underscore, hyphen)
+/// - Cannot start/end with hyphen or underscore
+/// - Not in reserved list
+pub fn validate_username(username: &str) -> Result<String, String> {
+    // Normalize: lowercase and trim
+    let normalized = username.trim().to_lowercase();
+
+    // Check length (3-32 characters)
+    if normalized.len() < 3 {
+        return Err("Username must be at least 3 characters long".to_string());
+    }
+    if normalized.len() > 32 {
+        return Err("Username must be at most 32 characters long".to_string());
+    }
+
+    // Regex validation: ^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$
+    // Check first character
+    let first_char = normalized.chars().next().unwrap();
+    if !first_char.is_ascii_lowercase() && !first_char.is_ascii_digit() {
+        return Err("Username must start with a lowercase letter or digit".to_string());
+    }
+
+    // Check last character
+    let last_char = normalized.chars().last().unwrap();
+    if !last_char.is_ascii_lowercase() && !last_char.is_ascii_digit() {
+        return Err("Username must end with a lowercase letter or digit".to_string());
+    }
+
+    // Check all characters are valid
+    for ch in normalized.chars() {
+        if !ch.is_ascii_lowercase() && !ch.is_ascii_digit() && ch != '_' && ch != '-' {
+            return Err(format!("Username contains invalid character: '{}'", ch));
+        }
+    }
+
+    // Check reserved usernames
+    if RESERVED_USERNAMES.contains(&normalized.as_str()) {
+        return Err(format!("Username '{}' is reserved", normalized));
+    }
+
+    Ok(normalized)
+}
+
+/// Validates timestamp and nonce for replay attack prevention
+/// - Timestamp must be within 5 minutes of current time
+/// - Nonce must not have been used in the last 10 minutes
+pub async fn validate_replay_prevention(
+    pool: &SqlitePool,
+    timestamp: i64,
+    nonce: &str,
+) -> Result<(), AuthError> {
+    // 1. Validate timestamp (within 5 minutes)
+    let now = Utc::now().timestamp();
+    let time_diff = (now - timestamp).abs();
+
+    if time_diff > 300 {
+        // 300 seconds = 5 minutes
+        return Err(AuthError::InvalidFormat(format!(
+            "Timestamp out of range: {} seconds difference (max 300)",
+            time_diff
+        )));
+    }
+
+    // 2. Check if nonce has been used in last 10 minutes
+    let nonce_exists = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*)
+        FROM signature_audit
+        WHERE nonce = ?
+        AND datetime(created_at) > datetime('now', '-10 minutes')
+        "#,
+    )
+    .bind(nonce)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        AuthError::InvalidFormat(format!("Failed to check nonce uniqueness: {}", e))
+    })?;
+
+    if nonce_exists > 0 {
+        return Err(AuthError::InvalidSignature(
+            "Nonce already used (replay attack detected)".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,5 +402,84 @@ mod tests {
         let z_pos = canonical.find("\"z_field\":").unwrap();
         assert!(a_pos < m_pos);
         assert!(m_pos < z_pos);
+    }
+
+    #[test]
+    fn test_derive_ic_principal() {
+        // Test with a valid base64 encoded 32-byte public key
+        let public_key = general_purpose::STANDARD.encode(&[1u8; 32]);
+        let result = derive_ic_principal(&public_key);
+        assert!(result.is_ok());
+
+        let principal = result.unwrap();
+        // Principal should be non-empty and properly formatted
+        assert!(!principal.is_empty());
+        assert!(principal.contains('-')); // IC principals contain hyphens
+    }
+
+    #[test]
+    fn test_derive_ic_principal_invalid_encoding() {
+        let result = derive_ic_principal("invalid-base64!");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid public key encoding"));
+    }
+
+    #[test]
+    fn test_validate_username_valid() {
+        // Valid usernames from design doc
+        assert_eq!(validate_username("alice").unwrap(), "alice");
+        assert_eq!(validate_username("bob123").unwrap(), "bob123");
+        assert_eq!(validate_username("charlie-delta").unwrap(), "charlie-delta");
+        assert_eq!(validate_username("user_99").unwrap(), "user_99");
+        assert_eq!(validate_username("a2b").unwrap(), "a2b"); // Minimum length
+    }
+
+    #[test]
+    fn test_validate_username_normalization() {
+        // Should normalize to lowercase
+        assert_eq!(validate_username("ALICE").unwrap(), "alice");
+        assert_eq!(validate_username("  alice  ").unwrap(), "alice"); // Trim whitespace
+    }
+
+    #[test]
+    fn test_validate_username_too_short() {
+        let result = validate_username("ab");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("at least 3 characters"));
+    }
+
+    #[test]
+    fn test_validate_username_too_long() {
+        let result = validate_username("a".repeat(33).as_str());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("at most 32 characters"));
+    }
+
+    #[test]
+    fn test_validate_username_invalid_start() {
+        assert!(validate_username("-alice").is_err());
+        assert!(validate_username("_alice").is_err());
+    }
+
+    #[test]
+    fn test_validate_username_invalid_end() {
+        assert!(validate_username("alice-").is_err());
+        assert!(validate_username("alice_").is_err());
+    }
+
+    #[test]
+    fn test_validate_username_invalid_characters() {
+        assert!(validate_username("alice@example").is_err());
+        assert!(validate_username("alice.smith").is_err());
+        assert!(validate_username("alice smith").is_err());
+    }
+
+    #[test]
+    fn test_validate_username_reserved() {
+        assert!(validate_username("admin").is_err());
+        assert!(validate_username("ADMIN").is_err()); // Case insensitive
+        assert!(validate_username("root").is_err());
+        assert!(validate_username("system").is_err());
+        assert!(validate_username("api").is_err());
     }
 }

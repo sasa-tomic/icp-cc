@@ -20,7 +20,7 @@ use poem::{
     EndpointExt, IntoResponse, Response, Route, Server,
 };
 use responses::error_response;
-use services::{IdentityService, ReviewService, ScriptService};
+use services::{AccountService, IdentityService, ReviewService, ScriptService};
 use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
 
@@ -724,6 +724,71 @@ async fn get_identity_profile(
     }
 }
 
+// Account Profiles Endpoints
+
+#[handler]
+async fn register_account(
+    Json(payload): Json<RegisterAccountRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state.account_service.register_account(payload).await {
+        Ok(account) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "success": true,
+                "data": account
+            })),
+        )
+            .into_response(),
+        Err(message) => {
+            tracing::warn!("Failed to register account: {}", message);
+            let status = if message.contains("already exists")
+                || message.contains("already registered")
+            {
+                StatusCode::CONFLICT
+            } else if message.contains("Invalid username")
+                || message.contains("Timestamp out of range")
+            {
+                StatusCode::BAD_REQUEST
+            } else if message.contains("Signature verification failed")
+                || message.contains("replay attack")
+            {
+                StatusCode::UNAUTHORIZED
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &message)
+        }
+    }
+}
+
+#[handler]
+async fn get_account(
+    Path(username): Path<String>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state.account_service.get_account(&username).await {
+        Ok(Some(account)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "data": account
+            })),
+        )
+            .into_response(),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "Account not found"),
+        Err(message) => {
+            tracing::error!("Failed to get account: {}", message);
+            let status = if message.contains("Invalid username") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &message)
+        }
+    }
+}
+
 #[handler]
 async fn update_script(
     Path(script_id): Path<String>,
@@ -1156,6 +1221,7 @@ async fn main() -> Result<(), std::io::Error> {
     db::initialize_database(&pool).await;
 
     let state = Arc::new(AppState {
+        account_service: AccountService::new(pool.clone()),
         script_service: ScriptService::new(pool.clone()),
         review_service: ReviewService::new(pool.clone()),
         identity_service: IdentityService::new(pool.clone()),
@@ -1190,6 +1256,9 @@ async fn main() -> Result<(), std::io::Error> {
             get(get_identity_profile),
         )
         .at("/api/v1/identities/profile", post(upsert_identity_profile))
+        // Account Profiles endpoints
+        .at("/api/v1/accounts", post(register_account))
+        .at("/api/v1/accounts/:username", get(get_account))
         .at("/api/v1/marketplace-stats", get(get_marketplace_stats))
         .at("/api/v1/update-script-stats", post(update_script_stats))
         .at("/api/dev/reset-database", post(reset_database))
@@ -1344,6 +1413,7 @@ mod tests {
         .await;
 
         Arc::new(AppState {
+            account_service: AccountService::new(pool.clone()),
             script_service: ScriptService::new(pool.clone()),
             review_service: ReviewService::new(pool.clone()),
             identity_service: IdentityService::new(pool.clone()),
@@ -1391,6 +1461,7 @@ mod tests {
 
         db::initialize_database(&pool).await;
         Arc::new(AppState {
+            account_service: AccountService::new(pool.clone()),
             script_service: ScriptService::new(pool.clone()),
             review_service: ReviewService::new(pool.clone()),
             identity_service: IdentityService::new(pool.clone()),

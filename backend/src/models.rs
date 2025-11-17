@@ -176,6 +176,7 @@ pub struct UpdateStatsRequest {
 
 pub struct AppState {
     pub pool: sqlx::SqlitePool,
+    pub account_service: crate::services::AccountService,
     pub script_service: crate::services::ScriptService,
     pub review_service: crate::services::ReviewService,
     pub identity_service: crate::services::IdentityService,
@@ -188,6 +189,77 @@ pub struct ReviewsQuery {
 }
 
 pub const SCRIPT_COLUMNS: &str = "id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at";
+
+// Account Profiles Models
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+pub struct Account {
+    pub id: String,
+    pub username: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+pub struct AccountPublicKey {
+    pub id: String,
+    pub account_id: String,
+    pub public_key: String,
+    pub ic_principal: String,
+    pub is_active: bool,
+    pub added_at: String,
+    pub disabled_at: Option<String>,
+    pub disabled_by_key_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct SignatureAudit {
+    pub id: String,
+    pub account_id: Option<String>,
+    pub action: String,
+    pub payload: String,
+    pub signature: String,
+    pub public_key: String,
+    pub timestamp: i64,
+    pub nonce: String,
+    pub is_admin_action: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterAccountRequest {
+    pub username: String,
+    pub public_key: String,
+    pub timestamp: i64,
+    pub nonce: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPublicKeyResponse {
+    pub id: String,
+    pub public_key: String,
+    pub ic_principal: String,
+    pub added_at: String,
+    pub is_active: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_by_key_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountResponse {
+    pub id: String,
+    pub username: String,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    pub public_keys: Vec<AccountPublicKeyResponse>,
+}
 
 // Implement AuthenticatedRequest trait for request types
 use crate::middleware::AuthenticatedRequest;
