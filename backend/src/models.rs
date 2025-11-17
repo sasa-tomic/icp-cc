@@ -281,6 +281,36 @@ pub struct AccountResponse {
     pub public_keys: Vec<AccountPublicKeyResponse>,
 }
 
+// Admin operation request models
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminDisableKeyRequest {
+    pub reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminAddRecoveryKeyRequest {
+    pub public_key: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminKeyResponse {
+    pub id: String,
+    pub public_key: String,
+    pub ic_principal: String,
+    pub is_active: bool,
+    pub disabled_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_by_admin: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub added_by_admin: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub added_at: Option<String>,
+}
+
 // Implement AuthenticatedRequest trait for request types
 use crate::middleware::AuthenticatedRequest;
 

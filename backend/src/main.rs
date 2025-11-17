@@ -1,4 +1,5 @@
 mod auth;
+mod cleanup;
 mod db;
 mod middleware;
 mod models;
@@ -874,6 +875,92 @@ async fn remove_account_key(
     }
 }
 
+// Admin Account Operations
+
+#[handler]
+async fn admin_disable_key(
+    Path((username, key_id)): Path<(String, String)>,
+    Json(payload): Json<models::AdminDisableKeyRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .account_service
+        .admin_disable_key(&username, &key_id, &payload.reason)
+        .await
+    {
+        Ok(key) => {
+            tracing::info!(
+                "Admin disabled key {} for account {}: {}",
+                key_id,
+                username,
+                payload.reason
+            );
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "success": true,
+                    "data": key
+                })),
+            )
+                .into_response()
+        }
+        Err(message) => {
+            tracing::warn!("Admin failed to disable key: {}", message);
+            let status = if message.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else if message.contains("Invalid username") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &message)
+        }
+    }
+}
+
+#[handler]
+async fn admin_add_recovery_key(
+    Path(username): Path<String>,
+    Json(payload): Json<models::AdminAddRecoveryKeyRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .account_service
+        .admin_add_recovery_key(&username, &payload.public_key, &payload.reason)
+        .await
+    {
+        Ok(key) => {
+            tracing::info!(
+                "Admin added recovery key for account {}: {}",
+                username,
+                payload.reason
+            );
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "success": true,
+                    "data": key
+                })),
+            )
+                .into_response()
+        }
+        Err(message) => {
+            tracing::warn!("Admin failed to add recovery key: {}", message);
+            let status = if message.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else if message.contains("Invalid username")
+                || message.contains("Maximum number")
+                || message.contains("already registered")
+            {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &message)
+        }
+    }
+}
+
 #[handler]
 async fn update_script(
     Path(script_id): Path<String>,
@@ -1305,6 +1392,9 @@ async fn main() -> Result<(), std::io::Error> {
 
     db::initialize_database(&pool).await;
 
+    // Clone pool for background cleanup job before moving it to state
+    let cleanup_pool = pool.clone();
+
     let state = Arc::new(AppState {
         account_service: AccountService::new(pool.clone()),
         script_service: ScriptService::new(pool.clone()),
@@ -1348,6 +1438,15 @@ async fn main() -> Result<(), std::io::Error> {
         .at(
             "/api/v1/accounts/:username/keys/:key_id",
             delete(remove_account_key),
+        )
+        // Admin Account endpoints (require admin authentication)
+        .at(
+            "/api/v1/admin/accounts/:username/keys/:key_id/disable",
+            post(admin_disable_key).with(middleware::AdminAuth),
+        )
+        .at(
+            "/api/v1/admin/accounts/:username/recovery-key",
+            post(admin_add_recovery_key).with(middleware::AdminAuth),
         )
         .at("/api/v1/marketplace-stats", get(get_marketplace_stats))
         .at("/api/v1/update-script-stats", post(update_script_stats))
@@ -1398,6 +1497,9 @@ async fn main() -> Result<(), std::io::Error> {
 
     // Log the actual listening address for external tools to parse
     tracing::info!("listening on addr=socket://{}", final_bind_addr);
+
+    // Start background cleanup job for signature audit
+    cleanup::start_audit_cleanup_job(cleanup_pool).await;
 
     // Close the std listener since we just needed it for the address
     drop(std_listener);

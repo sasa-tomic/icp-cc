@@ -419,6 +419,175 @@ impl AccountService {
             disabled_by_key_id: Some(signing_key.id),
         })
     }
+
+    /// Admin: Disables a public key (for compromised keys or account recovery)
+    pub async fn admin_disable_key(
+        &self,
+        username: &str,
+        key_id: &str,
+        reason: &str,
+    ) -> Result<crate::models::AdminKeyResponse, String> {
+        // 1. Validate username and get account
+        let normalized_username =
+            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+
+        let account = self
+            .repo
+            .find_by_username(&normalized_username)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Account not found".to_string())?;
+
+        // 2. Get key to disable and verify it belongs to account
+        let key_to_disable = self
+            .repo
+            .find_key_by_id(key_id)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Key not found".to_string())?;
+
+        if key_to_disable.account_id != account.id {
+            return Err("Key does not belong to this account".to_string());
+        }
+
+        // 3. Disable the key (soft delete)
+        let audit_id = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        self.repo
+            .disable_key(key_id, key_id, &now)
+            .await
+            .map_err(|e| format!("Failed to disable key: {}", e))?;
+
+        // 4. Record admin action in audit trail
+        let payload = serde_json::json!({
+            "action": "admin_disable_key",
+            "keyId": key_id,
+            "reason": reason,
+            "username": normalized_username,
+        });
+        let canonical_json = create_canonical_payload(&payload);
+
+        self.repo
+            .record_signature_audit(SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account.id),
+                action: "admin_disable_key",
+                payload: &canonical_json,
+                signature: "admin-action",
+                public_key: "admin",
+                timestamp: Utc::now().timestamp(),
+                nonce: &uuid::Uuid::new_v4().to_string(),
+                is_admin_action: true,
+                now: &now,
+            })
+            .await
+            .map_err(|e| format!("Failed to record audit: {}", e))?;
+
+        // 5. Return disabled key
+        Ok(crate::models::AdminKeyResponse {
+            id: key_to_disable.id,
+            public_key: key_to_disable.public_key,
+            ic_principal: key_to_disable.ic_principal,
+            is_active: false,
+            disabled_at: Some(now),
+            disabled_by_admin: Some(true),
+            added_by_admin: None,
+            added_at: None,
+        })
+    }
+
+    /// Admin: Adds a recovery key to an account (for account recovery scenarios)
+    pub async fn admin_add_recovery_key(
+        &self,
+        username: &str,
+        public_key: &str,
+        reason: &str,
+    ) -> Result<crate::models::AdminKeyResponse, String> {
+        // 1. Validate username and get account
+        let normalized_username =
+            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+
+        let account = self
+            .repo
+            .find_by_username(&normalized_username)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Account not found".to_string())?;
+
+        // 2. Check new public key not already registered (anywhere)
+        if self
+            .repo
+            .find_public_key_by_value(public_key)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .is_some()
+        {
+            return Err("Public key already registered".to_string());
+        }
+
+        // 3. Check account has < 10 keys (max limit)
+        let total_keys = self
+            .repo
+            .count_all_keys(&account.id)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?;
+
+        if total_keys >= 10 {
+            return Err("Maximum number of keys (10) reached for this account".to_string());
+        }
+
+        // 4. Derive IC principal from new public key
+        let ic_principal = derive_ic_principal(public_key)
+            .map_err(|e| format!("Failed to derive IC principal: {}", e))?;
+
+        // 5. Add new public key to account
+        let key_id = uuid::Uuid::new_v4().to_string();
+        let audit_id = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        self.repo
+            .add_public_key(&key_id, &account.id, public_key, &ic_principal, &now)
+            .await
+            .map_err(|e| format!("Failed to add public key: {}", e))?;
+
+        // 6. Record admin action in audit trail
+        let payload = serde_json::json!({
+            "action": "admin_add_recovery_key",
+            "newPublicKey": public_key,
+            "reason": reason,
+            "username": normalized_username,
+        });
+        let canonical_json = create_canonical_payload(&payload);
+
+        self.repo
+            .record_signature_audit(SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account.id),
+                action: "admin_add_recovery_key",
+                payload: &canonical_json,
+                signature: "admin-action",
+                public_key: "admin",
+                timestamp: Utc::now().timestamp(),
+                nonce: &uuid::Uuid::new_v4().to_string(),
+                is_admin_action: true,
+                now: &now,
+            })
+            .await
+            .map_err(|e| format!("Failed to record audit: {}", e))?;
+
+        // 7. Return created key
+        Ok(crate::models::AdminKeyResponse {
+            id: key_id,
+            public_key: public_key.to_string(),
+            ic_principal,
+            is_active: true,
+            disabled_at: None,
+            disabled_by_admin: None,
+            added_by_admin: Some(true),
+            added_at: Some(now),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1160,5 +1329,329 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("last active key"));
+    }
+
+    // Admin Operation Tests
+
+    #[tokio::test]
+    async fn test_admin_disable_key_success() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account with two keys
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "george",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "george".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Add second key
+        let (_, public_key2) = create_test_keypair();
+        let nonce2 = uuid::Uuid::new_v4().to_string();
+        let payload2 = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": public_key2,
+            "nonce": nonce2,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "george",
+        });
+        let canonical2 = create_canonical_payload(&payload2);
+        let signature2 = sign_payload(&signing_key1, &canonical2);
+
+        service
+            .add_public_key(
+                "george",
+                AddPublicKeyRequest {
+                    new_public_key: public_key2.clone(),
+                    signing_public_key: public_key1.clone(),
+                    timestamp,
+                    nonce: nonce2,
+                    signature: signature2,
+                },
+            )
+            .await
+            .unwrap();
+
+        // Get key2 ID
+        let account = service.get_account("george").await.unwrap().unwrap();
+        let key2_id = account
+            .public_keys
+            .iter()
+            .find(|k| k.public_key == public_key2)
+            .unwrap()
+            .id
+            .clone();
+
+        // Admin disables second key
+        let result = service
+            .admin_disable_key("george", &key2_id, "User reported compromise")
+            .await;
+
+        assert!(result.is_ok());
+        let disabled_key = result.unwrap();
+        assert_eq!(disabled_key.public_key, public_key2);
+        assert!(!disabled_key.is_active);
+        assert!(disabled_key.disabled_at.is_some());
+        assert_eq!(disabled_key.disabled_by_admin, Some(true));
+
+        // Verify account still has 2 keys, but only 1 active
+        let account = service.get_account("george").await.unwrap().unwrap();
+        assert_eq!(account.public_keys.len(), 2);
+        assert_eq!(
+            account.public_keys.iter().filter(|k| k.is_active).count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn test_admin_disable_key_account_not_found() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        let result = service
+            .admin_disable_key("nonexistent", "some-key-id", "test reason")
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Account not found"));
+    }
+
+    #[tokio::test]
+    async fn test_admin_disable_key_not_found() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "harry",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "harry".to_string(),
+                public_key: public_key1,
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Try to disable non-existent key
+        let result = service
+            .admin_disable_key("harry", "nonexistent-key-id", "test reason")
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Key not found"));
+    }
+
+    #[tokio::test]
+    async fn test_admin_add_recovery_key_success() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "iris",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "iris".to_string(),
+                public_key: public_key1,
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Admin adds recovery key
+        let (_, recovery_key) = create_test_keypair();
+        let result = service
+            .admin_add_recovery_key("iris", &recovery_key, "User lost all keys")
+            .await;
+
+        assert!(result.is_ok());
+        let added_key = result.unwrap();
+        assert_eq!(added_key.public_key, recovery_key);
+        assert!(added_key.is_active);
+        assert_eq!(added_key.added_by_admin, Some(true));
+        assert!(added_key.added_at.is_some());
+
+        // Verify account now has 2 keys
+        let account = service.get_account("iris").await.unwrap().unwrap();
+        assert_eq!(account.public_keys.len(), 2);
+        assert_eq!(
+            account.public_keys.iter().filter(|k| k.is_active).count(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn test_admin_add_recovery_key_account_not_found() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        let (_, recovery_key) = create_test_keypair();
+        let result = service
+            .admin_add_recovery_key("nonexistent", &recovery_key, "test reason")
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Account not found"));
+    }
+
+    #[tokio::test]
+    async fn test_admin_add_recovery_key_duplicate_rejected() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "jack",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "jack".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Try to add existing key as recovery key
+        let result = service
+            .admin_add_recovery_key("jack", &public_key1, "test reason")
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already registered"));
+    }
+
+    #[tokio::test]
+    async fn test_admin_add_recovery_key_max_keys_exceeded() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "kate",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "kate".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Add 9 more keys (total 10)
+        for _ in 0..9 {
+            let (_, new_key) = create_test_keypair();
+            let nonce = uuid::Uuid::new_v4().to_string();
+
+            let payload = serde_json::json!({
+                "action": "add_key",
+                "newPublicKey": new_key,
+                "nonce": nonce,
+                "signingPublicKey": public_key1,
+                "timestamp": timestamp,
+                "username": "kate",
+            });
+            let canonical = create_canonical_payload(&payload);
+            let signature = sign_payload(&signing_key1, &canonical);
+
+            service
+                .add_public_key(
+                    "kate",
+                    AddPublicKeyRequest {
+                        new_public_key: new_key,
+                        signing_public_key: public_key1.clone(),
+                        timestamp,
+                        nonce,
+                        signature,
+                    },
+                )
+                .await
+                .unwrap();
+        }
+
+        // Try to add 11th key via admin (should fail)
+        let (_, key11) = create_test_keypair();
+        let result = service
+            .admin_add_recovery_key("kate", &key11, "test reason")
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Maximum number"));
     }
 }
