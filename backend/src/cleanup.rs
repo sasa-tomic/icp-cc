@@ -2,8 +2,13 @@ use sqlx::SqlitePool;
 use std::time::Duration;
 use tokio::time;
 
+/// Signature audit retention period in days
+/// Records older than this will be deleted by the cleanup job
+/// Recommendation: 90 days per design spec, but can be increased for POC/testing
+const AUDIT_RETENTION_DAYS: i32 = 90;
+
 /// Background job that cleans up old signature audit records
-/// Runs daily and removes records older than 180 days
+/// Runs daily and removes records older than AUDIT_RETENTION_DAYS
 pub async fn start_audit_cleanup_job(pool: SqlitePool) {
     tracing::info!("Starting signature audit cleanup background job");
 
@@ -31,16 +36,17 @@ pub async fn start_audit_cleanup_job(pool: SqlitePool) {
     });
 }
 
-/// Deletes signature audit records older than 180 days
+/// Deletes signature audit records older than AUDIT_RETENTION_DAYS
 async fn cleanup_old_audit_records(pool: &SqlitePool) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query(
+    let query = format!(
         r#"
         DELETE FROM signature_audit
-        WHERE datetime(created_at) < datetime('now', '-180 days')
+        WHERE datetime(created_at) < datetime('now', '-{} days')
         "#,
-    )
-    .execute(pool)
-    .await?;
+        AUDIT_RETENTION_DAYS
+    );
+
+    let result = sqlx::query(&query).execute(pool).await?;
 
     Ok(result.rows_affected())
 }
@@ -157,11 +163,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cleanup_exactly_180_days() {
+    async fn test_cleanup_exactly_retention_period() {
         let pool = setup_test_db().await;
 
-        // Insert a record that's exactly 180 days old (should be kept)
-        let exactly_180_days = Utc::now() - chrono::Duration::days(180);
+        // Insert a record that's exactly AUDIT_RETENTION_DAYS old (should be kept)
+        let exactly_retention = Utc::now() - chrono::Duration::days(AUDIT_RETENTION_DAYS as i64);
         let record_id = uuid::Uuid::new_v4().to_string();
 
         sqlx::query(
@@ -171,7 +177,7 @@ mod tests {
             "#,
         )
         .bind(&record_id)
-        .bind(exactly_180_days.to_rfc3339())
+        .bind(exactly_retention.to_rfc3339())
         .execute(&pool)
         .await
         .unwrap();
@@ -179,7 +185,7 @@ mod tests {
         // Run cleanup
         let deleted = cleanup_old_audit_records(&pool).await.unwrap();
 
-        // Should have deleted 0 records (exactly 180 days is kept)
+        // Should have deleted 0 records (exactly retention period is kept)
         assert_eq!(deleted, 0);
 
         // Verify record still exists
