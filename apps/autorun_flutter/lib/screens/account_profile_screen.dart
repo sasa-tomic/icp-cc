@@ -58,14 +58,14 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppDesignSystem.neutral50,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         title: Text(
           'Account Profile',
           style: AppDesignSystem.heading3.copyWith(
-            color: AppDesignSystem.neutral900,
+            color: context.colors.onSurface,
           ),
         ),
         actions: [
@@ -110,7 +110,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppDesignSystem.neutral200),
+        side: BorderSide(color: context.colors.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -145,7 +145,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             Text(
               'Created ${_formatDate(_account.createdAt)}',
               style: AppDesignSystem.bodySmall.copyWith(
-                color: AppDesignSystem.neutral600,
+                color: context.colors.onSurfaceVariant,
               ),
             ),
           ],
@@ -162,7 +162,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppDesignSystem.neutral200),
+        side: BorderSide(color: context.colors.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -175,7 +175,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 Text(
                   'PUBLIC KEYS',
                   style: AppDesignSystem.bodySmall.copyWith(
-                    color: AppDesignSystem.neutral600,
+                    color: context.colors.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
                   ),
@@ -219,7 +219,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
               Text(
                 'DISABLED KEYS',
                 style: AppDesignSystem.bodySmall.copyWith(
-                  color: AppDesignSystem.neutral500,
+                  color: context.colors.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
                 ),
@@ -238,7 +238,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   child: Text(
                     'No keys found',
                     style: AppDesignSystem.bodyMedium.copyWith(
-                      color: AppDesignSystem.neutral400,
+                      color: context.colors.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -258,12 +258,14 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white : AppDesignSystem.neutral100,
+          color: isActive
+              ? context.colors.surfaceContainerHighest
+              : context.colors.surfaceContainer,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isActive
                 ? AppDesignSystem.successLight.withValues(alpha: 0.3)
-                : AppDesignSystem.neutral300,
+                : context.colors.outline,
           ),
         ),
         child: Column(
@@ -334,7 +336,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             Text(
               'Public Key',
               style: AppDesignSystem.bodySmall.copyWith(
-                color: AppDesignSystem.neutral600,
+                color: context.colors.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
@@ -363,7 +365,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             Text(
               'IC Principal',
               style: AppDesignSystem.bodySmall.copyWith(
-                color: AppDesignSystem.neutral600,
+                color: context.colors.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
@@ -394,7 +396,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   ? 'Added ${_formatDate(key.addedAt)}'
                   : 'Disabled ${_formatDate(key.disabledAt!)}',
               style: AppDesignSystem.bodySmall.copyWith(
-                color: AppDesignSystem.neutral500,
+                color: context.colors.onSurfaceVariant,
               ),
             ),
           ],

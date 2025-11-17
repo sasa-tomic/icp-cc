@@ -8,6 +8,7 @@ import '../models/account.dart';
 import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
+import '../theme/app_design_system.dart';
 import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
@@ -236,7 +237,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${record.label} is now the active identity'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppDesignSystem.successLight,
           ),
         );
         break;
@@ -623,7 +624,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                       value: _IdentityAction.setActive,
                                       child: Row(
                                         children: [
-                                          Icon(Icons.check_circle_outline_rounded, size: 20, color: Colors.green),
+                                          Icon(Icons.check_circle_outline_rounded, size: 20, color: AppDesignSystem.successLight),
                                           const SizedBox(width: 12),
                                           const Text('Set as active'),
                                         ],
@@ -664,9 +665,9 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                     value: _IdentityAction.delete,
                                     child: Row(
                                       children: [
-                                        Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                                        Icon(Icons.delete_outline_rounded, size: 20, color: AppDesignSystem.errorLight),
                                         const SizedBox(width: 12),
-                                        const Text('Delete', style: TextStyle(color: Colors.red)),
+                                        const Text('Delete', style: TextStyle(color: AppDesignSystem.errorLight)),
                                       ],
                                     ),
                                   ),
