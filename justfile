@@ -308,11 +308,13 @@ docker-deploy: docker-deploy-prod
 # Deploy to production with Docker Compose and Cloudflare Tunnel
 docker-deploy-prod:
     @echo "==> Deploying to PRODUCTION with Docker Compose + Cloudflare Tunnel"
+    cargo build --release
     cd {{api_dir}} && ./scripts/start-tunnel.sh
 
 # Deploy to local development (no tunnel)
 docker-deploy-dev:
     @echo "==> Deploying to DEVELOPMENT (local only)"
+    cargo build --release
     cd {{api_dir}} && ./scripts/start-dev.sh
 
 # Start Docker containers (env: prod or dev)
