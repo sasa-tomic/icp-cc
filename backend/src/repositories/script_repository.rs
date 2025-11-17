@@ -60,6 +60,7 @@ impl ScriptRepository {
             .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         id: &str,
@@ -110,6 +111,7 @@ impl ScriptRepository {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
         id: &str,

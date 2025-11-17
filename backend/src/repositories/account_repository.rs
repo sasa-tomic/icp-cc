@@ -1,5 +1,18 @@
-use crate::models::{Account, AccountPublicKey, SignatureAudit};
+use crate::models::{Account, AccountPublicKey};
 use sqlx::SqlitePool;
+
+pub struct SignatureAuditParams<'a> {
+    pub audit_id: &'a str,
+    pub account_id: Option<&'a str>,
+    pub action: &'a str,
+    pub payload: &'a str,
+    pub signature: &'a str,
+    pub public_key: &'a str,
+    pub timestamp: i64,
+    pub nonce: &'a str,
+    pub is_admin_action: bool,
+    pub now: &'a str,
+}
 
 pub struct AccountRepository {
     pool: SqlitePool,
@@ -62,16 +75,7 @@ impl AccountRepository {
     /// Records a signature in the audit trail
     pub async fn record_signature_audit(
         &self,
-        audit_id: &str,
-        account_id: Option<&str>,
-        action: &str,
-        payload: &str,
-        signature: &str,
-        public_key: &str,
-        timestamp: i64,
-        nonce: &str,
-        is_admin_action: bool,
-        now: &str,
+        params: SignatureAuditParams<'_>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
@@ -79,16 +83,16 @@ impl AccountRepository {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
-        .bind(audit_id)
-        .bind(account_id)
-        .bind(action)
-        .bind(payload)
-        .bind(signature)
-        .bind(public_key)
-        .bind(timestamp)
-        .bind(nonce)
-        .bind(if is_admin_action { 1 } else { 0 })
-        .bind(now)
+        .bind(params.audit_id)
+        .bind(params.account_id)
+        .bind(params.action)
+        .bind(params.payload)
+        .bind(params.signature)
+        .bind(params.public_key)
+        .bind(params.timestamp)
+        .bind(params.nonce)
+        .bind(if params.is_admin_action { 1 } else { 0 })
+        .bind(params.now)
         .execute(&self.pool)
         .await?;
 
@@ -148,5 +152,79 @@ impl AccountRepository {
         .await?;
 
         Ok(keys)
+    }
+
+    /// Gets count of active keys for an account
+    pub async fn count_active_keys(&self, account_id: &str) -> Result<i64, sqlx::Error> {
+        let count = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)
+            FROM account_public_keys
+            WHERE account_id = ? AND is_active = 1
+            "#,
+        )
+        .bind(account_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
+
+    /// Gets count of all keys (active + inactive) for an account
+    pub async fn count_all_keys(&self, account_id: &str) -> Result<i64, sqlx::Error> {
+        let count = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)
+            FROM account_public_keys
+            WHERE account_id = ?
+            "#,
+        )
+        .bind(account_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
+
+    /// Finds a public key by its ID
+    pub async fn find_key_by_id(
+        &self,
+        key_id: &str,
+    ) -> Result<Option<AccountPublicKey>, sqlx::Error> {
+        let key = sqlx::query_as::<_, AccountPublicKey>(
+            r#"
+            SELECT id, account_id, public_key, ic_principal, is_active, added_at, disabled_at, disabled_by_key_id
+            FROM account_public_keys
+            WHERE id = ?
+            "#,
+        )
+        .bind(key_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(key)
+    }
+
+    /// Disables a public key (soft delete)
+    pub async fn disable_key(
+        &self,
+        key_id: &str,
+        disabled_by_key_id: &str,
+        now: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE account_public_keys
+            SET is_active = 0, disabled_at = ?, disabled_by_key_id = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(now)
+        .bind(disabled_by_key_id)
+        .bind(key_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }

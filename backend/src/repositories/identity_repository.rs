@@ -1,6 +1,21 @@
 use crate::models::IdentityProfile;
 use sqlx::SqlitePool;
 
+pub struct UpsertIdentityParams<'a> {
+    pub id: &'a str,
+    pub principal: &'a str,
+    pub display_name: &'a str,
+    pub username: Option<&'a str>,
+    pub contact_email: Option<&'a str>,
+    pub contact_telegram: Option<&'a str>,
+    pub contact_twitter: Option<&'a str>,
+    pub contact_discord: Option<&'a str>,
+    pub website_url: Option<&'a str>,
+    pub bio: Option<&'a str>,
+    pub metadata: Option<&'a str>,
+    pub timestamp: &'a str,
+}
+
 pub struct IdentityRepository {
     pool: SqlitePool,
 }
@@ -24,21 +39,7 @@ impl IdentityRepository {
         .await
     }
 
-    pub async fn upsert(
-        &self,
-        id: &str,
-        principal: &str,
-        display_name: &str,
-        username: Option<&str>,
-        contact_email: Option<&str>,
-        contact_telegram: Option<&str>,
-        contact_twitter: Option<&str>,
-        contact_discord: Option<&str>,
-        website_url: Option<&str>,
-        bio: Option<&str>,
-        metadata: Option<&str>,
-        timestamp: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn upsert(&self, params: UpsertIdentityParams<'_>) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
             INSERT INTO identity_profiles (
@@ -58,19 +59,19 @@ impl IdentityRepository {
                 updated_at = excluded.updated_at
             "#,
         )
-        .bind(id)
-        .bind(principal)
-        .bind(display_name)
-        .bind(username)
-        .bind(contact_email)
-        .bind(contact_telegram)
-        .bind(contact_twitter)
-        .bind(contact_discord)
-        .bind(website_url)
-        .bind(bio)
-        .bind(metadata)
-        .bind(timestamp)
-        .bind(timestamp)
+        .bind(params.id)
+        .bind(params.principal)
+        .bind(params.display_name)
+        .bind(params.username)
+        .bind(params.contact_email)
+        .bind(params.contact_telegram)
+        .bind(params.contact_twitter)
+        .bind(params.contact_discord)
+        .bind(params.website_url)
+        .bind(params.bio)
+        .bind(params.metadata)
+        .bind(params.timestamp)
+        .bind(params.timestamp)
         .execute(&self.pool)
         .await?;
         Ok(())

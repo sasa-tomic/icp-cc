@@ -350,9 +350,7 @@ pub async fn validate_replay_prevention(
     .bind(nonce)
     .fetch_one(pool)
     .await
-    .map_err(|e| {
-        AuthError::InvalidFormat(format!("Failed to check nonce uniqueness: {}", e))
-    })?;
+    .map_err(|e| AuthError::InvalidFormat(format!("Failed to check nonce uniqueness: {}", e)))?;
 
     if nonce_exists > 0 {
         return Err(AuthError::InvalidSignature(
@@ -407,7 +405,7 @@ mod tests {
     #[test]
     fn test_derive_ic_principal() {
         // Test with a valid base64 encoded 32-byte public key
-        let public_key = general_purpose::STANDARD.encode(&[1u8; 32]);
+        let public_key = general_purpose::STANDARD.encode([1u8; 32]);
         let result = derive_ic_principal(&public_key);
         assert!(result.is_ok());
 

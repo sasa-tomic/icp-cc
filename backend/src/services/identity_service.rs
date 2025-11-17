@@ -1,5 +1,5 @@
 use crate::models::{IdentityProfile, UpsertIdentityProfileRequest};
-use crate::repositories::IdentityRepository;
+use crate::repositories::{IdentityRepository, UpsertIdentityParams};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
@@ -30,20 +30,20 @@ impl IdentityService {
         let metadata = req.metadata.map(|v| v.to_string());
 
         self.repo
-            .upsert(
-                &profile_id,
-                &req.principal,
-                &req.display_name,
-                req.username.as_deref(),
-                req.contact_email.as_deref(),
-                req.contact_telegram.as_deref(),
-                req.contact_twitter.as_deref(),
-                req.contact_discord.as_deref(),
-                req.website_url.as_deref(),
-                req.bio.as_deref(),
-                metadata.as_deref(),
-                &now,
-            )
+            .upsert(UpsertIdentityParams {
+                id: &profile_id,
+                principal: &req.principal,
+                display_name: &req.display_name,
+                username: req.username.as_deref(),
+                contact_email: req.contact_email.as_deref(),
+                contact_telegram: req.contact_telegram.as_deref(),
+                contact_twitter: req.contact_twitter.as_deref(),
+                contact_discord: req.contact_discord.as_deref(),
+                website_url: req.website_url.as_deref(),
+                bio: req.bio.as_deref(),
+                metadata: metadata.as_deref(),
+                timestamp: &now,
+            })
             .await
             .map_err(|e| format!("Failed to upsert profile: {}", e))?;
 

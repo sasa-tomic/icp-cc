@@ -213,6 +213,7 @@ pub struct AccountPublicKey {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
 pub struct SignatureAudit {
     pub id: String,
     pub account_id: Option<String>,
@@ -231,6 +232,25 @@ pub struct SignatureAudit {
 pub struct RegisterAccountRequest {
     pub username: String,
     pub public_key: String,
+    pub timestamp: i64,
+    pub nonce: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddPublicKeyRequest {
+    pub new_public_key: String,
+    pub signing_public_key: String,
+    pub timestamp: i64,
+    pub nonce: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemovePublicKeyRequest {
+    pub signing_public_key: String,
     pub timestamp: i64,
     pub nonce: String,
     pub signature: String,

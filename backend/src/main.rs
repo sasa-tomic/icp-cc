@@ -11,7 +11,7 @@ use auth::create_canonical_payload;
 
 use models::*;
 use poem::{
-    get, handler,
+    delete, get, handler,
     http::StatusCode,
     listener::TcpListener,
     middleware::Cors,
@@ -742,31 +742,27 @@ async fn register_account(
             .into_response(),
         Err(message) => {
             tracing::warn!("Failed to register account: {}", message);
-            let status = if message.contains("already exists")
-                || message.contains("already registered")
-            {
-                StatusCode::CONFLICT
-            } else if message.contains("Invalid username")
-                || message.contains("Timestamp out of range")
-            {
-                StatusCode::BAD_REQUEST
-            } else if message.contains("Signature verification failed")
-                || message.contains("replay attack")
-            {
-                StatusCode::UNAUTHORIZED
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
+            let status =
+                if message.contains("already exists") || message.contains("already registered") {
+                    StatusCode::CONFLICT
+                } else if message.contains("Invalid username")
+                    || message.contains("Timestamp out of range")
+                {
+                    StatusCode::BAD_REQUEST
+                } else if message.contains("Signature verification failed")
+                    || message.contains("replay attack")
+                {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                };
             error_response(status, &message)
         }
     }
 }
 
 #[handler]
-async fn get_account(
-    Path(username): Path<String>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
+async fn get_account(Path(username): Path<String>, Data(state): Data<&Arc<AppState>>) -> Response {
     match state.account_service.get_account(&username).await {
         Ok(Some(account)) => (
             StatusCode::OK,
@@ -784,6 +780,95 @@ async fn get_account(
             } else {
                 StatusCode::INTERNAL_SERVER_ERROR
             };
+            error_response(status, &message)
+        }
+    }
+}
+
+#[handler]
+async fn add_account_key(
+    Path(username): Path<String>,
+    Json(payload): Json<AddPublicKeyRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .account_service
+        .add_public_key(&username, payload)
+        .await
+    {
+        Ok(key) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "success": true,
+                "data": key
+            })),
+        )
+            .into_response(),
+        Err(message) => {
+            tracing::warn!("Failed to add public key: {}", message);
+            let status = if message.contains("Account not found")
+                || message.contains("Key not found")
+            {
+                StatusCode::NOT_FOUND
+            } else if message.contains("already registered") || message.contains("Maximum number") {
+                StatusCode::CONFLICT
+            } else if message.contains("Invalid username")
+                || message.contains("Timestamp out of range")
+                || message.contains("last active key")
+            {
+                StatusCode::BAD_REQUEST
+            } else if message.contains("Signature verification failed")
+                || message.contains("replay attack")
+                || message.contains("not active")
+                || message.contains("does not belong")
+            {
+                StatusCode::UNAUTHORIZED
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &message)
+        }
+    }
+}
+
+#[handler]
+async fn remove_account_key(
+    Path((username, key_id)): Path<(String, String)>,
+    Json(payload): Json<RemovePublicKeyRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .account_service
+        .remove_public_key(&username, &key_id, payload)
+        .await
+    {
+        Ok(key) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "data": key
+            })),
+        )
+            .into_response(),
+        Err(message) => {
+            tracing::warn!("Failed to remove public key: {}", message);
+            let status =
+                if message.contains("Account not found") || message.contains("Key not found") {
+                    StatusCode::NOT_FOUND
+                } else if message.contains("Invalid username")
+                    || message.contains("Timestamp out of range")
+                    || message.contains("last active key")
+                {
+                    StatusCode::BAD_REQUEST
+                } else if message.contains("Signature verification failed")
+                    || message.contains("replay attack")
+                    || message.contains("not active")
+                    || message.contains("does not belong")
+                {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                };
             error_response(status, &message)
         }
     }
@@ -1259,6 +1344,11 @@ async fn main() -> Result<(), std::io::Error> {
         // Account Profiles endpoints
         .at("/api/v1/accounts", post(register_account))
         .at("/api/v1/accounts/:username", get(get_account))
+        .at("/api/v1/accounts/:username/keys", post(add_account_key))
+        .at(
+            "/api/v1/accounts/:username/keys/:key_id",
+            delete(remove_account_key),
+        )
         .at("/api/v1/marketplace-stats", get(get_marketplace_stats))
         .at("/api/v1/update-script-stats", post(update_script_stats))
         .at("/api/dev/reset-database", post(reset_database))

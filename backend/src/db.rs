@@ -38,13 +38,31 @@ pub async fn initialize_database(pool: &SqlitePool) {
     let migrations = [
         ("tags", "ALTER TABLE scripts ADD COLUMN tags TEXT"),
         ("author_id", "ALTER TABLE scripts ADD COLUMN author_id TEXT"),
-        ("author_principal", "ALTER TABLE scripts ADD COLUMN author_principal TEXT"),
-        ("author_public_key", "ALTER TABLE scripts ADD COLUMN author_public_key TEXT"),
-        ("upload_signature", "ALTER TABLE scripts ADD COLUMN upload_signature TEXT"),
-        ("canister_ids", "ALTER TABLE scripts ADD COLUMN canister_ids TEXT"),
+        (
+            "author_principal",
+            "ALTER TABLE scripts ADD COLUMN author_principal TEXT",
+        ),
+        (
+            "author_public_key",
+            "ALTER TABLE scripts ADD COLUMN author_public_key TEXT",
+        ),
+        (
+            "upload_signature",
+            "ALTER TABLE scripts ADD COLUMN upload_signature TEXT",
+        ),
+        (
+            "canister_ids",
+            "ALTER TABLE scripts ADD COLUMN canister_ids TEXT",
+        ),
         ("icon_url", "ALTER TABLE scripts ADD COLUMN icon_url TEXT"),
-        ("screenshots", "ALTER TABLE scripts ADD COLUMN screenshots TEXT"),
-        ("compatibility", "ALTER TABLE scripts ADD COLUMN compatibility TEXT"),
+        (
+            "screenshots",
+            "ALTER TABLE scripts ADD COLUMN screenshots TEXT",
+        ),
+        (
+            "compatibility",
+            "ALTER TABLE scripts ADD COLUMN compatibility TEXT",
+        ),
     ];
 
     for (column_name, migration_sql) in migrations {

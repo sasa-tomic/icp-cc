@@ -1,11 +1,12 @@
 use crate::auth::{
     create_canonical_payload, derive_ic_principal, validate_replay_prevention, validate_username,
-    verify_signature, AuthError,
+    verify_signature,
 };
 use crate::models::{
-    Account, AccountPublicKey, AccountPublicKeyResponse, AccountResponse, RegisterAccountRequest,
+    AccountPublicKeyResponse, AccountResponse, AddPublicKeyRequest, RegisterAccountRequest,
+    RemovePublicKeyRequest,
 };
-use crate::repositories::AccountRepository;
+use crate::repositories::{AccountRepository, SignatureAuditParams};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
@@ -28,8 +29,8 @@ impl AccountService {
         req: RegisterAccountRequest,
     ) -> Result<AccountResponse, String> {
         // 1. Validate username format and check if reserved
-        let normalized_username = validate_username(&req.username)
-            .map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username =
+            validate_username(&req.username).map_err(|e| format!("Invalid username: {}", e))?;
 
         // 2. Validate replay prevention (timestamp + nonce)
         validate_replay_prevention(&self.pool, req.timestamp, &req.nonce)
@@ -96,18 +97,18 @@ impl AccountService {
 
         // 9. Record signature audit
         self.repo
-            .record_signature_audit(
-                &audit_id,
-                Some(&account_id),
-                "register_account",
-                &canonical_json,
-                &req.signature,
-                &req.public_key,
-                req.timestamp,
-                &req.nonce,
-                false,
-                &now,
-            )
+            .record_signature_audit(SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account_id),
+                action: "register_account",
+                payload: &canonical_json,
+                signature: &req.signature,
+                public_key: &req.public_key,
+                timestamp: req.timestamp,
+                nonce: &req.nonce,
+                is_admin_action: false,
+                now: &now,
+            })
             .await
             .map_err(|e| format!("Failed to record audit: {}", e))?;
 
@@ -132,8 +133,8 @@ impl AccountService {
     /// Gets account by username with all public keys
     pub async fn get_account(&self, username: &str) -> Result<Option<AccountResponse>, String> {
         // Validate and normalize username
-        let normalized_username = validate_username(username)
-            .map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username =
+            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
 
         // Find account
         let account = self
@@ -175,6 +176,249 @@ impl AccountService {
             public_keys,
         }))
     }
+
+    /// Adds a new public key to an existing account
+    pub async fn add_public_key(
+        &self,
+        username: &str,
+        req: AddPublicKeyRequest,
+    ) -> Result<AccountPublicKeyResponse, String> {
+        // 1. Validate username and get account
+        let normalized_username =
+            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+
+        let account = self
+            .repo
+            .find_by_username(&normalized_username)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Account not found".to_string())?;
+
+        // 2. Validate replay prevention (timestamp + nonce)
+        validate_replay_prevention(&self.pool, req.timestamp, &req.nonce)
+            .await
+            .map_err(|e| format!("Replay prevention failed: {}", e))?;
+
+        // 3. Verify signing public key belongs to account and is active
+        let signing_key = self
+            .repo
+            .find_public_key_by_value(&req.signing_public_key)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Signing public key not found".to_string())?;
+
+        if signing_key.account_id != account.id {
+            return Err("Signing public key does not belong to this account".to_string());
+        }
+
+        if !signing_key.is_active {
+            return Err("Signing public key is not active".to_string());
+        }
+
+        // 4. Create canonical JSON payload for signature verification
+        let payload = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": req.new_public_key,
+            "nonce": req.nonce,
+            "signingPublicKey": req.signing_public_key,
+            "timestamp": req.timestamp,
+            "username": normalized_username,
+        });
+
+        let canonical_json = create_canonical_payload(&payload);
+        let payload_bytes = canonical_json.as_bytes();
+
+        // 5. Verify signature
+        verify_signature(&req.signature, payload_bytes, &req.signing_public_key)
+            .map_err(|e| format!("Signature verification failed: {}", e))?;
+
+        // 6. Check new public key not already registered (anywhere)
+        if self
+            .repo
+            .find_public_key_by_value(&req.new_public_key)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .is_some()
+        {
+            return Err("Public key already registered".to_string());
+        }
+
+        // 7. Check account has < 10 keys (max limit)
+        let total_keys = self
+            .repo
+            .count_all_keys(&account.id)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?;
+
+        if total_keys >= 10 {
+            return Err("Maximum number of keys (10) reached for this account".to_string());
+        }
+
+        // 8. Derive IC principal from new public key
+        let ic_principal = derive_ic_principal(&req.new_public_key)
+            .map_err(|e| format!("Failed to derive IC principal: {}", e))?;
+
+        // 9. Add new public key to account
+        let key_id = uuid::Uuid::new_v4().to_string();
+        let audit_id = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        self.repo
+            .add_public_key(
+                &key_id,
+                &account.id,
+                &req.new_public_key,
+                &ic_principal,
+                &now,
+            )
+            .await
+            .map_err(|e| format!("Failed to add public key: {}", e))?;
+
+        // 10. Record signature audit
+        self.repo
+            .record_signature_audit(SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account.id),
+                action: "add_key",
+                payload: &canonical_json,
+                signature: &req.signature,
+                public_key: &req.signing_public_key,
+                timestamp: req.timestamp,
+                nonce: &req.nonce,
+                is_admin_action: false,
+                now: &now,
+            })
+            .await
+            .map_err(|e| format!("Failed to record audit: {}", e))?;
+
+        // 11. Return created key
+        Ok(AccountPublicKeyResponse {
+            id: key_id,
+            public_key: req.new_public_key,
+            ic_principal,
+            added_at: now,
+            is_active: true,
+            disabled_at: None,
+            disabled_by_key_id: None,
+        })
+    }
+
+    /// Removes a public key from an account (soft delete)
+    pub async fn remove_public_key(
+        &self,
+        username: &str,
+        key_id: &str,
+        req: RemovePublicKeyRequest,
+    ) -> Result<AccountPublicKeyResponse, String> {
+        // 1. Validate username and get account
+        let normalized_username =
+            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+
+        let account = self
+            .repo
+            .find_by_username(&normalized_username)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Account not found".to_string())?;
+
+        // 2. Validate replay prevention (timestamp + nonce)
+        validate_replay_prevention(&self.pool, req.timestamp, &req.nonce)
+            .await
+            .map_err(|e| format!("Replay prevention failed: {}", e))?;
+
+        // 3. Verify signing public key belongs to account and is active
+        let signing_key = self
+            .repo
+            .find_public_key_by_value(&req.signing_public_key)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Signing public key not found".to_string())?;
+
+        if signing_key.account_id != account.id {
+            return Err("Signing public key does not belong to this account".to_string());
+        }
+
+        if !signing_key.is_active {
+            return Err("Signing public key is not active".to_string());
+        }
+
+        // 4. Create canonical JSON payload for signature verification
+        let payload = serde_json::json!({
+            "action": "remove_key",
+            "keyId": key_id,
+            "nonce": req.nonce,
+            "signingPublicKey": req.signing_public_key,
+            "timestamp": req.timestamp,
+            "username": normalized_username,
+        });
+
+        let canonical_json = create_canonical_payload(&payload);
+        let payload_bytes = canonical_json.as_bytes();
+
+        // 5. Verify signature
+        verify_signature(&req.signature, payload_bytes, &req.signing_public_key)
+            .map_err(|e| format!("Signature verification failed: {}", e))?;
+
+        // 6. Get key to remove and verify it belongs to account
+        let key_to_remove = self
+            .repo
+            .find_key_by_id(key_id)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Key not found".to_string())?;
+
+        if key_to_remove.account_id != account.id {
+            return Err("Key does not belong to this account".to_string());
+        }
+
+        // 7. Check we're not removing the last active key
+        let active_keys_count = self
+            .repo
+            .count_active_keys(&account.id)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?;
+
+        if active_keys_count <= 1 {
+            return Err("Cannot remove the last active key from account".to_string());
+        }
+
+        // 8. Disable the key (soft delete)
+        let audit_id = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        self.repo
+            .disable_key(key_id, &signing_key.id, &now)
+            .await
+            .map_err(|e| format!("Failed to disable key: {}", e))?;
+
+        // 9. Record signature audit
+        self.repo
+            .record_signature_audit(SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account.id),
+                action: "remove_key",
+                payload: &canonical_json,
+                signature: &req.signature,
+                public_key: &req.signing_public_key,
+                timestamp: req.timestamp,
+                nonce: &req.nonce,
+                is_admin_action: false,
+                now: &now,
+            })
+            .await
+            .map_err(|e| format!("Failed to record audit: {}", e))?;
+
+        // 10. Return disabled key
+        Ok(AccountPublicKeyResponse {
+            id: key_to_remove.id,
+            public_key: key_to_remove.public_key,
+            ic_principal: key_to_remove.ic_principal,
+            added_at: key_to_remove.added_at,
+            is_active: false,
+            disabled_at: Some(now),
+            disabled_by_key_id: Some(signing_key.id),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -182,7 +426,7 @@ mod tests {
     use super::*;
     use crate::db::initialize_database;
     use base64::{engine::general_purpose, Engine as _};
-    use ed25519_dalek::{SigningKey, Signer};
+    use ed25519_dalek::{Signer, SigningKey};
     use sqlx::sqlite::SqlitePoolOptions;
 
     async fn setup_test_db() -> SqlitePool {
@@ -192,7 +436,13 @@ mod tests {
     }
 
     fn create_test_keypair() -> (SigningKey, String) {
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        // Generate a unique keypair using UUID for unique seed
+        let uuid_bytes = uuid::Uuid::new_v4().as_bytes().to_owned();
+        let mut seed = [0u8; 32];
+        // Fill seed with UUID bytes (16 bytes) doubled
+        seed[..16].copy_from_slice(&uuid_bytes);
+        seed[16..].copy_from_slice(&uuid_bytes);
+        let signing_key = SigningKey::from_bytes(&seed);
         let public_key = general_purpose::STANDARD.encode(signing_key.verifying_key().to_bytes());
         (signing_key, public_key)
     }
@@ -381,5 +631,534 @@ mod tests {
         let result = service.get_account("nonexistent").await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_add_public_key_success() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account first
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "alice",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        let reg_req = RegisterAccountRequest {
+            username: "alice".to_string(),
+            public_key: public_key1.clone(),
+            timestamp,
+            nonce: nonce1,
+            signature: signature1,
+        };
+
+        service.register_account(reg_req).await.unwrap();
+
+        // Add second key
+        let (_, public_key2) = create_test_keypair();
+        let nonce2 = uuid::Uuid::new_v4().to_string();
+
+        let payload2 = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": public_key2,
+            "nonce": nonce2,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "alice",
+        });
+        let canonical2 = create_canonical_payload(&payload2);
+        let signature2 = sign_payload(&signing_key1, &canonical2);
+
+        let add_req = AddPublicKeyRequest {
+            new_public_key: public_key2.clone(),
+            signing_public_key: public_key1.clone(),
+            timestamp,
+            nonce: nonce2,
+            signature: signature2,
+        };
+
+        let result = service.add_public_key("alice", add_req).await;
+        assert!(result.is_ok());
+
+        let key = result.unwrap();
+        assert_eq!(key.public_key, public_key2);
+        assert!(key.is_active);
+        assert!(key.disabled_at.is_none());
+
+        // Verify account now has 2 keys
+        let account = service.get_account("alice").await.unwrap().unwrap();
+        assert_eq!(account.public_keys.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_add_public_key_max_keys_exceeded() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "bob",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "bob".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Add 9 more keys (total 10)
+        for _ in 0..9 {
+            let (_, new_key) = create_test_keypair();
+            let nonce = uuid::Uuid::new_v4().to_string();
+
+            let payload = serde_json::json!({
+                "action": "add_key",
+                "newPublicKey": new_key,
+                "nonce": nonce,
+                "signingPublicKey": public_key1,
+                "timestamp": timestamp,
+                "username": "bob",
+            });
+            let canonical = create_canonical_payload(&payload);
+            let signature = sign_payload(&signing_key1, &canonical);
+
+            service
+                .add_public_key(
+                    "bob",
+                    AddPublicKeyRequest {
+                        new_public_key: new_key,
+                        signing_public_key: public_key1.clone(),
+                        timestamp,
+                        nonce,
+                        signature,
+                    },
+                )
+                .await
+                .unwrap();
+        }
+
+        // Try to add 11th key (should fail)
+        let (_, key11) = create_test_keypair();
+        let nonce11 = uuid::Uuid::new_v4().to_string();
+
+        let payload11 = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": key11,
+            "nonce": nonce11,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "bob",
+        });
+        let canonical11 = create_canonical_payload(&payload11);
+        let signature11 = sign_payload(&signing_key1, &canonical11);
+
+        let result = service
+            .add_public_key(
+                "bob",
+                AddPublicKeyRequest {
+                    new_public_key: key11,
+                    signing_public_key: public_key1,
+                    timestamp,
+                    nonce: nonce11,
+                    signature: signature11,
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Maximum number"));
+    }
+
+    #[tokio::test]
+    async fn test_add_public_key_duplicate_rejected() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "charlie",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "charlie".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Try to add the same key again (should fail)
+        let nonce2 = uuid::Uuid::new_v4().to_string();
+
+        let payload2 = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": public_key1,
+            "nonce": nonce2,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "charlie",
+        });
+        let canonical2 = create_canonical_payload(&payload2);
+        let signature2 = sign_payload(&signing_key1, &canonical2);
+
+        let result = service
+            .add_public_key(
+                "charlie",
+                AddPublicKeyRequest {
+                    new_public_key: public_key1.clone(),
+                    signing_public_key: public_key1,
+                    timestamp,
+                    nonce: nonce2,
+                    signature: signature2,
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already registered"));
+    }
+
+    #[tokio::test]
+    async fn test_add_public_key_inactive_signing_key() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account with two keys
+        let (signing_key1, public_key1) = create_test_keypair();
+        let (signing_key2, public_key2) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        // Register with first key
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "dave",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "dave".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Add second key
+        let nonce2 = uuid::Uuid::new_v4().to_string();
+        let payload2 = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": public_key2,
+            "nonce": nonce2,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "dave",
+        });
+        let canonical2 = create_canonical_payload(&payload2);
+        let signature2 = sign_payload(&signing_key1, &canonical2);
+
+        service
+            .add_public_key(
+                "dave",
+                AddPublicKeyRequest {
+                    new_public_key: public_key2.clone(),
+                    signing_public_key: public_key1.clone(),
+                    timestamp,
+                    nonce: nonce2,
+                    signature: signature2,
+                },
+            )
+            .await
+            .unwrap();
+
+        // Get key2 ID for removal
+        let account = service.get_account("dave").await.unwrap().unwrap();
+        let key1_id = account
+            .public_keys
+            .iter()
+            .find(|k| k.public_key == public_key1)
+            .unwrap()
+            .id
+            .clone();
+
+        // Remove first key (using second key to sign)
+        let nonce3 = uuid::Uuid::new_v4().to_string();
+        let payload3 = serde_json::json!({
+            "action": "remove_key",
+            "keyId": key1_id,
+            "nonce": nonce3,
+            "signingPublicKey": public_key2,
+            "timestamp": timestamp,
+            "username": "dave",
+        });
+        let canonical3 = create_canonical_payload(&payload3);
+        let signature3 = sign_payload(&signing_key2, &canonical3);
+
+        service
+            .remove_public_key(
+                "dave",
+                &key1_id,
+                RemovePublicKeyRequest {
+                    signing_public_key: public_key2.clone(),
+                    timestamp,
+                    nonce: nonce3,
+                    signature: signature3,
+                },
+            )
+            .await
+            .unwrap();
+
+        // Now try to add a third key using the removed (inactive) first key
+        let (_, public_key3) = create_test_keypair();
+        let nonce4 = uuid::Uuid::new_v4().to_string();
+
+        let payload4 = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": public_key3,
+            "nonce": nonce4,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "dave",
+        });
+        let canonical4 = create_canonical_payload(&payload4);
+        let signature4 = sign_payload(&signing_key1, &canonical4);
+
+        let result = service
+            .add_public_key(
+                "dave",
+                AddPublicKeyRequest {
+                    new_public_key: public_key3,
+                    signing_public_key: public_key1,
+                    timestamp,
+                    nonce: nonce4,
+                    signature: signature4,
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not active"));
+    }
+
+    #[tokio::test]
+    async fn test_remove_public_key_success() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "eve",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "eve".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Add second key
+        let (_, public_key2) = create_test_keypair();
+        let nonce2 = uuid::Uuid::new_v4().to_string();
+
+        let payload2 = serde_json::json!({
+            "action": "add_key",
+            "newPublicKey": public_key2,
+            "nonce": nonce2,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "eve",
+        });
+        let canonical2 = create_canonical_payload(&payload2);
+        let signature2 = sign_payload(&signing_key1, &canonical2);
+
+        service
+            .add_public_key(
+                "eve",
+                AddPublicKeyRequest {
+                    new_public_key: public_key2.clone(),
+                    signing_public_key: public_key1.clone(),
+                    timestamp,
+                    nonce: nonce2,
+                    signature: signature2,
+                },
+            )
+            .await
+            .unwrap();
+
+        // Get key2 ID
+        let account = service.get_account("eve").await.unwrap().unwrap();
+        let key2_id = account
+            .public_keys
+            .iter()
+            .find(|k| k.public_key == public_key2)
+            .unwrap()
+            .id
+            .clone();
+
+        // Remove second key
+        let nonce3 = uuid::Uuid::new_v4().to_string();
+        let payload3 = serde_json::json!({
+            "action": "remove_key",
+            "keyId": key2_id,
+            "nonce": nonce3,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "eve",
+        });
+        let canonical3 = create_canonical_payload(&payload3);
+        let signature3 = sign_payload(&signing_key1, &canonical3);
+
+        let result = service
+            .remove_public_key(
+                "eve",
+                &key2_id,
+                RemovePublicKeyRequest {
+                    signing_public_key: public_key1,
+                    timestamp,
+                    nonce: nonce3,
+                    signature: signature3,
+                },
+            )
+            .await;
+
+        assert!(result.is_ok());
+
+        let removed_key = result.unwrap();
+        assert_eq!(removed_key.public_key, public_key2);
+        assert!(!removed_key.is_active);
+        assert!(removed_key.disabled_at.is_some());
+        assert!(removed_key.disabled_by_key_id.is_some());
+
+        // Verify account still has 2 keys, but only 1 active
+        let account = service.get_account("eve").await.unwrap().unwrap();
+        assert_eq!(account.public_keys.len(), 2);
+        assert_eq!(
+            account.public_keys.iter().filter(|k| k.is_active).count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn test_remove_last_active_key_rejected() {
+        let pool = setup_test_db().await;
+        let service = AccountService::new(pool);
+
+        // Register account
+        let (signing_key1, public_key1) = create_test_keypair();
+        let timestamp = Utc::now().timestamp();
+        let nonce1 = uuid::Uuid::new_v4().to_string();
+
+        let payload1 = serde_json::json!({
+            "action": "register_account",
+            "nonce": nonce1,
+            "publicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "frank",
+        });
+        let canonical1 = create_canonical_payload(&payload1);
+        let signature1 = sign_payload(&signing_key1, &canonical1);
+
+        service
+            .register_account(RegisterAccountRequest {
+                username: "frank".to_string(),
+                public_key: public_key1.clone(),
+                timestamp,
+                nonce: nonce1,
+                signature: signature1,
+            })
+            .await
+            .unwrap();
+
+        // Get key1 ID
+        let account = service.get_account("frank").await.unwrap().unwrap();
+        let key1_id = account.public_keys[0].id.clone();
+
+        // Try to remove the only active key
+        let nonce2 = uuid::Uuid::new_v4().to_string();
+        let payload2 = serde_json::json!({
+            "action": "remove_key",
+            "keyId": key1_id,
+            "nonce": nonce2,
+            "signingPublicKey": public_key1,
+            "timestamp": timestamp,
+            "username": "frank",
+        });
+        let canonical2 = create_canonical_payload(&payload2);
+        let signature2 = sign_payload(&signing_key1, &canonical2);
+
+        let result = service
+            .remove_public_key(
+                "frank",
+                &key1_id,
+                RemovePublicKeyRequest {
+                    signing_public_key: public_key1,
+                    timestamp,
+                    nonce: nonce2,
+                    signature: signature2,
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("last active key"));
     }
 }
