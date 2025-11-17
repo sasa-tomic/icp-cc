@@ -78,10 +78,14 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     _controller = ScriptController(ScriptRepository.instance)..addListener(_onChanged);
     _controller.ensureLoaded();
     _initializeMarketplace();
-    _loadSavedCategory();
-    _loadMarketplaceScripts();
     _loadCategories();
     _loadDownloadedScripts();
+    _initializeMarketplaceData();
+  }
+
+  Future<void> _initializeMarketplaceData() async {
+    await _loadSavedCategory();
+    await _loadMarketplaceScripts();
   }
 
   @override
@@ -917,17 +921,35 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     }
 
     if (_marketplaceError != null && _marketplaceScripts.isEmpty) {
-      return ErrorDisplay(
-        error: _marketplaceError!,
-        onRetry: _refreshMarketplaceScripts,
+      return RefreshIndicator(
+        onRefresh: _refreshMarketplaceScripts,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height - 200,
+            child: ErrorDisplay(
+              error: _marketplaceError!,
+              onRetry: _refreshMarketplaceScripts,
+            ),
+          ),
+        ),
       );
     }
 
     if (_marketplaceScripts.isEmpty) {
-      return ModernEmptyState(
-        icon: Icons.search_off_rounded,
-        title: 'No Scripts Found',
-        subtitle: 'Try adjusting your search terms or browse different categories to discover amazing scripts',
+      return RefreshIndicator(
+        onRefresh: _refreshMarketplaceScripts,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height - 200,
+            child: ModernEmptyState(
+              icon: Icons.search_off_rounded,
+              title: 'No Scripts Found',
+              subtitle: 'Try adjusting your search terms or browse different categories to discover amazing scripts',
+            ),
+          ),
+        ),
       );
     }
 
@@ -947,6 +969,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           builder: (context, constraints) {
             final gridConfig = ResponsiveGridConfig.forWidth(constraints.maxWidth);
             return GridView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: gridConfig.crossAxisCount,

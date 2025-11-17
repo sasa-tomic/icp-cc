@@ -328,7 +328,7 @@ mod tests {
 
         // Create 5 reviews
         for i in 1..=5 {
-            let req = create_test_review_request(&format!("user-{}", i), i as i32);
+            let req = create_test_review_request(&format!("user-{}", i), i);
             service.create_review(&script_id, req).await.unwrap();
         }
 

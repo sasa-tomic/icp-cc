@@ -162,7 +162,7 @@ mod tests {
         let pool = setup_test_db().await;
         let service = IdentityService::new(pool);
 
-        let valid_emails = vec![
+        let valid_emails = [
             "user@example.com",
             "test.user@example.co.uk",
             "user+tag@example.com",
