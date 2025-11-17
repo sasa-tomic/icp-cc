@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 import '../models/identity_profile.dart';
+import '../models/account.dart';
 import '../config/app_config.dart';
 
 // Flag to control debug output in tests
@@ -777,6 +778,191 @@ class MarketplaceOpenApiService {
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Upsert identity profile failed: $e');
       rethrow;
+    }
+  }
+
+  // Account management endpoints
+
+  /// Register a new account with username and public key
+  /// POST /api/v1/accounts
+  Future<Account> registerAccount(RegisterAccountRequest request) async {
+    try {
+      final response = await _httpClient
+          .post(
+            Uri.parse('$_baseUrl/accounts'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        final String detail = response.body.isNotEmpty
+            ? _extractErrorMessage(response.body)
+            : response.reasonPhrase ?? 'Unknown failure';
+        throw Exception('Account registration failed (HTTP ${response.statusCode}): $detail');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Account registration response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to register account');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Account registration response missing data');
+      }
+      return Account.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Register account failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Get account details by username
+  /// GET /api/v1/accounts/{username}
+  Future<Account?> getAccount({required String username}) async {
+    try {
+      final encodedUsername = Uri.encodeComponent(username);
+      final response = await _httpClient
+          .get(Uri.parse('$_baseUrl/accounts/$encodedUsername'))
+          .timeout(_timeout);
+
+      if (response.statusCode == 404) {
+        return null; // Account not found
+      }
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Account response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to load account');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Account response missing data field');
+      }
+      return Account.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Get account failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Add a public key to an account
+  /// POST /api/v1/accounts/{username}/keys
+  Future<AccountPublicKey> addPublicKey({
+    required String username,
+    required AddPublicKeyRequest request,
+  }) async {
+    try {
+      final encodedUsername = Uri.encodeComponent(username);
+      final response = await _httpClient
+          .post(
+            Uri.parse('$_baseUrl/accounts/$encodedUsername/keys'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        final String detail = response.body.isNotEmpty
+            ? _extractErrorMessage(response.body)
+            : response.reasonPhrase ?? 'Unknown failure';
+        throw Exception('Add key failed (HTTP ${response.statusCode}): $detail');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Add key response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to add key');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Add key response missing data');
+      }
+      return AccountPublicKey.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Add public key failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove a public key from an account (soft delete)
+  /// DELETE /api/v1/accounts/{username}/keys/{keyId}
+  Future<AccountPublicKey> removePublicKey({
+    required String username,
+    required String keyId,
+    required RemovePublicKeyRequest request,
+  }) async {
+    try {
+      final encodedUsername = Uri.encodeComponent(username);
+      final response = await _httpClient
+          .delete(
+            Uri.parse('$_baseUrl/accounts/$encodedUsername/keys/$keyId'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        final String detail = response.body.isNotEmpty
+            ? _extractErrorMessage(response.body)
+            : response.reasonPhrase ?? 'Unknown failure';
+        throw Exception('Remove key failed (HTTP ${response.statusCode}): $detail');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Remove key response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to remove key');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Remove key response missing data');
+      }
+      return AccountPublicKey.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Remove public key failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Check if a username is available
+  /// This is a helper method that uses getAccount with error handling
+  Future<bool> isUsernameAvailable(String username) async {
+    try {
+      final account = await getAccount(username: username);
+      return account == null;
+    } catch (e) {
+      // If error is 404, username is available
+      if (e.toString().contains('404')) {
+        return true;
+      }
+      // Other errors should be thrown
+      rethrow;
+    }
+  }
+
+  /// Extract error message from response body
+  String _extractErrorMessage(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic> && decoded.containsKey('error')) {
+        return decoded['error'] as String;
+      }
+      return body;
+    } catch (_) {
+      return body;
     }
   }
 }
