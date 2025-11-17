@@ -8,8 +8,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -r -s /bin/false appuser
+# Create non-root user with specific UID/GID to match host user
+RUN groupadd -g 1000 appuser && \
+    useradd -u 1000 -g 1000 -s /bin/false appuser
 
 # Create data directory with proper permissions
 RUN mkdir -p /data && chown appuser:appuser /data

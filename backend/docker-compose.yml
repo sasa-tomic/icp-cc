@@ -6,6 +6,7 @@ services:
       context: ..
       dockerfile: backend/Dockerfile
     image: icp-marketplace-api:latest
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - PORT=58000
     volumes:

@@ -6,6 +6,7 @@ services:
       dockerfile: agent/Dockerfile
     image: icp-cc-agent:latest
     container_name: icp-cc-agent-dev
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       # Development environment variables for ICP-CC project
       - RUST_LOG=info
