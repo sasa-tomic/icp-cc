@@ -213,6 +213,8 @@ end''';
       }
 
       final String title = _titleController.text.trim();
+      // Generate slug from title: lowercase, replace non-alphanumeric with hyphens
+      final String slug = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
       final String description = _descriptionController.text.trim();
       final List<String> tags = _tagsController.text
           .split(',')
@@ -282,6 +284,7 @@ end''';
       }
 
       await _marketplaceService.uploadScript(
+        slug: slug,
         title: title,
         description: description,
         category: _selectedCategory,

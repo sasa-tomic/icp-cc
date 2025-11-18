@@ -8,6 +8,7 @@ void main() async {
 
   try {
     final uploadedScript = await marketplaceService.uploadScript(
+      slug: 'manual-test-script',
       title: 'Manual Test Script',
       description: 'Manual test to verify upload fix works',
       category: 'Development',

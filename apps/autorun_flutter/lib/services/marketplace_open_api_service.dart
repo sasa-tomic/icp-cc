@@ -429,6 +429,7 @@ class MarketplaceOpenApiService {
   
   // Upload a new script to the marketplace
   Future<MarketplaceScript> uploadScript({
+    required String slug,
     required String title,
     required String description,
     required String category,
@@ -448,6 +449,7 @@ class MarketplaceOpenApiService {
   }) async {
     try {
       final requestBodyMap = <String, dynamic>{
+        'slug': slug,
         'title': title,
         'description': description,
         'category': category,

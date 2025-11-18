@@ -303,6 +303,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     try {
       // Parse form data
       final title = _titleController.text.trim();
+      // Generate slug from title: lowercase, replace non-alphanumeric with hyphens
+      final slug = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
       final description = _descriptionController.text.trim();
       final category = _categoryController.text.trim();
       final tags = _tagsController.text
@@ -383,6 +385,7 @@ end''';
 
       // Upload script with signature
       await _marketplaceService.uploadScript(
+        slug: slug,
         title: title,
         description: description,
         category: category,

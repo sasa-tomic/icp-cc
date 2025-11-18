@@ -360,6 +360,7 @@ void main() {
         addTearDown(client.close);
 
         final result = await service.uploadScript(
+          slug: 'upload-test',
           title: 'Upload Test',
           description: 'Ensures timestamp travels with payload',
           category: 'Development',
@@ -400,6 +401,7 @@ void main() {
 
         expect(
           () => service.uploadScript(
+            slug: 'broken-upload',
             title: 'Broken Upload',
             description: 'Should fail with server error',
             category: 'Testing',

@@ -89,6 +89,7 @@ void main() {
 
       when(
         () => marketplaceService.uploadScript(
+          slug: any(named: 'slug'),
           title: any(named: 'title'),
           description: any(named: 'description'),
           category: any(named: 'category'),
@@ -140,6 +141,7 @@ void main() {
 
       // Verify upload was never called (we didn't click submit)
       verifyNever(() => marketplaceService.uploadScript(
+            slug: any(named: 'slug'),
             title: any(named: 'title'),
             description: any(named: 'description'),
             category: any(named: 'category'),
@@ -171,6 +173,7 @@ void main() {
 
       when(
         () => marketplaceService.uploadScript(
+          slug: any(named: 'slug'),
           title: any(named: 'title'),
           description: any(named: 'description'),
           category: any(named: 'category'),
@@ -226,6 +229,7 @@ void main() {
 
       final VerificationResult result = verify(
         () => marketplaceService.uploadScript(
+          slug: 'prefilled-title',
           title: 'Prefilled Title',
           description: 'Short description',
           category: 'Example',
