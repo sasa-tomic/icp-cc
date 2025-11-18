@@ -115,6 +115,22 @@ impl AccountRepository {
         Ok(account)
     }
 
+    /// Finds account by ID
+    pub async fn find_by_id(&self, account_id: &str) -> Result<Option<Account>, sqlx::Error> {
+        let account = sqlx::query_as::<_, Account>(
+            r#"
+            SELECT id, username, created_at, updated_at
+            FROM accounts
+            WHERE id = ?
+            "#,
+        )
+        .bind(account_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(account)
+    }
+
     /// Finds public key by the key value
     pub async fn find_public_key_by_value(
         &self,

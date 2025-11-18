@@ -135,6 +135,60 @@ void main() {
       expect(storedUsername, isNull);
     });
 
+    test('falls back to public key lookup when no local mapping exists', () async {
+      // Setup: Create test identity with NO pre-stored mapping
+      final identity = await TestIdentityFactory.getEd25519Identity();
+      final username = 'discovereduser';
+      final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
+
+      final mockClient = MockClient((request) async {
+        // Should call the public key endpoint, not the username endpoint
+        if (request.url.path.contains('/api/v1/accounts/by-public-key/')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': 'account-999',
+                'username': username,
+                'publicKeys': [
+                  {
+                    'id': 'key-1',
+                    'public_key': publicKeyHex,
+                    'ic_principal': 'ccccc-aa',
+                    'is_active': true,
+                    'added_at': DateTime.now().toIso8601String(),
+                  }
+                ],
+                'created_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTime.now().toIso8601String(),
+              }
+            }),
+            200,
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      mockService.overrideHttpClient(mockClient);
+      controller = AccountController(marketplaceService: mockService);
+
+      // Act: Fetch account (should discover via public key)
+      final account = await controller.fetchAccountForIdentity(identity);
+
+      // Assert: Account was found and mapping was stored
+      expect(account, isNotNull);
+      expect(account?.username, equals(username));
+
+      // Verify mapping was saved for future use
+      final storedUsername = await controller.getUsernameForIdentity(identity.id);
+      expect(storedUsername, equals(username));
+
+      // Verify account was cached
+      final cachedAccount = controller.accountForIdentity(identity);
+      expect(cachedAccount, isNotNull);
+      expect(cachedAccount?.username, equals(username));
+    });
+
     test('removes mapping when clearing cache', () async {
       final identity = await TestIdentityFactory.getEd25519Identity();
       final username = 'usertoremove';

@@ -281,13 +281,39 @@ class AccountController extends ChangeNotifier {
 
   /// Fetch account for an identity using stored username mapping
   ///
-  /// Returns null if no username mapping exists or account not found.
+  /// First tries to use the locally stored identity→username mapping.
+  /// If no mapping exists, queries the server by public key to discover the account.
+  /// If an account is found via public key lookup, the mapping is stored for future use.
+  ///
+  /// Returns null if no account exists for this identity.
   Future<Account?> fetchAccountForIdentity(IdentityRecord identity) async {
+    // Try local mapping first (fast path)
     final username = await getUsernameForIdentity(identity.id);
-    if (username == null) {
+    if (username != null) {
+      return await fetchAccount(username);
+    }
+
+    // No local mapping - try server lookup by public key (fallback)
+    try {
+      final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
+      final account = await _marketplaceService.getAccountByPublicKey(
+        publicKeyHex: publicKeyHex,
+      );
+
+      if (account != null) {
+        // Found account! Store the mapping for future use
+        await storeUsernameForIdentity(identity.id, account.username);
+
+        // Cache the account
+        _accounts[account.username] = account;
+        notifyListeners();
+      }
+
+      return account;
+    } catch (e) {
+      // Public key lookup failed - no account exists
       return null;
     }
-    return await fetchAccount(username);
   }
 
   /// Clear all cached data

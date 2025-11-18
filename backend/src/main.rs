@@ -859,6 +859,32 @@ async fn get_account(Path(username): Path<String>, Data(state): Data<&Arc<AppSta
 }
 
 #[handler]
+async fn get_account_by_public_key(
+    Path(public_key): Path<String>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .account_service
+        .get_account_by_public_key(&public_key)
+        .await
+    {
+        Ok(Some(account)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "data": account
+            })),
+        )
+            .into_response(),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "Account not found for public key"),
+        Err(message) => {
+            tracing::error!("Failed to get account by public key: {}", message);
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, &message)
+        }
+    }
+}
+
+#[handler]
 async fn add_account_key(
     Path(username): Path<String>,
     Json(payload): Json<AddPublicKeyRequest>,
@@ -1518,6 +1544,10 @@ async fn main() -> Result<(), std::io::Error> {
         // Account Profiles endpoints
         .at("/api/v1/accounts", post(register_account))
         .at("/api/v1/accounts/:username", get(get_account))
+        .at(
+            "/api/v1/accounts/by-public-key/:public_key",
+            get(get_account_by_public_key),
+        )
         .at("/api/v1/accounts/:username/keys", post(add_account_key))
         .at(
             "/api/v1/accounts/:username/keys/:key_id",

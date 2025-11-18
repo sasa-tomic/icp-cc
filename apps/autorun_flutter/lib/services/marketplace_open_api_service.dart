@@ -856,6 +856,43 @@ class MarketplaceOpenApiService {
     }
   }
 
+  /// Get account details by public key
+  /// GET /api/v1/accounts/by-public-key/{publicKey}
+  ///
+  /// Allows looking up an account using only the public key (hex encoded).
+  /// Returns null if no account is associated with this public key.
+  Future<Account?> getAccountByPublicKey({required String publicKeyHex}) async {
+    try {
+      final encodedPublicKey = Uri.encodeComponent(publicKeyHex);
+      final response = await _httpClient
+          .get(Uri.parse('$_baseUrl/accounts/by-public-key/$encodedPublicKey'))
+          .timeout(_timeout);
+
+      if (response.statusCode == 404) {
+        return null; // No account found for this public key
+      }
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Account by public key response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to load account by public key');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Account by public key response missing data field');
+      }
+      return Account.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Get account by public key failed: $e');
+      rethrow;
+    }
+  }
+
   /// Add a public key to an account
   /// POST /api/v1/accounts/{username}/keys
   Future<AccountPublicKey> addPublicKey({

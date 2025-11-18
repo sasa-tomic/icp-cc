@@ -177,6 +177,63 @@ impl AccountService {
         }))
     }
 
+    /// Gets account by public key with all public keys
+    ///
+    /// This allows clients to find their account without knowing the username,
+    /// using only their cryptographic identity (public key).
+    pub async fn get_account_by_public_key(
+        &self,
+        public_key: &str,
+    ) -> Result<Option<AccountResponse>, String> {
+        // Find the public key record
+        let key_record = self
+            .repo
+            .find_public_key_by_value(public_key)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?;
+
+        let key_record = match key_record {
+            Some(k) => k,
+            None => return Ok(None), // Public key not registered
+        };
+
+        // Get the account by ID
+        let account = self
+            .repo
+            .find_by_id(&key_record.account_id)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?
+            .ok_or_else(|| "Account not found for public key".to_string())?;
+
+        // Get all public keys for account
+        let keys = self
+            .repo
+            .get_account_keys(&account.id)
+            .await
+            .map_err(|e| format!("Database error: {}", e))?;
+
+        let public_keys = keys
+            .into_iter()
+            .map(|k| AccountPublicKeyResponse {
+                id: k.id,
+                public_key: k.public_key,
+                ic_principal: k.ic_principal,
+                added_at: k.added_at,
+                is_active: k.is_active,
+                disabled_at: k.disabled_at,
+                disabled_by_key_id: k.disabled_by_key_id,
+            })
+            .collect();
+
+        Ok(Some(AccountResponse {
+            id: account.id,
+            username: account.username,
+            created_at: account.created_at,
+            updated_at: Some(account.updated_at),
+            public_keys,
+        }))
+    }
+
     /// Adds a new public key to an existing account
     pub async fn add_public_key(
         &self,
