@@ -152,5 +152,58 @@ void main() {
       expect(controller.profileForRecord(record)?.displayName, equals('ICP Builder'));
       expect(controller.isProfileComplete(record), isTrue);
     });
+
+    test('createIdentityWithProfile creates identity and profile atomically', () async {
+      final IdentityRecord newIdentity = await TestIdentityFactory.fromSeed(42);
+      final String principal = PrincipalUtils.textFromRecord(newIdentity);
+      final IdentityProfile expectedProfile = IdentityProfile(
+        id: 'profile-new',
+        principal: principal,
+        displayName: 'Alice Developer',
+        username: 'alice_dev',
+        contactEmail: 'alice@example.com',
+        contactTelegram: '@alice',
+        contactTwitter: '@alice_dev',
+        contactDiscord: 'alice#5678',
+        websiteUrl: 'https://alice.dev',
+        bio: 'Building decentralized apps',
+        metadata: const <String, dynamic>{'role': 'Developer'},
+        createdAt: DateTime.utc(2024, 2, 1),
+        updatedAt: DateTime.utc(2024, 2, 1),
+      );
+
+      final FakeSecureIdentityRepository repository = FakeSecureIdentityRepository(<IdentityRecord>[]);
+      final IdentityController controller = IdentityController(
+        secureRepository: repository,
+        marketplaceService: _mockProfileService(expectedProfile),
+        preferences: await SharedPreferences.getInstance(),
+      );
+      await controller.ensureLoaded();
+
+      expect(controller.identities, isEmpty);
+
+      final IdentityRecord created = await controller.createIdentityWithProfile(
+        profileDraft: IdentityProfileDraft(
+          principal: principal,
+          displayName: 'Alice Developer',
+          username: 'alice_dev',
+          contactEmail: 'alice@example.com',
+          contactTelegram: '@alice',
+          contactTwitter: '@alice_dev',
+          contactDiscord: 'alice#5678',
+          websiteUrl: 'https://alice.dev',
+          bio: 'Building decentralized apps',
+        ),
+        identity: newIdentity,
+      );
+
+      expect(created.id, equals(newIdentity.id));
+      expect(controller.identities, hasLength(1));
+      expect(controller.identities.first.id, equals(newIdentity.id));
+      expect(controller.activeIdentityId, equals(newIdentity.id));
+      expect(controller.profileForRecord(created)?.displayName, equals('Alice Developer'));
+      expect(controller.isProfileComplete(created), isTrue);
+      expect(repository.identities, hasLength(1));
+    });
   });
 }

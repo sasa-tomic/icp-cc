@@ -9,6 +9,9 @@ class FakeSecureIdentityRepository implements SecureIdentityRepository {
 
   List<IdentityRecord> _identities;
 
+  /// Public getter for testing purposes to verify persistence
+  List<IdentityRecord> get identities => List<IdentityRecord>.from(_identities);
+
   @override
   Future<List<IdentityRecord>> loadIdentities() async {
     return List<IdentityRecord>.from(_identities);
