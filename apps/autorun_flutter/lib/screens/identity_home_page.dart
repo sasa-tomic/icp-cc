@@ -502,10 +502,17 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                  top: 16,
                  bottom: 16 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
                ),
-                itemCount: identities.length,
+                itemCount: identities.length + 1, // +1 for incognito mode
                  separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12),
                 itemBuilder: (BuildContext context, int index) {
-                  final IdentityRecord record = identities[index];
+                  // First item is incognito mode
+                  if (index == 0) {
+                    final bool isActive = _controller.activeIdentityId == null;
+                    return _buildIncognitoModeCard(context, isActive);
+                  }
+
+                  // Subsequent items are regular identities (adjust index by -1)
+                  final IdentityRecord record = identities[index - 1];
                   final String principalText = PrincipalUtils.textFromRecord(record);
                   final String principalPrefix = principalText.length >= 8 ? principalText.substring(0, 8) : principalText;
                   final bool isActive = record.id == _controller.activeIdentityId;
@@ -838,6 +845,193 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         ),
       );
     }
+  }
+
+  Widget _buildIncognitoModeCard(BuildContext context, bool isActive) {
+    return Card(
+      elevation: isActive ? 8 : 4,
+      shadowColor: isActive
+          ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.4)
+          : Colors.black.withValues(alpha: 0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: isActive
+            ? BorderSide(
+                color: Theme.of(context).colorScheme.secondary,
+                width: 2,
+              )
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        onTap: () async {
+          HapticFeedback.lightImpact();
+          if (!isActive) {
+            final messenger = ScaffoldMessenger.of(context);
+            final secondaryColor = Theme.of(context).colorScheme.secondary;
+            await _controller.setActiveIdentity(null);
+            if (!mounted) return;
+            messenger.showSnackBar(
+              SnackBar(
+                content: const Text('Incognito mode activated'),
+                backgroundColor: secondaryColor,
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: EdgeInsets.all(MediaQuery.of(context).size.width < 380 ? 16 : 20),
+          child: Row(
+            children: [
+              // Incognito icon with gradient
+              Container(
+                width: MediaQuery.of(context).size.width < 380 ? 50 : 60,
+                height: MediaQuery.of(context).size.width < 380 ? 50 : 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isActive
+                        ? [
+                            Theme.of(context).colorScheme.secondary,
+                            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.8),
+                          ]
+                        : [
+                            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.7),
+                            Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.7),
+                          ],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: isActive
+                          ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.5)
+                          : Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3),
+                      blurRadius: isActive ? 12 : 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Icon(
+                        Icons.visibility_off_outlined,
+                        color: Colors.white,
+                        size: MediaQuery.of(context).size.width < 380 ? 24 : 28,
+                      ),
+                    ),
+                    if (isActive)
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.secondary,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.check_rounded,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              SizedBox(width: MediaQuery.of(context).size.width < 380 ? 16 : 20),
+
+              // Incognito mode info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Incognito mode',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: MediaQuery.of(context).size.width < 380 ? 16 : 18,
+                        letterSpacing: -0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: MediaQuery.of(context).size.width < 380 ? 10 : 12,
+                            vertical: MediaQuery.of(context).size.width < 380 ? 4 : 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.8)
+                                : Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(MediaQuery.of(context).size.width < 380 ? 10 : 12),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'Read-only',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: isActive
+                                  ? Theme.of(context).colorScheme.onSecondary
+                                  : Theme.of(context).colorScheme.onSecondaryContainer,
+                              fontWeight: FontWeight.w600,
+                              fontSize: MediaQuery.of(context).size.width < 380 ? 10 : 11,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        if (isActive) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.secondary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'ACTIVE',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSecondary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 9,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                    Text(
+                      'Browse without signing or publishing',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: MediaQuery.of(context).size.width < 380 ? 11 : 12,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
