@@ -4,6 +4,8 @@ pub async fn initialize_database(pool: &SqlitePool) {
         r#"
         CREATE TABLE IF NOT EXISTS scripts (
             id TEXT PRIMARY KEY,
+            slug TEXT NOT NULL,
+            owner_account_id TEXT,
             title TEXT NOT NULL,
             description TEXT NOT NULL,
             category TEXT NOT NULL,
@@ -25,7 +27,9 @@ pub async fn initialize_database(pool: &SqlitePool) {
             rating REAL NOT NULL DEFAULT 0.0,
             review_count INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT,
+            FOREIGN KEY (owner_account_id) REFERENCES accounts(id)
         )
         "#,
     )
@@ -63,6 +67,18 @@ pub async fn initialize_database(pool: &SqlitePool) {
             "compatibility",
             "ALTER TABLE scripts ADD COLUMN compatibility TEXT",
         ),
+        (
+            "slug",
+            "ALTER TABLE scripts ADD COLUMN slug TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "owner_account_id",
+            "ALTER TABLE scripts ADD COLUMN owner_account_id TEXT",
+        ),
+        (
+            "deleted_at",
+            "ALTER TABLE scripts ADD COLUMN deleted_at TEXT",
+        ),
     ];
 
     for (column_name, migration_sql) in migrations {
@@ -97,6 +113,18 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .execute(pool)
         .await
         .expect("Failed to create reviews index");
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_scripts_slug ON scripts(slug)")
+        .execute(pool)
+        .await
+        .expect("Failed to create scripts slug index");
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_scripts_owner_account_id ON scripts(owner_account_id)",
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create scripts owner_account_id index");
 
     sqlx::query(
         r#"

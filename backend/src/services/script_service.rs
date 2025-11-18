@@ -1,20 +1,22 @@
 use crate::models::{CreateScriptRequest, Script, UpdateScriptRequest};
-use crate::repositories::ScriptRepository;
+use crate::repositories::{AccountRepository, ScriptRepository};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
 pub struct ScriptService {
     repo: ScriptRepository,
+    pub account_repo: AccountRepository,
 }
 
 impl ScriptService {
     pub fn new(pool: SqlitePool) -> Self {
         Self {
-            repo: ScriptRepository::new(pool),
+            repo: ScriptRepository::new(pool.clone()),
+            account_repo: AccountRepository::new(pool),
         }
     }
 
-    pub async fn create_script(&self, req: CreateScriptRequest) -> Result<Script, sqlx::Error> {
+    pub async fn create_script(&self, req: CreateScriptRequest) -> Result<Script, String> {
         let script_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let version = req.version.as_deref().unwrap_or("1.0.0");
@@ -24,9 +26,45 @@ impl ScriptService {
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_default());
 
+        // Determine owner account ID from authenticated public key
+        let owner_account_id = if let Some(ref public_key) = req.author_public_key {
+            match self.account_repo.find_public_key_by_value(public_key).await {
+                Ok(Some(account_key)) => Some(account_key.account_id),
+                Ok(None) => {
+                    tracing::warn!("Public key not associated with any account: {}", public_key);
+                    None
+                }
+                Err(e) => {
+                    tracing::error!("Failed to lookup account for public key: {}", e);
+                    return Err(format!("Failed to lookup account: {}", e));
+                }
+            }
+        } else {
+            None
+        };
+
+        // Check slug ownership if script with this slug already exists
+        let existing_scripts = self
+            .repo
+            .find_by_slug(&req.slug)
+            .await
+            .map_err(|e| format!("Failed to check slug ownership: {}", e))?;
+
+        if let Some(existing) = existing_scripts.first() {
+            // Slug exists, verify ownership
+            if existing.owner_account_id != owner_account_id {
+                return Err(format!(
+                    "Slug '{}' is owned by another account. Only the owner can upload new versions.",
+                    req.slug
+                ));
+            }
+        }
+
         self.repo
             .create(
                 &script_id,
+                &req.slug,
+                owner_account_id.as_deref(),
                 &req.title,
                 &req.description,
                 &req.category,
@@ -43,12 +81,14 @@ impl ScriptService {
                 tags_json.as_deref(),
                 &now,
             )
-            .await?;
+            .await
+            .map_err(|e| format!("Failed to create script: {}", e))?;
 
         self.repo
             .find_by_id(&script_id)
-            .await?
-            .ok_or_else(|| sqlx::Error::RowNotFound)
+            .await
+            .map_err(|e| format!("Failed to retrieve created script: {}", e))?
+            .ok_or_else(|| "Script created but not found".to_string())
     }
 
     pub async fn update_script(
@@ -83,7 +123,8 @@ impl ScriptService {
     }
 
     pub async fn delete_script(&self, script_id: &str) -> Result<(), sqlx::Error> {
-        self.repo.delete(script_id).await
+        let now = Utc::now().to_rfc3339();
+        self.repo.delete(script_id, &now).await
     }
 
     pub async fn publish_script(&self, script_id: &str) -> Result<Script, sqlx::Error> {
@@ -191,6 +232,7 @@ mod tests {
 
     fn create_test_script_request() -> CreateScriptRequest {
         CreateScriptRequest {
+            slug: "test-script".to_string(),
             title: "Test Script".to_string(),
             description: "Test Description".to_string(),
             category: "utility".to_string(),

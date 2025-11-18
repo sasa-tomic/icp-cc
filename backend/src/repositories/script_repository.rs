@@ -11,7 +11,10 @@ impl ScriptRepository {
     }
 
     pub async fn find_by_id(&self, id: &str) -> Result<Option<Script>, sqlx::Error> {
-        let sql = format!("SELECT {} FROM scripts WHERE id = ?1", SCRIPT_COLUMNS);
+        let sql = format!(
+            "SELECT {} FROM scripts WHERE id = ?1 AND deleted_at IS NULL",
+            SCRIPT_COLUMNS
+        );
         sqlx::query_as::<_, Script>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -38,7 +41,7 @@ impl ScriptRepository {
         };
 
         let sql = format!(
-            "SELECT {} FROM scripts WHERE 1=1{}{} ORDER BY created_at DESC LIMIT {} OFFSET {}",
+            "SELECT {} FROM scripts WHERE deleted_at IS NULL{}{} ORDER BY created_at DESC LIMIT {} OFFSET {}",
             SCRIPT_COLUMNS, category_filter, privacy_filter, limit, offset
         );
 
@@ -48,13 +51,15 @@ impl ScriptRepository {
     }
 
     pub async fn count_public(&self) -> Result<i64, sqlx::Error> {
-        sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
-            .fetch_one(&self.pool)
-            .await
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM scripts WHERE is_public = 1 AND deleted_at IS NULL",
+        )
+        .fetch_one(&self.pool)
+        .await
     }
 
     pub async fn count_by_id(&self, id: &str) -> Result<i64, sqlx::Error> {
-        sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1")
+        sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE id = ?1 AND deleted_at IS NULL")
             .bind(id)
             .fetch_one(&self.pool)
             .await
@@ -64,6 +69,8 @@ impl ScriptRepository {
     pub async fn create(
         &self,
         id: &str,
+        slug: &str,
+        owner_account_id: Option<&str>,
         title: &str,
         description: &str,
         category: &str,
@@ -83,13 +90,15 @@ impl ScriptRepository {
         sqlx::query(
             r#"
             INSERT INTO scripts (
-                id, title, description, category, lua_source, author_name, author_id,
+                id, slug, owner_account_id, title, description, category, lua_source, author_name, author_id,
                 author_principal, author_public_key, upload_signature, version, price,
                 is_public, compatibility, tags, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
             "#,
         )
         .bind(id)
+        .bind(slug)
+        .bind(owner_account_id)
         .bind(title)
         .bind(description)
         .bind(category)
@@ -187,12 +196,21 @@ impl ScriptRepository {
         Ok(())
     }
 
-    pub async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM scripts WHERE id = ?1")
+    pub async fn delete(&self, id: &str, deleted_at: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE scripts SET deleted_at = ?1 WHERE id = ?2")
+            .bind(deleted_at)
             .bind(id)
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    pub async fn find_by_slug(&self, slug: &str) -> Result<Vec<Script>, sqlx::Error> {
+        let sql = format!("SELECT {} FROM scripts WHERE slug = ?1 AND deleted_at IS NULL ORDER BY created_at DESC", SCRIPT_COLUMNS);
+        sqlx::query_as::<_, Script>(&sql)
+            .bind(slug)
+            .fetch_all(&self.pool)
+            .await
     }
 
     pub async fn publish(&self, id: &str, updated_at: &str) -> Result<(), sqlx::Error> {
@@ -326,7 +344,10 @@ impl ScriptRepository {
             conditions.join(" AND ")
         };
 
-        let count_sql = format!("SELECT COUNT(*) FROM scripts WHERE {}", where_clause);
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM scripts WHERE deleted_at IS NULL AND ({})",
+            where_clause
+        );
         let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql);
         for bind in &condition_binds {
             count_query = match bind {
@@ -343,7 +364,7 @@ impl ScriptRepository {
         })?;
 
         let search_sql = format!(
-            "SELECT {} FROM scripts WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
+            "SELECT {} FROM scripts WHERE deleted_at IS NULL AND ({}) ORDER BY {} {} LIMIT {} OFFSET {}",
             SCRIPT_COLUMNS, where_clause, sort_column, sort_order, limit, offset
         );
 
@@ -376,7 +397,7 @@ impl ScriptRepository {
         limit: i32,
     ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 ORDER BY created_at DESC LIMIT ?2",
+            "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?2",
             SCRIPT_COLUMNS
         );
         sqlx::query_as::<_, Script>(&sql)
@@ -388,7 +409,7 @@ impl ScriptRepository {
 
     pub async fn get_trending(&self, limit: i32) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE is_public = 1 ORDER BY downloads DESC, rating DESC LIMIT ?1",
+            "SELECT {} FROM scripts WHERE is_public = 1 AND deleted_at IS NULL ORDER BY downloads DESC, rating DESC LIMIT ?1",
             SCRIPT_COLUMNS
         );
         sqlx::query_as::<_, Script>(&sql)
@@ -404,7 +425,7 @@ impl ScriptRepository {
         limit: i32,
     ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= ?1 AND downloads >= ?2 ORDER BY rating DESC, downloads DESC LIMIT ?3",
+            "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= ?1 AND downloads >= ?2 AND deleted_at IS NULL ORDER BY rating DESC, downloads DESC LIMIT ?3",
             SCRIPT_COLUMNS
         );
         sqlx::query_as::<_, Script>(&sql)
@@ -421,7 +442,7 @@ impl ScriptRepository {
         limit: i32,
     ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE is_public = 1 AND (compatibility IS NULL OR compatibility LIKE ?1) ORDER BY created_at DESC LIMIT ?2",
+            "SELECT {} FROM scripts WHERE is_public = 1 AND (compatibility IS NULL OR compatibility LIKE ?1) AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?2",
             SCRIPT_COLUMNS
         );
         let pattern = format!("%{}%", compatibility);
@@ -433,19 +454,20 @@ impl ScriptRepository {
     }
 
     pub async fn get_marketplace_stats(&self) -> Result<(i64, i64, f64), sqlx::Error> {
-        let scripts_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM scripts WHERE is_public = 1")
-                .fetch_one(&self.pool)
-                .await?;
+        let scripts_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM scripts WHERE is_public = 1 AND deleted_at IS NULL",
+        )
+        .fetch_one(&self.pool)
+        .await?;
 
         let total_downloads: i64 = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(downloads), 0) FROM scripts WHERE is_public = 1",
+            "SELECT COALESCE(SUM(downloads), 0) FROM scripts WHERE is_public = 1 AND deleted_at IS NULL",
         )
         .fetch_one(&self.pool)
         .await?;
 
         let avg_rating: Option<f64> = sqlx::query_scalar(
-            "SELECT AVG(rating) FROM scripts WHERE is_public = 1 AND rating > 0",
+            "SELECT AVG(rating) FROM scripts WHERE is_public = 1 AND rating > 0 AND deleted_at IS NULL",
         )
         .fetch_one(&self.pool)
         .await?;

@@ -309,6 +309,66 @@ fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
 }
 
+/// Verifies that the authenticated user owns the script
+async fn verify_script_ownership(
+    state: &Arc<AppState>,
+    script_id: &str,
+    public_key: &Option<String>,
+) -> Result<(), Response> {
+    // Get script to check ownership
+    let script = match state.script_service.get_script(script_id).await {
+        Ok(Some(script)) => script,
+        Ok(None) => {
+            tracing::warn!("Script ownership check failed: {} not found", script_id);
+            return Err(error_response(StatusCode::NOT_FOUND, "Script not found"));
+        }
+        Err(e) => {
+            tracing::error!("Failed to get script for ownership check: {}", e);
+            return Err(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to verify ownership",
+            ));
+        }
+    };
+
+    // Get authenticated user's account ID from public key
+    let user_account_id = if let Some(ref pk) = public_key {
+        match state
+            .script_service
+            .account_repo
+            .find_public_key_by_value(pk)
+            .await
+        {
+            Ok(Some(account_key)) => Some(account_key.account_id),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::error!("Failed to lookup account for ownership check: {}", e);
+                return Err(error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to verify ownership",
+                ));
+            }
+        }
+    } else {
+        None
+    };
+
+    // Verify ownership
+    if script.owner_account_id != user_account_id {
+        tracing::warn!(
+            "Ownership check failed: script owned by {:?}, user is {:?}",
+            script.owner_account_id,
+            user_account_id
+        );
+        return Err(error_response(
+            StatusCode::FORBIDDEN,
+            "Only the script owner can perform this operation",
+        ));
+    }
+
+    Ok(())
+}
+
 /// Builds the canonical payload for script upload signature verification
 #[handler]
 async fn health_check() -> Json<serde_json::Value> {
@@ -658,8 +718,9 @@ async fn create_script(
     match state.script_service.create_script(req).await {
         Ok(script) => {
             tracing::info!(
-                "Created script: {} (public: {})",
+                "Created script: {} (slug: {}, public: {})",
                 script.id,
+                script.slug,
                 script.is_public
             );
             (
@@ -668,6 +729,7 @@ async fn create_script(
                     "success": true,
                     "data": {
                         "id": script.id,
+                        "slug": script.slug,
                         "title": script.title,
                         "created_at": script.created_at
                     }
@@ -677,10 +739,12 @@ async fn create_script(
         }
         Err(e) => {
             tracing::error!("Failed to create script: {}", e);
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &format!("Failed to create script: {}", e),
-            )
+            let status = if e.contains("owned by another account") {
+                StatusCode::FORBIDDEN
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &e)
         }
     }
 }
@@ -982,6 +1046,12 @@ async fn update_script(
         return *response;
     }
 
+    // Check script ownership
+    if let Err(response) = verify_script_ownership(state, &script_id, &req.author_public_key).await
+    {
+        return response;
+    }
+
     // Update script via service
     match state.script_service.update_script(&script_id, req).await {
         Ok(script) => {
@@ -1022,13 +1092,19 @@ async fn delete_script(
         return *response;
     }
 
+    // Check script ownership
+    if let Err(response) = verify_script_ownership(state, &script_id, &req.author_public_key).await
+    {
+        return response;
+    }
+
     // Check if script exists
     match state.script_service.check_script_exists(&script_id).await {
         Ok(true) => {
-            // Delete script via service
+            // Delete script via service (soft delete)
             match state.script_service.delete_script(&script_id).await {
                 Ok(()) => {
-                    tracing::info!("Deleted script: {}", script_id);
+                    tracing::info!("Soft deleted script: {}", script_id);
                     Json(serde_json::json!({
                         "success": true,
                         "message": "Script deleted successfully"
@@ -1647,9 +1723,10 @@ mod tests {
 
     async fn insert_script(pool: &SqlitePool, fixture: ScriptFixture<'_>) {
         sqlx::query(
-            "INSERT INTO scripts (id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, '[]', ?5, 'Test Author', 'test-author-id', NULL, NULL, NULL, NULL, NULL, NULL, '1.0.0', NULL, ?6, 1, ?7, ?8, ?9, ?10, ?10)",
+            "INSERT INTO scripts (id, slug, owner_account_id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at) VALUES (?1, ?2, NULL, ?3, ?4, ?5, '[]', ?6, 'Test Author', 'test-author-id', NULL, NULL, NULL, NULL, NULL, NULL, '1.0.0', NULL, ?7, 1, ?8, ?9, ?10, ?11, ?11)",
         )
         .bind(fixture.id)
+        .bind(format!("test-{}", fixture.id))  // Generate slug from id
         .bind(fixture.title)
         .bind(format!("{} description", fixture.title))
         .bind(fixture.category)

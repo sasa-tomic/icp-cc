@@ -125,16 +125,17 @@ mod tests {
     async fn create_test_script(pool: &SqlitePool) -> String {
         let script_service = ScriptService::new(pool.clone());
         let req = CreateScriptRequest {
+            slug: "test-script".to_string(),
             title: "Test Script".to_string(),
             description: "Test Description".to_string(),
             category: "utility".to_string(),
             lua_source: "print('hello')".to_string(),
             author_name: "Test Author".to_string(),
             author_id: Some("test-author-id".to_string()),
-            author_principal: Some("test-principal".to_string()),
-            author_public_key: Some("test-public-key".to_string()),
+            author_principal: None,
+            author_public_key: None,
             upload_signature: None,
-            signature: Some("test-signature".to_string()),
+            signature: None,
             timestamp: None,
             version: None,
             price: None,

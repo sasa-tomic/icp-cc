@@ -4,6 +4,8 @@ use sqlx::FromRow;
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Script {
     pub id: String,
+    pub slug: String,
+    pub owner_account_id: Option<String>,
     pub title: String,
     pub description: String,
     pub category: String,
@@ -26,6 +28,7 @@ pub struct Script {
     pub review_count: i32,
     pub created_at: String,
     pub updated_at: String,
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -83,6 +86,7 @@ pub struct ScriptsQuery {
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct CreateScriptRequest {
+    pub slug: String,
     pub title: String,
     pub description: String,
     pub category: String,
@@ -188,7 +192,7 @@ pub struct ReviewsQuery {
     pub offset: Option<i32>,
 }
 
-pub const SCRIPT_COLUMNS: &str = "id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at";
+pub const SCRIPT_COLUMNS: &str = "id, slug, owner_account_id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at, deleted_at";
 
 // Account Profiles Models
 
