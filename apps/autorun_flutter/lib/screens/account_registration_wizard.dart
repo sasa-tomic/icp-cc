@@ -55,7 +55,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppDesignSystem.neutral50,
+      backgroundColor: context.colors.background,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -143,8 +143,6 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                filled: true,
-                fillColor: Colors.white,
               ),
               onChanged: _onUsernameChanged,
               validator: (value) {
