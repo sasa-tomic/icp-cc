@@ -9,6 +9,7 @@ import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
 import '../theme/app_design_system.dart';
+import '../utils/identity_generator.dart';
 import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
@@ -265,7 +266,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      builder: (BuildContext context) => _IdentityCreationSheet(controller: _controller),
+      builder: (BuildContext context) => _IdentityProfileCreationSheet(controller: _controller),
     );
     if (!mounted || record == null) {
       return;
@@ -274,7 +275,12 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     if (!mounted) {
       return;
     }
-    await _showDetailsDialog(record, title: 'Identity Created');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Identity "${record.label}" created successfully'),
+        backgroundColor: AppDesignSystem.successLight,
+      ),
+    );
   }
 
   Future<void> _showDetailsDialog(IdentityRecord record, {required String title}) async {
@@ -575,6 +581,21 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Identity deleted')));
   }
 
+  String _displayNameForIdentity(IdentityRecord record) {
+    final IdentityProfile? profile = _controller.profileForRecord(record);
+    return profile?.displayName ?? record.label;
+  }
+
+  String _avatarInitialsForIdentity(IdentityRecord record) {
+    final String displayName = _displayNameForIdentity(record);
+    if (displayName.isEmpty) {
+      return '#';
+    }
+    return displayName.length >= 2
+        ? displayName.substring(0, 2).toUpperCase()
+        : displayName.substring(0, 1).toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<IdentityRecord> identities = _controller.identities;
@@ -755,9 +776,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                    children: [
                                      Center(
                                        child: Text(
-                                         record.label.isNotEmpty 
-                                             ? record.label.substring(0, 2).toUpperCase()
-                                             : '#',
+                                         _avatarInitialsForIdentity(record),
                                          style: TextStyle(
                                            color: Colors.white,
                                            fontWeight: FontWeight.w700,
@@ -799,7 +818,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                      Text(
-                                       record.label,
+                                       _displayNameForIdentity(record),
                                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                          fontWeight: FontWeight.w700,
                                          fontSize: MediaQuery.of(context).size.width < 380 ? 16 : 18,
@@ -1293,33 +1312,50 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   }
 }
 
-class _IdentityCreationSheet extends StatefulWidget {
-  const _IdentityCreationSheet({required this.controller});
+class _IdentityProfileCreationSheet extends StatefulWidget {
+  const _IdentityProfileCreationSheet({required this.controller});
 
   final IdentityController controller;
 
   @override
-  State<_IdentityCreationSheet> createState() => _IdentityCreationSheetState();
+  State<_IdentityProfileCreationSheet> createState() => _IdentityProfileCreationSheetState();
 }
 
-class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
+class _IdentityProfileCreationSheetState extends State<_IdentityProfileCreationSheet> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _labelController;
-  late final TextEditingController _mnemonicController;
-  KeyAlgorithm _algorithm = KeyAlgorithm.ed25519;
+  late final TextEditingController _displayNameController;
+  late final TextEditingController _usernameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _telegramController;
+  late final TextEditingController _twitterController;
+  late final TextEditingController _discordController;
+  late final TextEditingController _websiteController;
+  late final TextEditingController _bioController;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _labelController = TextEditingController();
-    _mnemonicController = TextEditingController();
+    _displayNameController = TextEditingController();
+    _usernameController = TextEditingController();
+    _emailController = TextEditingController();
+    _telegramController = TextEditingController();
+    _twitterController = TextEditingController();
+    _discordController = TextEditingController();
+    _websiteController = TextEditingController();
+    _bioController = TextEditingController();
   }
 
   @override
   void dispose() {
-    _labelController.dispose();
-    _mnemonicController.dispose();
+    _displayNameController.dispose();
+    _usernameController.dispose();
+    _emailController.dispose();
+    _telegramController.dispose();
+    _twitterController.dispose();
+    _discordController.dispose();
+    _websiteController.dispose();
+    _bioController.dispose();
     super.dispose();
   }
 
@@ -1332,10 +1368,28 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
     }
     setState(() => _isSubmitting = true);
     try {
-      final IdentityRecord record = await widget.controller.createIdentity(
-        algorithm: _algorithm,
-        label: _labelController.text.trim(),
-        mnemonic: _mnemonicController.text.trim().isEmpty ? null : _mnemonicController.text.trim(),
+      // Generate identity first to derive principal
+      final IdentityRecord identity = await IdentityGenerator.generate(
+        algorithm: KeyAlgorithm.ed25519,
+        label: _displayNameController.text.trim(),
+        identityCount: widget.controller.identities.length,
+      );
+
+      final IdentityProfileDraft draft = IdentityProfileDraft(
+        principal: PrincipalUtils.textFromRecord(identity),
+        displayName: _displayNameController.text.trim(),
+        username: _usernameController.text.trim().isEmpty ? null : _usernameController.text.trim(),
+        contactEmail: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        contactTelegram: _telegramController.text.trim().isEmpty ? null : _telegramController.text.trim(),
+        contactTwitter: _twitterController.text.trim().isEmpty ? null : _twitterController.text.trim(),
+        contactDiscord: _discordController.text.trim().isEmpty ? null : _discordController.text.trim(),
+        websiteUrl: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
+        bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+      );
+
+      final IdentityRecord record = await widget.controller.createIdentityWithProfile(
+        profileDraft: draft,
+        identity: identity,
       );
       if (!mounted) {
         return;
@@ -1357,78 +1411,141 @@ class _IdentityCreationSheetState extends State<_IdentityCreationSheet> {
   @override
   Widget build(BuildContext context) {
     final EdgeInsets viewInsets = MediaQuery.of(context).viewInsets;
-     final safeAreaPadding = MediaQuery.of(context).padding;
-     
-     return Padding(
-       padding: EdgeInsets.only(
-         bottom: viewInsets.bottom + safeAreaPadding.bottom,
-         left: 24,
-         right: 24,
-         top: 24,
-       ),
-       child: Form(
+    final safeAreaPadding = MediaQuery.of(context).padding;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: viewInsets.bottom + safeAreaPadding.bottom,
+        left: 24,
+        right: 24,
+        top: 24,
+      ),
+      child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(24),
           shrinkWrap: true,
           children: <Widget>[
             Text('Create a new identity', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _labelController,
-              decoration: const InputDecoration(
-                labelText: 'Label (optional)',
-                border: OutlineInputBorder(),
-              ),
-              textInputAction: TextInputAction.done,
+            const SizedBox(height: 4),
+            Text(
+              'A cryptographic keypair will be generated automatically using the Ed25519 algorithm.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
-            InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'Key algorithm',
-                border: OutlineInputBorder(),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<KeyAlgorithm>(
-                  value: _algorithm,
-                  items: const <DropdownMenuItem<KeyAlgorithm>>[
-                    DropdownMenuItem<KeyAlgorithm>(value: KeyAlgorithm.ed25519, child: Text('Ed25519 (recommended)')),
-                    DropdownMenuItem<KeyAlgorithm>(value: KeyAlgorithm.secp256k1, child: Text('secp256k1 (dfx-compatible)')),
-                  ],
-                  onChanged: (KeyAlgorithm? value) {
-                    if (value != null) {
-                      setState(() => _algorithm = value);
-                    }
-                  },
+            _buildTextField(
+              controller: _displayNameController,
+              label: 'Display name *',
+              validator: (String? value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Display name is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildTextField(
+              controller: _usernameController,
+              label: 'Username',
+              hint: '@handle or short alias',
+            ),
+            const SizedBox(height: 12),
+            _buildTextField(
+              controller: _emailController,
+              label: 'Contact email',
+              keyboardType: TextInputType.emailAddress,
+              validator: (String? value) {
+                if (value == null || value.trim().isEmpty) {
+                  return null;
+                }
+                final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                if (!emailRegex.hasMatch(value.trim())) {
+                  return 'Enter a valid email address';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _buildTextField(
+                    controller: _telegramController,
+                    label: 'Telegram',
+                    hint: '@username',
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTextField(
+                    controller: _twitterController,
+                    label: 'X / Twitter',
+                    hint: '@username',
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _mnemonicController,
-              decoration: const InputDecoration(
-                labelText: 'Seed phrase (optional)',
-                hintText: 'Enter existing BIP39 seed phrase',
-                helperText: 'Leave empty to generate a new seed phrase.',
-                border: OutlineInputBorder(),
-              ),
-              minLines: 2,
+            const SizedBox(height: 12),
+            _buildTextField(
+              controller: _discordController,
+              label: 'Discord',
+              hint: 'user#1234',
+            ),
+            const SizedBox(height: 12),
+            _buildTextField(
+              controller: _websiteController,
+              label: 'Website',
+              hint: 'https://example.com',
+              validator: (String? value) {
+                if (value == null || value.trim().isEmpty) {
+                  return null;
+                }
+                if (!value.startsWith('http://') && !value.startsWith('https://')) {
+                  return 'Website must include http:// or https://';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildTextField(
+              controller: _bioController,
+              label: 'Short bio',
+              hint: 'Share a sentence about what you build.',
               maxLines: 3,
-              textInputAction: TextInputAction.done,
-              enableSuggestions: false,
-              autocorrect: false,
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _isSubmitting ? null : _submit,
               icon: _isSubmitting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.bolt),
+                  : const Icon(Icons.person_add_rounded),
               label: const Text('Create identity'),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    String? hint,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        border: const OutlineInputBorder(),
+      ),
+      validator: validator,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
     );
   }
 }

@@ -94,6 +94,28 @@ class IdentityController extends ChangeNotifier {
     }
   }
 
+  Future<IdentityRecord> createIdentityWithProfile({
+    required IdentityProfileDraft profileDraft,
+    required IdentityRecord identity,
+  }) async {
+    _setBusy(true);
+    try {
+      // Persist identity
+      _identities.add(identity);
+      await _secureRepository.persistIdentities(_identities);
+      await _updateActiveIdentity(identity.id);
+
+      // Save profile to backend
+      final IdentityProfile profile = await _marketplaceService.upsertIdentityProfile(profileDraft);
+      _profiles[profile.principal] = profile;
+
+      notifyListeners();
+      return identity;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
   IdentityRecord? findById(String id) {
     return _identities.firstWhereOrNull((IdentityRecord record) => record.id == id);
   }
