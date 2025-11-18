@@ -63,7 +63,7 @@ class _AnonymousIdentityCard extends StatelessWidget {
                 Icon(Icons.visibility_off_outlined, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 12),
                 Text(
-                  'Anonymous mode',
+                  'Incognito mode',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
@@ -71,7 +71,7 @@ class _AnonymousIdentityCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Select an identity to sign uploads, marketplace actions, and canister calls. '
-              'Anonymous mode limits publish actions to prevent accidental unsigned operations.',
+              'Incognito mode limits publish actions to prevent accidental unsigned operations.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),

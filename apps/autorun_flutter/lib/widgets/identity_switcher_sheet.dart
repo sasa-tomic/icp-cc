@@ -84,7 +84,7 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
                       shrinkWrap: true,
                       children: <Widget>[
                         _IdentityChoiceTile(
-                          title: 'Stay anonymous',
+                          title: 'Incognito mode',
                           subtitle: 'Read-only mode, publishing disabled',
                           selected: _selectedId == null,
                           icon: Icons.visibility_off_outlined,
