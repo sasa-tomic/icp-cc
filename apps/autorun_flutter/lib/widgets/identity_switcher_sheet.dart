@@ -78,32 +78,59 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
             ),
             const SizedBox(height: 16),
             Flexible(
-              child: identities.isEmpty
-                  ? _EmptyIdentitiesState(onManage: _handleManageTap)
-                  : ListView(
-                      shrinkWrap: true,
-                      children: <Widget>[
-                        _IdentityChoiceTile(
-                          title: 'Incognito mode',
-                          subtitle: 'Read-only mode, publishing disabled',
-                          selected: _selectedId == null,
-                          icon: Icons.visibility_off_outlined,
-                          onTap: () => _completeSelection(null),
-                        ),
-                        const Divider(height: 24),
-                        ...identities.map((IdentityRecord record) {
-                          final bool selected = _selectedId == record.id;
-                          final String principal = PrincipalUtils.textFromRecord(record);
-                          return _IdentityChoiceTile(
-                            title: record.label.isEmpty ? 'Untitled identity' : record.label,
-                            subtitle: '$principal (${record.algorithm.name.toUpperCase()})',
-                            selected: selected,
-                            icon: Icons.verified_user_outlined,
-                            onTap: () => _completeSelection(record.id),
-                          );
-                        }),
-                      ],
+              child: ListView(
+                shrinkWrap: true,
+                children: <Widget>[
+                  _IdentityChoiceTile(
+                    title: 'Incognito mode',
+                    subtitle: 'Read-only mode, publishing disabled',
+                    selected: _selectedId == null,
+                    icon: Icons.visibility_off_outlined,
+                    onTap: () => _completeSelection(null),
+                  ),
+                  if (identities.isNotEmpty) ...[
+                    const Divider(height: 24),
+                    ...identities.map((IdentityRecord record) {
+                      final bool selected = _selectedId == record.id;
+                      final String principal = PrincipalUtils.textFromRecord(record);
+                      return _IdentityChoiceTile(
+                        title: record.label.isEmpty ? 'Untitled identity' : record.label,
+                        subtitle: '$principal (${record.algorithm.name.toUpperCase()})',
+                        selected: selected,
+                        icon: Icons.verified_user_outlined,
+                        onTap: () => _completeSelection(record.id),
+                      );
+                    }),
+                  ] else ...[
+                    const Divider(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        children: <Widget>[
+                          Icon(
+                            Icons.info_outline,
+                            size: 32,
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No identities yet',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Create an identity to sign uploads',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -184,38 +211,6 @@ class _IdentityChoiceTile extends StatelessWidget {
               : const SizedBox(width: 24, height: 24),
         ),
       ),
-    );
-  }
-}
-
-class _EmptyIdentitiesState extends StatelessWidget {
-  const _EmptyIdentitiesState({required this.onManage});
-
-  final VoidCallback onManage;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Icon(Icons.info_outline, size: 32, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 12),
-        Text(
-          'No identities yet',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Create an identity to sign uploads and interact with ICP canisters.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: onManage,
-          child: const Text('Create identity'),
-        ),
-      ],
     );
   }
 }

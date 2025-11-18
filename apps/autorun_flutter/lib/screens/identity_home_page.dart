@@ -105,6 +105,10 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     if (!mounted || record == null) {
       return;
     }
+    await _controller.setActiveIdentity(record.id);
+    if (!mounted) {
+      return;
+    }
     await _showDetailsDialog(record, title: 'Identity Created');
   }
 
@@ -227,6 +231,85 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label copied to clipboard')));
+  }
+
+  Future<void> _showIdentityMenu(BuildContext context, IdentityRecord record, bool isActive) async {
+    final RenderBox? overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    final _IdentityAction? action = await showMenu<_IdentityAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        overlay.size.width - 200,
+        100,
+        20,
+        0,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: _buildMenuItems(isActive),
+    );
+
+    if (action != null) {
+      HapticFeedback.selectionClick();
+      await _handleAction(action, record);
+    }
+  }
+
+  List<PopupMenuEntry<_IdentityAction>> _buildMenuItems(bool isActive) {
+    return <PopupMenuEntry<_IdentityAction>>[
+      if (!isActive)
+        PopupMenuItem<_IdentityAction>(
+          value: _IdentityAction.setActive,
+          child: Row(
+            children: [
+              Icon(Icons.check_circle_outline_rounded, size: 20, color: AppDesignSystem.successLight),
+              const SizedBox(width: 12),
+              const Text('Set as active'),
+            ],
+          ),
+        ),
+      PopupMenuItem<_IdentityAction>(
+        value: _IdentityAction.editProfile,
+        child: Row(
+          children: [
+            const Icon(Icons.person_rounded, size: 20),
+            const SizedBox(width: 12),
+            const Text('Edit profile'),
+          ],
+        ),
+      ),
+      PopupMenuItem<_IdentityAction>(
+        value: _IdentityAction.showDetails,
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline_rounded, size: 20),
+            const SizedBox(width: 12),
+            const Text('Show details'),
+          ],
+        ),
+      ),
+      PopupMenuItem<_IdentityAction>(
+        value: _IdentityAction.rename,
+        child: Row(
+          children: [
+            const Icon(Icons.edit_rounded, size: 20),
+            const SizedBox(width: 12),
+            const Text('Rename'),
+          ],
+        ),
+      ),
+      const PopupMenuDivider(),
+      PopupMenuItem<_IdentityAction>(
+        value: _IdentityAction.delete,
+        child: Row(
+          children: [
+            const Icon(Icons.delete_outline_rounded, size: 20, color: AppDesignSystem.errorLight),
+            const SizedBox(width: 12),
+            const Text('Delete', style: TextStyle(color: AppDesignSystem.errorLight)),
+          ],
+        ),
+      ),
+    ];
   }
 
   Future<void> _handleAction(_IdentityAction action, IdentityRecord record) async {
@@ -444,9 +527,23 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                             : BorderSide.none,
                       ),
                       child: InkWell(
-                        onTap: () {
+                        onTap: () async {
                           HapticFeedback.lightImpact();
-                          _editIdentityProfile(record);
+                          if (!isActive) {
+                            final messenger = ScaffoldMessenger.of(context);
+                            await _controller.setActiveIdentity(record.id);
+                            if (!mounted) return;
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('${record.label} is now the active identity'),
+                                backgroundColor: AppDesignSystem.successLight,
+                              ),
+                            );
+                          }
+                        },
+                        onLongPress: () {
+                          HapticFeedback.mediumImpact();
+                          _showIdentityMenu(context, record, isActive);
                         },
                         borderRadius: BorderRadius.circular(20),
                          child: Padding(
@@ -618,60 +715,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                itemBuilder: (BuildContext context) => <PopupMenuEntry<_IdentityAction>>[
-                                  if (!isActive)
-                                    PopupMenuItem<_IdentityAction>(
-                                      value: _IdentityAction.setActive,
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.check_circle_outline_rounded, size: 20, color: AppDesignSystem.successLight),
-                                          const SizedBox(width: 12),
-                                          const Text('Set as active'),
-                                        ],
-                                      ),
-                                    ),
-                                  PopupMenuItem<_IdentityAction>(
-                                    value: _IdentityAction.editProfile,
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.person_rounded, size: 20),
-                                        const SizedBox(width: 12),
-                                        const Text('Edit profile'),
-                                      ],
-                                    ),
-                                  ),
-                                  PopupMenuItem<_IdentityAction>(
-                                    value: _IdentityAction.showDetails,
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.info_outline_rounded, size: 20),
-                                        const SizedBox(width: 12),
-                                        const Text('Show details'),
-                                      ],
-                                    ),
-                                  ),
-                                  PopupMenuItem<_IdentityAction>(
-                                    value: _IdentityAction.rename,
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.edit_rounded, size: 20),
-                                        const SizedBox(width: 12),
-                                        const Text('Rename'),
-                                      ],
-                                    ),
-                                  ),
-                                  PopupMenuDivider(),
-                                  PopupMenuItem<_IdentityAction>(
-                                    value: _IdentityAction.delete,
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.delete_outline_rounded, size: 20, color: AppDesignSystem.errorLight),
-                                        const SizedBox(width: 12),
-                                        const Text('Delete', style: TextStyle(color: AppDesignSystem.errorLight)),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                itemBuilder: (BuildContext context) => _buildMenuItems(isActive),
                               ),
                             ],
                           ),
