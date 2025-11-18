@@ -16,6 +16,21 @@ import '../widgets/identity_profile_sheet.dart';
 import 'account_registration_wizard.dart';
 import 'account_profile_screen.dart';
 
+/// Account loading state for each identity
+enum AccountLoadState {
+  /// Account has not been loaded yet
+  notLoaded,
+
+  /// Account is currently being loaded
+  loading,
+
+  /// Account loaded successfully (or confirmed no account exists)
+  loaded,
+
+  /// Failed to load account due to error
+  error,
+}
+
 class IdentityHomePage extends StatefulWidget {
   const IdentityHomePage({super.key});
 
@@ -26,6 +41,12 @@ class IdentityHomePage extends StatefulWidget {
 class _IdentityHomePageState extends State<IdentityHomePage> {
   late final IdentityController _controller;
   late final AccountController _accountController;
+
+  /// Track account loading state for each identity
+  final Map<String, AccountLoadState> _accountLoadStates = {};
+
+  /// Track error messages for identities that failed to load
+  final Map<String, String> _accountLoadErrors = {};
 
   @override
   void initState() {
@@ -59,13 +80,148 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     await _controller.ensureLoaded();
     // Fetch accounts for all identities using stored username mappings
     final identities = _controller.identities;
+
     for (final identity in identities) {
+      // Mark as loading
+      if (mounted) {
+        setState(() {
+          _accountLoadStates[identity.id] = AccountLoadState.loading;
+          _accountLoadErrors.remove(identity.id);
+        });
+      }
+
       try {
         await _accountController.fetchAccountForIdentity(identity);
+
+        // Success - mark as loaded
+        if (mounted) {
+          setState(() {
+            _accountLoadStates[identity.id] = AccountLoadState.loaded;
+          });
+        }
+      } on AccountNetworkException catch (e) {
+        // Network error - show error to user
+        debugPrint('❌ Network error loading account for ${identity.id}: $e');
+        if (mounted) {
+          setState(() {
+            _accountLoadStates[identity.id] = AccountLoadState.error;
+            _accountLoadErrors[identity.id] = e.message;
+          });
+
+          // Show snackbar for first network error only
+          if (_accountLoadErrors.length == 1) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Network error: ${e.message}'),
+                action: SnackBarAction(
+                  label: 'Retry',
+                  onPressed: () => _retryLoadAccount(identity),
+                ),
+                duration: const Duration(seconds: 6),
+              ),
+            );
+          }
+        }
+      } on TimeoutException {
+        // Timeout - show error to user
+        debugPrint('⏱️ Timeout loading account for ${identity.id}');
+        if (mounted) {
+          setState(() {
+            _accountLoadStates[identity.id] = AccountLoadState.error;
+            _accountLoadErrors[identity.id] = 'Request timed out';
+          });
+
+          // Show snackbar for first timeout only
+          if (_accountLoadErrors.length == 1) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Request timed out. Check your connection.'),
+                action: SnackBarAction(
+                  label: 'Retry',
+                  onPressed: () => _retryLoadAccount(identity),
+                ),
+                duration: const Duration(seconds: 6),
+              ),
+            );
+          }
+        }
       } catch (e) {
-        // Silently fail if account fetch fails - user may not have an account
-        // or network may be unavailable
-        debugPrint('Failed to fetch account for identity ${identity.id}: $e');
+        // Unexpected error - log and mark as loaded (account may not exist)
+        debugPrint('ℹ️ Account fetch completed for ${identity.id}: $e');
+        if (mounted) {
+          setState(() {
+            _accountLoadStates[identity.id] = AccountLoadState.loaded;
+          });
+        }
+      }
+    }
+  }
+
+  /// Retry loading account for a specific identity
+  Future<void> _retryLoadAccount(IdentityRecord identity) async {
+    if (mounted) {
+      setState(() {
+        _accountLoadStates[identity.id] = AccountLoadState.loading;
+        _accountLoadErrors.remove(identity.id);
+      });
+    }
+
+    try {
+      await _accountController.fetchAccountForIdentity(identity);
+
+      if (mounted) {
+        setState(() {
+          _accountLoadStates[identity.id] = AccountLoadState.loaded;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account loaded successfully'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } on AccountNetworkException catch (e) {
+      debugPrint('❌ Retry failed for ${identity.id}: $e');
+      if (mounted) {
+        setState(() {
+          _accountLoadStates[identity.id] = AccountLoadState.error;
+          _accountLoadErrors[identity.id] = e.message;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Still failing: ${e.message}'),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () => _retryLoadAccount(identity),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } on TimeoutException {
+      debugPrint('⏱️ Retry timeout for ${identity.id}');
+      if (mounted) {
+        setState(() {
+          _accountLoadStates[identity.id] = AccountLoadState.error;
+          _accountLoadErrors[identity.id] = 'Request timed out';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Still timing out. Check your connection.'),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () => _retryLoadAccount(identity),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('ℹ️ Retry completed for ${identity.id}: $e');
+      if (mounted) {
+        setState(() {
+          _accountLoadStates[identity.id] = AccountLoadState.loaded;
+        });
       }
     }
   }
@@ -767,6 +923,99 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   }
 
   Widget _buildAccountStatus(IdentityRecord record) {
+    final loadState = _accountLoadStates[record.id] ?? AccountLoadState.notLoaded;
+
+    // Show loading indicator
+    if (loadState == AccountLoadState.loading) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Loading...',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                fontWeight: FontWeight.w500,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show error indicator
+    if (loadState == AccountLoadState.error) {
+      final errorMessage = _accountLoadErrors[record.id] ?? 'Error loading account';
+      return InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _retryLoadAccount(record);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 14,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  errorMessage,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.refresh,
+                size: 14,
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Check if account exists
     final Account? account = _accountController.accountForIdentity(record);
 
     if (account != null) {
@@ -809,7 +1058,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         ),
       );
     } else {
-      // Show register button
+      // Show register button (account doesn't exist or not loaded yet)
       return InkWell(
         onTap: () {
           HapticFeedback.lightImpact();

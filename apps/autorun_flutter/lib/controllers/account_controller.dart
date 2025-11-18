@@ -1,9 +1,32 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import '../models/account.dart';
 import '../models/identity_record.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/account_signature_service.dart';
+
+/// Exception thrown when account is not found
+class AccountNotFoundException implements Exception {
+  final String username;
+  AccountNotFoundException(this.username);
+
+  @override
+  String toString() => 'Account not found: $username';
+}
+
+/// Exception thrown when network operation fails
+class AccountNetworkException implements Exception {
+  final String message;
+  final Object? originalError;
+
+  AccountNetworkException(this.message, [this.originalError]);
+
+  @override
+  String toString() => 'Network error: $message${originalError != null ? ' ($originalError)' : ''}';
+}
 
 /// Controller for account management operations
 ///
@@ -286,19 +309,34 @@ class AccountController extends ChangeNotifier {
   /// If an account is found via public key lookup, the mapping is stored for future use.
   ///
   /// Returns null if no account exists for this identity.
+  ///
+  /// Throws [AccountNetworkException] for network-related failures.
+  /// Throws [TimeoutException] if the request takes too long.
   Future<Account?> fetchAccountForIdentity(IdentityRecord identity) async {
     // Try local mapping first (fast path)
     final username = await getUsernameForIdentity(identity.id);
     if (username != null) {
-      return await fetchAccount(username);
+      try {
+        return await fetchAccount(username).timeout(
+          const Duration(seconds: 10),
+        );
+      } on SocketException catch (e) {
+        throw AccountNetworkException('No internet connection', e);
+      } on TimeoutException {
+        throw AccountNetworkException('Request timed out - check your connection');
+      } on http.ClientException catch (e) {
+        throw AccountNetworkException('Network error', e);
+      }
     }
 
     // No local mapping - try server lookup by public key (fallback)
     try {
       final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
-      final account = await _marketplaceService.getAccountByPublicKey(
-        publicKeyHex: publicKeyHex,
-      );
+      final account = await _marketplaceService
+          .getAccountByPublicKey(
+            publicKeyHex: publicKeyHex,
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (account != null) {
         // Found account! Store the mapping for future use
@@ -310,8 +348,18 @@ class AccountController extends ChangeNotifier {
       }
 
       return account;
+    } on SocketException catch (e) {
+      throw AccountNetworkException('No internet connection', e);
+    } on TimeoutException {
+      throw AccountNetworkException('Request timed out - check your connection');
+    } on http.ClientException catch (e) {
+      throw AccountNetworkException('Network error', e);
     } catch (e) {
-      // Public key lookup failed - no account exists
+      // Other errors - rethrow for debugging
+      if (!e.toString().contains('404') && !e.toString().contains('not found')) {
+        rethrow;
+      }
+      // 404 means no account exists - return null
       return null;
     }
   }
