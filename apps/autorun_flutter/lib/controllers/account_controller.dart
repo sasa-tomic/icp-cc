@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/account.dart';
 import '../models/identity_record.dart';
 import '../services/marketplace_open_api_service.dart';
@@ -12,9 +13,15 @@ import '../services/account_signature_service.dart';
 class AccountController extends ChangeNotifier {
   AccountController({
     MarketplaceOpenApiService? marketplaceService,
-  }) : _marketplaceService = marketplaceService ?? MarketplaceOpenApiService();
+    FlutterSecureStorage? secureStorage,
+  }) : _marketplaceService = marketplaceService ?? MarketplaceOpenApiService(),
+       _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   final MarketplaceOpenApiService _marketplaceService;
+  final FlutterSecureStorage _secureStorage;
+
+  // Key prefix for storing identity-username mappings
+  static const String _identityUsernamePrefix = 'identity_username_';
 
   /// Cache of accounts by username
   final Map<String, Account> _accounts = <String, Account>{};
@@ -68,6 +75,9 @@ class AccountController extends ChangeNotifier {
       // Cache the account
       _accounts[normalizedUsername] = account;
       _availabilityCache.remove(normalizedUsername); // Clear availability cache
+
+      // Store identity-username mapping for future app loads
+      await storeUsernameForIdentity(identity.id, normalizedUsername);
 
       notifyListeners();
       return account;
@@ -248,6 +258,36 @@ class AccountController extends ChangeNotifier {
   /// Returns validation result with error message if invalid.
   UsernameValidation validateUsername(String username) {
     return AccountSignatureService.validateUsername(username);
+  }
+
+  /// Store identity-to-username mapping in secure storage
+  ///
+  /// This mapping is used to fetch accounts when the app restarts.
+  Future<void> storeUsernameForIdentity(String identityId, String username) async {
+    await _secureStorage.write(
+      key: '$_identityUsernamePrefix$identityId',
+      value: username,
+    );
+  }
+
+  /// Get stored username for an identity
+  ///
+  /// Returns null if no mapping exists.
+  Future<String?> getUsernameForIdentity(String identityId) async {
+    return await _secureStorage.read(
+      key: '$_identityUsernamePrefix$identityId',
+    );
+  }
+
+  /// Fetch account for an identity using stored username mapping
+  ///
+  /// Returns null if no username mapping exists or account not found.
+  Future<Account?> fetchAccountForIdentity(IdentityRecord identity) async {
+    final username = await getUsernameForIdentity(identity.id);
+    if (username == null) {
+      return null;
+    }
+    return await fetchAccount(username);
   }
 
   /// Clear all cached data

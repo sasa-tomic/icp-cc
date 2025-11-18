@@ -57,8 +57,17 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
 
   Future<void> _loadAccountsForIdentities() async {
     await _controller.ensureLoaded();
-    // Accounts are populated when user registers or explicitly fetches them
-    // We rely on AccountController's cache populated by previous operations
+    // Fetch accounts for all identities using stored username mappings
+    final identities = _controller.identities;
+    for (final identity in identities) {
+      try {
+        await _accountController.fetchAccountForIdentity(identity);
+      } catch (e) {
+        // Silently fail if account fetch fails - user may not have an account
+        // or network may be unavailable
+        debugPrint('Failed to fetch account for identity ${identity.id}: $e');
+      }
+    }
   }
 
   Future<void> _navigateToAccountRegistration(IdentityRecord identity) async {
