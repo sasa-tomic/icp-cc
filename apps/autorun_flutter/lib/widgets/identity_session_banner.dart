@@ -8,14 +8,10 @@ class IdentitySessionBanner extends StatelessWidget {
   const IdentitySessionBanner({
     super.key,
     required this.controller,
-    required this.onSelectIdentity,
-    required this.onEditProfile,
     required this.onManageIdentities,
   });
 
   final IdentityController controller;
-  final VoidCallback onSelectIdentity;
-  final VoidCallback onEditProfile;
   final VoidCallback onManageIdentities;
 
   @override
@@ -23,7 +19,6 @@ class IdentitySessionBanner extends StatelessWidget {
     final IdentityRecord? active = controller.activeIdentity;
     if (active == null) {
       return _AnonymousIdentityCard(
-        onSelectIdentity: onSelectIdentity,
         onManageIdentities: onManageIdentities,
       );
     }
@@ -32,19 +27,16 @@ class IdentitySessionBanner extends StatelessWidget {
       identity: active,
       principal: PrincipalUtils.textFromRecord(active),
       isProfileComplete: isComplete,
-      onSelectIdentity: onSelectIdentity,
-      onEditProfile: onEditProfile,
+      onManageIdentities: onManageIdentities,
     );
   }
 }
 
 class _AnonymousIdentityCard extends StatelessWidget {
   const _AnonymousIdentityCard({
-    required this.onSelectIdentity,
     required this.onManageIdentities,
   });
 
-  final VoidCallback onSelectIdentity;
   final VoidCallback onManageIdentities;
 
   @override
@@ -70,26 +62,15 @@ class _AnonymousIdentityCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Select an identity to sign uploads, marketplace actions, and canister calls. '
-              'Incognito mode limits publish actions to prevent accidental unsigned operations.',
+              'No identity selected. Go to the Identities tab to select an identity for signing uploads, '
+              'marketplace actions, and canister calls.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: <Widget>[
-                FilledButton.icon(
-                  onPressed: onSelectIdentity,
-                  icon: const Icon(Icons.verified_user_outlined),
-                  label: const Text('Select identity'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onManageIdentities,
-                  icon: const Icon(Icons.manage_accounts_outlined),
-                  label: const Text('Manage identities'),
-                ),
-              ],
+            FilledButton.icon(
+              onPressed: onManageIdentities,
+              icon: const Icon(Icons.manage_accounts_outlined),
+              label: const Text('Go to Identities tab'),
             ),
           ],
         ),
@@ -103,15 +84,13 @@ class _ActiveIdentityCard extends StatelessWidget {
     required this.identity,
     required this.principal,
     required this.isProfileComplete,
-    required this.onSelectIdentity,
-    required this.onEditProfile,
+    required this.onManageIdentities,
   });
 
   final IdentityRecord identity;
   final String principal;
   final bool isProfileComplete;
-  final VoidCallback onSelectIdentity;
-  final VoidCallback onEditProfile;
+  final VoidCallback onManageIdentities;
 
   @override
   Widget build(BuildContext context) {
@@ -154,18 +133,10 @@ class _ActiveIdentityCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: onSelectIdentity,
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  label: const Text('Switch'),
-                ),
               ],
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
               children: <Widget>[
                 Chip(
                   avatar: Icon(
@@ -175,10 +146,11 @@ class _ActiveIdentityCard extends StatelessWidget {
                   label: Text('Profile $profileStatus', style: TextStyle(color: chipTextColor)),
                   backgroundColor: chipColor,
                 ),
+                const Spacer(),
                 TextButton.icon(
-                  onPressed: onEditProfile,
-                  icon: Icon(isProfileComplete ? Icons.visibility_outlined : Icons.edit_note),
-                  label: Text(isProfileComplete ? 'View profile' : 'Complete profile'),
+                  onPressed: onManageIdentities,
+                  icon: const Icon(Icons.manage_accounts_outlined),
+                  label: const Text('Manage in Identities tab'),
                 ),
               ],
             ),

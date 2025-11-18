@@ -7,9 +7,6 @@ import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
 import '../utils/principal.dart';
 import '../widgets/identity_scope.dart';
-import '../widgets/identity_switcher_sheet.dart';
-import '../widgets/identity_profile_sheet.dart';
-import '../models/identity_profile.dart';
 import '../widgets/script_editor.dart';
 import 'error_display.dart';
 
@@ -189,7 +186,7 @@ end''';
     final IdentityRecord? identity = controller.activeIdentity;
     if (identity == null) {
       setState(() {
-        _error = 'Select an identity from the session banner before uploading.';
+        _error = 'No identity selected. Go to the Identities tab to select one.';
       });
       return;
     }
@@ -658,23 +655,15 @@ end''';
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Text(
-                'No identity selected',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Publishing requires a signing identity. Switch identities from the button below.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              FilledButton.tonalIcon(
-                onPressed: _openIdentitySwitcher,
-                icon: const Icon(Icons.verified_user_outlined),
-                label: const Text('Choose identity'),
+              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'No identity selected. Go to the Identities tab to select one.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ],
           ),
@@ -687,131 +676,55 @@ end''';
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              identity.label.isEmpty ? 'Untitled identity' : identity.label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: isComplete
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                  : Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
+              child: Icon(
+                Icons.verified_user,
+                size: 20,
+                color: isComplete
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.error,
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              principal,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                FilledButton.tonalIcon(
-                  onPressed: _openIdentitySwitcher,
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  label: const Text('Switch identity'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _promptForProfile(controller, identity),
-                  icon: Icon(isComplete ? Icons.visibility_outlined : Icons.edit_note),
-                  label: Text(isComplete ? 'View profile' : 'Complete profile'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openIdentitySwitcher() async {
-    final IdentityController controller = _identityController(context, listen: false);
-    final IdentitySwitcherResult? result =
-        await showIdentitySwitcherSheet(context: context, controller: controller);
-    if (!mounted || result == null) {
-      return;
-    }
-    if (result.openIdentityManager) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Open the Identities tab on the home screen to manage identities.'),
-        ),
-      );
-      return;
-    }
-    await controller.setActiveIdentity(result.identityId);
-    if (mounted) {
-      setState(() {
-        _error = null;
-      });
-    }
-    if (!mounted || result.identityId == null) {
-      return;
-    }
-    final IdentityRecord? identity = controller.findById(result.identityId!);
-    if (identity != null) {
-      await _promptForProfile(controller, identity);
-    }
-  }
-
-  Future<void> _promptForProfile(
-    IdentityController controller,
-    IdentityRecord identity,
-  ) async {
-    IdentityProfile? profile = controller.profileForRecord(identity);
-
-    // Show loading indicator while fetching profile from server
-    if (profile == null && mounted) {
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) => const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(24),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading profile...'),
+                  Text(
+                    identity.label.isEmpty ? 'Untitled identity' : identity.label,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    principal.length > 20 ? '${principal.substring(0, 20)}...' : principal,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-          ),
+            if (!isComplete)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Tooltip(
+                  message: 'Complete profile in Identities tab',
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+          ],
         ),
-      );
-
-      profile = await controller.ensureProfileLoaded(identity);
-
-      if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-      }
-    }
-
-    if (!mounted) {
-      return;
-    }
-    if (profile?.isComplete == true) {
-      return;
-    }
-    final IdentityProfileDraft? draft = await showIdentityProfileSheet(
-      context: context,
-      identity: identity,
-      existingProfile: profile,
-    );
-    if (!mounted) {
-      return;
-    }
-    if (draft == null) {
-      return;
-    }
-    await controller.saveProfile(identity: identity, draft: draft);
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Identity profile saved')),
+      ),
     );
   }
 }

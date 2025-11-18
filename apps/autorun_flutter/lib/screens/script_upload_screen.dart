@@ -3,12 +3,9 @@ import '../services/marketplace_open_api_service.dart';
 import '../widgets/error_display.dart';
 import '../services/script_signature_service.dart';
 import '../controllers/identity_controller.dart';
-import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
 import '../utils/principal.dart';
 import '../widgets/identity_scope.dart';
-import '../widgets/identity_switcher_sheet.dart';
-import '../widgets/identity_profile_sheet.dart';
 
 class PreFilledUploadData {
   final String title;
@@ -90,97 +87,6 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     }
   }
 
-  Future<void> _openIdentitySwitcher() async {
-    final IdentityController controller = IdentityScope.of(context, listen: false);
-    final IdentitySwitcherResult? result =
-        await showIdentitySwitcherSheet(context: context, controller: controller);
-    if (!mounted || result == null) {
-      return;
-    }
-    if (result.openIdentityManager) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Use the Identities tab on the home screen to manage identities.'),
-        ),
-      );
-      return;
-    }
-    await controller.setActiveIdentity(result.identityId);
-    if (mounted) {
-      setState(() {
-        _error = null;
-      });
-    }
-    if (!mounted || result.identityId == null) {
-      return;
-    }
-    final IdentityRecord? identity = controller.findById(result.identityId!);
-    if (identity != null) {
-      await _promptForProfile(controller, identity);
-    }
-  }
-
-  Future<void> _promptForProfile(
-    IdentityController controller,
-    IdentityRecord identity,
-  ) async {
-    IdentityProfile? profile = controller.profileForRecord(identity);
-
-    // Show loading indicator while fetching profile from server
-    if (profile == null && mounted) {
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) => const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading profile...'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-
-      profile = await controller.ensureProfileLoaded(identity);
-
-      if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-      }
-    }
-
-    if (!mounted) {
-      return;
-    }
-    if (profile?.isComplete == true) {
-      return;
-    }
-    final IdentityProfileDraft? draft = await showIdentityProfileSheet(
-      context: context,
-      identity: identity,
-      existingProfile: profile,
-    );
-    if (!mounted) {
-      return;
-    }
-    if (draft == null) {
-      return;
-    }
-    await controller.saveProfile(identity: identity, draft: draft);
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Identity profile saved')),
-    );
-  }
-
   Widget _buildIdentityCard(IdentityController controller) {
     final IdentityRecord? identity = controller.activeIdentity;
     if (identity == null) {
@@ -195,14 +101,9 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'No identity selected - Publishing requires an identity',
+                  'No identity selected. Go to the Identities tab to select one.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-              ),
-              IconButton(
-                onPressed: _openIdentitySwitcher,
-                icon: const Icon(Icons.swap_horiz_rounded),
-                tooltip: 'Choose identity',
               ),
             ],
           ),
@@ -220,13 +121,13 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: isComplete 
+              backgroundColor: isComplete
                   ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
                   : Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
               child: Icon(
-                Icons.verified_user, 
+                Icons.verified_user,
                 size: 20,
-                color: isComplete 
+                color: isComplete
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.error,
               ),
@@ -251,23 +152,17 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
               ),
             ),
             if (!isComplete)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.warning_amber_rounded, 
-                  size: 16, 
-                  color: Theme.of(context).colorScheme.onErrorContainer,
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Tooltip(
+                  message: 'Complete profile in Identities tab',
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
               ),
-            IconButton(
-              onPressed: _openIdentitySwitcher,
-              icon: const Icon(Icons.swap_horiz_rounded),
-              tooltip: 'Switch identity',
-            ),
           ],
         ),
       ),
@@ -290,7 +185,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     final IdentityRecord? activeIdentity = identityController.activeIdentity;
     if (activeIdentity == null) {
       setState(() {
-        _error = 'Select an identity from the session banner before uploading.';
+        _error = 'No identity selected. Go to the Identities tab to select one.';
       });
       return;
     }
