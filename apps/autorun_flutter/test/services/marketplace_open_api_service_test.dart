@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/config/app_config.dart';
-import 'package:icp_autorun/models/identity_profile.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
@@ -438,80 +437,7 @@ void main() {
         service.resetHttpClient();
       });
 
-      test('fetchIdentityProfile returns null when server returns 404', () async {
-        final client = MockClient((request) async {
-          expect(request.url.toString(), contains('/identities/'));
-          return http.Response('Not Found', 404);
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        final profile = await service.fetchIdentityProfile(principal: 'aaaaa-aa');
-        expect(profile, isNull);
-      });
-
-      test('fetchIdentityProfile parses payloads', () async {
-        final client = MockClient((request) async {
-          return http.Response(
-            jsonEncode({
-              'success': true,
-              'data': {
-                'profile': {
-                  'id': 'profile-1',
-                  'principal': 'aaaaa-aa',
-                  'displayName': 'ICP Builder',
-                  'username': 'builder',
-                  'contactEmail': 'team@example.com',
-                  'createdAt': '2024-01-01T00:00:00Z',
-                  'updatedAt': '2024-01-02T00:00:00Z',
-                }
-              }
-            }),
-            200,
-            headers: {'Content-Type': 'application/json'},
-          );
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        final profile = await service.fetchIdentityProfile(principal: 'aaaaa-aa');
-        expect(profile, isNotNull);
-        expect(profile!.displayName, equals('ICP Builder'));
-      });
-
-      test('upsertIdentityProfile returns updated profile', () async {
-        final client = MockClient((request) async {
-          expect(request.method, equals('POST'));
-          final Map<String, dynamic> body = jsonDecode(request.body) as Map<String, dynamic>;
-          expect(body['principal'], equals('aaaaa-aa'));
-          return http.Response(
-            jsonEncode({
-              'success': true,
-              'data': {
-                'profile': {
-                  'id': 'profile-1',
-                  'principal': 'aaaaa-aa',
-                  'displayName': body['display_name'],
-                  'username': body['username'],
-                  'createdAt': '2024-01-01T00:00:00Z',
-                  'updatedAt': '2024-01-01T00:00:00Z',
-                }
-              }
-            }),
-            200,
-            headers: {'Content-Type': 'application/json'},
-          );
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        final draft = IdentityProfileDraft(
-          principal: 'aaaaa-aa',
-          displayName: 'ICP Builder',
-        );
-        final IdentityProfile result = await service.upsertIdentityProfile(draft);
-        expect(result.displayName, equals('ICP Builder'));
-      });
+      // Identity profile API tests removed - profiles are now local-only
     });
   });
 }

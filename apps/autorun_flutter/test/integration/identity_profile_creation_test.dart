@@ -85,10 +85,7 @@ void main() {
       expect(secureRepository.identities, hasLength(1));
       expect(secureRepository.identities.first.id, equals(createdIdentity.id));
 
-      // Verify profile can be fetched from backend
-      final fetchedProfile = await marketplaceService.fetchIdentityProfile(principal: createdPrincipal!);
-      expect(fetchedProfile, isNotNull);
-      expect(fetchedProfile!.displayName, equals(displayName));
+      // Profiles are now local-only, no backend verification needed
     });
 
     test('created identity shows display name in list', () async {
@@ -144,10 +141,7 @@ void main() {
       expect(profile, isNotNull);
       expect(profile!.displayName, equals(displayName));
 
-      // Verify backend has the minimal profile
-      final fetchedProfile = await marketplaceService.fetchIdentityProfile(principal: createdPrincipal!);
-      expect(fetchedProfile, isNotNull);
-      expect(fetchedProfile!.displayName, equals(displayName));
+      // Profiles are now local-only, no backend verification needed
     });
 
     test('multiple identities can be created with different profiles', () async {

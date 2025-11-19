@@ -33,12 +33,45 @@ class AccountProfileScreen extends StatefulWidget {
 class _AccountProfileScreenState extends State<AccountProfileScreen> {
   late Account _account;
   bool _isRefreshing = false;
+  bool _isEditing = false;
+
+  // Edit controllers
+  final _displayNameController = TextEditingController();
+  final _contactEmailController = TextEditingController();
+  final _contactTelegramController = TextEditingController();
+  final _contactTwitterController = TextEditingController();
+  final _contactDiscordController = TextEditingController();
+  final _websiteUrlController = TextEditingController();
+  final _bioController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _account = widget.account;
+    _initializeControllers();
     _refreshAccount();
+  }
+
+  void _initializeControllers() {
+    _displayNameController.text = _account.displayName;
+    _contactEmailController.text = _account.contactEmail ?? '';
+    _contactTelegramController.text = _account.contactTelegram ?? '';
+    _contactTwitterController.text = _account.contactTwitter ?? '';
+    _contactDiscordController.text = _account.contactDiscord ?? '';
+    _websiteUrlController.text = _account.websiteUrl ?? '';
+    _bioController.text = _account.bio ?? '';
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    _contactEmailController.dispose();
+    _contactTelegramController.dispose();
+    _contactTwitterController.dispose();
+    _contactDiscordController.dispose();
+    _websiteUrlController.dispose();
+    _bioController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshAccount() async {
@@ -89,6 +122,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             children: [
               _buildAccountHeader(),
               const SizedBox(height: 24),
+              _buildProfileSection(),
+              const SizedBox(height: 24),
               _buildKeysSection(),
             ],
           ),
@@ -132,11 +167,22 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Display Name
+            Text(
+              _account.displayName,
+              style: AppDesignSystem.heading2.copyWith(
+                color: AppDesignSystem.primaryDark,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+
             // Username
             Text(
               '@${_account.username}',
-              style: AppDesignSystem.heading2.copyWith(
-                color: AppDesignSystem.primaryDark,
+              style: AppDesignSystem.bodyMedium.copyWith(
+                color: context.colors.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 8),
@@ -152,6 +198,236 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildProfileSection() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: context.colors.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'PROFILE',
+                  style: AppDesignSystem.bodySmall.copyWith(
+                    color: context.colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _isEditing ? _cancelEdit : _startEdit,
+                  icon: Icon(
+                    _isEditing ? Icons.close : Icons.edit,
+                    size: 18,
+                  ),
+                  label: Text(_isEditing ? 'Cancel' : 'Edit'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            if (!_isEditing) ...[
+              // Display mode
+              _buildProfileField(
+                label: 'Display Name',
+                value: _account.displayName,
+                icon: Icons.person,
+              ),
+              _buildProfileField(
+                label: 'Email',
+                value: _account.contactEmail,
+                icon: Icons.email_outlined,
+              ),
+              _buildProfileField(
+                label: 'Telegram',
+                value: _account.contactTelegram,
+                icon: Icons.send_outlined,
+              ),
+              _buildProfileField(
+                label: 'Twitter/X',
+                value: _account.contactTwitter,
+                icon: Icons.tag,
+              ),
+              _buildProfileField(
+                label: 'Discord',
+                value: _account.contactDiscord,
+                icon: Icons.forum_outlined,
+              ),
+              _buildProfileField(
+                label: 'Website',
+                value: _account.websiteUrl,
+                icon: Icons.language,
+              ),
+              _buildProfileField(
+                label: 'Bio',
+                value: _account.bio,
+                icon: Icons.notes,
+              ),
+            ] else ...[
+              // Edit mode
+              _buildEditField(
+                controller: _displayNameController,
+                label: 'Display Name *',
+                icon: Icons.person,
+              ),
+              const SizedBox(height: 12),
+              _buildEditField(
+                controller: _contactEmailController,
+                label: 'Email',
+                icon: Icons.email_outlined,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 12),
+              _buildEditField(
+                controller: _contactTelegramController,
+                label: 'Telegram',
+                icon: Icons.send_outlined,
+              ),
+              const SizedBox(height: 12),
+              _buildEditField(
+                controller: _contactTwitterController,
+                label: 'Twitter/X',
+                icon: Icons.tag,
+              ),
+              const SizedBox(height: 12),
+              _buildEditField(
+                controller: _contactDiscordController,
+                label: 'Discord',
+                icon: Icons.forum_outlined,
+              ),
+              const SizedBox(height: 12),
+              _buildEditField(
+                controller: _websiteUrlController,
+                label: 'Website',
+                icon: Icons.language,
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 12),
+              _buildEditField(
+                controller: _bioController,
+                label: 'Bio',
+                icon: Icons.notes,
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _saveProfile,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: AppDesignSystem.primaryLight,
+                ),
+                child: const Text('Save Changes'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileField({
+    required String label,
+    String? value,
+    required IconData icon,
+  }) {
+    if (value == null || value.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: context.colors.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppDesignSystem.bodySmall.copyWith(
+                    color: context.colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: AppDesignSystem.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+      ),
+    );
+  }
+
+  void _startEdit() {
+    setState(() => _isEditing = true);
+  }
+
+  void _cancelEdit() {
+    _initializeControllers();
+    setState(() => _isEditing = false);
+  }
+
+  Future<void> _saveProfile() async {
+    if (_displayNameController.text.isEmpty) {
+      _showErrorSnackbar('Display name is required');
+      return;
+    }
+
+    // TODO: Implement API call to update profile
+    // For now, just show a message that this is not yet implemented
+    _showErrorSnackbar('Profile update API not yet implemented');
+
+    // When implemented, this should:
+    // 1. Call backend API to update account profile
+    // 2. Refresh the account data
+    // 3. Exit edit mode
+    // 4. Show success message
   }
 
   Widget _buildKeysSection() {

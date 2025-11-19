@@ -42,38 +42,6 @@ pub struct Review {
     pub updated_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
-pub struct IdentityProfile {
-    pub id: String,
-    pub principal: String,
-    pub display_name: String,
-    pub username: Option<String>,
-    pub contact_email: Option<String>,
-    pub contact_telegram: Option<String>,
-    pub contact_twitter: Option<String>,
-    pub contact_discord: Option<String>,
-    pub website_url: Option<String>,
-    pub bio: Option<String>,
-    pub metadata: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpsertIdentityProfileRequest {
-    pub principal: String,
-    pub display_name: String,
-    pub username: Option<String>,
-    pub contact_email: Option<String>,
-    pub contact_telegram: Option<String>,
-    pub contact_twitter: Option<String>,
-    pub contact_discord: Option<String>,
-    pub website_url: Option<String>,
-    pub bio: Option<String>,
-    #[serde(default)]
-    pub metadata: Option<serde_json::Value>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct ScriptsQuery {
     pub limit: Option<i32>,
@@ -183,7 +151,6 @@ pub struct AppState {
     pub account_service: crate::services::AccountService,
     pub script_service: crate::services::ScriptService,
     pub review_service: crate::services::ReviewService,
-    pub identity_service: crate::services::IdentityService,
 }
 
 #[derive(Debug, Deserialize)]
