@@ -13,7 +13,6 @@ import '../utils/identity_generator.dart';
 import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
-import '../widgets/identity_profile_sheet.dart';
 import 'account_registration_wizard.dart';
 import 'account_profile_screen.dart';
 
@@ -467,68 +466,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     );
   }
 
-  Future<void> _editIdentityProfile(IdentityRecord record) async {
-    // Show loading indicator while loading profile from local storage
-    final IdentityProfile? cachedProfile = _controller.profileForRecord(record);
-
-    if (cachedProfile == null && mounted) {
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) => const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading profile...'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Ensure profile is loaded before editing
-    await _controller.ensureProfileLoaded(record);
-
-    // Close loading dialog if it was shown
-    if (cachedProfile == null && mounted) {
-      Navigator.of(context).pop();
-    }
-
-    final IdentityProfile? existingProfile = _controller.profileForRecord(record);
-
-    if (!mounted) return;
-    
-    final IdentityProfileDraft? draft = await showIdentityProfileSheet(
-      context: context,
-      identity: record,
-      existingProfile: existingProfile,
-    );
-    
-    if (draft != null && mounted) {
-      try {
-        await _controller.saveProfile(identity: record, draft: draft);
-        if (!mounted) return;
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile saved successfully')),
-        );
-      } catch (error) {
-        if (!mounted) return;
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save profile: $error')),
-        );
-      }
-    }
-  }
-
   void _copyToClipboard(String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
     if (!mounted) {
@@ -574,16 +511,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             ],
           ),
         ),
-      PopupMenuItem<_IdentityAction>(
-        value: _IdentityAction.editProfile,
-        child: Row(
-          children: [
-            const Icon(Icons.person_rounded, size: 20),
-            const SizedBox(width: 12),
-            const Text('Edit profile'),
-          ],
-        ),
-      ),
       if (account != null)
         PopupMenuItem<_IdentityAction>(
           value: _IdentityAction.openAccountProfile,
@@ -591,7 +518,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             children: [
               const Icon(Icons.account_circle_rounded, size: 20),
               const SizedBox(width: 12),
-              const Text('Open account profile'),
+              const Text('Profile information'),
             ],
           ),
         ),
@@ -640,9 +567,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             backgroundColor: AppDesignSystem.successLight,
           ),
         );
-        break;
-      case _IdentityAction.editProfile:
-        await _editIdentityProfile(record);
         break;
       case _IdentityAction.openAccountProfile:
         final Account? account = _accountController.accountForIdentity(record);
@@ -1571,4 +1495,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction { setActive, editProfile, openAccountProfile, showKeypairInfo, manageKeypairs, delete }
+enum _IdentityAction { setActive, openAccountProfile, showKeypairInfo, manageKeypairs, delete }
