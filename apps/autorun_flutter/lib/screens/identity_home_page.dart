@@ -541,6 +541,8 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     final RenderBox? overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
 
+    final Account? account = _accountController.accountForIdentity(record);
+
     final _IdentityAction? action = await showMenu<_IdentityAction>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -550,7 +552,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         0,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: _buildMenuItems(isActive),
+      items: _buildMenuItems(isActive, account),
     );
 
     if (action != null) {
@@ -559,7 +561,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     }
   }
 
-  List<PopupMenuEntry<_IdentityAction>> _buildMenuItems(bool isActive) {
+  List<PopupMenuEntry<_IdentityAction>> _buildMenuItems(bool isActive, Account? account) {
     return <PopupMenuEntry<_IdentityAction>>[
       if (!isActive)
         PopupMenuItem<_IdentityAction>(
@@ -582,6 +584,17 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
           ],
         ),
       ),
+      if (account != null)
+        PopupMenuItem<_IdentityAction>(
+          value: _IdentityAction.openAccountProfile,
+          child: Row(
+            children: [
+              const Icon(Icons.account_circle_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Open account profile'),
+            ],
+          ),
+        ),
       PopupMenuItem<_IdentityAction>(
         value: _IdentityAction.showKeypairInfo,
         child: Row(
@@ -630,6 +643,12 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         break;
       case _IdentityAction.editProfile:
         await _editIdentityProfile(record);
+        break;
+      case _IdentityAction.openAccountProfile:
+        final Account? account = _accountController.accountForIdentity(record);
+        if (account != null) {
+          await _navigateToAccountProfile(account, record);
+        }
         break;
       case _IdentityAction.showKeypairInfo:
         await _showKeypairInformationDialog(record);
@@ -964,9 +983,12 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                          ],
                                        ],
                                      ),
-                                     SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
-                                     _buildAccountStatus(record),
-                                     SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                                     // Only show account status section if there's something to display
+                                     if (_shouldShowAccountStatus(record)) ...[
+                                       SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                                       _buildAccountStatus(record),
+                                       SizedBox(height: MediaQuery.of(context).size.width < 380 ? 6 : 8),
+                                     ],
                                      Text(
                                        _subtitleFor(record),
                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -993,7 +1015,10 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                itemBuilder: (BuildContext context) => _buildMenuItems(isActive),
+                                itemBuilder: (BuildContext context) {
+                                  final Account? account = _accountController.accountForIdentity(record);
+                                  return _buildMenuItems(isActive, account);
+                                },
                               ),
                             ],
                           ),
@@ -1026,6 +1051,18 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}';
     final String algorithm = keyAlgorithmToString(record.algorithm).toUpperCase();
     return '$algorithm • $timestamp';
+  }
+
+  /// Check if we should display the account status section
+  bool _shouldShowAccountStatus(IdentityRecord record) {
+    final loadState = _accountLoadStates[record.id] ?? AccountLoadState.notLoaded;
+    // Show if loading, error, or no account (register button)
+    if (loadState == AccountLoadState.loading || loadState == AccountLoadState.error) {
+      return true;
+    }
+    // Show register button if no account exists
+    final Account? account = _accountController.accountForIdentity(record);
+    return account == null;
   }
 
   Widget _buildAccountStatus(IdentityRecord record) {
@@ -1121,94 +1158,50 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       );
     }
 
-    // Check if account exists
-    final Account? account = _accountController.accountForIdentity(record);
-
-    if (account != null) {
-      // Show account badge
-      return InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          _navigateToAccountProfile(account, record);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.check_circle,
-                size: 14,
-                color: Theme.of(context).colorScheme.tertiary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '@${account.username}',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onTertiaryContainer,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11,
-                ),
-              ),
-            ],
+    // No account exists - show register button
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _navigateToAccountRegistration(record);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
+            width: 1,
           ),
         ),
-      );
-    } else {
-      // Show register button (account doesn't exist or not loaded yet)
-      return InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          _navigateToAccountRegistration(record);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
-              width: 1,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              size: 14,
+              color: Theme.of(context).colorScheme.error,
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.warning_amber_rounded,
-                size: 14,
-                color: Theme.of(context).colorScheme.error,
+            const SizedBox(width: 6),
+            Text(
+              'Register an Account',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onErrorContainer,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
               ),
-              const SizedBox(width: 6),
-              Text(
-                'Register an Account',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onErrorContainer,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.add_circle_outline,
-                size: 14,
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.add_circle_outline,
+              size: 14,
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
   }
 
   Widget _buildIncognitoModeCard(BuildContext context, bool isActive) {
@@ -1578,4 +1571,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction { setActive, editProfile, showKeypairInfo, manageKeypairs, delete }
+enum _IdentityAction { setActive, editProfile, openAccountProfile, showKeypairInfo, manageKeypairs, delete }
