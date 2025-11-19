@@ -5,6 +5,13 @@
 CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    contact_email TEXT,
+    contact_telegram TEXT,
+    contact_twitter TEXT,
+    contact_discord TEXT,
+    website_url TEXT,
+    bio TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );

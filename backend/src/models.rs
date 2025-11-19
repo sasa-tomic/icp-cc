@@ -200,6 +200,13 @@ pub const SCRIPT_COLUMNS: &str = "id, slug, owner_account_id, title, description
 pub struct Account {
     pub id: String,
     pub username: String,
+    pub display_name: String,
+    pub contact_email: Option<String>,
+    pub contact_telegram: Option<String>,
+    pub contact_twitter: Option<String>,
+    pub contact_discord: Option<String>,
+    pub website_url: Option<String>,
+    pub bio: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -235,6 +242,13 @@ pub struct SignatureAudit {
 #[serde(rename_all = "camelCase")]
 pub struct RegisterAccountRequest {
     pub username: String,
+    pub display_name: String,
+    pub contact_email: Option<String>,
+    pub contact_telegram: Option<String>,
+    pub contact_twitter: Option<String>,
+    pub contact_discord: Option<String>,
+    pub website_url: Option<String>,
+    pub bio: Option<String>,
     pub public_key: String,
     pub timestamp: i64,
     pub nonce: String,
@@ -279,6 +293,19 @@ pub struct AccountPublicKeyResponse {
 pub struct AccountResponse {
     pub id: String,
     pub username: String,
+    pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_telegram: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_twitter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_discord: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub website_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bio: Option<String>,
     pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,

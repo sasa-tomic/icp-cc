@@ -74,6 +74,13 @@ class AccountController extends ChangeNotifier {
   Future<Account> registerAccount({
     required IdentityRecord identity,
     required String username,
+    required String displayName,
+    String? contactEmail,
+    String? contactTelegram,
+    String? contactTwitter,
+    String? contactDiscord,
+    String? websiteUrl,
+    String? bio,
   }) async {
     _setBusy(true);
     try {
@@ -90,6 +97,13 @@ class AccountController extends ChangeNotifier {
       final request = await AccountSignatureService.createRegisterAccountRequest(
         identity: identity,
         username: normalizedUsername,
+        displayName: displayName,
+        contactEmail: contactEmail,
+        contactTelegram: contactTelegram,
+        contactTwitter: contactTwitter,
+        contactDiscord: contactDiscord,
+        websiteUrl: websiteUrl,
+        bio: bio,
       );
 
       // Submit to backend

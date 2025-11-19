@@ -12,6 +12,13 @@ class Account {
   Account({
     required this.id,
     required this.username,
+    required this.displayName,
+    this.contactEmail,
+    this.contactTelegram,
+    this.contactTwitter,
+    this.contactDiscord,
+    this.websiteUrl,
+    this.bio,
     required this.publicKeys,
     required this.createdAt,
     required this.updatedAt,
@@ -21,6 +28,13 @@ class Account {
     return Account(
       id: json['id'] as String,
       username: json['username'] as String,
+      displayName: json['displayName'] as String? ?? json['display_name'] as String? ?? '',
+      contactEmail: json['contactEmail'] as String? ?? json['contact_email'] as String?,
+      contactTelegram: json['contactTelegram'] as String? ?? json['contact_telegram'] as String?,
+      contactTwitter: json['contactTwitter'] as String? ?? json['contact_twitter'] as String?,
+      contactDiscord: json['contactDiscord'] as String? ?? json['contact_discord'] as String?,
+      websiteUrl: json['websiteUrl'] as String? ?? json['website_url'] as String?,
+      bio: json['bio'] as String?,
       publicKeys: (json['publicKeys'] as List<dynamic>? ?? json['public_keys'] as List<dynamic>? ?? <dynamic>[])
           .map((dynamic e) => AccountPublicKey.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -31,6 +45,13 @@ class Account {
 
   final String id;
   final String username;
+  final String displayName;
+  final String? contactEmail;
+  final String? contactTelegram;
+  final String? contactTwitter;
+  final String? contactDiscord;
+  final String? websiteUrl;
+  final String? bio;
   final List<AccountPublicKey> publicKeys;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -56,12 +77,26 @@ class Account {
   }
 
   Account copyWith({
+    String? displayName,
+    String? contactEmail,
+    String? contactTelegram,
+    String? contactTwitter,
+    String? contactDiscord,
+    String? websiteUrl,
+    String? bio,
     List<AccountPublicKey>? publicKeys,
     DateTime? updatedAt,
   }) {
     return Account(
       id: id,
       username: username,
+      displayName: displayName ?? this.displayName,
+      contactEmail: contactEmail ?? this.contactEmail,
+      contactTelegram: contactTelegram ?? this.contactTelegram,
+      contactTwitter: contactTwitter ?? this.contactTwitter,
+      contactDiscord: contactDiscord ?? this.contactDiscord,
+      websiteUrl: websiteUrl ?? this.websiteUrl,
+      bio: bio ?? this.bio,
       publicKeys: publicKeys ?? this.publicKeys,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -122,6 +157,13 @@ class AccountPublicKey {
 class RegisterAccountRequest {
   RegisterAccountRequest({
     required this.username,
+    required this.displayName,
+    this.contactEmail,
+    this.contactTelegram,
+    this.contactTwitter,
+    this.contactDiscord,
+    this.websiteUrl,
+    this.bio,
     required this.publicKey,
     required this.timestamp,
     required this.nonce,
@@ -129,6 +171,13 @@ class RegisterAccountRequest {
   });
 
   final String username;
+  final String displayName;
+  final String? contactEmail;
+  final String? contactTelegram;
+  final String? contactTwitter;
+  final String? contactDiscord;
+  final String? websiteUrl;
+  final String? bio;
   final String publicKey; // hex encoded
   final int timestamp; // Unix timestamp (seconds)
   final String nonce; // UUID v4
@@ -137,6 +186,13 @@ class RegisterAccountRequest {
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'username': username,
+      'displayName': displayName,
+      if (contactEmail != null) 'contactEmail': contactEmail,
+      if (contactTelegram != null) 'contactTelegram': contactTelegram,
+      if (contactTwitter != null) 'contactTwitter': contactTwitter,
+      if (contactDiscord != null) 'contactDiscord': contactDiscord,
+      if (websiteUrl != null) 'websiteUrl': websiteUrl,
+      if (bio != null) 'bio': bio,
       'publicKey': publicKey,
       'timestamp': timestamp,
       'nonce': nonce,

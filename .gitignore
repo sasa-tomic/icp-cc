@@ -2,6 +2,7 @@
 vendors/
 .rgignore
 third_party/
+.tooling/
 /.idea/
 /.vscode/
 /.claude/settings.local.json

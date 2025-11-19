@@ -51,8 +51,6 @@ void main() {
     test('creates identity with profile and persists to backend', () async {
       final uniqueSuffix = DateTime.now().millisecondsSinceEpoch;
       final displayName = 'Test User $uniqueSuffix';
-      final username = 'test_user_$uniqueSuffix';
-      final contactEmail = 'test$uniqueSuffix@example.com';
 
       // Generate a new identity
       final identity = await IdentityGenerator.generate(
@@ -69,13 +67,6 @@ void main() {
         profileDraft: IdentityProfileDraft(
           principal: createdPrincipal!,
           displayName: displayName,
-          username: username,
-          contactEmail: contactEmail,
-          contactTelegram: '@test_tg',
-          contactTwitter: '@test_tw',
-          contactDiscord: 'test#1234',
-          websiteUrl: 'https://test.example.com',
-          bio: 'Integration test user',
         ),
         identity: identity,
       );
@@ -89,13 +80,6 @@ void main() {
       final cachedProfile = identityController.profileForRecord(createdIdentity);
       expect(cachedProfile, isNotNull);
       expect(cachedProfile!.displayName, equals(displayName));
-      expect(cachedProfile.username, equals(username));
-      expect(cachedProfile.contactEmail, equals(contactEmail));
-      expect(cachedProfile.contactTelegram, equals('@test_tg'));
-      expect(cachedProfile.contactTwitter, equals('@test_tw'));
-      expect(cachedProfile.contactDiscord, equals('test#1234'));
-      expect(cachedProfile.websiteUrl, equals('https://test.example.com'));
-      expect(cachedProfile.bio, equals('Integration test user'));
 
       // Verify identity persisted to secure storage
       expect(secureRepository.identities, hasLength(1));
@@ -105,8 +89,6 @@ void main() {
       final fetchedProfile = await marketplaceService.fetchIdentityProfile(principal: createdPrincipal!);
       expect(fetchedProfile, isNotNull);
       expect(fetchedProfile!.displayName, equals(displayName));
-      expect(fetchedProfile.username, equals(username));
-      expect(fetchedProfile.contactEmail, equals(contactEmail));
     });
 
     test('created identity shows display name in list', () async {
@@ -124,7 +106,6 @@ void main() {
         profileDraft: IdentityProfileDraft(
           principal: createdPrincipal!,
           displayName: displayName,
-          username: 'alice_$uniqueSuffix',
         ),
         identity: identity,
       );
@@ -162,13 +143,6 @@ void main() {
 
       expect(profile, isNotNull);
       expect(profile!.displayName, equals(displayName));
-      expect(profile.username, isNull);
-      expect(profile.contactEmail, isNull);
-      expect(profile.contactTelegram, isNull);
-      expect(profile.contactTwitter, isNull);
-      expect(profile.contactDiscord, isNull);
-      expect(profile.websiteUrl, isNull);
-      expect(profile.bio, isNull);
 
       // Verify backend has the minimal profile
       final fetchedProfile = await marketplaceService.fetchIdentityProfile(principal: createdPrincipal!);
@@ -191,7 +165,6 @@ void main() {
         profileDraft: IdentityProfileDraft(
           principal: principal1,
           displayName: 'User One $uniqueSuffix',
-          username: 'user_one_$uniqueSuffix',
         ),
         identity: identity1,
       );
@@ -209,7 +182,6 @@ void main() {
         profileDraft: IdentityProfileDraft(
           principal: principal2,
           displayName: 'User Two $uniqueSuffix',
-          username: 'user_two_$uniqueSuffix',
         ),
         identity: identity2,
       );

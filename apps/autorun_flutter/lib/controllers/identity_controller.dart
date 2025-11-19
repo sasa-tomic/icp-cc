@@ -45,8 +45,10 @@ class IdentityController extends ChangeNotifier {
   IdentityProfile? profileForRecord(IdentityRecord record) =>
       _profiles[PrincipalUtils.textFromRecord(record)];
 
-  bool isProfileComplete(IdentityRecord record) =>
-      profileForRecord(record)?.isComplete ?? false;
+  bool isProfileComplete(IdentityRecord record) {
+    final IdentityProfile? profile = profileForRecord(record);
+    return profile != null && profile.displayName.isNotEmpty;
+  }
 
   Future<void> ensureLoaded() async {
     if (_initialized) {

@@ -21,6 +21,13 @@ class AccountSignatureService {
   static Future<RegisterAccountRequest> createRegisterAccountRequest({
     required IdentityRecord identity,
     required String username,
+    required String displayName,
+    String? contactEmail,
+    String? contactTelegram,
+    String? contactTwitter,
+    String? contactDiscord,
+    String? websiteUrl,
+    String? bio,
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
@@ -28,6 +35,13 @@ class AccountSignatureService {
 
     final request = RegisterAccountRequest(
       username: username,
+      displayName: displayName,
+      contactEmail: contactEmail,
+      contactTelegram: contactTelegram,
+      contactTwitter: contactTwitter,
+      contactDiscord: contactDiscord,
+      websiteUrl: websiteUrl,
+      bio: bio,
       publicKey: publicKeyHex,
       timestamp: timestamp,
       nonce: nonce,
@@ -41,6 +55,13 @@ class AccountSignatureService {
 
     return RegisterAccountRequest(
       username: username,
+      displayName: displayName,
+      contactEmail: contactEmail,
+      contactTelegram: contactTelegram,
+      contactTwitter: contactTwitter,
+      contactDiscord: contactDiscord,
+      websiteUrl: websiteUrl,
+      bio: bio,
       publicKey: publicKeyHex,
       timestamp: timestamp,
       nonce: nonce,

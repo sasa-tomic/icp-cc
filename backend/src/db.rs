@@ -246,6 +246,13 @@ pub async fn initialize_database(pool: &SqlitePool) {
         CREATE TABLE IF NOT EXISTS accounts (
             id TEXT PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
+            display_name TEXT NOT NULL,
+            contact_email TEXT,
+            contact_telegram TEXT,
+            contact_twitter TEXT,
+            contact_discord TEXT,
+            website_url TEXT,
+            bio TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
@@ -259,6 +266,44 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .execute(pool)
         .await
         .expect("Failed to create accounts username index");
+
+    let account_migrations = [
+        (
+            "display_name",
+            "ALTER TABLE accounts ADD COLUMN display_name TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "contact_email",
+            "ALTER TABLE accounts ADD COLUMN contact_email TEXT",
+        ),
+        (
+            "contact_telegram",
+            "ALTER TABLE accounts ADD COLUMN contact_telegram TEXT",
+        ),
+        (
+            "contact_twitter",
+            "ALTER TABLE accounts ADD COLUMN contact_twitter TEXT",
+        ),
+        (
+            "contact_discord",
+            "ALTER TABLE accounts ADD COLUMN contact_discord TEXT",
+        ),
+        (
+            "website_url",
+            "ALTER TABLE accounts ADD COLUMN website_url TEXT",
+        ),
+        ("bio", "ALTER TABLE accounts ADD COLUMN bio TEXT"),
+    ];
+
+    for (column_name, migration_sql) in account_migrations {
+        if let Err(e) = sqlx::query(migration_sql).execute(pool).await {
+            tracing::debug!(
+                "Migration skipped for accounts column '{}' (likely already exists): {}",
+                column_name,
+                e
+            );
+        }
+    }
 
     sqlx::query(
         r#"

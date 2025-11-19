@@ -1578,7 +1578,7 @@ async fn main() -> Result<(), std::io::Error> {
     let (std_listener, bind_addr) = match StdTcpListener::bind(&addr) {
         Ok(listener) => (listener, addr.clone()),
         Err(error) if error.kind() == ErrorKind::PermissionDenied => {
-            let ipv4_addr = format!("0.0.0.0:{}", port);
+            let ipv4_addr = format!("127.0.0.1:{}", port);
 
             tracing::warn!(
                 "IPv6 bind to {} denied ({}), falling back to {}",

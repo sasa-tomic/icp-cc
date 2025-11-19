@@ -6,7 +6,7 @@ use crate::models::{
     AccountPublicKeyResponse, AccountResponse, AddPublicKeyRequest, RegisterAccountRequest,
     RemovePublicKeyRequest,
 };
-use crate::repositories::{AccountRepository, SignatureAuditParams};
+use crate::repositories::{AccountRepository, CreateAccountParams, SignatureAuditParams};
 use chrono::Utc;
 use sqlx::SqlitePool;
 
@@ -86,7 +86,18 @@ impl AccountService {
         let now = Utc::now().to_rfc3339();
 
         self.repo
-            .create_account(&account_id, &normalized_username, &now)
+            .create_account(CreateAccountParams {
+                account_id: &account_id,
+                username: &normalized_username,
+                display_name: &req.display_name,
+                contact_email: req.contact_email.as_deref(),
+                contact_telegram: req.contact_telegram.as_deref(),
+                contact_twitter: req.contact_twitter.as_deref(),
+                contact_discord: req.contact_discord.as_deref(),
+                website_url: req.website_url.as_deref(),
+                bio: req.bio.as_deref(),
+                now: &now,
+            })
             .await
             .map_err(|e| format!("Failed to create account: {}", e))?;
 
@@ -116,6 +127,13 @@ impl AccountService {
         Ok(AccountResponse {
             id: account_id,
             username: normalized_username,
+            display_name: req.display_name,
+            contact_email: req.contact_email,
+            contact_telegram: req.contact_telegram,
+            contact_twitter: req.contact_twitter,
+            contact_discord: req.contact_discord,
+            website_url: req.website_url,
+            bio: req.bio,
             created_at: now.clone(),
             updated_at: Some(now.clone()),
             public_keys: vec![AccountPublicKeyResponse {
@@ -171,6 +189,13 @@ impl AccountService {
         Ok(Some(AccountResponse {
             id: account.id,
             username: account.username,
+            display_name: account.display_name,
+            contact_email: account.contact_email,
+            contact_telegram: account.contact_telegram,
+            contact_twitter: account.contact_twitter,
+            contact_discord: account.contact_discord,
+            website_url: account.website_url,
+            bio: account.bio,
             created_at: account.created_at,
             updated_at: Some(account.updated_at),
             public_keys,
@@ -228,6 +253,13 @@ impl AccountService {
         Ok(Some(AccountResponse {
             id: account.id,
             username: account.username,
+            display_name: account.display_name,
+            contact_email: account.contact_email,
+            contact_telegram: account.contact_telegram,
+            contact_twitter: account.contact_twitter,
+            contact_discord: account.contact_discord,
+            website_url: account.website_url,
+            bio: account.bio,
             created_at: account.created_at,
             updated_at: Some(account.updated_at),
             public_keys,
@@ -682,6 +714,29 @@ mod tests {
         hex::encode(signature.to_bytes())
     }
 
+    fn build_register_account_request(
+        username: &str,
+        public_key: String,
+        timestamp: i64,
+        nonce: String,
+        signature: String,
+    ) -> RegisterAccountRequest {
+        RegisterAccountRequest {
+            username: username.to_string(),
+            display_name: format!("{username}-display"),
+            contact_email: None,
+            contact_telegram: None,
+            contact_twitter: None,
+            contact_discord: None,
+            website_url: None,
+            bio: None,
+            public_key,
+            timestamp,
+            nonce,
+            signature,
+        }
+    }
+
     #[tokio::test]
     async fn test_register_account_success() {
         let pool = setup_test_db().await;
@@ -702,19 +757,20 @@ mod tests {
         let canonical = create_canonical_payload(&payload);
         let signature = sign_payload(&signing_key, &canonical);
 
-        let req = RegisterAccountRequest {
-            username: "alice".to_string(),
-            public_key: public_key.clone(),
+        let req = build_register_account_request(
+            "alice",
+            public_key.clone(),
             timestamp,
             nonce,
             signature,
-        };
+        );
 
         let result = service.register_account(req).await;
         assert!(result.is_ok());
 
         let account = result.unwrap();
         assert_eq!(account.username, "alice");
+        assert_eq!(account.display_name, "alice-display");
         assert_eq!(account.public_keys.len(), 1);
         assert_eq!(account.public_keys[0].public_key, public_key);
         assert!(account.public_keys[0].is_active);
@@ -739,13 +795,13 @@ mod tests {
         let canonical1 = create_canonical_payload(&payload1);
         let signature1 = sign_payload(&signing_key, &canonical1);
 
-        let req1 = RegisterAccountRequest {
-            username: "alice".to_string(),
-            public_key: public_key.clone(),
+        let req1 = build_register_account_request(
+            "alice",
+            public_key.clone(),
             timestamp,
-            nonce: nonce1,
-            signature: signature1,
-        };
+            nonce1,
+            signature1,
+        );
 
         // First registration should succeed
         assert!(service.register_account(req1).await.is_ok());
@@ -764,13 +820,8 @@ mod tests {
         let canonical2 = create_canonical_payload(&payload2);
         let signature2 = sign_payload(&signing_key2, &canonical2);
 
-        let req2 = RegisterAccountRequest {
-            username: "alice".to_string(),
-            public_key: public_key2,
-            timestamp,
-            nonce: nonce2,
-            signature: signature2,
-        };
+        let req2 =
+            build_register_account_request("alice", public_key2, timestamp, nonce2, signature2);
 
         let result = service.register_account(req2).await;
         assert!(result.is_err());
@@ -796,13 +847,7 @@ mod tests {
         let canonical = create_canonical_payload(&payload);
         let signature = sign_payload(&signing_key, &canonical);
 
-        let req = RegisterAccountRequest {
-            username: "ab".to_string(),
-            public_key,
-            timestamp,
-            nonce,
-            signature,
-        };
+        let req = build_register_account_request("ab", public_key, timestamp, nonce, signature);
 
         let result = service.register_account(req).await;
         assert!(result.is_err());
@@ -829,13 +874,13 @@ mod tests {
         let canonical = create_canonical_payload(&payload);
         let signature = sign_payload(&signing_key, &canonical);
 
-        let req = RegisterAccountRequest {
-            username: "alice".to_string(),
-            public_key: public_key.clone(),
+        let req = build_register_account_request(
+            "alice",
+            public_key.clone(),
             timestamp,
             nonce,
             signature,
-        };
+        );
 
         service.register_account(req).await.unwrap();
 
@@ -882,13 +927,13 @@ mod tests {
         let canonical1 = create_canonical_payload(&payload1);
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
-        let reg_req = RegisterAccountRequest {
-            username: "alice".to_string(),
-            public_key: public_key1.clone(),
+        let reg_req = build_register_account_request(
+            "alice",
+            public_key1.clone(),
             timestamp,
-            nonce: nonce1,
-            signature: signature1,
-        };
+            nonce1,
+            signature1,
+        );
 
         service.register_account(reg_req).await.unwrap();
 
@@ -949,13 +994,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "bob".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "bob",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1043,13 +1088,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "charlie".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "charlie",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1107,13 +1152,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "dave".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "dave",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1234,13 +1279,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "eve".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "eve",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1347,13 +1392,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "frank".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "frank",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1414,13 +1459,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "george".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "george",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1517,13 +1562,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "harry".to_string(),
-                public_key: public_key1,
+            .register_account(build_register_account_request(
+                "harry",
+                public_key1,
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1557,13 +1602,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "iris".to_string(),
-                public_key: public_key1,
+            .register_account(build_register_account_request(
+                "iris",
+                public_key1,
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1624,13 +1669,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "jack".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "jack",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 
@@ -1664,13 +1709,13 @@ mod tests {
         let signature1 = sign_payload(&signing_key1, &canonical1);
 
         service
-            .register_account(RegisterAccountRequest {
-                username: "kate".to_string(),
-                public_key: public_key1.clone(),
+            .register_account(build_register_account_request(
+                "kate",
+                public_key1.clone(),
                 timestamp,
-                nonce: nonce1,
-                signature: signature1,
-            })
+                nonce1,
+                signature1,
+            ))
             .await
             .unwrap();
 

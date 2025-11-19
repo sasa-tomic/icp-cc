@@ -508,11 +508,9 @@ void main() {
         final draft = IdentityProfileDraft(
           principal: 'aaaaa-aa',
           displayName: 'ICP Builder',
-          username: 'builder',
         );
         final IdentityProfile result = await service.upsertIdentityProfile(draft);
         expect(result.displayName, equals('ICP Builder'));
-        expect(result.username, equals('builder'));
       });
     });
   });

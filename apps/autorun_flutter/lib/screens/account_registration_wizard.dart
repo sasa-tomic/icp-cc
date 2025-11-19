@@ -33,6 +33,13 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
     with TickerProviderStateMixin {
   int _currentStep = 0;
   final _usernameController = TextEditingController();
+  final _displayNameController = TextEditingController();
+  final _contactEmailController = TextEditingController();
+  final _contactTelegramController = TextEditingController();
+  final _contactTwitterController = TextEditingController();
+  final _contactDiscordController = TextEditingController();
+  final _websiteUrlController = TextEditingController();
+  final _bioController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   // Validation state
@@ -48,6 +55,13 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
   @override
   void dispose() {
     _usernameController.dispose();
+    _displayNameController.dispose();
+    _contactEmailController.dispose();
+    _contactTelegramController.dispose();
+    _contactTwitterController.dispose();
+    _contactDiscordController.dispose();
+    _websiteUrlController.dispose();
+    _bioController.dispose();
     _debounceTimer?.cancel();
     super.dispose();
   }
@@ -159,6 +173,114 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
 
             // Format rules
             _buildFormatRules(),
+            const SizedBox(height: 32),
+
+            // Display Name input
+            TextFormField(
+              controller: _displayNameController,
+              decoration: InputDecoration(
+                labelText: 'Display Name *',
+                hintText: 'Alice Developer',
+                prefixIcon: const Icon(Icons.person),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Display name is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Contact Email (optional)
+            TextFormField(
+              controller: _contactEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email (optional)',
+                hintText: 'alice@example.com',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Contact Telegram (optional)
+            TextFormField(
+              controller: _contactTelegramController,
+              decoration: InputDecoration(
+                labelText: 'Telegram (optional)',
+                hintText: '@alice',
+                prefixIcon: const Icon(Icons.send_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Contact Twitter (optional)
+            TextFormField(
+              controller: _contactTwitterController,
+              decoration: InputDecoration(
+                labelText: 'Twitter/X (optional)',
+                hintText: '@alice_dev',
+                prefixIcon: const Icon(Icons.tag),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Contact Discord (optional)
+            TextFormField(
+              controller: _contactDiscordController,
+              decoration: InputDecoration(
+                labelText: 'Discord (optional)',
+                hintText: 'alice#1234',
+                prefixIcon: const Icon(Icons.forum_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Website URL (optional)
+            TextFormField(
+              controller: _websiteUrlController,
+              keyboardType: TextInputType.url,
+              decoration: InputDecoration(
+                labelText: 'Website (optional)',
+                hintText: 'https://alice.dev',
+                prefixIcon: const Icon(Icons.language),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Bio (optional)
+            TextFormField(
+              controller: _bioController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Bio (optional)',
+                hintText: 'Tell us about yourself...',
+                prefixIcon: const Icon(Icons.notes),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignLabelWithHint: true,
+              ),
+            ),
             const SizedBox(height: 32),
 
             // Continue button
@@ -649,7 +771,8 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
   bool get _canContinue {
     return !_isValidating &&
         _validation?.isValid == true &&
-        _usernameController.text.isNotEmpty;
+        _usernameController.text.isNotEmpty &&
+        _displayNameController.text.isNotEmpty;
   }
 
   void _goToReview() {
@@ -675,6 +798,13 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
       final account = await widget.accountController.registerAccount(
         identity: widget.identity,
         username: _usernameController.text,
+        displayName: _displayNameController.text,
+        contactEmail: _contactEmailController.text.isEmpty ? null : _contactEmailController.text,
+        contactTelegram: _contactTelegramController.text.isEmpty ? null : _contactTelegramController.text,
+        contactTwitter: _contactTwitterController.text.isEmpty ? null : _contactTwitterController.text,
+        contactDiscord: _contactDiscordController.text.isEmpty ? null : _contactDiscordController.text,
+        websiteUrl: _websiteUrlController.text.isEmpty ? null : _websiteUrlController.text,
+        bio: _bioController.text.isEmpty ? null : _bioController.text,
       );
 
       await Future.delayed(const Duration(milliseconds: 500));

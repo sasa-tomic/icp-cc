@@ -14,6 +14,19 @@ pub struct SignatureAuditParams<'a> {
     pub now: &'a str,
 }
 
+pub struct CreateAccountParams<'a> {
+    pub account_id: &'a str,
+    pub username: &'a str,
+    pub display_name: &'a str,
+    pub contact_email: Option<&'a str>,
+    pub contact_telegram: Option<&'a str>,
+    pub contact_twitter: Option<&'a str>,
+    pub contact_discord: Option<&'a str>,
+    pub website_url: Option<&'a str>,
+    pub bio: Option<&'a str>,
+    pub now: &'a str,
+}
+
 pub struct AccountRepository {
     pool: SqlitePool,
 }
@@ -24,22 +37,24 @@ impl AccountRepository {
     }
 
     /// Creates a new account with an initial public key
-    pub async fn create_account(
-        &self,
-        account_id: &str,
-        username: &str,
-        now: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn create_account(&self, params: CreateAccountParams<'_>) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
-            INSERT INTO accounts (id, username, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO accounts (id, username, display_name, contact_email, contact_telegram, contact_twitter, contact_discord, website_url, bio, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
-        .bind(account_id)
-        .bind(username)
-        .bind(now)
-        .bind(now)
+        .bind(params.account_id)
+        .bind(params.username)
+        .bind(params.display_name)
+        .bind(params.contact_email)
+        .bind(params.contact_telegram)
+        .bind(params.contact_twitter)
+        .bind(params.contact_discord)
+        .bind(params.website_url)
+        .bind(params.bio)
+        .bind(params.now)
+        .bind(params.now)
         .execute(&self.pool)
         .await?;
 
@@ -103,7 +118,7 @@ impl AccountRepository {
     pub async fn find_by_username(&self, username: &str) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, created_at, updated_at
+            SELECT id, username, display_name, contact_email, contact_telegram, contact_twitter, contact_discord, website_url, bio, created_at, updated_at
             FROM accounts
             WHERE username = ?
             "#,
@@ -119,7 +134,7 @@ impl AccountRepository {
     pub async fn find_by_id(&self, account_id: &str) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, created_at, updated_at
+            SELECT id, username, display_name, contact_email, contact_telegram, contact_twitter, contact_discord, website_url, bio, created_at, updated_at
             FROM accounts
             WHERE id = ?
             "#,

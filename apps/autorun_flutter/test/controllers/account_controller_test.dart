@@ -40,6 +40,7 @@ void main() {
               'data': {
                 'id': 'account-123',
                 'username': username,
+                'display_name': 'Test User',
                 'publicKeys': [
                   {
                     'id': 'key-1',
@@ -66,6 +67,7 @@ void main() {
       await controller.registerAccount(
         identity: identity,
         username: username,
+        displayName: 'Test User',
       );
 
       // Assert: Verify mapping was stored
@@ -90,6 +92,7 @@ void main() {
               'data': {
                 'id': 'account-456',
                 'username': username,
+                'display_name': 'Existing User',
                 'publicKeys': [
                   {
                     'id': 'key-1',
@@ -150,6 +153,7 @@ void main() {
               'data': {
                 'id': 'account-999',
                 'username': username,
+                'display_name': 'Discovered User',
                 'publicKeys': [
                   {
                     'id': 'key-1',
@@ -200,6 +204,7 @@ void main() {
             'data': {
               'id': 'account-789',
               'username': username,
+              'display_name': 'User To Remove',
               'publicKeys': [],
               'created_at': DateTime.now().toIso8601String(),
               'updated_at': DateTime.now().toIso8601String(),
@@ -273,6 +278,7 @@ void main() {
               'data': {
                 'id': 'account-123',
                 'username': username,
+                'display_name': 'Test User',
                 'publicKeys': [
                   {
                     'id': 'key-1',
@@ -460,6 +466,7 @@ void main() {
               'data': {
                 'id': 'account-123',
                 'username': username,
+                'display_name': 'Test User',
                 'publicKeys': [
                   {
                     'id': 'key-1',
