@@ -1,17 +1,31 @@
-# Development overrides - exposes port locally, different DB, debug logging
+# Self-contained development configuration
+# IMPORTANT: This file is completely independent - do not merge with other compose files
 services:
   api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: icp-marketplace-api:latest
     container_name: icp-marketplace-api-dev
     restart: "no"
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - RUST_LOG=debug
       - DATABASE_URL=sqlite:///data/dev.db?mode=rwc
       - ENVIRONMENT=development
       - PORT=58000
+    volumes:
+      - ./data:/data
     ports:
       - "58000:58000"
     networks:
       - api-network-dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:58000/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
 
 networks:
   api-network-dev:

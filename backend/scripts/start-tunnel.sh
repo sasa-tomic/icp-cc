@@ -70,7 +70,7 @@ echo
 echo -e "${YELLOW}Building and starting services...${NC}"
 echo
 
-if docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build; then
+if docker compose -f docker-compose.prod.yml up -d --build; then
     echo
     echo -e "${GREEN}=========================================="
     echo "Containers Started!"
@@ -84,12 +84,12 @@ if docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
     sleep 5
 
     # Check if tunnel connected successfully
-    if docker compose -f docker-compose.yml -f docker-compose.prod.yml logs cloudflared 2>&1 | grep -q "Registered tunnel connection connIndex="; then
+    if docker compose -f docker-compose.prod.yml logs cloudflared 2>&1 | grep -q "Registered tunnel connection connIndex="; then
         echo -e "${GREEN}✓${NC} Tunnel connected successfully!"
         echo
         echo "Your API is now accessible at:"
         echo -e "  ${BLUE}https://icp-mp.kalaj.org/api/v1/health${NC}"
-    elif docker compose -f docker-compose.yml -f docker-compose.prod.yml logs cloudflared 2>&1 | grep -q "Unauthorized"; then
+    elif docker compose -f docker-compose.prod.yml logs cloudflared 2>&1 | grep -q "Unauthorized"; then
         echo -e "${RED}✗${NC} Tunnel authentication failed!"
         echo
         echo "This means:"

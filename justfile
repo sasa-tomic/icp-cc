@@ -21,10 +21,9 @@ tmp_dir := root + "/.just-tmp"
 api_port_file := tmp_dir + "/icp-api.port"
 api_pid_file := tmp_dir + "/icp-api.pid"
 
-# Docker compose files
-compose_base := "docker compose -f docker-compose.yml"
-compose_prod := compose_base + " -f docker-compose.prod.yml"
-compose_dev := compose_base + " -f docker-compose.dev.yml"
+# Docker compose files - completely separated environments
+compose_prod := "docker compose -f docker-compose.prod.yml"
+compose_dev := "docker compose -f docker-compose.dev.yml"
 
 # =============================================================================
 # Default Target

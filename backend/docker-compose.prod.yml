@@ -1,17 +1,31 @@
-# Production overrides - adds Cloudflare Tunnel
+# Self-contained production configuration with Cloudflare Tunnel
+# IMPORTANT: This file is completely independent - do not merge with other compose files
 services:
   api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: icp-marketplace-api:latest
     container_name: icp-marketplace-api-prod
     restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/marketplace.db?mode=rwc}
       - ENVIRONMENT=production
       - PORT=58000
+    volumes:
+      - ./data:/data
     ports:
       - "58100:58000"
     networks:
       - api-network-prod
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:58000/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
 
   cloudflared:
     image: cloudflare/cloudflared:latest

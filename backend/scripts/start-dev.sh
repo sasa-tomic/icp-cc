@@ -43,7 +43,7 @@ echo
 echo -e "${YELLOW}Building and starting development services...${NC}"
 echo
 
-if docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build; then
+if docker compose -f docker-compose.dev.yml up -d --build; then
     echo
     echo -e "${GREEN}=========================================="
     echo "Development Container Started!"
