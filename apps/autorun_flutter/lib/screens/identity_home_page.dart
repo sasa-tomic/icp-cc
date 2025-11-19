@@ -283,19 +283,19 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     );
   }
 
-  Future<void> _showKeypairManagementDialog(IdentityRecord record) async {
+  Future<void> _showKeypairInformationDialog(IdentityRecord record) async {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Manage keypairs'),
+          title: const Text('Keypair Information'),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  'Active keypair for ${_displayNameForIdentity(record)}',
+                  'Keypair details for ${_displayNameForIdentity(record)}',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 16),
@@ -328,6 +328,139 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
           ),
           actions: <Widget>[
             TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Done')),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showManageKeypairsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Manage Keypairs'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'All keypairs (identities)',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 16),
+                // List of identities
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _controller.identities.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final identity = _controller.identities[index];
+                      final isActive = identity.id == _controller.activeIdentityId;
+                      final principal = PrincipalUtils.textFromRecord(identity);
+                      final principalPrefix = principal.length >= 12 ? principal.substring(0, 12) : principal;
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        leading: CircleAvatar(
+                          backgroundColor: isActive
+                            ? AppDesignSystem.primaryLight
+                            : AppDesignSystem.neutral300,
+                          child: Text(
+                            _avatarInitialsForIdentity(identity),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          _displayNameForIdentity(identity),
+                          style: TextStyle(
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '$principalPrefix...',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isActive)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppDesignSystem.primaryLight,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'ACTIVE',
+                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            else
+                              TextButton(
+                                onPressed: () async {
+                                  final navigator = Navigator.of(context);
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  final label = identity.label;
+                                  await _controller.setActiveIdentity(identity.id);
+                                  if (!mounted) return;
+                                  navigator.pop();
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text('$label is now active'),
+                                      backgroundColor: AppDesignSystem.successLight,
+                                    ),
+                                  );
+                                },
+                                child: const Text('Set Active'),
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.info_outline, size: 20),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _showKeypairInformationDialog(identity);
+                              },
+                              tooltip: 'Show details',
+                            ),
+                            if (_controller.identities.length > 1)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 20, color: AppDesignSystem.errorLight),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  _confirmAndDelete(identity);
+                                },
+                                tooltip: 'Delete',
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _showCreationSheet();
+              },
+              child: const Text('Add New Keypair'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
           ],
         );
       },
@@ -450,6 +583,16 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         ),
       ),
       PopupMenuItem<_IdentityAction>(
+        value: _IdentityAction.showKeypairInfo,
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, size: 20),
+            const SizedBox(width: 12),
+            const Text('Show keypair information'),
+          ],
+        ),
+      ),
+      PopupMenuItem<_IdentityAction>(
         value: _IdentityAction.manageKeypairs,
         child: Row(
           children: [
@@ -488,8 +631,11 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       case _IdentityAction.editProfile:
         await _editIdentityProfile(record);
         break;
+      case _IdentityAction.showKeypairInfo:
+        await _showKeypairInformationDialog(record);
+        break;
       case _IdentityAction.manageKeypairs:
-        await _showKeypairManagementDialog(record);
+        await _showManageKeypairsDialog();
         break;
       case _IdentityAction.delete:
         await _confirmAndDelete(record);
@@ -1432,4 +1578,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction { setActive, editProfile, manageKeypairs, delete }
+enum _IdentityAction { setActive, editProfile, showKeypairInfo, manageKeypairs, delete }

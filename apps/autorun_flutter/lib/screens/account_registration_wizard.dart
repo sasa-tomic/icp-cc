@@ -143,7 +143,38 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            // Warning about username permanence
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppDesignSystem.accentLight.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppDesignSystem.accentLight.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lock_outline,
+                    color: AppDesignSystem.accentDark,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Username cannot be changed later',
+                      style: AppDesignSystem.bodySmall.copyWith(
+                        color: AppDesignSystem.accentDark,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
 
             // Username input
             TextFormField(
