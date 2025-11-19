@@ -120,9 +120,15 @@ flutter-tests:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Running Flutter tests with API server..."
-    # Ensure API server is stopped on exit
-    trap 'just api-down' EXIT
+    api_started=0
+    cleanup() {
+        if [ "$api_started" -eq 1 ]; then
+            just api-down
+        fi
+    }
+    trap cleanup EXIT
     just api-up
+    api_started=1
     echo "==> Running Flutter analysis..."
     cd {{flutter_dir}} && flutter analyze 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
     if grep -qE "(info •|warning •|error •)" {{logs_dir}}/test-output.log; then echo "❌ Flutter analysis found issues!"; exit 1; fi
