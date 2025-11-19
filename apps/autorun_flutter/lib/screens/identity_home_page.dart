@@ -283,22 +283,22 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     );
   }
 
-  Future<void> _showDetailsDialog(IdentityRecord record, {required String title}) async {
+  Future<void> _showKeypairManagementDialog(IdentityRecord record) async {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(title),
+          title: const Text('Manage keypairs'),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                _DialogSection(
-                  label: 'Label',
-                  value: record.label,
-                  onCopy: () => _copyToClipboard('Label', record.label),
+                Text(
+                  'Active keypair for ${_displayNameForIdentity(record)}',
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
+                const SizedBox(height: 16),
                 _DialogSection(
                   label: 'Principal',
                   value: PrincipalUtils.textFromRecord(record),
@@ -335,7 +335,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   }
 
   Future<void> _editIdentityProfile(IdentityRecord record) async {
-    // Show loading indicator while fetching profile from server
+    // Show loading indicator while loading profile from local storage
     final IdentityProfile? cachedProfile = _controller.profileForRecord(record);
 
     if (cachedProfile == null && mounted) {
@@ -450,22 +450,12 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         ),
       ),
       PopupMenuItem<_IdentityAction>(
-        value: _IdentityAction.showDetails,
+        value: _IdentityAction.manageKeypairs,
         child: Row(
           children: [
-            const Icon(Icons.info_outline_rounded, size: 20),
+            const Icon(Icons.key_rounded, size: 20),
             const SizedBox(width: 12),
-            const Text('Show details'),
-          ],
-        ),
-      ),
-      PopupMenuItem<_IdentityAction>(
-        value: _IdentityAction.rename,
-        child: Row(
-          children: [
-            const Icon(Icons.edit_rounded, size: 20),
-            const SizedBox(width: 12),
-            const Text('Rename'),
+            const Text('Manage keypairs'),
           ],
         ),
       ),
@@ -495,14 +485,11 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
           ),
         );
         break;
-      case _IdentityAction.showDetails:
-        await _showDetailsDialog(record, title: 'Identity details');
-        break;
       case _IdentityAction.editProfile:
         await _editIdentityProfile(record);
         break;
-      case _IdentityAction.rename:
-        await _showRenameDialog(record);
+      case _IdentityAction.manageKeypairs:
+        await _showKeypairManagementDialog(record);
         break;
       case _IdentityAction.delete:
         await _confirmAndDelete(record);
@@ -510,52 +497,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     }
   }
 
-  Future<void> _showRenameDialog(IdentityRecord record) async {
-    final TextEditingController controller = TextEditingController(text: record.label);
-    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
-    final String? result = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Rename identity'),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'New label',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              validator: (String? value) {
-                return null;
-              },
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.of(context).pop(controller.text.trim());
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-    if (result == null) {
-      return;
-    }
-    await _controller.updateLabel(id: record.id, label: result);
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Identity renamed')));
-  }
 
   Future<void> _confirmAndDelete(IdentityRecord record) async {
     final bool? confirmed = await showDialog<bool>(
@@ -603,7 +544,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Identity Manager'),
+        title: const Text('Available Profiles'),
         actions: <Widget>[
           Container(
             margin: const EdgeInsets.only(right: 16),
@@ -1491,4 +1432,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction { setActive, editProfile, showDetails, rename, delete }
+enum _IdentityAction { setActive, editProfile, manageKeypairs, delete }
