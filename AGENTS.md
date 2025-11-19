@@ -117,4 +117,4 @@ See `apps/autorun_flutter/test/test_helpers/AGENTS.md` for comprehensive documen
 # MCP servers that you should use in the project
 - Use context7 mcp server if you would like to obtain additional information for a library or API
 - Use web-search-prime if you need to perform a web search
-
+- This is a greenfield development, we can still change anything we want. There is no data and no users
