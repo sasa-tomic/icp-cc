@@ -60,6 +60,7 @@ class IdentityController extends ChangeNotifier {
     required KeyAlgorithm algorithm,
     String? label,
     String? mnemonic,
+    bool setAsActive = false,
   }) async {
     _setBusy(true);
     try {
@@ -71,7 +72,9 @@ class IdentityController extends ChangeNotifier {
       );
       _identities.add(record);
       await _secureRepository.persistIdentities(_identities);
-      await _updateActiveIdentity(record.id);
+      if (setAsActive) {
+        await _updateActiveIdentity(record.id);
+      }
       notifyListeners();
       return record;
     } finally {

@@ -4,6 +4,7 @@ import '../models/identity_record.dart';
 import '../controllers/account_controller.dart';
 import '../controllers/identity_controller.dart';
 import '../widgets/identity_scope.dart';
+import '../widgets/key_parameters_dialog.dart';
 import '../theme/app_design_system.dart';
 import '../utils/principal.dart';
 import '../services/account_signature_service.dart';
@@ -236,7 +237,7 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Create a new identity and add it to this account',
+                      'Generate a new keypair and add its public key to this account',
                       style: AppDesignSystem.bodySmall.copyWith(
                         color: Colors.white.withValues(alpha: 0.9),
                       ),
@@ -390,10 +391,15 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
 
   // Method to generate new keypair and add it to account
   Future<void> _generateAndAddNewKeypair(IdentityController identityController) async {
-    // Show dialog to input label
-    final label = await _showLabelInputDialog();
-    if (label == null && mounted) {
-      // User cancelled
+    // Show dialog to collect key parameters
+    final KeyParameters? params = await showDialog<KeyParameters>(
+      context: context,
+      builder: (context) => const KeyParametersDialog(
+        title: 'Add New Keypair',
+      ),
+    );
+
+    if (params == null || !mounted) {
       return;
     }
 
@@ -403,10 +409,12 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
     });
 
     try {
-      // Generate new identity
+      // Generate new identity with provided parameters (don't set as active)
       final newIdentity = await identityController.createIdentity(
-        algorithm: KeyAlgorithm.ed25519,
-        label: label?.trim().isEmpty ?? true ? null : label!.trim(),
+        algorithm: params.algorithm,
+        label: params.label,
+        mnemonic: params.seed,
+        setAsActive: false,
       );
 
       // Add the new identity to the account
@@ -456,60 +464,5 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
         });
       }
     }
-  }
-
-  // Show dialog to input label for new identity
-  Future<String?> _showLabelInputDialog() async {
-    final controller = TextEditingController();
-
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New Keypair Label'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Enter a label for the new keypair (optional)',
-              style: AppDesignSystem.bodySmall.copyWith(
-                color: AppDesignSystem.neutral600,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'e.g., Laptop Key, Mobile Key',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              textCapitalization: TextCapitalization.words,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context, controller.text);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppDesignSystem.primaryLight,
-            ),
-            child: const Text('Generate'),
-          ),
-        ],
-      ),
-    );
   }
 }

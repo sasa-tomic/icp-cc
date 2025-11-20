@@ -8,10 +8,10 @@ import '../models/account.dart';
 import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
 import '../theme/app_design_system.dart';
-import '../utils/identity_generator.dart';
 import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
+import '../widgets/key_parameters_dialog.dart';
 import 'account_registration_wizard.dart';
 import 'account_profile_screen.dart';
 
@@ -260,25 +260,28 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   }
 
   Future<void> _showCreationSheet() async {
-    // Generate identity with temporary label
-    final IdentityRecord identity = await IdentityGenerator.generate(
-      algorithm: KeyAlgorithm.ed25519,
-      label: 'Identity ${_controller.identities.length + 1}',
-      identityCount: _controller.identities.length,
+    // Show dialog to collect key parameters
+    final KeyParameters? params = await showDialog<KeyParameters>(
+      context: context,
+      builder: (context) => const KeyParametersDialog(
+        title: 'Create New Identity',
+      ),
     );
 
-    // Create identity
-    final IdentityRecord record = await _controller.createIdentity(
-      algorithm: KeyAlgorithm.ed25519,
-      label: identity.label,
-      mnemonic: identity.mnemonic,
-    );
-
-    if (!mounted) {
+    if (params == null || !mounted) {
       return;
     }
 
-    await _controller.setActiveIdentity(record.id);
+    // Determine label (use provided or generate default)
+    final label = params.label ?? 'Identity ${_controller.identities.length + 1}';
+
+    // Create identity with provided parameters and set as active
+    final IdentityRecord record = await _controller.createIdentity(
+      algorithm: params.algorithm,
+      label: label,
+      mnemonic: params.seed,
+      setAsActive: true,
+    );
 
     if (!mounted) {
       return;
@@ -344,7 +347,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Manage Keypairs'),
+          title: const Text('Manage Local Identities'),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
@@ -352,7 +355,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'All keypairs (identities)',
+                  'Local cryptographic identities stored on this device',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 16),
@@ -460,7 +463,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                 Navigator.of(context).pop();
                 _showCreationSheet();
               },
-              child: const Text('Add New Keypair'),
+              child: const Text('Create New Identity'),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -528,6 +531,17 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
             ],
           ),
         ),
+      if (account != null && !account.isAtMaxKeys)
+        PopupMenuItem<_IdentityAction>(
+          value: _IdentityAction.addKeyToAccount,
+          child: Row(
+            children: [
+              Icon(Icons.key_rounded, size: 20, color: AppDesignSystem.accentDark),
+              const SizedBox(width: 12),
+              const Text('Add key to account'),
+            ],
+          ),
+        ),
       PopupMenuItem<_IdentityAction>(
         value: _IdentityAction.showKeypairInfo,
         child: Row(
@@ -544,7 +558,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
           children: [
             const Icon(Icons.key_rounded, size: 20),
             const SizedBox(width: 12),
-            const Text('Manage keypairs'),
+            const Text('Manage local identities'),
           ],
         ),
       ),
@@ -575,6 +589,12 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         );
         break;
       case _IdentityAction.openAccountProfile:
+        final Account? account = _accountController.accountForIdentity(record);
+        if (account != null) {
+          await _navigateToAccountProfile(account, record);
+        }
+        break;
+      case _IdentityAction.addKeyToAccount:
         final Account? account = _accountController.accountForIdentity(record);
         if (account != null) {
           await _navigateToAccountProfile(account, record);
@@ -1364,4 +1384,4 @@ class _DialogSection extends StatelessWidget {
   }
 }
 
-enum _IdentityAction { setActive, openAccountProfile, showKeypairInfo, manageKeypairs, delete }
+enum _IdentityAction { setActive, openAccountProfile, addKeyToAccount, showKeypairInfo, manageKeypairs, delete }
