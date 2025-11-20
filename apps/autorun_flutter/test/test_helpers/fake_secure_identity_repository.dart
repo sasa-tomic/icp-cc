@@ -1,13 +1,17 @@
 import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile.dart';
+import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/services/secure_identity_repository.dart';
 
 /// Fake implementation of SecureIdentityRepository for testing
 /// Stores identities in memory and provides full control for test scenarios
 class FakeSecureIdentityRepository implements SecureIdentityRepository {
   FakeSecureIdentityRepository(List<IdentityRecord> initialIdentities)
-      : _identities = List.of(initialIdentities);
+      : _identities = List.of(initialIdentities),
+        _fakeProfileRepository = FakeProfileRepository([]);
 
   List<IdentityRecord> _identities;
+  final FakeProfileRepository _fakeProfileRepository;
 
   /// Public getter for testing purposes to verify persistence
   List<IdentityRecord> get identities => List<IdentityRecord>.from(_identities);
@@ -39,5 +43,63 @@ class FakeSecureIdentityRepository implements SecureIdentityRepository {
       orElse: () => throw StateError('Identity not found: $identityId'),
     );
     return identity.privateKey;
+  }
+
+  @override
+  ProfileRepository get profileRepository => _fakeProfileRepository;
+}
+
+/// Fake ProfileRepository for testing
+class FakeProfileRepository implements ProfileRepository {
+  FakeProfileRepository(List<Profile> initialProfiles)
+      : _profiles = List.of(initialProfiles);
+
+  List<Profile> _profiles;
+
+  @override
+  Future<List<Profile>> loadProfiles() async {
+    return List<Profile>.from(_profiles);
+  }
+
+  @override
+  Future<void> persistProfiles(List<Profile> profiles) async {
+    _profiles = List<Profile>.from(profiles);
+  }
+
+  @override
+  Future<void> deleteKeypairSecureData(String keypairId) async {
+    // No-op in fake implementation
+  }
+
+  @override
+  Future<void> deleteProfileSecureData(Profile profile) async {
+    // No-op in fake implementation
+  }
+
+  @override
+  Future<void> deleteAllSecureData() async {
+    _profiles = <Profile>[];
+  }
+
+  @override
+  Future<String?> getPrivateKey(String keypairId) async {
+    for (final profile in _profiles) {
+      final keypair = profile.getKeypair(keypairId);
+      if (keypair != null) {
+        return keypair.privateKey;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<String?> getMnemonic(String keypairId) async {
+    for (final profile in _profiles) {
+      final keypair = profile.getKeypair(keypairId);
+      if (keypair != null) {
+        return keypair.mnemonic;
+      }
+    }
+    return null;
   }
 }

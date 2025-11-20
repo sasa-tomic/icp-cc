@@ -1,223 +1,168 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
-import '../utils/identity_generator.dart';
+import 'profile_controller.dart';
 
-/// FIXME - NEEDS COMPLETE REFACTORING:
-/// This controller manages "identities" which are actually just individual keypairs.
-/// It should be renamed/refactored to ProfileController with these changes:
+/// DEPRECATED: Use ProfileController instead
 ///
-/// Current state (WRONG):
-/// - IdentityController manages list of IdentityRecords (individual keypairs)
-/// - Each IdentityRecord is treated as independent entity
-/// - Implies: Identity = Keypair (1:1)
+/// This class wraps ProfileController to maintain backward compatibility.
+/// Old code works with individual IdentityRecords (keypairs), while new code
+/// works with Profiles (containers with 1-10 keypairs).
 ///
-/// Target state (CORRECT - Profile-Centric):
-/// - ProfileController manages list of Profiles
-/// - Each Profile contains:
-///   - Profile metadata (name, settings)
-///   - List of ProfileKeypairs (1-10 keypairs)
-///   - Account reference (@username)
-/// - Structure: Profile → [Keypair, Keypair, ...] + Account
+/// Migration strategy:
+/// - identities: Flatten all profiles' keypairs into a list
+/// - createIdentity: Create profile with one keypair, return keypair
+/// - activeIdentity: Return primary keypair of active profile
+/// - findById: Search across all profiles' keypairs
 ///
-/// Required changes:
-/// 1. Rename to ProfileController
-/// 2. Create Profile model
-/// 3. Update storage to support Profile → Keypairs structure
-/// 4. Active selection should be activeProfile, not activeIdentity
-/// 5. createIdentity() becomes createProfile() which:
-///    - Generates initial keypair
-///    - Creates Profile container
-///    - Optionally registers backend account
-///
-/// TEMPORARY: Until refactored, each IdentityRecord acts as a profile with one keypair.
+/// This allows existing code to continue working unchanged while
+/// using the profile-centric architecture underneath.
 class IdentityController extends ChangeNotifier {
   IdentityController({
     SecureIdentityRepository? secureRepository,
     SharedPreferences? preferences,
-  })  : _secureRepository = secureRepository ?? SecureIdentityRepository(),
-        _preferencesOverride = preferences;
+  })  : _profileController = ProfileController(
+          profileRepository: secureRepository?.profileRepository,
+          preferences: preferences,
+        );
 
-  static const String _activeIdentityPrefsKey = 'active_identity_id';
+  final ProfileController _profileController;
 
-  final SecureIdentityRepository _secureRepository;
-  final SharedPreferences? _preferencesOverride;
-  SharedPreferences? _preferences;
+  /// Get all keypairs from all profiles (flattened view)
+  ///
+  /// MIGRATION: Each profile's keypairs are exposed as individual IdentityRecords
+  /// This maintains backward compatibility with code expecting a flat list.
+  List<IdentityRecord> get identities {
+    final List<IdentityRecord> result = [];
+    for (final profile in _profileController.profiles) {
+      result.addAll(profile.keypairs);
+    }
+    return List<IdentityRecord>.unmodifiable(result);
+  }
 
-  // FIXME: Should be List<Profile> _profiles
-  final List<IdentityRecord> _identities = <IdentityRecord>[];
+  bool get isBusy => _profileController.isBusy;
 
-  bool _initialized = false;
-  bool _isBusy = false;
-  bool _restoredActiveIdentity = false;
-  String? _activeIdentityId; // FIXME: Should be _activeProfileId
+  /// Get active keypair ID (primary keypair of active profile)
+  String? get activeIdentityId => _profileController.activeKeypair?.id;
 
-  // FIXME: Should return List<Profile>
-  List<IdentityRecord> get identities => List<IdentityRecord>.unmodifiable(_identities);
-  bool get isBusy => _isBusy;
-  String? get activeIdentityId => _activeIdentityId; // FIXME: Should be activeProfileId
-  bool get hasActiveIdentity => _activeIdentityId != null; // FIXME: Should be hasActiveProfile
-  // FIXME: Should be Profile? get activeProfile
-  IdentityRecord? get activeIdentity =>
-      _identities.firstWhereOrNull((IdentityRecord record) => record.id == _activeIdentityId);
+  bool get hasActiveIdentity => _profileController.hasActiveProfile;
+
+  /// Get active keypair (primary keypair of active profile)
+  IdentityRecord? get activeIdentity => _profileController.activeKeypair;
 
   Future<void> ensureLoaded() async {
-    if (_initialized) {
-      return;
-    }
-    await refresh();
-    _initialized = true;
+    await _profileController.ensureLoaded();
   }
 
   Future<void> refresh() async {
-    _setBusy(true);
-    try {
-      final List<IdentityRecord> records = await _secureRepository.loadIdentities();
-      _identities
-        ..clear()
-        ..addAll(records);
-      await _hydrateActiveIdentityFromPreferences();
-      await _reconcileActiveIdentity();
-      notifyListeners();
-    } finally {
-      _setBusy(false);
-    }
+    await _profileController.refresh();
   }
 
-  /// FIXME - ARCHITECTURE VIOLATION:
-  /// This method creates a standalone keypair, not a complete profile.
-  /// Should be renamed to createProfile() with these changes:
-  /// 1. Generate initial keypair
-  /// 2. Create Profile container with metadata
-  /// 3. Prompt for username and register backend account
-  /// 4. Store Profile with 1 keypair + account reference
-  /// 5. Return Profile (not IdentityRecord)
+  /// Create identity (backward compatible)
+  ///
+  /// MIGRATION: Creates a profile with one keypair, returns the keypair
+  /// Old code expects to get an IdentityRecord back.
   Future<IdentityRecord> createIdentity({
     required KeyAlgorithm algorithm,
-    String? label, // FIXME: Should be profileName
+    String? label,
     String? mnemonic,
     bool setAsActive = false,
   }) async {
-    _setBusy(true);
-    try {
-      final IdentityRecord record = await IdentityGenerator.generate(
-        algorithm: algorithm,
-        label: label,
-        mnemonic: mnemonic,
-        identityCount: _identities.length,
-      );
-      _identities.add(record);
-      await _secureRepository.persistIdentities(_identities);
-      if (setAsActive) {
-        await _updateActiveIdentity(record.id);
-      }
-      notifyListeners();
-      return record;
-    } finally {
-      _setBusy(false);
-    }
+    final profile = await _profileController.createProfile(
+      profileName: label ?? 'Profile ${_profileController.profiles.length + 1}',
+      algorithm: algorithm,
+      mnemonic: mnemonic,
+      setAsActive: setAsActive,
+    );
+
+    return profile.primaryKeypair;
   }
 
-
+  /// Find keypair by ID (searches across all profiles)
   IdentityRecord? findById(String id) {
-    return _identities.firstWhereOrNull((IdentityRecord record) => record.id == id);
+    for (final profile in _profileController.profiles) {
+      final keypair = profile.getKeypair(id);
+      if (keypair != null) {
+        return keypair;
+      }
+    }
+    return null;
   }
 
+  /// Set active identity (sets profile containing this keypair as active)
+  ///
+  /// MIGRATION: Finds the profile containing this keypair and activates it
   Future<void> setActiveIdentity(String? id) async {
-    if (id == _activeIdentityId) {
+    if (id == null) {
+      await _profileController.setActiveProfile(null);
       return;
     }
-    if (id != null && findById(id) == null) {
-      throw ArgumentError('Identity $id does not exist in controller state.');
+
+    // Find profile containing this keypair
+    final profile = _profileController.findByKeypairId(id);
+    if (profile == null) {
+      throw ArgumentError('Identity $id does not exist in any profile.');
     }
-    await _updateActiveIdentity(id);
-    notifyListeners();
+
+    await _profileController.setActiveProfile(profile.id);
   }
 
+  /// Update keypair label
   Future<void> updateLabel({required String id, required String label}) async {
-    final IdentityRecord? existing = findById(id);
-    if (existing == null) {
+    // Find profile containing this keypair
+    final profile = _profileController.findByKeypairId(id);
+    if (profile == null) {
       return;
     }
-    final int index = _identities.indexOf(existing);
-    _identities[index] = existing.copyWith(label: label);
-    await _secureRepository.persistIdentities(_identities);
-    notifyListeners();
+
+    await _profileController.updateKeypairLabel(
+      profileId: profile.id,
+      keypairId: id,
+      label: label,
+    );
   }
 
+  /// Delete identity (backward compatible)
+  ///
+  /// MIGRATION: If it's the only keypair in the profile, delete the entire profile.
+  /// Otherwise, just delete the keypair.
   Future<void> deleteIdentity(String id) async {
-    final IdentityRecord? record = findById(id);
-    if (record == null) {
+    // Find profile containing this keypair
+    final profile = _profileController.findByKeypairId(id);
+    if (profile == null) {
       return;
     }
-    await _secureRepository.deleteIdentitySecureData(record.id);
-    _identities.remove(record);
-    if (_activeIdentityId == id) {
-      await _updateActiveIdentity(null);
-    }
-    await _secureRepository.persistIdentities(_identities);
-    notifyListeners();
-  }
 
-
-  Future<SharedPreferences> _prefs() async {
-    final SharedPreferences? override = _preferencesOverride;
-    if (override != null) {
-      return override;
-    }
-    final SharedPreferences? cached = _preferences;
-    if (cached != null) {
-      return cached;
-    }
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    _preferences = prefs;
-    return prefs;
-  }
-
-  Future<void> _hydrateActiveIdentityFromPreferences() async {
-    if (_restoredActiveIdentity) {
-      return;
-    }
-    final SharedPreferences prefs = await _prefs();
-    final String? storedId = prefs.getString(_activeIdentityPrefsKey);
-    if (storedId != null && _identities.any((IdentityRecord record) => record.id == storedId)) {
-      _activeIdentityId = storedId;
-    } else if (storedId != null) {
-      await prefs.remove(_activeIdentityPrefsKey);
-      _activeIdentityId = null;
-    }
-    _restoredActiveIdentity = true;
-  }
-
-  Future<void> _reconcileActiveIdentity() async {
-    if (_activeIdentityId == null) {
-      return;
-    }
-    final bool exists =
-        _identities.any((IdentityRecord record) => record.id == _activeIdentityId);
-    if (!exists) {
-      await _updateActiveIdentity(null);
-    }
-  }
-
-  Future<void> _updateActiveIdentity(String? identityId) async {
-    _activeIdentityId = identityId;
-    final SharedPreferences prefs = await _prefs();
-    if (identityId == null) {
-      await prefs.remove(_activeIdentityPrefsKey);
+    if (profile.keypairs.length == 1) {
+      // Last keypair - delete entire profile
+      await _profileController.deleteProfile(profile.id);
     } else {
-      await prefs.setString(_activeIdentityPrefsKey, identityId);
+      // Multiple keypairs - just delete this one
+      await _profileController.deleteKeypair(
+        profileId: profile.id,
+        keypairId: id,
+      );
     }
   }
 
-  void _setBusy(bool value) {
-    if (_isBusy == value) {
-      return;
-    }
-    _isBusy = value;
-    notifyListeners();
+  /// Forward notifications from ProfileController
+  @override
+  void addListener(VoidCallback listener) {
+    super.addListener(listener);
+    _profileController.addListener(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    _profileController.removeListener(listener);
+  }
+
+  @override
+  void dispose() {
+    _profileController.dispose();
+    super.dispose();
   }
 }

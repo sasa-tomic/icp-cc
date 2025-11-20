@@ -24,6 +24,9 @@ class SecureIdentityRepository {
 
   static const _uuid = Uuid();
 
+  /// Get the underlying ProfileRepository for direct access
+  ProfileRepository get profileRepository => _profileRepository;
+
   /// Load identities (converted from profiles)
   ///
   /// MIGRATION: Each Profile is converted to a list of IdentityRecords (one per keypair)
