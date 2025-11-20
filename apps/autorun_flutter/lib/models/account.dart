@@ -1,9 +1,23 @@
 /// Account models for cryptographically-signed account management
 ///
-/// These models represent accounts on the backend. Each account has:
-/// - A unique username
-/// - One or more public keys (each with derived IC principal)
-/// - Cryptographic signatures for all state-changing operations
+/// ARCHITECTURE NOTE - Profile-Centric Model:
+/// These models represent the BACKEND account portion of a Profile.
+///
+/// Profile Structure (Tree, not Graph):
+///   Profile (local + backend)
+///   ├── Profile metadata (local name, settings)
+///   ├── Backend Account (@username, display name, contacts) ← THIS FILE
+///   └── Keypairs (1-10 keypairs owned by THIS profile only)
+///
+/// Key Principles:
+/// - Each Profile has exactly ONE Account
+/// - Each Account has 1-10 public keys (keypairs)
+/// - Keys belong to ONE profile only (NO cross-profile sharing)
+/// - Backend enforces unique public keys across ALL accounts
+///
+/// FIXME: This model currently allows keys to be "shared" across accounts in the
+/// data structure, but this violates the profile-centric design. The backend
+/// enforces uniqueness, but the Flutter models don't reflect the ownership relationship.
 ///
 /// See ACCOUNT_PROFILES_DESIGN.md for full specification.
 library;
@@ -244,6 +258,18 @@ class RegisterAccountRequest {
 }
 
 /// Request payload for adding a public key to an account
+///
+/// FIXME - ARCHITECTURE VIOLATION:
+/// Current implementation allows passing ANY public key (newPublicKey) to be added
+/// to ANY account. This violates the profile-centric model where:
+/// - Keys should be GENERATED for the current profile, not imported
+/// - Keys belong to ONE profile only
+/// - No cross-profile key sharing
+///
+/// Correct behavior:
+/// - Service should GENERATE a new keypair for the current profile
+/// - Only the generated public key should be sent to backend
+/// - newPublicKey should come from a newly generated keypair, not from user input
 class AddPublicKeyRequest {
   AddPublicKeyRequest({
     required this.username,
@@ -255,8 +281,8 @@ class AddPublicKeyRequest {
   });
 
   final String username;
-  final String newPublicKey; // hex encoded
-  final String signingPublicKey; // hex encoded (must be active key)
+  final String newPublicKey; // hex encoded - FIXME: should be from newly generated keypair only
+  final String signingPublicKey; // hex encoded (must be active key from same profile)
   final int timestamp; // Unix timestamp (seconds)
   final String nonce; // UUID v4
   final String signature; // hex or base64 encoded

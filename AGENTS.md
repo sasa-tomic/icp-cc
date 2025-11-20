@@ -9,6 +9,39 @@
   - ANY infrastructure failure must cause immediate test failure
   - Issues must be detected EARLY, not hidden behind "graceful degradation"
 
+## Architecture: Profile-Centric Model
+
+**CRITICAL DESIGN PRINCIPLE:** This app uses a **browser profile** mental model (like Chrome/Firefox profiles):
+
+```
+Profile (Local + Backend)
+├── Profile Metadata (local name, settings)
+├── Backend Account (@username, display name, bio, contacts)
+└── Keypairs (1-10 cryptographic keypairs owned by THIS profile only)
+    ├── Keypair 1 (primary - laptop)
+    ├── Keypair 2 (phone)
+    └── Keypair 3 (hardware wallet)
+```
+
+**Key Principles:**
+1. **Tree Structure, Not Graph**: Profile → Keypairs (each key belongs to exactly ONE profile)
+2. **No Key Sharing**: A keypair CANNOT be shared across multiple profiles
+3. **1:1 Profile-Account Mapping**: Each profile has exactly one backend account
+4. **Profile Isolation**: Profiles are completely isolated from each other
+5. **Backend Enforcement**: Database constraint ensures each public key is unique across ALL accounts
+
+**Current Implementation Status:** ⚠️ MISMATCH
+- Current code treats "identities" as standalone keypairs (1:1)
+- Allows cross-profile key references (WRONG)
+- Missing Profile model as first-class container
+- See FIXME comments throughout codebase for specific violations
+
+**Target Implementation:**
+- Profile model containing: metadata + keypairs[] + accountRef
+- ProfileController (rename from IdentityController)
+- ProfileKeypair model (rename from IdentityRecord)
+- No cross-profile operations
+
 - Every part of execution, every function, must be covered by at least one unit test.
 - WRITE NEW UNIT TESTS that cover both the positive and negative path of the new functionality.
 - Tests that you write MUST ASSERT MEANINGFUL BEHAVIOR and MAY NOT overlap coverage with other tests (check for overlaps!).
@@ -29,16 +62,47 @@ CRITICAL: After you are done verify that changes are highly aligned with the pro
 
 ### Quick Reference
 
-| Task                  | Use                                                     | File                                   |
-|-----------------------|---------------------------------------------------------|----------------------------------------|
-| Create test identity  | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           |
-| Multiple test users   | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           |
-| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |
-| Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |
-| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` |
+| Task                  | Use                                                     | File                                   | Notes                                              |
+|-----------------------|---------------------------------------------------------|----------------------------------------|----------------------------------------------------|
+| Create test identity  | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           | FIXME: Should be createTestProfile()               |
+| Multiple test users   | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           | FIXME: Should create profiles, not bare keypairs   |
+| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |                                                    |
+| Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |                                                    |
+| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` | FIXME: Should be FakeProfileRepository             |
 
 # MCP servers that you should use in the project
 - Use context7 mcp server if you would like to obtain additional information for a library or API
 - Use web-search-prime if you need to perform a web search
+
+# Architecture Implementation Status
+
+## Current Issues (FIXME Comments Added)
+
+The following files have FIXME comments marking architecture violations:
+
+1. **Models:**
+   - `lib/models/identity_record.dart` - Should be ProfileKeypair
+   - `lib/models/account.dart` - Missing profile ownership relationship
+
+2. **Controllers:**
+   - `lib/controllers/identity_controller.dart` - Should be ProfileController
+   - `lib/controllers/account_controller.dart` - Allows cross-profile key operations
+
+3. **Missing Components:**
+   - Profile model (container for keypairs + account)
+   - ProfileController to manage profiles
+   - Profile storage layer
+
+## Migration Path (When Ready)
+
+1. Create Profile model
+2. Create ProfileController
+3. Rename IdentityRecord → ProfileKeypair
+4. Update storage to support Profile → Keypairs structure
+5. Remove cross-profile key operations
+6. Update all UI to use profiles as primary concept
+7. Update tests to use profile-centric test helpers
+
+See ACCOUNT_PROFILES_DESIGN.md and ACCOUNT_PROFILES_UX_DESIGN.md for complete specification.
 
 # Other notes

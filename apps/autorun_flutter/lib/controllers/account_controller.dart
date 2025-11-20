@@ -31,6 +31,22 @@ class AccountNetworkException implements Exception {
 
 /// Controller for account management operations
 ///
+/// FIXME - ARCHITECTURE VIOLATION:
+/// This controller treats accounts and identities as independent entities that can
+/// be cross-linked. This violates the profile-centric model where:
+/// - Profile = container with keypairs + account (1:1:many relationship)
+/// - Keypairs belong to ONE profile only
+///
+/// Current violations:
+/// 1. accountForIdentity() searches ALL accounts for matching keys (implies key sharing)
+/// 2. addPublicKey() accepts ANY identity to add to ANY account (cross-profile keys)
+/// 3. Draft accounts stored per-identity (should be per-profile)
+///
+/// Target behavior:
+/// - This controller should manage BACKEND account operations only
+/// - Profile management (local) should be in ProfileController
+/// - Adding keys should GENERATE new keypairs within current profile
+///
 /// Manages account state, registration, and key management.
 /// Integrates with MarketplaceOpenApiService for backend communication
 /// and AccountSignatureService for cryptographic signing.
@@ -184,6 +200,20 @@ class AccountController extends ChangeNotifier {
 
   /// Add a public key to an account
   ///
+  /// FIXME - ARCHITECTURE VIOLATION:
+  /// This method accepts ANY IdentityRecord (newIdentity) from anywhere, allowing
+  /// cross-profile key sharing. This violates profile isolation.
+  ///
+  /// Current behavior (WRONG):
+  /// - Can pass identity from Profile A to add to Profile B's account
+  /// - Implies keys can be shared across profiles
+  ///
+  /// Target behavior (CORRECT):
+  /// - Should GENERATE a new keypair for the current profile
+  /// - Remove newIdentity parameter, replace with algorithm parameter
+  /// - Store generated keypair in current profile's secure storage
+  /// - Only send public key to backend
+  ///
   /// The signing identity must have an active key in the account.
   /// The new public key will be derived from newIdentity.
   ///
@@ -191,7 +221,7 @@ class AccountController extends ChangeNotifier {
   Future<AccountPublicKey> addPublicKey({
     required String username,
     required IdentityRecord signingIdentity,
-    required IdentityRecord newIdentity,
+    required IdentityRecord newIdentity, // FIXME: Should be KeyAlgorithm algorithm
   }) async {
     _setBusy(true);
     try {
@@ -329,6 +359,20 @@ class AccountController extends ChangeNotifier {
 
   /// Get account for a specific identity
   ///
+  /// FIXME - ARCHITECTURE VIOLATION:
+  /// This method searches ALL accounts for a matching key, implying that one key
+  /// could belong to multiple accounts. This violates profile isolation.
+  ///
+  /// Current behavior (WRONG):
+  /// - Iterates through all accounts looking for matching public key
+  /// - Implies a keypair could be found in multiple accounts
+  /// - Graph structure (keys ← → accounts)
+  ///
+  /// Target behavior (CORRECT):
+  /// - Profile should directly reference its Account (1:1)
+  /// - No need to search - Profile.accountId or Profile.account
+  /// - Tree structure (Profile → Keypairs, Profile → Account)
+  ///
   /// First searches registered accounts (from marketplace API).
   /// If not found, checks for a local draft account.
   /// Returns null if no account found.
@@ -455,6 +499,14 @@ class AccountController extends ChangeNotifier {
   }
 
   /// Create a draft account (local only, not registered on marketplace)
+  ///
+  /// FIXME - ARCHITECTURE ISSUE:
+  /// Draft accounts are stored per-identity, but should be per-profile.
+  /// Once Profile model exists, this should be:
+  /// - createDraftProfile(username, displayName, algorithm)
+  /// - Generates initial keypair
+  /// - Creates Profile with Account reference
+  /// - Returns Profile (not Account)
   ///
   /// This creates a local account that will be used until the user registers
   /// on the marketplace. The draft account is persisted and will survive app restarts.

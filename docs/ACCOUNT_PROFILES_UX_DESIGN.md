@@ -1,12 +1,22 @@
 # Account Profiles - Frontend UX Design
 
-**Version:** 1.0
-**Status:** Implementation Ready
+**Version:** 1.1
+**Status:** Architecture Clarification In Progress
 **Created:** 2025-11-17
+**Updated:** 2025-11-20
 
 ## Overview
 
-This document defines the user experience design for Account Profiles in the ICP Autorun Flutter app. It builds upon `ACCOUNT_PROFILES_DESIGN.md` (backend specification) and focuses on creating a professional, intuitive UX.
+This document defines the user experience design for **Profile Management** in the ICP Autorun Flutter app. It builds upon `ACCOUNT_PROFILES_DESIGN.md` (backend specification) and focuses on creating a professional, intuitive UX.
+
+## Architecture Note: Profile-Centric Model
+
+**CRITICAL:** This app uses a **browser profile** mental model:
+- Each **Profile** is like a Chrome/Firefox profile - completely isolated
+- Each profile contains 1-10 **keypairs** (cryptographic keys)
+- Each profile maps to exactly ONE backend **account** (@username)
+- Keypairs belong to ONE profile only - NO key sharing across profiles
+- Tree structure: Profile → Keypairs (not a graph)
 
 ## Core UX Principles
 
@@ -19,42 +29,40 @@ This document defines the user experience design for Account Profiles in the ICP
 
 ## User Flows
 
-### Flow 1: First-Time User (No Identity)
+### Flow 1: First-Time User (No Profile)
 
 ```
 1. Launch App
    ↓
-2. Empty State: "Create your first identity"
+2. Empty State: "Create your first profile"
    ↓
-3. Create Identity (existing flow)
+3. Create Profile Wizard
    - Choose algorithm (Ed25519 recommended)
-   - Set local label
+   - Set profile name (local label)
    - Save mnemonic securely
+   - AUTOMATICALLY registers backend account (@username)
    ↓
-4. Prompt: "Register Account?" (optional)
-   - Explain benefits: username, multi-device, script publishing
-   - Can skip and do later
-   ↓
-5. [If Register] Account Registration Wizard
-   ↓
-6. Home screen with identity + account
+4. Home screen with profile
 ```
 
-### Flow 2: Existing Identity User (Upgrade to Account)
+**NOTE:** Profile creation IMMEDIATELY creates:
+- Local profile with initial keypair
+- Backend account (@username)
+- 1:1 relationship established
+
+### Flow 2: Create Additional Profile
 
 ```
-1. Identity List Screen
+1. Profile List Screen
    ↓
-2. Identity Card shows status:
-   - ✓ "Account: @username" (if registered)
-   - ⚠ "No Account" + "Register" button (if not)
+2. Tap "Add Profile" button
    ↓
-3. Tap "Register Account"
+3. Create Profile Wizard (same as Flow 1)
    ↓
-4. Account Registration Wizard
-   ↓
-5. Account linked to identity
+4. New profile created (isolated from existing profiles)
 ```
+
+**REMOVED:** "Upgrade to Account" flow - profiles are ALWAYS accounts
 
 ### Flow 3: Account Registration Wizard
 
@@ -94,29 +102,32 @@ Step 5: Success
 - Button: "Go to Account Profile"
 ```
 
-### Flow 4: Add Public Key
+### Flow 4: Add Keypair to Current Profile
 
 ```
-1. Account Profile Screen
+1. Profile Screen
    ↓
 2. Tap "Add Key" (floating action button)
    ↓
-3. Bottom Sheet: "Add Public Key"
-   - Option 1: Use existing identity from device
-     - List of local identities without accounts
-   - Option 2: Import public key manually
-     - Paste hex/base64 key
+3. Confirm Dialog: "Generate New Keypair"
+   - Explain: "This will create a new device key for this profile"
+   - Show: "Your profile will have X/10 keys"
    ↓
-4. Confirm key to add
-   - Show public key
-   - Show derived IC principal
+4. Generate NEW keypair
+   - Same algorithm as profile's existing keys
+   - Derive IC principal
    ↓
 5. Sign operation with current active key
    ↓
-6. Success: Key added to account
-   - Update UI immediately (optimistic)
-   - Refresh from server to confirm
+6. Success: Key added to profile
+   - Save locally AND register with backend
+   - Update UI immediately
 ```
+
+**IMPORTANT CHANGE:**
+- REMOVED: "Use existing identity" option (NO cross-profile key usage)
+- REMOVED: "Import public key manually" option (keys are generated, not imported)
+- Keys are GENERATED for the current profile, not imported from elsewhere
 
 ### Flow 5: Remove Public Key
 
@@ -142,40 +153,39 @@ Step 5: Success
 
 ## Screen Designs
 
-### 1. Identity List Screen (Enhanced)
+### 1. Profile List Screen
 
-**Location**: `lib/screens/identity_home_page.dart` (extend existing)
+**Location**: `lib/screens/profile_home_page.dart` (RENAME from identity_home_page.dart)
 
 **Layout**:
 ```
 ┌─────────────────────────────┐
-│ Identities            [+]   │ ← App bar
+│ Profiles              [+]   │ ← App bar
 ├─────────────────────────────┤
 │                             │
 │ ┌─────────────────────────┐│
-│ │ 🔑 alice-key            ││ ← Identity card
-│ │ Account: @alice         ││ ← Account status (new)
-│ │ aaaaa-aa...             ││ ← Principal
-│ │ Ed25519 • Active        ││ ← Algorithm + status
+│ │ 👤 Alice                ││ ← Profile card
+│ │ @alice                  ││ ← Backend username
+│ │ 3 keys • Ed25519        ││ ← Key count + algorithm
+│ │ aaaaa-aa... (primary)   ││ ← Primary principal
 │ └─────────────────────────┘│
 │                             │
 │ ┌─────────────────────────┐│
-│ │ 🔑 bob-key              ││
-│ │ ⚠ No Account            ││ ← Warning state
-│ │ [Register Account]      ││ ← Action button
-│ │ bbbbb-bb...             ││
-│ │ secp256k1               ││
+│ │ 👤 Bob                  ││
+│ │ @bob                    ││
+│ │ 1 key • Ed25519         ││
+│ │ bbbbb-bb... (primary)   ││
 │ └─────────────────────────┘│
 │                             │
 └─────────────────────────────┘
 ```
 
-**Enhancements**:
-- Add `accountStatus` to each identity card
-- Show account username or "No Account" state
-- "Register Account" button for unregistered identities
-- Tap identity → show options: View Profile, Manage Keys, Edit
-- Visual badge: "Account" vs "Identity Only"
+**Key Changes**:
+- REMOVED: "No Account" state (profiles are ALWAYS accounts)
+- REMOVED: "Register Account" button (registration happens during profile creation)
+- Focus on PROFILE as primary concept, not individual keys
+- Show key count per profile
+- Tap profile → Manage profile keys, Edit profile, Delete profile
 
 ### 2. Account Registration Wizard
 
@@ -295,65 +305,40 @@ Step 5: Success
 - Swipe to remove (if not last active)
 - Show key count: "3/10" (current/max)
 
-### 4. Add Key Bottom Sheet
+### 4. Add Keypair Dialog
 
-**Location**: `lib/widgets/add_account_key_sheet.dart` (new)
+**Location**: `lib/widgets/add_profile_key_dialog.dart` (RENAME from add_account_key_sheet.dart)
 
 **Layout**:
 ```
 ┌─────────────────────────────┐
 │                          ✕  │
-│ Add Public Key              │
+│ Generate New Keypair        │
 ├─────────────────────────────┤
 │                             │
-│ Choose a method:            │
+│ This will create a new      │
+│ cryptographic keypair for   │
+│ this profile.               │
 │                             │
-│ ┌─────────────────────────┐│
-│ │ 🔑 Use Local Identity   ││
-│ │ Select from your saved  ││
-│ │ identities              ││
-│ └─────────────────────────┘│
+│ Current keys: 2/10          │
 │                             │
-│ ┌─────────────────────────┐│
-│ │ 📋 Import Public Key    ││
-│ │ Paste a key manually    ││
-│ └─────────────────────────┘│
+│ Algorithm: Ed25519          │
+│ (matches your profile)      │
+│                             │
+│ The new key will be saved   │
+│ securely on this device and │
+│ registered with your account│
+│                             │
+│    [Cancel]  [Generate]     │
 │                             │
 └─────────────────────────────┘
 ```
 
-**Flow A: Use Local Identity**
-```
-┌─────────────────────────────┐
-│ Select Identity             │
-├─────────────────────────────┤
-│ ○ bob-key                   │
-│   bbbbb-bb...               │
-│                             │
-│ ○ charlie-key               │
-│   ccccc-cc...               │
-│                             │
-│         [Add Key]           │
-└─────────────────────────────┘
-```
-
-**Flow B: Import Key**
-```
-┌─────────────────────────────┐
-│ Import Public Key           │
-├─────────────────────────────┤
-│ Public Key (hex/base64)     │
-│ ┌─────────────────────────┐│
-│ │ 0x1234567890abcdef...   ││
-│ │                         ││
-│ └─────────────────────────┘│
-│                             │
-│ Derived Principal:          │
-│ ddddd-dd... [Copy]          │
-│                             │
-│         [Add Key]           │
-└─────────────────────────────┘
-```
+**IMPORTANT CHANGES:**
+- REMOVED: "Use Local Identity" option (NO cross-profile key usage)
+- REMOVED: "Import Public Key" option (keys are generated, not imported)
+- SIMPLIFIED: Single action - generate new keypair for current profile
+- Keypairs are created fresh, not imported from elsewhere
 
 ### 5. Key Details Sheet
 
@@ -608,10 +593,10 @@ Step 5: Success
 
 ### Identified During Design
 
-1. **Multiple Accounts per Identity**:
-   - Current design: 1 identity → 1 account
-   - Future: Should one identity be able to create multiple accounts?
-   - UX Impact: Need account switcher if yes
+1. **Profile-Account Relationship** ✅ RESOLVED:
+   - Design: 1 profile → 1 account (enforced)
+   - Profiles are isolated (like browser profiles)
+   - No need for account switcher (use profile switcher)
 
 2. **Key Labeling**:
    - Users may want to label keys: "Mobile", "Desktop", "Hardware Wallet"

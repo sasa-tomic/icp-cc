@@ -1,12 +1,47 @@
 # Account Profiles Design Specification
 
-**Version:** 1.0
-**Status:** Approved for Implementation
+**Version:** 1.1
+**Status:** Implementation In Progress - Architecture Clarification
 **Created:** 2025-11-17
+**Updated:** 2025-11-20
 
 ## Overview
 
 This document specifies the design for account profiles in the backend. Each account is identified by a username and can have multiple public keys. Each public key has a corresponding IC (Internet Computer) principal derived from it.
+
+## Architecture: Profile-Centric Model (Browser Profiles)
+
+**IMPORTANT:** This system follows a **browser profile** mental model (Chrome profiles, Firefox profiles):
+
+```
+Profile (Local + Backend)
+├── Profile Metadata (local name, settings)
+├── Backend Account (@username, display name, bio, contacts)
+└── Keypairs (1-10 keypairs owned by THIS profile only)
+    ├── Keypair 1 (primary)
+    ├── Keypair 2 (backup device)
+    └── Keypair 3 (hardware wallet)
+```
+
+**Key Principles:**
+1. **Tree Structure, Not Graph**: Profiles → Keypairs (each key belongs to exactly ONE profile)
+2. **No Key Sharing**: A keypair CANNOT be shared across multiple profiles
+3. **Backend Enforcement**: Database constraint ensures each public key is unique across ALL accounts
+4. **1:1 Profile-Account Mapping**: Each profile has exactly one backend account
+5. **Isolation**: Profiles are completely isolated from each other (like browser profiles)
+
+**Example:**
+```
+Profile "Alice" (@alice)
+  └─ Keypair 1 (laptop)
+  └─ Keypair 2 (phone)
+
+Profile "Bob" (@bob)
+  └─ Keypair 1 (desktop)
+```
+- Alice's keypairs can ONLY access @alice's account
+- Bob's keypairs can ONLY access @bob's account
+- No cross-profile key usage
 
 ## Core Principles
 
@@ -197,31 +232,38 @@ fn derive_ic_principal(public_key: &[u8]) -> String {
 
 ### Key Hierarchy
 
-**All keys are equal** - no hierarchy, no "master key" concept.
+**All keys are equal within a profile** - no hierarchy, no "master key" concept.
 
 **Benefits**:
 - Simpler mental model
-- Any active key can add/remove other keys
+- Any active key can add/remove other keys within the SAME profile
 - No single point of failure
 - Prevents "lost master key = lost account" scenario
+
+**IMPORTANT - Profile Isolation:**
+- Keys belong to exactly ONE profile
+- Keys from Profile A CANNOT be added to Profile B
+- When adding a key, a NEW keypair is generated for the current profile
+- No importing/sharing of keys across profiles
 
 ### Key Operations
 
 #### Add Key
-- Any active key can add a new key
-- Max 10 keys per account
+- Any active key within a profile can add a NEW key to that profile
+- **Generates a NEW keypair** (does NOT import from another profile)
+- Max 10 keys per profile/account
 - New key becomes immediately active
-- Signed by an existing active key
+- Signed by an existing active key from the same profile
 
 #### Remove Key (Soft Delete)
-- Any active key can remove another key (or itself)
+- Any active key can remove another key within the same profile (or itself)
 - Cannot remove the last active key (enforced in application)
 - Sets `is_active = false`, `disabled_at = NOW()`, `disabled_by_key_id`
 - Key remains in database for audit trail
 - IC principal remains in database (prevents principal reuse)
 
 #### Key Compromise
-- User can remove compromised key using any non-compromised active key
+- User can remove compromised key using any non-compromised active key from the same profile
 - Admin can also remove key (see Admin Operations)
 
 ## API Endpoints

@@ -1,182 +1,86 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../models/identity_record.dart';
+import '../models/profile.dart';
+import 'profile_repository.dart';
 
-/// Secure repository that stores sensitive data (private keys, mnemonics) in platform secure storage
-/// and non-sensitive data in regular file storage.
+/// DEPRECATED: Use ProfileRepository instead
+///
+/// This class is kept for backward compatibility during migration.
+/// It wraps ProfileRepository and converts between the old IdentityRecord
+/// interface and the new Profile-centric interface.
+///
+/// Migration strategy:
+/// - Old code: IdentityRecord = standalone keypair
+/// - New code: Profile with 1 keypair
+/// - Each IdentityRecord is converted to a Profile with a single keypair
 class SecureIdentityRepository {
   SecureIdentityRepository({Directory? overrideDirectory})
-      : _overrideDirectory = overrideDirectory,
-        _secureStorage = const FlutterSecureStorage(
-          aOptions: AndroidOptions(
-            encryptedSharedPreferences: true,
-          ),
-          iOptions: IOSOptions(
-            accessibility: KeychainAccessibility.first_unlock_this_device,
-          ),
-        );
+      : _profileRepository = ProfileRepository(overrideDirectory: overrideDirectory);
 
-  final Directory? _overrideDirectory;
-  final FlutterSecureStorage _secureStorage;
-  bool _initialized = false;
-  File? _storeFile;
+  final ProfileRepository _profileRepository;
 
-  // Constants for key prefixes
-  static const String _privateKeyPrefix = 'identity_private_key_';
-  static const String _mnemonicPrefix = 'identity_mnemonic_';
+  static const _uuid = Uuid();
 
-  Future<void> _ensureInitialized() async {
-    if (_initialized) {
-      return;
-    }
-
-    if (kIsWeb) {
-      throw UnsupportedError('SecureIdentityRepository does not support web yet.');
-    }
-
-    Directory directory;
-    final Directory? override = _overrideDirectory;
-    if (override != null) {
-      directory = override;
-    } else {
-      try {
-        directory = await getApplicationSupportDirectory();
-      } catch (_) {
-        // In test or restricted environments where platform channels are unavailable,
-        // fall back to a temporary directory to avoid hanging initialization.
-        directory = await Directory.systemTemp.createTemp('icp_autorun_test_');
-      }
-    }
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-
-    final File file = File('${directory.path}/identities_secure.json');
-    if (!await file.exists()) {
-      await file.writeAsString(
-        jsonEncode(<String, dynamic>{
-          'version': 2,
-          'identities': <Map<String, dynamic>>[],
-        }),
-      );
-    }
-
-    _storeFile = file;
-    _initialized = true;
-  }
-
+  /// Load identities (converted from profiles)
+  ///
+  /// MIGRATION: Each Profile is converted to a list of IdentityRecords (one per keypair)
+  /// This maintains backward compatibility with old code expecting individual keypairs.
   Future<List<IdentityRecord>> loadIdentities() async {
-    await _ensureInitialized();
-    final File file = _storeFile!;
-    try {
-      final String content = await file.readAsString();
-      if (content.trim().isEmpty) {
-        return <IdentityRecord>[];
+    // Load profiles from new storage
+    final List<Profile> profiles = await _profileRepository.loadProfiles();
+
+    // Convert each profile's keypairs to IdentityRecords
+    final List<IdentityRecord> result = [];
+    for (final profile in profiles) {
+      // Each keypair becomes an IdentityRecord
+      for (final keypair in profile.keypairs) {
+        result.add(keypair); // ProfileKeypair IS IdentityRecord (typedef)
       }
-      final dynamic decoded = jsonDecode(content);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Invalid identity store format.');
-      }
-      final List<dynamic> identities =
-          decoded['identities'] as List<dynamic>? ?? <dynamic>[];
-
-      final List<IdentityRecord> result = [];
-      for (final dynamic item in identities) {
-        if (item is Map<String, dynamic>) {
-          final Map<String, dynamic> identityData =
-              Map<String, dynamic>.from(item);
-
-          // Retrieve sensitive data from secure storage
-          final String? privateKey = await _secureStorage.read(
-            key: '$_privateKeyPrefix${identityData['id'] as String}',
-          );
-          final String? mnemonic = await _secureStorage.read(
-            key: '$_mnemonicPrefix${identityData['id'] as String}',
-          );
-
-          if (privateKey != null && mnemonic != null) {
-            identityData['privateKey'] = privateKey;
-            identityData['mnemonic'] = mnemonic;
-
-            result.add(IdentityRecord.fromJson(identityData));
-          }
-        }
-      }
-
-      return result;
-    } on FormatException {
-      // If parsing fails we back up the corrupted file and start fresh.
-      final String backupPath = '${file.path}.bak';
-      await file.copy(backupPath);
-      await file.writeAsString(
-        jsonEncode(<String, dynamic>{
-          'version': 2,
-          'identities': <Map<String, dynamic>>[],
-        }),
-      );
-      return <IdentityRecord>[];
     }
+
+    return result;
   }
 
+  /// Persist identities (converted to profiles)
+  ///
+  /// MIGRATION: Each IdentityRecord is converted to a Profile with one keypair
   Future<void> persistIdentities(List<IdentityRecord> identities) async {
-    await _ensureInitialized();
-    final File file = _storeFile!;
-
-    // Store sensitive data in secure storage
-    for (final IdentityRecord record in identities) {
-      await _secureStorage.write(
-        key: '$_privateKeyPrefix${record.id}',
-        value: record.privateKey,
+    // Convert each IdentityRecord to a Profile with one keypair
+    final List<Profile> profiles = identities.map((IdentityRecord identity) {
+      return Profile(
+        id: _uuid.v4(), // Generate new profile ID
+        name: identity.label, // Use keypair label as profile name
+        keypairs: <ProfileKeypair>[identity], // Single keypair in profile
+        username: null, // Not registered yet
+        createdAt: identity.createdAt,
+        updatedAt: identity.createdAt,
       );
-      await _secureStorage.write(
-        key: '$_mnemonicPrefix${record.id}',
-        value: record.mnemonic,
-      );
-    }
+    }).toList();
 
-    // Store non-sensitive data in regular file (without private keys and mnemonics)
-    final List<Map<String, dynamic>> publicIdentities = identities
-        .map((IdentityRecord record) => <String, dynamic>{
-          'id': record.id,
-          'label': record.label,
-          'algorithm': keyAlgorithmToString(record.algorithm),
-          'publicKey': record.publicKey,
-          'createdAt': record.createdAt.toIso8601String(),
-        })
-        .toList();
-
-    final Map<String, dynamic> payload = <String, dynamic>{
-      'version': 2,
-      'identities': publicIdentities,
-    };
-    await file.writeAsString(jsonEncode(payload));
+    // Save to new profile storage
+    await _profileRepository.persistProfiles(profiles);
   }
 
   Future<void> deleteIdentitySecureData(String identityId) async {
-    // Delete sensitive data from secure storage
-    await _secureStorage.delete(key: '$_privateKeyPrefix$identityId');
-    await _secureStorage.delete(key: '$_mnemonicPrefix$identityId');
+    // Delete sensitive data (delegates to ProfileRepository)
+    await _profileRepository.deleteKeypairSecureData(identityId);
   }
 
   Future<void> deleteAllSecureData() async {
-    // Delete all identity-related data from secure storage
-    await _secureStorage.deleteAll();
+    // Delete all secure data (delegates to ProfileRepository)
+    await _profileRepository.deleteAllSecureData();
   }
 
   /// Retrieves a private key from secure storage for cryptographic operations
-  /// Returns null if the identity doesn't exist or private key is not found
   Future<String?> getPrivateKey(String identityId) async {
     try {
-      return await _secureStorage.read(key: '$_privateKeyPrefix$identityId');
+      return await _profileRepository.getPrivateKey(identityId);
     } catch (e) {
       // Fail fast - don't silently ignore errors
       throw Exception('Failed to retrieve private key for identity $identityId: $e');
     }
   }
-
-  }
+}

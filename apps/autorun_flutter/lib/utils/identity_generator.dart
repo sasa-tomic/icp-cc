@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../rust/native_bridge.dart' as rust;
 
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 
 class IdentityGenerator {
   const IdentityGenerator._();
@@ -19,7 +19,7 @@ class IdentityGenerator {
   static const String _dfxDerivationPath = "m/44'/223'/0'/0/0";
   static final Uuid _uuid = const Uuid();
 
-  static Future<IdentityRecord> generate({
+  static Future<ProfileKeypair> generate({
     required KeyAlgorithm algorithm,
     String? label,
     String? mnemonic,
@@ -38,7 +38,7 @@ class IdentityGenerator {
         mnemonic: resolvedMnemonic,
       );
       if (r != null) {
-        return IdentityRecord(
+        return ProfileKeypair(
           id: _uuid.v4(),
           label: resolvedLabel,
           algorithm: algorithm,
@@ -61,7 +61,7 @@ class IdentityGenerator {
         final SimplePublicKey publicKey = await keyPair.extractPublicKey();
         final List<int> privateKeyBytes = await keyPair
             .extractPrivateKeyBytes();
-        return IdentityRecord(
+        return ProfileKeypair(
           id: _uuid.v4(),
           label: resolvedLabel,
           algorithm: KeyAlgorithm.ed25519,
@@ -87,7 +87,7 @@ class IdentityGenerator {
         final List<int> uncompressedBytes = convert.hex.decode(
           curve.publicKeyToHex(publicKey),
         );
-        return IdentityRecord(
+        return ProfileKeypair(
           id: _uuid.v4(),
           label: resolvedLabel,
           algorithm: KeyAlgorithm.secp256k1,

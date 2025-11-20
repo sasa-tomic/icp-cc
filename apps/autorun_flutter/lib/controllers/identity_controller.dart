@@ -6,6 +6,34 @@ import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
 import '../utils/identity_generator.dart';
 
+/// FIXME - NEEDS COMPLETE REFACTORING:
+/// This controller manages "identities" which are actually just individual keypairs.
+/// It should be renamed/refactored to ProfileController with these changes:
+///
+/// Current state (WRONG):
+/// - IdentityController manages list of IdentityRecords (individual keypairs)
+/// - Each IdentityRecord is treated as independent entity
+/// - Implies: Identity = Keypair (1:1)
+///
+/// Target state (CORRECT - Profile-Centric):
+/// - ProfileController manages list of Profiles
+/// - Each Profile contains:
+///   - Profile metadata (name, settings)
+///   - List of ProfileKeypairs (1-10 keypairs)
+///   - Account reference (@username)
+/// - Structure: Profile → [Keypair, Keypair, ...] + Account
+///
+/// Required changes:
+/// 1. Rename to ProfileController
+/// 2. Create Profile model
+/// 3. Update storage to support Profile → Keypairs structure
+/// 4. Active selection should be activeProfile, not activeIdentity
+/// 5. createIdentity() becomes createProfile() which:
+///    - Generates initial keypair
+///    - Creates Profile container
+///    - Optionally registers backend account
+///
+/// TEMPORARY: Until refactored, each IdentityRecord acts as a profile with one keypair.
 class IdentityController extends ChangeNotifier {
   IdentityController({
     SecureIdentityRepository? secureRepository,
@@ -19,17 +47,20 @@ class IdentityController extends ChangeNotifier {
   final SharedPreferences? _preferencesOverride;
   SharedPreferences? _preferences;
 
+  // FIXME: Should be List<Profile> _profiles
   final List<IdentityRecord> _identities = <IdentityRecord>[];
 
   bool _initialized = false;
   bool _isBusy = false;
   bool _restoredActiveIdentity = false;
-  String? _activeIdentityId;
+  String? _activeIdentityId; // FIXME: Should be _activeProfileId
 
+  // FIXME: Should return List<Profile>
   List<IdentityRecord> get identities => List<IdentityRecord>.unmodifiable(_identities);
   bool get isBusy => _isBusy;
-  String? get activeIdentityId => _activeIdentityId;
-  bool get hasActiveIdentity => _activeIdentityId != null;
+  String? get activeIdentityId => _activeIdentityId; // FIXME: Should be activeProfileId
+  bool get hasActiveIdentity => _activeIdentityId != null; // FIXME: Should be hasActiveProfile
+  // FIXME: Should be Profile? get activeProfile
   IdentityRecord? get activeIdentity =>
       _identities.firstWhereOrNull((IdentityRecord record) => record.id == _activeIdentityId);
 
@@ -56,9 +87,17 @@ class IdentityController extends ChangeNotifier {
     }
   }
 
+  /// FIXME - ARCHITECTURE VIOLATION:
+  /// This method creates a standalone keypair, not a complete profile.
+  /// Should be renamed to createProfile() with these changes:
+  /// 1. Generate initial keypair
+  /// 2. Create Profile container with metadata
+  /// 3. Prompt for username and register backend account
+  /// 4. Store Profile with 1 keypair + account reference
+  /// 5. Return Profile (not IdentityRecord)
   Future<IdentityRecord> createIdentity({
     required KeyAlgorithm algorithm,
-    String? label,
+    String? label, // FIXME: Should be profileName
     String? mnemonic,
     bool setAsActive = false,
   }) async {
