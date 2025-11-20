@@ -312,21 +312,33 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       return;
     }
 
-    // TODO: Implement cryptographically-signed profile update API
-    // This requires:
-    // 1. Backend endpoint: PATCH /api/v1/accounts/:username
-    // 2. UpdateAccountRequest model with signature
-    // 3. AccountController.updateProfile() method
-    // 4. Signature generation in AccountSignatureService
-    _showErrorSnackbar(
-      'Profile update requires backend API implementation.\n'
-      'Track progress in: backend/src/services/account_service.rs',
-    );
+    setState(() => _isRefreshing = true);
+    try {
+      final updatedAccount = await widget.accountController.updateProfile(
+        username: _account.username,
+        signingIdentity: widget.currentIdentity,
+        displayName: _displayNameController.text.trim().isEmpty ? null : _displayNameController.text.trim(),
+        contactEmail: _contactEmailController.text.trim().isEmpty ? null : _contactEmailController.text.trim(),
+        contactTelegram: _contactTelegramController.text.trim().isEmpty ? null : _contactTelegramController.text.trim(),
+        contactTwitter: _contactTwitterController.text.trim().isEmpty ? null : _contactTwitterController.text.trim(),
+        contactDiscord: _contactDiscordController.text.trim().isEmpty ? null : _contactDiscordController.text.trim(),
+        websiteUrl: _websiteUrlController.text.trim().isEmpty ? null : _websiteUrlController.text.trim(),
+        bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+      );
 
-    // When implemented:
-    // 1. Call widget.accountController.updateProfile(...)
-    // 2. Refresh account: await _refreshAccount()
-    // 3. Show success message
+      if (mounted) {
+        setState(() => _account = updatedAccount);
+        _showSuccessSnackbar('Profile updated successfully');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackbar('Failed to update profile: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
   }
 
   Widget _buildKeysSection() {

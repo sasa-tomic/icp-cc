@@ -241,6 +241,22 @@ pub struct RemovePublicKeyRequest {
     pub signature: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAccountRequest {
+    pub display_name: Option<String>,
+    pub contact_email: Option<String>,
+    pub contact_telegram: Option<String>,
+    pub contact_twitter: Option<String>,
+    pub contact_discord: Option<String>,
+    pub website_url: Option<String>,
+    pub bio: Option<String>,
+    pub signing_public_key: String,
+    pub timestamp: i64,
+    pub nonce: String,
+    pub signature: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountPublicKeyResponse {

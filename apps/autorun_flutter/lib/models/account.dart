@@ -299,6 +299,77 @@ class RemovePublicKeyRequest {
   }
 }
 
+/// Request payload for updating account profile
+class UpdateAccountRequest {
+  UpdateAccountRequest({
+    required this.username,
+    this.displayName,
+    this.contactEmail,
+    this.contactTelegram,
+    this.contactTwitter,
+    this.contactDiscord,
+    this.websiteUrl,
+    this.bio,
+    required this.signingPublicKey,
+    required this.timestamp,
+    required this.nonce,
+    required this.signature,
+  });
+
+  final String username;
+  final String? displayName;
+  final String? contactEmail;
+  final String? contactTelegram;
+  final String? contactTwitter;
+  final String? contactDiscord;
+  final String? websiteUrl;
+  final String? bio;
+  final String signingPublicKey; // hex encoded (must be active key)
+  final int timestamp; // Unix timestamp (seconds)
+  final String nonce; // UUID v4
+  final String signature; // hex or base64 encoded
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      if (displayName != null) 'displayName': displayName,
+      if (contactEmail != null) 'contactEmail': contactEmail,
+      if (contactTelegram != null) 'contactTelegram': contactTelegram,
+      if (contactTwitter != null) 'contactTwitter': contactTwitter,
+      if (contactDiscord != null) 'contactDiscord': contactDiscord,
+      if (websiteUrl != null) 'websiteUrl': websiteUrl,
+      if (bio != null) 'bio': bio,
+      'signingPublicKey': signingPublicKey,
+      'timestamp': timestamp,
+      'nonce': nonce,
+      'signature': signature,
+    };
+  }
+
+  /// Create canonical JSON for signing (only includes fields being updated)
+  ///
+  /// Example: {"action":"update_profile","bio":"New bio","displayName":"New Name","nonce":"...","signingPublicKey":"...","timestamp":1700000300,"username":"alice"}
+  Map<String, dynamic> toCanonicalPayload() {
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'action': 'update_profile',
+      'nonce': nonce,
+      'signingPublicKey': signingPublicKey,
+      'timestamp': timestamp,
+      'username': username,
+    };
+
+    // Only include fields being updated in the signature
+    if (displayName != null) payload['displayName'] = displayName;
+    if (contactEmail != null) payload['contactEmail'] = contactEmail;
+    if (contactTelegram != null) payload['contactTelegram'] = contactTelegram;
+    if (contactTwitter != null) payload['contactTwitter'] = contactTwitter;
+    if (contactDiscord != null) payload['contactDiscord'] = contactDiscord;
+    if (websiteUrl != null) payload['websiteUrl'] = websiteUrl;
+    if (bio != null) payload['bio'] = bio;
+
+    return payload;
+  }
+}
+
 /// Username validation result
 class UsernameValidation {
   const UsernameValidation({

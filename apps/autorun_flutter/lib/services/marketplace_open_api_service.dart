@@ -909,6 +909,47 @@ class MarketplaceOpenApiService {
     }
   }
 
+  /// Update account profile
+  /// PATCH /api/v1/accounts/{username}
+  Future<Account> updateAccount({
+    required String username,
+    required UpdateAccountRequest request,
+  }) async {
+    try {
+      final encodedUsername = Uri.encodeComponent(username);
+      final response = await _httpClient
+          .patch(
+            Uri.parse('$_baseUrl/accounts/$encodedUsername'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        final String detail = response.body.isNotEmpty
+            ? _extractErrorMessage(response.body)
+            : response.reasonPhrase ?? 'Unknown failure';
+        throw Exception('Update account failed (HTTP ${response.statusCode}): $detail');
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Update account response malformed');
+      }
+      if (decoded['success'] != true) {
+        throw Exception(decoded['error'] ?? 'Failed to update account');
+      }
+      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('Update account response missing data');
+      }
+      return Account.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Update account failed: $e');
+      rethrow;
+    }
+  }
+
   /// Check if a username is available
   /// This is a helper method that uses getAccount with error handling
   Future<bool> isUsernameAvailable(String username) async {

@@ -27,6 +27,18 @@ pub struct CreateAccountParams<'a> {
     pub now: &'a str,
 }
 
+pub struct UpdateAccountParams<'a> {
+    pub account_id: &'a str,
+    pub display_name: Option<&'a str>,
+    pub contact_email: Option<&'a str>,
+    pub contact_telegram: Option<&'a str>,
+    pub contact_twitter: Option<&'a str>,
+    pub contact_discord: Option<&'a str>,
+    pub website_url: Option<&'a str>,
+    pub bio: Option<&'a str>,
+    pub now: &'a str,
+}
+
 pub struct AccountRepository {
     pool: SqlitePool,
 }
@@ -57,6 +69,49 @@ impl AccountRepository {
         .bind(params.now)
         .execute(&self.pool)
         .await?;
+
+        Ok(())
+    }
+
+    /// Updates account profile fields
+    pub async fn update_account(&self, params: UpdateAccountParams<'_>) -> Result<(), sqlx::Error> {
+        let mut updates = Vec::new();
+        let mut binds: Vec<&str> = Vec::new();
+
+        // Macro to reduce duplication for optional field updates
+        macro_rules! add_field {
+            ($field:expr, $column:literal) => {
+                if let Some(val) = $field {
+                    updates.push(concat!($column, " = ?"));
+                    binds.push(val);
+                }
+            };
+        }
+
+        add_field!(params.display_name, "display_name");
+        add_field!(params.contact_email, "contact_email");
+        add_field!(params.contact_telegram, "contact_telegram");
+        add_field!(params.contact_twitter, "contact_twitter");
+        add_field!(params.contact_discord, "contact_discord");
+        add_field!(params.website_url, "website_url");
+        add_field!(params.bio, "bio");
+
+        if updates.is_empty() {
+            return Ok(()); // No fields to update
+        }
+
+        // Always update updated_at
+        updates.push("updated_at = ?");
+
+        let sql = format!("UPDATE accounts SET {} WHERE id = ?", updates.join(", "));
+
+        let mut query = sqlx::query(&sql);
+        for bind in binds {
+            query = query.bind(bind);
+        }
+        query = query.bind(params.now).bind(params.account_id);
+
+        query.execute(&self.pool).await?;
 
         Ok(())
     }

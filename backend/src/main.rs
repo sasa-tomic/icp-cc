@@ -617,6 +617,47 @@ async fn get_account_by_public_key(
 }
 
 #[handler]
+async fn update_account(
+    Path(username): Path<String>,
+    Json(payload): Json<UpdateAccountRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .account_service
+        .update_profile(&username, payload)
+        .await
+    {
+        Ok(account) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "data": account
+            })),
+        )
+            .into_response(),
+        Err(message) => {
+            tracing::warn!("Failed to update account: {}", message);
+            let status = if message.contains("Account not found") {
+                StatusCode::NOT_FOUND
+            } else if message.contains("Invalid username")
+                || message.contains("Timestamp out of range")
+            {
+                StatusCode::BAD_REQUEST
+            } else if message.contains("Signature verification failed")
+                || message.contains("replay attack")
+                || message.contains("not active")
+                || message.contains("does not belong")
+            {
+                StatusCode::UNAUTHORIZED
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &message)
+        }
+    }
+}
+
+#[handler]
 async fn add_account_key(
     Path(username): Path<String>,
     Json(payload): Json<AddPublicKeyRequest>,
@@ -1264,7 +1305,10 @@ async fn main() -> Result<(), std::io::Error> {
         )
         // Account Profiles endpoints
         .at("/api/v1/accounts", post(register_account))
-        .at("/api/v1/accounts/:username", get(get_account))
+        .at(
+            "/api/v1/accounts/:username",
+            get(get_account).patch(update_account),
+        )
         .at(
             "/api/v1/accounts/by-public-key/:public_key",
             get(get_account_by_public_key),

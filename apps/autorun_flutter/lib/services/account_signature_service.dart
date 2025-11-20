@@ -138,6 +138,58 @@ class AccountSignatureService {
     );
   }
 
+  /// Create and sign an update account request
+  static Future<UpdateAccountRequest> createUpdateAccountRequest({
+    required IdentityRecord signingIdentity,
+    required String username,
+    String? displayName,
+    String? contactEmail,
+    String? contactTelegram,
+    String? contactTwitter,
+    String? contactDiscord,
+    String? websiteUrl,
+    String? bio,
+  }) async {
+    final timestamp = _getCurrentTimestamp();
+    final nonce = _uuid.v4();
+    final signingPublicKeyHex = _publicKeyToHex(signingIdentity.publicKey);
+
+    final request = UpdateAccountRequest(
+      username: username,
+      displayName: displayName,
+      contactEmail: contactEmail,
+      contactTelegram: contactTelegram,
+      contactTwitter: contactTwitter,
+      contactDiscord: contactDiscord,
+      websiteUrl: websiteUrl,
+      bio: bio,
+      signingPublicKey: signingPublicKeyHex,
+      timestamp: timestamp,
+      nonce: nonce,
+      signature: '', // placeholder
+    );
+
+    final signature = await _signPayload(
+      identity: signingIdentity,
+      payload: request.toCanonicalPayload(),
+    );
+
+    return UpdateAccountRequest(
+      username: username,
+      displayName: displayName,
+      contactEmail: contactEmail,
+      contactTelegram: contactTelegram,
+      contactTwitter: contactTwitter,
+      contactDiscord: contactDiscord,
+      websiteUrl: websiteUrl,
+      bio: bio,
+      signingPublicKey: signingPublicKeyHex,
+      timestamp: timestamp,
+      nonce: nonce,
+      signature: signature,
+    );
+  }
+
   /// Sign a canonical payload using standard cryptographic algorithms
   ///
   /// Process:

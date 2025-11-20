@@ -272,6 +272,54 @@ class AccountController extends ChangeNotifier {
     }
   }
 
+  /// Update account profile information
+  ///
+  /// The signing identity must have an active key in the account.
+  /// Returns the updated account on success.
+  Future<Account> updateProfile({
+    required String username,
+    required IdentityRecord signingIdentity,
+    String? displayName,
+    String? contactEmail,
+    String? contactTelegram,
+    String? contactTwitter,
+    String? contactDiscord,
+    String? websiteUrl,
+    String? bio,
+  }) async {
+    _setBusy(true);
+    try {
+      final normalizedUsername = AccountSignatureService.normalizeUsername(username);
+
+      // Create signed request
+      final request = await AccountSignatureService.createUpdateAccountRequest(
+        signingIdentity: signingIdentity,
+        username: normalizedUsername,
+        displayName: displayName,
+        contactEmail: contactEmail,
+        contactTelegram: contactTelegram,
+        contactTwitter: contactTwitter,
+        contactDiscord: contactDiscord,
+        websiteUrl: websiteUrl,
+        bio: bio,
+      );
+
+      // Submit to backend
+      final updatedAccount = await _marketplaceService.updateAccount(
+        username: normalizedUsername,
+        request: request,
+      );
+
+      // Update cached account
+      _accounts[normalizedUsername] = updatedAccount;
+
+      notifyListeners();
+      return updatedAccount;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
   /// Get account for a specific identity
   ///
   /// Searches cached accounts to find one containing the identity's public key.
