@@ -6,8 +6,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../models/account.dart';
 import '../models/identity_record.dart';
+import '../models/profile.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/account_signature_service.dart';
+import 'profile_controller.dart';
 
 /// Exception thrown when account is not found
 class AccountNotFoundException implements Exception {
@@ -29,23 +31,20 @@ class AccountNetworkException implements Exception {
   String toString() => 'Network error: $message${originalError != null ? ' ($originalError)' : ''}';
 }
 
-/// Controller for account management operations
+/// Controller for backend account management operations
 ///
-/// FIXME - ARCHITECTURE VIOLATION:
-/// This controller treats accounts and identities as independent entities that can
-/// be cross-linked. This violates the profile-centric model where:
-/// - Profile = container with keypairs + account (1:1:many relationship)
-/// - Keypairs belong to ONE profile only
+/// ARCHITECTURE: Profile-Centric Model
+/// This controller manages backend accounts and their relationship with profiles:
+/// - Each Profile has exactly ONE backend Account
+/// - Account username is stored in Profile.username
+/// - Uses ProfileController to generate new keypairs when needed
+/// - NO cross-profile operations
 ///
-/// Current violations:
-/// 1. accountForIdentity() searches ALL accounts for matching keys (implies key sharing)
-/// 2. addPublicKey() accepts ANY identity to add to ANY account (cross-profile keys)
-/// 3. Draft accounts stored per-identity (should be per-profile)
-///
-/// Target behavior:
-/// - This controller should manage BACKEND account operations only
-/// - Profile management (local) should be in ProfileController
-/// - Adding keys should GENERATE new keypairs within current profile
+/// Key changes from old design:
+/// - Works with Profile objects, not individual IdentityRecords
+/// - Generates keypairs through ProfileController (no importing)
+/// - Stores username in Profile, not separate mapping
+/// - Draft accounts are part of Profile (not separate storage)
 ///
 /// Manages account state, registration, and key management.
 /// Integrates with MarketplaceOpenApiService for backend communication
@@ -54,16 +53,17 @@ class AccountController extends ChangeNotifier {
   AccountController({
     MarketplaceOpenApiService? marketplaceService,
     FlutterSecureStorage? secureStorage,
+    ProfileController? profileController,
   }) : _marketplaceService = marketplaceService ?? MarketplaceOpenApiService(),
-       _secureStorage = secureStorage ?? const FlutterSecureStorage();
+       _secureStorage = secureStorage ?? const FlutterSecureStorage(),
+       _profileController = profileController;
 
   final MarketplaceOpenApiService _marketplaceService;
   final FlutterSecureStorage _secureStorage;
+  final ProfileController? _profileController;
 
-  // Key prefix for storing identity-username mappings
+  // DEPRECATED: For backward compatibility with old code
   static const String _identityUsernamePrefix = 'identity_username_';
-
-  // Key prefix for storing draft accounts (not yet registered on marketplace)
   static const String _draftAccountPrefix = 'draft_account_';
 
   /// Cache of accounts by username (registered on marketplace)
@@ -198,30 +198,100 @@ class AccountController extends ChangeNotifier {
     }
   }
 
-  /// Add a public key to an account
+  /// Add a keypair to profile's account
   ///
-  /// FIXME - ARCHITECTURE VIOLATION:
-  /// This method accepts ANY IdentityRecord (newIdentity) from anywhere, allowing
-  /// cross-profile key sharing. This violates profile isolation.
+  /// This method GENERATES a new keypair for the profile and registers it with the backend.
+  /// - Generates NEW keypair through ProfileController
+  /// - Adds keypair to profile (stored locally)
+  /// - Registers public key with backend account
+  /// - NO cross-profile operations
   ///
-  /// Current behavior (WRONG):
-  /// - Can pass identity from Profile A to add to Profile B's account
-  /// - Implies keys can be shared across profiles
+  /// Returns the newly added AccountPublicKey from backend.
+  Future<AccountPublicKey> addKeypairToAccount({
+    required Profile profile,
+    required KeyAlgorithm algorithm,
+    String? keypairLabel,
+  }) async {
+    if (_profileController == null) {
+      throw StateError('ProfileController is required for addKeypairToAccount');
+    }
+
+    if (profile.username == null) {
+      throw StateError('Profile must be registered (have username) to add keypairs');
+    }
+
+    _setBusy(true);
+    try {
+      // Step 1: Generate NEW keypair within the profile (via ProfileController)
+      final updatedProfile = await _profileController.addKeypairToProfile(
+        profileId: profile.id,
+        algorithm: algorithm,
+        label: keypairLabel,
+      );
+
+      // Step 2: Get the newly added keypair (last one in the list)
+      final newKeypair = updatedProfile.keypairs.last;
+
+      // Step 3: Sign request with existing keypair from profile
+      final signingKeypair = profile.primaryKeypair;
+      final request = await AccountSignatureService.createAddPublicKeyRequest(
+        signingIdentity: signingKeypair,
+        username: profile.username!,
+        newPublicKeyB64: newKeypair.publicKey,
+      );
+
+      // Step 4: Submit to backend
+      final newKey = await _marketplaceService.addPublicKey(
+        username: profile.username!,
+        request: request,
+      );
+
+      // Step 5: Update cached account
+      final cachedAccount = _accounts[profile.username];
+      if (cachedAccount != null) {
+        final updatedKeys = <AccountPublicKey>[...cachedAccount.publicKeys, newKey];
+        _accounts[profile.username!] = cachedAccount.copyWith(
+          publicKeys: updatedKeys,
+          updatedAt: DateTime.now(),
+        );
+      }
+
+      notifyListeners();
+      return newKey;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  /// Get account for a profile (uses Profile.username)
   ///
-  /// Target behavior (CORRECT):
-  /// - Should GENERATE a new keypair for the current profile
-  /// - Remove newIdentity parameter, replace with algorithm parameter
-  /// - Store generated keypair in current profile's secure storage
-  /// - Only send public key to backend
+  /// Returns cached account if available, otherwise fetches from backend.
+  /// Returns null if profile is not registered or account doesn't exist.
+  Future<Account?> getAccountForProfile(Profile profile) async {
+    if (profile.username == null) {
+      // Profile not registered yet
+      return null;
+    }
+
+    // Check cache first
+    final cached = _accounts[profile.username];
+    if (cached != null) {
+      return cached;
+    }
+
+    // Fetch from backend
+    return await fetchAccount(profile.username!);
+  }
+
+  /// DEPRECATED: Use addKeypairToAccount instead
   ///
-  /// The signing identity must have an active key in the account.
-  /// The new public key will be derived from newIdentity.
-  ///
-  /// Returns the newly added AccountPublicKey.
+  /// This method violates profile isolation by accepting identities from anywhere.
+  /// It's kept for backward compatibility but should not be used in new code.
+  @Deprecated('Use addKeypairToAccount with ProfileController instead')
   Future<AccountPublicKey> addPublicKey({
     required String username,
     required IdentityRecord signingIdentity,
-    required IdentityRecord newIdentity, // FIXME: Should be KeyAlgorithm algorithm
+    required IdentityRecord newIdentity,
   }) async {
     _setBusy(true);
     try {
@@ -357,25 +427,11 @@ class AccountController extends ChangeNotifier {
     }
   }
 
-  /// Get account for a specific identity
+  /// DEPRECATED: Use getAccountForProfile instead
   ///
-  /// FIXME - ARCHITECTURE VIOLATION:
-  /// This method searches ALL accounts for a matching key, implying that one key
-  /// could belong to multiple accounts. This violates profile isolation.
-  ///
-  /// Current behavior (WRONG):
-  /// - Iterates through all accounts looking for matching public key
-  /// - Implies a keypair could be found in multiple accounts
-  /// - Graph structure (keys ← → accounts)
-  ///
-  /// Target behavior (CORRECT):
-  /// - Profile should directly reference its Account (1:1)
-  /// - No need to search - Profile.accountId or Profile.account
-  /// - Tree structure (Profile → Keypairs, Profile → Account)
-  ///
-  /// First searches registered accounts (from marketplace API).
-  /// If not found, checks for a local draft account.
-  /// Returns null if no account found.
+  /// This method searches ALL accounts for a matching key, which violates
+  /// profile isolation. Use Profile.username directly or getAccountForProfile().
+  @Deprecated('Use getAccountForProfile with Profile instead')
   Account? accountForIdentity(IdentityRecord identity) {
     // Convert identity public key to hex format for comparison
     final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
@@ -396,9 +452,8 @@ class AccountController extends ChangeNotifier {
     return null;
   }
 
-  /// Get account for identity, loading draft if needed
-  ///
-  /// Async version that loads draft account from storage if not cached.
+  /// DEPRECATED: Use getAccountForProfile instead
+  @Deprecated('Use getAccountForProfile with Profile instead')
   Future<Account?> getAccountForIdentity(IdentityRecord identity) async {
     // Try memory cache first
     final cached = accountForIdentity(identity);
