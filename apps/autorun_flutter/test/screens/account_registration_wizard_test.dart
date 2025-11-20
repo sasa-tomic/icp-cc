@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/account_controller.dart';
-import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/screens/account_registration_wizard.dart';
 
 import '../test_helpers/test_identity_factory.dart';
@@ -10,8 +9,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('AccountRegistrationWizard', () {
-    group('Continue button behavior', () {
-      testWidgets('Continue button is disabled when fields are empty', (WidgetTester tester) async {
+    group('Register button behavior', () {
+      testWidgets('Register button is disabled when fields are empty', (WidgetTester tester) async {
         // Arrange
         final identity = await TestIdentityFactory.getEd25519Identity();
         final controller = AccountController();
@@ -28,14 +27,14 @@ void main() {
         await tester.pumpAndSettle();
 
         // Assert
-        final continueButton = find.widgetWithText(FilledButton, 'Continue');
-        expect(continueButton, findsOneWidget);
+        final registerButton = find.widgetWithText(FilledButton, 'Register');
+        expect(registerButton, findsOneWidget);
 
-        final FilledButton button = tester.widget(continueButton);
+        final FilledButton button = tester.widget(registerButton);
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Continue button is enabled when username and display name are filled', (WidgetTester tester) async {
+      testWidgets('Register button remains disabled until username validation passes', (WidgetTester tester) async {
         // Arrange
         final identity = await TestIdentityFactory.getEd25519Identity();
         final controller = AccountController();
@@ -60,15 +59,15 @@ void main() {
         await tester.enterText(displayNameField, 'Test User');
         await tester.pump();
 
-        // Assert
-        final continueButton = find.widgetWithText(FilledButton, 'Continue');
-        expect(continueButton, findsOneWidget);
+        // Assert - Button remains disabled until validation completes
+        final registerButton = find.widgetWithText(FilledButton, 'Register');
+        expect(registerButton, findsOneWidget);
 
-        final FilledButton button = tester.widget(continueButton);
-        expect(button.onPressed, isNotNull); // Button is enabled
+        final FilledButton button = tester.widget(registerButton);
+        expect(button.onPressed, isNull); // Button is disabled until validation passes
       });
 
-      testWidgets('Continue button is disabled when only username is filled', (WidgetTester tester) async {
+      testWidgets('Register button is disabled when only username is filled', (WidgetTester tester) async {
         // Arrange
         final identity = await TestIdentityFactory.getEd25519Identity();
         final controller = AccountController();
@@ -89,14 +88,14 @@ void main() {
         await tester.pump();
 
         // Assert
-        final continueButton = find.widgetWithText(FilledButton, 'Continue');
-        expect(continueButton, findsOneWidget);
+        final registerButton = find.widgetWithText(FilledButton, 'Register');
+        expect(registerButton, findsOneWidget);
 
-        final FilledButton button = tester.widget(continueButton);
+        final FilledButton button = tester.widget(registerButton);
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Continue button is disabled when only display name is filled', (WidgetTester tester) async {
+      testWidgets('Register button is disabled when only display name is filled', (WidgetTester tester) async {
         // Arrange
         final identity = await TestIdentityFactory.getEd25519Identity();
         final controller = AccountController();
@@ -117,46 +116,14 @@ void main() {
         await tester.pump();
 
         // Assert
-        final continueButton = find.widgetWithText(FilledButton, 'Continue');
-        expect(continueButton, findsOneWidget);
+        final registerButton = find.widgetWithText(FilledButton, 'Register');
+        expect(registerButton, findsOneWidget);
 
-        final FilledButton button = tester.widget(continueButton);
+        final FilledButton button = tester.widget(registerButton);
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Continue button remains enabled even when username validation is in progress', (WidgetTester tester) async {
-        // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
-        final controller = AccountController();
-
-        await tester.pumpWidget(
-          MaterialApp(
-            home: AccountRegistrationWizard(
-              identity: identity,
-              accountController: controller,
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Act - Fill both fields
-        final usernameField = find.widgetWithText(TextFormField, 'Username').first;
-        await tester.enterText(usernameField, 'testuser');
-        await tester.pump();
-
-        final displayNameField = find.widgetWithText(TextFormField, 'Display Name *').first;
-        await tester.enterText(displayNameField, 'Test User');
-        await tester.pump();
-
-        // Assert - Button should be enabled immediately, not waiting for validation
-        final continueButton = find.widgetWithText(FilledButton, 'Continue');
-        expect(continueButton, findsOneWidget);
-
-        final FilledButton button = tester.widget(continueButton);
-        expect(button.onPressed, isNotNull); // Button is enabled
-      });
-
-      testWidgets('Continue button is disabled when username is whitespace only', (WidgetTester tester) async {
+      testWidgets('Register button is disabled when username is whitespace only', (WidgetTester tester) async {
         // Arrange
         final identity = await TestIdentityFactory.getEd25519Identity();
         final controller = AccountController();
@@ -181,14 +148,14 @@ void main() {
         await tester.pump();
 
         // Assert
-        final continueButton = find.widgetWithText(FilledButton, 'Continue');
-        expect(continueButton, findsOneWidget);
+        final registerButton = find.widgetWithText(FilledButton, 'Register');
+        expect(registerButton, findsOneWidget);
 
-        final FilledButton button = tester.widget(continueButton);
+        final FilledButton button = tester.widget(registerButton);
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Continue button is disabled when display name is whitespace only', (WidgetTester tester) async {
+      testWidgets('Register button is disabled when display name is whitespace only', (WidgetTester tester) async {
         // Arrange
         final identity = await TestIdentityFactory.getEd25519Identity();
         final controller = AccountController();
@@ -213,10 +180,10 @@ void main() {
         await tester.pump();
 
         // Assert
-        final continueButton = find.widgetWithText(FilledButton, 'Continue');
-        expect(continueButton, findsOneWidget);
+        final registerButton = find.widgetWithText(FilledButton, 'Register');
+        expect(registerButton, findsOneWidget);
 
-        final FilledButton button = tester.widget(continueButton);
+        final FilledButton button = tester.widget(registerButton);
         expect(button.onPressed, isNull); // Button is disabled
       });
     });
@@ -239,7 +206,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // Assert
-        expect(find.text('Choose Your Username'), findsOneWidget);
         expect(find.text('Username'), findsOneWidget);
         expect(find.text('Display Name *'), findsOneWidget);
         expect(find.text('Email (optional)'), findsOneWidget);
