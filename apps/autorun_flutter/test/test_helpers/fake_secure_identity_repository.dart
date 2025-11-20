@@ -8,7 +8,19 @@ import 'package:icp_autorun/services/secure_identity_repository.dart';
 class FakeSecureIdentityRepository implements SecureIdentityRepository {
   FakeSecureIdentityRepository(List<IdentityRecord> initialIdentities)
       : _identities = List.of(initialIdentities),
-        _fakeProfileRepository = FakeProfileRepository([]);
+        _fakeProfileRepository = FakeProfileRepository(
+          // Convert initial identities to profiles
+          initialIdentities.map((identity) {
+            return Profile(
+              id: 'profile_${identity.id}',
+              name: identity.label,
+              keypairs: [identity],
+              username: null,
+              createdAt: identity.createdAt,
+              updatedAt: identity.createdAt,
+            );
+          }).toList(),
+        );
 
   List<IdentityRecord> _identities;
   final FakeProfileRepository _fakeProfileRepository;
@@ -24,6 +36,20 @@ class FakeSecureIdentityRepository implements SecureIdentityRepository {
   @override
   Future<void> persistIdentities(List<IdentityRecord> identities) async {
     _identities = List<IdentityRecord>.from(identities);
+
+    // Also update profiles - each identity becomes a profile with one keypair
+    final List<Profile> profiles = identities.map((identity) {
+      return Profile(
+        id: 'profile_${identity.id}', // Deterministic profile ID
+        name: identity.label,
+        keypairs: [identity],
+        username: null,
+        createdAt: identity.createdAt,
+        updatedAt: identity.createdAt,
+      );
+    }).toList();
+
+    await _fakeProfileRepository.persistProfiles(profiles);
   }
 
   @override
