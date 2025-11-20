@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -46,8 +47,14 @@ class AccountController extends ChangeNotifier {
   // Key prefix for storing identity-username mappings
   static const String _identityUsernamePrefix = 'identity_username_';
 
-  /// Cache of accounts by username
+  // Key prefix for storing draft accounts (not yet registered on marketplace)
+  static const String _draftAccountPrefix = 'draft_account_';
+
+  /// Cache of accounts by username (registered on marketplace)
   final Map<String, Account> _accounts = <String, Account>{};
+
+  /// Cache of draft accounts by identity ID (local only, not yet registered)
+  final Map<String, Account> _draftAccounts = <String, Account>{};
 
   /// Cache of username availability checks (username -> isAvailable)
   final Map<String, bool> _availabilityCache = <String, bool>{};
@@ -322,12 +329,14 @@ class AccountController extends ChangeNotifier {
 
   /// Get account for a specific identity
   ///
-  /// Searches cached accounts to find one containing the identity's public key.
-  /// Returns null if no matching account found.
+  /// First searches registered accounts (from marketplace API).
+  /// If not found, checks for a local draft account.
+  /// Returns null if no account found.
   Account? accountForIdentity(IdentityRecord identity) {
     // Convert identity public key to hex format for comparison
     final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
 
+    // Check registered accounts first
     for (final account in _accounts.values) {
       final hasKey = account.publicKeys.any((key) => key.publicKey == publicKeyHex);
       if (hasKey) {
@@ -335,7 +344,26 @@ class AccountController extends ChangeNotifier {
       }
     }
 
+    // Check draft accounts (cached in memory)
+    if (_draftAccounts.containsKey(identity.id)) {
+      return _draftAccounts[identity.id];
+    }
+
     return null;
+  }
+
+  /// Get account for identity, loading draft if needed
+  ///
+  /// Async version that loads draft account from storage if not cached.
+  Future<Account?> getAccountForIdentity(IdentityRecord identity) async {
+    // Try memory cache first
+    final cached = accountForIdentity(identity);
+    if (cached != null) {
+      return cached;
+    }
+
+    // Try loading draft account from storage
+    return await getDraftAccount(identity.id);
   }
 
   /// Validate username format
@@ -426,9 +454,92 @@ class AccountController extends ChangeNotifier {
     }
   }
 
+  /// Create a draft account (local only, not registered on marketplace)
+  ///
+  /// This creates a local account that will be used until the user registers
+  /// on the marketplace. The draft account is persisted and will survive app restarts.
+  Future<Account> createDraftAccount({
+    required IdentityRecord identity,
+    required String username,
+    required String displayName,
+  }) async {
+    final normalizedUsername = AccountSignatureService.normalizeUsername(username);
+    final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
+
+    final now = DateTime.now();
+    final draftAccount = Account(
+      id: 'draft_${identity.id}',
+      username: normalizedUsername,
+      displayName: displayName,
+      publicKeys: [
+        AccountPublicKey(
+          id: 'draft_key_${identity.id}',
+          publicKey: publicKeyHex,
+          icPrincipal: '', // Will be populated when registered
+          isActive: true,
+          addedAt: now,
+          disabledAt: null,
+        ),
+      ],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    // Store in cache
+    _draftAccounts[identity.id] = draftAccount;
+
+    // Persist to secure storage
+    await _secureStorage.write(
+      key: '$_draftAccountPrefix${identity.id}',
+      value: jsonEncode(draftAccount.toJson()),
+    );
+
+    notifyListeners();
+    return draftAccount;
+  }
+
+  /// Load all draft accounts from secure storage
+  Future<void> loadDraftAccounts() async {
+    // Note: FlutterSecureStorage doesn't provide a way to list all keys,
+    // so we'll load draft accounts on-demand in getDraftAccount
+  }
+
+  /// Get draft account for an identity
+  ///
+  /// Returns null if no draft account exists.
+  Future<Account?> getDraftAccount(String identityId) async {
+    // Check cache first
+    if (_draftAccounts.containsKey(identityId)) {
+      return _draftAccounts[identityId];
+    }
+
+    // Load from secure storage
+    final json = await _secureStorage.read(key: '$_draftAccountPrefix$identityId');
+    if (json != null) {
+      try {
+        final account = Account.fromJson(jsonDecode(json) as Map<String, dynamic>);
+        _draftAccounts[identityId] = account;
+        return account;
+      } catch (e) {
+        debugPrint('Failed to parse draft account: $e');
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /// Delete draft account
+  Future<void> deleteDraftAccount(String identityId) async {
+    _draftAccounts.remove(identityId);
+    await _secureStorage.delete(key: '$_draftAccountPrefix$identityId');
+    notifyListeners();
+  }
+
   /// Clear all cached data
   void clearCache() {
     _accounts.clear();
+    _draftAccounts.clear();
     _availabilityCache.clear();
     notifyListeners();
   }

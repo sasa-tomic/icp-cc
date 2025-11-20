@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/identity_controller.dart';
 import 'package:icp_autorun/screens/script_upload_screen.dart';
-import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/identity_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,7 +16,6 @@ void main() {
     final identity = await TestIdentityFactory.getEd25519Identity();
     final controller = IdentityController(
       secureRepository: FakeSecureIdentityRepository([identity]),
-      marketplaceService: MarketplaceOpenApiService(),
       preferences: await SharedPreferences.getInstance(),
     );
     await controller.ensureLoaded();

@@ -1,20 +1,14 @@
-import 'dart:convert';
-
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
-import '../services/marketplace_open_api_service.dart';
 import '../services/secure_identity_repository.dart';
 import '../utils/identity_generator.dart';
-import '../utils/principal.dart';
 
 class IdentityController extends ChangeNotifier {
   IdentityController({
     SecureIdentityRepository? secureRepository,
-    MarketplaceOpenApiService? marketplaceService,
     SharedPreferences? preferences,
   })  : _secureRepository = secureRepository ?? SecureIdentityRepository(),
         _preferencesOverride = preferences;
@@ -26,7 +20,6 @@ class IdentityController extends ChangeNotifier {
   SharedPreferences? _preferences;
 
   final List<IdentityRecord> _identities = <IdentityRecord>[];
-  final Map<String, IdentityProfile> _profiles = <String, IdentityProfile>{};
 
   bool _initialized = false;
   bool _isBusy = false;
@@ -39,16 +32,6 @@ class IdentityController extends ChangeNotifier {
   bool get hasActiveIdentity => _activeIdentityId != null;
   IdentityRecord? get activeIdentity =>
       _identities.firstWhereOrNull((IdentityRecord record) => record.id == _activeIdentityId);
-
-  IdentityProfile? profileForPrincipal(String principal) => _profiles[principal];
-
-  IdentityProfile? profileForRecord(IdentityRecord record) =>
-      _profiles[PrincipalUtils.textFromRecord(record)];
-
-  bool isProfileComplete(IdentityRecord record) {
-    final IdentityProfile? profile = profileForRecord(record);
-    return profile != null && profile.displayName.isNotEmpty;
-  }
 
   Future<void> ensureLoaded() async {
     if (_initialized) {
@@ -65,7 +48,6 @@ class IdentityController extends ChangeNotifier {
       _identities
         ..clear()
         ..addAll(records);
-      await _loadProfilesFromPreferences();
       await _hydrateActiveIdentityFromPreferences();
       await _reconcileActiveIdentity();
       notifyListeners();
@@ -97,34 +79,6 @@ class IdentityController extends ChangeNotifier {
     }
   }
 
-  Future<IdentityRecord> createIdentityWithProfile({
-    required IdentityProfileDraft profileDraft,
-    required IdentityRecord identity,
-  }) async {
-    _setBusy(true);
-    try {
-      // Persist identity
-      _identities.add(identity);
-      await _secureRepository.persistIdentities(_identities);
-      await _updateActiveIdentity(identity.id);
-
-      // Save profile locally only
-      final IdentityProfile profile = IdentityProfile(
-        id: identity.id,
-        principal: profileDraft.principal,
-        displayName: profileDraft.displayName,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      _profiles[profile.principal] = profile;
-      await _saveProfilesToPreferences();
-
-      notifyListeners();
-      return identity;
-    } finally {
-      _setBusy(false);
-    }
-  }
 
   IdentityRecord? findById(String id) {
     return _identities.firstWhereOrNull((IdentityRecord record) => record.id == id);
@@ -157,10 +111,8 @@ class IdentityController extends ChangeNotifier {
     if (record == null) {
       return;
     }
-    final String principal = PrincipalUtils.textFromRecord(record);
     await _secureRepository.deleteIdentitySecureData(record.id);
     _identities.remove(record);
-    _profiles.remove(principal);
     if (_activeIdentityId == id) {
       await _updateActiveIdentity(null);
     }
@@ -168,33 +120,6 @@ class IdentityController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<IdentityProfile?> ensureProfileLoaded(IdentityRecord identity) async {
-    final String principal = PrincipalUtils.textFromRecord(identity);
-    final IdentityProfile? cached = _profiles[principal];
-    if (cached != null) {
-      return cached;
-    }
-    // Profile is local-only, return null if not in cache
-    return null;
-  }
-
-  Future<IdentityProfile> saveProfile({
-    required IdentityRecord identity,
-    required IdentityProfileDraft draft,
-  }) async {
-    // Save profile locally only
-    final IdentityProfile profile = IdentityProfile(
-      id: identity.id,
-      principal: draft.principal,
-      displayName: draft.displayName,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-    _profiles[profile.principal] = profile;
-    await _saveProfilesToPreferences();
-    notifyListeners();
-    return profile;
-  }
 
   Future<SharedPreferences> _prefs() async {
     final SharedPreferences? override = _preferencesOverride;
@@ -252,59 +177,5 @@ class IdentityController extends ChangeNotifier {
     }
     _isBusy = value;
     notifyListeners();
-  }
-
-  /// Save profiles to SharedPreferences (local storage only)
-  Future<void> _saveProfilesToPreferences() async {
-    final SharedPreferences prefs = await _prefs();
-    final Map<String, dynamic> profilesJson = <String, dynamic>{};
-
-    for (final entry in _profiles.entries) {
-      profilesJson[entry.key] = <String, dynamic>{
-        'id': entry.value.id,
-        'principal': entry.value.principal,
-        'displayName': entry.value.displayName,
-        'metadata': entry.value.metadata,
-        'createdAt': entry.value.createdAt.toIso8601String(),
-        'updatedAt': entry.value.updatedAt.toIso8601String(),
-      };
-    }
-
-    final String encoded = jsonEncode(profilesJson);
-    await prefs.setString('identity_profiles', encoded);
-  }
-
-  /// Load profiles from SharedPreferences (local storage only)
-  Future<void> _loadProfilesFromPreferences() async {
-    final SharedPreferences prefs = await _prefs();
-    final String? encoded = prefs.getString('identity_profiles');
-
-    if (encoded == null) {
-      return;
-    }
-
-    try {
-      final dynamic decoded = jsonDecode(encoded);
-      if (decoded is! Map<String, dynamic>) {
-        return;
-      }
-
-      _profiles.clear();
-      for (final entry in decoded.entries) {
-        final data = entry.value as Map<String, dynamic>;
-        final profile = IdentityProfile(
-          id: data['id'] as String,
-          principal: data['principal'] as String,
-          displayName: data['displayName'] as String,
-          metadata: (data['metadata'] as Map<String, dynamic>?) ?? <String, dynamic>{},
-          createdAt: DateTime.parse(data['createdAt'] as String),
-          updatedAt: DateTime.parse(data['updatedAt'] as String),
-        );
-        _profiles[entry.key] = profile;
-      }
-    } catch (e) {
-      debugPrint('Failed to load identity profiles from preferences: $e');
-      _profiles.clear();
-    }
   }
 }

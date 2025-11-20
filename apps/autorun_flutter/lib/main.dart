@@ -159,10 +159,9 @@ class _MainHomePageState extends State<MainHomePage> {
 
   bool _shouldShowIdentityBadge(IdentityController controller) {
     final IdentityRecord? active = controller.activeIdentity;
-    if (active == null) {
-      return true; // Show badge for anonymous
-    }
-    return !controller.isProfileComplete(active);
+    // Show badge only for anonymous mode (no active identity)
+    // With the new system, all identities have an account (draft or registered)
+    return active == null;
   }
 }
  

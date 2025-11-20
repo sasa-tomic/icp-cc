@@ -670,7 +670,7 @@ end''';
         ),
       );
     }
-    final bool isComplete = controller.isProfileComplete(identity);
+    // With the new system, all identities have an account (draft or registered)
     final String principal = PrincipalUtils.textFromRecord(identity);
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -680,15 +680,11 @@ end''';
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: isComplete
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
-                  : Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
+              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
               child: Icon(
                 Icons.verified_user,
                 size: 20,
-                color: isComplete
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.error,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(width: 12),
@@ -710,18 +706,6 @@ end''';
                 ],
               ),
             ),
-            if (!isComplete)
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: Tooltip(
-                  message: 'Complete profile in Identities tab',
-                  child: Icon(
-                    Icons.warning_amber_rounded,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                ),
-              ),
           ],
         ),
       ),

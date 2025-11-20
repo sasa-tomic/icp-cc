@@ -217,6 +217,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              onChanged: (_) => setState(() {}),
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Display name is required';
@@ -800,13 +801,20 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard>
   }
 
   bool get _canContinue {
-    return !_isValidating &&
-        _validation?.isValid == true &&
-        _usernameController.text.isNotEmpty &&
-        _displayNameController.text.isNotEmpty;
+    return _usernameController.text.trim().isNotEmpty &&
+        _displayNameController.text.trim().isNotEmpty;
   }
 
-  void _goToReview() {
+  Future<void> _goToReview() async {
+    // Validate username if not already validated
+    final username = _usernameController.text.trim();
+    if (_validation == null || !_validation!.isValid) {
+      setState(() => _isValidating = true);
+      await _validateUsername(username);
+      setState(() => _isValidating = false);
+    }
+
+    // Now validate the form
     if (_formKey.currentState?.validate() ?? false) {
       HapticFeedback.lightImpact();
       setState(() => _currentStep = 1);

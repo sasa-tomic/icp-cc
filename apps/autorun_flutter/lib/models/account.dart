@@ -102,6 +102,23 @@ class Account {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'username': username,
+      'displayName': displayName,
+      'contactEmail': contactEmail,
+      'contactTelegram': contactTelegram,
+      'contactTwitter': contactTwitter,
+      'contactDiscord': contactDiscord,
+      'websiteUrl': websiteUrl,
+      'bio': bio,
+      'publicKeys': publicKeys.map((k) => k.toJson()).toList(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
 }
 
 class AccountPublicKey {
@@ -147,6 +164,18 @@ class AccountPublicKey {
   String get displayPrincipal {
     if (icPrincipal.length <= 10) return icPrincipal;
     return '${icPrincipal.substring(0, 5)}...${icPrincipal.substring(icPrincipal.length - 3)}';
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'publicKey': publicKey,
+      'icPrincipal': icPrincipal,
+      'isActive': isActive,
+      'addedAt': addedAt.toIso8601String(),
+      if (disabledAt != null) 'disabledAt': disabledAt!.toIso8601String(),
+      if (disabledByKeyId != null) 'disabledByKeyId': disabledByKeyId,
+    };
   }
 }
 

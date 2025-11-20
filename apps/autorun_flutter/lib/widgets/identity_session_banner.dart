@@ -22,11 +22,11 @@ class IdentitySessionBanner extends StatelessWidget {
         onManageIdentities: onManageIdentities,
       );
     }
-    final bool isComplete = controller.isProfileComplete(active);
+    // With the new system, all identities have an account (draft or registered)
     return _ActiveIdentityCard(
       identity: active,
       principal: PrincipalUtils.textFromRecord(active),
-      isProfileComplete: isComplete,
+      isProfileComplete: true, // Always true now - all identities have accounts
       onManageIdentities: onManageIdentities,
     );
   }

@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import '../controllers/identity_controller.dart';
 import '../controllers/account_controller.dart';
 import '../models/account.dart';
-import '../models/identity_profile.dart';
 import '../models/identity_record.dart';
 import '../services/secure_identity_repository.dart';
 import '../theme/app_design_system.dart';
@@ -261,25 +260,32 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   }
 
   Future<void> _showCreationSheet() async {
-    final IdentityRecord? record = await showModalBottomSheet<IdentityRecord>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (BuildContext context) => _IdentityProfileCreationSheet(controller: _controller),
+    // Generate identity with temporary label
+    final IdentityRecord identity = await IdentityGenerator.generate(
+      algorithm: KeyAlgorithm.ed25519,
+      label: 'Identity ${_controller.identities.length + 1}',
+      identityCount: _controller.identities.length,
     );
-    if (!mounted || record == null) {
-      return;
-    }
-    await _controller.setActiveIdentity(record.id);
+
+    // Create identity
+    final IdentityRecord record = await _controller.createIdentity(
+      algorithm: KeyAlgorithm.ed25519,
+      label: identity.label,
+      mnemonic: identity.mnemonic,
+    );
+
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Identity "${record.label}" created successfully'),
-        backgroundColor: AppDesignSystem.successLight,
-      ),
-    );
+
+    await _controller.setActiveIdentity(record.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    // Navigate directly to account registration wizard
+    await _navigateToAccountRegistration(record);
   }
 
   Future<void> _showKeypairInformationDialog(IdentityRecord record) async {
@@ -612,8 +618,13 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
   }
 
   String _displayNameForIdentity(IdentityRecord record) {
-    final IdentityProfile? profile = _controller.profileForRecord(record);
-    return profile?.displayName ?? record.label;
+    // Get account (either registered or draft)
+    final Account? account = _accountController.accountForIdentity(record);
+    if (account != null) {
+      return account.displayName;
+    }
+    // Fall back to identity label if no account exists
+    return record.label;
   }
 
   String _avatarInitialsForIdentity(IdentityRecord record) {
@@ -1315,148 +1326,6 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     );
   }
 }
-
-class _IdentityProfileCreationSheet extends StatefulWidget {
-  const _IdentityProfileCreationSheet({required this.controller});
-
-  final IdentityController controller;
-
-  @override
-  State<_IdentityProfileCreationSheet> createState() => _IdentityProfileCreationSheetState();
-}
-
-class _IdentityProfileCreationSheetState extends State<_IdentityProfileCreationSheet> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _displayNameController;
-  bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _displayNameController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _displayNameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (_isSubmitting) {
-      return;
-    }
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    setState(() => _isSubmitting = true);
-    try {
-      // Generate identity first to derive principal
-      final IdentityRecord identity = await IdentityGenerator.generate(
-        algorithm: KeyAlgorithm.ed25519,
-        label: _displayNameController.text.trim(),
-        identityCount: widget.controller.identities.length,
-      );
-
-      final IdentityProfileDraft draft = IdentityProfileDraft(
-        principal: PrincipalUtils.textFromRecord(identity),
-        displayName: _displayNameController.text.trim(),
-      );
-
-      final IdentityRecord record = await widget.controller.createIdentityWithProfile(
-        profileDraft: draft,
-        identity: identity,
-      );
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).pop(record);
-    } catch (error, stackTrace) {
-      debugPrint('Failed to create identity: $error\n$stackTrace');
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create identity: $error')));
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final EdgeInsets viewInsets = MediaQuery.of(context).viewInsets;
-    final safeAreaPadding = MediaQuery.of(context).padding;
-
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: viewInsets.bottom + safeAreaPadding.bottom,
-        left: 24,
-        right: 24,
-        top: 24,
-      ),
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          shrinkWrap: true,
-          children: <Widget>[
-            Text('Create a new identity', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(
-              'A cryptographic keypair will be generated automatically. Contact details can be added when you register a marketplace account.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _displayNameController,
-              label: 'Display name *',
-              validator: (String? value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Display name is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _isSubmitting ? null : _submit,
-              icon: _isSubmitting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.person_add_rounded),
-              label: const Text('Create identity'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    String? hint,
-    String? Function(String?)? validator,
-    int maxLines = 1,
-    TextInputType? keyboardType,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        border: const OutlineInputBorder(),
-      ),
-      validator: validator,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
-    );
-  }
-}
-
-// Empty state moved to shared widget
 
 class _DialogSection extends StatelessWidget {
   const _DialogSection({required this.label, required this.value, this.onCopy});
