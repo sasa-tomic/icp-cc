@@ -6,6 +6,7 @@ import 'package:ffi/ffi.dart' as pkg_ffi;
 class _Symbols {
   static const String generate = 'icp_generate_keypair';
   static const String principalFromPublicKey = 'icp_principal_from_public_key';
+  static const String signMessage = 'icp_sign_message';
   static const String free = 'icp_free_string';
   static const String fetchCandid = 'icp_fetch_candid';
   static const String parseCandid = 'icp_parse_candid';
@@ -133,6 +134,35 @@ class RustBridgeLoader {
     try {
       final s = res.cast<pkg_ffi.Utf8>().toDartString();
       return s.isEmpty ? null : s;
+    } finally {
+      free(res);
+    }
+  }
+
+  /// Sign a message with a private key.
+  /// [alg]: 0 = Ed25519, 1 = secp256k1
+  /// [messageB64]: base64-encoded message
+  /// [privateKeyB64]: base64-encoded private key
+  /// Returns JSON: {"ok": true, "signature": "<hex>"} or {"ok": false, "error": "..."}
+  String? signMessage({
+    required int alg,
+    required String messageB64,
+    required String privateKeyB64,
+  }) {
+    final lib = _open();
+    if (lib == null) return null;
+
+    final fn = lib.lookupFunction<_SignMessageNative, _SignMessageDart>(
+      _Symbols.signMessage,
+    );
+    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+
+    final msg = messageB64.toNativeUtf8().cast<ffi.Int8>();
+    final pk = privateKeyB64.toNativeUtf8().cast<ffi.Int8>();
+    final res = fn(alg, msg, pk);
+    if (res == ffi.nullptr) return null;
+    try {
+      return res.cast<pkg_ffi.Utf8>().toDartString();
     } finally {
       free(res);
     }
@@ -424,6 +454,17 @@ class NativeBridge {
 typedef _GenNative = ffi.Pointer<ffi.Int8> Function(
     ffi.Int32, ffi.Pointer<ffi.Int8>);
 typedef _GenDart = ffi.Pointer<ffi.Int8> Function(int, ffi.Pointer<ffi.Int8>);
+
+typedef _SignMessageNative = ffi.Pointer<ffi.Int8> Function(
+  ffi.Int32, // alg
+  ffi.Pointer<ffi.Int8>, // message_b64
+  ffi.Pointer<ffi.Int8>, // private_key_b64
+);
+typedef _SignMessageDart = ffi.Pointer<ffi.Int8> Function(
+  int,
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+);
 
 typedef _FreeNative = ffi.Void Function(ffi.Pointer<ffi.Int8>);
 typedef _FreeDart = void Function(ffi.Pointer<ffi.Int8>);

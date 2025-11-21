@@ -1811,6 +1811,7 @@ dependencies = [
  "dirs",
  "ed25519-dalek",
  "getrandom 0.2.16",
+ "hex",
  "hex-literal",
  "ic-agent",
  "js-sys",

@@ -65,3 +65,66 @@ pub fn generate_secp256k1_keypair(mnemonic: Option<String>) -> KeypairData {
         principal_text: principal,
     }
 }
+
+/// Sign a message with Ed25519 private key.
+/// According to RFC 8032, Ed25519 signs the message directly (no pre-hashing).
+/// Returns base64-encoded signature (64 bytes).
+pub fn sign_ed25519(message: &[u8], private_key_b64: &str) -> Result<String, String> {
+    use ed25519_dalek::Signer;
+
+    let private_bytes = B64
+        .decode(private_key_b64)
+        .map_err(|e| format!("Invalid base64 private key: {}", e))?;
+
+    if private_bytes.len() != 32 {
+        return Err(format!(
+            "Ed25519 private key must be 32 bytes, got {}",
+            private_bytes.len()
+        ));
+    }
+
+    let key_array: [u8; 32] = private_bytes
+        .try_into()
+        .map_err(|_| "Failed to convert private key bytes to array".to_string())?;
+
+    let secret = Ed25519Secret::from_bytes(&key_array);
+
+    let signature = secret.sign(message);
+    Ok(B64.encode(signature.to_bytes()))
+}
+
+/// Sign a message with secp256k1 private key.
+/// According to ECDSA requirements, we hash the message with SHA-256 first, then sign.
+/// Returns hex-encoded signature.
+pub fn sign_secp256k1(message: &[u8], private_key_b64: &str) -> Result<String, String> {
+    use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
+    use sha2::{Digest, Sha256};
+
+    let private_bytes = B64
+        .decode(private_key_b64)
+        .map_err(|e| format!("Invalid base64 private key: {}", e))?;
+
+    if private_bytes.len() != 32 {
+        return Err(format!(
+            "secp256k1 private key must be 32 bytes, got {}",
+            private_bytes.len()
+        ));
+    }
+
+    let secret = SecretKey::from_slice(&private_bytes)
+        .map_err(|e| format!("Invalid secp256k1 private key: {}", e))?;
+
+    // Hash the message with SHA-256 (ECDSA requirement)
+    let mut hasher = Sha256::new();
+    hasher.update(message);
+    let hash = hasher.finalize();
+
+    let message = Message::from_digest_slice(&hash)
+        .map_err(|e| format!("Failed to create message from hash: {}", e))?;
+
+    let secp = Secp256k1::new();
+    let signature = secp.sign_ecdsa(&message, &secret);
+
+    // Encode as hex (matching Dart/frontend expectations)
+    Ok(hex::encode(signature.serialize_compact()))
+}

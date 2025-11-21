@@ -10,7 +10,9 @@ pub mod principal;
 pub mod wasm_exports;
 
 pub use canister_client::{MethodInfo, MethodKind, ParsedInterface};
-pub use keypair::{generate_ed25519_keypair, generate_secp256k1_keypair, KeypairData};
+pub use keypair::{
+    generate_ed25519_keypair, generate_secp256k1_keypair, sign_ed25519, sign_secp256k1, KeypairData,
+};
 pub use lua_engine::{
     execute_lua_json, lint_lua, validate_lua_comprehensive, LuaExecError, ValidationContext,
     ValidationResult,

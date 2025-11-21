@@ -1,7 +1,7 @@
 use crate::{
     canister_client::{self, MethodKind},
     generate_ed25519_keypair, generate_secp256k1_keypair, lua_engine, principal_from_public_key,
-    ValidationContext,
+    sign_ed25519, sign_secp256k1, ValidationContext,
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde_json::json;
@@ -70,6 +70,67 @@ pub unsafe extern "C" fn icp_principal_from_public_key(
         None => return null_c_string(),
     };
     CString::new(principal).unwrap().into_raw()
+}
+
+/// Sign a message with a private key.
+///
+/// # Safety
+/// - `message_b64` must be a valid, null-terminated C string containing base64-encoded message.
+/// - `private_key_b64` must be a valid, null-terminated C string containing base64-encoded private key.
+/// - `alg`: 0 = Ed25519, 1 = secp256k1
+/// - Returns JSON: {"ok": true, "signature": "<hex>"} or {"ok": false, "error": "..."}
+/// - The returned pointer must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_sign_message(
+    alg: i32,
+    message_b64: *const c_char,
+    private_key_b64: *const c_char,
+) -> *mut c_char {
+    if message_b64.is_null() || private_key_b64.is_null() {
+        let err_json = json!({"ok": false, "error": "Null parameters"}).to_string();
+        return CString::new(err_json).unwrap().into_raw();
+    }
+
+    let msg_b64 = match CStr::from_ptr(message_b64).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            let err_json = json!({"ok": false, "error": "Invalid message encoding"}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let pk_b64 = match CStr::from_ptr(private_key_b64).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            let err_json =
+                json!({"ok": false, "error": "Invalid private key encoding"}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    // Decode the message from base64
+    let message = match B64.decode(msg_b64) {
+        Ok(b) => b,
+        Err(e) => {
+            let err_json =
+                json!({"ok": false, "error": format!("Failed to decode message: {}", e)})
+                    .to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let result = match alg {
+        0 => sign_ed25519(&message, pk_b64),
+        1 => sign_secp256k1(&message, pk_b64),
+        _ => Err("Invalid algorithm: use 0 for Ed25519 or 1 for secp256k1".to_string()),
+    };
+
+    let json = match result {
+        Ok(signature) => json!({"ok": true, "signature": signature}).to_string(),
+        Err(e) => json!({"ok": false, "error": e}).to_string(),
+    };
+
+    CString::new(json).unwrap().into_raw()
 }
 
 /// # Safety

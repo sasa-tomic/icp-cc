@@ -3,6 +3,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:uuid/uuid.dart';
 import '../models/profile_keypair.dart';
 import '../models/account.dart';
+import '../rust/native_bridge.dart';
 
 /// Digital signature service for account management operations
 ///
@@ -242,10 +243,31 @@ class AccountSignatureService {
 
       case KeyAlgorithm.secp256k1:
         // Standard secp256k1: SHA-256 hash then sign (ECDSA requirement)
-        // TODO: Implement secp256k1 with Rust FFI bridge
-        throw UnimplementedError(
-          'secp256k1 signatures require Rust FFI bridge - use Ed25519 for now',
+        // Use Rust FFI bridge for secp256k1 signatures
+        const loader = RustBridgeLoader();
+
+        // Encode message and private key as base64 for FFI
+        final messageB64 = base64Encode(messageBytes);
+        final privateKeyB64 = base64Encode(privateKeyBytes);
+
+        final jsonResult = loader.signMessage(
+          alg: 1, // 1 = secp256k1
+          messageB64: messageB64,
+          privateKeyB64: privateKeyB64,
         );
+
+        if (jsonResult == null) {
+          throw Exception('Failed to load native library for secp256k1 signing');
+        }
+
+        final result = jsonDecode(jsonResult) as Map<String, dynamic>;
+        if (result['ok'] != true) {
+          throw Exception('secp256k1 signing failed: ${result['error']}');
+        }
+
+        // Signature is returned as hex string, convert to bytes
+        final signatureHex = result['signature'] as String;
+        return _hexToBytes(signatureHex);
     }
   }
 
@@ -285,6 +307,16 @@ class AccountSignatureService {
   /// Convert bytes to hex string (without 0x prefix)
   static String _bytesToHex(List<int> bytes) {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  /// Convert hex string to bytes (handles with or without 0x prefix)
+  static List<int> _hexToBytes(String hex) {
+    final cleanHex = hex.startsWith('0x') ? hex.substring(2) : hex;
+    final bytes = <int>[];
+    for (var i = 0; i < cleanHex.length; i += 2) {
+      bytes.add(int.parse(cleanHex.substring(i, i + 2), radix: 16));
+    }
+    return bytes;
   }
 
   /// Validate username format

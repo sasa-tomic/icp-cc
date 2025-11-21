@@ -22,8 +22,10 @@ k256 = { version = "0.13", default-features = false, features = [
   "pkcs8",
   "std",
 ] }
-# Hashing for SHA-224
+# Hashing for SHA-224 and SHA-256 (secp256k1 signing)
 sha2 = "0.10"
+# Hex encoding for secp256k1 signatures
+hex = "0.4"
 # Base64 for exporting keys in the same form as Dart
 base64 = "0.22"
 # Principal formatting (CRC32 + base32) and text <-> bytes

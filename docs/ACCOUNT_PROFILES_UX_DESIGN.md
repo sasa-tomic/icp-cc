@@ -1,9 +1,9 @@
 # Account Profiles - Frontend UX Design
 
-**Version:** 1.1
-**Status:** Architecture Clarification In Progress
+**Version:** 1.2
+**Status:** Implementation In Progress
 **Created:** 2025-11-17
-**Updated:** 2025-11-20
+**Updated:** 2025-11-21
 
 ## Overview
 
@@ -26,6 +26,23 @@ This document defines the user experience design for **Profile Management** in t
 4. **Graceful Onboarding**: Smooth transition from keypair → account
 5. **Trust Through Transparency**: Show security details when users need them
 6. **Fail Fast, Fail Clear**: Errors are explicit with actionable guidance
+
+## Implementation Progress Snapshot (2025-11-21)
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Profile list & creation (Flows 1-2) | ✅ Implemented | `apps/autorun_flutter/lib/screens/profile_home_page.dart` renders the empty state, card layout, active profile badge, and creation dialog that immediately routes into account registration using `ProfileController`. |
+| Account registration wizard | 🟡 Partial | `apps/autorun_flutter/lib/screens/account_registration_wizard.dart` implements a single-page MVP with live username validation and contact fields, but the multi-step flow, review screen, and celebration/progress states described below are not built yet. |
+| Account profile screen & key management | ✅ Implemented | `apps/autorun_flutter/lib/screens/account_profile_screen.dart` shows the account header, editable profile fields, key mismatch warnings, add/remove key actions, and unlink functionality backed by `AccountController`. |
+| Add key workflow | ✅ Implemented | `apps/autorun_flutter/lib/widgets/add_account_key_sheet.dart` + `apps/autorun_flutter/lib/widgets/key_parameters_dialog.dart` generate brand-new keys per profile and register them; rename to `add_profile_key_dialog.dart` is still pending. |
+| Key details sheet | ✅ Implemented | `apps/autorun_flutter/lib/widgets/account_key_details_sheet.dart` ships the full detail modal with copy-to-clipboard + danger-zone actions. |
+| Controllers + Profile-centric data flow | ✅ Implemented | `apps/autorun_flutter/lib/controllers/profile_controller.dart` and `apps/autorun_flutter/lib/controllers/account_controller.dart` enforce the 1 profile → 1 account contract, provide username caching, add/remove key mutations, and are already wired into the screens. |
+| Wizard success animations & stepper UI | ⛔ Not Started | Current implementation returns to the caller immediately after backend success without showing the designed progress indicators or celebration view. |
+
+**Outstanding gaps**
+- Build the multi-step wizard shell (Welcome → Username → Review → Processing → Success) on top of the existing registration logic.
+- Align naming (`add_account_key_sheet.dart` → `add_profile_key_dialog.dart`) and update references once the UX polish lands.
+- Extend error UX per the specs (timestamp drift, replay, offline) beyond the existing generic banners/snackbars.
 
 ## User Flows
 
@@ -155,7 +172,7 @@ Step 5: Success
 
 ### 1. Profile List Screen
 
-**Location**: `lib/screens/profile_home_page.dart` (RENAME from keypair_home_page.dart)
+**Location**: `apps/autorun_flutter/lib/screens/profile_home_page.dart` (renamed from keypair_home_page.dart)
 
 **Layout**:
 ```
@@ -180,6 +197,8 @@ Step 5: Success
 └─────────────────────────────┘
 ```
 
+> **Implementation status (2025-11-21):** Already live via `apps/autorun_flutter/lib/screens/profile_home_page.dart` with the empty state, hero cards, refresh action, FAB-based creation flow, and contextual menu (view/register/delete). Remaining polish focuses on visual assets and removing the now-redundant "Register Account" menu option once auto-registration covers every profile.
+
 **Key Changes**:
 - REMOVED: "No Account" state (profiles are ALWAYS accounts)
 - REMOVED: "Register Account" button (registration happens during profile creation)
@@ -189,7 +208,7 @@ Step 5: Success
 
 ### 2. Account Registration Wizard
 
-**Location**: `lib/screens/account_registration_wizard.dart` (new)
+**Location**: `apps/autorun_flutter/lib/screens/account_registration_wizard.dart`
 
 **Page 1: Username Input**
 ```
@@ -260,9 +279,11 @@ Step 5: Success
 └─────────────────────────────┘
 ```
 
+> **Implementation status (2025-11-21):** Implemented as a single-page form in `apps/autorun_flutter/lib/screens/account_registration_wizard.dart` with real-time username validation, display/contact fields, and submission handling. Multi-step navigation, illustration frames, explicit processing states, and the celebration view are still outstanding.
+
 ### 3. Account Profile Screen
 
-**Location**: `lib/screens/account_profile_screen.dart` (new)
+**Location**: `apps/autorun_flutter/lib/screens/account_profile_screen.dart`
 
 **Layout**:
 ```
@@ -296,6 +317,8 @@ Step 5: Success
 └─────────────────────────────┘
 ```
 
+> **Implementation status (2025-11-21):** Shipping in `apps/autorun_flutter/lib/screens/account_profile_screen.dart` with account metadata, editable profile/contact fields, key count badges, mismatch warnings, add/remove key flows, and unlink support. Remaining UX work focuses on swipe gestures, inline key timeline visuals, and richer empty states.
+
 **Features**:
 - List all keys (active + inactive)
 - Visual status: 🟢 Active, 🔴 Disabled
@@ -307,7 +330,7 @@ Step 5: Success
 
 ### 4. Add Keypair Dialog
 
-**Location**: `lib/widgets/add_profile_key_dialog.dart` (RENAME from add_account_key_sheet.dart)
+**Location**: `apps/autorun_flutter/lib/widgets/add_account_key_sheet.dart` (rename to `add_profile_key_dialog.dart` pending)
 
 **Layout**:
 ```
@@ -340,9 +363,11 @@ Step 5: Success
 - SIMPLIFIED: Single action - generate new keypair for current profile
 - Keypairs are created fresh, not imported from elsewhere
 
+> **Implementation status (2025-11-21):** Fully wired in `apps/autorun_flutter/lib/widgets/add_account_key_sheet.dart` to show a single CTA, launch `KeyParametersDialog`, and call `AccountController.addKeypairToAccount`. Only the filename rename + minor copy adjustments are outstanding.
+
 ### 5. Key Details Sheet
 
-**Location**: `lib/widgets/account_key_details_sheet.dart` (new)
+**Location**: `apps/autorun_flutter/lib/widgets/account_key_details_sheet.dart`
 
 **Layout**:
 ```
@@ -370,6 +395,8 @@ Step 5: Success
 │                             │
 └─────────────────────────────┘
 ```
+
+> **Implementation status (2025-11-21):** Implemented verbatim in `apps/autorun_flutter/lib/widgets/account_key_details_sheet.dart`, including copy buttons, status color coding, and the danger-zone remove action.
 
 ## Visual Design System Integration
 
@@ -656,13 +683,13 @@ Step 5: Success
 
 ### Manual Testing Checklist
 
-- [ ] Registration wizard: All steps flow smoothly
+- [ ] Registration wizard: Single-screen MVP registers an account and routes back to ProfileHomePage
 - [ ] Username validation: Real-time feedback works
 - [ ] Reserved usernames: Properly rejected
 - [ ] Duplicate username: Proper error shown
 - [ ] Invalid characters: Proper validation
-- [ ] Add key: From local keypair works
-- [ ] Add key: Manual import works
+- [ ] Add key: Profile-generated flow works (AddAccountKeySheet + AccountController)
+- [ ] Manual import paths: Not exposed (fail-fast per profile-centric rules)
 - [ ] Remove key: Confirmation required
 - [ ] Remove last key: Blocked with message
 - [ ] Disabled key: Shows in list with proper styling
@@ -683,31 +710,31 @@ Step 5: Success
 - Error scenario tests
 - Signature generation tests
 
-## Implementation Priority
+## Implementation Priority (Progress 2025-11-21)
 
 ### Phase 1: Core Functionality (MVP)
-1. Account data models
-2. API integration
-3. Registration wizard (basic)
-4. Account profile screen (view only)
+1. ✅ Account data models (`apps/autorun_flutter/lib/models/account.dart`, `profile.dart`)
+2. ✅ API integration (`apps/autorun_flutter/lib/services/marketplace_open_api_service.dart`)
+3. 🟡 Registration wizard (basic single-screen complete; multi-step UX still pending)
+4. ✅ Account profile screen (view + edit via `account_profile_screen.dart`)
 
 ### Phase 2: Key Management
-5. Add key (local keypair only)
-6. Remove key
-7. Key status visualization
+5. ✅ Add key (profile-generated only via `AddAccountKeySheet`)
+6. ✅ Remove key (soft delete with confirmations)
+7. ✅ Key status visualization (badges + detail sheet)
 
 ### Phase 3: Polish
-8. Real-time username validation
-9. Error handling improvements
-10. Animations and micro-interactions
+8. ✅ Real-time username validation (debounced + cached)
+9. 🟡 Error handling improvements (generic banners only; timestamp/replay/offline flows pending)
+10. ⛔ Animations and micro-interactions (hero success view not built)
 
 ### Phase 4: Advanced Features
-11. Manual key import
-12. Activity log
-13. Educational content
-14. Accessibility improvements
+11. ⛔ Manual key import (intentionally deferred)
+12. ⛔ Activity log
+13. ⛔ Educational content/onboarding helper
+14. 🟡 Accessibility improvements (baseline semantics shipped; needs audit + screen reader scripts)
 
 ---
 
-**Status**: Ready for Implementation
-**Next Step**: Create account data models and API integration
+**Status**: Core profile/account flows implemented; wizard UX polish and advanced enhancements pending
+**Next Step**: Ship the multi-step registration wizard (welcome → username → review → processing → success) and dedicated error-state UIs
