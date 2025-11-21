@@ -832,6 +832,7 @@ mod tests {
     }
 
     fn create_test_keypair() -> (SigningKey, String) {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
         // Generate a unique keypair using UUID for unique seed
         let uuid_bytes = uuid::Uuid::new_v4().as_bytes().to_owned();
         let mut seed = [0u8; 32];
@@ -839,18 +840,19 @@ mod tests {
         seed[..16].copy_from_slice(&uuid_bytes);
         seed[16..].copy_from_slice(&uuid_bytes);
         let signing_key = SigningKey::from_bytes(&seed);
-        // Return hex-encoded public key (matches Flutter app format)
-        let public_key = hex::encode(signing_key.verifying_key().to_bytes());
+        // Return base64-encoded public key (matches Flutter app format)
+        let public_key = B64.encode(signing_key.verifying_key().to_bytes());
         (signing_key, public_key)
     }
 
     fn sign_payload(signing_key: &SigningKey, payload: &str) -> String {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
         // Standard Ed25519: sign message directly (RFC 8032)
         // The algorithm does SHA-512 internally as part of the signature process
         let signature = signing_key.sign(payload.as_bytes());
 
-        // Return hex-encoded signature (matches Flutter app format)
-        hex::encode(signature.to_bytes())
+        // Return base64-encoded signature (matches Flutter app format)
+        B64.encode(signature.to_bytes())
     }
 
     fn build_register_account_request(

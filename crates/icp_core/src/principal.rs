@@ -26,7 +26,9 @@ pub fn der_encode_public_key(alg: &str, public_key: &[u8]) -> Result<Vec<u8>, St
         "secp256k1" => {
             // Accept 64-byte (raw X||Y) or 65-byte (0x04||X||Y) uncompressed key
             let key_bytes: Vec<u8> = if public_key.len() == 64 {
-                std::iter::once(0x04).chain(public_key.iter().copied()).collect()
+                std::iter::once(0x04)
+                    .chain(public_key.iter().copied())
+                    .collect()
             } else {
                 public_key.to_vec()
             };

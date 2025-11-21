@@ -193,15 +193,16 @@ mod signature_tests {
     /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
     /// Returns (hex_signature, hex_public_key)
     fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
         // Standard Ed25519: sign message directly (RFC 8032)
         // The algorithm does SHA-512 internally as part of the signature process
         let signature = signing_key.sign(canonical_json.as_bytes());
 
-        // Return hex-encoded signature and public key
-        let signature_hex = hex::encode(signature.to_bytes());
-        let public_key_hex = hex::encode(signing_key.verifying_key().as_bytes());
+        // Return base64-encoded signature and public key (matches Flutter app format)
+        let signature_b64 = B64.encode(signature.to_bytes());
+        let public_key_b64 = B64.encode(signing_key.verifying_key().as_bytes());
 
-        (signature_hex, public_key_hex)
+        (signature_b64, public_key_b64)
     }
 
     #[test]
@@ -1399,15 +1400,16 @@ mod tests {
     /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
     /// Returns (hex_signature, hex_public_key)
     fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
         // Standard Ed25519: sign message directly (RFC 8032)
         // The algorithm does SHA-512 internally as part of the signature process
         let signature = signing_key.sign(canonical_json.as_bytes());
 
-        // Return hex-encoded signature and public key
-        let signature_hex = hex::encode(signature.to_bytes());
-        let public_key_hex = hex::encode(signing_key.verifying_key().as_bytes());
+        // Return base64-encoded signature and public key (matches Flutter app format)
+        let signature_b64 = B64.encode(signature.to_bytes());
+        let public_key_b64 = B64.encode(signing_key.verifying_key().as_bytes());
 
-        (signature_hex, public_key_hex)
+        (signature_b64, public_key_b64)
     }
 
     #[test]

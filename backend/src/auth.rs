@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use chrono::Utc;
 use ed25519_dalek::{
     pkcs8::EncodePublicKey, Signature as Ed25519Signature, Verifier,
@@ -11,10 +12,10 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::fmt;
 
-/// Decode hex string (with or without 0x prefix) to bytes
-fn decode_hex(hex_str: &str) -> Result<Vec<u8>, String> {
-    let hex_clean = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-    hex::decode(hex_clean).map_err(|e| format!("Invalid hex encoding: {}", e))
+/// Decode base64 string to bytes
+fn decode_base64(b64_str: &str) -> Result<Vec<u8>, String> {
+    B64.decode(b64_str)
+        .map_err(|e| format!("Invalid base64 encoding: {}", e))
 }
 
 /// Authenticated user with verified public key and principal
@@ -65,19 +66,19 @@ impl ResponseError for AuthError {
 /// Verifies an Ed25519 signature (RFC 8032 standard)
 /// Per ACCOUNT_PROFILES_DESIGN.md: Ed25519 verifies message directly (no pre-hash)
 pub fn verify_ed25519_signature(
-    signature_hex: &str,
+    signature_b64: &str,
     payload: &[u8],
-    public_key_hex: &str,
+    public_key_b64: &str,
 ) -> Result<(), String> {
-    // Decode signature from hex
-    let signature_bytes = decode_hex(signature_hex)
+    // Decode signature from base64
+    let signature_bytes = decode_base64(signature_b64)
         .map_err(|e| format!("Invalid Ed25519 signature encoding: {}", e))?;
 
     let signature = Ed25519Signature::from_slice(&signature_bytes)
         .map_err(|e| format!("Invalid Ed25519 signature format: {}", e))?;
 
-    // Decode public key from hex
-    let public_key_bytes = decode_hex(public_key_hex)
+    // Decode public key from base64
+    let public_key_bytes = decode_base64(public_key_b64)
         .map_err(|e| format!("Invalid Ed25519 public key encoding: {}", e))?;
 
     let verifying_key = Ed25519VerifyingKey::from_bytes(
@@ -99,19 +100,19 @@ pub fn verify_ed25519_signature(
 /// Verifies a secp256k1 ECDSA signature (standard ECDSA)
 /// Per ACCOUNT_PROFILES_DESIGN.md: secp256k1 requires SHA-256 hash (ECDSA requirement)
 pub fn verify_secp256k1_signature(
-    signature_hex: &str,
+    signature_b64: &str,
     payload: &[u8],
-    public_key_hex: &str,
+    public_key_b64: &str,
 ) -> Result<(), String> {
-    // Decode signature from hex
-    let signature_bytes = decode_hex(signature_hex)
+    // Decode signature from base64
+    let signature_bytes = decode_base64(signature_b64)
         .map_err(|e| format!("Invalid secp256k1 signature encoding: {}", e))?;
 
     let signature = Secp256k1Signature::from_slice(&signature_bytes)
         .map_err(|e| format!("Invalid secp256k1 signature format: {}", e))?;
 
-    // Decode public key from hex
-    let public_key_bytes = decode_hex(public_key_hex)
+    // Decode public key from base64
+    let public_key_bytes = decode_base64(public_key_b64)
         .map_err(|e| format!("Invalid secp256k1 public key encoding: {}", e))?;
 
     let verifying_key = Secp256k1VerifyingKey::from_sec1_bytes(&public_key_bytes)
@@ -170,17 +171,22 @@ pub fn verify_signature(
     }
 
     // Try Ed25519 first, then secp256k1
-    if verify_ed25519_signature(signature, payload, public_key).is_ok() {
+    let ed25519_result = verify_ed25519_signature(signature, payload, public_key);
+    if ed25519_result.is_ok() {
         return Ok(());
     }
 
-    if verify_secp256k1_signature(signature, payload, public_key).is_ok() {
+    let secp256k1_result = verify_secp256k1_signature(signature, payload, public_key);
+    if secp256k1_result.is_ok() {
         return Ok(());
     }
 
-    Err(AuthError::InvalidSignature(
-        "Signature verification failed for both Ed25519 and secp256k1".to_string(),
-    ))
+    // Return detailed error with both failure reasons
+    Err(AuthError::InvalidSignature(format!(
+        "Ed25519: {}; secp256k1: {}",
+        ed25519_result.unwrap_err(),
+        secp256k1_result.unwrap_err()
+    )))
 }
 
 /// Validates principal and public key fields for authentication
@@ -249,15 +255,15 @@ pub fn verify_operation_signature(
     Ok(())
 }
 
-/// Derives an IC principal from an Ed25519 public key (hex encoded)
+/// Derives an IC principal from an Ed25519 public key (base64 encoded)
 /// Backend MUST compute principal, NEVER trust user-provided principals
 ///
 /// IC principals require DER-encoded public keys (RFC 8410 for Ed25519).
 /// The DER encoding includes the algorithm OID (1.3.101.112 for Ed25519).
-pub fn derive_ic_principal(public_key_hex: &str) -> Result<String, String> {
-    // Decode public key from hex
+pub fn derive_ic_principal(public_key_b64: &str) -> Result<String, String> {
+    // Decode public key from base64
     let public_key_bytes =
-        decode_hex(public_key_hex).map_err(|e| format!("Invalid public key encoding: {}", e))?;
+        decode_base64(public_key_b64).map_err(|e| format!("Invalid public key encoding: {}", e))?;
 
     // Parse as Ed25519 verifying key
     let verifying_key = Ed25519VerifyingKey::from_bytes(
@@ -425,8 +431,8 @@ mod tests {
 
     #[test]
     fn test_derive_ic_principal() {
-        // Test with a valid hex encoded 32-byte public key
-        let public_key = hex::encode([1u8; 32]);
+        // Test with a valid base64 encoded 32-byte public key
+        let public_key = B64.encode([1u8; 32]);
         let result = derive_ic_principal(&public_key);
         assert!(result.is_ok());
 
@@ -440,31 +446,21 @@ mod tests {
     fn test_derive_ic_principal_matches_frontend() {
         // Test vector from crates/icp_core/tests/common/mod.rs
         // This ensures backend principal derivation matches frontend
-        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
-
         const ED25519_PUBLIC_B64: &str = "HeNS5EzTM2clk/IzSnMOGAqvKQ3omqFtSA3llONOKWE=";
         const ED25519_PRINCIPAL: &str =
             "yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae";
 
-        // Convert base64 to hex (backend uses hex, frontend uses base64)
-        let public_key_bytes = B64.decode(ED25519_PUBLIC_B64).unwrap();
-        let public_key_hex = hex::encode(&public_key_bytes);
-
-        let result = derive_ic_principal(&public_key_hex).unwrap();
-        assert_eq!(result, ED25519_PRINCIPAL, "Backend principal must match frontend");
-    }
-
-    #[test]
-    fn test_derive_ic_principal_with_0x_prefix() {
-        // Test with 0x prefix
-        let public_key = format!("0x{}", hex::encode([1u8; 32]));
-        let result = derive_ic_principal(&public_key);
-        assert!(result.is_ok());
+        // Backend now uses base64 directly, matching frontend
+        let result = derive_ic_principal(ED25519_PUBLIC_B64).unwrap();
+        assert_eq!(
+            result, ED25519_PRINCIPAL,
+            "Backend principal must match frontend"
+        );
     }
 
     #[test]
     fn test_derive_ic_principal_invalid_encoding() {
-        let result = derive_ic_principal("invalid-hex-xyz!");
+        let result = derive_ic_principal("not-valid-base64!!!");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid"));
     }
