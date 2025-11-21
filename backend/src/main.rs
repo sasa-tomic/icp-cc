@@ -52,11 +52,11 @@ async fn run_marketplace_search(
 
     let sort_field = request.sort_by.as_deref().unwrap_or("createdAt");
     let sort_column = match sort_field {
-        "createdAt" => "created_at",
-        "rating" => "rating",
-        "downloads" => "downloads",
-        "price" => "price",
-        "title" => "title",
+        "createdAt" => "scripts.created_at",
+        "rating" => "scripts.rating",
+        "downloads" => "scripts.downloads",
+        "price" => "scripts.price",
+        "title" => "scripts.title",
         _ => {
             return Err((
                 StatusCode::BAD_REQUEST,
@@ -88,7 +88,7 @@ async fn run_marketplace_search(
     let mut conditions: Vec<String> = Vec::new();
     let mut condition_binds: Vec<BindValue> = Vec::new();
 
-    conditions.push("is_public = ?".to_string());
+    conditions.push("scripts.is_public = ?".to_string());
     condition_binds.push(BindValue::Bool(true));
 
     if let Some(query) = request
@@ -98,7 +98,7 @@ async fn run_marketplace_search(
         .filter(|s| !s.is_empty())
     {
         let like_pattern = format!("%{}%", query);
-        conditions.push("(title LIKE ? OR description LIKE ? OR category LIKE ?)".to_string());
+        conditions.push("(scripts.title LIKE ? OR scripts.description LIKE ? OR scripts.category LIKE ?)".to_string());
         condition_binds.push(BindValue::Text(like_pattern.clone()));
         condition_binds.push(BindValue::Text(like_pattern.clone()));
         condition_binds.push(BindValue::Text(like_pattern));
@@ -110,17 +110,17 @@ async fn run_marketplace_search(
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
     {
-        conditions.push("category = ?".to_string());
+        conditions.push("scripts.category = ?".to_string());
         condition_binds.push(BindValue::Text(category.to_string()));
     }
 
     if let Some(min_rating) = request.min_rating {
-        conditions.push("rating >= ?".to_string());
+        conditions.push("scripts.rating >= ?".to_string());
         condition_binds.push(BindValue::Float(min_rating));
     }
 
     if let Some(max_price) = request.max_price {
-        conditions.push("price <= ?".to_string());
+        conditions.push("scripts.price <= ?".to_string());
         condition_binds.push(BindValue::Float(max_price));
     }
 
@@ -131,8 +131,8 @@ async fn run_marketplace_search(
     }
 
     let search_sql = format!(
-        "SELECT {} FROM scripts{} ORDER BY {} {} LIMIT ? OFFSET ?",
-        SCRIPT_COLUMNS, where_clause, sort_column, sort_order
+        "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id{} ORDER BY {} {} LIMIT ? OFFSET ?",
+        SCRIPT_COLUMNS_WITH_ACCOUNT, where_clause, sort_column, sort_order
     );
 
     let count_sql = format!("SELECT COUNT(*) FROM scripts{}", where_clause);
@@ -1519,7 +1519,7 @@ mod tests {
 
     async fn insert_script(pool: &SqlitePool, fixture: ScriptFixture<'_>) {
         sqlx::query(
-            "INSERT INTO scripts (id, slug, owner_account_id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at) VALUES (?1, ?2, NULL, ?3, ?4, ?5, '[]', ?6, 'Test Author', 'test-author-id', NULL, NULL, NULL, NULL, NULL, NULL, '1.0.0', NULL, ?7, 1, ?8, ?9, ?10, ?11, ?11)",
+            "INSERT INTO scripts (id, slug, owner_account_id, title, description, category, tags, lua_source, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at) VALUES (?1, ?2, NULL, ?3, ?4, ?5, '[]', ?6, NULL, NULL, NULL, NULL, NULL, NULL, '1.0.0', NULL, ?7, 1, ?8, ?9, ?10, ?11, ?11)",
         )
         .bind(fixture.id)
         .bind(format!("test-{}", fixture.id))  // Generate slug from id

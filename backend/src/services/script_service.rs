@@ -69,8 +69,6 @@ impl ScriptService {
                 &req.description,
                 &req.category,
                 &req.lua_source,
-                &req.author_name,
-                req.author_id.as_deref().unwrap_or(""),
                 req.author_principal.as_deref(),
                 req.author_public_key.as_deref(),
                 req.signature.as_deref(),
@@ -237,8 +235,6 @@ mod tests {
             description: "Test Description".to_string(),
             category: "utility".to_string(),
             lua_source: "print('hello')".to_string(),
-            author_name: "Test Author".to_string(),
-            author_id: Some("test-author-id".to_string()),
             author_principal: Some("test-principal".to_string()),
             author_public_key: Some("test-public-key".to_string()),
             upload_signature: None,
@@ -271,9 +267,11 @@ mod tests {
         let req = create_test_script_request();
 
         let result = service.create_script(req).await;
-        assert!(result.is_ok());
-
+        if let Err(e) = &result {
+            eprintln!("Error creating script: {}", e);
+        }
         let script = result.unwrap();
+
         assert_eq!(script.title, "Test Script");
         assert_eq!(script.version, "1.0.0"); // Default version
         assert_eq!(script.price, 0.0); // Default price

@@ -130,8 +130,6 @@ mod tests {
             description: "Test Description".to_string(),
             category: "utility".to_string(),
             lua_source: "print('hello')".to_string(),
-            author_name: "Test Author".to_string(),
-            author_id: Some("test-author-id".to_string()),
             author_principal: None,
             author_public_key: None,
             upload_signature: None,

@@ -1,4 +1,4 @@
-use crate::models::{Script, SearchRequest, SearchResultPayload, SCRIPT_COLUMNS};
+use crate::models::{Script, SearchRequest, SearchResultPayload, SCRIPT_COLUMNS_WITH_ACCOUNT};
 use sqlx::SqlitePool;
 
 pub struct ScriptRepository {
@@ -12,8 +12,8 @@ impl ScriptRepository {
 
     pub async fn find_by_id(&self, id: &str) -> Result<Option<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE id = ?1 AND deleted_at IS NULL",
-            SCRIPT_COLUMNS
+            "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.id = ?1 AND scripts.deleted_at IS NULL",
+            SCRIPT_COLUMNS_WITH_ACCOUNT
         );
         sqlx::query_as::<_, Script>(&sql)
             .bind(id)
@@ -41,8 +41,8 @@ impl ScriptRepository {
         };
 
         let sql = format!(
-            "SELECT {} FROM scripts WHERE deleted_at IS NULL{}{} ORDER BY created_at DESC LIMIT {} OFFSET {}",
-            SCRIPT_COLUMNS, category_filter, privacy_filter, limit, offset
+            "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.deleted_at IS NULL{}{} ORDER BY scripts.created_at DESC LIMIT {} OFFSET {}",
+            SCRIPT_COLUMNS_WITH_ACCOUNT, category_filter, privacy_filter, limit, offset
         );
 
         sqlx::query_as::<_, Script>(&sql)
@@ -75,8 +75,6 @@ impl ScriptRepository {
         description: &str,
         category: &str,
         lua_source: &str,
-        author_name: &str,
-        author_id: &str,
         author_principal: Option<&str>,
         author_public_key: Option<&str>,
         upload_signature: Option<&str>,
@@ -90,10 +88,10 @@ impl ScriptRepository {
         sqlx::query(
             r#"
             INSERT INTO scripts (
-                id, slug, owner_account_id, title, description, category, lua_source, author_name, author_id,
+                id, slug, owner_account_id, title, description, category, lua_source,
                 author_principal, author_public_key, upload_signature, version, price,
                 is_public, compatibility, tags, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
             "#,
         )
         .bind(id)
@@ -103,8 +101,6 @@ impl ScriptRepository {
         .bind(description)
         .bind(category)
         .bind(lua_source)
-        .bind(author_name)
-        .bind(author_id)
         .bind(author_principal)
         .bind(author_public_key)
         .bind(upload_signature)
@@ -206,7 +202,7 @@ impl ScriptRepository {
     }
 
     pub async fn find_by_slug(&self, slug: &str) -> Result<Vec<Script>, sqlx::Error> {
-        let sql = format!("SELECT {} FROM scripts WHERE slug = ?1 AND deleted_at IS NULL ORDER BY created_at DESC", SCRIPT_COLUMNS);
+        let sql = format!("SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.slug = ?1 AND scripts.deleted_at IS NULL ORDER BY scripts.created_at DESC", SCRIPT_COLUMNS_WITH_ACCOUNT);
         sqlx::query_as::<_, Script>(&sql)
             .bind(slug)
             .fetch_all(&self.pool)
@@ -365,7 +361,7 @@ impl ScriptRepository {
 
         let search_sql = format!(
             "SELECT {} FROM scripts WHERE deleted_at IS NULL AND ({}) ORDER BY {} {} LIMIT {} OFFSET {}",
-            SCRIPT_COLUMNS, where_clause, sort_column, sort_order, limit, offset
+            SCRIPT_COLUMNS_WITH_ACCOUNT, where_clause, sort_column, sort_order, limit, offset
         );
 
         let mut query = sqlx::query_as::<_, Script>(&search_sql);
@@ -397,8 +393,8 @@ impl ScriptRepository {
         limit: i32,
     ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE category = ?1 AND is_public = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?2",
-            SCRIPT_COLUMNS
+            "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.category = ?1 AND scripts.is_public = 1 AND scripts.deleted_at IS NULL ORDER BY scripts.created_at DESC LIMIT ?2",
+            SCRIPT_COLUMNS_WITH_ACCOUNT
         );
         sqlx::query_as::<_, Script>(&sql)
             .bind(category)
@@ -409,8 +405,8 @@ impl ScriptRepository {
 
     pub async fn get_trending(&self, limit: i32) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE is_public = 1 AND deleted_at IS NULL ORDER BY downloads DESC, rating DESC LIMIT ?1",
-            SCRIPT_COLUMNS
+            "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.is_public = 1 AND scripts.deleted_at IS NULL ORDER BY scripts.downloads DESC, rating DESC LIMIT ?1",
+            SCRIPT_COLUMNS_WITH_ACCOUNT
         );
         sqlx::query_as::<_, Script>(&sql)
             .bind(limit)
@@ -425,8 +421,8 @@ impl ScriptRepository {
         limit: i32,
     ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE is_public = 1 AND rating >= ?1 AND downloads >= ?2 AND deleted_at IS NULL ORDER BY rating DESC, downloads DESC LIMIT ?3",
-            SCRIPT_COLUMNS
+            "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.is_public = 1 AND scripts.rating >= ?1 AND scripts.downloads >= ?2 AND scripts.deleted_at IS NULL ORDER BY scripts.rating DESC, scripts.downloads DESC LIMIT ?3",
+            SCRIPT_COLUMNS_WITH_ACCOUNT
         );
         sqlx::query_as::<_, Script>(&sql)
             .bind(min_rating)
@@ -442,8 +438,8 @@ impl ScriptRepository {
         limit: i32,
     ) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
-            "SELECT {} FROM scripts WHERE is_public = 1 AND (compatibility IS NULL OR compatibility LIKE ?1) AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?2",
-            SCRIPT_COLUMNS
+            "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.is_public = 1 AND (scripts.compatibility IS NULL OR scripts.compatibility LIKE ?1) AND scripts.deleted_at IS NULL ORDER BY scripts.created_at DESC LIMIT ?2",
+            SCRIPT_COLUMNS_WITH_ACCOUNT
         );
         let pattern = format!("%{}%", compatibility);
         sqlx::query_as::<_, Script>(&sql)

@@ -11,8 +11,6 @@ pub struct Script {
     pub category: String,
     pub tags: Option<String>,
     pub lua_source: String,
-    pub author_name: String,
-    pub author_id: String,
     pub author_principal: Option<String>,
     pub author_public_key: Option<String>,
     pub upload_signature: Option<String>,
@@ -29,6 +27,9 @@ pub struct Script {
     pub created_at: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
+    // Author info comes from JOIN with accounts table
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -59,8 +60,6 @@ pub struct CreateScriptRequest {
     pub description: String,
     pub category: String,
     pub lua_source: String,
-    pub author_name: String,
-    pub author_id: Option<String>,
     pub author_principal: Option<String>,
     pub author_public_key: Option<String>,
     pub upload_signature: Option<String>,
@@ -159,7 +158,7 @@ pub struct ReviewsQuery {
     pub offset: Option<i32>,
 }
 
-pub const SCRIPT_COLUMNS: &str = "id, slug, owner_account_id, title, description, category, tags, lua_source, author_name, author_id, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at, deleted_at";
+pub const SCRIPT_COLUMNS_WITH_ACCOUNT: &str = "scripts.id, scripts.slug, scripts.owner_account_id, scripts.title, scripts.description, scripts.category, scripts.tags, scripts.lua_source, scripts.author_principal, scripts.author_public_key, scripts.upload_signature, scripts.canister_ids, scripts.icon_url, scripts.screenshots, scripts.version, scripts.compatibility, scripts.price, scripts.is_public, scripts.downloads, scripts.rating, scripts.review_count, scripts.created_at, scripts.updated_at, scripts.deleted_at, accounts.display_name as author_name";
 
 // Account Profiles Models
 
