@@ -16,11 +16,15 @@ class AccountRegistrationWizard extends StatefulWidget {
   const AccountRegistrationWizard({
     required this.identity,
     required this.accountController,
+    this.initialDisplayName,
     super.key,
   });
 
   final IdentityRecord identity;
   final AccountController accountController;
+
+  /// Pre-filled display name (typically from profile name)
+  final String? initialDisplayName;
 
   @override
   State<AccountRegistrationWizard> createState() => _AccountRegistrationWizardState();
@@ -45,6 +49,14 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
   // Processing state
   bool _isRegistering = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialDisplayName != null) {
+      _displayNameController.text = widget.initialDisplayName!;
+    }
+  }
 
   @override
   void dispose() {

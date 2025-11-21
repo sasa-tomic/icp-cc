@@ -127,6 +127,7 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
         builder: (context) => AccountRegistrationWizard(
           identity: profile.primaryKeypair,
           accountController: _accountController!,
+          initialDisplayName: profile.name,
         ),
       ),
     );
@@ -290,6 +291,9 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
 
   Widget _buildProfileCard(BuildContext context, Profile profile, bool isActive, bool isLoading) {
     final String keypairCount = profile.keypairs.length == 1 ? '1 key' : '${profile.keypairs.length} keys';
+    // Use account displayName if registered, otherwise fall back to profile name
+    final Account? account = profile.username != null ? _accountController?.getAccount(profile.username!) : null;
+    final String displayName = account?.displayName ?? profile.name;
 
     return Hero(
       tag: 'profile_${profile.id}',
@@ -316,7 +320,7 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
               if (!mounted) return;
               messenger.showSnackBar(
                 SnackBar(
-                  content: Text('${profile.name} is now active'),
+                  content: Text('$displayName is now active'),
                   backgroundColor: AppDesignSystem.successLight,
                 ),
               );
@@ -507,10 +511,161 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
   }
 
   Future<void> _showProfileMenu(BuildContext context, Profile profile, bool isActive) async {
-    // TODO: Implement profile menu (rename, delete, manage keys, etc.)
-    // For now, just show a placeholder
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile menu coming soon')),
+    final result = await showModalBottomSheet<_ProfileMenuAction>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => _ProfileMenuSheet(profile: profile),
+    );
+
+    if (result == null || !mounted) return;
+
+    switch (result) {
+      case _ProfileMenuAction.viewAccount:
+        if (profile.username != null) {
+          final account = _accountController?.getAccount(profile.username!);
+          if (account != null) {
+            await _navigateToAccountProfile(account, profile);
+          }
+        }
+      case _ProfileMenuAction.registerAccount:
+        await _navigateToAccountRegistration(profile);
+      case _ProfileMenuAction.rename:
+        await _showRenameDialog(profile);
+      case _ProfileMenuAction.delete:
+        await _showDeleteConfirmation(profile);
+    }
+  }
+
+  Future<void> _showRenameDialog(Profile profile) async {
+    final controller = TextEditingController(text: profile.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Profile'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Profile name',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != profile.name && mounted) {
+      await _profileController!.updateProfileName(profileId: profile.id, name: newName);
+    }
+  }
+
+  Future<void> _showDeleteConfirmation(Profile profile) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Profile'),
+        content: Text(
+          'Are you sure you want to delete "${profile.name}"?\n\n'
+          'This will permanently delete the profile and all its keypairs. '
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _profileController!.deleteProfile(profile.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${profile.name}" deleted')),
+        );
+      }
+    }
+  }
+}
+
+enum _ProfileMenuAction { viewAccount, registerAccount, rename, delete }
+
+class _ProfileMenuSheet extends StatelessWidget {
+  const _ProfileMenuSheet({required this.profile});
+
+  final Profile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAccount = profile.username != null;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              profile.name,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            if (hasAccount)
+              ListTile(
+                leading: const Icon(Icons.person),
+                title: const Text('View Account'),
+                subtitle: Text('@${profile.username}'),
+                onTap: () => Navigator.pop(context, _ProfileMenuAction.viewAccount),
+              )
+            else
+              ListTile(
+                leading: const Icon(Icons.person_add),
+                title: const Text('Register Account'),
+                subtitle: const Text('Create @username for this profile'),
+                onTap: () => Navigator.pop(context, _ProfileMenuAction.registerAccount),
+              ),
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Rename'),
+              onTap: () => Navigator.pop(context, _ProfileMenuAction.rename),
+            ),
+            ListTile(
+              leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
+              title: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              onTap: () => Navigator.pop(context, _ProfileMenuAction.delete),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
