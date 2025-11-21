@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:icp_autorun/screens/script_upload_screen.dart';
-import 'package:icp_autorun/controllers/identity_controller.dart';
-import 'package:icp_autorun/widgets/identity_scope.dart';
+import 'package:icp_autorun/controllers/profile_controller.dart';
+import 'package:icp_autorun/widgets/profile_scope.dart';
 
 void main() {
   group('ScriptUploadScreen Tests', () {
     Widget createWidget({required Widget child}) {
-      final identityController = IdentityController();
-      return IdentityScope(
-        controller: identityController,
+      final profileController = ProfileController();
+      return ProfileScope(
+        controller: profileController,
         child: MaterialApp(
           home: child,
         ),

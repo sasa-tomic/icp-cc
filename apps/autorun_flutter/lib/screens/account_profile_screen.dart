@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/account.dart';
-import '../models/identity_record.dart';
+import '../models/profile.dart';
 import '../controllers/account_controller.dart';
+import '../controllers/profile_controller.dart';
 import '../theme/app_design_system.dart';
 import '../widgets/account_key_details_sheet.dart';
 import '../widgets/add_account_key_sheet.dart';
@@ -18,13 +19,15 @@ class AccountProfileScreen extends StatefulWidget {
   const AccountProfileScreen({
     required this.account,
     required this.accountController,
-    required this.currentIdentity,
+    required this.profile,
+    required this.profileController,
     super.key,
   });
 
   final Account account;
   final AccountController accountController;
-  final IdentityRecord currentIdentity;
+  final Profile profile;
+  final ProfileController profileController;
 
   @override
   State<AccountProfileScreen> createState() => _AccountProfileScreenState();
@@ -32,6 +35,7 @@ class AccountProfileScreen extends StatefulWidget {
 
 class _AccountProfileScreenState extends State<AccountProfileScreen> {
   late Account _account;
+  late Profile _profile;
   bool _isRefreshing = false;
 
   // Edit controllers
@@ -47,6 +51,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
   void initState() {
     super.initState();
     _account = widget.account;
+    _profile = widget.profile;
     _initializeControllers();
     _refreshAccount();
   }
@@ -316,7 +321,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
     try {
       final updatedAccount = await widget.accountController.updateProfile(
         username: _account.username,
-        signingIdentity: widget.currentIdentity,
+        signingIdentity: _profile.primaryKeypair,
         displayName: _displayNameController.text.trim().isEmpty ? null : _displayNameController.text.trim(),
         contactEmail: _contactEmailController.text.trim().isEmpty ? null : _contactEmailController.text.trim(),
         contactTelegram: _contactTelegramController.text.trim().isEmpty ? null : _contactTelegramController.text.trim(),
@@ -616,9 +621,13 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       builder: (context) => AddAccountKeySheet(
         account: _account,
         accountController: widget.accountController,
-        signingIdentity: widget.currentIdentity,
-        onKeyAdded: (key) {
+        profile: _profile,
+        profileController: widget.profileController,
+        onKeyAdded: (key, updatedProfile) {
           Navigator.pop(context);
+          setState(() {
+            _profile = updatedProfile;
+          });
           _refreshAccount();
           _showSuccessSnackbar('Key added successfully');
         },
@@ -660,7 +669,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       await widget.accountController.removePublicKey(
         username: _account.username,
         keyId: key.id,
-        signingIdentity: widget.currentIdentity,
+        signingIdentity: _profile.primaryKeypair,
       );
 
       if (mounted) {

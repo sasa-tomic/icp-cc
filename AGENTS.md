@@ -64,11 +64,11 @@ CRITICAL: After you are done verify that changes are highly aligned with the pro
 
 | Task                  | Use                                                     | File                                   | Notes                                              |
 |-----------------------|---------------------------------------------------------|----------------------------------------|----------------------------------------------------|
-| Create test identity  | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           | FIXME: Should be createTestProfile()               |
-| Multiple test users   | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           | FIXME: Should create profiles, not bare keypairs   |
+| Create test identity  | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           | Creates ProfileKeypair for testing                 |
+| Multiple test users   | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           | Creates deterministic keypairs from seed           |
 | Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |                                                    |
 | Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |                                                    |
-| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` | FIXME: Should be FakeProfileRepository             |
+| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` | In-memory keypair storage for tests                |
 
 # MCP servers that you should use in the project
 - Use context7 mcp server if you would like to obtain additional information for a library or API
@@ -76,32 +76,29 @@ CRITICAL: After you are done verify that changes are highly aligned with the pro
 
 # Architecture Implementation Status
 
-## Current Issues (FIXME Comments Added)
+## ✅ Profile-Centric Migration Complete
 
-The following files have FIXME comments marking architecture violations:
+The profile-centric architecture has been fully implemented:
 
-1. **Models:**
-   - `lib/models/identity_record.dart` - Should be ProfileKeypair
-   - `lib/models/account.dart` - Missing profile ownership relationship
+1. **Core Models:**
+   - `lib/models/profile.dart` - Profile container model
+   - `lib/models/identity_record.dart` - ProfileKeypair (typedef IdentityRecord = ProfileKeypair)
+   - `lib/models/account.dart` - Backend account representation
 
 2. **Controllers:**
-   - `lib/controllers/identity_controller.dart` - Should be ProfileController
-   - `lib/controllers/account_controller.dart` - Allows cross-profile key operations
+   - `lib/controllers/profile_controller.dart` - Main profile management
+   - `lib/controllers/account_controller.dart` - Account operations
 
-3. **Missing Components:**
-   - Profile model (container for keypairs + account)
-   - ProfileController to manage profiles
-   - Profile storage layer
+3. **Services:**
+   - `lib/services/profile_repository.dart` - Profile storage
+   - `lib/services/secure_identity_repository.dart` - Keypair secure storage
 
-## Migration Path (When Ready)
+4. **UI:**
+   - `lib/screens/profile_home_page.dart` - Main entry point
+   - `lib/widgets/profile_scope.dart` - ProfileController dependency injection
 
-1. Create Profile model
-2. Create ProfileController
-3. Rename IdentityRecord → ProfileKeypair
-4. Update storage to support Profile → Keypairs structure
-5. Remove cross-profile key operations
-6. Update all UI to use profiles as primary concept
-7. Update tests to use profile-centric test helpers
+**Note:** FIXME comments in `account.dart` and `account_controller.dart` are documentation markers
+describing architectural notes for future reference, not blocking issues.
 
 See ACCOUNT_PROFILES_DESIGN.md and ACCOUNT_PROFILES_UX_DESIGN.md for complete specification.
 

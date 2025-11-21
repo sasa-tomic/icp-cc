@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/controllers/identity_controller.dart';
+import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/identity_record.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:icp_autorun/widgets/quick_upload_dialog.dart';
-import 'package:icp_autorun/widgets/identity_scope.dart';
+import 'package:icp_autorun/widgets/profile_scope.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,24 +24,27 @@ void main() {
   });
 
   group('QuickUploadDialog identity workflow', () {
-    late IdentityRecord identity;
-    late IdentityController identityController;
+    late ProfileKeypair identity;
+    late ProfileController profileController;
     late _MockMarketplaceService marketplaceService;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       identity = await TestIdentityFactory.getEd25519Identity();
-      final repository = FakeSecureIdentityRepository(<IdentityRecord>[identity]);
-      identityController = IdentityController(secureRepository: repository);
-      await identityController.ensureLoaded();
-      await identityController.setActiveIdentity(identity.id);
+      final repository = FakeSecureIdentityRepository(<ProfileKeypair>[identity]);
+      profileController = ProfileController(profileRepository: repository.profileRepository);
+      await profileController.ensureLoaded();
+      // Set the first profile as active
+      if (profileController.profiles.isNotEmpty) {
+        await profileController.setActiveProfile(profileController.profiles.first.id);
+      }
       marketplaceService = _MockMarketplaceService();
     });
 
     Future<void> pumpDialog(WidgetTester tester) async {
       await tester.pumpWidget(
-        IdentityScope(
-          controller: identityController,
+        ProfileScope(
+          controller: profileController,
           child: MaterialApp(
             home: Builder(
               builder: (BuildContext context) {
@@ -54,7 +57,7 @@ void main() {
                           builder: (_) => QuickUploadDialog(
                             preFilledTitle: 'Prefilled Title',
                             preFilledCode: '-- test script',
-                            identityController: identityController,
+                            profileController: profileController,
                             marketplaceService: marketplaceService,
                           ),
                         );

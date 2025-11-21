@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../widgets/error_display.dart';
 import '../services/script_signature_service.dart';
-import '../controllers/identity_controller.dart';
+import '../controllers/profile_controller.dart';
 import '../models/identity_record.dart';
 import '../utils/principal.dart';
-import '../widgets/identity_scope.dart';
+import '../widgets/profile_scope.dart';
 
 class PreFilledUploadData {
   final String title;
@@ -87,8 +87,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     }
   }
 
-  Widget _buildIdentityCard(IdentityController controller) {
-    final IdentityRecord? identity = controller.activeIdentity;
+  Widget _buildIdentityCard(ProfileController controller) {
+    final ProfileKeypair? identity = controller.activeKeypair;
     if (identity == null) {
       return Card(
         elevation: 0,
@@ -164,9 +164,9 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     }
 
     // Check if identity is selected
-    final IdentityController identityController =
-        IdentityScope.of(context, listen: false);
-    final IdentityRecord? activeIdentity = identityController.activeIdentity;
+    final ProfileController profileController =
+        ProfileScope.of(context, listen: false);
+    final ProfileKeypair? activeIdentity = profileController.activeKeypair;
     if (activeIdentity == null) {
       setState(() {
         _error = 'No identity selected. Go to the Identities tab to select one.';
@@ -319,7 +319,7 @@ end''';
 
   @override
   Widget build(BuildContext context) {
-    final IdentityController identityController = IdentityScope.of(context);
+    final ProfileController profileController = ProfileScope.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Upload Script'),
@@ -423,7 +423,7 @@ end''';
                     // Identity Selection Section
                     _buildSectionHeader('Identity Context'),
                     const SizedBox(height: 8),
-                    _buildIdentityCard(identityController),
+                    _buildIdentityCard(profileController),
                     const SizedBox(height: 24),
 
                     // Category and Tags Section

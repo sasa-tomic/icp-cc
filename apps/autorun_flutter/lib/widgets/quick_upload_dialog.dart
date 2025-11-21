@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../controllers/identity_controller.dart';
+import '../controllers/profile_controller.dart';
 import '../models/identity_record.dart';
 import '../models/script_record.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
 import '../utils/principal.dart';
-import '../widgets/identity_scope.dart';
+import '../widgets/profile_scope.dart';
 import '../widgets/script_editor.dart';
 import 'error_display.dart';
 
@@ -14,7 +14,7 @@ class QuickUploadDialog extends StatefulWidget {
   final ScriptRecord? script; // Optional script to pre-fill from
   final String? preFilledTitle;
   final String? preFilledCode;
-  final IdentityController? identityController;
+  final ProfileController? profileController;
   final MarketplaceOpenApiService? marketplaceService;
 
   const QuickUploadDialog({
@@ -22,7 +22,7 @@ class QuickUploadDialog extends StatefulWidget {
     this.script,
     this.preFilledTitle,
     this.preFilledCode,
-    this.identityController,
+    this.profileController,
     this.marketplaceService,
   });
 
@@ -62,8 +62,8 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     'Business',
   ];
 
-  IdentityController _identityController(BuildContext context, {bool listen = true}) {
-    return widget.identityController ?? IdentityScope.of(context, listen: listen);
+  ProfileController _profileController(BuildContext context, {bool listen = true}) {
+    return widget.profileController ?? ProfileScope.of(context, listen: listen);
   }
 
   @override
@@ -181,9 +181,9 @@ end''';
 
   Future<void> _uploadScript() async {
     // Validation is done in _goToCodePreview() before reaching this step
-    final IdentityController controller =
-        _identityController(context, listen: false);
-    final IdentityRecord? identity = controller.activeIdentity;
+    final ProfileController controller =
+        _profileController(context, listen: false);
+    final ProfileKeypair? identity = controller.activeKeypair;
     if (identity == null) {
       setState(() {
         _error = 'No identity selected. Go to the Identities tab to select one.';
@@ -479,7 +479,7 @@ end''';
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
-                          _buildIdentityCard(_identityController(context)),
+                          _buildIdentityCard(_profileController(context)),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
                             initialValue: _selectedCategory,
@@ -648,8 +648,8 @@ end''';
     );
   }
 
-  Widget _buildIdentityCard(IdentityController controller) {
-    final IdentityRecord? identity = controller.activeIdentity;
+  Widget _buildIdentityCard(ProfileController controller) {
+    final ProfileKeypair? identity = controller.activeKeypair;
     if (identity == null) {
       return Card(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,

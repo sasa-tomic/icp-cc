@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../controllers/identity_controller.dart';
+import '../controllers/profile_controller.dart';
 import '../models/identity_record.dart';
 import '../utils/principal.dart';
 
@@ -11,12 +11,12 @@ class IdentitySessionBanner extends StatelessWidget {
     required this.onManageIdentities,
   });
 
-  final IdentityController controller;
+  final ProfileController controller;
   final VoidCallback onManageIdentities;
 
   @override
   Widget build(BuildContext context) {
-    final IdentityRecord? active = controller.activeIdentity;
+    final ProfileKeypair? active = controller.activeKeypair;
     if (active == null) {
       return _AnonymousIdentityCard(
         onManageIdentities: onManageIdentities,
@@ -87,7 +87,7 @@ class _ActiveIdentityCard extends StatelessWidget {
     required this.onManageIdentities,
   });
 
-  final IdentityRecord identity;
+  final ProfileKeypair identity;
   final String principal;
   final bool isProfileComplete;
   final VoidCallback onManageIdentities;

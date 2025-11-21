@@ -149,7 +149,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
         builder: (context) => AccountProfileScreen(
           account: account,
           accountController: _accountController!,
-          currentIdentity: profile.primaryKeypair,
+          profile: profile,
+          profileController: _profileController!,
         ),
       ),
     );

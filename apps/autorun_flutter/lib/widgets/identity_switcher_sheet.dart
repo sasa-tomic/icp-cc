@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 
-import '../controllers/identity_controller.dart';
-import '../models/identity_record.dart';
+import '../controllers/profile_controller.dart';
+import '../models/profile.dart';
 import '../utils/principal.dart';
 
 class IdentitySwitcherResult {
-  const IdentitySwitcherResult({this.identityId, this.openIdentityManager = false});
+  const IdentitySwitcherResult({this.profileId, this.openIdentityManager = false});
 
-  final String? identityId;
+  final String? profileId;
   final bool openIdentityManager;
 }
 
 Future<IdentitySwitcherResult?> showIdentitySwitcherSheet({
   required BuildContext context,
-  required IdentityController controller,
+  required ProfileController controller,
 }) {
   return showModalBottomSheet<IdentitySwitcherResult>(
     context: context,
@@ -28,7 +28,7 @@ Future<IdentitySwitcherResult?> showIdentitySwitcherSheet({
 class IdentitySwitcherSheet extends StatefulWidget {
   const IdentitySwitcherSheet({super.key, required this.controller});
 
-  final IdentityController controller;
+  final ProfileController controller;
 
   @override
   State<IdentitySwitcherSheet> createState() => _IdentitySwitcherSheetState();
@@ -40,12 +40,12 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
   @override
   void initState() {
     super.initState();
-    _selectedId = widget.controller.activeIdentityId;
+    _selectedId = widget.controller.activeProfileId;
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<IdentityRecord> identities = widget.controller.identities;
+    final List<Profile> profiles = widget.controller.profiles;
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -88,17 +88,18 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
                     icon: Icons.visibility_off_outlined,
                     onTap: () => _completeSelection(null),
                   ),
-                  if (identities.isNotEmpty) ...[
+                  if (profiles.isNotEmpty) ...[
                     const Divider(height: 24),
-                    ...identities.map((IdentityRecord record) {
-                      final bool selected = _selectedId == record.id;
-                      final String principal = PrincipalUtils.textFromRecord(record);
+                    ...profiles.map((Profile profile) {
+                      final bool selected = _selectedId == profile.id;
+                      final String principal = PrincipalUtils.textFromRecord(profile.primaryKeypair);
+                      final String keyCount = profile.keypairs.length == 1 ? '1 key' : '${profile.keypairs.length} keys';
                       return _IdentityChoiceTile(
-                        title: record.label.isEmpty ? 'Untitled identity' : record.label,
-                        subtitle: '$principal (${record.algorithm.name.toUpperCase()})',
+                        title: profile.name.isEmpty ? 'Untitled profile' : profile.name,
+                        subtitle: '$principal ($keyCount)',
                         selected: selected,
                         icon: Icons.verified_user_outlined,
-                        onTap: () => _completeSelection(record.id),
+                        onTap: () => _completeSelection(profile.id),
                       );
                     }),
                   ] else ...[
@@ -114,12 +115,12 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'No identities yet',
+                            'No profiles yet',
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Create an identity to sign uploads',
+                            'Create a profile to sign uploads',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
@@ -157,10 +158,10 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
     );
   }
 
-  void _completeSelection(String? identityId) {
-    setState(() => _selectedId = identityId);
+  void _completeSelection(String? profileId) {
+    setState(() => _selectedId = profileId);
     Navigator.of(context).pop(
-      IdentitySwitcherResult(identityId: identityId),
+      IdentitySwitcherResult(profileId: profileId),
     );
   }
 

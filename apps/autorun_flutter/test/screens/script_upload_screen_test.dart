@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/controllers/identity_controller.dart';
+import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/screens/script_upload_screen.dart';
-import 'package:icp_autorun/widgets/identity_scope.dart';
+import 'package:icp_autorun/widgets/profile_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers/fake_secure_identity_repository.dart';
@@ -11,21 +11,25 @@ import '../test_helpers/test_identity_factory.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<IdentityController> createControllerWithIdentity() async {
+  Future<ProfileController> createControllerWithProfile() async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final identity = await TestIdentityFactory.getEd25519Identity();
-    final controller = IdentityController(
-      secureRepository: FakeSecureIdentityRepository([identity]),
+    final repository = FakeSecureIdentityRepository([identity]);
+    final controller = ProfileController(
+      profileRepository: repository.profileRepository,
       preferences: await SharedPreferences.getInstance(),
     );
     await controller.ensureLoaded();
-    await controller.setActiveIdentity(identity.id);
+    // Set the first profile as active
+    if (controller.profiles.isNotEmpty) {
+      await controller.setActiveProfile(controller.profiles.first.id);
+    }
     return controller;
   }
 
   Future<Widget> createWidget({PreFilledUploadData? preFilledData}) async {
-    final IdentityController controller = await createControllerWithIdentity();
-    return IdentityScope(
+    final ProfileController controller = await createControllerWithProfile();
+    return ProfileScope(
       controller: controller,
       child: MaterialApp(
         home: ScriptUploadScreen(

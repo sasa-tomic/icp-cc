@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import '../models/account.dart';
 import '../models/identity_record.dart';
 import '../models/profile.dart';
@@ -283,50 +281,6 @@ class AccountController extends ChangeNotifier {
     return await fetchAccount(profile.username!);
   }
 
-  /// DEPRECATED: Use addKeypairToAccount instead
-  ///
-  /// This method violates profile isolation by accepting identities from anywhere.
-  /// It's kept for backward compatibility but should not be used in new code.
-  @Deprecated('Use addKeypairToAccount with ProfileController instead')
-  Future<AccountPublicKey> addPublicKey({
-    required String username,
-    required IdentityRecord signingIdentity,
-    required IdentityRecord newIdentity,
-  }) async {
-    _setBusy(true);
-    try {
-      final normalizedUsername = AccountSignatureService.normalizeUsername(username);
-
-      // Create signed request
-      final request = await AccountSignatureService.createAddPublicKeyRequest(
-        signingIdentity: signingIdentity,
-        username: normalizedUsername,
-        newPublicKeyB64: newIdentity.publicKey,
-      );
-
-      // Submit to backend
-      final newKey = await _marketplaceService.addPublicKey(
-        username: normalizedUsername,
-        request: request,
-      );
-
-      // Update cached account
-      final cachedAccount = _accounts[normalizedUsername];
-      if (cachedAccount != null) {
-        final updatedKeys = <AccountPublicKey>[...cachedAccount.publicKeys, newKey];
-        _accounts[normalizedUsername] = cachedAccount.copyWith(
-          publicKeys: updatedKeys,
-          updatedAt: DateTime.now(),
-        );
-      }
-
-      notifyListeners();
-      return newKey;
-    } finally {
-      _setBusy(false);
-    }
-  }
-
   /// Remove a public key from an account (soft delete)
   ///
   /// The signing identity must have an active key in the account.
@@ -427,44 +381,6 @@ class AccountController extends ChangeNotifier {
     }
   }
 
-  /// DEPRECATED: Use getAccountForProfile instead
-  ///
-  /// This method searches ALL accounts for a matching key, which violates
-  /// profile isolation. Use Profile.username directly or getAccountForProfile().
-  @Deprecated('Use getAccountForProfile with Profile instead')
-  Account? accountForIdentity(IdentityRecord identity) {
-    // Convert identity public key to hex format for comparison
-    final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
-
-    // Check registered accounts first
-    for (final account in _accounts.values) {
-      final hasKey = account.publicKeys.any((key) => key.publicKey == publicKeyHex);
-      if (hasKey) {
-        return account;
-      }
-    }
-
-    // Check draft accounts (cached in memory)
-    if (_draftAccounts.containsKey(identity.id)) {
-      return _draftAccounts[identity.id];
-    }
-
-    return null;
-  }
-
-  /// DEPRECATED: Use getAccountForProfile instead
-  @Deprecated('Use getAccountForProfile with Profile instead')
-  Future<Account?> getAccountForIdentity(IdentityRecord identity) async {
-    // Try memory cache first
-    final cached = accountForIdentity(identity);
-    if (cached != null) {
-      return cached;
-    }
-
-    // Try loading draft account from storage
-    return await getDraftAccount(identity.id);
-  }
-
   /// Validate username format
   ///
   /// Returns validation result with error message if invalid.
@@ -489,68 +405,6 @@ class AccountController extends ChangeNotifier {
     return await _secureStorage.read(
       key: '$_identityUsernamePrefix$identityId',
     );
-  }
-
-  /// Fetch account for an identity using stored username mapping
-  ///
-  /// First tries to use the locally stored identity→username mapping.
-  /// If no mapping exists, queries the server by public key to discover the account.
-  /// If an account is found via public key lookup, the mapping is stored for future use.
-  ///
-  /// Returns null if no account exists for this identity.
-  ///
-  /// Throws [AccountNetworkException] for network-related failures.
-  /// Throws [TimeoutException] if the request takes too long.
-  Future<Account?> fetchAccountForIdentity(IdentityRecord identity) async {
-    // Try local mapping first (fast path)
-    final username = await getUsernameForIdentity(identity.id);
-    if (username != null) {
-      try {
-        return await fetchAccount(username).timeout(
-          const Duration(seconds: 10),
-        );
-      } on SocketException catch (e) {
-        throw AccountNetworkException('No internet connection', e);
-      } on TimeoutException {
-        throw AccountNetworkException('Request timed out - check your connection');
-      } on http.ClientException catch (e) {
-        throw AccountNetworkException('Network error', e);
-      }
-    }
-
-    // No local mapping - try server lookup by public key (fallback)
-    try {
-      final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
-      final account = await _marketplaceService
-          .getAccountByPublicKey(
-            publicKeyHex: publicKeyHex,
-          )
-          .timeout(const Duration(seconds: 10));
-
-      if (account != null) {
-        // Found account! Store the mapping for future use
-        await storeUsernameForIdentity(identity.id, account.username);
-
-        // Cache the account
-        _accounts[account.username] = account;
-        notifyListeners();
-      }
-
-      return account;
-    } on SocketException catch (e) {
-      throw AccountNetworkException('No internet connection', e);
-    } on TimeoutException {
-      throw AccountNetworkException('Request timed out - check your connection');
-    } on http.ClientException catch (e) {
-      throw AccountNetworkException('Network error', e);
-    } catch (e) {
-      // Other errors - rethrow for debugging
-      if (!e.toString().contains('404') && !e.toString().contains('not found')) {
-        rethrow;
-      }
-      // 404 means no account exists - return null
-      return null;
-    }
   }
 
   /// Create a draft account (local only, not registered on marketplace)

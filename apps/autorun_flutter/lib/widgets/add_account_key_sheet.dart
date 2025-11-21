@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/account.dart';
-import '../models/identity_record.dart';
+import '../models/profile.dart';
 import '../controllers/account_controller.dart';
-import '../widgets/identity_scope.dart';
+import '../controllers/profile_controller.dart';
 import '../widgets/key_parameters_dialog.dart';
 import '../theme/app_design_system.dart';
 
@@ -12,24 +12,22 @@ import '../theme/app_design_system.dart';
 /// - Only allows generating NEW keypairs for the account
 /// - Does NOT allow importing/selecting existing identities (violates profile isolation)
 /// - Each keypair belongs to exactly ONE profile
-///
-/// FIXME: This widget should be refactored to accept a Profile parameter instead of
-/// Account + signingIdentity. Then it can use AccountController.addKeypairToAccount()
-/// which properly generates the keypair within the profile context.
-/// Currently using deprecated addPublicKey() for backward compatibility.
+/// - Uses addKeypairToAccount() which generates keypair within profile context
 class AddAccountKeySheet extends StatefulWidget {
   const AddAccountKeySheet({
     required this.account,
     required this.accountController,
-    required this.signingIdentity,
+    required this.profile,
+    required this.profileController,
     required this.onKeyAdded,
     super.key,
   });
 
   final Account account;
   final AccountController accountController;
-  final IdentityRecord signingIdentity;
-  final Function(AccountPublicKey) onKeyAdded;
+  final Profile profile;
+  final ProfileController profileController;
+  final Function(AccountPublicKey, Profile) onKeyAdded;
 
   @override
   State<AddAccountKeySheet> createState() => _AddAccountKeySheetState();
@@ -219,14 +217,8 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
     );
   }
 
-  /// Generate a new keypair and add it to the account
-  ///
-  /// FIXME: This should use AccountController.addKeypairToAccount() with a Profile
-  /// parameter once the calling screen (AccountProfileScreen) is updated to provide
-  /// the Profile context. Currently using deprecated addPublicKey() for compatibility.
+  /// Generate a new keypair and add it to the account using profile-centric approach
   Future<void> _generateAndAddNewKeypair() async {
-    final identityController = IdentityScope.of(context);
-
     // Show dialog to collect key parameters
     final KeyParameters? params = await showDialog<KeyParameters>(
       context: context,
@@ -245,24 +237,20 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
     });
 
     try {
-      // Generate new identity with provided parameters (don't set as active)
-      final newIdentity = await identityController.createIdentity(
+      // Use profile-centric addKeypairToAccount which:
+      // 1. Generates NEW keypair within the profile (via ProfileController)
+      // 2. Registers the public key with the backend account
+      final newKey = await widget.accountController.addKeypairToAccount(
+        profile: widget.profile,
         algorithm: params.algorithm,
-        label: params.label,
-        mnemonic: params.seed,
-        setAsActive: false,
+        keypairLabel: params.label,
       );
 
-      // Add the new identity to the account
-      // ignore: deprecated_member_use_from_same_package
-      final newKey = await widget.accountController.addPublicKey(
-        username: widget.account.username,
-        signingIdentity: widget.signingIdentity,
-        newIdentity: newIdentity,
-      );
+      // Get updated profile from ProfileController
+      final updatedProfile = widget.profileController.findById(widget.profile.id);
 
-      if (mounted) {
-        widget.onKeyAdded(newKey);
+      if (mounted && updatedProfile != null) {
+        widget.onKeyAdded(newKey, updatedProfile);
       }
     } catch (e) {
       if (mounted) {
