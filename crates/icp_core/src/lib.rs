@@ -15,4 +15,4 @@ pub use lua_engine::{
     execute_lua_json, lint_lua, validate_lua_comprehensive, LuaExecError, ValidationContext,
     ValidationResult,
 };
-pub use principal::{principal_from_der, principal_from_public_key};
+pub use principal::{der_encode_public_key, principal_from_der, principal_from_public_key};

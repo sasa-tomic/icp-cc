@@ -1,7 +1,9 @@
 use crate::{
     canister_client::{self, MethodKind},
-    generate_ed25519_identity, generate_secp256k1_identity, lua_engine, ValidationContext,
+    generate_ed25519_identity, generate_secp256k1_identity, lua_engine, principal_from_public_key,
+    ValidationContext,
 };
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde_json::json;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -34,6 +36,37 @@ pub unsafe extern "C" fn icp_generate_identity(alg: i32, mnemonic: *const c_char
         result.public_key_b64, result.private_key_b64, result.principal_text
     );
     CString::new(json).unwrap().into_raw()
+}
+
+/// Derive principal from algorithm and base64-encoded public key.
+///
+/// # Safety
+/// - `pk_b64` must be a valid, null-terminated C string containing base64-encoded public key.
+/// - `alg`: 0 = ed25519 (32-byte key), 1 = secp256k1 (65-byte uncompressed key)
+/// - The returned pointer must be freed by `icp_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn icp_principal_from_public_key(
+    alg: i32,
+    pk_b64: *const c_char,
+) -> *mut c_char {
+    if pk_b64.is_null() {
+        return null_c_string();
+    }
+    let pk_str = match CStr::from_ptr(pk_b64).to_str() {
+        Ok(s) => s,
+        Err(_) => return null_c_string(),
+    };
+    let pk_bytes = match B64.decode(pk_str) {
+        Ok(b) => b,
+        Err(_) => return null_c_string(),
+    };
+    let alg_str = match alg {
+        0 => "ed25519",
+        1 => "secp256k1",
+        _ => return null_c_string(),
+    };
+    let principal = principal_from_public_key(alg_str, &pk_bytes);
+    CString::new(principal).unwrap().into_raw()
 }
 
 /// # Safety

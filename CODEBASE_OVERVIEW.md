@@ -580,10 +580,10 @@ CREATE TABLE identity_profiles (
 | File                                  | Purpose                            |
 |---------------------------------------|------------------------------------|
 | `/lib/models/identity_profile.dart`   | Backend profile model + draft      |
-| `/lib/models/profile_keypair.dart`    | Local identity (keys, mnemonic)    |
 | `/lib/models/marketplace_script.dart` | Script with all marketplace fields |
 | `/lib/models/script_record.dart`      | Local script representation        |
 | `/lib/models/script_template.dart`    | Script templates for creation      |
+| `/lib/models/profile_keypair.dart`    | Local identity (keys, mnemonic)    |
 
 ### Frontend Widgets/Components
 - `/lib/widgets/script_card.dart` - Script display card

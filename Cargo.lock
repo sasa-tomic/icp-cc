@@ -1814,6 +1814,7 @@ dependencies = [
  "hex-literal",
  "ic-agent",
  "js-sys",
+ "k256",
  "mlua",
  "once_cell",
  "regex",
