@@ -35,16 +35,54 @@ class RustBridgeLoader {
   const RustBridgeLoader();
 
   ffi.DynamicLibrary? _open() {
-    try {
-      if (Platform.isAndroid) return ffi.DynamicLibrary.open('libicp_core.so');
-      if (Platform.isIOS) return ffi.DynamicLibrary.process();
-      if (Platform.isMacOS) return ffi.DynamicLibrary.open('libicp_core.dylib');
-      if (Platform.isLinux) return ffi.DynamicLibrary.open('libicp_core.so');
-      if (Platform.isWindows) return ffi.DynamicLibrary.open('icp_core.dll');
-      return null;
-    } catch (_) {
+    if (Platform.isAndroid) {
+      try {
+        return ffi.DynamicLibrary.open('libicp_core.so');
+      } catch (_) {
+        return null;
+      }
+    }
+    if (Platform.isIOS) {
+      try {
+        return ffi.DynamicLibrary.process();
+      } catch (_) {
+        return null;
+      }
+    }
+    if (Platform.isMacOS) {
+      final paths = [
+        'libicp_core.dylib',
+        'build/macos/Build/Products/Debug/libicp_core.dylib',
+        'build/macos/Build/Products/Release/libicp_core.dylib',
+      ];
+      for (final path in paths) {
+        try {
+          return ffi.DynamicLibrary.open(path);
+        } catch (_) {}
+      }
       return null;
     }
+    if (Platform.isLinux) {
+      final paths = [
+        'libicp_core.so',
+        'build/linux/x64/debug/bundle/lib/libicp_core.so',
+        'build/linux/x64/release/bundle/lib/libicp_core.so',
+      ];
+      for (final path in paths) {
+        try {
+          return ffi.DynamicLibrary.open(path);
+        } catch (_) {}
+      }
+      return null;
+    }
+    if (Platform.isWindows) {
+      try {
+        return ffi.DynamicLibrary.open('icp_core.dll');
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
   RustKeypairResult? generateKeypair({required int alg, String? mnemonic}) {

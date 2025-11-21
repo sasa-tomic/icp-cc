@@ -44,7 +44,8 @@ pub fn der_encode_public_key(alg: &str, public_key: &[u8]) -> Result<Vec<u8>, St
 }
 
 /// Compute principal from raw public key bytes.
-pub fn principal_from_public_key(alg: &str, public_key: &[u8]) -> String {
-    let der = der_encode_public_key(alg, public_key).expect("DER encoding failed");
-    principal_from_der(&der)
+/// Returns None if DER encoding fails (e.g., invalid key length).
+pub fn principal_from_public_key(alg: &str, public_key: &[u8]) -> Option<String> {
+    let der = der_encode_public_key(alg, public_key).ok()?;
+    Some(principal_from_der(&der))
 }

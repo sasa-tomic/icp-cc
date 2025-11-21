@@ -29,7 +29,7 @@ void main() {
       expect(find.text('Basic Information'), findsOneWidget);
       expect(find.text('Title'), findsOneWidget);
       expect(find.text('Description'), findsOneWidget);
-      expect(find.text('Author Name'), findsOneWidget);
+      expect(find.text('Keypair Context'), findsOneWidget);
 
        // Check that other sections are present
        expect(find.text('Category and Tags'), findsOneWidget);

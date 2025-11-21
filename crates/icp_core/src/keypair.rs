@@ -31,7 +31,8 @@ pub fn generate_ed25519_keypair(mnemonic: Option<String>) -> KeypairData {
     let public: Ed25519Public = (&secret).into();
     let private_b64 = B64.encode(secret.to_bytes());
     let public_b64 = B64.encode(public.as_bytes());
-    let principal = principal_from_public_key("ed25519", public.as_bytes());
+    let principal = principal_from_public_key("ed25519", public.as_bytes())
+        .expect("Ed25519 principal derivation failed for newly generated key");
     KeypairData {
         public_key_b64: public_b64,
         private_key_b64: private_b64,
@@ -56,7 +57,8 @@ pub fn generate_secp256k1_keypair(mnemonic: Option<String>) -> KeypairData {
 
     let private_b64 = B64.encode(sk.secret_bytes());
     let public_b64 = B64.encode(uncompressed);
-    let principal = principal_from_public_key("secp256k1", &uncompressed);
+    let principal = principal_from_public_key("secp256k1", &uncompressed)
+        .expect("secp256k1 principal derivation failed for newly generated key");
     KeypairData {
         public_key_b64: public_b64,
         private_key_b64: private_b64,

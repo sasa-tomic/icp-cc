@@ -65,7 +65,10 @@ pub unsafe extern "C" fn icp_principal_from_public_key(
         1 => "secp256k1",
         _ => return null_c_string(),
     };
-    let principal = principal_from_public_key(alg_str, &pk_bytes);
+    let principal = match principal_from_public_key(alg_str, &pk_bytes) {
+        Some(p) => p,
+        None => return null_c_string(),
+    };
     CString::new(principal).unwrap().into_raw()
 }
 

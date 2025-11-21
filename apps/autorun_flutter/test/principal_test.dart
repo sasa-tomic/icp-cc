@@ -47,16 +47,16 @@ void main() {
     expect(principal, kSecp256k1PrincipalText);
   });
 
-  test('textFromRecord throws for keypair without stored principal', () {
+  test('textFromRecord throws for keypair with invalid public key', () {
     final record = ProfileKeypair(
       id: 'test-id',
       label: 'Test',
       algorithm: KeyAlgorithm.ed25519,
-      publicKey: 'dGVzdA==', // dummy
+      publicKey: 'dGVzdA==', // invalid: too short (4 bytes, needs 32)
       privateKey: 'dGVzdA==', // dummy
       mnemonic: 'test mnemonic',
       createdAt: DateTime.now(),
-      principal: null, // Missing principal
+      principal: null, // Will try to derive from invalid key
     );
 
     expect(

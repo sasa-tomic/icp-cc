@@ -126,6 +126,8 @@ flutter-tests:
         fi
     }
     trap cleanup EXIT
+    echo "==> Building native library for Flutter tests..."
+    just linux
     just api-up
     api_started=1
     echo "==> Running Flutter analysis..."
