@@ -487,6 +487,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
     final RenderBox? overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
 
+    // ignore: deprecated_member_use_from_same_package
     final Account? account = _accountController.accountForIdentity(record);
 
     final _IdentityAction? action = await showMenu<_IdentityAction>(
@@ -589,12 +590,14 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
         );
         break;
       case _IdentityAction.openAccountProfile:
+        // ignore: deprecated_member_use_from_same_package
         final Account? account = _accountController.accountForIdentity(record);
         if (account != null) {
           await _navigateToAccountProfile(account, record);
         }
         break;
       case _IdentityAction.addKeyToAccount:
+        // ignore: deprecated_member_use_from_same_package
         final Account? account = _accountController.accountForIdentity(record);
         if (account != null) {
           await _navigateToAccountProfile(account, record);
@@ -639,6 +642,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
 
   String _displayNameForIdentity(IdentityRecord record) {
     // Get account (either registered or draft)
+    // ignore: deprecated_member_use_from_same_package
     final Account? account = _accountController.accountForIdentity(record);
     if (account != null) {
       return account.displayName;
@@ -971,6 +975,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 itemBuilder: (BuildContext context) {
+                                  // ignore: deprecated_member_use_from_same_package
                                   final Account? account = _accountController.accountForIdentity(record);
                                   return _buildMenuItems(isActive, account);
                                 },
@@ -1016,6 +1021,7 @@ class _IdentityHomePageState extends State<IdentityHomePage> {
       return true;
     }
     // Show register button if no account exists
+    // ignore: deprecated_member_use_from_same_package
     final Account? account = _accountController.accountForIdentity(record);
     return account == null;
   }

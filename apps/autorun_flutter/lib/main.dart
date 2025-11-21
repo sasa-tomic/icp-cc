@@ -2,16 +2,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'config/app_config.dart';
-import 'controllers/identity_controller.dart';
-import 'models/identity_record.dart';
+import 'controllers/profile_controller.dart';
+import 'models/profile.dart';
 import 'models/script_template.dart';
 import 'rust/native_bridge.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
-import 'screens/identity_home_page.dart';
+import 'screens/profile_home_page.dart';
 import 'screens/scripts_screen.dart';
-import 'widgets/identity_scope.dart';
+import 'widgets/profile_scope.dart';
 
 
 Future<void> main() async {
@@ -29,25 +29,25 @@ class IdentityApp extends StatefulWidget {
 }
 
 class _IdentityAppState extends State<IdentityApp> {
-  late final IdentityController _identityController;
+  late final ProfileController _profileController;
 
   @override
   void initState() {
     super.initState();
-    _identityController = IdentityController();
-    unawaited(_identityController.ensureLoaded());
+    _profileController = ProfileController();
+    unawaited(_profileController.ensureLoaded());
   }
 
   @override
   void dispose() {
-    _identityController.dispose();
+    _profileController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return IdentityScope(
-      controller: _identityController,
+    return ProfileScope(
+      controller: _profileController,
       child: MaterialApp(
         title: 'ICP Autorun',
         theme: AppDesignSystem.lightTheme,
@@ -112,7 +112,7 @@ class _MainHomePageState extends State<MainHomePage> {
                   children: <Widget>[
                     const ScriptsScreen(),
                     BookmarksScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
-                    const IdentityHomePage(),
+                    const ProfileHomePage(),
                   ],
                 ),
               ),
@@ -128,8 +128,8 @@ class _MainHomePageState extends State<MainHomePage> {
 
 
   Widget _buildModernNavigationBar() {
-    final IdentityController identityController = IdentityScope.of(context);
-    final bool shouldShowBadge = _shouldShowIdentityBadge(identityController);
+    final ProfileController profileController = ProfileScope.of(context);
+    final bool shouldShowBadge = _shouldShowProfileBadge(profileController);
     
     return ModernNavigationBar(
       currentIndex: _currentIndex,
@@ -157,10 +157,9 @@ class _MainHomePageState extends State<MainHomePage> {
     );
   }
 
-  bool _shouldShowIdentityBadge(IdentityController controller) {
-    final IdentityRecord? active = controller.activeIdentity;
-    // Show badge only for anonymous mode (no active identity)
-    // With the new system, all identities have an account (draft or registered)
+  bool _shouldShowProfileBadge(ProfileController controller) {
+    final Profile? active = controller.activeProfile;
+    // Show badge only for anonymous mode (no active profile)
     return active == null;
   }
 }

@@ -3,6 +3,8 @@ import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/services/secure_identity_repository.dart';
 
+import 'test_identity_factory.dart';
+
 /// Fake implementation of SecureIdentityRepository for testing
 /// Stores identities in memory and provides full control for test scenarios
 class FakeSecureIdentityRepository implements SecureIdentityRepository {
@@ -81,6 +83,32 @@ class FakeProfileRepository implements ProfileRepository {
       : _profiles = List.of(initialProfiles);
 
   List<Profile> _profiles;
+
+  /// Create a test profile with a single keypair
+  static Future<Profile> createTestProfile({
+    required String name,
+    String? username,
+  }) async {
+    // Import needed for generating keypair
+    final keypair = await _generateTestKeypair(label: '$name - Primary');
+
+    final now = DateTime.now().toUtc();
+    return Profile(
+      id: 'profile_${name.hashCode}', // Deterministic ID based on name
+      name: name,
+      keypairs: [keypair],
+      username: username,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
+  static Future<ProfileKeypair> _generateTestKeypair({required String label}) async {
+    // Import test identity factory
+    final testIdentity = await TestIdentityFactory.getEd25519Identity();
+    // Create a copy with the desired label
+    return testIdentity.copyWith(label: label);
+  }
 
   @override
   Future<List<Profile>> loadProfiles() async {
