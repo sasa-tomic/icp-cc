@@ -58,6 +58,8 @@ In other words: we care about good design. We do not yet care about backward com
 
 BE BRUTALLY HONEST AND OBJECTIVE. You are smart and confident.
 
+ALWAYS REMOVE ALL DUPLICATION AND COMPLEXITY. No backward compatibility! No unnecessary complexity.
+
 CRITICAL: After you are done verify that changes are highly aligned with the project rules
 
 ### Quick Reference
