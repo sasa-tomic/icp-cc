@@ -1,5 +1,8 @@
 use chrono::Utc;
-use ed25519_dalek::{Signature as Ed25519Signature, Verifier, VerifyingKey as Ed25519VerifyingKey};
+use ed25519_dalek::{
+    pkcs8::EncodePublicKey, Signature as Ed25519Signature, Verifier,
+    VerifyingKey as Ed25519VerifyingKey,
+};
 use ic_agent::export::Principal;
 use k256::ecdsa::{Signature as Secp256k1Signature, VerifyingKey as Secp256k1VerifyingKey};
 use poem::{error::ResponseError, http::StatusCode};
@@ -248,14 +251,30 @@ pub fn verify_operation_signature(
 
 /// Derives an IC principal from an Ed25519 public key (hex encoded)
 /// Backend MUST compute principal, NEVER trust user-provided principals
+///
+/// IC principals require DER-encoded public keys (RFC 8410 for Ed25519).
+/// The DER encoding includes the algorithm OID (1.3.101.112 for Ed25519).
 pub fn derive_ic_principal(public_key_hex: &str) -> Result<String, String> {
     // Decode public key from hex
     let public_key_bytes =
         decode_hex(public_key_hex).map_err(|e| format!("Invalid public key encoding: {}", e))?;
 
-    // Create self-authenticating principal from public key
-    // IC uses DER encoding for Ed25519 public keys
-    let principal = Principal::self_authenticating(&public_key_bytes);
+    // Parse as Ed25519 verifying key
+    let verifying_key = Ed25519VerifyingKey::from_bytes(
+        public_key_bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| "Ed25519 public key must be 32 bytes")?,
+    )
+    .map_err(|e| format!("Invalid Ed25519 public key: {}", e))?;
+
+    // DER-encode the public key (RFC 8410) - this adds the Ed25519 algorithm OID
+    let der_bytes = verifying_key
+        .to_public_key_der()
+        .map_err(|e| format!("Failed to DER-encode public key: {}", e))?;
+
+    // Create self-authenticating principal from DER-encoded key
+    let principal = Principal::self_authenticating(der_bytes.as_bytes());
 
     Ok(principal.to_text())
 }
@@ -415,6 +434,24 @@ mod tests {
         // Principal should be non-empty and properly formatted
         assert!(!principal.is_empty());
         assert!(principal.contains('-')); // IC principals contain hyphens
+    }
+
+    #[test]
+    fn test_derive_ic_principal_matches_frontend() {
+        // Test vector from crates/icp_core/tests/common/mod.rs
+        // This ensures backend principal derivation matches frontend
+        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+
+        const ED25519_PUBLIC_B64: &str = "HeNS5EzTM2clk/IzSnMOGAqvKQ3omqFtSA3llONOKWE=";
+        const ED25519_PRINCIPAL: &str =
+            "yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae";
+
+        // Convert base64 to hex (backend uses hex, frontend uses base64)
+        let public_key_bytes = B64.decode(ED25519_PUBLIC_B64).unwrap();
+        let public_key_hex = hex::encode(&public_key_bytes);
+
+        let result = derive_ic_principal(&public_key_hex).unwrap();
+        assert_eq!(result, ED25519_PRINCIPAL, "Backend principal must match frontend");
     }
 
     #[test]
