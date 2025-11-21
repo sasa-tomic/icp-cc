@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
-import 'package:icp_autorun/utils/identity_generator.dart';
+import 'package:icp_autorun/utils/keypair_generator.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'test_vectors.dart';
 

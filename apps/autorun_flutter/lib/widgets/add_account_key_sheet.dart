@@ -10,7 +10,7 @@ import '../theme/app_design_system.dart';
 ///
 /// ARCHITECTURE: Profile-Centric Model
 /// - Only allows generating NEW keypairs for the account
-/// - Does NOT allow importing/selecting existing identities (violates profile isolation)
+/// - Does NOT allow importing/selecting existing keypairs (violates profile isolation)
 /// - Each keypair belongs to exactly ONE profile
 /// - Uses addKeypairToAccount() which generates keypair within profile context
 class AddAccountKeySheet extends StatefulWidget {
@@ -247,7 +247,8 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
       );
 
       // Get updated profile from ProfileController
-      final updatedProfile = widget.profileController.findById(widget.profile.id);
+      final updatedProfile =
+          widget.profileController.findById(widget.profile.id);
 
       if (mounted && updatedProfile != null) {
         widget.onKeyAdded(newKey, updatedProfile);

@@ -7,12 +7,12 @@ import 'package:cryptography/cryptography.dart';
 import 'test_keypair_factory.dart';
 
 /// Utility class for generating test signatures for development/testing
-/// Uses real cryptographic signatures with deterministic test identities
+/// Uses real cryptographic signatures with deterministic test keypairs
 class TestSignatureUtils {
   static ProfileKeypair? _syncKeypair;
   static Future<ProfileKeypair>? _keypairFuture;
 
-  /// Initialize and cache the test identity
+  /// Initialize and cache the test keypair
   /// Call this in setUpAll() to ensure synchronous access
   static Future<void> ensureInitialized() async {
     if (_syncKeypair == null) {
@@ -21,7 +21,7 @@ class TestSignatureUtils {
     }
   }
 
-  /// Get the cached test identity (throws if not initialized)
+  /// Get the cached test keypair (throws if not initialized)
   static ProfileKeypair _getKeypair() {
     if (_syncKeypair == null) {
       throw StateError(
@@ -46,14 +46,14 @@ class TestSignatureUtils {
     return _getKeypair().privateKey;
   }
 
-  /// Get the test identity (async version for backwards compatibility)
+  /// Get the test keypair (async version for backwards compatibility)
   static Future<ProfileKeypair> getTestKeypair() async {
     await ensureInitialized();
     return _getKeypair();
   }
 
   /// Generate a real cryptographic test signature (async)
-  /// Uses the default test identity with Ed25519 signatures
+  /// Uses the default test keypair with Ed25519 signatures
   /// For tests, call ensureInitialized() in setUpAll() then use generateTestSignatureSync()
   static Future<String> generateTestSignature(
       Map<String, dynamic> payload) async {
@@ -70,19 +70,19 @@ class TestSignatureUtils {
   /// Internal method to generate signature (async version)
   /// Per ACCOUNT_PROFILES_DESIGN.md: Standard Ed25519 (sign message directly)
   static Future<String> _generateSignatureInternal(
-    ProfileKeypair identity,
+    ProfileKeypair keypair,
     Map<String, dynamic> payload,
   ) async {
     try {
       final canonicalJson = _canonicalJsonEncode(payload);
       final payloadBytes = utf8.encode(canonicalJson);
 
-      final algorithm = identity.algorithm == KeyAlgorithm.ed25519
+      final algorithm = keypair.algorithm == KeyAlgorithm.ed25519
           ? Ed25519()
           : throw UnimplementedError(
               'Only Ed25519 is supported for test signatures');
 
-      final privateKeyBytes = base64Decode(identity.privateKey);
+      final privateKeyBytes = base64Decode(keypair.privateKey);
       final keyPair = await algorithm.newKeyPairFromSeed(privateKeyBytes);
 
       // Standard Ed25519: sign message directly (RFC 8032)
@@ -100,13 +100,13 @@ class TestSignatureUtils {
   /// NOTE: This uses a deterministic but NOT cryptographically secure signature
   /// Only use for testing with test infrastructure that accepts test signatures
   static String _generateSignatureSyncInternal(
-    ProfileKeypair identity,
+    ProfileKeypair keypair,
     Map<String, dynamic> payload,
   ) {
     try {
       final canonicalJson = _canonicalJsonEncode(payload);
       final messageBytes = utf8.encode(canonicalJson);
-      final keyBytes = base64Decode(identity.privateKey);
+      final keyBytes = base64Decode(keypair.privateKey);
 
       // Use deterministic hashing for synchronous signature (test-only!)
       int hash = 0;

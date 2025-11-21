@@ -41,12 +41,16 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
     // Initialize with template or defaults
     if (widget.initialTemplate != null) {
       // Find matching template from the templates list to avoid duplicate instances
-      final matchingTemplate = ScriptTemplates.templates.where((t) => t.id == widget.initialTemplate!.id);
+      final matchingTemplate = ScriptTemplates.templates
+          .where((t) => t.id == widget.initialTemplate!.id);
       if (matchingTemplate.isNotEmpty) {
         _selectedTemplate = matchingTemplate.first;
       } else {
         // Add the provided template to available templates if not already present
-        _availableTemplates = [widget.initialTemplate!, ...ScriptTemplates.templates];
+        _availableTemplates = [
+          widget.initialTemplate!,
+          ...ScriptTemplates.templates
+        ];
         _selectedTemplate = widget.initialTemplate!;
       }
     } else {
@@ -107,8 +111,12 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
     try {
       final rec = await widget.controller.createScript(
         title: _titleController.text.trim(),
-        emoji: _emojiController.text.trim().isEmpty ? null : _emojiController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isEmpty ? null : _imageUrlController.text.trim(),
+        emoji: _emojiController.text.trim().isEmpty
+            ? null
+            : _emojiController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isEmpty
+            ? null
+            : _imageUrlController.text.trim(),
         luaSourceOverride: _currentCode,
       );
 
@@ -189,10 +197,14 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+              color:
+                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
             ),
           ),
           child: Row(
@@ -212,7 +224,8 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                     hintText: 'Choose template',
                     border: InputBorder.none,
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   ),
                   isExpanded: true,
                   dropdownColor: Theme.of(context).colorScheme.surface,
@@ -229,13 +242,15 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                           Expanded(
                             child: Text(
                               template.title,
-                              style: const TextStyle(fontWeight: FontWeight.w500),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w500),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 3, vertical: 1),
                             decoration: BoxDecoration(
                               color: _getLevelColor(template.level),
                               borderRadius: BorderRadius.circular(3),
@@ -310,7 +325,8 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                      Icon(Icons.info_outline,
+                          color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         'Script Details',
@@ -344,13 +360,15 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.description, color: Theme.of(context).colorScheme.primary),
+                        Icon(Icons.description,
+                            color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 8),
                         Text(
                           'Current Template',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                       ],
                     ),
@@ -368,15 +386,23 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                             children: [
                               Text(
                                 _selectedTemplate!.title,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(
                                       fontWeight: FontWeight.w600,
                                     ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 _selectedTemplate!.description,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                     ),
                               ),
                               const SizedBox(height: 8),
@@ -389,10 +415,15 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                                       .map((tag) => Chip(
                                             label: Text(
                                               tag,
-                                              style: Theme.of(context).textTheme.bodySmall,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall,
                                             ),
-                                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                            visualDensity: VisualDensity.compact,
+                                            backgroundColor: Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                            visualDensity:
+                                                VisualDensity.compact,
                                           ))
                                       .toList(),
                                 ),
@@ -424,7 +455,8 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                       prefixIcon: Icon(Icons.title),
                     ),
                     textInputAction: TextInputAction.next,
-                    validator: (v) => (v ?? '').trim().isEmpty ? 'Title is required' : null,
+                    validator: (v) =>
+                        (v ?? '').trim().isEmpty ? 'Title is required' : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -445,7 +477,8 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                     controller: _imageUrlController,
                     decoration: const InputDecoration(
                       labelText: 'Image URL',
-                      hintText: 'Optional: local:// or https:// path to an image',
+                      hintText:
+                          'Optional: local:// or https:// path to an image',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.image),
                     ),
@@ -457,7 +490,8 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -470,10 +504,13 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Provide either an emoji or an image URL (not both). Emojis are displayed as small icons, while images can provide more visual identity.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
+                            'Provide either an emoji or an image URL (not both). Emojis are displayed as small icons, while images can provide more visual keypair.',
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
                           ),
                         ),
                       ],

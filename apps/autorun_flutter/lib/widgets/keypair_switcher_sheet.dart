@@ -68,12 +68,12 @@ class _KeypairSwitcherSheetState extends State<KeypairSwitcherSheet> {
               ),
             ),
             Text(
-              'Choose an identity',
+              'Choose a keypair',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'The active identity signs all uploads, marketplace actions, and canister calls.',
+              'The active keypair signs all uploads, marketplace actions, and canister calls.',
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -152,7 +152,7 @@ class _KeypairSwitcherSheetState extends State<KeypairSwitcherSheet> {
                   child: OutlinedButton.icon(
                     onPressed: _handleManageTap,
                     icon: const Icon(Icons.manage_accounts_outlined),
-                    label: const Text('Manage identities'),
+                    label: const Text('Manage keypairs'),
                   ),
                 ),
                 const SizedBox(width: 12),

@@ -43,7 +43,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
     if (!_initialized) {
       _profileController = ProfileScope.of(context, listen: false);
       _profileController!.addListener(_onControllerChanged);
-      _accountController = AccountController(profileController: _profileController);
+      _accountController =
+          AccountController(profileController: _profileController);
       _accountController!.addListener(_onControllerChanged);
       unawaited(_profileController!.ensureLoaded());
       unawaited(_loadAccountsForProfiles());
@@ -104,7 +105,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
       return;
     }
 
-    final String profileName = params.label ?? 'Profile ${_profileController!.profiles.length + 1}';
+    final String profileName =
+        params.label ?? 'Profile ${_profileController!.profiles.length + 1}';
 
     final Profile profile = await _profileController!.createProfile(
       profileName: profileName,
@@ -126,7 +128,7 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
       context,
       MaterialPageRoute(
         builder: (context) => AccountRegistrationWizard(
-          identity: profile.primaryKeypair,
+          keypair: profile.primaryKeypair,
           accountController: _accountController!,
           initialDisplayName: profile.name,
         ),
@@ -144,7 +146,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
     }
   }
 
-  Future<void> _navigateToAccountProfile(Account account, Profile profile) async {
+  Future<void> _navigateToAccountProfile(
+      Account account, Profile profile) async {
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
@@ -179,7 +182,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -207,7 +211,10 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
               end: Alignment.bottomCenter,
               colors: [
                 Theme.of(context).colorScheme.surface,
-                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+                Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.05),
               ],
             ),
           ),
@@ -221,7 +228,10 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -233,9 +243,12 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                       const SizedBox(height: 24),
                       Text(
                         'Loading Profiles...',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
                       ),
                       const SizedBox(height: 16),
                       const CircularProgressIndicator(),
@@ -262,13 +275,16 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                     bottom: 16 + MediaQuery.of(context).padding.bottom,
                   ),
                   itemCount: profiles.length,
-                  separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12),
+                  separatorBuilder: (BuildContext context, int index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (BuildContext context, int index) {
                     final Profile profile = profiles[index];
-                    final bool isActive = profile.id == _profileController!.activeProfileId;
+                    final bool isActive =
+                        profile.id == _profileController!.activeProfileId;
                     final bool isLoading = _accountLoading[profile.id] ?? false;
 
-                    return _buildProfileCard(context, profile, isActive, isLoading);
+                    return _buildProfileCard(
+                        context, profile, isActive, isLoading);
                   },
                 ),
               );
@@ -290,13 +306,19 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
     );
   }
 
-  Widget _buildProfileCard(BuildContext context, Profile profile, bool isActive, bool isLoading) {
-    final String keypairCount = profile.keypairs.length == 1 ? '1 key' : '${profile.keypairs.length} keys';
+  Widget _buildProfileCard(
+      BuildContext context, Profile profile, bool isActive, bool isLoading) {
+    final String keypairCount = profile.keypairs.length == 1
+        ? '1 key'
+        : '${profile.keypairs.length} keys';
     // Use account displayName if registered, otherwise fall back to profile name
-    final Account? account = profile.username != null ? _accountController?.getAccount(profile.username!) : null;
+    final Account? account = profile.username != null
+        ? _accountController?.getAccount(profile.username!)
+        : null;
     final String displayName = account?.displayName ?? profile.name;
     // Show signing principal for active profile
-    final String signingPrincipal = PrincipalUtils.textFromRecord(profile.primaryKeypair);
+    final String signingPrincipal =
+        PrincipalUtils.textFromRecord(profile.primaryKeypair);
 
     return Hero(
       tag: 'profile_${profile.id}',
@@ -345,7 +367,10 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                       colors: isActive
                           ? [
                               Theme.of(context).colorScheme.primary,
-                              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                              Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.8),
                             ]
                           : [
                               Theme.of(context).colorScheme.primary,
@@ -356,8 +381,14 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                     boxShadow: [
                       BoxShadow(
                         color: isActive
-                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
-                            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                            ? Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.5)
+                            : Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.3),
                         blurRadius: isActive ? 12 : 10,
                         offset: const Offset(0, 4),
                       ),
@@ -428,8 +459,12 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                             const SizedBox(width: 4),
                             Text(
                               profile.username!,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context).colorScheme.primary,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
@@ -443,14 +478,20 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                           Icon(
                             Icons.key,
                             size: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               signingPrincipal,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                     fontFamily: 'monospace',
                                     fontSize: 10,
                                   ),
@@ -464,23 +505,40 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                               color: isActive
-                                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.8)
-                                  : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.8)
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer
+                                      .withValues(alpha: 0.7),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.3),
                                 width: 1,
                               ),
                             ),
                             child: Text(
                               keypairCount,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
                                     color: isActive
-                                        ? Theme.of(context).colorScheme.onPrimary
-                                        : Theme.of(context).colorScheme.onPrimaryContainer,
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onPrimaryContainer,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 11,
                                   ),
@@ -489,15 +547,21 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                           if (isActive) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Theme.of(context).colorScheme.primary,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 'ACTIVE',
-                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onPrimary,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimary,
                                       fontWeight: FontWeight.w700,
                                       fontSize: 9,
                                     ),
@@ -522,7 +586,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                       Icons.more_vert_rounded,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    onPressed: () => _showProfileMenu(context, profile, isActive),
+                    onPressed: () =>
+                        _showProfileMenu(context, profile, isActive),
                   ),
               ],
             ),
@@ -534,18 +599,24 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
 
   String _getInitials(String name) {
     if (name.isEmpty) return '#';
-    return name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.substring(0, 1).toUpperCase();
+    return name.length >= 2
+        ? name.substring(0, 2).toUpperCase()
+        : name.substring(0, 1).toUpperCase();
   }
 
-  Future<void> _showProfileMenu(BuildContext context, Profile profile, bool isActive) async {
+  Future<void> _showProfileMenu(
+      BuildContext context, Profile profile, bool isActive) async {
     // Get displayName for the menu
-    final Account? account = profile.username != null ? _accountController?.getAccount(profile.username!) : null;
+    final Account? account = profile.username != null
+        ? _accountController?.getAccount(profile.username!)
+        : null;
     final String displayName = account?.displayName ?? profile.name;
 
     final result = await showModalBottomSheet<_ProfileMenuAction>(
       context: context,
       useSafeArea: true,
-      builder: (context) => _ProfileMenuSheet(profile: profile, displayName: displayName),
+      builder: (context) =>
+          _ProfileMenuSheet(profile: profile, displayName: displayName),
     );
 
     if (result == null || !mounted) return;
@@ -562,7 +633,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
     }
   }
 
-  Future<void> _showDeleteConfirmation(Profile profile, String displayName) async {
+  Future<void> _showDeleteConfirmation(
+      Profile profile, String displayName) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -638,18 +710,22 @@ class _ProfileMenuSheet extends StatelessWidget {
                 leading: const Icon(Icons.person),
                 title: const Text('View Account'),
                 subtitle: Text('@${profile.username}'),
-                onTap: () => Navigator.pop(context, _ProfileMenuAction.viewAccount),
+                onTap: () =>
+                    Navigator.pop(context, _ProfileMenuAction.viewAccount),
               )
             else
               ListTile(
                 leading: const Icon(Icons.person_add),
                 title: const Text('Register Account'),
                 subtitle: const Text('Create @username for this profile'),
-                onTap: () => Navigator.pop(context, _ProfileMenuAction.registerAccount),
+                onTap: () =>
+                    Navigator.pop(context, _ProfileMenuAction.registerAccount),
               ),
             ListTile(
-              leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
-              title: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              leading: Icon(Icons.delete,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text('Delete',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
               onTap: () => Navigator.pop(context, _ProfileMenuAction.delete),
             ),
           ],

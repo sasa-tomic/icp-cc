@@ -23,16 +23,15 @@ void main() {
     registerFallbackValue(<String>[]);
   });
 
-  group('QuickUploadDialog identity workflow', () {
-    late ProfileKeypair identity;
+  group('QuickUploadDialog keypair workflow', () {
+    late ProfileKeypair keypair;
     late ProfileController profileController;
     late _MockMarketplaceService marketplaceService;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
-      identity = await TestKeypairFactory.getEd25519Keypair();
-      final repository =
-          FakeSecureKeypairRepository(<ProfileKeypair>[identity]);
+      keypair = await TestKeypairFactory.getEd25519Keypair();
+      final repository = FakeSecureKeypairRepository(<ProfileKeypair>[keypair]);
       profileController =
           ProfileController(profileRepository: repository.profileRepository);
       await profileController.ensureLoaded();
@@ -80,9 +79,9 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('blocks upload when no identity is selected',
+    testWidgets('blocks upload when no keypair is selected',
         (WidgetTester tester) async {
-      // Don't set active identity - this test checks no-identity behavior
+      // Don't set active keypair - this test checks no-keypair behavior
       await pumpDialog(tester);
 
       // Fill required fields that are not pre-populated
@@ -119,7 +118,7 @@ void main() {
           description: 'Short description',
           category: 'Example',
           tags: const <String>[],
-          authorId: identity.id,
+          authorId: keypair.id,
           luaSource: '-- test script',
           price: 0,
           createdAt: DateTime.now(),
@@ -127,7 +126,7 @@ void main() {
         ),
       );
 
-      // Just verify dialog opens without crashing when no identity is active
+      // Just verify dialog opens without crashing when no keypair is active
       expect(find.byType(QuickUploadDialog), findsOneWidget);
 
       // Click Next to go to code preview step
@@ -163,7 +162,7 @@ void main() {
           ));
     });
 
-    testWidgets('signs and uploads when identity is selected',
+    testWidgets('signs and uploads when keypair is selected',
         (WidgetTester tester) async {
       await pumpDialog(tester);
 
@@ -200,9 +199,9 @@ void main() {
           description: 'Short description',
           category: 'Example',
           tags: const <String>[],
-          authorId: identity.id,
-          authorPrincipal: PrincipalUtils.textFromRecord(identity),
-          authorPublicKey: identity.publicKey,
+          authorId: keypair.id,
+          authorPrincipal: PrincipalUtils.textFromRecord(keypair),
+          authorPublicKey: keypair.publicKey,
           uploadSignature: 'dummy-signature',
           luaSource: '-- test script',
           price: 0,
@@ -253,8 +252,8 @@ void main() {
       expect(captured[0], isA<List<String>>());
       expect(captured[1], anyOf(isNull, isA<List<String>>()));
       expect(captured[2], anyOf(isNull, isA<List<String>>()));
-      expect(captured[3], PrincipalUtils.textFromRecord(identity));
-      expect(captured[4], identity.publicKey);
+      expect(captured[3], PrincipalUtils.textFromRecord(keypair));
+      expect(captured[4], keypair.publicKey);
       final String signature = captured[5] as String;
       final String timestamp = captured[6] as String;
       expect(signature, isNotEmpty);

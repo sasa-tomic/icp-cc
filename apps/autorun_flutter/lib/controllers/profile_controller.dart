@@ -6,7 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../models/profile.dart';
 import '../models/profile_keypair.dart';
 import '../services/profile_repository.dart';
-import '../utils/identity_generator.dart';
+import '../utils/keypair_generator.dart';
 
 /// ProfileController manages user profiles
 ///

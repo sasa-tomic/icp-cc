@@ -4,30 +4,30 @@ import 'test_keypair_factory.dart';
 
 void main() {
   group('TestKeypairFactory', () {
-    test('generates consistent identity from same seed', () async {
-      final identity1 = await TestKeypairFactory.fromSeed(42);
-      final identity2 = await TestKeypairFactory.fromSeed(42);
+    test('generates consistent keypair from same seed', () async {
+      final keypair1 = await TestKeypairFactory.fromSeed(42);
+      final keypair2 = await TestKeypairFactory.fromSeed(42);
 
-      expect(identity1.publicKey, equals(identity2.publicKey));
-      expect(identity1.privateKey, equals(identity2.privateKey));
-      expect(identity1.mnemonic, equals(identity2.mnemonic));
+      expect(keypair1.publicKey, equals(keypair2.publicKey));
+      expect(keypair1.privateKey, equals(keypair2.privateKey));
+      expect(keypair1.mnemonic, equals(keypair2.mnemonic));
     });
 
-    test('generates different identities from different seeds', () async {
-      final identity1 = await TestKeypairFactory.fromSeed(42);
-      final identity2 = await TestKeypairFactory.fromSeed(123);
+    test('generates different keypairs from different seeds', () async {
+      final keypair1 = await TestKeypairFactory.fromSeed(42);
+      final keypair2 = await TestKeypairFactory.fromSeed(123);
 
-      expect(identity1.publicKey, isNot(equals(identity2.publicKey)));
-      expect(identity1.privateKey, isNot(equals(identity2.privateKey)));
-      expect(identity1.mnemonic, isNot(equals(identity2.mnemonic)));
+      expect(keypair1.publicKey, isNot(equals(keypair2.publicKey)));
+      expect(keypair1.privateKey, isNot(equals(keypair2.privateKey)));
+      expect(keypair1.mnemonic, isNot(equals(keypair2.mnemonic)));
     });
 
-    test('caches identities for performance', () async {
-      final identity1 = await TestKeypairFactory.fromSeed(42);
-      final identity2 = await TestKeypairFactory.fromSeed(42);
+    test('caches keypairs for performance', () async {
+      final keypair1 = await TestKeypairFactory.fromSeed(42);
+      final keypair2 = await TestKeypairFactory.fromSeed(42);
 
       // Should return the exact same instance (cached)
-      expect(identical(identity1, identity2), isTrue);
+      expect(identical(keypair1, keypair2), isTrue);
     });
 
     test('supports different algorithms', () async {
@@ -43,10 +43,10 @@ void main() {
     });
 
     test('generates valid BIP39 mnemonics', () async {
-      final identity = await TestKeypairFactory.fromSeed(999);
+      final keypair = await TestKeypairFactory.fromSeed(999);
 
       // Mnemonic should be 24 words
-      final words = identity.mnemonic.split(' ');
+      final words = keypair.mnemonic.split(' ');
       expect(words.length, equals(24));
 
       // Each word should be non-empty
@@ -55,16 +55,16 @@ void main() {
       }
     });
 
-    test('default getEd25519Keypair returns consistent identity', () async {
-      final identity1 = await TestKeypairFactory.getEd25519Keypair();
-      final identity2 = await TestKeypairFactory.getEd25519Keypair();
+    test('default getEd25519Keypair returns consistent keypair', () async {
+      final keypair1 = await TestKeypairFactory.getEd25519Keypair();
+      final keypair2 = await TestKeypairFactory.getEd25519Keypair();
 
-      expect(identical(identity1, identity2), isTrue);
-      expect(identity1.algorithm, equals(KeyAlgorithm.ed25519));
+      expect(identical(keypair1, keypair2), isTrue);
+      expect(keypair1.algorithm, equals(KeyAlgorithm.ed25519));
     });
 
-    test('clearCache removes all cached identities', () async {
-      // Create some identities
+    test('clearCache removes all cached keypairs', () async {
+      // Create some keypairs
       await TestKeypairFactory.fromSeed(1);
       await TestKeypairFactory.fromSeed(2);
       await TestKeypairFactory.getEd25519Keypair();
@@ -73,11 +73,11 @@ void main() {
       TestKeypairFactory.clearCache();
 
       // Next calls should create new instances
-      final identity1a = await TestKeypairFactory.fromSeed(1);
-      final identity1b = await TestKeypairFactory.fromSeed(1);
+      final keypair1a = await TestKeypairFactory.fromSeed(1);
+      final keypair1b = await TestKeypairFactory.fromSeed(1);
 
       // These should be the same after clearing and re-caching
-      expect(identical(identity1a, identity1b), isTrue);
+      expect(identical(keypair1a, keypair1b), isTrue);
     });
   });
 }

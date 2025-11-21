@@ -61,7 +61,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     _labelController.text = spec['label'] ?? 'call1';
     _callKind = spec['kind'] ?? 0;
     _isAuthenticated = spec['authenticated'] ?? false;
-    _keypairId = spec['identity_id'];
+    _keypairId = spec['keypair_id'];
 
     if (spec['args'] != null) {
       _args = Map<String, dynamic>.from(spec['args']);
@@ -182,10 +182,10 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     buffer.writeln('  args = $argsString');
 
     if (_isAuthenticated && _keypairId != null) {
-      buffer.writeln('  identity_id = "$_keypairId"');
+      buffer.writeln('  keypair_id = "$_keypairId"');
     } else if (_isAuthenticated) {
       buffer.writeln(
-          '  -- Note: You\'ll need to set private_key_b64 or identity_id for authenticated calls');
+          '  -- Note: You\'ll need to set private_key_b64 or keypair_id for authenticated calls');
     }
 
     buffer.writeln('})');
@@ -368,8 +368,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
               // Authentication
               CheckboxListTile(
                 title: const Text('Authenticated call'),
-                subtitle:
-                    const Text('Requires an identity for private methods'),
+                subtitle: const Text('Requires an keypair for private methods'),
                 value: _isAuthenticated,
                 onChanged: (value) =>
                     setState(() => _isAuthenticated = value ?? false),

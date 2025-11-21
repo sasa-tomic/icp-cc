@@ -33,7 +33,7 @@ class KeypairGenerator {
 
     if (r == null) {
       throw StateError(
-        'Rust FFI failed to generate identity for $algorithm. '
+        'Rust FFI failed to generate keypair for $algorithm. '
         'Ensure native library is loaded.',
       );
     }
@@ -57,7 +57,7 @@ class KeypairGenerator {
     if (keypairCount != null) {
       return 'Keypair ${keypairCount + 1}';
     }
-    return 'New identity';
+    return 'New keypair';
   }
 
   static String _resolveMnemonic(String? mnemonic) {

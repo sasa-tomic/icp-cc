@@ -63,7 +63,7 @@ A smooth, intuitive platform where users can discover, manage, and automate inte
 
 ### 3. Canister Interaction
 
-**Current State**: Users can interact with canisters via queries/updates, with or without identity.
+**Current State**: Users can interact with canisters via queries/updates, with or without keypair.
 
 **Target Experience**:
 - Intuitive canister explorer with autocomplete for canister IDs

@@ -126,7 +126,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
 
     sqlx::query(
         r#"
-        CREATE TABLE IF NOT EXISTS identity_profiles (
+        CREATE TABLE IF NOT EXISTS keypair_profiles (
             id TEXT PRIMARY KEY,
             principal TEXT NOT NULL UNIQUE,
             display_name TEXT NOT NULL,
@@ -145,14 +145,14 @@ pub async fn initialize_database(pool: &SqlitePool) {
     )
     .execute(pool)
     .await
-    .expect("Failed to create identity_profiles table");
+    .expect("Failed to create keypair_profiles table");
 
     sqlx::query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_keypair_profiles_principal ON identity_profiles(principal)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_keypair_profiles_principal ON keypair_profiles(principal)",
     )
     .execute(pool)
     .await
-    .expect("Failed to create identity_profiles index");
+    .expect("Failed to create keypair_profiles index");
 
     // Passkeys table for WebAuthn credentials
     sqlx::query(
@@ -167,7 +167,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             device_type TEXT,
             created_at TEXT NOT NULL,
             last_used_at TEXT,
-            FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
         )
         "#,
     )
@@ -197,7 +197,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             used INTEGER NOT NULL DEFAULT 0,
             used_at TEXT,
             created_at TEXT NOT NULL,
-            FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
         )
         "#,
     )
@@ -223,7 +223,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             nonce BLOB NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
         )
         "#,
     )

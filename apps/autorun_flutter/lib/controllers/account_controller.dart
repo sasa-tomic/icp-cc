@@ -81,7 +81,7 @@ class AccountController extends ChangeNotifier {
   /// - Exception if signature generation fails
   /// - Exception if backend request fails
   Future<Account> registerAccount({
-    required ProfileKeypair identity,
+    required ProfileKeypair keypair,
     required String username,
     required String displayName,
     String? contactEmail,
@@ -106,7 +106,7 @@ class AccountController extends ChangeNotifier {
       // Create signed request
       final request =
           await AccountSignatureService.createRegisterAccountRequest(
-        identity: identity,
+        keypair: keypair,
         username: normalizedUsername,
         displayName: displayName,
         contactEmail: contactEmail,
@@ -279,7 +279,7 @@ class AccountController extends ChangeNotifier {
 
   /// Remove a public key from an account (soft delete)
   ///
-  /// The signing identity must have an active key in the account.
+  /// The signing keypair must have an active key in the account.
   /// Cannot remove the last active key.
   ///
   /// Returns the updated AccountPublicKey (with isActive = false).
@@ -333,7 +333,7 @@ class AccountController extends ChangeNotifier {
 
   /// Update account profile information
   ///
-  /// The signing identity must have an active key in the account.
+  /// The signing keypair must have an active key in the account.
   /// Returns the updated account on success.
   Future<Account> updateProfile({
     required String username,

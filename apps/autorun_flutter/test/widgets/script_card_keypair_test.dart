@@ -4,7 +4,7 @@ import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/widgets/script_card.dart';
 
 void main() {
-  group('ScriptCard identity display', () {
+  group('ScriptCard keypair display', () {
     MarketplaceScript buildScript({
       String? principal,
       String authorName = 'Test Author',
@@ -40,7 +40,8 @@ void main() {
       );
     }
 
-    testWidgets('renders principal prefix when signature metadata is present', (tester) async {
+    testWidgets('renders principal prefix when signature metadata is present',
+        (tester) async {
       final script = buildScript(principal: 'aaaaa-aa');
 
       await tester.pumpWidget(
@@ -66,7 +67,9 @@ void main() {
           reason: 'Verified scripts must not display unverified badge');
     });
 
-    testWidgets('highlights unverified signature state when principal is missing', (tester) async {
+    testWidgets(
+        'highlights unverified signature state when principal is missing',
+        (tester) async {
       final now = DateTime.now();
       MarketplaceScript scriptWithoutPrincipal = MarketplaceScript(
         id: 'script-2',
@@ -113,7 +116,8 @@ void main() {
       );
 
       expect(find.text('UNVERIFIED SIGNATURE'), findsOneWidget,
-          reason: 'Scripts without principals must clearly show unverified status');
+          reason:
+              'Scripts without principals must clearly show unverified status');
     });
   });
 }

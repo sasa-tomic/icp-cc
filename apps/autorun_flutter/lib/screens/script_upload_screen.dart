@@ -79,8 +79,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   }
 
   Widget _buildKeypairCard(ProfileController controller) {
-    final ProfileKeypair? identity = controller.activeKeypair;
-    if (identity == null) {
+    final ProfileKeypair? keypair = controller.activeKeypair;
+    if (keypair == null) {
       return Card(
         elevation: 0,
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -93,7 +93,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'No identity selected. Go to the Identities tab to select one.',
+                  'No keypair selected. Go to the Profiles tab to select one.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -102,8 +102,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
         ),
       );
     }
-    final String principal = PrincipalUtils.textFromRecord(identity);
-    // With the new system, all identities have an account (draft or registered)
+    final String principal = PrincipalUtils.textFromRecord(keypair);
+    // With the new system, all keypairs have an account (draft or registered)
     return Card(
       elevation: 0,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -127,9 +127,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    identity.label.isEmpty
-                        ? 'Untitled identity'
-                        : identity.label,
+                    keypair.label.isEmpty ? 'Untitled keypair' : keypair.label,
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
@@ -163,14 +161,13 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
       return;
     }
 
-    // Check if identity is selected
+    // Check if keypair is selected
     final ProfileController profileController =
         ProfileScope.of(context, listen: false);
     final ProfileKeypair? activeKeypair = profileController.activeKeypair;
     if (activeKeypair == null) {
       setState(() {
-        _error =
-            'No identity selected. Go to the Identities tab to select one.';
+        _error = 'No keypair selected. Go to the Profiles tab to select one.';
       });
       return;
     }

@@ -13,8 +13,8 @@ void main() {
 
   Future<ProfileController> createControllerWithProfile() async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    final identity = await TestKeypairFactory.getEd25519Keypair();
-    final repository = FakeSecureKeypairRepository([identity]);
+    final keypair = await TestKeypairFactory.getEd25519Keypair();
+    final repository = FakeSecureKeypairRepository([keypair]);
     final controller = ProfileController(
       profileRepository: repository.profileRepository,
       preferences: await SharedPreferences.getInstance(),

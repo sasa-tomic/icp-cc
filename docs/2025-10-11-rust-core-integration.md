@@ -1,5 +1,5 @@
 ## Objectives
-- Replace Dart identity logic with a Rust core for key generation and principal derivation, keeping Flutter as UI.
+- Replace Dart keypair logic with a Rust core for key generation and principal derivation, keeping Flutter as UI.
 - Prioritize Android and iOS; then enable Web (Wasm) and Desktop.
 - Keep the Rust API small and stable to extend later (Candid/Agent).
 
@@ -25,10 +25,10 @@
 
 ## Definition of Done (DoD)
 - Functional
-  - Rust/Dart identity parity achieved via FFI; unit tests added and pass.
+  - Rust/Dart keypair parity achieved via FFI; unit tests added and pass.
   - `cargo nextest run` and `cargo clippy --benches --tests --all-features && cargo clippy && cargo fmt --all` are clean.
   - `flutter test` passes.
-  - Android/iOS/Desktop builds succeed; identities/principals match vectors.
+  - Android/iOS/Desktop builds succeed; keypairs/principals match vectors.
   - Web runs with Dart fallback initially.
 - Non-functional
   - Minimal, DRY Rust API with typed interface; deterministic outputs for given mnemonics.

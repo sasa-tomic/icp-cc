@@ -179,11 +179,10 @@ end''';
     // Validation is done in _goToCodePreview() before reaching this step
     final ProfileController controller =
         _profileController(context, listen: false);
-    final ProfileKeypair? identity = controller.activeKeypair;
-    if (identity == null) {
+    final ProfileKeypair? keypair = controller.activeKeypair;
+    if (keypair == null) {
       setState(() {
-        _error =
-            'No identity selected. Go to the Identities tab to select one.';
+        _error = 'No keypair selected. Go to the Profiles tab to select one.';
       });
       return;
     }
@@ -261,7 +260,7 @@ end''';
       }
 
       final String signature = await ScriptSignatureService.signScriptUpload(
-        authorKeypair: identity,
+        authorKeypair: keypair,
         title: title,
         description: description,
         category: _selectedCategory,
@@ -270,7 +269,7 @@ end''';
         tags: tags,
         timestampIso: timestamp,
       );
-      final String authorPrincipal = PrincipalUtils.textFromRecord(identity);
+      final String authorPrincipal = PrincipalUtils.textFromRecord(keypair);
 
       // Update progress: uploading
       if (mounted) {
@@ -289,7 +288,7 @@ end''';
         price: price,
         version: version,
         authorPrincipal: authorPrincipal,
-        authorPublicKey: identity.publicKey,
+        authorPublicKey: keypair.publicKey,
         signature: signature,
         timestampIso: timestamp,
       );
@@ -636,8 +635,8 @@ end''';
   }
 
   Widget _buildKeypairCard(ProfileController controller) {
-    final ProfileKeypair? identity = controller.activeKeypair;
-    if (identity == null) {
+    final ProfileKeypair? keypair = controller.activeKeypair;
+    if (keypair == null) {
       return Card(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Padding(
@@ -649,7 +648,7 @@ end''';
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'No identity selected. Go to the Identities tab to select one.',
+                  'No keypair selected. Go to the Profiles tab to select one.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -658,8 +657,8 @@ end''';
         ),
       );
     }
-    // With the new system, all identities have an account (draft or registered)
-    final String principal = PrincipalUtils.textFromRecord(identity);
+    // Each keypair has an account (draft or registered)
+    final String principal = PrincipalUtils.textFromRecord(keypair);
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Padding(
@@ -682,9 +681,7 @@ end''';
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    identity.label.isEmpty
-                        ? 'Untitled identity'
-                        : identity.label,
+                    keypair.label.isEmpty ? 'Untitled keypair' : keypair.label,
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall

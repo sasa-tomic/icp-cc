@@ -19,7 +19,7 @@ class AccountSignatureService {
 
   /// Create and sign a registration request
   static Future<RegisterAccountRequest> createRegisterAccountRequest({
-    required ProfileKeypair identity,
+    required ProfileKeypair keypair,
     required String username,
     required String displayName,
     String? contactEmail,
@@ -31,7 +31,7 @@ class AccountSignatureService {
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final publicKeyHex = _publicKeyToHex(identity.publicKey);
+    final publicKeyHex = _publicKeyToHex(keypair.publicKey);
 
     final request = RegisterAccountRequest(
       username: username,
@@ -49,7 +49,7 @@ class AccountSignatureService {
     );
 
     final signature = await _signPayload(
-      identity: identity,
+      keypair: keypair,
       payload: request.toCanonicalPayload(),
     );
 
@@ -90,7 +90,7 @@ class AccountSignatureService {
     );
 
     final signature = await _signPayload(
-      identity: signingKeypair,
+      keypair: signingKeypair,
       payload: request.toCanonicalPayload(),
     );
 
@@ -124,7 +124,7 @@ class AccountSignatureService {
     );
 
     final signature = await _signPayload(
-      identity: signingKeypair,
+      keypair: signingKeypair,
       payload: request.toCanonicalPayload(),
     );
 
@@ -170,7 +170,7 @@ class AccountSignatureService {
     );
 
     final signature = await _signPayload(
-      identity: signingKeypair,
+      keypair: signingKeypair,
       payload: request.toCanonicalPayload(),
     );
 
@@ -200,7 +200,7 @@ class AccountSignatureService {
   ///    - secp256k1: SHA-256 hash then sign (ECDSA requirement)
   /// 4. Hex encode the signature
   static Future<String> _signPayload({
-    required ProfileKeypair identity,
+    required ProfileKeypair keypair,
     required Map<String, dynamic> payload,
   }) async {
     // 1. Canonical JSON (sorted keys, no whitespace)
@@ -210,12 +210,12 @@ class AccountSignatureService {
     final payloadBytes = utf8.encode(canonicalJson);
 
     // 3. Sign (algorithm-specific)
-    final privateKeyBytes = base64Decode(identity.privateKey);
+    final privateKeyBytes = base64Decode(keypair.privateKey);
 
     final signature = await _signMessage(
       messageBytes: payloadBytes,
       privateKeyBytes: privateKeyBytes,
-      algorithm: identity.algorithm,
+      algorithm: keypair.algorithm,
     );
 
     // 4. Hex encode

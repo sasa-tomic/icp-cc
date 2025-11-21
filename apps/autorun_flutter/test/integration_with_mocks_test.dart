@@ -12,37 +12,96 @@ class MockCanisterBridge implements ScriptBridge {
   final Map<String, dynamic> _mockCanisterData = {
     'governance': {
       'proposals': [
-        {'id': 1, 'title': 'Critical Network Upgrade', 'status': 'active', 'votes': 1000000000, 'priority': 'high'},
-        {'id': 2, 'title': 'Minor Fee Adjustment', 'status': 'active', 'votes': 100000000, 'priority': 'low'},
-        {'id': 3, 'title': 'Security Enhancement', 'status': 'active', 'votes': 500000000, 'priority': 'high'},
-        {'id': 4, 'title': 'Documentation Update', 'status': 'active', 'votes': 50000000, 'priority': 'low'}
+        {
+          'id': 1,
+          'title': 'Critical Network Upgrade',
+          'status': 'active',
+          'votes': 1000000000,
+          'priority': 'high'
+        },
+        {
+          'id': 2,
+          'title': 'Minor Fee Adjustment',
+          'status': 'active',
+          'votes': 100000000,
+          'priority': 'low'
+        },
+        {
+          'id': 3,
+          'title': 'Security Enhancement',
+          'status': 'active',
+          'votes': 500000000,
+          'priority': 'high'
+        },
+        {
+          'id': 4,
+          'title': 'Documentation Update',
+          'status': 'active',
+          'votes': 50000000,
+          'priority': 'low'
+        }
       ]
     },
     'ledger': {
       'transactions': [
-        {'id': 'tx1', 'amount': 100000000, 'from': 'principal1', 'to': 'principal2', 'timestamp': 1704067200000000000, 'type': 'transfer'},
-        {'id': 'tx2', 'amount': 50000000, 'from': 'principal2', 'to': 'principal3', 'timestamp': 1704067200000001000, 'type': 'stake'},
-        {'id': 'tx3', 'amount': 200000000, 'from': 'principal3', 'to': 'principal1', 'timestamp': 1704067200000002000, 'type': 'transfer'},
-        {'id': 'tx4', 'amount': 75000000, 'from': 'principal1', 'to': 'principal2', 'timestamp': 1704067200000003000, 'type': 'transfer'},
+        {
+          'id': 'tx1',
+          'amount': 100000000,
+          'from': 'principal1',
+          'to': 'principal2',
+          'timestamp': 1704067200000000000,
+          'type': 'transfer'
+        },
+        {
+          'id': 'tx2',
+          'amount': 50000000,
+          'from': 'principal2',
+          'to': 'principal3',
+          'timestamp': 1704067200000001000,
+          'type': 'stake'
+        },
+        {
+          'id': 'tx3',
+          'amount': 200000000,
+          'from': 'principal3',
+          'to': 'principal1',
+          'timestamp': 1704067200000002000,
+          'type': 'transfer'
+        },
+        {
+          'id': 'tx4',
+          'amount': 75000000,
+          'from': 'principal1',
+          'to': 'principal2',
+          'timestamp': 1704067200000003000,
+          'type': 'transfer'
+        },
       ]
     }
   };
 
   @override
-  String? callAnonymous({required String canisterId, required String method, required int kind, String args = '()', String? host}) {
+  String? callAnonymous(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      String args = '()',
+      String? host}) {
     // Simulate different canister responses based on ID and method
-    if (canisterId == 'rrkah-fqaaa-aaaaa-aaaaq-cai' && method == 'get_pending_proposals') {
+    if (canisterId == 'rrkah-fqaaa-aaaaa-aaaaq-cai' &&
+        method == 'get_pending_proposals') {
       return json.encode({
         'ok': true,
-        'data': _mockCanisterData['governance']['proposals'].where((p) => p['status'] == 'pending').toList()
+        'data': _mockCanisterData['governance']['proposals']
+            .where((p) => p['status'] == 'pending')
+            .toList()
       });
     }
 
-    if (canisterId == 'ryjl3-tyaaa-aaaaa-aaaba-cai' && method == 'query_blocks') {
-      return json.encode({
-        'ok': true,
-        'data': _mockCanisterData['ledger']['transactions']
-      });
+    if (canisterId == 'ryjl3-tyaaa-aaaaa-aaaba-cai' &&
+        method == 'query_blocks') {
+      return json.encode(
+          {'ok': true, 'data': _mockCanisterData['ledger']['transactions']});
     }
 
     // Generic response for other calls
@@ -51,15 +110,28 @@ class MockCanisterBridge implements ScriptBridge {
       'data': {
         'canister_id': canisterId,
         'method': method,
-        'timestamp': DateTime.now().millisecondsSinceEpoch * 1000000, // nanoseconds
+        'timestamp':
+            DateTime.now().millisecondsSinceEpoch * 1000000, // nanoseconds
         'result': 'Mock response'
       }
     });
   }
 
   @override
-  String? callAuthenticated({required String canisterId, required String method, required int kind, String? identityId, String? privateKeyB64, String args = '()', String? host}) {
-    return callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+  String? callAuthenticated(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      String? keypairId,
+      String? privateKeyB64,
+      String args = '()',
+      String? host}) {
+    return callAnonymous(
+        canisterId: canisterId,
+        method: method,
+        kind: kind,
+        args: args,
+        host: host);
   }
 
   @override
@@ -67,7 +139,9 @@ class MockCanisterBridge implements ScriptBridge {
     final arg = jsonArg != null ? json.decode(jsonArg) : null;
 
     // Mock TEA-style execution for advanced output actions
-    if (script.contains('init') && script.contains('view') && script.contains('update')) {
+    if (script.contains('init') &&
+        script.contains('view') &&
+        script.contains('update')) {
       return _mockTeaExecution(script, arg);
     }
 
@@ -94,7 +168,10 @@ class MockCanisterBridge implements ScriptBridge {
             'type': 'list',
             'props': {
               'searchable': true,
-              'items': arg?['items'] ?? [{'title': 'Mock Item'}],
+              'items': arg?['items'] ??
+                  [
+                    {'title': 'Mock Item'}
+                  ],
               'title': arg?['title'] ?? 'Mock Results'
             }
           }
@@ -136,16 +213,20 @@ class MockCanisterBridge implements ScriptBridge {
     }
 
     if (script.contains('filter_transfers')) {
-      state['filtered_data'] = (state['loaded_data'] as List).where((tx) => tx['type'] == 'transfer').toList();
+      state['filtered_data'] = (state['loaded_data'] as List)
+          .where((tx) => tx['type'] == 'transfer')
+          .toList();
       state['last_action'] = 'Filtered transfers';
     }
 
     if (script.contains('format_and_display')) {
-      final items = (state['filtered_data'] as List).map((tx) => {
-        'title': 'Transaction ${tx['id']}',
-        'subtitle': '${formatIcp(tx['amount'])} • ${tx['type']}',
-        'data': tx
-      }).toList();
+      final items = (state['filtered_data'] as List)
+          .map((tx) => {
+                'title': 'Transaction ${tx['id']}',
+                'subtitle': '${formatIcp(tx['amount'])} • ${tx['type']}',
+                'data': tx
+              })
+          .toList();
 
       return json.encode({
         'ok': true,
@@ -185,7 +266,8 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
+  String? luaAppInit(
+      {required String script, String? jsonArg, int budgetMs = 50}) {
     // Provide immediate initial UI so the host can render the first frame before calling view().
     // Match the test script by title substring.
     String title = 'Demo';
@@ -220,7 +302,11 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) {
+  String? luaAppUpdate(
+      {required String script,
+      required String msgJson,
+      required String stateJson,
+      int budgetMs = 50}) {
     final state = json.decode(stateJson);
     final msg = json.decode(msgJson);
 
@@ -287,11 +373,14 @@ class MockCanisterBridge implements ScriptBridge {
     }
     if (t == 'transform') {
       final List<dynamic> raw = (state['raw_data'] as List?) ?? <dynamic>[];
-      final List<dynamic> processed = raw.where((e) => (e['type'] ?? '') == 'transfer').map((tx) => <String, dynamic>{
-        'title': 'Transfer ${tx['id']}',
-        'subtitle': '${tx['type']} • ${formatIcp(tx['amount'] as int)}',
-        'data': tx,
-      }).toList();
+      final List<dynamic> processed = raw
+          .where((e) => (e['type'] ?? '') == 'transfer')
+          .map((tx) => <String, dynamic>{
+                'title': 'Transfer ${tx['id']}',
+                'subtitle': '${tx['type']} • ${formatIcp(tx['amount'] as int)}',
+                'data': tx,
+              })
+          .toList();
       state['processed_data'] = processed;
       return json.encode({'ok': true, 'state': state, 'result': null});
     }
@@ -303,39 +392,50 @@ class MockCanisterBridge implements ScriptBridge {
     // Handle new test scenarios
     if (t == 'load_proposals') {
       final proposals = _mockCanisterData['governance']['proposals'] as List;
-      state['initial_data'] = proposals.map((p) => {
-        'title': p['title'] as String,
-        'subtitle': '${p['status']} • ${formatIcp(p['votes'])} votes • Priority: ${p['priority']}',
-        'data': p,
-        'id': p['id'],
-        'status': p['status'],
-        'priority': p['priority']
-      }).toList();
+      state['initial_data'] = proposals
+          .map((p) => {
+                'title': p['title'] as String,
+                'subtitle':
+                    '${p['status']} • ${formatIcp(p['votes'])} votes • Priority: ${p['priority']}',
+                'data': p,
+                'id': p['id'],
+                'status': p['status'],
+                'priority': p['priority']
+              })
+          .toList();
       return json.encode({'ok': true, 'state': state, 'result': null});
     }
 
     if (t == 'analyze_and_call') {
       final proposals = state['initial_data'] as List? ?? [];
-      final highPriority = proposals.where((p) => p['priority'] == 'high').toList();
+      final highPriority =
+          proposals.where((p) => p['priority'] == 'high').toList();
 
       state['analysis_result'] = {
-        'high_priority': highPriority.map((p) => {
-          'title': p['title'],
-          'subtitle': p['subtitle'], // Use the pre-formatted subtitle from load_proposals
-          'data': p,
-          'category': 'governance'
-        }).toList(),
+        'high_priority': highPriority
+            .map((p) => {
+                  'title': p['title'],
+                  'subtitle': p[
+                      'subtitle'], // Use the pre-formatted subtitle from load_proposals
+                  'data': p,
+                  'category': 'governance'
+                })
+            .toList(),
         'total_proposals': proposals.length,
         'high_priority_count': highPriority.length
       };
 
       state['follow_up_results'] = {
-        'votes': highPriority.map((p) => {
-          'yes_votes': (p['data']['votes'] as int) ~/ 2, // Access original data from the data field
-          'no_votes': (p['data']['votes'] as int) ~/ 3,
-          'total_voters': 42 + (p['data']['id'] as int),
-          'voting_deadline': 1704067200 + ((p['data']['id'] as int) * 86400)
-        }).toList(),
+        'votes': highPriority
+            .map((p) => {
+                  'yes_votes': (p['data']['votes'] as int) ~/
+                      2, // Access original data from the data field
+                  'no_votes': (p['data']['votes'] as int) ~/ 3,
+                  'total_voters': 42 + (p['data']['id'] as int),
+                  'voting_deadline':
+                      1704067200 + ((p['data']['id'] as int) * 86400)
+                })
+            .toList(),
         'timestamps': highPriority.map((p) => 1704067200000000000).toList()
       };
 
@@ -344,11 +444,56 @@ class MockCanisterBridge implements ScriptBridge {
 
     if (t == 'analyze_market') {
       state['market_data'] = [
-        {'title': 'ICP-USD', 'subtitle': '${formatIcp(125000000)} • +2.5% • Vol: ${formatIcp(1000000000)}', 'symbol': 'ICP-USD', 'price': 125000000, 'change': 2.5, 'volume': 1000000000, 'market': 'main'},
-        {'title': 'BTC-ICP', 'subtitle': '${formatIcp(0.00015.toInt())} • -1.2% • Vol: ${formatIcp(500000000)}', 'symbol': 'BTC-ICP', 'price': 0.00015, 'change': -1.2, 'volume': 500000000, 'market': 'main'},
-        {'title': 'ETH-ICP', 'subtitle': '${formatIcp(0.0089.toInt())} • +0.8% • Vol: ${formatIcp(750000000)}', 'symbol': 'ETH-ICP', 'price': 0.0089, 'change': 0.8, 'volume': 750000000, 'market': 'alt'},
-        {'title': 'DOT-ICP', 'subtitle': '${formatIcp(0.34.toInt())} • +5.2% • Vol: ${formatIcp(200000000)}', 'symbol': 'DOT-ICP', 'price': 0.34, 'change': 5.2, 'volume': 200000000, 'market': 'main'},
-        {'title': 'ADA-ICP', 'subtitle': '${formatIcp(2.1.toInt())} • -0.5% • Vol: ${formatIcp(150000000)}', 'symbol': 'ADA-ICP', 'price': 2.1, 'change': -0.5, 'volume': 150000000, 'market': 'alt'}
+        {
+          'title': 'ICP-USD',
+          'subtitle':
+              '${formatIcp(125000000)} • +2.5% • Vol: ${formatIcp(1000000000)}',
+          'symbol': 'ICP-USD',
+          'price': 125000000,
+          'change': 2.5,
+          'volume': 1000000000,
+          'market': 'main'
+        },
+        {
+          'title': 'BTC-ICP',
+          'subtitle':
+              '${formatIcp(0.00015.toInt())} • -1.2% • Vol: ${formatIcp(500000000)}',
+          'symbol': 'BTC-ICP',
+          'price': 0.00015,
+          'change': -1.2,
+          'volume': 500000000,
+          'market': 'main'
+        },
+        {
+          'title': 'ETH-ICP',
+          'subtitle':
+              '${formatIcp(0.0089.toInt())} • +0.8% • Vol: ${formatIcp(750000000)}',
+          'symbol': 'ETH-ICP',
+          'price': 0.0089,
+          'change': 0.8,
+          'volume': 750000000,
+          'market': 'alt'
+        },
+        {
+          'title': 'DOT-ICP',
+          'subtitle':
+              '${formatIcp(0.34.toInt())} • +5.2% • Vol: ${formatIcp(200000000)}',
+          'symbol': 'DOT-ICP',
+          'price': 0.34,
+          'change': 5.2,
+          'volume': 200000000,
+          'market': 'main'
+        },
+        {
+          'title': 'ADA-ICP',
+          'subtitle':
+              '${formatIcp(2.1.toInt())} • -0.5% • Vol: ${formatIcp(150000000)}',
+          'symbol': 'ADA-ICP',
+          'price': 2.1,
+          'change': -0.5,
+          'volume': 150000000,
+          'market': 'alt'
+        }
       ];
 
       final marketData = state['market_data'] as List;
@@ -357,22 +502,30 @@ class MockCanisterBridge implements ScriptBridge {
 
       for (var i = 0; i < marketData.length; i++) {
         final asset = marketData[i];
-        if ((asset['change'] as double) > 2.0 || (asset['change'] as double) < -1.0) {
+        if ((asset['change'] as double) > 2.0 ||
+            (asset['change'] as double) < -1.0) {
           signals.add({
-            'title': '${asset['symbol']} - ${((asset['change'] as double) > 0) ? 'BUY' : 'SELL'}',
-            'subtitle': '${formatIcp((asset['price'] as num).toInt())} • ${asset['change']}% • Vol: ${formatIcp((asset['volume'] as num).toInt())}',
+            'title':
+                '${asset['symbol']} - ${((asset['change'] as double) > 0) ? 'BUY' : 'SELL'}',
+            'subtitle':
+                '${formatIcp((asset['price'] as num).toInt())} • ${asset['change']}% • Vol: ${formatIcp((asset['volume'] as num).toInt())}',
             'data': asset,
-            'signal_type': ((asset['change'] as double) > 2) ? 'STRONG' : 'WEAK',
+            'signal_type':
+                ((asset['change'] as double) > 2) ? 'STRONG' : 'WEAK',
             'action_required': true,
             'alert_level': 'HIGH',
-            'action': ((asset['change'] as double) > 2.0) ? 'BUY_ORDER' : 'SELL_ORDER',
+            'action': ((asset['change'] as double) > 2.0)
+                ? 'BUY_ORDER'
+                : 'SELL_ORDER',
             'order_size': (asset['volume'] as num).toInt() ~/ 100
           });
 
           callsToMake.add({
             'type': 'canister_call',
             'canister': 'exchange',
-            'method': ((asset['change'] as double) > 2.0) ? 'place_buy_order' : 'place_sell_order',
+            'method': ((asset['change'] as double) > 2.0)
+                ? 'place_buy_order'
+                : 'place_sell_order',
             'args': {
               'symbol': asset['symbol'],
               'amount': signals.last['order_size'],
@@ -391,21 +544,25 @@ class MockCanisterBridge implements ScriptBridge {
         'analysis_timestamp': 1704067200
       };
 
-      state['executed_calls'] = callsToMake.map((call) => {
-        'title': 'Trade: ${call['args']['symbol']} - ${call['method']}',
-        'subtitle': 'Amount: ${call['args']['amount']} • Status: executed',
-        'call_id': 'call_${callsToMake.indexOf(call)}',
-        'status': 'executed',
-        'transaction_hash': '0x${(1000000 + callsToMake.indexOf(call)).toString()}',
-        'executed_at': 1704067200,
-        'details': call,
-        'result': {
-          'success': true,
-          'filled_amount': call['args']['amount'],
-          'avg_price': 125001250,
-          'fees': 10000
-        }
-      }).toList();
+      state['executed_calls'] = callsToMake
+          .map((call) => {
+                'title': 'Trade: ${call['args']['symbol']} - ${call['method']}',
+                'subtitle':
+                    'Amount: ${call['args']['amount']} • Status: executed',
+                'call_id': 'call_${callsToMake.indexOf(call)}',
+                'status': 'executed',
+                'transaction_hash':
+                    '0x${(1000000 + callsToMake.indexOf(call)).toString()}',
+                'executed_at': 1704067200,
+                'details': call,
+                'result': {
+                  'success': true,
+                  'filled_amount': call['args']['amount'],
+                  'avg_price': 125001250,
+                  'fees': 10000
+                }
+              })
+          .toList();
 
       state['portfolio_state'] = 'updated';
       return json.encode({'ok': true, 'state': state, 'result': null});
@@ -413,11 +570,46 @@ class MockCanisterBridge implements ScriptBridge {
 
     if (t == 'check_services') {
       state['service_status'] = [
-        {'title': 'governance', 'subtitle': 'Status: healthy • Response: 120ms • Uptime: 99.9%', 'status': 'healthy', 'response_time': 120, 'uptime': 99.9, 'last_check': 1704067200},
-        {'title': 'ledger', 'subtitle': 'Status: degraded • Response: 2500ms • Uptime: 95.2%', 'status': 'degraded', 'response_time': 2500, 'uptime': 95.2, 'last_check': 1704067200},
-        {'title': 'exchange', 'subtitle': 'Status: healthy • Response: 80ms • Uptime: 99.8%', 'status': 'healthy', 'response_time': 80, 'uptime': 99.8, 'last_check': 1704067200},
-        {'title': 'nns', 'subtitle': 'Status: maintenance • Response: N/A • Uptime: 0%', 'status': 'maintenance', 'response_time': null, 'uptime': 0, 'last_check': 1704067200},
-        {'title': 'cycles_minting', 'subtitle': 'Status: healthy • Response: 150ms • Uptime: 99.5%', 'status': 'healthy', 'response_time': 150, 'uptime': 99.5, 'last_check': 1704067200}
+        {
+          'title': 'governance',
+          'subtitle': 'Status: healthy • Response: 120ms • Uptime: 99.9%',
+          'status': 'healthy',
+          'response_time': 120,
+          'uptime': 99.9,
+          'last_check': 1704067200
+        },
+        {
+          'title': 'ledger',
+          'subtitle': 'Status: degraded • Response: 2500ms • Uptime: 95.2%',
+          'status': 'degraded',
+          'response_time': 2500,
+          'uptime': 95.2,
+          'last_check': 1704067200
+        },
+        {
+          'title': 'exchange',
+          'subtitle': 'Status: healthy • Response: 80ms • Uptime: 99.8%',
+          'status': 'healthy',
+          'response_time': 80,
+          'uptime': 99.8,
+          'last_check': 1704067200
+        },
+        {
+          'title': 'nns',
+          'subtitle': 'Status: maintenance • Response: N/A • Uptime: 0%',
+          'status': 'maintenance',
+          'response_time': null,
+          'uptime': 0,
+          'last_check': 1704067200
+        },
+        {
+          'title': 'cycles_minting',
+          'subtitle': 'Status: healthy • Response: 150ms • Uptime: 99.5%',
+          'status': 'healthy',
+          'response_time': 150,
+          'uptime': 99.5,
+          'last_check': 1704067200
+        }
       ];
 
       state['call_attempts'] = <dynamic>[];
@@ -430,26 +622,41 @@ class MockCanisterBridge implements ScriptBridge {
         final service = services[i];
         state['call_attempts'].add({
           'title': 'Call to ${service['title']}',
-          'subtitle': 'Decision: ${(service['status'] == 'healthy' && (((service['response_time'] as int?) ?? 0) < 1000)) ? 'OPTIMIZE_CALL' : (service['status'] == 'degraded' || (((service['response_time'] as int?) ?? 0) > 2000)) ? 'DIAGNOSTIC_CALL' : (service['status'] == 'maintenance') ? 'DEFERRED' : 'MONITOR_ONLY'}',
+          'subtitle':
+              'Decision: ${(service['status'] == 'healthy' && (((service['response_time'] as int?) ?? 0) < 1000)) ? 'OPTIMIZE_CALL' : (service['status'] == 'degraded' || (((service['response_time'] as int?) ?? 0) > 2000)) ? 'DIAGNOSTIC_CALL' : (service['status'] == 'maintenance') ? 'DEFERRED' : 'MONITOR_ONLY'}',
           'service': service['title'],
           'status': service['status'],
-          'decision': (service['status'] == 'healthy' && (((service['response_time'] as int?) ?? 0) < 1000)) ? 'OPTIMIZE_CALL' :
-                     (service['status'] == 'degraded' || (((service['response_time'] as int?) ?? 0) > 2000)) ? 'DIAGNOSTIC_CALL' :
-                     (service['status'] == 'maintenance') ? 'DEFERRED' : 'MONITOR_ONLY',
-          'reason': service['status'] == 'healthy' ? 'Service healthy, optimizing performance' :
-                    service['status'] == 'degraded' ? 'Service degraded, running diagnostics' :
-                    service['status'] == 'maintenance' ? 'Service under maintenance, deferring calls' : 'Unknown status, monitoring only',
+          'decision': (service['status'] == 'healthy' &&
+                  (((service['response_time'] as int?) ?? 0) < 1000))
+              ? 'OPTIMIZE_CALL'
+              : (service['status'] == 'degraded' ||
+                      (((service['response_time'] as int?) ?? 0) > 2000))
+                  ? 'DIAGNOSTIC_CALL'
+                  : (service['status'] == 'maintenance')
+                      ? 'DEFERRED'
+                      : 'MONITOR_ONLY',
+          'reason': service['status'] == 'healthy'
+              ? 'Service healthy, optimizing performance'
+              : service['status'] == 'degraded'
+                  ? 'Service degraded, running diagnostics'
+                  : service['status'] == 'maintenance'
+                      ? 'Service under maintenance, deferring calls'
+                      : 'Unknown status, monitoring only',
           'timestamp': 1704067200
         });
 
-        if (service['status'] == 'healthy' && (((service['response_time'] as int?) ?? 0) < 1000)) {
+        if (service['status'] == 'healthy' &&
+            (((service['response_time'] as int?) ?? 0) < 1000)) {
           state['successful_calls'].add({
             'title': 'Success: ${service['title']} optimization',
             'subtitle': 'Method: optimize_performance • Status: success',
             'call_id': 'conditional_$i',
             'service': service['title'],
             'method': 'optimize_performance',
-            'args': {'target_response_time': ((service['response_time'] as int?) ?? 0) * 0.8},
+            'args': {
+              'target_response_time':
+                  ((service['response_time'] as int?) ?? 0) * 0.8
+            },
             'timestamp': 1704067200,
             'status': 'success',
             'response': {
@@ -471,7 +678,8 @@ class MockCanisterBridge implements ScriptBridge {
       final field = msg['field'];
       final value = msg['value'];
       final List<dynamic> data = (state['data'] as List?) ?? <dynamic>[];
-      state['filtered'] = data.where((item) => item[field].toString().contains(value)).toList();
+      state['filtered'] =
+          data.where((item) => item[field].toString().contains(value)).toList();
       return json.encode({'ok': true, 'state': state, 'result': null});
     }
 
@@ -479,7 +687,8 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) {
+  String? luaAppView(
+      {required String script, required String stateJson, int budgetMs = 50}) {
     final state = json.decode(stateJson);
 
     // Parse the script to determine which test scenario we're in
@@ -496,13 +705,34 @@ class MockCanisterBridge implements ScriptBridge {
           'type': 'section',
           'props': {'title': 'Complete Flow Demo'},
           'children': [
-            {'type': 'text', 'props': {'text': 'This demonstrates: Read → Transform → Display'}},
+            {
+              'type': 'text',
+              'props': {'text': 'This demonstrates: Read → Transform → Display'}
+            },
             {
               'type': 'row',
               'children': [
-                {'type': 'button', 'props': {'label': 'Load Data', 'on_press': {'type': 'load_data'}}},
-                {'type': 'button', 'props': {'label': 'Transform', 'on_press': {'type': 'transform'}}},
-                {'type': 'button', 'props': {'label': 'View Searchable', 'on_press': {'type': 'searchable'}}},
+                {
+                  'type': 'button',
+                  'props': {
+                    'label': 'Load Data',
+                    'on_press': {'type': 'load_data'}
+                  }
+                },
+                {
+                  'type': 'button',
+                  'props': {
+                    'label': 'Transform',
+                    'on_press': {'type': 'transform'}
+                  }
+                },
+                {
+                  'type': 'button',
+                  'props': {
+                    'label': 'View Searchable',
+                    'on_press': {'type': 'searchable'}
+                  }
+                },
               ]
             }
           ]
@@ -542,10 +772,7 @@ class MockCanisterBridge implements ScriptBridge {
 
       return json.encode({
         'ok': true,
-        'ui': {
-          'type': 'column',
-          'children': children
-        }
+        'ui': {'type': 'column', 'children': children}
       });
     }
 
@@ -555,8 +782,20 @@ class MockCanisterBridge implements ScriptBridge {
           'type': 'section',
           'props': {'title': 'Batch Processing Demo'},
           'children': [
-            {'type': 'text', 'props': {'text': 'Demonstrates batch canister calls with data transformation'}},
-            {'type': 'button', 'props': {'label': 'Execute Batch Calls', 'on_press': {'type': 'batch_call'}}}
+            {
+              'type': 'text',
+              'props': {
+                'text':
+                    'Demonstrates batch canister calls with data transformation'
+              }
+            },
+            {
+              'type': 'button',
+              'props': {
+                'label': 'Execute Batch Calls',
+                'on_press': {'type': 'batch_call'}
+              }
+            }
           ]
         }
       ];
@@ -568,13 +807,17 @@ class MockCanisterBridge implements ScriptBridge {
           'children': [
             {
               'type': 'result_display',
-              'props': {'data': state['batch_results'], 'title': 'Canister Responses'}
+              'props': {
+                'data': state['batch_results'],
+                'title': 'Canister Responses'
+              }
             }
           ]
         });
       }
 
-      if (state['processed_items'] != null && (state['processed_items'] as List).isNotEmpty) {
+      if (state['processed_items'] != null &&
+          (state['processed_items'] as List).isNotEmpty) {
         children.add({
           'type': 'section',
           'props': {'title': 'Processed Results'},
@@ -593,10 +836,7 @@ class MockCanisterBridge implements ScriptBridge {
 
       return json.encode({
         'ok': true,
-        'ui': {
-          'type': 'column',
-          'children': children
-        }
+        'ui': {'type': 'column', 'children': children}
       });
     }
 
@@ -606,9 +846,27 @@ class MockCanisterBridge implements ScriptBridge {
           'type': 'section',
           'props': {'title': 'Error Handling Demo'},
           'children': [
-            {'type': 'button', 'props': {'label': 'Load Valid Data', 'on_press': {'type': 'load_valid'}}},
-            {'type': 'button', 'props': {'label': 'Trigger Error', 'on_press': {'type': 'trigger_error'}}},
-            {'type': 'button', 'props': {'label': 'Load Empty Data', 'on_press': {'type': 'load_empty'}}}
+            {
+              'type': 'button',
+              'props': {
+                'label': 'Load Valid Data',
+                'on_press': {'type': 'load_valid'}
+              }
+            },
+            {
+              'type': 'button',
+              'props': {
+                'label': 'Trigger Error',
+                'on_press': {'type': 'trigger_error'}
+              }
+            },
+            {
+              'type': 'button',
+              'props': {
+                'label': 'Load Empty Data',
+                'on_press': {'type': 'load_empty'}
+              }
+            }
           ]
         }
       ];
@@ -633,7 +891,9 @@ class MockCanisterBridge implements ScriptBridge {
           'children': [
             {
               'type': 'result_display',
-              'props': {'data': {'status': 'success', 'data': 'Valid data loaded'}}
+              'props': {
+                'data': {'status': 'success', 'data': 'Valid data loaded'}
+              }
             }
           ]
         });
@@ -654,30 +914,25 @@ class MockCanisterBridge implements ScriptBridge {
 
       return json.encode({
         'ok': true,
-        'ui': {
-          'type': 'column',
-          'children': children
-        }
+        'ui': {'type': 'column', 'children': children}
       });
     }
 
     // Default fallback
     final data = state['filtered'] ?? state['data'] ?? [];
-    final items = (data as List).map((item) => {
-      'title': 'Item ${item['id'] ?? 'unknown'}',
-      'subtitle': 'Type: ${item['type'] ?? 'unknown'}',
-      'data': item
-    }).toList();
+    final items = (data as List)
+        .map((item) => {
+              'title': 'Item ${item['id'] ?? 'unknown'}',
+              'subtitle': 'Type: ${item['type'] ?? 'unknown'}',
+              'data': item
+            })
+        .toList();
 
     return json.encode({
       'ok': true,
       'ui': {
         'type': 'list',
-        'props': {
-          'searchable': true,
-          'items': items,
-          'title': 'Mock Data View'
-        }
+        'props': {'searchable': true, 'items': items, 'title': 'Mock Data View'}
       }
     });
   }
@@ -688,12 +943,27 @@ class MockCanisterBridge implements ScriptBridge {
         'type': 'section',
         'props': {'title': 'Follow-up Call Demo'},
         'children': [
-          {'type': 'text', 'props': {'text': 'Demonstrates: Read → Transform → Call'}},
+          {
+            'type': 'text',
+            'props': {'text': 'Demonstrates: Read → Transform → Call'}
+          },
           {
             'type': 'row',
             'children': [
-              {'type': 'button', 'props': {'label': 'Load Proposals', 'on_press': {'type': 'load_proposals'}}},
-              {'type': 'button', 'props': {'label': 'Analyze & Call', 'on_press': {'type': 'analyze_and_call'}}},
+              {
+                'type': 'button',
+                'props': {
+                  'label': 'Load Proposals',
+                  'on_press': {'type': 'load_proposals'}
+                }
+              },
+              {
+                'type': 'button',
+                'props': {
+                  'label': 'Analyze & Call',
+                  'on_press': {'type': 'analyze_and_call'}
+                }
+              },
             ]
           }
         ]
@@ -718,14 +988,18 @@ class MockCanisterBridge implements ScriptBridge {
       });
     }
 
-    if (state['analysis_result'] != null && state['analysis_result']['high_priority'] != null) {
+    if (state['analysis_result'] != null &&
+        state['analysis_result']['high_priority'] != null) {
       children.add({
         'type': 'section',
         'props': {'title': 'Analysis Results'},
         'children': [
           {
             'type': 'text',
-            'props': {'text': 'High priority proposals found: ${state['analysis_result']['high_priority'].length}'}
+            'props': {
+              'text':
+                  'High priority proposals found: ${state['analysis_result']['high_priority'].length}'
+            }
           },
           {
             'type': 'list',
@@ -739,15 +1013,22 @@ class MockCanisterBridge implements ScriptBridge {
       });
     }
 
-    if (state['follow_up_results'] != null && state['follow_up_results']['votes'] != null) {
+    if (state['follow_up_results'] != null &&
+        state['follow_up_results']['votes'] != null) {
       children.add({
         'type': 'section',
         'props': {'title': 'Follow-up Call Results'},
         'children': [
-          {'type': 'text', 'props': {'text': 'Vote data retrieved successfully'}},
+          {
+            'type': 'text',
+            'props': {'text': 'Vote data retrieved successfully'}
+          },
           {
             'type': 'result_display',
-            'props': {'data': state['follow_up_results'], 'title': 'Follow-up Canister Calls'}
+            'props': {
+              'data': state['follow_up_results'],
+              'title': 'Follow-up Canister Calls'
+            }
           }
         ]
       });
@@ -765,13 +1046,25 @@ class MockCanisterBridge implements ScriptBridge {
         'type': 'section',
         'props': {'title': 'Dynamic Call Generation'},
         'children': [
-          {'type': 'text', 'props': {'text': 'Read market data → analyze → generate dynamic calls'}},
-          {'type': 'button', 'props': {'label': 'Analyze Market', 'on_press': {'type': 'analyze_market'}}}
+          {
+            'type': 'text',
+            'props': {
+              'text': 'Read market data → analyze → generate dynamic calls'
+            }
+          },
+          {
+            'type': 'button',
+            'props': {
+              'label': 'Analyze Market',
+              'on_press': {'type': 'analyze_market'}
+            }
+          }
         ]
       }
     ];
 
-    if (state['market_data'] != null && (state['market_data'] as List).isNotEmpty) {
+    if (state['market_data'] != null &&
+        (state['market_data'] as List).isNotEmpty) {
       children.add({
         'type': 'section',
         'props': {'title': 'Market Data'},
@@ -795,7 +1088,10 @@ class MockCanisterBridge implements ScriptBridge {
         'children': [
           {
             'type': 'text',
-            'props': {'text': 'Trading signals detected: ${state['analysis']['signals'].length}'}
+            'props': {
+              'text':
+                  'Trading signals detected: ${state['analysis']['signals'].length}'
+            }
           },
           {
             'type': 'list',
@@ -809,18 +1105,25 @@ class MockCanisterBridge implements ScriptBridge {
       });
     }
 
-    if (state['executed_calls'] != null && (state['executed_calls'] as List).isNotEmpty) {
+    if (state['executed_calls'] != null &&
+        (state['executed_calls'] as List).isNotEmpty) {
       children.add({
         'type': 'section',
         'props': {'title': 'Executed Trades'},
         'children': [
           {
             'type': 'text',
-            'props': {'text': 'Dynamic calls executed: ${state['executed_calls'].length}'}
+            'props': {
+              'text':
+                  'Dynamic calls executed: ${state['executed_calls'].length}'
+            }
           },
           {
             'type': 'result_display',
-            'props': {'data': state['executed_calls'], 'title': 'Trade Execution Results'}
+            'props': {
+              'data': state['executed_calls'],
+              'title': 'Trade Execution Results'
+            }
           }
         ]
       });
@@ -838,13 +1141,25 @@ class MockCanisterBridge implements ScriptBridge {
         'type': 'section',
         'props': {'title': 'Conditional Call Logic'},
         'children': [
-          {'type': 'text', 'props': {'text': 'Read service status → conditional calls → error recovery'}},
-          {'type': 'button', 'props': {'label': 'Check Services', 'on_press': {'type': 'check_services'}}}
+          {
+            'type': 'text',
+            'props': {
+              'text': 'Read service status → conditional calls → error recovery'
+            }
+          },
+          {
+            'type': 'button',
+            'props': {
+              'label': 'Check Services',
+              'on_press': {'type': 'check_services'}
+            }
+          }
         ]
       }
     ];
 
-    if (state['service_status'] != null && (state['service_status'] as List).isNotEmpty) {
+    if (state['service_status'] != null &&
+        (state['service_status'] as List).isNotEmpty) {
       children.add({
         'type': 'section',
         'props': {'title': 'Service Status'},
@@ -861,14 +1176,17 @@ class MockCanisterBridge implements ScriptBridge {
       });
     }
 
-    if (state['call_attempts'] != null && (state['call_attempts'] as List).isNotEmpty) {
+    if (state['call_attempts'] != null &&
+        (state['call_attempts'] as List).isNotEmpty) {
       children.add({
         'type': 'section',
         'props': {'title': 'Call Attempts'},
         'children': [
           {
             'type': 'text',
-            'props': {'text': 'Total attempts: ${state['call_attempts'].length}'}
+            'props': {
+              'text': 'Total attempts: ${state['call_attempts'].length}'
+            }
           },
           {
             'type': 'list',
@@ -882,18 +1200,25 @@ class MockCanisterBridge implements ScriptBridge {
       });
     }
 
-    if (state['successful_calls'] != null && (state['successful_calls'] as List).isNotEmpty) {
+    if (state['successful_calls'] != null &&
+        (state['successful_calls'] as List).isNotEmpty) {
       children.add({
         'type': 'section',
         'props': {'title': 'Successful Calls'},
         'children': [
           {
             'type': 'text',
-            'props': {'text': 'Successfully executed: ${state['successful_calls'].length}'}
+            'props': {
+              'text':
+                  'Successfully executed: ${state['successful_calls'].length}'
+            }
           },
           {
             'type': 'result_display',
-            'props': {'data': state['successful_calls'], 'title': 'Successful Operations'}
+            'props': {
+              'data': state['successful_calls'],
+              'title': 'Successful Operations'
+            }
           }
         ]
       });
@@ -918,7 +1243,9 @@ void main() {
     });
 
     group('Read → Transform → Display Flow Tests', () {
-      testWidgets('complete flow: canister call → data transformation → searchable display', (WidgetTester tester) async {
+      testWidgets(
+          'complete flow: canister call → data transformation → searchable display',
+          (WidgetTester tester) async {
         // Create a test script that demonstrates the complete flow
         const searchableScript = '''
 function init(arg)
@@ -1038,7 +1365,8 @@ end
 
         expect(find.text('Raw Results'), findsOneWidget);
         expect(find.text('Raw Canister Data'), findsOneWidget);
-        expect(find.byIcon(Icons.copy), findsWidgets); // Copy buttons should be visible
+        expect(find.byIcon(Icons.copy),
+            findsWidgets); // Copy buttons should be visible
 
         // Step 2: Transform Data
         await tester.tap(find.text('Transform'));
@@ -1046,23 +1374,28 @@ end
 
         expect(find.text('Processed Results'), findsOneWidget);
         expect(find.text('Transformed Data'), findsOneWidget);
-        expect(find.byIcon(Icons.search), findsOneWidget); // Searchable list should be searchable
+        expect(find.byIcon(Icons.search),
+            findsOneWidget); // Searchable list should be searchable
 
         // Step 3: Verify searchable display features
         expect(find.text('Transfer tx1'), findsOneWidget);
-        expect(find.text('Transfer tx3'), findsOneWidget); // Only transfers, no stakes
+        expect(find.text('Transfer tx3'),
+            findsOneWidget); // Only transfers, no stakes
         expect(find.textContaining('ICP'), findsWidgets); // Formatted amounts
-        expect(find.byIcon(Icons.search), findsOneWidget); // Search functionality
+        expect(
+            find.byIcon(Icons.search), findsOneWidget); // Search functionality
 
         // Test search functionality
         await tester.enterText(find.byType(TextField), 'tx1');
         await tester.pumpAndSettle();
 
         expect(find.text('Transfer tx1'), findsOneWidget);
-        expect(find.text('Transfer tx3'), findsNothing); // Should be filtered out
+        expect(
+            find.text('Transfer tx3'), findsNothing); // Should be filtered out
       });
 
-      testWidgets('batch canister calls with data transformation', (WidgetTester tester) async {
+      testWidgets('batch canister calls with data transformation',
+          (WidgetTester tester) async {
         const batchScript = '''
 -- Batch canister calls with searchable result processing
 local function process_batch_results(results)
@@ -1181,7 +1514,8 @@ end
         // Verify processed results
         expect(find.text('Processed Results'), findsOneWidget);
         expect(find.text('Combined Data View'), findsOneWidget);
-        expect(find.text('4/4'), findsOneWidget); // 4 items total (2 proposals + 2 transactions)
+        expect(find.text('4/4'),
+            findsOneWidget); // 4 items total (2 proposals + 2 transactions)
 
         // Verify data transformation worked
         expect(find.text('Proposal 1'), findsOneWidget);
@@ -1200,10 +1534,12 @@ end
         expect(find.text('2/4'), findsOneWidget); // Should show 2 proposals
         expect(find.text('Proposal 1'), findsOneWidget);
         expect(find.text('Proposal 2'), findsOneWidget);
-        expect(find.text('Transaction tx1'), findsNothing); // Should be filtered out
+        expect(find.text('Transaction tx1'),
+            findsNothing); // Should be filtered out
       });
 
-      testWidgets('error handling and graceful degradation', (WidgetTester tester) async {
+      testWidgets('error handling and graceful degradation',
+          (WidgetTester tester) async {
         const errorHandlingScript = '''
 function init(arg)
   return { data_state = "none", error_state = nil }, {}
@@ -1309,7 +1645,9 @@ end
     });
 
     group('Read → Transform → Call Flow Tests', () {
-      testWidgets('read initial data → transform → make follow-up canister calls', (WidgetTester tester) async {
+      testWidgets(
+          'read initial data → transform → make follow-up canister calls',
+          (WidgetTester tester) async {
         const followUpCallScript = '''
 function init(arg)
   return {
@@ -1489,10 +1827,12 @@ end
         await tester.pumpAndSettle();
 
         expect(find.text('Critical Network Upgrade'), findsWidgets);
-        expect(find.text('Security Enhancement'), findsOneWidget); // Should still be visible in initial list
+        expect(find.text('Security Enhancement'),
+            findsOneWidget); // Should still be visible in initial list
       });
 
-      testWidgets('dynamic call generation based on data analysis', (WidgetTester tester) async {
+      testWidgets('dynamic call generation based on data analysis',
+          (WidgetTester tester) async {
         const dynamicCallScript = '''
 function init(arg)
   return {
@@ -1678,7 +2018,8 @@ end
         expect(find.textContaining('BUY'), findsWidgets);
       });
 
-      testWidgets('conditional call logic with error recovery', (WidgetTester tester) async {
+      testWidgets('conditional call logic with error recovery',
+          (WidgetTester tester) async {
         const conditionalCallScript = '''
 function init(arg)
   return {
@@ -1920,10 +2261,13 @@ end
         // Verify failed calls and retry queue (since 20% failure rate)
         // Note: These may not always appear due to randomness, but the structure is there
         // Use optional checks for elements that may not always appear
-        expect(find.text('Failed Calls'), findsNothing); // May or may not appear
-        expect(find.text('Failed Operations'), findsNothing); // May or may not appear
+        expect(
+            find.text('Failed Calls'), findsNothing); // May or may not appear
+        expect(find.text('Failed Operations'),
+            findsNothing); // May or may not appear
         expect(find.text('Retry Queue'), findsNothing); // May or may not appear
-        expect(find.text('Pending Retries'), findsNothing); // May or may not appear
+        expect(find.text('Pending Retries'),
+            findsNothing); // May or may not appear
       });
     });
   });

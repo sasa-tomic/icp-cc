@@ -276,8 +276,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: args);
       if (mounted) setState(() => _validationErrors = v.errors);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _validationErrors = <String>['Validation error: $e']);
+      }
     }
   }
 

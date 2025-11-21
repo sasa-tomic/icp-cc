@@ -2,7 +2,7 @@
 name = "icp_core"
 version = "0.1.0"
 edition = "2021"
-description = "Core IC identity and principal utilities for Flutter integration"
+description = "Core IC keypair and principal utilities for Flutter integration"
 license = "MIT OR Apache-2.0"
 
 [lib]
@@ -14,9 +14,14 @@ bip39 = { version = "2", default-features = false, features = ["std"] }
 # Bitcoin bip32 derivation and secp256k1 types
 bitcoin = { version = "0.32", default-features = true, features = ["std"] }
 # Ed25519 key handling (pkcs8 for DER encoding per RFC 8410)
-ed25519-dalek = { version = "2", default-features = false, features = ["pkcs8"] }
+ed25519-dalek = { version = "2", default-features = false, features = [
+  "pkcs8",
+] }
 # secp256k1 with DER encoding per RFC 5480
-k256 = { version = "0.13", default-features = false, features = ["pkcs8", "std"] }
+k256 = { version = "0.13", default-features = false, features = [
+  "pkcs8",
+  "std",
+] }
 # Hashing for SHA-224
 sha2 = "0.10"
 # Base64 for exporting keys in the same form as Dart

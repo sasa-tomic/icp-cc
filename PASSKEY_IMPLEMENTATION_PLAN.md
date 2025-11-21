@@ -68,7 +68,7 @@ CREATE TABLE passkeys (
     device_type TEXT,                         -- "platform" or "cross-platform"
     created_at TEXT NOT NULL,
     last_used_at TEXT,
-    FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal)
+    FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal)
 );
 ```
 
@@ -83,7 +83,7 @@ CREATE TABLE recovery_codes (
     used INTEGER NOT NULL DEFAULT 0,          -- Boolean: 0=unused, 1=used
     used_at TEXT,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal)
+    FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal)
 );
 ```
 
@@ -99,7 +99,7 @@ CREATE TABLE user_vaults (
     nonce BLOB NOT NULL,                      -- AES-GCM nonce (12 bytes)
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    FOREIGN KEY (user_principal) REFERENCES identity_profiles(principal)
+    FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal)
 );
 ```
 
@@ -120,7 +120,7 @@ CREATE TABLE user_vaults (
 - [ ] Implement `/api/passkey/register/finish` endpoint
   - Verify attestation
   - Store credential in `passkeys` table
-  - Link to user identity
+  - Link to user keypair
 - [ ] Implement `/api/passkey/authenticate/start` endpoint
   - Generate challenge for existing credentials
   - Return `PublicKeyCredentialRequestOptions`
@@ -152,19 +152,19 @@ CREATE TABLE user_vaults (
   - Allow vault password reset on success
 
 #### 1.4 API Endpoints Summary
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/passkey/register/start` | POST | Begin passkey registration |
-| `/api/passkey/register/finish` | POST | Complete passkey registration |
-| `/api/passkey/authenticate/start` | POST | Begin passkey login |
-| `/api/passkey/authenticate/finish` | POST | Complete passkey login |
-| `/api/passkey/list` | GET | List user's registered passkeys |
-| `/api/passkey/delete` | DELETE | Remove a passkey |
-| `/api/vault/create` | POST | Create encrypted vault |
-| `/api/vault/update` | PUT | Update vault data |
-| `/api/vault/get` | GET | Retrieve encrypted vault blob |
-| `/api/recovery/generate` | POST | Generate recovery codes (one-time) |
-| `/api/recovery/verify` | POST | Verify recovery code for password reset |
+| Endpoint                           | Method | Purpose                                 |
+|------------------------------------|--------|-----------------------------------------|
+| `/api/passkey/register/start`      | POST   | Begin passkey registration              |
+| `/api/passkey/register/finish`     | POST   | Complete passkey registration           |
+| `/api/passkey/authenticate/start`  | POST   | Begin passkey login                     |
+| `/api/passkey/authenticate/finish` | POST   | Complete passkey login                  |
+| `/api/passkey/list`                | GET    | List user's registered passkeys         |
+| `/api/passkey/delete`              | DELETE | Remove a passkey                        |
+| `/api/vault/create`                | POST   | Create encrypted vault                  |
+| `/api/vault/update`                | PUT    | Update vault data                       |
+| `/api/vault/get`                   | GET    | Retrieve encrypted vault blob           |
+| `/api/recovery/generate`           | POST   | Generate recovery codes (one-time)      |
+| `/api/recovery/verify`             | POST   | Verify recovery code for password reset |
 
 ---
 
@@ -269,7 +269,7 @@ CREATE TABLE user_vaults (
 ```
 1. User signs up
    ↓
-2. Create identity profile in DB
+2. Create keypair profile in DB
    ↓
 3. [Passkey Setup] Register first passkey (WebAuthn flow)
    ↓
@@ -363,15 +363,15 @@ CREATE TABLE user_vaults (
 ## Security Considerations
 
 ### Threat Model
-| Threat | Mitigation |
-|--------|------------|
-| **Phishing** | Passkey authentication (domain-bound, can't be phished) |
-| **Server Breach** | Zero-knowledge vault encryption (server has no decryption key) |
-| **MITM Attack** | HTTPS + WebAuthn origin verification |
-| **Password Guessing** | Argon2id memory-hard KDF (slow brute-force) |
-| **Credential Theft** | Encrypted at rest, decrypted only in memory |
-| **Passkey Cloning** | Signature counter verification (detects duplicates) |
-| **Recovery Code Leak** | Hashed with Argon2id, one-time use |
+| Threat                 | Mitigation                                                     |
+|------------------------|----------------------------------------------------------------|
+| **Phishing**           | Passkey authentication (domain-bound, can't be phished)        |
+| **Server Breach**      | Zero-knowledge vault encryption (server has no decryption key) |
+| **MITM Attack**        | HTTPS + WebAuthn origin verification                           |
+| **Password Guessing**  | Argon2id memory-hard KDF (slow brute-force)                    |
+| **Credential Theft**   | Encrypted at rest, decrypted only in memory                    |
+| **Passkey Cloning**    | Signature counter verification (detects duplicates)            |
+| **Recovery Code Leak** | Hashed with Argon2id, one-time use                             |
 
 ### Key Management
 - **Passkey Private Key**: Never leaves device (stored in platform authenticator)
@@ -389,16 +389,16 @@ CREATE TABLE user_vaults (
 
 ## Platform Support Matrix
 
-| Platform | Passkey Support | Vault Encryption | Recovery Codes |
-|----------|----------------|------------------|----------------|
-| **iOS 16+** | ✅ iCloud Keychain | ✅ Argon2id via FFI | ✅ Full support |
-| **Android 9+** | ✅ Google Password Manager | ✅ Argon2id via FFI | ✅ Full support |
-| **Web (Chrome)** | ✅ Platform authenticator | ✅ WebCrypto API | ✅ Full support |
-| **Web (Safari)** | ✅ Platform authenticator | ✅ WebCrypto API | ✅ Full support |
-| **Web (Firefox)** | ⚠️ Partial support | ✅ WebCrypto API | ✅ Full support |
-| **macOS 15+** | ✅ iCloud Keychain | ✅ Argon2id via FFI | ✅ Full support |
-| **Windows 11** | ✅ Windows Hello | ✅ Argon2id via FFI | ✅ Full support |
-| **Linux** | ⚠️ Hardware keys only | ✅ Argon2id via FFI | ✅ Full support |
+| Platform          | Passkey Support           | Vault Encryption   | Recovery Codes |
+|-------------------|---------------------------|--------------------|----------------|
+| **iOS 16+**       | ✅ iCloud Keychain         | ✅ Argon2id via FFI | ✅ Full support |
+| **Android 9+**    | ✅ Google Password Manager | ✅ Argon2id via FFI | ✅ Full support |
+| **Web (Chrome)**  | ✅ Platform authenticator  | ✅ WebCrypto API    | ✅ Full support |
+| **Web (Safari)**  | ✅ Platform authenticator  | ✅ WebCrypto API    | ✅ Full support |
+| **Web (Firefox)** | ⚠️ Partial support        | ✅ WebCrypto API    | ✅ Full support |
+| **macOS 15+**     | ✅ iCloud Keychain         | ✅ Argon2id via FFI | ✅ Full support |
+| **Windows 11**    | ✅ Windows Hello           | ✅ Argon2id via FFI | ✅ Full support |
+| **Linux**         | ⚠️ Hardware keys only     | ✅ Argon2id via FFI | ✅ Full support |
 
 **Note**: PRF extension for pure passkey-based encryption NOT used due to fragmentation.
 

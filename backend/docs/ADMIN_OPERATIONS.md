@@ -206,7 +206,7 @@ curl -X POST http://localhost:8080/api/v1/admin/accounts/bob/keys/compromised-ke
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "reason": "User reported compromise via phone 2025-11-17. Verified identity via email+2FA. Ticket #5678"
+    "reason": "User reported compromise via phone 2025-11-17. Verified keypair via email+2FA. Ticket #5678"
   }'
 ```
 

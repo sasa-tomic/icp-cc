@@ -23,7 +23,7 @@ This document defines the user experience design for **Profile Management** in t
 1. **Progressive Disclosure**: Don't overwhelm users with cryptographic details upfront
 2. **Clear Visual Hierarchy**: Important actions prominent, dangerous actions protected
 3. **Real-time Feedback**: Immediate validation and status updates
-4. **Graceful Onboarding**: Smooth transition from identity → account
+4. **Graceful Onboarding**: Smooth transition from keypair → account
 5. **Trust Through Transparency**: Show security details when users need them
 6. **Fail Fast, Fail Clear**: Errors are explicit with actionable guidance
 
@@ -86,7 +86,7 @@ Step 3: Review & Confirm
 - Show username
 - Show public key (truncated with copy button)
 - Show IC principal (truncated with copy button)
-- Explain: "This will be signed with your identity"
+- Explain: "This will be signed with your keypair"
 - Big "Create Account" button
 
 Step 4: Processing
@@ -125,7 +125,7 @@ Step 5: Success
 ```
 
 **IMPORTANT CHANGE:**
-- REMOVED: "Use existing identity" option (NO cross-profile key usage)
+- REMOVED: "Use existing keypair" option (NO cross-profile key usage)
 - REMOVED: "Import public key manually" option (keys are generated, not imported)
 - Keys are GENERATED for the current profile, not imported from elsewhere
 
@@ -155,7 +155,7 @@ Step 5: Success
 
 ### 1. Profile List Screen
 
-**Location**: `lib/screens/profile_home_page.dart` (RENAME from identity_home_page.dart)
+**Location**: `lib/screens/profile_home_page.dart` (RENAME from keypair_home_page.dart)
 
 **Layout**:
 ```
@@ -624,7 +624,7 @@ Step 5: Success
    - Need clear offline state indication
 
 7. **Multi-Device Sync**:
-   - Identities are stored locally (secure storage)
+   - Keypairs are stored locally (secure storage)
    - If user adds key from another device, how to import?
    - QR code import flow? Manual key import?
 
@@ -639,7 +639,7 @@ Step 5: Success
    - Biometric confirmation before key operations?
 
 10. **Onboarding Education**:
-    - Concepts are complex: identity vs account vs principal vs key
+    - Concepts are complex: keypair vs account vs principal vs key
     - Need better educational content
     - Tooltips, help dialogs, onboarding tutorial
 
@@ -661,7 +661,7 @@ Step 5: Success
 - [ ] Reserved usernames: Properly rejected
 - [ ] Duplicate username: Proper error shown
 - [ ] Invalid characters: Proper validation
-- [ ] Add key: From local identity works
+- [ ] Add key: From local keypair works
 - [ ] Add key: Manual import works
 - [ ] Remove key: Confirmation required
 - [ ] Remove last key: Blocked with message
@@ -692,7 +692,7 @@ Step 5: Success
 4. Account profile screen (view only)
 
 ### Phase 2: Key Management
-5. Add key (local identity only)
+5. Add key (local keypair only)
 6. Remove key
 7. Key status visualization
 

@@ -8,36 +8,36 @@ class KeypairSessionBanner extends StatelessWidget {
   const KeypairSessionBanner({
     super.key,
     required this.controller,
-    required this.onManageIdentities,
+    required this.onManageKeypairs,
   });
 
   final ProfileController controller;
-  final VoidCallback onManageIdentities;
+  final VoidCallback onManageKeypairs;
 
   @override
   Widget build(BuildContext context) {
     final ProfileKeypair? active = controller.activeKeypair;
     if (active == null) {
       return _AnonymousKeypairCard(
-        onManageIdentities: onManageIdentities,
+        onManageKeypairs: onManageKeypairs,
       );
     }
-    // With the new system, all identities have an account (draft or registered)
+    // With the new system, all keypairs have an account (draft or registered)
     return _ActiveKeypairCard(
-      identity: active,
+      keypair: active,
       principal: PrincipalUtils.textFromRecord(active),
-      isProfileComplete: true, // Always true now - all identities have accounts
-      onManageIdentities: onManageIdentities,
+      isProfileComplete: true, // Always true now - all keypairs have accounts
+      onManageKeypairs: onManageKeypairs,
     );
   }
 }
 
 class _AnonymousKeypairCard extends StatelessWidget {
   const _AnonymousKeypairCard({
-    required this.onManageIdentities,
+    required this.onManageKeypairs,
   });
 
-  final VoidCallback onManageIdentities;
+  final VoidCallback onManageKeypairs;
 
   @override
   Widget build(BuildContext context) {
@@ -69,15 +69,15 @@ class _AnonymousKeypairCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'No identity selected. Go to the Identities tab to select an identity for signing uploads, '
+              'No keypair selected. Go to the Profiles tab to select an keypair for signing uploads, '
               'marketplace actions, and canister calls.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: onManageIdentities,
+              onPressed: onManageKeypairs,
               icon: const Icon(Icons.manage_accounts_outlined),
-              label: const Text('Go to Identities tab'),
+              label: const Text('Go to Profiles tab'),
             ),
           ],
         ),
@@ -88,16 +88,16 @@ class _AnonymousKeypairCard extends StatelessWidget {
 
 class _ActiveKeypairCard extends StatelessWidget {
   const _ActiveKeypairCard({
-    required this.identity,
+    required this.keypair,
     required this.principal,
     required this.isProfileComplete,
-    required this.onManageIdentities,
+    required this.onManageKeypairs,
   });
 
-  final ProfileKeypair identity;
+  final ProfileKeypair keypair;
   final String principal;
   final bool isProfileComplete;
-  final VoidCallback onManageIdentities;
+  final VoidCallback onManageKeypairs;
 
   @override
   Widget build(BuildContext context) {
@@ -131,14 +131,14 @@ class _ActiveKeypairCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        identity.label.isEmpty
-                            ? 'Untitled identity'
-                            : identity.label,
+                        keypair.label.isEmpty
+                            ? 'Untitled keypair'
+                            : keypair.label,
                         style: textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       Text(
-                        '$principal (${identity.algorithm.name.toUpperCase()})',
+                        '$principal (${keypair.algorithm.name.toUpperCase()})',
                         style: textTheme.bodySmall
                             ?.copyWith(color: colors.onSurfaceVariant),
                         overflow: TextOverflow.ellipsis,
@@ -164,9 +164,9 @@ class _ActiveKeypairCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 TextButton.icon(
-                  onPressed: onManageIdentities,
+                  onPressed: onManageKeypairs,
                   icon: const Icon(Icons.manage_accounts_outlined),
-                  label: const Text('Manage in Identities tab'),
+                  label: const Text('Manage in Profiles tab'),
                 ),
               ],
             ),

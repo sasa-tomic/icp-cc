@@ -27,7 +27,7 @@ class CanisterCallSpec {
     this.argsJson = '()',
     this.host,
     this.privateKeyB64,
-    this.identityId,
+    this.keypairId,
     this.isAnonymous = false,
   });
 
@@ -42,15 +42,15 @@ class CanisterCallSpec {
   final String? host;
 
   /// Keypair specification options (in order of precedence):
-  /// 1. identityId: Reference to a stored identity by ID
+  /// 1. keypairId: Reference to a stored keypair by ID
   /// 2. privateKeyB64: Direct private key specification (legacy)
   /// 3. isAnonymous: Force anonymous call
-  final String? identityId;
+  final String? keypairId;
 
   /// If provided, performs authenticated call; otherwise anonymous
   final String? privateKeyB64;
 
-  /// If true, forces anonymous call regardless of other identity settings
+  /// If true, forces anonymous call regardless of other keypair settings
   final bool isAnonymous;
 }
 
@@ -274,8 +274,8 @@ class ScriptRunner {
     ),
   ];
 
-  /// Resolve identity specification to a private key or null (for anonymous calls).
-  /// Returns null if anonymous call is requested or if identity resolution fails.
+  /// Resolve keypair specification to a private key or null (for anonymous calls).
+  /// Returns null if anonymous call is requested or if keypair resolution fails.
   Future<String?> _resolveKeypair(CanisterCallSpec spec) async {
     // 1. Explicit anonymous call takes precedence
     if (spec.isAnonymous) {
@@ -283,30 +283,29 @@ class ScriptRunner {
     }
 
     // 2. Keypair ID reference (takes priority over direct private key)
-    if (spec.identityId != null && spec.identityId!.trim().isNotEmpty) {
+    if (spec.keypairId != null && spec.keypairId!.trim().isNotEmpty) {
       final SecureKeypairRepository? repository = _secureRepository;
       if (repository == null) {
         throw Exception(
-            'Keypair ID specified but no secure identity repository provided');
+            'Keypair ID specified but no secure keypair repository provided');
       }
 
       try {
-        final List<ProfileKeypair> identities =
-            await repository.loadIdentities();
-        final ProfileKeypair? identity =
-            identities.cast<ProfileKeypair?>().firstWhere(
-                  (id) => id?.id == spec.identityId,
+        final List<ProfileKeypair> keypairs = await repository.loadKeypairs();
+        final ProfileKeypair? keypair =
+            keypairs.cast<ProfileKeypair?>().firstWhere(
+                  (id) => id?.id == spec.keypairId,
                   orElse: () => null,
                 );
 
-        if (identity == null) {
-          throw Exception('Keypair with ID "${spec.identityId}" not found');
+        if (keypair == null) {
+          throw Exception('Keypair with ID "${spec.keypairId}" not found');
         }
 
         // Get private key from secure storage
-        return await repository.getPrivateKey(identity.id);
+        return await repository.getPrivateKey(keypair.id);
       } catch (e) {
-        throw Exception('Failed to resolve identity "${spec.identityId}": $e');
+        throw Exception('Failed to resolve keypair "${spec.keypairId}": $e');
       }
     }
 
@@ -315,7 +314,7 @@ class ScriptRunner {
       return spec.privateKeyB64!.trim();
     }
 
-    // 4. Default to anonymous if no identity specification provided
+    // 4. Default to anonymous if no keypair specification provided
     return null;
   }
 
@@ -335,7 +334,7 @@ class ScriptRunner {
       } catch (e) {
         return ScriptRunResult(
             ok: false,
-            error: 'Failed to resolve identity for ${spec.label}: $e');
+            error: 'Failed to resolve keypair for ${spec.label}: $e');
       }
 
       final String? raw = (privateKey == null || privateKey.isEmpty)
@@ -403,7 +402,7 @@ class ScriptRunner {
             ? null
             : result['host'] as String?;
         final String? key = (result['private_key_b64'] as String?)?.trim();
-        final String? identityId = (result['identity_id'] as String?)?.trim();
+        final String? keypairId = (result['keypair_id'] as String?)?.trim();
         final bool isAnonymous = (result['is_anonymous'] as bool?) ?? false;
 
         if (canisterId.isEmpty || method.isEmpty) {
@@ -411,7 +410,7 @@ class ScriptRunner {
               ok: false, error: 'call action missing canister_id/method');
         }
 
-        // Create a temporary CanisterCallSpec to reuse identity resolution logic
+        // Create a temporary CanisterCallSpec to reuse keypair resolution logic
         final CanisterCallSpec tempSpec = CanisterCallSpec(
           label: 'follow_up_call',
           canisterId: canisterId,
@@ -420,7 +419,7 @@ class ScriptRunner {
           argsJson: args,
           host: host,
           privateKeyB64: key,
-          identityId: identityId,
+          keypairId: keypairId,
           isAnonymous: isAnonymous,
         );
 
@@ -430,7 +429,7 @@ class ScriptRunner {
         } catch (e) {
           return ScriptRunResult(
               ok: false,
-              error: 'Failed to resolve identity for follow-up call: $e');
+              error: 'Failed to resolve keypair for follow-up call: $e');
         }
 
         final String? callOut;
@@ -488,7 +487,7 @@ class ScriptRunner {
               ? null
               : item['host'] as String?;
           final String? key = (item['private_key_b64'] as String?)?.trim();
-          final String? identityId = (item['identity_id'] as String?)?.trim();
+          final String? keypairId = (item['keypair_id'] as String?)?.trim();
           final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
 
           if (canisterId.isEmpty || method.isEmpty) {
@@ -496,7 +495,7 @@ class ScriptRunner {
                 ok: false, error: 'batch call missing canister_id/method');
           }
 
-          // Create a temporary CanisterCallSpec to reuse identity resolution logic
+          // Create a temporary CanisterCallSpec to reuse keypair resolution logic
           final CanisterCallSpec tempSpec = CanisterCallSpec(
             label: label.isEmpty ? 'batch_call' : label,
             canisterId: canisterId,
@@ -505,7 +504,7 @@ class ScriptRunner {
             argsJson: args,
             host: host,
             privateKeyB64: key,
-            identityId: identityId,
+            keypairId: keypairId,
             isAnonymous: isAnonymous,
           );
 
@@ -515,8 +514,7 @@ class ScriptRunner {
           } catch (e) {
             return ScriptRunResult(
                 ok: false,
-                error:
-                    'Failed to resolve identity for batch call "$label": $e');
+                error: 'Failed to resolve keypair for batch call "$label": $e');
           }
 
           String? callOut;
@@ -583,7 +581,7 @@ class ScriptRunner {
           ? null
           : action['host'] as String?;
       final String? key = (action['private_key_b64'] as String?)?.trim();
-      final String? identityId = (action['identity_id'] as String?)?.trim();
+      final String? keypairId = (action['keypair_id'] as String?)?.trim();
       final bool isAnonymous = (action['is_anonymous'] as bool?) ?? false;
 
       if (canisterId.isEmpty || method.isEmpty) {
@@ -591,7 +589,7 @@ class ScriptRunner {
             ok: false, error: 'call action missing canister_id/method');
       }
 
-      // Create a temporary CanisterCallSpec to reuse identity resolution logic
+      // Create a temporary CanisterCallSpec to reuse keypair resolution logic
       final CanisterCallSpec tempSpec = CanisterCallSpec(
         label: 'action_call',
         canisterId: canisterId,
@@ -600,7 +598,7 @@ class ScriptRunner {
         argsJson: args,
         host: host,
         privateKeyB64: key,
-        identityId: identityId,
+        keypairId: keypairId,
         isAnonymous: isAnonymous,
       );
 
@@ -609,7 +607,7 @@ class ScriptRunner {
         privateKey = await _resolveKeypair(tempSpec);
       } catch (e) {
         return ScriptRunResult(
-            ok: false, error: 'Failed to resolve identity for action call: $e');
+            ok: false, error: 'Failed to resolve keypair for action call: $e');
       }
 
       String? callOut;
@@ -664,7 +662,7 @@ class ScriptRunner {
             ? null
             : item['host'] as String?;
         final String? key = (item['private_key_b64'] as String?)?.trim();
-        final String? identityId = (item['identity_id'] as String?)?.trim();
+        final String? keypairId = (item['keypair_id'] as String?)?.trim();
         final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
 
         if (canisterId.isEmpty || method.isEmpty) {
@@ -672,7 +670,7 @@ class ScriptRunner {
               ok: false, error: 'batch call missing canister_id/method');
         }
 
-        // Create a temporary CanisterCallSpec to reuse identity resolution logic
+        // Create a temporary CanisterCallSpec to reuse keypair resolution logic
         final CanisterCallSpec tempSpec = CanisterCallSpec(
           label: label.isEmpty ? 'batch_call' : label,
           canisterId: canisterId,
@@ -681,7 +679,7 @@ class ScriptRunner {
           argsJson: args,
           host: host,
           privateKeyB64: key,
-          identityId: identityId,
+          keypairId: keypairId,
           isAnonymous: isAnonymous,
         );
 
@@ -691,7 +689,7 @@ class ScriptRunner {
         } catch (e) {
           return ScriptRunResult(
               ok: false,
-              error: 'Failed to resolve identity for batch call "$label": $e');
+              error: 'Failed to resolve keypair for batch call "$label": $e');
         }
 
         String? callOut;

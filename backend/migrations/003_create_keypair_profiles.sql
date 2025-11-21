@@ -1,5 +1,5 @@
--- Create identity profiles table (PostgreSQL)
-CREATE TABLE IF NOT EXISTS identity_profiles (
+-- Create keypair profiles table (PostgreSQL)
+CREATE TABLE IF NOT EXISTS keypair_profiles (
     id VARCHAR(64) PRIMARY KEY,
     principal VARCHAR(255) NOT NULL UNIQUE,
     display_name VARCHAR(255) NOT NULL,
@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS identity_profiles (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_keypair_profiles_principal
-    ON identity_profiles(principal);
+    ON keypair_profiles(principal);
 
 CREATE TRIGGER update_keypair_profiles_updated_at
-    BEFORE UPDATE ON identity_profiles
+    BEFORE UPDATE ON keypair_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

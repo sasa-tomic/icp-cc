@@ -101,13 +101,13 @@ class PoemScriptRepository extends ScriptRepository {
     // Always generate a fresh timestamp for the API request
     final timestamp = DateTime.now().toUtc().toIso8601String();
 
-    // Get test identity for signing
-    final identity = await TestKeypairFactory.getEd25519Keypair();
-    final principal = PrincipalUtils.textFromRecord(identity);
+    // Get test keypair for signing
+    final keypair = await TestKeypairFactory.getEd25519Keypair();
+    final principal = PrincipalUtils.textFromRecord(keypair);
 
     // Generate real cryptographic signature
     final signature = await ScriptSignatureService.signScriptUpload(
-      authorKeypair: identity,
+      authorKeypair: keypair,
       title: script.title,
       description: script.metadata['description'] ?? '',
       category: script.metadata['category'] ?? 'Development',
@@ -130,7 +130,7 @@ class PoemScriptRepository extends ScriptRepository {
       'author_name': script.metadata['authorName'] ?? 'Anonymous',
       'author_id': script.metadata['authorId'] ?? 'test-author-id',
       'author_principal': principal,
-      'author_public_key': identity.publicKey,
+      'author_public_key': keypair.publicKey,
       'upload_signature': signature,
       'signature': signature,
       'timestamp': timestamp,
@@ -236,11 +236,11 @@ class PoemScriptRepository extends ScriptRepository {
   Future<void> deleteScript(String id) async {
     try {
       // Generate proper signature for script deletion
-      final identity = await TestKeypairFactory.getEd25519Keypair();
-      final principal = PrincipalUtils.textFromRecord(identity);
+      final keypair = await TestKeypairFactory.getEd25519Keypair();
+      final principal = PrincipalUtils.textFromRecord(keypair);
       final timestamp = DateTime.now().toUtc().toIso8601String();
       final signature = await ScriptSignatureService.signScriptDeletion(
-        authorKeypair: identity,
+        authorKeypair: keypair,
         scriptId: id,
         timestampIso: timestamp,
       );
@@ -249,7 +249,7 @@ class PoemScriptRepository extends ScriptRepository {
         'action': 'delete',
         'script_id': id,
         'author_principal': principal,
-        'author_public_key': identity.publicKey,
+        'author_public_key': keypair.publicKey,
         'signature': signature,
         'timestamp': timestamp,
       };
@@ -384,10 +384,10 @@ class PoemScriptRepository extends ScriptRepository {
   Future<String> publishScript(ScriptRecord script) async {
     try {
       // Generate proper signature for publish
-      final identity = await TestKeypairFactory.getEd25519Keypair();
+      final keypair = await TestKeypairFactory.getEd25519Keypair();
       final updateRequest =
           await ScriptSignatureService.buildSignedUpdateRequest(
-        authorKeypair: identity,
+        authorKeypair: keypair,
         scriptId: script.id,
         updates: {'is_public': true},
       );
@@ -465,7 +465,7 @@ class PoemScriptRepository extends ScriptRepository {
 
       if (checkResponse.statusCode == 200) {
         // Generate proper signature for script update
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
 
         final updates = <String, dynamic>{
           'title': script.title,
@@ -503,7 +503,7 @@ class PoemScriptRepository extends ScriptRepository {
 
         final updateData =
             await ScriptSignatureService.buildSignedUpdateRequest(
-          authorKeypair: identity,
+          authorKeypair: keypair,
           scriptId: script.id,
           updates: updates,
         );

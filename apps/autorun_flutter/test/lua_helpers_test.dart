@@ -4,12 +4,27 @@ import 'package:icp_autorun/services/script_runner.dart';
 
 class MockBridge implements ScriptBridge {
   @override
-  String? callAnonymous({required String canisterId, required String method, required int kind, String args = '()', String? host}) {
-    return json.encode({'ok': true, 'echo': {'cid': canisterId, 'm': method, 'args': args}});
+  String? callAnonymous(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      String args = '()',
+      String? host}) {
+    return json.encode({
+      'ok': true,
+      'echo': {'cid': canisterId, 'm': method, 'args': args}
+    });
   }
 
   @override
-  String? callAuthenticated({required String canisterId, required String method, required int kind, String? identityId, String? privateKeyB64, String args = '()', String? host}) {
+  String? callAuthenticated(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      String? keypairId,
+      String? privateKeyB64,
+      String args = '()',
+      String? host}) {
     return json.encode({'ok': true, 'auth': true});
   }
 
@@ -23,7 +38,9 @@ class MockBridge implements ScriptBridge {
     // Look for patterns that indicate actual usage (not just definition)
 
     // Check for result_display first since it's more specific
-    if (script.contains('return icp_result_display(') || (script.contains('icp_result_display({') && !script.contains('function icp_result_display'))) {
+    if (script.contains('return icp_result_display(') ||
+        (script.contains('icp_result_display({') &&
+            !script.contains('function icp_result_display'))) {
       // For the test, check if it's the specific test case and return expected result
       if (script.contains('User Info')) {
         return json.encode({
@@ -70,7 +87,9 @@ class MockBridge implements ScriptBridge {
       });
     }
 
-    if (script.contains('return icp_searchable_list(') || (script.contains('icp_searchable_list({') && !script.contains('function icp_searchable_list'))) {
+    if (script.contains('return icp_searchable_list(') ||
+        (script.contains('icp_searchable_list({') &&
+            !script.contains('function icp_searchable_list'))) {
       // For the test, check if it's the specific test case and return expected result
       if (script.contains('Search Results')) {
         return json.encode({
@@ -101,10 +120,19 @@ class MockBridge implements ScriptBridge {
               'type': 'list',
               'props': {
                 'searchable': true,
-                'items': arg?['items'] ?? [
-                  {'title': 'Transfer 2', 'type': 'transfer', 'amount': 200000000},
-                  {'title': 'Transfer 1', 'type': 'transfer', 'amount': 100000000}
-                ],
+                'items': arg?['items'] ??
+                    [
+                      {
+                        'title': 'Transfer 2',
+                        'type': 'transfer',
+                        'amount': 200000000
+                      },
+                      {
+                        'title': 'Transfer 1',
+                        'type': 'transfer',
+                        'amount': 100000000
+                      }
+                    ],
                 'title': 'Sorted Transfers'
               }
             }
@@ -120,10 +148,11 @@ class MockBridge implements ScriptBridge {
             'type': 'list',
             'props': {
               'searchable': true,
-              'items': arg?['items'] ?? [
-                {'title': 'Mock Item 1', 'subtitle': 'Mock Description 1'},
-                {'title': 'Mock Item 2', 'subtitle': 'Mock Description 2'}
-              ],
+              'items': arg?['items'] ??
+                  [
+                    {'title': 'Mock Item 1', 'subtitle': 'Mock Description 1'},
+                    {'title': 'Mock Item 2', 'subtitle': 'Mock Description 2'}
+                  ],
               'title': arg?['title'] ?? 'Results'
             }
           }
@@ -131,25 +160,29 @@ class MockBridge implements ScriptBridge {
       });
     }
 
-    if (script.contains('return icp_format_icp(') || (script.contains('icp_format_icp(') && !script.contains('function icp_format_icp'))) {
+    if (script.contains('return icp_format_icp(') ||
+        (script.contains('icp_format_icp(') &&
+            !script.contains('function icp_format_icp'))) {
       final value = arg?['value'] ?? 100000000;
       final decimals = arg?['decimals'] ?? 8;
       final result = value / (100000000); // Simplified formatting
       return json.encode({
         'ok': true,
-        'result': '${result.toStringAsFixed(decimals).replaceAll(RegExp(r'\.?0+$'), '')} ICP'
+        'result':
+            '${result.toStringAsFixed(decimals).replaceAll(RegExp(r'\.?0+$'), '')} ICP'
       });
     }
 
-    if (script.contains('return icp_format_timestamp(') || (script.contains('icp_format_timestamp(') && !script.contains('function icp_format_timestamp'))) {
+    if (script.contains('return icp_format_timestamp(') ||
+        (script.contains('icp_format_timestamp(') &&
+            !script.contains('function icp_format_timestamp'))) {
       final timestamp = arg?['value'] ?? 1704067200000000000;
-      return json.encode({
-        'ok': true,
-        'result': timestamp.toString()
-      });
+      return json.encode({'ok': true, 'result': timestamp.toString()});
     }
 
-    if (script.contains('return icp_filter_items(') || (script.contains('icp_filter_items(') && !script.contains('function icp_filter_items'))) {
+    if (script.contains('return icp_filter_items(') ||
+        (script.contains('icp_filter_items(') &&
+            !script.contains('function icp_filter_items'))) {
       // Tests pass items inline in Lua; simulate expected outcomes by pattern
       if (script.contains('"nonexistent"')) {
         return json.encode({'ok': true, 'result': <dynamic>[]});
@@ -166,7 +199,9 @@ class MockBridge implements ScriptBridge {
       return json.encode({'ok': true, 'result': <dynamic>[]});
     }
 
-    if (script.contains('return icp_sort_items(') || (script.contains('icp_sort_items(') && !script.contains('function icp_sort_items'))) {
+    if (script.contains('return icp_sort_items(') ||
+        (script.contains('icp_sort_items(') &&
+            !script.contains('function icp_sort_items'))) {
       // Simulate sorted items regardless of actual input; tests assert length only
       return json.encode({
         'ok': true,
@@ -178,9 +213,13 @@ class MockBridge implements ScriptBridge {
       });
     }
 
-    if (script.contains('return icp_group_by(') || (script.contains('icp_group_by(') && !script.contains('function icp_group_by'))) {
+    if (script.contains('return icp_group_by(') ||
+        (script.contains('icp_group_by(') &&
+            !script.contains('function icp_group_by'))) {
       // Prefer the "missing field" fixture if items don't specify type
-      final bool looksLikeMissingFieldCase = script.contains('{title = "Item 1"}') || script.contains('{title = "Item 2"}');
+      final bool looksLikeMissingFieldCase =
+          script.contains('{title = "Item 1"}') ||
+              script.contains('{title = "Item 2"}');
       if (looksLikeMissingFieldCase) {
         return json.encode({
           'ok': true,
@@ -207,10 +246,13 @@ class MockBridge implements ScriptBridge {
       });
     }
 
-    if (script.contains('return icp_section(') || (script.contains('icp_section(') && !script.contains('function icp_section'))) {
+    if (script.contains('return icp_section(') ||
+        (script.contains('icp_section(') &&
+            !script.contains('function icp_section'))) {
       // Extract title and content from icp_section("title", {...}) pattern
       String title = 'Mock Section';
-      final sectionMatch = RegExp(r'icp_section\s*\(\s*"([^"]+)"').firstMatch(script);
+      final sectionMatch =
+          RegExp(r'icp_section\s*\(\s*"([^"]+)"').firstMatch(script);
       if (sectionMatch != null) {
         title = sectionMatch.group(1) ?? 'Mock Section';
       }
@@ -230,16 +272,16 @@ class MockBridge implements ScriptBridge {
           'action': 'ui',
           'ui': {
             'type': 'section',
-            'props': {
-              'title': title
-            },
+            'props': {'title': title},
             'children': children
           }
         }
       });
     }
 
-    if (script.contains('return icp_table(') || (script.contains('icp_table(') && !script.contains('function icp_table'))) {
+    if (script.contains('return icp_table(') ||
+        (script.contains('icp_table(') &&
+            !script.contains('function icp_table'))) {
       return json.encode({
         'ok': true,
         'result': {
@@ -247,7 +289,8 @@ class MockBridge implements ScriptBridge {
           'ui': {
             'type': 'result_display',
             'props': {
-              'data': arg?['data'] ?? {'column1': 'value1', 'column2': 'value2'},
+              'data':
+                  arg?['data'] ?? {'column1': 'value1', 'column2': 'value2'},
               'title': 'Table Data'
             }
           }
@@ -264,13 +307,24 @@ class MockBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) => null;
+  String? luaAppInit(
+          {required String script, String? jsonArg, int budgetMs = 50}) =>
+      null;
 
   @override
-  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) => null;
+  String? luaAppUpdate(
+          {required String script,
+          required String msgJson,
+          required String stateJson,
+          int budgetMs = 50}) =>
+      null;
 
   @override
-  String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) => null;
+  String? luaAppView(
+          {required String script,
+          required String stateJson,
+          int budgetMs = 50}) =>
+      null;
 }
 
 void main() {

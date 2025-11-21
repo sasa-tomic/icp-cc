@@ -143,13 +143,13 @@ class ScriptSignatureService {
 
   /// Sign a canonical payload with the author's private key
   static Future<String> _signPayload(
-      ProfileKeypair identity, Map<String, dynamic> payload) async {
+      ProfileKeypair keypair, Map<String, dynamic> payload) async {
     // Convert payload to canonical JSON string (sorted keys)
     final canonicalJson = _canonicalJsonEncode(payload);
     final payloadBytes = utf8.encode(canonicalJson);
-    final privateKeyBytes = base64Decode(identity.privateKey);
+    final privateKeyBytes = base64Decode(keypair.privateKey);
 
-    switch (identity.algorithm) {
+    switch (keypair.algorithm) {
       case KeyAlgorithm.ed25519:
         final algorithm = Ed25519();
         final keyPair = await algorithm.newKeyPairFromSeed(privateKeyBytes);

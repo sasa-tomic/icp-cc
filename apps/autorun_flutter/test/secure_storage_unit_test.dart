@@ -6,8 +6,8 @@ import 'package:icp_autorun/models/profile_keypair.dart';
 
 void main() {
   group('Secure Storage Logic Tests', () {
-    test('identity model serialization maintains all fields', () {
-      final TestKeypair = ProfileKeypair(
+    test('keypair model serialization maintains all fields', () {
+      final testKeypair = ProfileKeypair(
         id: 'test-1',
         label: 'Test Keypair',
         algorithm: KeyAlgorithm.ed25519,
@@ -18,7 +18,7 @@ void main() {
       );
 
       // Test toJson
-      final jsonMap = TestKeypair.toJson();
+      final jsonMap = testKeypair.toJson();
       expect(jsonMap['id'], 'test-1');
       expect(jsonMap['label'], 'Test Keypair');
       expect(jsonMap['algorithm'], 'ed25519');
@@ -31,16 +31,16 @@ void main() {
 
       // Test fromJson
       final loadedKeypair = ProfileKeypair.fromJson(jsonMap);
-      expect(loadedKeypair.id, TestKeypair.id);
-      expect(loadedKeypair.label, TestKeypair.label);
-      expect(loadedKeypair.algorithm, TestKeypair.algorithm);
-      expect(loadedKeypair.publicKey, TestKeypair.publicKey);
-      expect(loadedKeypair.privateKey, TestKeypair.privateKey);
-      expect(loadedKeypair.mnemonic, TestKeypair.mnemonic);
-      expect(loadedKeypair.createdAt, TestKeypair.createdAt);
+      expect(loadedKeypair.id, testKeypair.id);
+      expect(loadedKeypair.label, testKeypair.label);
+      expect(loadedKeypair.algorithm, testKeypair.algorithm);
+      expect(loadedKeypair.publicKey, testKeypair.publicKey);
+      expect(loadedKeypair.privateKey, testKeypair.privateKey);
+      expect(loadedKeypair.mnemonic, testKeypair.mnemonic);
+      expect(loadedKeypair.createdAt, testKeypair.createdAt);
     });
 
-    test('identity copyWith updates label only', () {
+    test('keypair copyWith updates label only', () {
       final originalKeypair = ProfileKeypair(
         id: 'test-2',
         label: 'Original Label',
@@ -79,8 +79,8 @@ void main() {
       );
     });
 
-    test('identity export details contain sensitive information', () {
-      final TestKeypair = ProfileKeypair(
+    test('keypair export details contain sensitive information', () {
+      final testKeypair = ProfileKeypair(
         id: 'export-test-1',
         label: 'Export Test',
         algorithm: KeyAlgorithm.ed25519,
@@ -90,14 +90,14 @@ void main() {
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
 
-      final exportDetails = TestKeypair.exportDetails();
-      expect(exportDetails['Mnemonic'], TestKeypair.mnemonic);
-      expect(exportDetails['Public key (base64)'], TestKeypair.publicKey);
-      expect(exportDetails['Private key (base64)'], TestKeypair.privateKey);
+      final exportDetails = testKeypair.exportDetails();
+      expect(exportDetails['Mnemonic'], testKeypair.mnemonic);
+      expect(exportDetails['Public key (base64)'], testKeypair.publicKey);
+      expect(exportDetails['Private key (base64)'], testKeypair.privateKey);
     });
 
-    test('identity toString produces valid JSON', () {
-      final TestKeypair = ProfileKeypair(
+    test('keypair toString produces valid JSON', () {
+      final testKeypair = ProfileKeypair(
         id: 'string-test-1',
         label: 'String Test',
         algorithm: KeyAlgorithm.secp256k1,
@@ -107,7 +107,7 @@ void main() {
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
 
-      final stringRepresentation = TestKeypair.toString();
+      final stringRepresentation = testKeypair.toString();
 
       // Should be valid JSON and parse back correctly
       final parsedJson =
@@ -119,20 +119,20 @@ void main() {
 
     test('secure storage key prefixes are correct', () {
       // Test constants
-      expect(_privateKeyPrefix, 'identity_private_key_');
-      expect(_mnemonicPrefix, 'identity_mnemonic_');
+      expect(_privateKeyPrefix, 'keypair_private_key_');
+      expect(_mnemonicPrefix, 'keypair_mnemonic_');
 
       // Test key generation
-      const identityId = 'test-identity-123';
-      final privateKeyKey = '$_privateKeyPrefix$identityId';
-      final mnemonicKey = '$_mnemonicPrefix$identityId';
+      const keypairId = 'test-keypair-123';
+      final privateKeyKey = '$_privateKeyPrefix$keypairId';
+      final mnemonicKey = '$_mnemonicPrefix$keypairId';
 
-      expect(privateKeyKey, 'identity_private_key_test-identity-123');
-      expect(mnemonicKey, 'identity_mnemonic_test-identity-123');
+      expect(privateKeyKey, 'keypair_private_key_test-keypair-123');
+      expect(mnemonicKey, 'keypair_mnemonic_test-keypair-123');
     });
 
     test('non-sensitive data structure excludes sensitive fields', () {
-      const identityId = 'public-data-test-1';
+      const keypairId = 'public-data-test-1';
       const label = 'Public Data Test';
       const algorithm = 'ed25519';
       const publicKey = 'dGVzdC1wdWJsaWM=';
@@ -140,7 +140,7 @@ void main() {
 
       // Simulate the non-sensitive data structure that would be stored in regular JSON
       final publicData = <String, dynamic>{
-        'id': identityId,
+        'id': keypairId,
         'label': label,
         'algorithm': algorithm,
         'publicKey': publicKey,
@@ -149,7 +149,7 @@ void main() {
 
       // Verify only non-sensitive fields are included
       expect(publicData.keys, hasLength(5));
-      expect(publicData['id'], identityId);
+      expect(publicData['id'], keypairId);
       expect(publicData['label'], label);
       expect(publicData['algorithm'], algorithm);
       expect(publicData['publicKey'], publicKey);
@@ -197,24 +197,24 @@ void main() {
     });
 
     test('key prefixes ensure isolation of secure storage data', () {
-      const identityId1 = 'identity-123';
-      const identityId2 = 'identity-456';
+      const keypairId1 = 'keypair-123';
+      const keypairId2 = 'keypair-456';
 
-      // Verify different keys are generated for different identities
-      final privateKey1 = '$_privateKeyPrefix$identityId1';
-      final privateKey2 = '$_privateKeyPrefix$identityId2';
-      final mnemonic1 = '$_mnemonicPrefix$identityId1';
-      final mnemonic2 = '$_mnemonicPrefix$identityId2';
+      // Verify different keys are generated for different keypairs
+      final privateKey1 = '$_privateKeyPrefix$keypairId1';
+      final privateKey2 = '$_privateKeyPrefix$keypairId2';
+      final mnemonic1 = '$_mnemonicPrefix$keypairId1';
+      final mnemonic2 = '$_mnemonicPrefix$keypairId2';
 
       expect(privateKey1, isNot(equals(privateKey2)));
       expect(mnemonic1, isNot(equals(mnemonic2)));
       expect(privateKey1, isNot(equals(mnemonic1)));
-      expect(privateKey1, contains(identityId1));
-      expect(mnemonic1, contains(identityId1));
+      expect(privateKey1, contains(keypairId1));
+      expect(mnemonic1, contains(keypairId1));
     });
   });
 }
 
 // Constants that should match those in SecureKeypairRepository
-const String _privateKeyPrefix = 'identity_private_key_';
-const String _mnemonicPrefix = 'identity_mnemonic_';
+const String _privateKeyPrefix = 'keypair_private_key_';
+const String _mnemonicPrefix = 'keypair_mnemonic_';

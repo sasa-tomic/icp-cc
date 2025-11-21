@@ -23,25 +23,6 @@ Profile (Local + Backend)
     └── Keypair 3 (hardware wallet)
 ```
 
-**Key Principles:**
-1. **Tree Structure, Not Graph**: Profile → Keypairs (each key belongs to exactly ONE profile)
-2. **No Key Sharing**: A keypair CANNOT be shared across multiple profiles
-3. **1:1 Profile-Account Mapping**: Each profile has exactly one backend account
-4. **Profile Isolation**: Profiles are completely isolated from each other
-5. **Backend Enforcement**: Database constraint ensures each public key is unique across ALL accounts
-
-**Current Implementation Status:** ⚠️ MISMATCH
-- Current code treats "identities" as standalone keypairs (1:1)
-- Allows cross-profile key references (WRONG)
-- Missing Profile model as first-class container
-- See FIXME comments throughout codebase for specific violations
-
-**Target Implementation:**
-- Profile model containing: metadata + keypairs[] + accountRef
-- ProfileController (rename from IdentityController)
-- ProfileKeypair model (rename from ProfileKeypair)
-- No cross-profile operations
-
 - Every part of execution, every function, must be covered by at least one unit test.
 - WRITE NEW UNIT TESTS that cover both the positive and negative path of the new functionality.
 - Tests that you write MUST ASSERT MEANINGFUL BEHAVIOR and MAY NOT overlap coverage with other tests (check for overlaps!).
@@ -66,11 +47,11 @@ CRITICAL: After you are done verify that changes are highly aligned with the pro
 
 | Task                  | Use                                                     | File                                  | Notes                                    |
 |-----------------------|---------------------------------------------------------|---------------------------------------|------------------------------------------|
-| Create test identity  | `TestKeypairFactory.getEd25519Keypair()`                | `test_keypair_factory.dart`           | Creates ProfileKeypair for testing       |
+| Create test keypair   | `TestKeypairFactory.getEd25519Keypair()`                | `test_keypair_factory.dart`           | Creates ProfileKeypair for testing       |
 | Multiple test users   | `TestKeypairFactory.fromSeed(N)`                        | `test_keypair_factory.dart`           | Creates deterministic keypairs from seed |
 | Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`           |                                          |
 | Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`           |                                          |
-| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_keypair_repository.dart` | In-memory keypair storage for tests      |
+| Keypair repository    | `FakeSecureKeypairRepository([keypairs])`               | `fake_secure_keypair_repository.dart` | In-memory keypair storage for tests      |
 
 # MCP servers that you should use in the project
 - Use context7 mcp server if you would like to obtain additional information for a library or API

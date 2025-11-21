@@ -207,7 +207,7 @@ impl AccountService {
     /// Gets account by public key with all public keys
     ///
     /// This allows clients to find their account without knowing the username,
-    /// using only their cryptographic identity (public key).
+    /// using only their cryptographic keypair (public key).
     pub async fn get_account_by_public_key(
         &self,
         public_key: &str,

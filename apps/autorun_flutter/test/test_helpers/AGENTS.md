@@ -13,10 +13,10 @@ This directory contains standardized test utilities for testing ICP AutoRun func
 - Issues must be detected EARLY, not hidden behind "graceful degradation"
 
 ### Real Cryptography Required
-- ALL tests communicating with the backend MUST use real cryptographic identities
+- ALL tests communicating with the backend MUST use real cryptographic keypairs
 - NO hardcoded mock signatures
 - NO fake keys (e.g., `base64Encode(List.filled(32, 1))`)
-- Use `TestKeypairFactory` for all identity creation
+- Use `TestKeypairFactory` for all keypair creation
 
 ### DRY Principle
 - NEVER duplicate test helper code
@@ -27,12 +27,12 @@ This directory contains standardized test utilities for testing ICP AutoRun func
 
 ### 1. TestKeypairFactory (`test_keypair_factory.dart`)
 
-**Purpose:** Create deterministic test identities with real cryptographic keys
+**Purpose:** Create deterministic test keypairs with real cryptographic keys
 
 **When to use:**
 - Any test that needs to authenticate with the backend
 - Tests that verify signature validation
-- Tests that need multiple distinct identities
+- Tests that need multiple distinct keypairs
 
 **Usage:**
 
@@ -42,29 +42,29 @@ import '../test_helpers/test_keypair_factory.dart';
 
 void main() {
   test('example test', () async {
-    // Get the default test identity (cached, consistent across tests)
-    final identity = await TestKeypairFactory.getEd25519Keypair();
+    // Get the default test keypair (cached, consistent across tests)
+    final keypair = await TestKeypairFactory.getEd25519Keypair();
 
-    // Or create identities from seeds for multiple users
+    // Or create keypairs from seeds for multiple users
     final user1 = await TestKeypairFactory.fromSeed(1);
     final user2 = await TestKeypairFactory.fromSeed(2);
 
-    // Use the identity...
-    final principal = PrincipalUtils.textFromRecord(identity);
+    // Use the keypair...
+    final principal = PrincipalUtils.textFromRecord(keypair);
   });
 }
 ```
 
 **Key Methods:**
-- `getEd25519Keypair()` - Get default Ed25519 test identity (cached)
-- `getSecp256k1Keypair()` - Get default secp256k1 test identity (cached)
-- `fromSeed(int seed)` - Generate deterministic identity from seed
-- `getKeypair(KeyAlgorithm algorithm)` - Get identity by algorithm
+- `getEd25519Keypair()` - Get default Ed25519 test keypair (cached)
+- `getSecp256k1Keypair()` - Get default secp256k1 test keypair (cached)
+- `fromSeed(int seed)` - Generate deterministic keypair from seed
+- `getKeypair(KeyAlgorithm algorithm)` - Get keypair by algorithm
 
 **Important Notes:**
-- All identities are cached for performance
-- Same seed always produces the same identity
-- Generated identities use real BIP39 mnemonics
+- All keypairs are cached for performance
+- Same seed always produces the same keypair
+- Generated keypairs use real BIP39 mnemonics
 - Supports both Ed25519 and secp256k1 algorithms
 
 ### 2. TestSignatureUtils (`test_signature_utils.dart`)
@@ -139,8 +139,8 @@ final signature = TestSignatureUtils.generateTestSignatureSync(payload);
 
 **When to use:**
 - Tests that need KeypairController
-- Tests that verify identity management logic
-- Widget tests that require identity state
+- Tests that verify keypair management logic
+- Widget tests that require keypair state
 
 **Usage:**
 
@@ -149,12 +149,12 @@ import '../test_helpers/fake_secure_keypair_repository.dart';
 import '../test_helpers/test_keypair_factory.dart';
 
 test('example test', () async {
-  // Create test identities
-  final identity1 = await TestKeypairFactory.fromSeed(1);
-  final identity2 = await TestKeypairFactory.fromSeed(2);
+  // Create test keypairs
+  final keypair1 = await TestKeypairFactory.fromSeed(1);
+  final keypair2 = await TestKeypairFactory.fromSeed(2);
 
-  // Create repository with identities
-  final repository = FakeSecureKeypairRepository([identity1, identity2]);
+  // Create repository with keypairs
+  final repository = FakeSecureKeypairRepository([keypair1, keypair2]);
 
   // Use with KeypairController
   final controller = KeypairController(
@@ -173,7 +173,7 @@ test('example test', () async {
 
 **ALWAYS:**
 - Import and use the centralized `FakeSecureKeypairRepository`
-- Populate it with real identities from `TestKeypairFactory`
+- Populate it with real keypairs from `TestKeypairFactory`
 
 ## Anti-Patterns to Avoid
 
@@ -206,25 +206,25 @@ const testPrincipal = 'aaaaa-aa';
 
 ```dart
 // ✅ Use TestKeypairFactory
-final identity = await TestKeypairFactory.getEd25519Keypair();
+final keypair = await TestKeypairFactory.getEd25519Keypair();
 
 // ✅ Use TestSignatureUtils
 final signature = TestSignatureUtils.generateTestSignatureSync(payload);
 
 // ✅ Use centralized FakeSecureKeypairRepository
-final repository = FakeSecureKeypairRepository([identity]);
+final repository = FakeSecureKeypairRepository([keypair]);
 
-// ✅ Use real principals from identities
-final principal = PrincipalUtils.textFromRecord(identity);
+// ✅ Use real principals from keypairs
+final principal = PrincipalUtils.textFromRecord(keypair);
 ```
 
 ## Backend Communication Testing
 
 When testing code that communicates with the backend (API calls, script uploads, etc.):
 
-1. **Always use real test identities:**
+1. **Always use real test keypairs:**
    ```dart
-   final identity = await TestKeypairFactory.getEd25519Keypair();
+   final keypair = await TestKeypairFactory.getEd25519Keypair();
    ```
 
 2. **Always use real signatures:**
@@ -244,11 +244,11 @@ When testing code that communicates with the backend (API calls, script uploads,
 
 ## Testing Multiple Users
 
-When testing scenarios with multiple users/identities:
+When testing scenarios with multiple users/keypairs:
 
 ```dart
 test('multiple users scenario', () async {
-  // Create distinct identities using different seeds
+  // Create distinct keypairs using different seeds
   final alice = await TestKeypairFactory.fromSeed(100);
   final bob = await TestKeypairFactory.fromSeed(200);
   final charlie = await TestKeypairFactory.fromSeed(300);
@@ -279,13 +279,13 @@ If tests fail with signature/authentication errors:
    });
    ```
 
-2. **Verify you're using real identities:**
+2. **Verify you're using real keypairs:**
    ```dart
    // Good
-   final identity = await TestKeypairFactory.getEd25519Keypair();
+   final keypair = await TestKeypairFactory.getEd25519Keypair();
 
    // Bad
-   final identity = ProfileKeypair(...hardcoded values...);
+   final keypair = ProfileKeypair(...hardcoded values...);
    ```
 
 3. **Check signature generation:**
@@ -314,11 +314,11 @@ When adding new test helpers to this directory:
 
 | Need                  | Use                                                     | Import                                |
 |-----------------------|---------------------------------------------------------|---------------------------------------|
-| Test identity         | `TestKeypairFactory.getEd25519Keypair()`                | `test_keypair_factory.dart`           |
+| Test keypair          | `TestKeypairFactory.getEd25519Keypair()`                | `test_keypair_factory.dart`           |
 | Multiple users        | `TestKeypairFactory.fromSeed(N)`                        | `test_keypair_factory.dart`           |
 | Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`           |
 | Custom signature      | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`           |
-| Keypair repository    | `FakeSecureKeypairRepository([identities])`             | `fake_secure_keypair_repository.dart` |
+| Keypair repository    | `FakeSecureKeypairRepository([keypairs])`               | `fake_secure_keypair_repository.dart` |
 | Test principal        | `TestSignatureUtils.getPrincipal()`                     | `test_signature_utils.dart`           |
 
 ## Remember
@@ -328,4 +328,4 @@ When adding new test helpers to this directory:
 - **NO fallback/offline modes in tests**
 - **ALWAYS use centralized test helpers**
 - **ALWAYS fail fast when infrastructure is unavailable**
-- **Tests should use REAL cryptographic identities and signatures**
+- **Tests should use REAL cryptographic keypairs and signatures**

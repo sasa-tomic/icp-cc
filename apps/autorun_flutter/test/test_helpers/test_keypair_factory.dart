@@ -1,11 +1,11 @@
 import 'package:icp_autorun/models/profile_keypair.dart';
-import 'package:icp_autorun/utils/identity_generator.dart';
+import 'package:icp_autorun/utils/keypair_generator.dart';
 import 'package:bip39/bip39.dart' as bip39;
 
-/// Factory for creating test identities with deterministic keys
+/// Factory for creating test keypairs with deterministic keys
 /// Supports both fixed mnemonics and seed-based generation for tests
 class TestKeypairFactory {
-  // Fixed test mnemonics for reproducible test identities (valid BIP39 24-word phrases)
+  // Fixed test mnemonics for reproducible test keypairs (valid BIP39 24-word phrases)
   static const String _ed25519TestMnemonic =
       'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art';
 
@@ -16,7 +16,7 @@ class TestKeypairFactory {
   static ProfileKeypair? _cachedSecp256k1Keypair;
   static final Map<int, ProfileKeypair> _seedBasedKeypairCache = {};
 
-  /// Get or create a test Ed25519 identity (cached for performance)
+  /// Get or create a test Ed25519 keypair (cached for performance)
   static Future<ProfileKeypair> getEd25519Keypair() async {
     _cachedEd25519Keypair ??= await KeypairGenerator.generate(
       algorithm: KeyAlgorithm.ed25519,
@@ -26,7 +26,7 @@ class TestKeypairFactory {
     return _cachedEd25519Keypair!;
   }
 
-  /// Get or create a test secp256k1 identity (cached for performance)
+  /// Get or create a test secp256k1 keypair (cached for performance)
   static Future<ProfileKeypair> getSecp256k1Keypair() async {
     _cachedSecp256k1Keypair ??= await KeypairGenerator.generate(
       algorithm: KeyAlgorithm.secp256k1,
@@ -36,7 +36,7 @@ class TestKeypairFactory {
     return _cachedSecp256k1Keypair!;
   }
 
-  /// Get identity by algorithm
+  /// Get keypair by algorithm
   static Future<ProfileKeypair> getKeypair(KeyAlgorithm algorithm) async {
     switch (algorithm) {
       case KeyAlgorithm.ed25519:
@@ -46,7 +46,7 @@ class TestKeypairFactory {
     }
   }
 
-  /// Generate a deterministic test identity from a seed
+  /// Generate a deterministic test keypair from a seed
   /// The seed is used to create a reproducible BIP39 mnemonic
   /// Cached for performance with the same seed
   static Future<ProfileKeypair> fromSeed(
@@ -60,14 +60,14 @@ class TestKeypairFactory {
     }
 
     final mnemonic = _generateDeterministicMnemonic(seed);
-    final identity = await KeypairGenerator.generate(
+    final keypair = await KeypairGenerator.generate(
       algorithm: algorithm,
       label: 'Test Keypair (seed: $seed)',
       mnemonic: mnemonic,
     );
 
-    _seedBasedKeypairCache[cacheKey] = identity;
-    return identity;
+    _seedBasedKeypairCache[cacheKey] = keypair;
+    return keypair;
   }
 
   /// Generate a deterministic BIP39 mnemonic from a seed
@@ -90,7 +90,7 @@ class TestKeypairFactory {
     return bip39.entropyToMnemonic(entropyHex);
   }
 
-  /// Clear cached identities (for testing)
+  /// Clear cached keypairs (for testing)
   static void clearCache() {
     _cachedEd25519Keypair = null;
     _cachedSecp256k1Keypair = null;

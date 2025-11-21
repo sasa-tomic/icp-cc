@@ -631,11 +631,11 @@ pub fn call_authenticated(
     let key: [u8; 32] = priv_bytes
         .try_into()
         .map_err(|_| CanisterClientError::Net("invalid ed25519 key length".into()))?;
-    let identity = BasicIdentity::from_raw_key(&key);
+    let keypair = BasicIdentity::from_raw_key(&key);
 
     let agent = Agent::builder()
         .with_url(host_url)
-        .with_identity(identity)
+        .with_identity(keypair)
         .build()
         .map_err(|e| CanisterClientError::Net(format!("build agent: {e}")))?;
 

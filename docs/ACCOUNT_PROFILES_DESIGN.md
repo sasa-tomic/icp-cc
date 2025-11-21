@@ -518,7 +518,7 @@ fn derive_ic_principal(public_key: &[u8]) -> String {
 
 **Process**:
 1. User contacts support (out-of-band verification required)
-2. Support verifies identity (email, phone, KYC, etc.)
+2. Support verifies keypair (email, phone, KYC, etc.)
 3. Admin uses `POST /api/v1/admin/accounts/{username}/recovery-key`
 4. Admin provides new public key (user generates new key pair)
 5. User can now use new key to manage account
@@ -612,8 +612,8 @@ WHERE created_at < NOW() - INTERVAL '90 days';
 
 1. **TestKeypairFactory**:
    ```dart
-   final identity = await TestKeypairFactory.getEd25519Keypair();
-   final principal = PrincipalUtils.textFromRecord(identity);
+   final keypair = await TestKeypairFactory.getEd25519Keypair();
+   final principal = PrincipalUtils.textFromRecord(keypair);
    ```
 
 2. **TestSignatureUtils**:
@@ -624,7 +624,7 @@ WHERE created_at < NOW() - INTERVAL '90 days';
 
 3. **FakeSecureKeypairRepository**:
    ```dart
-   final repository = FakeSecureKeypairRepository([identity]);
+   final repository = FakeSecureKeypairRepository([keypair]);
    ```
 
 **NO hardcoded test principals, NO fake signatures, NO mock cryptography.**

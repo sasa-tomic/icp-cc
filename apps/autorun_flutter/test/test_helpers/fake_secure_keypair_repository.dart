@@ -6,48 +6,48 @@ import 'package:icp_autorun/services/secure_keypair_repository.dart';
 import 'test_keypair_factory.dart';
 
 /// Fake implementation of SecureKeypairRepository for testing
-/// Stores identities in memory and provides full control for test scenarios
+/// Stores keypairs in memory and provides full control for test scenarios
 class FakeSecureKeypairRepository implements SecureKeypairRepository {
-  FakeSecureKeypairRepository(List<ProfileKeypair> initialIdentities)
-      : _identities = List.of(initialIdentities),
+  FakeSecureKeypairRepository(List<ProfileKeypair> initialKeypairs)
+      : _keypairs = List.of(initialKeypairs),
         _fakeProfileRepository = FakeProfileRepository(
-          // Convert initial identities to profiles
-          initialIdentities.map((identity) {
+          // Convert initial keypairs to profiles
+          initialKeypairs.map((keypair) {
             return Profile(
-              id: 'profile_${identity.id}',
-              name: identity.label,
-              keypairs: [identity],
+              id: 'profile_${keypair.id}',
+              name: keypair.label,
+              keypairs: [keypair],
               username: null,
-              createdAt: identity.createdAt,
-              updatedAt: identity.createdAt,
+              createdAt: keypair.createdAt,
+              updatedAt: keypair.createdAt,
             );
           }).toList(),
         );
 
-  List<ProfileKeypair> _identities;
+  List<ProfileKeypair> _keypairs;
   final FakeProfileRepository _fakeProfileRepository;
 
   /// Public getter for testing purposes to verify persistence
-  List<ProfileKeypair> get identities => List<ProfileKeypair>.from(_identities);
+  List<ProfileKeypair> get keypairs => List<ProfileKeypair>.from(_keypairs);
 
   @override
-  Future<List<ProfileKeypair>> loadIdentities() async {
-    return List<ProfileKeypair>.from(_identities);
+  Future<List<ProfileKeypair>> loadKeypairs() async {
+    return List<ProfileKeypair>.from(_keypairs);
   }
 
   @override
-  Future<void> persistIdentities(List<ProfileKeypair> identities) async {
-    _identities = List<ProfileKeypair>.from(identities);
+  Future<void> persistKeypairs(List<ProfileKeypair> keypairs) async {
+    _keypairs = List<ProfileKeypair>.from(keypairs);
 
-    // Also update profiles - each identity becomes a profile with one keypair
-    final List<Profile> profiles = identities.map((identity) {
+    // Also update profiles - each keypair becomes a profile with one keypair
+    final List<Profile> profiles = keypairs.map((keypair) {
       return Profile(
-        id: 'profile_${identity.id}', // Deterministic profile ID
-        name: identity.label,
-        keypairs: [identity],
+        id: 'profile_${keypair.id}', // Deterministic profile ID
+        name: keypair.label,
+        keypairs: [keypair],
         username: null,
-        createdAt: identity.createdAt,
-        updatedAt: identity.createdAt,
+        createdAt: keypair.createdAt,
+        updatedAt: keypair.createdAt,
       );
     }).toList();
 
@@ -55,22 +55,22 @@ class FakeSecureKeypairRepository implements SecureKeypairRepository {
   }
 
   @override
-  Future<void> deleteKeypairSecureData(String identityId) async {
-    _identities.removeWhere((identity) => identity.id == identityId);
+  Future<void> deleteKeypairSecureData(String keypairId) async {
+    _keypairs.removeWhere((keypair) => keypair.id == keypairId);
   }
 
   @override
   Future<void> deleteAllSecureData() async {
-    _identities = <ProfileKeypair>[];
+    _keypairs = <ProfileKeypair>[];
   }
 
   @override
-  Future<String?> getPrivateKey(String identityId) async {
-    final identity = _identities.firstWhere(
-      (identity) => identity.id == identityId,
-      orElse: () => throw StateError('Keypair not found: $identityId'),
+  Future<String?> getPrivateKey(String keypairId) async {
+    final keypair = _keypairs.firstWhere(
+      (keypair) => keypair.id == keypairId,
+      orElse: () => throw StateError('Keypair not found: $keypairId'),
     );
-    return identity.privateKey;
+    return keypair.privateKey;
   }
 
   @override
@@ -105,10 +105,10 @@ class FakeProfileRepository implements ProfileRepository {
 
   static Future<ProfileKeypair> _generateTestKeypair(
       {required String label}) async {
-    // Import test identity factory
-    final TestKeypair = await TestKeypairFactory.getEd25519Keypair();
+    // Import test keypair factory
+    final testKeypair = await TestKeypairFactory.getEd25519Keypair();
     // Create a copy with the desired label
-    return TestKeypair.copyWith(label: label);
+    return testKeypair.copyWith(label: label);
   }
 
   @override

@@ -27,7 +27,7 @@
 - [x] ProfileScope widget created (`lib/widgets/profile_scope.dart`)
 - [x] ProfileHomePage implemented (`lib/screens/profile_home_page.dart`)
 - [x] main.dart updated to use ProfileController and ProfileHomePage
-- [x] AddAccountKeySheet simplified (removed "Use existing identity" option)
+- [x] AddAccountKeySheet simplified (removed "Use existing keypair" option)
 - [x] All existing tests still passing
 
 ## ✅ Completed Phases
@@ -60,21 +60,21 @@ These tests validate backward compatibility and will be removed in Phase 3.
 
 1. **KeypairController wrapper** - ✅ DELETED
    - Migrated all code to ProfileController
-   - Deleted `lib/controllers/identity_controller.dart`
+   - Deleted `lib/controllers/keypair_controller.dart`
 
 2. **KeypairScope widget** - ✅ DELETED
    - All widgets now use ProfileScope
-   - Deleted `lib/widgets/identity_scope.dart`
+   - Deleted `lib/widgets/keypair_scope.dart`
 
 3. **KeypairHomePage** - ✅ DELETED
    - ProfileHomePage is now the home page
-   - Deleted `lib/screens/identity_home_page.dart`
+   - Deleted `lib/screens/keypair_home_page.dart`
 
 4. **Widget migrations completed:**
    - `quick_upload_dialog.dart` → ProfileController
    - `script_upload_screen.dart` → ProfileController
-   - `identity_session_banner.dart` → ProfileController
-   - `identity_switcher_sheet.dart` → ProfileController (now shows profiles, not keypairs)
+   - `keypair_session_banner.dart` → ProfileController
+   - `keypair_switcher_sheet.dart` → ProfileController (now shows profiles, not keypairs)
 
 5. **Test file migrations completed:**
    - `test/widgets/quick_upload_dialog_test.dart`

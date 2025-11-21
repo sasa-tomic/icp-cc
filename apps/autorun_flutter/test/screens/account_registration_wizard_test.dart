@@ -13,14 +13,14 @@ void main() {
       testWidgets('Register button is disabled when fields are empty',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -39,13 +39,13 @@ void main() {
           'Register button remains disabled until username validation passes',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -76,13 +76,13 @@ void main() {
       testWidgets('Register button is disabled when only username is filled',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -107,13 +107,13 @@ void main() {
           'Register button is disabled when only display name is filled',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -138,13 +138,13 @@ void main() {
           'Register button is disabled when username is whitespace only',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -174,13 +174,13 @@ void main() {
           'Register button is disabled when display name is whitespace only',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -211,14 +211,14 @@ void main() {
       testWidgets('displays all required form fields',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -239,14 +239,14 @@ void main() {
       testWidgets('displays username permanence warning',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),
@@ -260,14 +260,14 @@ void main() {
       testWidgets('displays username format rules',
           (WidgetTester tester) async {
         // Arrange
-        final identity = await TestKeypairFactory.getEd25519Keypair();
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act
         await tester.pumpWidget(
           MaterialApp(
             home: AccountRegistrationWizard(
-              identity: identity,
+              keypair: keypair,
               accountController: controller,
             ),
           ),

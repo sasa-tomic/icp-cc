@@ -28,11 +28,11 @@ class SecureKeypairRepository {
   /// Get the underlying ProfileRepository for direct access
   ProfileRepository get profileRepository => _profileRepository;
 
-  /// Load identities (converted from profiles)
+  /// Load keypairs (converted from profiles)
   ///
   /// MIGRATION: Each Profile is converted to a list of ProfileKeypairs (one per keypair)
   /// This maintains backward compatibility with old code expecting individual keypairs.
-  Future<List<ProfileKeypair>> loadIdentities() async {
+  Future<List<ProfileKeypair>> loadKeypairs() async {
     // Load profiles from new storage
     final List<Profile> profiles = await _profileRepository.loadProfiles();
 
@@ -48,19 +48,19 @@ class SecureKeypairRepository {
     return result;
   }
 
-  /// Persist identities (converted to profiles)
+  /// Persist keypairs (converted to profiles)
   ///
   /// MIGRATION: Each ProfileKeypair is converted to a Profile with one keypair
-  Future<void> persistIdentities(List<ProfileKeypair> identities) async {
+  Future<void> persistKeypairs(List<ProfileKeypair> keypairs) async {
     // Convert each ProfileKeypair to a Profile with one keypair
-    final List<Profile> profiles = identities.map((ProfileKeypair identity) {
+    final List<Profile> profiles = keypairs.map((ProfileKeypair keypair) {
       return Profile(
         id: _uuid.v4(), // Generate new profile ID
-        name: identity.label, // Use keypair label as profile name
-        keypairs: <ProfileKeypair>[identity], // Single keypair in profile
+        name: keypair.label, // Use keypair label as profile name
+        keypairs: <ProfileKeypair>[keypair], // Single keypair in profile
         username: null, // Not registered yet
-        createdAt: identity.createdAt,
-        updatedAt: identity.createdAt,
+        createdAt: keypair.createdAt,
+        updatedAt: keypair.createdAt,
       );
     }).toList();
 
@@ -68,9 +68,9 @@ class SecureKeypairRepository {
     await _profileRepository.persistProfiles(profiles);
   }
 
-  Future<void> deleteKeypairSecureData(String identityId) async {
+  Future<void> deleteKeypairSecureData(String keypairId) async {
     // Delete sensitive data (delegates to ProfileRepository)
-    await _profileRepository.deleteKeypairSecureData(identityId);
+    await _profileRepository.deleteKeypairSecureData(keypairId);
   }
 
   Future<void> deleteAllSecureData() async {
@@ -79,13 +79,13 @@ class SecureKeypairRepository {
   }
 
   /// Retrieves a private key from secure storage for cryptographic operations
-  Future<String?> getPrivateKey(String identityId) async {
+  Future<String?> getPrivateKey(String keypairId) async {
     try {
-      return await _profileRepository.getPrivateKey(identityId);
+      return await _profileRepository.getPrivateKey(keypairId);
     } catch (e) {
       // Fail fast - don't silently ignore errors
       throw Exception(
-          'Failed to retrieve private key for identity $identityId: $e');
+          'Failed to retrieve private key for keypair $keypairId: $e');
     }
   }
 }

@@ -14,13 +14,13 @@ import '../theme/app_design_system.dart';
 /// - Single "Register" button submits the form
 class AccountRegistrationWizard extends StatefulWidget {
   const AccountRegistrationWizard({
-    required this.identity,
+    required this.keypair,
     required this.accountController,
     this.initialDisplayName,
     super.key,
   });
 
-  final ProfileKeypair identity;
+  final ProfileKeypair keypair;
   final AccountController accountController;
 
   /// Pre-filled display name (typically from profile name)
@@ -500,7 +500,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
     try {
       // Create account
       final account = await widget.accountController.registerAccount(
-        identity: widget.identity,
+        keypair: widget.keypair,
         username: _usernameController.text.trim(),
         displayName: _displayNameController.text.trim(),
         contactEmail: _contactEmailController.text.isEmpty

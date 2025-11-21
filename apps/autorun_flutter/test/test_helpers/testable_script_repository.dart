@@ -248,19 +248,19 @@ class TestableScriptRepository extends ScriptRepository {
 
       case AuthenticationMethod.realSignature:
         // Use real cryptographic signature (Ed25519 or secp256k1)
-        final identity =
+        final keypair =
             await TestKeypairFactory.getKeypair(_signatureAlgorithm);
-        final principal = PrincipalUtils.textFromRecord(identity);
+        final principal = PrincipalUtils.textFromRecord(keypair);
 
         // Update with real principal and public key
         scriptData['author_principal'] = principal;
-        scriptData['author_public_key'] = identity.publicKey;
+        scriptData['author_public_key'] = keypair.publicKey;
 
         // Create signature based on the action type
         final String signature;
         if (action == 'upload') {
           signature = await ScriptSignatureService.signScriptUpload(
-            authorKeypair: identity,
+            authorKeypair: keypair,
             title: scriptData['title'],
             description: scriptData['description'],
             category: scriptData['category'],
@@ -277,7 +277,7 @@ class TestableScriptRepository extends ScriptRepository {
           }
           final Map<String, dynamic> signedUpdate =
               await ScriptSignatureService.buildSignedUpdateRequest(
-            authorKeypair: identity,
+            authorKeypair: keypair,
             scriptId: resolvedScriptId,
             updates: scriptData,
             timestampIso: timestamp,
@@ -289,7 +289,7 @@ class TestableScriptRepository extends ScriptRepository {
         } else {
           // Default to upload signature for unknown actions
           signature = await ScriptSignatureService.signScriptUpload(
-            authorKeypair: identity,
+            authorKeypair: keypair,
             title: scriptData['title'],
             description: scriptData['description'],
             category: scriptData['category'],
@@ -343,17 +343,17 @@ class TestableScriptRepository extends ScriptRepository {
 
       case AuthenticationMethod.realSignature:
         // Use real cryptographic signature (Ed25519 or secp256k1)
-        final identity =
+        final keypair =
             await TestKeypairFactory.getKeypair(_signatureAlgorithm);
-        final principal = PrincipalUtils.textFromRecord(identity);
+        final principal = PrincipalUtils.textFromRecord(keypair);
 
         // Update with real principal and public key
         baseDeleteData['author_principal'] = principal;
-        baseDeleteData['author_public_key'] = identity.publicKey;
+        baseDeleteData['author_public_key'] = keypair.publicKey;
 
         // Create signature using ScriptSignatureService
         final signature = await ScriptSignatureService.signScriptDeletion(
-          authorKeypair: identity,
+          authorKeypair: keypair,
           scriptId: id,
           timestampIso: timestamp,
         );

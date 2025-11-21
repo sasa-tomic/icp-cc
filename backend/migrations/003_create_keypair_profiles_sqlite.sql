@@ -1,5 +1,5 @@
--- Create identity profiles table (SQLite)
-CREATE TABLE IF NOT EXISTS identity_profiles (
+-- Create keypair profiles table (SQLite)
+CREATE TABLE IF NOT EXISTS keypair_profiles (
     id TEXT PRIMARY KEY,
     principal TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
@@ -16,13 +16,13 @@ CREATE TABLE IF NOT EXISTS identity_profiles (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_keypair_profiles_principal
-    ON identity_profiles(principal);
+    ON keypair_profiles(principal);
 
 CREATE TRIGGER IF NOT EXISTS update_keypair_profiles_updated_at
-    AFTER UPDATE ON identity_profiles
+    AFTER UPDATE ON keypair_profiles
     FOR EACH ROW
 BEGIN
-    UPDATE identity_profiles
+    UPDATE keypair_profiles
     SET updated_at = datetime('now')
     WHERE id = NEW.id;
 END;
