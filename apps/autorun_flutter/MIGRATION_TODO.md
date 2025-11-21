@@ -7,7 +7,7 @@
 
 ### Core Architecture
 - [x] Profile model created (`lib/models/profile.dart`)
-- [x] ProfileKeypair model (renamed from IdentityRecord with typedef)
+- [x] ProfileKeypair model (renamed from ProfileKeypair with typedef)
 - [x] ProfileRepository for profile-centric storage
 - [x] ProfileController for profile management
 - [x] IdentityController refactored as compatibility wrapper
@@ -90,7 +90,7 @@ These tests validate backward compatibility and will be removed in Phase 3.
    - Unused imports cleaned up
 
 **Remaining:**
-- IdentityRecord typedef kept for convenience (maps to ProfileKeypair)
+- ProfileKeypair typedef kept for convenience (maps to ProfileKeypair)
 
 **Effort:** Complete
 **Impact:** High (clean profile-centric architecture)
@@ -101,7 +101,7 @@ All migration phases are complete. The codebase is now profile-centric:
 - `ProfileController` manages profiles
 - `ProfileHomePage` is the main UI entry point
 - `ProfileScope` provides dependency injection
-- `IdentityRecord` typedef kept for convenience (maps to ProfileKeypair)
+- `ProfileKeypair` typedef kept for convenience (maps to ProfileKeypair)
 
 ## 🎯 Success Criteria
 

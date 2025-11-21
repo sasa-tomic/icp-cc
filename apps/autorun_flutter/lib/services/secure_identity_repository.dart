@@ -2,23 +2,24 @@ import 'dart:io';
 
 import 'package:uuid/uuid.dart';
 
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../models/profile.dart';
 import 'profile_repository.dart';
 
 /// DEPRECATED: Use ProfileRepository instead
 ///
 /// This class is kept for backward compatibility during migration.
-/// It wraps ProfileRepository and converts between the old IdentityRecord
+/// It wraps ProfileRepository and converts between the old ProfileKeypair
 /// interface and the new Profile-centric interface.
 ///
 /// Migration strategy:
-/// - Old code: IdentityRecord = standalone keypair
+/// - Old code: ProfileKeypair = standalone keypair
 /// - New code: Profile with 1 keypair
-/// - Each IdentityRecord is converted to a Profile with a single keypair
+/// - Each ProfileKeypair is converted to a Profile with a single keypair
 class SecureIdentityRepository {
   SecureIdentityRepository({Directory? overrideDirectory})
-      : _profileRepository = ProfileRepository(overrideDirectory: overrideDirectory);
+      : _profileRepository =
+            ProfileRepository(overrideDirectory: overrideDirectory);
 
   final ProfileRepository _profileRepository;
 
@@ -29,18 +30,18 @@ class SecureIdentityRepository {
 
   /// Load identities (converted from profiles)
   ///
-  /// MIGRATION: Each Profile is converted to a list of IdentityRecords (one per keypair)
+  /// MIGRATION: Each Profile is converted to a list of ProfileKeypairs (one per keypair)
   /// This maintains backward compatibility with old code expecting individual keypairs.
-  Future<List<IdentityRecord>> loadIdentities() async {
+  Future<List<ProfileKeypair>> loadIdentities() async {
     // Load profiles from new storage
     final List<Profile> profiles = await _profileRepository.loadProfiles();
 
-    // Convert each profile's keypairs to IdentityRecords
-    final List<IdentityRecord> result = [];
+    // Convert each profile's keypairs to ProfileKeypairs
+    final List<ProfileKeypair> result = [];
     for (final profile in profiles) {
-      // Each keypair becomes an IdentityRecord
+      // Each keypair becomes an ProfileKeypair
       for (final keypair in profile.keypairs) {
-        result.add(keypair); // ProfileKeypair IS IdentityRecord (typedef)
+        result.add(keypair); // ProfileKeypair IS ProfileKeypair (typedef)
       }
     }
 
@@ -49,10 +50,10 @@ class SecureIdentityRepository {
 
   /// Persist identities (converted to profiles)
   ///
-  /// MIGRATION: Each IdentityRecord is converted to a Profile with one keypair
-  Future<void> persistIdentities(List<IdentityRecord> identities) async {
-    // Convert each IdentityRecord to a Profile with one keypair
-    final List<Profile> profiles = identities.map((IdentityRecord identity) {
+  /// MIGRATION: Each ProfileKeypair is converted to a Profile with one keypair
+  Future<void> persistIdentities(List<ProfileKeypair> identities) async {
+    // Convert each ProfileKeypair to a Profile with one keypair
+    final List<Profile> profiles = identities.map((ProfileKeypair identity) {
       return Profile(
         id: _uuid.v4(), // Generate new profile ID
         name: identity.label, // Use keypair label as profile name
@@ -83,7 +84,8 @@ class SecureIdentityRepository {
       return await _profileRepository.getPrivateKey(identityId);
     } catch (e) {
       // Fail fast - don't silently ignore errors
-      throw Exception('Failed to retrieve private key for identity $identityId: $e');
+      throw Exception(
+          'Failed to retrieve private key for identity $identityId: $e');
     }
   }
 }

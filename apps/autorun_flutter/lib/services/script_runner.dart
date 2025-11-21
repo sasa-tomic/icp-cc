@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../rust/native_bridge.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import 'secure_identity_repository.dart';
 
 class IntegrationInfo {
@@ -35,6 +35,7 @@ class CanisterCallSpec {
   final String label;
   final String canisterId;
   final String method;
+
   /// 0=query, 1=update, 2=composite
   final int kind;
   final String argsJson;
@@ -45,8 +46,10 @@ class CanisterCallSpec {
   /// 2. privateKeyB64: Direct private key specification (legacy)
   /// 3. isAnonymous: Force anonymous call
   final String? identityId;
+
   /// If provided, performs authenticated call; otherwise anonymous
   final String? privateKeyB64;
+
   /// If true, forces anonymous call regardless of other identity settings
   final bool isAnonymous;
 }
@@ -60,6 +63,7 @@ class ScriptRunPlan {
 
   final String luaSource;
   final List<CanisterCallSpec> calls;
+
   /// Optional initial JSON to pass under arg.input
   final Map<String, dynamic>? initialArg;
 }
@@ -95,8 +99,13 @@ abstract class ScriptBridge {
 
   // TEA-style app
   String? luaAppInit({required String script, String? jsonArg, int budgetMs});
-  String? luaAppView({required String script, required String stateJson, int budgetMs});
-  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs});
+  String? luaAppView(
+      {required String script, required String stateJson, int budgetMs});
+  String? luaAppUpdate(
+      {required String script,
+      required String msgJson,
+      required String stateJson,
+      int budgetMs});
 }
 
 class RustScriptBridge implements ScriptBridge {
@@ -104,12 +113,28 @@ class RustScriptBridge implements ScriptBridge {
   final RustBridgeLoader _bridge;
 
   @override
-  String? callAnonymous({required String canisterId, required String method, required int kind, String args = '()', String? host}) {
-    return _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+  String? callAnonymous(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      String args = '()',
+      String? host}) {
+    return _bridge.callAnonymous(
+        canisterId: canisterId,
+        method: method,
+        kind: kind,
+        args: args,
+        host: host);
   }
 
   @override
-  String? callAuthenticated({required String canisterId, required String method, required int kind, required String privateKeyB64, String args = '()', String? host}) {
+  String? callAuthenticated(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      required String privateKeyB64,
+      String args = '()',
+      String? host}) {
     return _bridge.callAuthenticated(
       canisterId: canisterId,
       method: method,
@@ -131,18 +156,30 @@ class RustScriptBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
-    return _bridge.luaAppInit(script: script, jsonArg: jsonArg, budgetMs: budgetMs);
+  String? luaAppInit(
+      {required String script, String? jsonArg, int budgetMs = 50}) {
+    return _bridge.luaAppInit(
+        script: script, jsonArg: jsonArg, budgetMs: budgetMs);
   }
 
   @override
-  String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) {
-    return _bridge.luaAppView(script: script, stateJson: stateJson, budgetMs: budgetMs);
+  String? luaAppView(
+      {required String script, required String stateJson, int budgetMs = 50}) {
+    return _bridge.luaAppView(
+        script: script, stateJson: stateJson, budgetMs: budgetMs);
   }
 
   @override
-  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) {
-    return _bridge.luaAppUpdate(script: script, msgJson: msgJson, stateJson: stateJson, budgetMs: budgetMs);
+  String? luaAppUpdate(
+      {required String script,
+      required String msgJson,
+      required String stateJson,
+      int budgetMs = 50}) {
+    return _bridge.luaAppUpdate(
+        script: script,
+        msgJson: msgJson,
+        stateJson: stateJson,
+        budgetMs: budgetMs);
   }
 }
 
@@ -208,14 +245,16 @@ class ScriptRunner {
       title: 'ICP Token Formatter',
       description:
           'Format ICP token values from e8s (8 decimals) to human-readable format.',
-      example: 'return icp_message("Balance: " .. icp_format_icp(123456789)) -- "1.23456789 ICP"',
+      example:
+          'return icp_message("Balance: " .. icp_format_icp(123456789)) -- "1.23456789 ICP"',
     ),
     IntegrationInfo(
       id: 'icp_format_timestamp',
       title: 'Timestamp Formatter',
       description:
           'Format nanosecond timestamps into human-readable date/time strings.',
-      example: 'return icp_message("Created: " .. icp_format_timestamp(1704067200000000000))',
+      example:
+          'return icp_message("Created: " .. icp_format_timestamp(1704067200000000000))',
     ),
     IntegrationInfo(
       id: 'icp_filter_items',
@@ -247,15 +286,18 @@ class ScriptRunner {
     if (spec.identityId != null && spec.identityId!.trim().isNotEmpty) {
       final SecureIdentityRepository? repository = _secureRepository;
       if (repository == null) {
-        throw Exception('Identity ID specified but no secure identity repository provided');
+        throw Exception(
+            'Identity ID specified but no secure identity repository provided');
       }
 
       try {
-        final List<IdentityRecord> identities = await repository.loadIdentities();
-        final IdentityRecord? identity = identities.cast<IdentityRecord?>().firstWhere(
-          (id) => id?.id == spec.identityId,
-          orElse: () => null,
-        );
+        final List<ProfileKeypair> identities =
+            await repository.loadIdentities();
+        final ProfileKeypair? identity =
+            identities.cast<ProfileKeypair?>().firstWhere(
+                  (id) => id?.id == spec.identityId,
+                  orElse: () => null,
+                );
 
         if (identity == null) {
           throw Exception('Identity with ID "${spec.identityId}" not found');
@@ -291,7 +333,9 @@ class ScriptRunner {
       try {
         privateKey = await _resolveIdentity(spec);
       } catch (e) {
-        return ScriptRunResult(ok: false, error: 'Failed to resolve identity for ${spec.label}: $e');
+        return ScriptRunResult(
+            ok: false,
+            error: 'Failed to resolve identity for ${spec.label}: $e');
       }
 
       final String? raw = (privateKey == null || privateKey.isEmpty)
@@ -311,13 +355,15 @@ class ScriptRunner {
               host: spec.host,
             );
       if (raw == null || raw.trim().isEmpty) {
-        return ScriptRunResult(ok: false, error: 'Empty response from ${spec.label}');
+        return ScriptRunResult(
+            ok: false, error: 'Empty response from ${spec.label}');
       }
       dynamic parsed;
       try {
         parsed = json.decode(raw);
       } catch (e) {
-        return ScriptRunResult(ok: false, error: 'Invalid JSON from ${spec.label}: $e');
+        return ScriptRunResult(
+            ok: false, error: 'Invalid JSON from ${spec.label}: $e');
       }
       callOutputs[spec.label] = parsed;
     }
@@ -330,31 +376,39 @@ class ScriptRunner {
     final String jsonArg = json.encode(arg);
 
     final String luaSourceWithHelper = _injectHelpers(plan.luaSource);
-    final String? luaOut = _bridge.luaExec(script: luaSourceWithHelper, jsonArg: jsonArg);
+    final String? luaOut =
+        _bridge.luaExec(script: luaSourceWithHelper, jsonArg: jsonArg);
     if (luaOut == null || luaOut.trim().isEmpty) {
       return ScriptRunResult(ok: false, error: 'Lua execution returned empty');
     }
 
     try {
-      final Map<String, dynamic> obj = json.decode(luaOut) as Map<String, dynamic>;
+      final Map<String, dynamic> obj =
+          json.decode(luaOut) as Map<String, dynamic>;
       final bool ok = (obj['ok'] as bool?) ?? false;
       if (!ok) {
-        return ScriptRunResult(ok: false, error: (obj['error'] as String?) ?? 'Lua error');
+        return ScriptRunResult(
+            ok: false, error: (obj['error'] as String?) ?? 'Lua error');
       }
       final dynamic result = obj['result'];
       // If Lua requests a follow-up call, perform it now
-      if (result is Map<String, dynamic> && (result['action'] as String?) == 'call') {
-        final String canisterId = (result['canister_id'] as String?)?.trim() ?? '';
+      if (result is Map<String, dynamic> &&
+          (result['action'] as String?) == 'call') {
+        final String canisterId =
+            (result['canister_id'] as String?)?.trim() ?? '';
         final String method = (result['method'] as String?)?.trim() ?? '';
         final int kind = (result['kind'] as num?)?.toInt() ?? 0;
         final String args = (result['args'] as String?) ?? '()';
-        final String? host = (result['host'] as String?)?.trim().isEmpty == true ? null : result['host'] as String?;
+        final String? host = (result['host'] as String?)?.trim().isEmpty == true
+            ? null
+            : result['host'] as String?;
         final String? key = (result['private_key_b64'] as String?)?.trim();
         final String? identityId = (result['identity_id'] as String?)?.trim();
         final bool isAnonymous = (result['is_anonymous'] as bool?) ?? false;
 
         if (canisterId.isEmpty || method.isEmpty) {
-          return ScriptRunResult(ok: false, error: 'call action missing canister_id/method');
+          return ScriptRunResult(
+              ok: false, error: 'call action missing canister_id/method');
         }
 
         // Create a temporary CanisterCallSpec to reuse identity resolution logic
@@ -374,12 +428,19 @@ class ScriptRunner {
         try {
           privateKey = await _resolveIdentity(tempSpec);
         } catch (e) {
-          return ScriptRunResult(ok: false, error: 'Failed to resolve identity for follow-up call: $e');
+          return ScriptRunResult(
+              ok: false,
+              error: 'Failed to resolve identity for follow-up call: $e');
         }
 
         final String? callOut;
         if (privateKey == null || privateKey.isEmpty) {
-          callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+          callOut = _bridge.callAnonymous(
+              canisterId: canisterId,
+              method: method,
+              kind: kind,
+              args: args,
+              host: host);
         } else {
           callOut = _bridge.callAuthenticated(
             canisterId: canisterId,
@@ -391,7 +452,8 @@ class ScriptRunner {
           );
         }
         if (callOut == null || callOut.trim().isEmpty) {
-          return ScriptRunResult(ok: false, error: 'Follow-up call returned empty');
+          return ScriptRunResult(
+              ok: false, error: 'Follow-up call returned empty');
         }
         try {
           final dynamic parsed = json.decode(callOut);
@@ -401,28 +463,37 @@ class ScriptRunner {
         }
       }
       // Batch of follow-up calls
-      if (result is Map<String, dynamic> && (result['action'] as String?) == 'batch') {
-        final List<dynamic> calls = (result['calls'] as List<dynamic>? ?? const <dynamic>[]);
+      if (result is Map<String, dynamic> &&
+          (result['action'] as String?) == 'batch') {
+        final List<dynamic> calls =
+            (result['calls'] as List<dynamic>? ?? const <dynamic>[]);
         if (calls.isEmpty) {
           return ScriptRunResult(ok: false, error: 'batch has no calls');
         }
         final Map<String, dynamic> outputs = <String, dynamic>{};
         for (final dynamic item in calls) {
           if (item is! Map<String, dynamic>) {
-            return ScriptRunResult(ok: false, error: 'invalid call spec in batch');
+            return ScriptRunResult(
+                ok: false, error: 'invalid call spec in batch');
           }
-          final String label = ((item['label'] as String?) ?? (item['method'] as String? ?? '')).trim();
-          final String canisterId = (item['canister_id'] as String?)?.trim() ?? '';
+          final String label =
+              ((item['label'] as String?) ?? (item['method'] as String? ?? ''))
+                  .trim();
+          final String canisterId =
+              (item['canister_id'] as String?)?.trim() ?? '';
           final String method = (item['method'] as String?)?.trim() ?? '';
           final int kind = (item['kind'] as num?)?.toInt() ?? 0;
           final String args = (item['args'] as String?) ?? '()';
-          final String? host = (item['host'] as String?)?.trim().isEmpty == true ? null : item['host'] as String?;
+          final String? host = (item['host'] as String?)?.trim().isEmpty == true
+              ? null
+              : item['host'] as String?;
           final String? key = (item['private_key_b64'] as String?)?.trim();
           final String? identityId = (item['identity_id'] as String?)?.trim();
           final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
 
           if (canisterId.isEmpty || method.isEmpty) {
-            return ScriptRunResult(ok: false, error: 'batch call missing canister_id/method');
+            return ScriptRunResult(
+                ok: false, error: 'batch call missing canister_id/method');
           }
 
           // Create a temporary CanisterCallSpec to reuse identity resolution logic
@@ -442,12 +513,20 @@ class ScriptRunner {
           try {
             privateKey = await _resolveIdentity(tempSpec);
           } catch (e) {
-            return ScriptRunResult(ok: false, error: 'Failed to resolve identity for batch call "$label": $e');
+            return ScriptRunResult(
+                ok: false,
+                error:
+                    'Failed to resolve identity for batch call "$label": $e');
           }
 
           String? callOut;
           if (privateKey == null || privateKey.isEmpty) {
-            callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+            callOut = _bridge.callAnonymous(
+                canisterId: canisterId,
+                method: method,
+                kind: kind,
+                args: args,
+                host: host);
           } else {
             callOut = _bridge.callAuthenticated(
               canisterId: canisterId,
@@ -459,7 +538,8 @@ class ScriptRunner {
             );
           }
           if (callOut == null || callOut.trim().isEmpty) {
-            return ScriptRunResult(ok: false, error: 'Follow-up call returned empty for $label');
+            return ScriptRunResult(
+                ok: false, error: 'Follow-up call returned empty for $label');
           }
           try {
             outputs[label.isEmpty ? method : label] = json.decode(callOut);
@@ -470,7 +550,8 @@ class ScriptRunner {
         return ScriptRunResult(ok: true, result: outputs);
       }
       // UI description passthrough (rendered by Flutter layer)
-      if (result is Map<String, dynamic> && (result['action'] as String?) == 'ui') {
+      if (result is Map<String, dynamic> &&
+          (result['action'] as String?) == 'ui') {
         return ScriptRunResult(ok: true, result: result);
       }
       return ScriptRunResult(ok: true, result: result);
@@ -493,17 +574,21 @@ class ScriptRunner {
       return ScriptRunResult(ok: false, error: 'performAction: missing action');
     }
     if (kindStr == 'call') {
-      final String canisterId = (action['canister_id'] as String?)?.trim() ?? '';
+      final String canisterId =
+          (action['canister_id'] as String?)?.trim() ?? '';
       final String method = (action['method'] as String?)?.trim() ?? '';
       final int kind = (action['kind'] as num?)?.toInt() ?? 0;
       final String args = (action['args'] as String?) ?? '()';
-      final String? host = (action['host'] as String?)?.trim().isEmpty == true ? null : action['host'] as String?;
+      final String? host = (action['host'] as String?)?.trim().isEmpty == true
+          ? null
+          : action['host'] as String?;
       final String? key = (action['private_key_b64'] as String?)?.trim();
       final String? identityId = (action['identity_id'] as String?)?.trim();
       final bool isAnonymous = (action['is_anonymous'] as bool?) ?? false;
 
       if (canisterId.isEmpty || method.isEmpty) {
-        return ScriptRunResult(ok: false, error: 'call action missing canister_id/method');
+        return ScriptRunResult(
+            ok: false, error: 'call action missing canister_id/method');
       }
 
       // Create a temporary CanisterCallSpec to reuse identity resolution logic
@@ -523,12 +608,18 @@ class ScriptRunner {
       try {
         privateKey = await _resolveIdentity(tempSpec);
       } catch (e) {
-        return ScriptRunResult(ok: false, error: 'Failed to resolve identity for action call: $e');
+        return ScriptRunResult(
+            ok: false, error: 'Failed to resolve identity for action call: $e');
       }
 
       String? callOut;
       if (privateKey == null || privateKey.isEmpty) {
-        callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+        callOut = _bridge.callAnonymous(
+            canisterId: canisterId,
+            method: method,
+            kind: kind,
+            args: args,
+            host: host);
       } else {
         callOut = _bridge.callAuthenticated(
           canisterId: canisterId,
@@ -550,27 +641,35 @@ class ScriptRunner {
       }
     }
     if (kindStr == 'batch') {
-      final List<dynamic> calls = (action['calls'] as List<dynamic>? ?? const <dynamic>[]);
+      final List<dynamic> calls =
+          (action['calls'] as List<dynamic>? ?? const <dynamic>[]);
       if (calls.isEmpty) {
         return ScriptRunResult(ok: false, error: 'batch has no calls');
       }
       final Map<String, dynamic> outputs = <String, dynamic>{};
       for (final dynamic item in calls) {
         if (item is! Map<String, dynamic>) {
-          return ScriptRunResult(ok: false, error: 'invalid call spec in batch');
+          return ScriptRunResult(
+              ok: false, error: 'invalid call spec in batch');
         }
-        final String label = ((item['label'] as String?) ?? (item['method'] as String? ?? '')).trim();
-        final String canisterId = (item['canister_id'] as String?)?.trim() ?? '';
+        final String label =
+            ((item['label'] as String?) ?? (item['method'] as String? ?? ''))
+                .trim();
+        final String canisterId =
+            (item['canister_id'] as String?)?.trim() ?? '';
         final String method = (item['method'] as String?)?.trim() ?? '';
         final int kind = (item['kind'] as num?)?.toInt() ?? 0;
         final String args = (item['args'] as String?) ?? '()';
-        final String? host = (item['host'] as String?)?.trim().isEmpty == true ? null : item['host'] as String?;
+        final String? host = (item['host'] as String?)?.trim().isEmpty == true
+            ? null
+            : item['host'] as String?;
         final String? key = (item['private_key_b64'] as String?)?.trim();
         final String? identityId = (item['identity_id'] as String?)?.trim();
         final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
 
         if (canisterId.isEmpty || method.isEmpty) {
-          return ScriptRunResult(ok: false, error: 'batch call missing canister_id/method');
+          return ScriptRunResult(
+              ok: false, error: 'batch call missing canister_id/method');
         }
 
         // Create a temporary CanisterCallSpec to reuse identity resolution logic
@@ -590,12 +689,19 @@ class ScriptRunner {
         try {
           privateKey = await _resolveIdentity(tempSpec);
         } catch (e) {
-          return ScriptRunResult(ok: false, error: 'Failed to resolve identity for batch call "$label": $e');
+          return ScriptRunResult(
+              ok: false,
+              error: 'Failed to resolve identity for batch call "$label": $e');
         }
 
         String? callOut;
         if (privateKey == null || privateKey.isEmpty) {
-          callOut = _bridge.callAnonymous(canisterId: canisterId, method: method, kind: kind, args: args, host: host);
+          callOut = _bridge.callAnonymous(
+              canisterId: canisterId,
+              method: method,
+              kind: kind,
+              args: args,
+              host: host);
         } else {
           callOut = _bridge.callAuthenticated(
             canisterId: canisterId,
@@ -607,7 +713,10 @@ class ScriptRunner {
           );
         }
         if (callOut == null || callOut.trim().isEmpty) {
-          return ScriptRunResult(ok: false, error: 'Follow-up call returned empty for ${label.isEmpty ? method : label}');
+          return ScriptRunResult(
+              ok: false,
+              error:
+                  'Follow-up call returned empty for ${label.isEmpty ? method : label}');
         }
         try {
           outputs[label.isEmpty ? method : label] = json.decode(callOut);
@@ -645,9 +754,17 @@ class ScriptRunner {
 
 /// Minimal interface to decouple UI from concrete runtime for testing.
 abstract class IScriptAppRuntime {
-  Future<Map<String, dynamic>> init({required String script, Map<String, dynamic>? initialArg, int budgetMs});
-  Future<Map<String, dynamic>> view({required String script, required Map<String, dynamic> state, int budgetMs});
-  Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs});
+  Future<Map<String, dynamic>> init(
+      {required String script, Map<String, dynamic>? initialArg, int budgetMs});
+  Future<Map<String, dynamic>> view(
+      {required String script,
+      required Map<String, dynamic> state,
+      int budgetMs});
+  Future<Map<String, dynamic>> update(
+      {required String script,
+      required Map<String, dynamic> msg,
+      required Map<String, dynamic> state,
+      int budgetMs});
 }
 
 /// Runtime host for TEA-style Lua app: init/view/update + effects execution.
@@ -656,8 +773,14 @@ class ScriptAppRuntime implements IScriptAppRuntime {
   final ScriptBridge _bridge;
 
   @override
-  Future<Map<String, dynamic>> init({required String script, Map<String, dynamic>? initialArg, int budgetMs = 50}) async {
-    final String? out = _bridge.luaAppInit(script: script, jsonArg: initialArg == null ? null : json.encode(initialArg), budgetMs: budgetMs);
+  Future<Map<String, dynamic>> init(
+      {required String script,
+      Map<String, dynamic>? initialArg,
+      int budgetMs = 50}) async {
+    final String? out = _bridge.luaAppInit(
+        script: script,
+        jsonArg: initialArg == null ? null : json.encode(initialArg),
+        budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('luaAppInit returned empty');
     }
@@ -669,8 +792,12 @@ class ScriptAppRuntime implements IScriptAppRuntime {
   }
 
   @override
-  Future<Map<String, dynamic>> view({required String script, required Map<String, dynamic> state, int budgetMs = 50}) async {
-    final String? out = _bridge.luaAppView(script: script, stateJson: json.encode(state), budgetMs: budgetMs);
+  Future<Map<String, dynamic>> view(
+      {required String script,
+      required Map<String, dynamic> state,
+      int budgetMs = 50}) async {
+    final String? out = _bridge.luaAppView(
+        script: script, stateJson: json.encode(state), budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('luaAppView returned empty');
     }
@@ -682,8 +809,16 @@ class ScriptAppRuntime implements IScriptAppRuntime {
   }
 
   @override
-  Future<Map<String, dynamic>> update({required String script, required Map<String, dynamic> msg, required Map<String, dynamic> state, int budgetMs = 50}) async {
-    final String? out = _bridge.luaAppUpdate(script: script, msgJson: json.encode(msg), stateJson: json.encode(state), budgetMs: budgetMs);
+  Future<Map<String, dynamic>> update(
+      {required String script,
+      required Map<String, dynamic> msg,
+      required Map<String, dynamic> state,
+      int budgetMs = 50}) async {
+    final String? out = _bridge.luaAppUpdate(
+        script: script,
+        msgJson: json.encode(msg),
+        stateJson: json.encode(state),
+        budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('luaAppUpdate returned empty');
     }

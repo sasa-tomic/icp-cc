@@ -44,7 +44,13 @@ class ProfileKeypair {
     required this.privateKey,
     required this.mnemonic,
     required this.createdAt,
+    this.principal,
   });
+
+  /// IC principal text (e.g., "aaaaa-aa")
+  /// Computed by Rust FFI and stored for consistency with backend.
+  /// Nullable for backward compatibility with existing data.
+  final String? principal;
 
   /// Unique keypair identifier (UUID)
   final String id;
@@ -68,7 +74,7 @@ class ProfileKeypair {
   final DateTime createdAt;
 
   /// Create a copy with updated fields
-  ProfileKeypair copyWith({String? label}) {
+  ProfileKeypair copyWith({String? label, String? principal}) {
     return ProfileKeypair(
       id: id,
       label: label ?? this.label,
@@ -77,6 +83,7 @@ class ProfileKeypair {
       privateKey: privateKey,
       mnemonic: mnemonic,
       createdAt: createdAt,
+      principal: principal ?? this.principal,
     );
   }
 
@@ -98,6 +105,7 @@ class ProfileKeypair {
         'privateKey': privateKey,
         'mnemonic': mnemonic,
         'createdAt': createdAt.toIso8601String(),
+        if (principal != null) 'principal': principal,
       };
 
   /// Deserialize from JSON
@@ -110,6 +118,7 @@ class ProfileKeypair {
       privateKey: json['privateKey'] as String,
       mnemonic: json['mnemonic'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      principal: json['principal'] as String?,
     );
   }
 

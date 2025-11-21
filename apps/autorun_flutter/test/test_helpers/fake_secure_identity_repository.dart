@@ -1,4 +1,4 @@
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/services/secure_identity_repository.dart';
@@ -8,7 +8,7 @@ import 'test_identity_factory.dart';
 /// Fake implementation of SecureIdentityRepository for testing
 /// Stores identities in memory and provides full control for test scenarios
 class FakeSecureIdentityRepository implements SecureIdentityRepository {
-  FakeSecureIdentityRepository(List<IdentityRecord> initialIdentities)
+  FakeSecureIdentityRepository(List<ProfileKeypair> initialIdentities)
       : _identities = List.of(initialIdentities),
         _fakeProfileRepository = FakeProfileRepository(
           // Convert initial identities to profiles
@@ -24,20 +24,20 @@ class FakeSecureIdentityRepository implements SecureIdentityRepository {
           }).toList(),
         );
 
-  List<IdentityRecord> _identities;
+  List<ProfileKeypair> _identities;
   final FakeProfileRepository _fakeProfileRepository;
 
   /// Public getter for testing purposes to verify persistence
-  List<IdentityRecord> get identities => List<IdentityRecord>.from(_identities);
+  List<ProfileKeypair> get identities => List<ProfileKeypair>.from(_identities);
 
   @override
-  Future<List<IdentityRecord>> loadIdentities() async {
-    return List<IdentityRecord>.from(_identities);
+  Future<List<ProfileKeypair>> loadIdentities() async {
+    return List<ProfileKeypair>.from(_identities);
   }
 
   @override
-  Future<void> persistIdentities(List<IdentityRecord> identities) async {
-    _identities = List<IdentityRecord>.from(identities);
+  Future<void> persistIdentities(List<ProfileKeypair> identities) async {
+    _identities = List<ProfileKeypair>.from(identities);
 
     // Also update profiles - each identity becomes a profile with one keypair
     final List<Profile> profiles = identities.map((identity) {
@@ -61,7 +61,7 @@ class FakeSecureIdentityRepository implements SecureIdentityRepository {
 
   @override
   Future<void> deleteAllSecureData() async {
-    _identities = <IdentityRecord>[];
+    _identities = <ProfileKeypair>[];
   }
 
   @override
@@ -103,7 +103,8 @@ class FakeProfileRepository implements ProfileRepository {
     );
   }
 
-  static Future<ProfileKeypair> _generateTestKeypair({required String label}) async {
+  static Future<ProfileKeypair> _generateTestKeypair(
+      {required String label}) async {
     // Import test identity factory
     final testIdentity = await TestIdentityFactory.getEd25519Identity();
     // Create a copy with the desired label

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'test_identity_factory.dart';
 
 void main() {
@@ -31,12 +31,15 @@ void main() {
     });
 
     test('supports different algorithms', () async {
-      final ed25519Identity = await TestIdentityFactory.fromSeed(42, algorithm: KeyAlgorithm.ed25519);
-      final secp256k1Identity = await TestIdentityFactory.fromSeed(42, algorithm: KeyAlgorithm.secp256k1);
+      final ed25519Identity = await TestIdentityFactory.fromSeed(42,
+          algorithm: KeyAlgorithm.ed25519);
+      final secp256k1Identity = await TestIdentityFactory.fromSeed(42,
+          algorithm: KeyAlgorithm.secp256k1);
 
       expect(ed25519Identity.algorithm, equals(KeyAlgorithm.ed25519));
       expect(secp256k1Identity.algorithm, equals(KeyAlgorithm.secp256k1));
-      expect(ed25519Identity.publicKey, isNot(equals(secp256k1Identity.publicKey)));
+      expect(ed25519Identity.publicKey,
+          isNot(equals(secp256k1Identity.publicKey)));
     });
 
     test('generates valid BIP39 mnemonics', () async {

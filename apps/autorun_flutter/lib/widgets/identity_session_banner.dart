@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/profile_controller.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../utils/principal.dart';
 
 class IdentitySessionBanner extends StatelessWidget {
@@ -43,7 +43,10 @@ class _AnonymousIdentityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+      color: Theme.of(context)
+          .colorScheme
+          .primaryContainer
+          .withValues(alpha: 0.35),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -52,11 +55,15 @@ class _AnonymousIdentityCard extends StatelessWidget {
           children: <Widget>[
             Row(
               children: <Widget>[
-                Icon(Icons.visibility_off_outlined, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.visibility_off_outlined,
+                    color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 12),
                 Text(
                   'Incognito mode',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -97,9 +104,11 @@ class _ActiveIdentityCard extends StatelessWidget {
     final ColorScheme colors = Theme.of(context).colorScheme;
     final TextTheme textTheme = Theme.of(context).textTheme;
     final String profileStatus = isProfileComplete ? 'Complete' : 'Incomplete';
-    final Color chipColor = isProfileComplete ? colors.secondaryContainer : colors.errorContainer;
-    final Color chipTextColor =
-        isProfileComplete ? colors.onSecondaryContainer : colors.onErrorContainer;
+    final Color chipColor =
+        isProfileComplete ? colors.secondaryContainer : colors.errorContainer;
+    final Color chipTextColor = isProfileComplete
+        ? colors.onSecondaryContainer
+        : colors.onErrorContainer;
 
     return Card(
       elevation: 0,
@@ -122,12 +131,16 @@ class _ActiveIdentityCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        identity.label.isEmpty ? 'Untitled identity' : identity.label,
-                        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                        identity.label.isEmpty
+                            ? 'Untitled identity'
+                            : identity.label,
+                        style: textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       Text(
                         '$principal (${identity.algorithm.name.toUpperCase()})',
-                        style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: colors.onSurfaceVariant),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -140,10 +153,13 @@ class _ActiveIdentityCard extends StatelessWidget {
               children: <Widget>[
                 Chip(
                   avatar: Icon(
-                    isProfileComplete ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                    isProfileComplete
+                        ? Icons.check_circle_outline
+                        : Icons.warning_amber_rounded,
                     color: chipTextColor,
                   ),
-                  label: Text('Profile $profileStatus', style: TextStyle(color: chipTextColor)),
+                  label: Text('Profile $profileStatus',
+                      style: TextStyle(color: chipTextColor)),
                   backgroundColor: chipColor,
                 ),
                 const Spacer(),

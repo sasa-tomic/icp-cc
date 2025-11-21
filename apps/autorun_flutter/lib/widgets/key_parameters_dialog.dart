@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../theme/app_design_system.dart';
 
 /// Parameters for creating a new keypair
@@ -71,9 +71,11 @@ class _KeyParametersDialogState extends State<KeyParametersDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            _buildAlgorithmChoice(KeyAlgorithm.ed25519, 'Ed25519', 'Fast and secure (recommended)'),
+            _buildAlgorithmChoice(KeyAlgorithm.ed25519, 'Ed25519',
+                'Fast and secure (recommended)'),
             const SizedBox(height: 8),
-            _buildAlgorithmChoice(KeyAlgorithm.secp256k1, 'Secp256k1', 'Bitcoin/Ethereum compatible'),
+            _buildAlgorithmChoice(KeyAlgorithm.secp256k1, 'Secp256k1',
+                'Bitcoin/Ethereum compatible'),
             const SizedBox(height: 16),
 
             // Seed input toggle
@@ -160,7 +162,8 @@ class _KeyParametersDialogState extends State<KeyParametersDialog> {
     );
   }
 
-  Widget _buildAlgorithmChoice(KeyAlgorithm algorithm, String title, String description) {
+  Widget _buildAlgorithmChoice(
+      KeyAlgorithm algorithm, String title, String description) {
     final isSelected = _selectedAlgorithm == algorithm;
 
     return InkWell(

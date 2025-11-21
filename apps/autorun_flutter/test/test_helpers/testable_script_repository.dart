@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:icp_autorun/models/script_record.dart';
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
@@ -44,13 +44,13 @@ class TestableScriptRepository extends ScriptRepository {
     bool forceInvalidAuth = false,
     KeyAlgorithm signatureAlgorithm = KeyAlgorithm.ed25519,
     super.overrideDirectory,
-  }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
-       _client = client ?? _TimeoutClient(),
-       _authMethod = authMethod,
-       _customAuthToken = customAuthToken,
-       _forceInvalidAuth = forceInvalidAuth,
-       _signatureAlgorithm = signatureAlgorithm,
-       super.internal();
+  })  : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
+        _client = client ?? _TimeoutClient(),
+        _authMethod = authMethod,
+        _customAuthToken = customAuthToken,
+        _forceInvalidAuth = forceInvalidAuth,
+        _signatureAlgorithm = signatureAlgorithm,
+        super.internal();
 
   static String _getDefaultBaseUrl() {
     try {
@@ -62,10 +62,8 @@ class TestableScriptRepository extends ScriptRepository {
     } catch (e) {
       // Fall through to exception below
     }
-    throw Exception(
-      'API server port file not found at /tmp/icp-api.port. '
-      'Please start the API server with: just api-up'
-    );
+    throw Exception('API server port file not found at /tmp/icp-api.port. '
+        'Please start the API server with: just api-up');
   }
 
   @override
@@ -74,7 +72,8 @@ class TestableScriptRepository extends ScriptRepository {
 
     try {
       for (final script in scripts) {
-        final scriptData = await _createAuthenticatedScriptData(script, 'upload');
+        final scriptData =
+            await _createAuthenticatedScriptData(script, 'upload');
 
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
@@ -132,7 +131,8 @@ class TestableScriptRepository extends ScriptRepository {
           return script.id;
         } else {
           // Create new script
-          final scriptData = await _createAuthenticatedScriptData(script, 'upload');
+          final scriptData =
+              await _createAuthenticatedScriptData(script, 'upload');
 
           final response = await _client.post(
             Uri.parse('$baseUrl/api/v1/scripts'),
@@ -165,7 +165,8 @@ class TestableScriptRepository extends ScriptRepository {
         }
 
         if (attempt == maxRetries - 1) {
-          throw Exception('Failed to save script after $maxRetries attempts: $e');
+          throw Exception(
+              'Failed to save script after $maxRetries attempts: $e');
         }
 
         // Wait before retrying
@@ -190,7 +191,9 @@ class TestableScriptRepository extends ScriptRepository {
         body: json.encode(deleteData),
       );
 
-      if (response.statusCode != 200 && response.statusCode != 204 && response.statusCode != 404) {
+      if (response.statusCode != 200 &&
+          response.statusCode != 204 &&
+          response.statusCode != 404) {
         throwDetailedHttpException(
           operation: 'Failed to delete script $id',
           response: response,
@@ -221,8 +224,10 @@ class TestableScriptRepository extends ScriptRepository {
       'author_name': script.metadata['authorName'] ?? 'Anonymous',
       'author_id': script.metadata['authorId'] ?? 'test-author-id',
       'author_principal': script.metadata['authorPrincipal'] ?? '2vxsx-fae',
-      'author_public_key': script.metadata['authorPublicKey'] ?? 'test-public-key-for-icp-compatibility',
-      'upload_signature': script.metadata['uploadSignature'] ?? 'test-signature',
+      'author_public_key': script.metadata['authorPublicKey'] ??
+          'test-public-key-for-icp-compatibility',
+      'upload_signature':
+          script.metadata['uploadSignature'] ?? 'test-signature',
       'version': version,
       'price': script.metadata['price'] ?? 0.0,
       'is_public': script.metadata['isPublic'] ?? false,
@@ -243,7 +248,8 @@ class TestableScriptRepository extends ScriptRepository {
 
       case AuthenticationMethod.realSignature:
         // Use real cryptographic signature (Ed25519 or secp256k1)
-        final identity = await TestIdentityFactory.getIdentity(_signatureAlgorithm);
+        final identity =
+            await TestIdentityFactory.getIdentity(_signatureAlgorithm);
         final principal = PrincipalUtils.textFromRecord(identity);
 
         // Update with real principal and public key
@@ -266,7 +272,8 @@ class TestableScriptRepository extends ScriptRepository {
         } else if (action == 'update') {
           final String? resolvedScriptId = scriptData['script_id'] as String?;
           if (resolvedScriptId == null || resolvedScriptId.isEmpty) {
-            throw Exception('script_id is required for authenticated update signing');
+            throw Exception(
+                'script_id is required for authenticated update signing');
           }
           final Map<String, dynamic> signedUpdate =
               await ScriptSignatureService.buildSignedUpdateRequest(
@@ -322,7 +329,7 @@ class TestableScriptRepository extends ScriptRepository {
 
   Future<Map<String, dynamic>> _createAuthenticatedDeleteData(String id) async {
     final timestamp = DateTime.now().toUtc().toIso8601String();
-    
+
     final baseDeleteData = {
       'script_id': id,
       'author_principal': '2vxsx-fae',
@@ -336,7 +343,8 @@ class TestableScriptRepository extends ScriptRepository {
 
       case AuthenticationMethod.realSignature:
         // Use real cryptographic signature (Ed25519 or secp256k1)
-        final identity = await TestIdentityFactory.getIdentity(_signatureAlgorithm);
+        final identity =
+            await TestIdentityFactory.getIdentity(_signatureAlgorithm);
         final principal = PrincipalUtils.textFromRecord(identity);
 
         // Update with real principal and public key
@@ -379,7 +387,8 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   Future<List<ScriptRecord>> getAllScripts() async {
-    throw UnimplementedError('getAllScripts not implemented for test repository');
+    throw UnimplementedError(
+        'getAllScripts not implemented for test repository');
   }
 
   @override
@@ -388,10 +397,11 @@ class TestableScriptRepository extends ScriptRepository {
   }
 
   void _ensureValidAuthentication(String operation) {
-    final hasInvalidCredentials = _authMethod == AuthenticationMethod.invalidToken ||
-        _authMethod == AuthenticationMethod.missingToken ||
-        _authMethod == AuthenticationMethod.malformedToken ||
-        _forceInvalidAuth;
+    final hasInvalidCredentials =
+        _authMethod == AuthenticationMethod.invalidToken ||
+            _authMethod == AuthenticationMethod.missingToken ||
+            _authMethod == AuthenticationMethod.malformedToken ||
+            _forceInvalidAuth;
 
     if (hasInvalidCredentials) {
       final reason = _forceInvalidAuth

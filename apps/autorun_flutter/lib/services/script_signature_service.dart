@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../utils/principal.dart';
 
 /// Digital signature service for ICP marketplace operations
@@ -11,7 +11,7 @@ class ScriptSignatureService {
   /// Sign a script upload payload with the author's private key
   /// Returns a base64-encoded signature
   static Future<String> signScriptUpload({
-    required IdentityRecord authorIdentity,
+    required ProfileKeypair authorIdentity,
     required String title,
     required String description,
     required String category,
@@ -42,7 +42,7 @@ class ScriptSignatureService {
   /// Sign a script update request with the author's private key
   /// Returns a base64-encoded signature
   static Future<String> signScriptUpdate({
-    required IdentityRecord authorIdentity,
+    required ProfileKeypair authorIdentity,
     required String scriptId,
     Map<String, dynamic>? updates,
     String? timestampIso,
@@ -59,7 +59,7 @@ class ScriptSignatureService {
   /// Sign a script deletion request with the author's private key
   /// Returns a base64-encoded signature
   static Future<String> signScriptDeletion({
-    required IdentityRecord authorIdentity,
+    required ProfileKeypair authorIdentity,
     required String scriptId,
     String? timestampIso,
   }) async {
@@ -142,7 +142,8 @@ class ScriptSignatureService {
   }
 
   /// Sign a canonical payload with the author's private key
-  static Future<String> _signPayload(IdentityRecord identity, Map<String, dynamic> payload) async {
+  static Future<String> _signPayload(
+      ProfileKeypair identity, Map<String, dynamic> payload) async {
     // Convert payload to canonical JSON string (sorted keys)
     final canonicalJson = _canonicalJsonEncode(payload);
     final payloadBytes = utf8.encode(canonicalJson);
@@ -163,8 +164,7 @@ class ScriptSignatureService {
         // For now, throw to indicate this needs Rust bridge implementation
         // The elliptic Dart package doesn't provide the right signing API
         throw UnimplementedError(
-          'secp256k1 signatures require Rust FFI bridge - use Ed25519 for now'
-        );
+            'secp256k1 signatures require Rust FFI bridge - use Ed25519 for now');
     }
   }
 
@@ -247,7 +247,7 @@ class ScriptSignatureService {
   /// when constructing HTTP bodies to guarantee byte-for-byte parity with the
   /// signing input.
   static Future<Map<String, dynamic>> buildSignedUpdateRequest({
-    required IdentityRecord authorIdentity,
+    required ProfileKeypair authorIdentity,
     required String scriptId,
     required Map<String, dynamic> updates,
     String? timestampIso,
@@ -258,7 +258,8 @@ class ScriptSignatureService {
         _sanitizeUpdateFields(Map<String, dynamic>.from(updates));
     final String resolvedTimestamp =
         timestampIso ?? DateTime.now().toUtc().toIso8601String();
-    final String authorPrincipal = PrincipalUtils.textFromRecord(authorIdentity);
+    final String authorPrincipal =
+        PrincipalUtils.textFromRecord(authorIdentity);
 
     final Map<String, dynamic> canonicalPayload = _createUpdatePayload(
       scriptId: scriptId,

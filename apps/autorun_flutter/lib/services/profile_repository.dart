@@ -185,6 +185,7 @@ class ProfileRepository {
                         'algorithm': keyAlgorithmToString(keypair.algorithm),
                         'publicKey': keypair.publicKey,
                         'createdAt': keypair.createdAt.toIso8601String(),
+                        if (keypair.principal != null) 'principal': keypair.principal,
                       })
                   .toList(),
               'createdAt': profile.createdAt.toIso8601String(),

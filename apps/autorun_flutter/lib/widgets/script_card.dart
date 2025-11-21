@@ -1,14 +1,9 @@
-import 'dart:convert';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/marketplace_script.dart';
 import '../theme/app_design_system.dart';
 import '../theme/modern_components.dart';
-import '../models/identity_record.dart';
-import '../utils/principal.dart';
 import '../services/script_signature_service.dart';
 
 class ScriptCard extends StatelessWidget {
@@ -540,40 +535,6 @@ class ScriptCard extends StatelessWidget {
     final String? authorPrincipal = script.authorPrincipal?.trim();
     if (authorPrincipal != null && authorPrincipal.isNotEmpty) {
       return authorPrincipal;
-    }
-    return _derivePrincipalFromPublicKey();
-  }
-
-  String? _derivePrincipalFromPublicKey() {
-    final String? publicKey = script.authorPublicKey?.trim();
-    if (publicKey == null || publicKey.isEmpty) return null;
-
-    try {
-      final Uint8List rawBytes = base64Decode(publicKey);
-      if (rawBytes.length == 32) {
-        final principalBytes = PrincipalUtils.principalFromPublicKey(
-          KeyAlgorithm.ed25519,
-          rawBytes,
-        );
-        return PrincipalUtils.toText(principalBytes);
-      }
-
-      if (rawBytes.length == 64 || rawBytes.length == 65) {
-        final Uint8List normalized = rawBytes.length == 65
-            ? rawBytes
-            : Uint8List.fromList(<int>[0x04, ...rawBytes]);
-        final principalBytes = PrincipalUtils.principalFromPublicKey(
-          KeyAlgorithm.secp256k1,
-          normalized,
-        );
-        return PrincipalUtils.toText(principalBytes);
-      }
-
-      debugPrint(
-        'Unsupported public key length (${rawBytes.length}) for script ${script.id}',
-      );
-    } catch (error) {
-      debugPrint('Failed to derive principal for ${script.id}: $error');
     }
     return null;
   }

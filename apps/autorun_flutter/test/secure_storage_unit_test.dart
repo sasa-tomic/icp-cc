@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 
 void main() {
   group('Secure Storage Logic Tests', () {
     test('identity model serialization maintains all fields', () {
-      final testIdentity = IdentityRecord(
+      final testIdentity = ProfileKeypair(
         id: 'test-1',
         label: 'Test Identity',
         algorithm: KeyAlgorithm.ed25519,
@@ -22,13 +22,15 @@ void main() {
       expect(jsonMap['id'], 'test-1');
       expect(jsonMap['label'], 'Test Identity');
       expect(jsonMap['algorithm'], 'ed25519');
-      expect(jsonMap['publicKey'], 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
+      expect(
+          jsonMap['publicKey'], 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
       expect(jsonMap['privateKey'], 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=');
-      expect(jsonMap['mnemonic'], 'test abandon abandon able about above absent act');
+      expect(jsonMap['mnemonic'],
+          'test abandon abandon able about above absent act');
       expect(jsonMap['createdAt'], '2024-01-01T00:00:00.000Z');
 
       // Test fromJson
-      final loadedIdentity = IdentityRecord.fromJson(jsonMap);
+      final loadedIdentity = ProfileKeypair.fromJson(jsonMap);
       expect(loadedIdentity.id, testIdentity.id);
       expect(loadedIdentity.label, testIdentity.label);
       expect(loadedIdentity.algorithm, testIdentity.algorithm);
@@ -39,7 +41,7 @@ void main() {
     });
 
     test('identity copyWith updates label only', () {
-      final originalIdentity = IdentityRecord(
+      final originalIdentity = ProfileKeypair(
         id: 'test-2',
         label: 'Original Label',
         algorithm: KeyAlgorithm.secp256k1,
@@ -78,7 +80,7 @@ void main() {
     });
 
     test('identity export details contain sensitive information', () {
-      final testIdentity = IdentityRecord(
+      final testIdentity = ProfileKeypair(
         id: 'export-test-1',
         label: 'Export Test',
         algorithm: KeyAlgorithm.ed25519,
@@ -95,7 +97,7 @@ void main() {
     });
 
     test('identity toString produces valid JSON', () {
-      final testIdentity = IdentityRecord(
+      final testIdentity = ProfileKeypair(
         id: 'string-test-1',
         label: 'String Test',
         algorithm: KeyAlgorithm.secp256k1,
@@ -108,7 +110,8 @@ void main() {
       final stringRepresentation = testIdentity.toString();
 
       // Should be valid JSON and parse back correctly
-      final parsedJson = jsonDecode(stringRepresentation) as Map<String, dynamic>;
+      final parsedJson =
+          jsonDecode(stringRepresentation) as Map<String, dynamic>;
       expect(parsedJson['id'], 'string-test-1');
       expect(parsedJson['label'], 'String Test');
       expect(parsedJson['algorithm'], 'secp256k1');
@@ -159,22 +162,25 @@ void main() {
 
     test('secure storage prevents accidental exposure of sensitive data', () {
       // Test that sensitive data is never accidentally logged or serialized
-      final sensitiveIdentity = IdentityRecord(
+      final sensitiveIdentity = ProfileKeypair(
         id: 'sensitive-test',
         label: 'Sensitive Test',
         algorithm: KeyAlgorithm.ed25519,
         publicKey: 'cHVibGljLWtleQ==',
         privateKey: 'cHJpdmF0ZS1rZXk=', // This should never appear in logs
-        mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+        mnemonic:
+            'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
 
       // Verify toString doesn't expose sensitive data in the public part
       final stringRepresentation = sensitiveIdentity.toString();
-      final parsedJson = jsonDecode(stringRepresentation) as Map<String, dynamic>;
+      final parsedJson =
+          jsonDecode(stringRepresentation) as Map<String, dynamic>;
 
       // The toString should serialize all data, but the public JSON store should not
-      expect(parsedJson.containsKey('privateKey'), true); // toString contains everything
+      expect(parsedJson.containsKey('privateKey'),
+          true); // toString contains everything
       expect(parsedJson.containsKey('mnemonic'), true);
 
       // But when creating public data for storage, sensitive fields are excluded

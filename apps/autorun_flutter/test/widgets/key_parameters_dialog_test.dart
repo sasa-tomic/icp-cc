@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/widgets/key_parameters_dialog.dart';
 
 void main() {
@@ -82,7 +82,8 @@ void main() {
       expect(find.text('Enter seed phrase (mnemonic)'), findsNothing);
     });
 
-    testWidgets('shows seed input when checkbox is checked', (WidgetTester tester) async {
+    testWidgets('shows seed input when checkbox is checked',
+        (WidgetTester tester) async {
       await pumpDialog(tester);
 
       // Find and tap the checkbox
@@ -96,7 +97,8 @@ void main() {
       expect(find.text('Enter seed phrase (mnemonic)'), findsOneWidget);
     });
 
-    testWidgets('hides seed input when checkbox is unchecked', (WidgetTester tester) async {
+    testWidgets('hides seed input when checkbox is unchecked',
+        (WidgetTester tester) async {
       await pumpDialog(tester);
 
       // Check the checkbox
@@ -114,7 +116,8 @@ void main() {
       expect(find.text('Enter seed phrase (mnemonic)'), findsNothing);
     });
 
-    testWidgets('returns null when Cancel is pressed', (WidgetTester tester) async {
+    testWidgets('returns null when Cancel is pressed',
+        (WidgetTester tester) async {
       KeyParameters? result;
 
       await tester.pumpWidget(
@@ -151,7 +154,8 @@ void main() {
       expect(result, isNull);
     });
 
-    testWidgets('returns parameters with ed25519 and no seed when Generate is pressed',
+    testWidgets(
+        'returns parameters with ed25519 and no seed when Generate is pressed',
         (WidgetTester tester) async {
       KeyParameters? result;
 

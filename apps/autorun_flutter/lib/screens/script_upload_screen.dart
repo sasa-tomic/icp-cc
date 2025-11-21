@@ -3,7 +3,7 @@ import '../services/marketplace_open_api_service.dart';
 import '../widgets/error_display.dart';
 import '../services/script_signature_service.dart';
 import '../controllers/profile_controller.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../utils/principal.dart';
 import '../widgets/profile_scope.dart';
 
@@ -97,7 +97,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+              Icon(Icons.warning_amber_rounded,
+                  color: Theme.of(context).colorScheme.error),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -121,7 +122,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+              backgroundColor:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
               child: Icon(
                 Icons.verified_user,
                 size: 20,
@@ -134,11 +136,18 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    identity.label.isEmpty ? 'Untitled identity' : identity.label,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    identity.label.isEmpty
+                        ? 'Untitled identity'
+                        : identity.label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    principal.length > 20 ? '${principal.substring(0, 20)}...' : principal,
+                    principal.length > 20
+                        ? '${principal.substring(0, 20)}...'
+                        : principal,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -169,7 +178,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     final ProfileKeypair? activeIdentity = profileController.activeKeypair;
     if (activeIdentity == null) {
       setState(() {
-        _error = 'No identity selected. Go to the Identities tab to select one.';
+        _error =
+            'No identity selected. Go to the Identities tab to select one.';
       });
       return;
     }
@@ -183,7 +193,10 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
       // Parse form data
       final title = _titleController.text.trim();
       // Generate slug from title: lowercase, replace non-alphanumeric with hyphens
-      final slug = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
+      final slug = title
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-|-$'), '');
       final description = _descriptionController.text.trim();
       final category = _categoryController.text.trim();
       final tags = _tagsController.text

@@ -1,4 +1,4 @@
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/utils/identity_generator.dart';
 import 'package:bip39/bip39.dart' as bip39;
 
@@ -12,12 +12,12 @@ class TestIdentityFactory {
   static const String _secp256k1TestMnemonic =
       'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-  static IdentityRecord? _cachedEd25519Identity;
-  static IdentityRecord? _cachedSecp256k1Identity;
-  static final Map<int, IdentityRecord> _seedBasedIdentityCache = {};
+  static ProfileKeypair? _cachedEd25519Identity;
+  static ProfileKeypair? _cachedSecp256k1Identity;
+  static final Map<int, ProfileKeypair> _seedBasedIdentityCache = {};
 
   /// Get or create a test Ed25519 identity (cached for performance)
-  static Future<IdentityRecord> getEd25519Identity() async {
+  static Future<ProfileKeypair> getEd25519Identity() async {
     _cachedEd25519Identity ??= await IdentityGenerator.generate(
       algorithm: KeyAlgorithm.ed25519,
       label: 'Test Ed25519 Identity',
@@ -27,7 +27,7 @@ class TestIdentityFactory {
   }
 
   /// Get or create a test secp256k1 identity (cached for performance)
-  static Future<IdentityRecord> getSecp256k1Identity() async {
+  static Future<ProfileKeypair> getSecp256k1Identity() async {
     _cachedSecp256k1Identity ??= await IdentityGenerator.generate(
       algorithm: KeyAlgorithm.secp256k1,
       label: 'Test secp256k1 Identity',
@@ -37,7 +37,7 @@ class TestIdentityFactory {
   }
 
   /// Get identity by algorithm
-  static Future<IdentityRecord> getIdentity(KeyAlgorithm algorithm) async {
+  static Future<ProfileKeypair> getIdentity(KeyAlgorithm algorithm) async {
     switch (algorithm) {
       case KeyAlgorithm.ed25519:
         return getEd25519Identity();
@@ -49,7 +49,7 @@ class TestIdentityFactory {
   /// Generate a deterministic test identity from a seed
   /// The seed is used to create a reproducible BIP39 mnemonic
   /// Cached for performance with the same seed
-  static Future<IdentityRecord> fromSeed(
+  static Future<ProfileKeypair> fromSeed(
     int seed, {
     KeyAlgorithm algorithm = KeyAlgorithm.ed25519,
   }) async {
@@ -84,7 +84,8 @@ class TestIdentityFactory {
     });
 
     // Convert entropy bytes to hex string for entropyToMnemonic
-    final entropyHex = entropyBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final entropyHex =
+        entropyBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
     return bip39.entropyToMnemonic(entropyHex);
   }

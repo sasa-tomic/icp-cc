@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
@@ -31,12 +31,15 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       identity = await TestIdentityFactory.getEd25519Identity();
-      final repository = FakeSecureIdentityRepository(<ProfileKeypair>[identity]);
-      profileController = ProfileController(profileRepository: repository.profileRepository);
+      final repository =
+          FakeSecureIdentityRepository(<ProfileKeypair>[identity]);
+      profileController =
+          ProfileController(profileRepository: repository.profileRepository);
       await profileController.ensureLoaded();
       // Set the first profile as active
       if (profileController.profiles.isNotEmpty) {
-        await profileController.setActiveProfile(profileController.profiles.first.id);
+        await profileController
+            .setActiveProfile(profileController.profiles.first.id);
       }
       marketplaceService = _MockMarketplaceService();
     });

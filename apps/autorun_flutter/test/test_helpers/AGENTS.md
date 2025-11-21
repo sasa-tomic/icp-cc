@@ -181,7 +181,7 @@ test('example test', () async {
 
 ```dart
 // ❌ Hardcoded fake keys
-IdentityRecord(
+ProfileKeypair(
   id: 'test-id',
   publicKey: base64Encode(List.filled(32, 1)),
   privateKey: base64Encode(List.filled(32, 2)),
@@ -285,7 +285,7 @@ If tests fail with signature/authentication errors:
    final identity = await TestIdentityFactory.getEd25519Identity();
 
    // Bad
-   final identity = IdentityRecord(...hardcoded values...);
+   final identity = ProfileKeypair(...hardcoded values...);
    ```
 
 3. **Check signature generation:**
@@ -312,14 +312,14 @@ When adding new test helpers to this directory:
 
 ## Summary: Quick Reference
 
-| Need | Use | Import |
-|------|-----|--------|
-| Test identity | `TestIdentityFactory.getEd25519Identity()` | `test_identity_factory.dart` |
-| Multiple users | `TestIdentityFactory.fromSeed(N)` | `test_identity_factory.dart` |
-| Script upload request | `TestSignatureUtils.createTestScriptRequest()` | `test_signature_utils.dart` |
-| Custom signature | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart` |
-| Identity repository | `FakeSecureIdentityRepository([identities])` | `fake_secure_identity_repository.dart` |
-| Test principal | `TestSignatureUtils.getPrincipal()` | `test_signature_utils.dart` |
+| Need                  | Use                                                     | Import                                 |
+|-----------------------|---------------------------------------------------------|----------------------------------------|
+| Test identity         | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           |
+| Multiple users        | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           |
+| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |
+| Custom signature      | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |
+| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` |
+| Test principal        | `TestSignatureUtils.getPrincipal()`                     | `test_signature_utils.dart`            |
 
 ## Remember
 

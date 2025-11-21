@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:cryptography/cryptography.dart';
 import 'test_identity_factory.dart';
@@ -9,8 +9,8 @@ import 'test_identity_factory.dart';
 /// Utility class for generating test signatures for development/testing
 /// Uses real cryptographic signatures with deterministic test identities
 class TestSignatureUtils {
-  static IdentityRecord? _syncIdentity;
-  static Future<IdentityRecord>? _identityFuture;
+  static ProfileKeypair? _syncIdentity;
+  static Future<ProfileKeypair>? _identityFuture;
 
   /// Initialize and cache the test identity
   /// Call this in setUpAll() to ensure synchronous access
@@ -22,7 +22,7 @@ class TestSignatureUtils {
   }
 
   /// Get the cached test identity (throws if not initialized)
-  static IdentityRecord _getIdentity() {
+  static ProfileKeypair _getIdentity() {
     if (_syncIdentity == null) {
       throw StateError(
         'TestSignatureUtils not initialized. Call ensureInitialized() in setUpAll()',
@@ -47,7 +47,7 @@ class TestSignatureUtils {
   }
 
   /// Get the test identity (async version for backwards compatibility)
-  static Future<IdentityRecord> getTestIdentity() async {
+  static Future<ProfileKeypair> getTestIdentity() async {
     await ensureInitialized();
     return _getIdentity();
   }
@@ -55,7 +55,8 @@ class TestSignatureUtils {
   /// Generate a real cryptographic test signature (async)
   /// Uses the default test identity with Ed25519 signatures
   /// For tests, call ensureInitialized() in setUpAll() then use generateTestSignatureSync()
-  static Future<String> generateTestSignature(Map<String, dynamic> payload) async {
+  static Future<String> generateTestSignature(
+      Map<String, dynamic> payload) async {
     await ensureInitialized();
     return _generateSignatureInternal(_getIdentity(), payload);
   }
@@ -69,7 +70,7 @@ class TestSignatureUtils {
   /// Internal method to generate signature (async version)
   /// Per ACCOUNT_PROFILES_DESIGN.md: Standard Ed25519 (sign message directly)
   static Future<String> _generateSignatureInternal(
-    IdentityRecord identity,
+    ProfileKeypair identity,
     Map<String, dynamic> payload,
   ) async {
     try {
@@ -78,7 +79,8 @@ class TestSignatureUtils {
 
       final algorithm = identity.algorithm == KeyAlgorithm.ed25519
           ? Ed25519()
-          : throw UnimplementedError('Only Ed25519 is supported for test signatures');
+          : throw UnimplementedError(
+              'Only Ed25519 is supported for test signatures');
 
       final privateKeyBytes = base64Decode(identity.privateKey);
       final keyPair = await algorithm.newKeyPairFromSeed(privateKeyBytes);
@@ -98,7 +100,7 @@ class TestSignatureUtils {
   /// NOTE: This uses a deterministic but NOT cryptographically secure signature
   /// Only use for testing with test infrastructure that accepts test signatures
   static String _generateSignatureSyncInternal(
-    IdentityRecord identity,
+    ProfileKeypair identity,
     Map<String, dynamic> payload,
   ) {
     try {
@@ -149,7 +151,8 @@ class TestSignatureUtils {
 
   /// Create a complete test script request with valid signature
   /// This mirrors TestIdentity.createTestScriptRequest
-  static Map<String, dynamic> createTestScriptRequest({Map<String, dynamic>? overrides}) {
+  static Map<String, dynamic> createTestScriptRequest(
+      {Map<String, dynamic>? overrides}) {
     final timestamp = DateTime.now().toIso8601String();
     final principal = getPrincipal();
     final publicKey = getPublicKey();
@@ -184,7 +187,8 @@ class TestSignatureUtils {
 
   /// Create a test update request with valid signature
   /// This mirrors TestIdentity.createTestUpdateRequest
-  static Map<String, dynamic> createTestUpdateRequest(String scriptId, {Map<String, dynamic>? updates}) {
+  static Map<String, dynamic> createTestUpdateRequest(String scriptId,
+      {Map<String, dynamic>? updates}) {
     final timestamp = DateTime.now().toIso8601String();
     final principal = getPrincipal();
     final publicKey = getPublicKey();
@@ -236,4 +240,3 @@ class TestSignatureUtils {
     };
   }
 }
-

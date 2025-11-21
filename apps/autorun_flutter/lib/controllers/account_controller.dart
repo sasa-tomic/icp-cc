@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/account.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../models/profile.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/account_signature_service.dart';
@@ -24,7 +24,8 @@ class AccountNetworkException implements Exception {
   AccountNetworkException(this.message, [this.originalError]);
 
   @override
-  String toString() => 'Network error: $message${originalError != null ? ' ($originalError)' : ''}';
+  String toString() =>
+      'Network error: $message${originalError != null ? ' ($originalError)' : ''}';
 }
 
 /// Controller for backend account management operations
@@ -37,7 +38,7 @@ class AccountNetworkException implements Exception {
 /// - NO cross-profile operations
 ///
 /// Key changes from old design:
-/// - Works with Profile objects, not individual IdentityRecords
+/// - Works with Profile objects, not individual ProfileKeypairs
 /// - Generates keypairs through ProfileController (no importing)
 /// - Stores username in Profile, not separate mapping
 ///
@@ -48,8 +49,8 @@ class AccountController extends ChangeNotifier {
   AccountController({
     MarketplaceOpenApiService? marketplaceService,
     ProfileController? profileController,
-  }) : _marketplaceService = marketplaceService ?? MarketplaceOpenApiService(),
-       _profileController = profileController;
+  })  : _marketplaceService = marketplaceService ?? MarketplaceOpenApiService(),
+        _profileController = profileController;
 
   final MarketplaceOpenApiService _marketplaceService;
   final ProfileController? _profileController;
@@ -80,7 +81,7 @@ class AccountController extends ChangeNotifier {
   /// - Exception if signature generation fails
   /// - Exception if backend request fails
   Future<Account> registerAccount({
-    required IdentityRecord identity,
+    required ProfileKeypair identity,
     required String username,
     required String displayName,
     String? contactEmail,
@@ -99,10 +100,12 @@ class AccountController extends ChangeNotifier {
       }
 
       // Normalize username
-      final normalizedUsername = AccountSignatureService.normalizeUsername(username);
+      final normalizedUsername =
+          AccountSignatureService.normalizeUsername(username);
 
       // Create signed request
-      final request = await AccountSignatureService.createRegisterAccountRequest(
+      final request =
+          await AccountSignatureService.createRegisterAccountRequest(
         identity: identity,
         username: normalizedUsername,
         displayName: displayName,
@@ -135,8 +138,10 @@ class AccountController extends ChangeNotifier {
   Future<Account?> fetchAccount(String username) async {
     _setBusy(true);
     try {
-      final normalizedUsername = AccountSignatureService.normalizeUsername(username);
-      final account = await _marketplaceService.getAccount(username: normalizedUsername);
+      final normalizedUsername =
+          AccountSignatureService.normalizeUsername(username);
+      final account =
+          await _marketplaceService.getAccount(username: normalizedUsername);
 
       if (account != null) {
         _accounts[normalizedUsername] = account;
@@ -153,7 +158,8 @@ class AccountController extends ChangeNotifier {
   ///
   /// Same as fetchAccount but always fetches from server.
   Future<Account?> refreshAccount(String username) async {
-    final normalizedUsername = AccountSignatureService.normalizeUsername(username);
+    final normalizedUsername =
+        AccountSignatureService.normalizeUsername(username);
     _accounts.remove(normalizedUsername); // Clear cache
     return await fetchAccount(normalizedUsername);
   }
@@ -162,7 +168,8 @@ class AccountController extends ChangeNotifier {
   ///
   /// Uses cache when available, otherwise queries backend.
   Future<bool> isUsernameAvailable(String username) async {
-    final normalizedUsername = AccountSignatureService.normalizeUsername(username);
+    final normalizedUsername =
+        AccountSignatureService.normalizeUsername(username);
 
     // Check cache first
     if (_availabilityCache.containsKey(normalizedUsername)) {
@@ -171,7 +178,8 @@ class AccountController extends ChangeNotifier {
 
     _setBusy(true);
     try {
-      final isAvailable = await _marketplaceService.isUsernameAvailable(normalizedUsername);
+      final isAvailable =
+          await _marketplaceService.isUsernameAvailable(normalizedUsername);
       _availabilityCache[normalizedUsername] = isAvailable;
       notifyListeners();
       return isAvailable;
@@ -199,7 +207,8 @@ class AccountController extends ChangeNotifier {
     }
 
     if (profile.username == null) {
-      throw StateError('Profile must be registered (have username) to add keypairs');
+      throw StateError(
+          'Profile must be registered (have username) to add keypairs');
     }
 
     _setBusy(true);
@@ -231,7 +240,10 @@ class AccountController extends ChangeNotifier {
       // Step 5: Update cached account
       final cachedAccount = _accounts[profile.username];
       if (cachedAccount != null) {
-        final updatedKeys = <AccountPublicKey>[...cachedAccount.publicKeys, newKey];
+        final updatedKeys = <AccountPublicKey>[
+          ...cachedAccount.publicKeys,
+          newKey
+        ];
         _accounts[profile.username!] = cachedAccount.copyWith(
           publicKeys: updatedKeys,
           updatedAt: DateTime.now(),
@@ -274,14 +286,16 @@ class AccountController extends ChangeNotifier {
   Future<AccountPublicKey> removePublicKey({
     required String username,
     required String keyId,
-    required IdentityRecord signingIdentity,
+    required ProfileKeypair signingIdentity,
   }) async {
     _setBusy(true);
     try {
-      final normalizedUsername = AccountSignatureService.normalizeUsername(username);
+      final normalizedUsername =
+          AccountSignatureService.normalizeUsername(username);
 
       // Create signed request
-      final request = await AccountSignatureService.createRemovePublicKeyRequest(
+      final request =
+          await AccountSignatureService.createRemovePublicKeyRequest(
         signingIdentity: signingIdentity,
         username: normalizedUsername,
         keyId: keyId,
@@ -323,7 +337,7 @@ class AccountController extends ChangeNotifier {
   /// Returns the updated account on success.
   Future<Account> updateProfile({
     required String username,
-    required IdentityRecord signingIdentity,
+    required ProfileKeypair signingIdentity,
     String? displayName,
     String? contactEmail,
     String? contactTelegram,
@@ -334,7 +348,8 @@ class AccountController extends ChangeNotifier {
   }) async {
     _setBusy(true);
     try {
-      final normalizedUsername = AccountSignatureService.normalizeUsername(username);
+      final normalizedUsername =
+          AccountSignatureService.normalizeUsername(username);
 
       // Create signed request
       final request = await AccountSignatureService.createUpdateAccountRequest(

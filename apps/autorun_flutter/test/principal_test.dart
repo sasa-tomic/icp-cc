@@ -1,7 +1,5 @@
-import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/utils/identity_generator.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'test_vectors.dart';
@@ -9,41 +7,61 @@ import 'test_vectors.dart';
 void main() {
   const String mnemonic = kTestMnemonic;
 
-  test('derives and formats Ed25519 principal', () async {
-    final IdentityRecord record = await IdentityGenerator.generate(
+  test('Ed25519 principal from Rust FFI matches expected', () async {
+    final ProfileKeypair record = await IdentityGenerator.generate(
       algorithm: KeyAlgorithm.ed25519,
       mnemonic: mnemonic,
       label: 'Test',
       identityCount: 0,
     );
 
-    final String principal = PrincipalUtils.textFromRecord(record);
-    expect(principal, kEd25519PrincipalText);
+    // Verify principal is stored (from Rust FFI)
+    expect(record.principal, isNotNull);
+    expect(record.principal, isNotEmpty);
 
-    final Uint8List publicKeyBytes = base64Decode(record.publicKey);
-    final Uint8List principalBytes = PrincipalUtils.principalFromPublicKey(
-      record.algorithm,
-      publicKeyBytes,
-    );
-    expect(PrincipalUtils.fromText(principal), principalBytes);
+    // Verify textFromRecord returns stored principal
+    final String principal = PrincipalUtils.textFromRecord(record);
+    expect(principal, record.principal);
+
+    // Verify it matches expected test vector
+    expect(principal, kEd25519PrincipalText);
   });
 
-  test('derives and formats secp256k1 principal', () async {
-    final IdentityRecord record = await IdentityGenerator.generate(
+  test('secp256k1 principal from Rust FFI matches expected', () async {
+    final ProfileKeypair record = await IdentityGenerator.generate(
       algorithm: KeyAlgorithm.secp256k1,
       mnemonic: mnemonic,
       label: 'Test',
       identityCount: 0,
     );
 
-    final String principal = PrincipalUtils.textFromRecord(record);
-    expect(principal, kSecp256k1PrincipalText);
+    // Verify principal is stored (from Rust FFI)
+    expect(record.principal, isNotNull);
+    expect(record.principal, isNotEmpty);
 
-    final Uint8List publicKeyBytes = base64Decode(record.publicKey);
-    final Uint8List principalBytes = PrincipalUtils.principalFromPublicKey(
-      record.algorithm,
-      publicKeyBytes,
+    // Verify textFromRecord returns stored principal
+    final String principal = PrincipalUtils.textFromRecord(record);
+    expect(principal, record.principal);
+
+    // Verify it matches expected test vector
+    expect(principal, kSecp256k1PrincipalText);
+  });
+
+  test('textFromRecord throws for keypair without stored principal', () {
+    final record = ProfileKeypair(
+      id: 'test-id',
+      label: 'Test',
+      algorithm: KeyAlgorithm.ed25519,
+      publicKey: 'dGVzdA==', // dummy
+      privateKey: 'dGVzdA==', // dummy
+      mnemonic: 'test mnemonic',
+      createdAt: DateTime.now(),
+      principal: null, // Missing principal
     );
-    expect(PrincipalUtils.fromText(principal), principalBytes);
+
+    expect(
+      () => PrincipalUtils.textFromRecord(record),
+      throwsStateError,
+    );
   });
 }

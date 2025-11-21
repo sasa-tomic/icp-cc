@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/models/identity_record.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 
@@ -12,7 +12,7 @@ void main() {
   group('ScriptSignatureService', () {
     late Ed25519 algorithm;
     late SimplePublicKey publicKey;
-    late IdentityRecord identity;
+    late ProfileKeypair identity;
     late String principal;
 
     setUpAll(() async {
@@ -82,7 +82,8 @@ void main() {
       expect(mismatchValid, isFalse);
     });
 
-    test('signScriptUpdate requires non-empty scriptId and verifies payload', () async {
+    test('signScriptUpdate requires non-empty scriptId and verifies payload',
+        () async {
       const scriptId = 'script-123';
       final timestamp = '2025-01-01T00:00:00Z';
 
@@ -143,7 +144,8 @@ void main() {
       );
     });
 
-    test('signScriptDeletion signs canonical payload and validates scriptId', () async {
+    test('signScriptDeletion signs canonical payload and validates scriptId',
+        () async {
       const scriptId = 'script-456';
       final timestamp = '2025-02-02T03:04:05Z';
 
@@ -209,7 +211,9 @@ void main() {
     expect(canonical['is_public'], isTrue);
   });
 
-  test('buildSignedUpdateRequest returns canonical payload with valid signature', () async {
+  test(
+      'buildSignedUpdateRequest returns canonical payload with valid signature',
+      () async {
     const scriptId = 'script-321';
     final timestamp = '2025-03-03T03:03:03Z';
     final localIdentity = await TestIdentityFactory.getEd25519Identity();

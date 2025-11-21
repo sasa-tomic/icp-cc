@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:uuid/uuid.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../models/account.dart';
 
 /// Digital signature service for account management operations
@@ -19,7 +19,7 @@ class AccountSignatureService {
 
   /// Create and sign a registration request
   static Future<RegisterAccountRequest> createRegisterAccountRequest({
-    required IdentityRecord identity,
+    required ProfileKeypair identity,
     required String username,
     required String displayName,
     String? contactEmail,
@@ -71,7 +71,7 @@ class AccountSignatureService {
 
   /// Create and sign an add key request
   static Future<AddPublicKeyRequest> createAddPublicKeyRequest({
-    required IdentityRecord signingIdentity,
+    required ProfileKeypair signingIdentity,
     required String username,
     required String newPublicKeyB64,
   }) async {
@@ -106,7 +106,7 @@ class AccountSignatureService {
 
   /// Create and sign a remove key request
   static Future<RemovePublicKeyRequest> createRemovePublicKeyRequest({
-    required IdentityRecord signingIdentity,
+    required ProfileKeypair signingIdentity,
     required String username,
     required String keyId,
   }) async {
@@ -140,7 +140,7 @@ class AccountSignatureService {
 
   /// Create and sign an update account request
   static Future<UpdateAccountRequest> createUpdateAccountRequest({
-    required IdentityRecord signingIdentity,
+    required ProfileKeypair signingIdentity,
     required String username,
     String? displayName,
     String? contactEmail,
@@ -200,7 +200,7 @@ class AccountSignatureService {
   ///    - secp256k1: SHA-256 hash then sign (ECDSA requirement)
   /// 4. Hex encode the signature
   static Future<String> _signPayload({
-    required IdentityRecord identity,
+    required ProfileKeypair identity,
     required Map<String, dynamic> payload,
   }) async {
     // 1. Canonical JSON (sorted keys, no whitespace)
@@ -300,10 +300,12 @@ class AccountSignatureService {
 
     // Length check
     if (normalized.length < 3) {
-      return UsernameValidation.invalid('Username must be at least 3 characters');
+      return UsernameValidation.invalid(
+          'Username must be at least 3 characters');
     }
     if (normalized.length > 32) {
-      return UsernameValidation.invalid('Username must be at most 32 characters');
+      return UsernameValidation.invalid(
+          'Username must be at most 32 characters');
     }
 
     // Format check
@@ -315,7 +317,8 @@ class AccountSignatureService {
       if (normalized.endsWith('-') || normalized.endsWith('_')) {
         return UsernameValidation.invalid('Username cannot end with - or _');
       }
-      return UsernameValidation.invalid('Username can only contain lowercase letters, numbers, - and _');
+      return UsernameValidation.invalid(
+          'Username can only contain lowercase letters, numbers, - and _');
     }
 
     // Reserved usernames

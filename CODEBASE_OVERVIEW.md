@@ -13,12 +13,12 @@ This is a **Flutter + Rust + Poem REST API** cross-platform application for mana
 ### Frontend
 - **Framework**: Flutter (Dart)
 - **State Management**: ChangeNotifier controllers + provider pattern
-- **Local Storage**: 
+- **Local Storage**:
   - `path_provider` for file-based script/identity storage
   - `flutter_secure_storage` for cryptographic keys (platform-native encryption)
   - `shared_preferences` for app settings
 - **HTTP Client**: `http` package for API communication
-- **Cryptography**: 
+- **Cryptography**:
   - `cryptography` package (Dart) for Ed25519 signing
   - Integration with Rust FFI bridge for complex operations
 - **UI**: Material Design 3, responsive layouts
@@ -30,7 +30,7 @@ This is a **Flutter + Rust + Poem REST API** cross-platform application for mana
 - **Async Runtime**: Tokio
 - **ORM/Query Builder**: sqlx (compile-time checked SQL)
 - **Serialization**: serde + serde_json
-- **Cryptography**: 
+- **Cryptography**:
   - `ed25519-dalek` for Ed25519 signature verification
   - `k256` for secp256k1 ECDSA signature verification
   - `sha2` for message hashing
@@ -65,11 +65,11 @@ icp-cc/
 │       │   │   └── script_controller.dart
 │       │   ├── models/               # Data models
 │       │   │   ├── identity_profile.dart
-│       │   │   ├── identity_record.dart
 │       │   │   ├── marketplace_script.dart
 │       │   │   ├── script_record.dart
 │       │   │   ├── script_template.dart
 │       │   │   ├── canister_method.dart
+│       │   │   ├── profile_keypair.dart
 │       │   │   └── purchase_record.dart
 │       │   ├── screens/              # UI pages
 │       │   │   ├── scripts_screen.dart (1624 lines) - LOCAL SCRIPTS + MARKETPLACE
@@ -368,9 +368,9 @@ CREATE TABLE identity_profiles (
 
 ## 8. Profile Management Implementation
 
-### Identity Model (`IdentityRecord`)
+### Identity Model (`ProfileKeypair`)
 - **Location**: Flutter local storage via `SecureIdentityRepository`
-- **Fields**: 
+- **Fields**:
   - id (UUID)
   - label (user-friendly name)
   - principal (ICP principal)
@@ -511,17 +511,17 @@ CREATE TABLE identity_profiles (
 1. **No unified script management**:
    - Local scripts and marketplace scripts are siloed
    - Users must switch tabs to compare/publish
-   
+
 2. **Marketplace discoverability**:
    - Search results don't surface trending/popular scripts
    - No personalized recommendations
    - No "you might like" suggestions
-   
+
 3. **Script lifecycle gaps**:
    - No in-app update notifications for downloaded scripts
    - No version comparison between local and marketplace
    - No easy way to re-publish updated versions
-   
+
 4. **Profile management confusion**:
    - Profile is separate from identity creation
    - No clear "complete your profile" flow
@@ -537,53 +537,53 @@ CREATE TABLE identity_profiles (
 ## 11. File Paths Reference (Key Components)
 
 ### Core Backend (Rust)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `/backend/src/main.rs` | 2795 | All backend code (monolithic) |
-| `/backend/Cargo.toml` | 40 | Rust dependencies |
-| `/backend/.env` | 376 | Environment configuration |
+| File                   | Lines | Purpose                       |
+|------------------------|-------|-------------------------------|
+| `/backend/src/main.rs` | 2795  | All backend code (monolithic) |
+| `/backend/Cargo.toml`  | 40    | Rust dependencies             |
+| `/backend/.env`        | 376   | Environment configuration     |
 
 ### Core Frontend (Flutter)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `/apps/autorun_flutter/lib/main.dart` | 169 | App entry, navigation setup |
-| `/apps/autorun_flutter/lib/config/app_config.dart` | 70 | API endpoint config |
-| `/apps/autorun_flutter/pubspec.yaml` | 107 | Flutter dependencies |
+| File                                               | Lines | Purpose                     |
+|----------------------------------------------------|-------|-----------------------------|
+| `/apps/autorun_flutter/lib/main.dart`              | 169   | App entry, navigation setup |
+| `/apps/autorun_flutter/lib/config/app_config.dart` | 70    | API endpoint config         |
+| `/apps/autorun_flutter/pubspec.yaml`               | 107   | Flutter dependencies        |
 
 ### Frontend Services
-| File | Lines | Purpose |
-|------|-------|---------|
-| `/lib/services/marketplace_open_api_service.dart` | ~200 | HTTP API client for marketplace |
-| `/lib/services/script_signature_service.dart` | ~300 | Ed25519/secp256k1 signing |
-| `/lib/services/secure_identity_repository.dart` | ~300 | Encrypted key storage |
-| `/lib/services/script_repository.dart` | 84 | Local script file storage |
-| `/lib/services/download_history_service.dart` | ~150 | Download tracking |
+| File                                              | Lines | Purpose                         |
+|---------------------------------------------------|-------|---------------------------------|
+| `/lib/services/marketplace_open_api_service.dart` | ~200  | HTTP API client for marketplace |
+| `/lib/services/script_signature_service.dart`     | ~300  | Ed25519/secp256k1 signing       |
+| `/lib/services/secure_identity_repository.dart`   | ~300  | Encrypted key storage           |
+| `/lib/services/script_repository.dart`            | 84    | Local script file storage       |
+| `/lib/services/download_history_service.dart`     | ~150  | Download tracking               |
 
 ### Frontend Controllers
-| File | Lines | Purpose |
-|------|-------|---------|
-| `/lib/controllers/identity_controller.dart` | 6947 | Identity lifecycle management |
-| `/lib/controllers/script_controller.dart` | 8919 | Local script lifecycle management |
+| File                                        | Lines | Purpose                           |
+|---------------------------------------------|-------|-----------------------------------|
+| `/lib/controllers/identity_controller.dart` | 6947  | Identity lifecycle management     |
+| `/lib/controllers/script_controller.dart`   | 8919  | Local script lifecycle management |
 
 ### Frontend Screens (UI Pages)
-| File | Lines | Primary Purpose |
-|------|-------|-----------------|
-| `/lib/screens/scripts_screen.dart` | 1624 | Local scripts + marketplace (tabbed) |
-| `/lib/screens/marketplace_screen.dart` | 676 | Dedicated marketplace view |
-| `/lib/screens/identity_home_page.dart` | 806 | Identity management and profiles |
-| `/lib/screens/script_upload_screen.dart` | 736 | Script publish workflow |
-| `/lib/screens/script_creation_screen.dart` | 490 | Create new local script |
-| `/lib/screens/bookmarks_screen.dart` | 1237 | Bookmarks + canister client |
-| `/lib/screens/download_history_screen.dart` | 337 | Download tracking |
+| File                                        | Lines | Primary Purpose                      |
+|---------------------------------------------|-------|--------------------------------------|
+| `/lib/screens/scripts_screen.dart`          | 1624  | Local scripts + marketplace (tabbed) |
+| `/lib/screens/marketplace_screen.dart`      | 676   | Dedicated marketplace view           |
+| `/lib/screens/identity_home_page.dart`      | 806   | Identity management and profiles     |
+| `/lib/screens/script_upload_screen.dart`    | 736   | Script publish workflow              |
+| `/lib/screens/script_creation_screen.dart`  | 490   | Create new local script              |
+| `/lib/screens/bookmarks_screen.dart`        | 1237  | Bookmarks + canister client          |
+| `/lib/screens/download_history_screen.dart` | 337   | Download tracking                    |
 
 ### Frontend Data Models
-| File | Purpose |
-|------|---------|
-| `/lib/models/identity_profile.dart` | Backend profile model + draft |
-| `/lib/models/identity_record.dart` | Local identity (keys, mnemonic) |
+| File                                  | Purpose                            |
+|---------------------------------------|------------------------------------|
+| `/lib/models/identity_profile.dart`   | Backend profile model + draft      |
+| `/lib/models/profile_keypair.dart`    | Local identity (keys, mnemonic)    |
 | `/lib/models/marketplace_script.dart` | Script with all marketplace fields |
-| `/lib/models/script_record.dart` | Local script representation |
-| `/lib/models/script_template.dart` | Script templates for creation |
+| `/lib/models/script_record.dart`      | Local script representation        |
+| `/lib/models/script_template.dart`    | Script templates for creation      |
 
 ### Frontend Widgets/Components
 - `/lib/widgets/script_card.dart` - Script display card
@@ -608,13 +608,13 @@ CREATE TABLE identity_profiles (
 
 ### UX Improvements Needed (From TODO.md)
 
-| Feature | Status | Difficulty |
-|---------|--------|------------|
-| **Unified Script Management** | Not started | High |
-| Hybrid view of local + marketplace scripts | | |
-| Source badges (Local vs Marketplace) | | |
-| Unified search across both | | |
-| Smart filtering | | |
+| Feature                                    | Status      | Difficulty |
+|--------------------------------------------|-------------|------------|
+| **Unified Script Management**              | Not started | High       |
+| Hybrid view of local + marketplace scripts |             |            |
+| Source badges (Local vs Marketplace)       |             |            |
+| Unified search across both                 |             |            |
+| Smart filtering                            |             |            |
 | ||||
 | **Seamless Publishing** | Partial | Medium |
 | Auto-populate metadata from local analysis | TODO | |
@@ -695,19 +695,19 @@ CREATE TABLE identity_profiles (
 
 ## 14. Summary Table
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| **Core Functionality** | ✅ Complete | Scripts, marketplace, identity management working |
-| **Security** | ⚠️ Mostly | Signature verification implemented, but profile updates unprotected |
-| **Database** | ✅ Good | SQLite with proper schema, but needs slug IDs |
-| **API** | ✅ Complete | 20+ endpoints implemented with proper validation |
-| **Frontend UX** | ⚠️ Basic | Functional but confusing navigation, needs unification |
-| **Marketplace** | ✅ Good | Search, filter, download, publish all working |
-| **Discovery** | ⏳ Partial | Search works, recommendations/trending stubbed |
-| **Version Management** | ⏳ Partial | Version field exists, but no update notifications |
-| **Profile System** | ✅ Good | Full CRUD, but missing some validations and signature check |
-| **Testing** | ⏳ Partial | Backend has signature tests, frontend needs more coverage |
-| **Documentation** | ⏳ Partial | README files exist, API docs in progress |
+| Aspect                 | Status     | Notes                                                               |
+|------------------------|------------|---------------------------------------------------------------------|
+| **Core Functionality** | ✅ Complete | Scripts, marketplace, identity management working                   |
+| **Security**           | ⚠️ Mostly  | Signature verification implemented, but profile updates unprotected |
+| **Database**           | ✅ Good     | SQLite with proper schema, but needs slug IDs                       |
+| **API**                | ✅ Complete | 20+ endpoints implemented with proper validation                    |
+| **Frontend UX**        | ⚠️ Basic   | Functional but confusing navigation, needs unification              |
+| **Marketplace**        | ✅ Good     | Search, filter, download, publish all working                       |
+| **Discovery**          | ⏳ Partial  | Search works, recommendations/trending stubbed                      |
+| **Version Management** | ⏳ Partial  | Version field exists, but no update notifications                   |
+| **Profile System**     | ✅ Good     | Full CRUD, but missing some validations and signature check         |
+| **Testing**            | ⏳ Partial  | Backend has signature tests, frontend needs more coverage           |
+| **Documentation**      | ⏳ Partial  | README files exist, API docs in progress                            |
 
 ---
 

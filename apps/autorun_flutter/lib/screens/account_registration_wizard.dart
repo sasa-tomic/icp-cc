@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/account.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../theme/app_design_system.dart';
 
@@ -20,14 +20,15 @@ class AccountRegistrationWizard extends StatefulWidget {
     super.key,
   });
 
-  final IdentityRecord identity;
+  final ProfileKeypair identity;
   final AccountController accountController;
 
   /// Pre-filled display name (typically from profile name)
   final String? initialDisplayName;
 
   @override
-  State<AccountRegistrationWizard> createState() => _AccountRegistrationWizardState();
+  State<AccountRegistrationWizard> createState() =>
+      _AccountRegistrationWizardState();
 }
 
 class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
@@ -310,7 +311,8 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
 
             // Register button
             FilledButton(
-              onPressed: (_canRegister && !_isRegistering) ? _registerAccount : null,
+              onPressed:
+                  (_canRegister && !_isRegistering) ? _registerAccount : null,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: AppDesignSystem.primaryLight,
@@ -441,7 +443,8 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
 
     try {
       // Check format first
-      final formatValidation = widget.accountController.validateUsername(username);
+      final formatValidation =
+          widget.accountController.validateUsername(username);
       if (!formatValidation.isValid) {
         setState(() {
           _validation = formatValidation;
@@ -451,7 +454,8 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
       }
 
       // Check availability
-      final isAvailable = await widget.accountController.isUsernameAvailable(username);
+      final isAvailable =
+          await widget.accountController.isUsernameAvailable(username);
       setState(() {
         _validation = isAvailable
             ? UsernameValidation.valid
@@ -460,7 +464,8 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
       });
     } catch (e) {
       setState(() {
-        _validation = UsernameValidation.invalid('Failed to check availability');
+        _validation =
+            UsernameValidation.invalid('Failed to check availability');
         _isValidating = false;
       });
     }
@@ -498,11 +503,21 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
         identity: widget.identity,
         username: _usernameController.text.trim(),
         displayName: _displayNameController.text.trim(),
-        contactEmail: _contactEmailController.text.isEmpty ? null : _contactEmailController.text,
-        contactTelegram: _contactTelegramController.text.isEmpty ? null : _contactTelegramController.text,
-        contactTwitter: _contactTwitterController.text.isEmpty ? null : _contactTwitterController.text,
-        contactDiscord: _contactDiscordController.text.isEmpty ? null : _contactDiscordController.text,
-        websiteUrl: _websiteUrlController.text.isEmpty ? null : _websiteUrlController.text,
+        contactEmail: _contactEmailController.text.isEmpty
+            ? null
+            : _contactEmailController.text,
+        contactTelegram: _contactTelegramController.text.isEmpty
+            ? null
+            : _contactTelegramController.text,
+        contactTwitter: _contactTwitterController.text.isEmpty
+            ? null
+            : _contactTwitterController.text,
+        contactDiscord: _contactDiscordController.text.isEmpty
+            ? null
+            : _contactDiscordController.text,
+        websiteUrl: _websiteUrlController.text.isEmpty
+            ? null
+            : _websiteUrlController.text,
         bio: _bioController.text.isEmpty ? null : _bioController.text,
       );
 

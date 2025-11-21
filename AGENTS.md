@@ -39,7 +39,7 @@ Profile (Local + Backend)
 **Target Implementation:**
 - Profile model containing: metadata + keypairs[] + accountRef
 - ProfileController (rename from IdentityController)
-- ProfileKeypair model (rename from IdentityRecord)
+- ProfileKeypair model (rename from ProfileKeypair)
 - No cross-profile operations
 
 - Every part of execution, every function, must be covered by at least one unit test.
@@ -62,13 +62,13 @@ CRITICAL: After you are done verify that changes are highly aligned with the pro
 
 ### Quick Reference
 
-| Task                  | Use                                                     | File                                   | Notes                                              |
-|-----------------------|---------------------------------------------------------|----------------------------------------|----------------------------------------------------|
-| Create test identity  | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           | Creates ProfileKeypair for testing                 |
-| Multiple test users   | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           | Creates deterministic keypairs from seed           |
-| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |                                                    |
-| Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |                                                    |
-| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` | In-memory keypair storage for tests                |
+| Task                  | Use                                                     | File                                   | Notes                                    |
+|-----------------------|---------------------------------------------------------|----------------------------------------|------------------------------------------|
+| Create test identity  | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           | Creates ProfileKeypair for testing       |
+| Multiple test users   | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           | Creates deterministic keypairs from seed |
+| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |                                          |
+| Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |                                          |
+| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` | In-memory keypair storage for tests      |
 
 # MCP servers that you should use in the project
 - Use context7 mcp server if you would like to obtain additional information for a library or API
@@ -82,7 +82,7 @@ The profile-centric architecture has been fully implemented:
 
 1. **Core Models:**
    - `lib/models/profile.dart` - Profile container model
-   - `lib/models/identity_record.dart` - ProfileKeypair (typedef IdentityRecord = ProfileKeypair)
+   - `lib/models/profile_keypair.dart` - ProfileKeypair
    - `lib/models/account.dart` - Backend account representation
 
 2. **Controllers:**

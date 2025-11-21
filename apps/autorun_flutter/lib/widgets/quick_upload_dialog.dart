@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/profile_controller.dart';
-import '../models/identity_record.dart';
+import '../models/profile_keypair.dart';
 import '../models/script_record.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
@@ -62,7 +62,8 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     'Business',
   ];
 
-  ProfileController _profileController(BuildContext context, {bool listen = true}) {
+  ProfileController _profileController(BuildContext context,
+      {bool listen = true}) {
     return widget.profileController ?? ProfileScope.of(context, listen: listen);
   }
 
@@ -186,7 +187,8 @@ end''';
     final ProfileKeypair? identity = controller.activeKeypair;
     if (identity == null) {
       setState(() {
-        _error = 'No identity selected. Go to the Identities tab to select one.';
+        _error =
+            'No identity selected. Go to the Identities tab to select one.';
       });
       return;
     }
@@ -211,7 +213,10 @@ end''';
 
       final String title = _titleController.text.trim();
       // Generate slug from title: lowercase, replace non-alphanumeric with hyphens
-      final String slug = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
+      final String slug = title
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-|-$'), '');
       final String description = _descriptionController.text.trim();
       final List<String> tags = _tagsController.text
           .split(',')
@@ -414,129 +419,131 @@ end''';
                               ),
                               const SizedBox(height: 16),
                             ],
-                      // Basic Information Section
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Basic Information',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
+                            // Basic Information Section
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Basic Information',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                 ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _titleController,
-                            decoration: const InputDecoration(
-                              labelText: 'Title *',
-                              border: OutlineInputBorder(),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _titleController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Title *',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Title is required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _descriptionController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Description *',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  maxLines: 3,
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Description is required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _authorController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Author Name *',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Author name is required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Identity context',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
+                                _buildIdentityCard(_profileController(context)),
+                                const SizedBox(height: 16),
+                                DropdownButtonFormField<String>(
+                                  initialValue: _selectedCategory,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Category *',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: _availableCategories.map((category) {
+                                    return DropdownMenuItem(
+                                      value: category,
+                                      child: Text(category),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        _selectedCategory = value;
+                                      });
+                                    }
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _tagsController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Tags (comma-separated)',
+                                    border: OutlineInputBorder(),
+                                    helperText:
+                                        'e.g., automation, defi, gaming',
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _priceController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Price (ICP) *',
+                                    border: OutlineInputBorder(),
+                                    helperText: 'Set to 0 for free scripts',
+                                  ),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Price is required';
+                                    }
+                                    final price = double.tryParse(value.trim());
+                                    if (price == null || price < 0) {
+                                      return 'Invalid price';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
                             ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Title is required';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _descriptionController,
-                            decoration: const InputDecoration(
-                              labelText: 'Description *',
-                              border: OutlineInputBorder(),
-                            ),
-                            maxLines: 3,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Description is required';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _authorController,
-                            decoration: const InputDecoration(
-                              labelText: 'Author Name *',
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Author name is required';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Identity context',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildIdentityCard(_profileController(context)),
-                          const SizedBox(height: 16),
-                          DropdownButtonFormField<String>(
-                            initialValue: _selectedCategory,
-                            decoration: const InputDecoration(
-                              labelText: 'Category *',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: _availableCategories.map((category) {
-                              return DropdownMenuItem(
-                                value: category,
-                                child: Text(category),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() {
-                                  _selectedCategory = value;
-                                });
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _tagsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Tags (comma-separated)',
-                              border: OutlineInputBorder(),
-                              helperText: 'e.g., automation, defi, gaming',
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _priceController,
-                            decoration: const InputDecoration(
-                              labelText: 'Price (ICP) *',
-                              border: OutlineInputBorder(),
-                              helperText: 'Set to 0 for free scripts',
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Price is required';
-                              }
-                              final price = double.tryParse(value.trim());
-                              if (price == null || price < 0) {
-                                return 'Invalid price';
-                              }
-                              return null;
-                            },
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              )
+                    )
                   : _buildCodePreview(),
             ),
 
@@ -582,7 +589,8 @@ end''';
                                       value: _uploadProgress,
                                       strokeWidth: 2,
                                       color: Colors.white,
-                                      backgroundColor: Colors.white.withValues(alpha: 0.3),
+                                      backgroundColor:
+                                          Colors.white.withValues(alpha: 0.3),
                                     ),
                                   )
                                 : const Icon(Icons.upload),
@@ -657,7 +665,8 @@ end''';
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+              Icon(Icons.warning_amber_rounded,
+                  color: Theme.of(context).colorScheme.error),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -680,7 +689,8 @@ end''';
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+              backgroundColor:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
               child: Icon(
                 Icons.verified_user,
                 size: 20,
@@ -693,11 +703,18 @@ end''';
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    identity.label.isEmpty ? 'Untitled identity' : identity.label,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    identity.label.isEmpty
+                        ? 'Untitled identity'
+                        : identity.label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    principal.length > 20 ? '${principal.substring(0, 20)}...' : principal,
+                    principal.length > 20
+                        ? '${principal.substring(0, 20)}...'
+                        : principal,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
