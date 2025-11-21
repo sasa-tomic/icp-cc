@@ -3,16 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/screens/account_registration_wizard.dart';
 
-import '../test_helpers/test_identity_factory.dart';
+import '../test_helpers/test_keypair_factory.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('AccountRegistrationWizard', () {
     group('Register button behavior', () {
-      testWidgets('Register button is disabled when fields are empty', (WidgetTester tester) async {
+      testWidgets('Register button is disabled when fields are empty',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act
@@ -34,9 +35,11 @@ void main() {
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Register button remains disabled until username validation passes', (WidgetTester tester) async {
+      testWidgets(
+          'Register button remains disabled until username validation passes',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
@@ -50,12 +53,14 @@ void main() {
         await tester.pumpAndSettle();
 
         // Act - Enter username
-        final usernameField = find.widgetWithText(TextFormField, 'Username').first;
+        final usernameField =
+            find.widgetWithText(TextFormField, 'Username').first;
         await tester.enterText(usernameField, 'testuser');
         await tester.pump();
 
         // Act - Enter display name
-        final displayNameField = find.widgetWithText(TextFormField, 'Display Name *').first;
+        final displayNameField =
+            find.widgetWithText(TextFormField, 'Display Name *').first;
         await tester.enterText(displayNameField, 'Test User');
         await tester.pump();
 
@@ -64,12 +69,14 @@ void main() {
         expect(registerButton, findsOneWidget);
 
         final FilledButton button = tester.widget(registerButton);
-        expect(button.onPressed, isNull); // Button is disabled until validation passes
+        expect(button.onPressed,
+            isNull); // Button is disabled until validation passes
       });
 
-      testWidgets('Register button is disabled when only username is filled', (WidgetTester tester) async {
+      testWidgets('Register button is disabled when only username is filled',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
@@ -83,7 +90,8 @@ void main() {
         await tester.pumpAndSettle();
 
         // Act - Enter only username
-        final usernameField = find.widgetWithText(TextFormField, 'Username').first;
+        final usernameField =
+            find.widgetWithText(TextFormField, 'Username').first;
         await tester.enterText(usernameField, 'testuser');
         await tester.pump();
 
@@ -95,9 +103,11 @@ void main() {
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Register button is disabled when only display name is filled', (WidgetTester tester) async {
+      testWidgets(
+          'Register button is disabled when only display name is filled',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
@@ -111,7 +121,8 @@ void main() {
         await tester.pumpAndSettle();
 
         // Act - Enter only display name
-        final displayNameField = find.widgetWithText(TextFormField, 'Display Name *').first;
+        final displayNameField =
+            find.widgetWithText(TextFormField, 'Display Name *').first;
         await tester.enterText(displayNameField, 'Test User');
         await tester.pump();
 
@@ -123,9 +134,11 @@ void main() {
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Register button is disabled when username is whitespace only', (WidgetTester tester) async {
+      testWidgets(
+          'Register button is disabled when username is whitespace only',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
@@ -139,11 +152,13 @@ void main() {
         await tester.pumpAndSettle();
 
         // Act - Enter whitespace username
-        final usernameField = find.widgetWithText(TextFormField, 'Username').first;
+        final usernameField =
+            find.widgetWithText(TextFormField, 'Username').first;
         await tester.enterText(usernameField, '   ');
         await tester.pump();
 
-        final displayNameField = find.widgetWithText(TextFormField, 'Display Name *').first;
+        final displayNameField =
+            find.widgetWithText(TextFormField, 'Display Name *').first;
         await tester.enterText(displayNameField, 'Test User');
         await tester.pump();
 
@@ -155,9 +170,11 @@ void main() {
         expect(button.onPressed, isNull); // Button is disabled
       });
 
-      testWidgets('Register button is disabled when display name is whitespace only', (WidgetTester tester) async {
+      testWidgets(
+          'Register button is disabled when display name is whitespace only',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         await tester.pumpWidget(
@@ -171,11 +188,13 @@ void main() {
         await tester.pumpAndSettle();
 
         // Act - Enter whitespace display name
-        final usernameField = find.widgetWithText(TextFormField, 'Username').first;
+        final usernameField =
+            find.widgetWithText(TextFormField, 'Username').first;
         await tester.enterText(usernameField, 'testuser');
         await tester.pump();
 
-        final displayNameField = find.widgetWithText(TextFormField, 'Display Name *').first;
+        final displayNameField =
+            find.widgetWithText(TextFormField, 'Display Name *').first;
         await tester.enterText(displayNameField, '   ');
         await tester.pump();
 
@@ -189,9 +208,10 @@ void main() {
     });
 
     group('UI elements', () {
-      testWidgets('displays all required form fields', (WidgetTester tester) async {
+      testWidgets('displays all required form fields',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act
@@ -216,9 +236,10 @@ void main() {
         expect(find.text('Bio (optional)'), findsOneWidget);
       });
 
-      testWidgets('displays username permanence warning', (WidgetTester tester) async {
+      testWidgets('displays username permanence warning',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act
@@ -236,9 +257,10 @@ void main() {
         expect(find.text('Username cannot be changed later'), findsOneWidget);
       });
 
-      testWidgets('displays username format rules', (WidgetTester tester) async {
+      testWidgets('displays username format rules',
+          (WidgetTester tester) async {
         // Arrange
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
         final controller = AccountController();
 
         // Act

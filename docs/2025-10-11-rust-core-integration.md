@@ -5,16 +5,16 @@
 
 ## Scope of Work
 - Rust crate `crates/icp_core`:
-  - `generate_ed25519_identity(mnemonic?: String) -> IdentityData`
-  - `generate_secp256k1_identity(mnemonic?: String) -> IdentityData`
-  - `IdentityData { public_key_b64, private_key_b64, principal_text }`
+  - `generate_ed25519_keypair(mnemonic?: String) -> KeypairData`
+  - `generate_secp256k1_keypair(mnemonic?: String) -> KeypairData`
+  - `KeypairData { public_key_b64, private_key_b64, principal_text }`
   - Crates: `bip39`, `bitcoin`, `ed25519-dalek`, `candid`, `base64`, `sha2`.
 - Bridge & Platforms
-  - FFI implemented with a minimal C-ABI in `crates/icp_core/src/ffi.rs` including `icp_generate_identity` and canister client bridges.
+  - FFI implemented with a minimal C-ABI in `crates/icp_core/src/ffi.rs` including `icp_generate_keypair` and canister client bridges.
   - Android/iOS/Desktop via `dart:ffi` through `apps/autorun_flutter/lib/rust/native_bridge.dart`. Web keeps current Dart path short-term.
 - Flutter integration
   - Add a Dart facade that calls FFI on native and falls back to Dart on Web.
-  - Update `IdentityGenerator.generate(...)` to use the Rust-backed path.
+  - Update `KeypairGenerator.generate(...)` to use the Rust-backed path.
 - Tests (TDD)
   - Rust: unit tests for known vectors and principal text.
   - Dart: existing tests remain unchanged and must pass.

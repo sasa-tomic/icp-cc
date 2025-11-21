@@ -58,11 +58,13 @@ class ScriptCard extends StatelessWidget {
                           context.colors.secondary.withValues(alpha: 0.6),
                         ],
                       ),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDesignSystem.radius20)),
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(AppDesignSystem.radius20)),
                     ),
                     child: script.iconUrl != null
                         ? ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDesignSystem.radius20)),
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(AppDesignSystem.radius20)),
                             child: CachedNetworkImage(
                               imageUrl: script.iconUrl!,
                               fit: BoxFit.cover,
@@ -72,8 +74,10 @@ class ScriptCard extends StatelessWidget {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
-                                      context.colors.primary.withValues(alpha: 0.3),
-                                      context.colors.secondary.withValues(alpha: 0.2),
+                                      context.colors.primary
+                                          .withValues(alpha: 0.3),
+                                      context.colors.secondary
+                                          .withValues(alpha: 0.2),
                                     ],
                                   ),
                                 ),
@@ -81,7 +85,8 @@ class ScriptCard extends StatelessWidget {
                                   child: Icon(
                                     Icons.code,
                                     size: 48,
-                                    color: context.colors.onPrimary.withValues(alpha: 0.7),
+                                    color: context.colors.onPrimary
+                                        .withValues(alpha: 0.7),
                                   ),
                                 ),
                               ),
@@ -110,11 +115,12 @@ class ScriptCard extends StatelessWidget {
                             child: Icon(
                               Icons.code_rounded,
                               size: 48,
-                              color: context.colors.onPrimary.withValues(alpha: 0.9),
+                              color: context.colors.onPrimary
+                                  .withValues(alpha: 0.9),
                             ),
                           ),
                   ),
-                  
+
                   // Gradient overlay for better text readability
                   Positioned.fill(
                     child: Container(
@@ -127,11 +133,12 @@ class ScriptCard extends StatelessWidget {
                             Colors.black.withValues(alpha: 0.3),
                           ],
                         ),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDesignSystem.radius20)),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(AppDesignSystem.radius20)),
                       ),
                     ),
                   ),
-                  
+
                   // Downloaded badge (top-left)
                   if (isDownloaded)
                     Positioned(
@@ -144,7 +151,8 @@ class ScriptCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: Colors.green.shade600.withValues(alpha: 0.95),
-                          borderRadius: BorderRadius.circular(AppDesignSystem.radius16),
+                          borderRadius:
+                              BorderRadius.circular(AppDesignSystem.radius16),
                           border: Border.all(
                             color: Colors.white.withValues(alpha: 0.3),
                             width: 1,
@@ -199,13 +207,15 @@ class ScriptCard extends StatelessWidget {
                               ),
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.visibility, size: 16, color: Colors.white),
+                              icon: const Icon(Icons.visibility,
+                                  size: 16, color: Colors.white),
                               onPressed: () {
                                 HapticFeedback.selectionClick();
                                 onQuickPreview!();
                               },
                               padding: const EdgeInsets.all(6),
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                               tooltip: 'Quick Preview',
                             ),
                           ),
@@ -224,13 +234,15 @@ class ScriptCard extends StatelessWidget {
                               ),
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.share, size: 16, color: Colors.white),
+                              icon: const Icon(Icons.share,
+                                  size: 16, color: Colors.white),
                               onPressed: () {
                                 HapticFeedback.selectionClick();
                                 onShare!();
                               },
                               padding: const EdgeInsets.all(6),
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                               tooltip: 'Share',
                             ),
                           ),
@@ -245,7 +257,9 @@ class ScriptCard extends StatelessWidget {
             Expanded(
               flex: 4,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppDesignSystem.spacing16, vertical: AppDesignSystem.spacing12),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppDesignSystem.spacing16,
+                    vertical: AppDesignSystem.spacing12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -286,13 +300,15 @@ class ScriptCard extends StatelessWidget {
                                     width: 20,
                                     height: 20,
                                     decoration: BoxDecoration(
-                                      color: context.colors.primary.withValues(alpha: 0.1),
+                                      color: context.colors.primary
+                                          .withValues(alpha: 0.1),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Center(
                                       child: Text(
-                                        script.authorName.isNotEmpty
-                                            ? script.authorName[0].toUpperCase()
+                                        (script.authorName?.isNotEmpty ?? false)
+                                            ? script.authorName![0]
+                                                .toUpperCase()
                                             : 'A',
                                         style: TextStyle(
                                           fontSize: 10,
@@ -305,8 +321,9 @@ class ScriptCard extends StatelessWidget {
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      script.authorName,
-                                      style: context.textStyles.bodySmall.copyWith(
+                                      script.authorName ?? 'Anonymous',
+                                      style:
+                                          context.textStyles.bodySmall.copyWith(
                                         color: context.colors.onSurfaceVariant,
                                         fontWeight: FontWeight.w500,
                                         fontSize: 11,
@@ -318,8 +335,9 @@ class ScriptCard extends StatelessWidget {
                                 ],
                               ),
                               Padding(
-                                padding: const EdgeInsets.only(left: 26, top: 4),
-                                child: _buildIdentityBadge(context),
+                                padding:
+                                    const EdgeInsets.only(left: 26, top: 4),
+                                child: _buildKeypairBadge(context),
                               ),
                             ],
                           ),
@@ -351,11 +369,12 @@ class ScriptCard extends StatelessWidget {
                           label: script.rating > 0
                               ? '${script.rating.toStringAsFixed(1)} ⭐'
                               : 'New',
-                          icon: script.rating > 0 
-                              ? Icon(Icons.star_rounded, size: 12, color: Colors.amber.shade600)
+                          icon: script.rating > 0
+                              ? Icon(Icons.star_rounded,
+                                  size: 12, color: Colors.amber.shade600)
                               : null,
                           selected: script.rating > 0,
-                          backgroundColor: script.rating > 0 
+                          backgroundColor: script.rating > 0
                               ? Colors.amber.withValues(alpha: 0.1)
                               : context.colors.surfaceContainerHighest,
                         ),
@@ -365,7 +384,8 @@ class ScriptCard extends StatelessWidget {
                         // Downloads
                         ModernChip(
                           label: _formatDownloads(script.downloads),
-                          icon: Icon(Icons.download_rounded, size: 12, color: context.colors.primary),
+                          icon: Icon(Icons.download_rounded,
+                              size: 12, color: context.colors.primary),
                           selected: true,
                           backgroundColor: context.colors.primaryContainer,
                         ),
@@ -374,28 +394,34 @@ class ScriptCard extends StatelessWidget {
 
                     // Action buttons
                     const SizedBox(height: AppDesignSystem.spacing4),
-                    
+
                     // Prominent download button for free scripts
                     if (onDownload != null && script.price == 0)
                       ModernButton(
-                        onPressed: isDownloading ? null : () {
-                          HapticFeedback.mediumImpact();
-                          onDownload!();
-                        },
-                        variant: isDownloaded ? ModernButtonVariant.secondary : ModernButtonVariant.primary,
+                        onPressed: isDownloading
+                            ? null
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                onDownload!();
+                              },
+                        variant: isDownloaded
+                            ? ModernButtonVariant.secondary
+                            : ModernButtonVariant.primary,
                         size: ModernButtonSize.medium,
                         fullWidth: true,
                         loading: isDownloading,
                         icon: Icon(
-                          isDownloaded ? Icons.check_circle_rounded : Icons.download_rounded,
+                          isDownloaded
+                              ? Icons.check_circle_rounded
+                              : Icons.download_rounded,
                           color: Colors.white,
                           size: 18,
                         ),
                         child: Text(
-                          isDownloading 
-                              ? 'Downloading...' 
-                              : isDownloaded 
-                                  ? 'Downloaded ✓' 
+                          isDownloading
+                              ? 'Downloading...'
+                              : isDownloaded
+                                  ? 'Downloaded ✓'
                                   : 'Download FREE',
                         ),
                       )
@@ -445,20 +471,25 @@ class ScriptCard extends StatelessWidget {
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: isFavorite 
-                                      ? Colors.red.withValues(alpha: 0.1) 
+                                  color: isFavorite
+                                      ? Colors.red.withValues(alpha: 0.1)
                                       : context.colors.surfaceContainerHighest,
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: isFavorite 
-                                        ? Colors.red.withValues(alpha: 0.3) 
-                                        : context.colors.outline.withValues(alpha: 0.3),
+                                    color: isFavorite
+                                        ? Colors.red.withValues(alpha: 0.3)
+                                        : context.colors.outline
+                                            .withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                 ),
                                 child: Icon(
-                                  isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                  color: isFavorite ? Colors.red.shade500 : context.colors.onSurfaceVariant,
+                                  isFavorite
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  color: isFavorite
+                                      ? Colors.red.shade500
+                                      : context.colors.onSurfaceVariant,
                                   size: 18,
                                 ),
                               ),
@@ -485,7 +516,7 @@ class ScriptCard extends StatelessWidget {
     }
   }
 
-  Widget _buildIdentityBadge(BuildContext context) {
+  Widget _buildKeypairBadge(BuildContext context) {
     final principalPrefix = _principalPrefix();
     final bool isVerified = principalPrefix != null;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;

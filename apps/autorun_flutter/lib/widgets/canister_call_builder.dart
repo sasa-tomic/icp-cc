@@ -11,7 +11,8 @@ class CanisterCallBuilderDialog extends StatefulWidget {
   final Map<String, dynamic>? initialCallSpec;
 
   @override
-  State<CanisterCallBuilderDialog> createState() => _CanisterCallBuilderDialogState();
+  State<CanisterCallBuilderDialog> createState() =>
+      _CanisterCallBuilderDialogState();
 }
 
 class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
@@ -26,7 +27,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
   int _callKind = 0; // 0=query, 1=update, 2=composite
   Map<String, dynamic> _args = {};
   bool _isAuthenticated = false;
-  String? _identityId;
+  String? _keypairId;
   bool _isLoadingCandid = false;
   List<CanisterMethod> _availableMethods = [];
 
@@ -35,7 +36,11 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     {'id': 'rrkah-fqaaa-aaaaa-aaaaq-cai', 'name': 'NNS Governance', 'host': ''},
     {'id': 'ryjl3-tyaaa-aaaaa-aaaba-cai', 'name': 'ICP Ledger', 'host': ''},
     {'id': 'qga6-kiaaa-aaaaa-aaada-cai', 'name': 'Cycles Minting', 'host': ''},
-    {'id': 'qhbym-qaaaa-aaaaa-aaafq-cai', 'name': 'Internet Identity', 'host': ''},
+    {
+      'id': 'qhbym-qaaaa-aaaaa-aaafq-cai',
+      'name': 'Internet Keypair',
+      'host': ''
+    },
   ];
 
   @override
@@ -56,7 +61,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     _labelController.text = spec['label'] ?? 'call1';
     _callKind = spec['kind'] ?? 0;
     _isAuthenticated = spec['authenticated'] ?? false;
-    _identityId = spec['identity_id'];
+    _keypairId = spec['identity_id'];
 
     if (spec['args'] != null) {
       _args = Map<String, dynamic>.from(spec['args']);
@@ -81,7 +86,11 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
 
     try {
       final candidService = CandidService();
-      final methods = await candidService.fetchCanisterMethods(canisterId, _hostController.text.trim().isEmpty ? null : _hostController.text.trim());
+      final methods = await candidService.fetchCanisterMethods(
+          canisterId,
+          _hostController.text.trim().isEmpty
+              ? null
+              : _hostController.text.trim());
 
       setState(() {
         _availableMethods = methods;
@@ -92,7 +101,9 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
       if (_methodController.text.isNotEmpty) {
         _selectedMethod = methods.firstWhere(
           (m) => m.name == _methodController.text,
-          orElse: () => methods.isNotEmpty ? methods.first : CanisterMethod(name: '', kind: 0, args: []),
+          orElse: () => methods.isNotEmpty
+              ? methods.first
+              : CanisterMethod(name: '', kind: 0, args: []),
         );
       }
     } catch (e) {
@@ -139,7 +150,9 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
   }
 
   String _generateLuaCode() {
-    if (_selectedMethod == null || _selectedCanisterId == null || _selectedCanisterId!.isEmpty) {
+    if (_selectedMethod == null ||
+        _selectedCanisterId == null ||
+        _selectedCanisterId!.isEmpty) {
       return '';
     }
 
@@ -168,10 +181,11 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     buffer.writeln('  kind = $_callKind, -- ${_getCallKindLabel(_callKind)}');
     buffer.writeln('  args = $argsString');
 
-    if (_isAuthenticated && _identityId != null) {
-      buffer.writeln('  identity_id = "$_identityId"');
+    if (_isAuthenticated && _keypairId != null) {
+      buffer.writeln('  identity_id = "$_keypairId"');
     } else if (_isAuthenticated) {
-      buffer.writeln('  -- Note: You\'ll need to set private_key_b64 or identity_id for authenticated calls');
+      buffer.writeln(
+          '  -- Note: You\'ll need to set private_key_b64 or identity_id for authenticated calls');
     }
 
     buffer.writeln('})');
@@ -184,9 +198,12 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
 
   String _getCallKindLabel(int kind) {
     switch (kind) {
-      case 1: return 'update';
-      case 2: return 'composite';
-      default: return 'query';
+      case 1:
+        return 'update';
+      case 2:
+        return 'composite';
+      default:
+        return 'query';
     }
   }
 
@@ -221,17 +238,20 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Canister',
                         border: OutlineInputBorder(),
-                        helperText: 'Select a well-known canister or enter custom ID',
+                        helperText:
+                            'Select a well-known canister or enter custom ID',
                       ),
                       items: [
                         const DropdownMenuItem<String>(
                           value: '',
                           child: Text('Custom canister ID'),
                         ),
-                        ..._wellKnownCanisters.map((canister) => DropdownMenuItem<String>(
-                          value: canister['id'],
-                          child: Text('${canister['name']} (${canister['id']})'),
-                        )),
+                        ..._wellKnownCanisters
+                            .map((canister) => DropdownMenuItem<String>(
+                                  value: canister['id'],
+                                  child: Text(
+                                      '${canister['name']} (${canister['id']})'),
+                                )),
                       ],
                       onChanged: _onCanisterChanged,
                     ),
@@ -245,9 +265,12 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                         border: OutlineInputBorder(),
                         hintText: 'aaaaa-aa',
                       ),
-                      validator: (v) => (v ?? '').trim().isEmpty ? 'Required' : null,
+                      validator: (v) =>
+                          (v ?? '').trim().isEmpty ? 'Required' : null,
                       onChanged: (value) {
-                        if (value != _selectedCanisterId && _wellKnownCanisters.every((c) => c['id'] != value)) {
+                        if (value != _selectedCanisterId &&
+                            _wellKnownCanisters
+                                .every((c) => c['id'] != value)) {
                           setState(() {
                             _selectedCanisterId = value;
                           });
@@ -282,10 +305,13 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                     labelText: 'Method',
                     border: OutlineInputBorder(),
                   ),
-                  items: _availableMethods.map((method) => DropdownMenuItem<CanisterMethod>(
-                    value: method,
-                    child: Text('${method.name} (${_getCallKindLabel(method.kind)})'),
-                  )).toList(),
+                  items: _availableMethods
+                      .map((method) => DropdownMenuItem<CanisterMethod>(
+                            value: method,
+                            child: Text(
+                                '${method.name} (${_getCallKindLabel(method.kind)})'),
+                          ))
+                      .toList(),
                   onChanged: _onMethodChanged,
                 ),
               ] else ...[
@@ -296,7 +322,8 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                     border: OutlineInputBorder(),
                     hintText: 'get_pending_proposals',
                   ),
-                  validator: (v) => (v ?? '').trim().isEmpty ? 'Required' : null,
+                  validator: (v) =>
+                      (v ?? '').trim().isEmpty ? 'Required' : null,
                 ),
               ],
               const SizedBox(height: 16),
@@ -312,7 +339,8 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                         border: OutlineInputBorder(),
                         helperText: 'Variable name for the result',
                       ),
-                      validator: (v) => (v ?? '').trim().isEmpty ? 'Required' : null,
+                      validator: (v) =>
+                          (v ?? '').trim().isEmpty ? 'Required' : null,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -326,9 +354,11 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                       items: const [
                         DropdownMenuItem<int>(value: 0, child: Text('Query')),
                         DropdownMenuItem<int>(value: 1, child: Text('Update')),
-                        DropdownMenuItem<int>(value: 2, child: Text('Composite')),
+                        DropdownMenuItem<int>(
+                            value: 2, child: Text('Composite')),
                       ],
-                      onChanged: (value) => setState(() => _callKind = value ?? 0),
+                      onChanged: (value) =>
+                          setState(() => _callKind = value ?? 0),
                     ),
                   ),
                 ],
@@ -338,15 +368,18 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
               // Authentication
               CheckboxListTile(
                 title: const Text('Authenticated call'),
-                subtitle: const Text('Requires an identity for private methods'),
+                subtitle:
+                    const Text('Requires an identity for private methods'),
                 value: _isAuthenticated,
-                onChanged: (value) => setState(() => _isAuthenticated = value ?? false),
+                onChanged: (value) =>
+                    setState(() => _isAuthenticated = value ?? false),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
               const SizedBox(height: 8),
 
               // Arguments builder
-              if (_selectedMethod != null && _selectedMethod!.args.isNotEmpty) ...[
+              if (_selectedMethod != null &&
+                  _selectedMethod!.args.isNotEmpty) ...[
                 const Text(
                   'Method Arguments',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -381,7 +414,8 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                 child: SingleChildScrollView(
                   child: SelectableText(
                     _generateLuaCode(),
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    style:
+                        const TextStyle(fontFamily: 'monospace', fontSize: 12),
                   ),
                 ),
               ),

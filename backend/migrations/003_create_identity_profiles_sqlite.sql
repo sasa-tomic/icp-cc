@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS identity_profiles (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_identity_profiles_principal
+CREATE UNIQUE INDEX IF NOT EXISTS idx_keypair_profiles_principal
     ON identity_profiles(principal);
 
-CREATE TRIGGER IF NOT EXISTS update_identity_profiles_updated_at
+CREATE TRIGGER IF NOT EXISTS update_keypair_profiles_updated_at
     AFTER UPDATE ON identity_profiles
     FOR EACH ROW
 BEGIN

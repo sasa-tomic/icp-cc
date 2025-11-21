@@ -1,7 +1,7 @@
 pub mod canister_client;
 
 pub mod ffi;
-pub mod identity;
+pub mod keypair;
 pub mod lua_engine;
 pub mod principal;
 
@@ -10,7 +10,7 @@ pub mod principal;
 pub mod wasm_exports;
 
 pub use canister_client::{MethodInfo, MethodKind, ParsedInterface};
-pub use identity::{generate_ed25519_identity, generate_secp256k1_identity, IdentityData};
+pub use keypair::{generate_ed25519_keypair, generate_secp256k1_keypair, KeypairData};
 pub use lua_engine::{
     execute_lua_json, lint_lua, validate_lua_comprehensive, LuaExecError, ValidationContext,
     ValidationResult,

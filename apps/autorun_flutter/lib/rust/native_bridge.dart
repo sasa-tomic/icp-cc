@@ -4,7 +4,7 @@ import 'dart:io' show Platform;
 import 'package:ffi/ffi.dart' as pkg_ffi;
 
 class _Symbols {
-  static const String generate = 'icp_generate_identity';
+  static const String generate = 'icp_generate_keypair';
   static const String principalFromPublicKey = 'icp_principal_from_public_key';
   static const String free = 'icp_free_string';
   static const String fetchCandid = 'icp_fetch_candid';
@@ -20,8 +20,8 @@ class _Symbols {
   static const String luaAppUpdate = 'icp_lua_app_update';
 }
 
-class RustIdentityResult {
-  RustIdentityResult({
+class RustKeypairResult {
+  RustKeypairResult({
     required this.publicKeyB64,
     required this.privateKeyB64,
     required this.principalText,
@@ -47,7 +47,7 @@ class RustBridgeLoader {
     }
   }
 
-  RustIdentityResult? generateIdentity({required int alg, String? mnemonic}) {
+  RustKeypairResult? generateKeypair({required int alg, String? mnemonic}) {
     final lib = _open();
     if (lib == null) return null;
 
@@ -67,7 +67,7 @@ class RustBridgeLoader {
       final String jsonStr = res.cast<pkg_ffi.Utf8>().toDartString();
       final Map<String, dynamic> obj =
           json.decode(jsonStr) as Map<String, dynamic>;
-      return RustIdentityResult(
+      return RustKeypairResult(
         publicKeyB64: obj['public_key_b64'] as String,
         privateKeyB64: obj['private_key_b64'] as String,
         principalText: obj['principal_text'] as String,

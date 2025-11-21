@@ -610,9 +610,9 @@ WHERE created_at < NOW() - INTERVAL '90 days';
 
 #### Test Helpers Required
 
-1. **TestIdentityFactory**:
+1. **TestKeypairFactory**:
    ```dart
-   final identity = await TestIdentityFactory.getEd25519Identity();
+   final identity = await TestKeypairFactory.getEd25519Keypair();
    final principal = PrincipalUtils.textFromRecord(identity);
    ```
 
@@ -622,9 +622,9 @@ WHERE created_at < NOW() - INTERVAL '90 days';
    final request = TestSignatureUtils.createTestScriptRequest();
    ```
 
-3. **FakeSecureIdentityRepository**:
+3. **FakeSecureKeypairRepository**:
    ```dart
-   final repository = FakeSecureIdentityRepository([identity]);
+   final repository = FakeSecureKeypairRepository([identity]);
    ```
 
 **NO hardcoded test principals, NO fake signatures, NO mock cryptography.**

@@ -6,8 +6,8 @@ class MarketplaceScript {
   final String description;
   final String category;
   final List<String> tags;
-  final String authorId;
-  final String authorName;
+  final String? authorId; // owner_account_id from backend
+  final String? authorName; // from accounts.display_name via backend JOIN
   final String? authorPrincipal;
   final String? authorPublicKey;
   final String? uploadSignature;
@@ -34,8 +34,8 @@ class MarketplaceScript {
     required this.description,
     required this.category,
     this.tags = const [],
-    required this.authorId,
-    required this.authorName,
+    this.authorId,
+    this.authorName,
     this.authorPrincipal,
     this.authorPublicKey,
     this.uploadSignature,
@@ -109,26 +109,42 @@ class MarketplaceScript {
       description: json['description'] as String? ?? '',
       category: json['category'] as String? ?? '',
       tags: _parseStringList(json['tags']),
-      authorId: json['authorId'] as String? ?? json['author_id'] as String? ?? '',
-      authorName: json['authorName'] as String? ?? json['author_name'] as String? ?? '',
-      authorPrincipal: json['authorPrincipal'] as String? ?? json['author_principal'] as String?,
-      authorPublicKey: json['authorPublicKey'] as String? ?? json['author_public_key'] as String?,
-      uploadSignature: json['uploadSignature'] as String? ?? json['upload_signature'] as String?,
+      authorId:
+          json['authorId'] as String? ?? json['author_id'] as String? ?? '',
+      authorName:
+          json['authorName'] as String? ?? json['author_name'] as String? ?? '',
+      authorPrincipal: json['authorPrincipal'] as String? ??
+          json['author_principal'] as String?,
+      authorPublicKey: json['authorPublicKey'] as String? ??
+          json['author_public_key'] as String?,
+      uploadSignature: json['uploadSignature'] as String? ??
+          json['upload_signature'] as String?,
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       currency: json['currency'] as String? ?? 'USD',
       downloads: json['downloads'] as int? ?? 0,
       rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
-      reviewCount: json['reviewCount'] as int? ?? json['review_count'] as int? ?? 0,
+      reviewCount:
+          json['reviewCount'] as int? ?? json['review_count'] as int? ?? 0,
       verifiedReviewCount: json['verifiedReviewCount'] as int?,
-      luaSource: json['luaSource'] as String? ?? json['lua_source'] as String? ?? '',
+      luaSource:
+          json['luaSource'] as String? ?? json['lua_source'] as String? ?? '',
       iconUrl: json['iconUrl'] as String? ?? json['icon_url'] as String?,
       screenshots: _parseOptionalStringList(json['screenshots']),
-      canisterIds: _parseStringList(json['canisterIds'] ?? json['canister_ids']),
+      canisterIds:
+          _parseStringList(json['canisterIds'] ?? json['canister_ids']),
       compatibility: json['compatibility'] as String?,
       version: json['version'] as String?,
       isPublic: _parseBool(json['isPublic'] ?? json['is_public'] ?? true),
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? json['created_at'] as String? ?? json['\$createdAt'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? json['updated_at'] as String? ?? json['\$updatedAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ??
+              json['created_at'] as String? ??
+              json['\$createdAt'] as String? ??
+              '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ??
+              json['updated_at'] as String? ??
+              json['\$updatedAt'] as String? ??
+              '') ??
+          DateTime.now(),
       author: json['author'] is Map<String, dynamic>
           ? MarketplaceAuthor.fromJson(json['author'] as Map<String, dynamic>)
           : null,

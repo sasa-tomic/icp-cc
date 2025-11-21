@@ -335,7 +335,7 @@ Step 5: Success
 ```
 
 **IMPORTANT CHANGES:**
-- REMOVED: "Use Local Identity" option (NO cross-profile key usage)
+- REMOVED: "Use Local Keypair" option (NO cross-profile key usage)
 - REMOVED: "Import Public Key" option (keys are generated, not imported)
 - SIMPLIFIED: Single action - generate new keypair for current profile
 - Keypairs are created fresh, not imported from elsewhere

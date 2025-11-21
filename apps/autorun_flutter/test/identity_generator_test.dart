@@ -7,11 +7,11 @@ void main() {
   const String mnemonic = kTestMnemonic;
 
   test('generates Ed25519 identity matching known vector', () async {
-    final ProfileKeypair record = await IdentityGenerator.generate(
+    final ProfileKeypair record = await KeypairGenerator.generate(
       algorithm: KeyAlgorithm.ed25519,
       mnemonic: mnemonic,
       label: 'Test',
-      identityCount: 0,
+      keypairCount: 0,
     );
 
     expect(record.privateKey, kEd25519PrivateKeyB64);
@@ -19,11 +19,11 @@ void main() {
   });
 
   test('generates secp256k1 identity matching DFX reference', () async {
-    final ProfileKeypair record = await IdentityGenerator.generate(
+    final ProfileKeypair record = await KeypairGenerator.generate(
       algorithm: KeyAlgorithm.secp256k1,
       mnemonic: mnemonic,
       label: 'Test',
-      identityCount: 0,
+      keypairCount: 0,
     );
 
     expect(record.privateKey, kSecp256k1PrivateKeyB64);

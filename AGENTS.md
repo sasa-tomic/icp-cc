@@ -64,44 +64,18 @@ CRITICAL: After you are done verify that changes are highly aligned with the pro
 
 ### Quick Reference
 
-| Task                  | Use                                                     | File                                   | Notes                                    |
-|-----------------------|---------------------------------------------------------|----------------------------------------|------------------------------------------|
-| Create test identity  | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           | Creates ProfileKeypair for testing       |
-| Multiple test users   | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           | Creates deterministic keypairs from seed |
-| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |                                          |
-| Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |                                          |
-| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` | In-memory keypair storage for tests      |
+| Task                  | Use                                                     | File                                  | Notes                                    |
+|-----------------------|---------------------------------------------------------|---------------------------------------|------------------------------------------|
+| Create test identity  | `TestKeypairFactory.getEd25519Keypair()`                | `test_keypair_factory.dart`           | Creates ProfileKeypair for testing       |
+| Multiple test users   | `TestKeypairFactory.fromSeed(N)`                        | `test_keypair_factory.dart`           | Creates deterministic keypairs from seed |
+| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`           |                                          |
+| Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`           |                                          |
+| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_keypair_repository.dart` | In-memory keypair storage for tests      |
 
 # MCP servers that you should use in the project
 - Use context7 mcp server if you would like to obtain additional information for a library or API
 - Use web-search-prime if you need to perform a web search
 
-# Architecture Implementation Status
-
-## ✅ Profile-Centric Migration Complete
-
-The profile-centric architecture has been fully implemented:
-
-1. **Core Models:**
-   - `lib/models/profile.dart` - Profile container model
-   - `lib/models/profile_keypair.dart` - ProfileKeypair
-   - `lib/models/account.dart` - Backend account representation
-
-2. **Controllers:**
-   - `lib/controllers/profile_controller.dart` - Main profile management
-   - `lib/controllers/account_controller.dart` - Account operations
-
-3. **Services:**
-   - `lib/services/profile_repository.dart` - Profile storage
-   - `lib/services/secure_identity_repository.dart` - Keypair secure storage
-
-4. **UI:**
-   - `lib/screens/profile_home_page.dart` - Main entry point
-   - `lib/widgets/profile_scope.dart` - ProfileController dependency injection
-
-**Note:** FIXME comments in `account.dart` and `account_controller.dart` are documentation markers
-describing architectural notes for future reference, not blocking issues.
-
-See ACCOUNT_PROFILES_DESIGN.md and ACCOUNT_PROFILES_UX_DESIGN.md for complete specification.
-
 # Other notes
+
+- Zero redundant data. Zero duplication. Backend is the single source of truth.

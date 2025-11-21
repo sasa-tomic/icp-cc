@@ -7,9 +7,9 @@ import 'package:icp_autorun/models/profile_keypair.dart';
 void main() {
   group('Secure Storage Logic Tests', () {
     test('identity model serialization maintains all fields', () {
-      final testIdentity = ProfileKeypair(
+      final TestKeypair = ProfileKeypair(
         id: 'test-1',
-        label: 'Test Identity',
+        label: 'Test Keypair',
         algorithm: KeyAlgorithm.ed25519,
         publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
         privateKey: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
@@ -18,9 +18,9 @@ void main() {
       );
 
       // Test toJson
-      final jsonMap = testIdentity.toJson();
+      final jsonMap = TestKeypair.toJson();
       expect(jsonMap['id'], 'test-1');
-      expect(jsonMap['label'], 'Test Identity');
+      expect(jsonMap['label'], 'Test Keypair');
       expect(jsonMap['algorithm'], 'ed25519');
       expect(
           jsonMap['publicKey'], 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
@@ -30,18 +30,18 @@ void main() {
       expect(jsonMap['createdAt'], '2024-01-01T00:00:00.000Z');
 
       // Test fromJson
-      final loadedIdentity = ProfileKeypair.fromJson(jsonMap);
-      expect(loadedIdentity.id, testIdentity.id);
-      expect(loadedIdentity.label, testIdentity.label);
-      expect(loadedIdentity.algorithm, testIdentity.algorithm);
-      expect(loadedIdentity.publicKey, testIdentity.publicKey);
-      expect(loadedIdentity.privateKey, testIdentity.privateKey);
-      expect(loadedIdentity.mnemonic, testIdentity.mnemonic);
-      expect(loadedIdentity.createdAt, testIdentity.createdAt);
+      final loadedKeypair = ProfileKeypair.fromJson(jsonMap);
+      expect(loadedKeypair.id, TestKeypair.id);
+      expect(loadedKeypair.label, TestKeypair.label);
+      expect(loadedKeypair.algorithm, TestKeypair.algorithm);
+      expect(loadedKeypair.publicKey, TestKeypair.publicKey);
+      expect(loadedKeypair.privateKey, TestKeypair.privateKey);
+      expect(loadedKeypair.mnemonic, TestKeypair.mnemonic);
+      expect(loadedKeypair.createdAt, TestKeypair.createdAt);
     });
 
     test('identity copyWith updates label only', () {
-      final originalIdentity = ProfileKeypair(
+      final originalKeypair = ProfileKeypair(
         id: 'test-2',
         label: 'Original Label',
         algorithm: KeyAlgorithm.secp256k1,
@@ -51,16 +51,16 @@ void main() {
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
 
-      final updatedIdentity = originalIdentity.copyWith(label: 'Updated Label');
+      final updatedKeypair = originalKeypair.copyWith(label: 'Updated Label');
 
       // Only label should change
-      expect(updatedIdentity.label, 'Updated Label');
-      expect(updatedIdentity.id, originalIdentity.id);
-      expect(updatedIdentity.algorithm, originalIdentity.algorithm);
-      expect(updatedIdentity.publicKey, originalIdentity.publicKey);
-      expect(updatedIdentity.privateKey, originalIdentity.privateKey);
-      expect(updatedIdentity.mnemonic, originalIdentity.mnemonic);
-      expect(updatedIdentity.createdAt, originalIdentity.createdAt);
+      expect(updatedKeypair.label, 'Updated Label');
+      expect(updatedKeypair.id, originalKeypair.id);
+      expect(updatedKeypair.algorithm, originalKeypair.algorithm);
+      expect(updatedKeypair.publicKey, originalKeypair.publicKey);
+      expect(updatedKeypair.privateKey, originalKeypair.privateKey);
+      expect(updatedKeypair.mnemonic, originalKeypair.mnemonic);
+      expect(updatedKeypair.createdAt, originalKeypair.createdAt);
     });
 
     test('key algorithm conversions work correctly', () {
@@ -80,7 +80,7 @@ void main() {
     });
 
     test('identity export details contain sensitive information', () {
-      final testIdentity = ProfileKeypair(
+      final TestKeypair = ProfileKeypair(
         id: 'export-test-1',
         label: 'Export Test',
         algorithm: KeyAlgorithm.ed25519,
@@ -90,14 +90,14 @@ void main() {
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
 
-      final exportDetails = testIdentity.exportDetails();
-      expect(exportDetails['Mnemonic'], testIdentity.mnemonic);
-      expect(exportDetails['Public key (base64)'], testIdentity.publicKey);
-      expect(exportDetails['Private key (base64)'], testIdentity.privateKey);
+      final exportDetails = TestKeypair.exportDetails();
+      expect(exportDetails['Mnemonic'], TestKeypair.mnemonic);
+      expect(exportDetails['Public key (base64)'], TestKeypair.publicKey);
+      expect(exportDetails['Private key (base64)'], TestKeypair.privateKey);
     });
 
     test('identity toString produces valid JSON', () {
-      final testIdentity = ProfileKeypair(
+      final TestKeypair = ProfileKeypair(
         id: 'string-test-1',
         label: 'String Test',
         algorithm: KeyAlgorithm.secp256k1,
@@ -107,7 +107,7 @@ void main() {
         createdAt: DateTime.parse('2024-01-01T00:00:00.000Z'),
       );
 
-      final stringRepresentation = testIdentity.toString();
+      final stringRepresentation = TestKeypair.toString();
 
       // Should be valid JSON and parse back correctly
       final parsedJson =
@@ -162,7 +162,7 @@ void main() {
 
     test('secure storage prevents accidental exposure of sensitive data', () {
       // Test that sensitive data is never accidentally logged or serialized
-      final sensitiveIdentity = ProfileKeypair(
+      final sensitiveKeypair = ProfileKeypair(
         id: 'sensitive-test',
         label: 'Sensitive Test',
         algorithm: KeyAlgorithm.ed25519,
@@ -174,7 +174,7 @@ void main() {
       );
 
       // Verify toString doesn't expose sensitive data in the public part
-      final stringRepresentation = sensitiveIdentity.toString();
+      final stringRepresentation = sensitiveKeypair.toString();
       final parsedJson =
           jsonDecode(stringRepresentation) as Map<String, dynamic>;
 
@@ -185,11 +185,11 @@ void main() {
 
       // But when creating public data for storage, sensitive fields are excluded
       final publicData = <String, dynamic>{
-        'id': sensitiveIdentity.id,
-        'label': sensitiveIdentity.label,
-        'algorithm': keyAlgorithmToString(sensitiveIdentity.algorithm),
-        'publicKey': sensitiveIdentity.publicKey,
-        'createdAt': sensitiveIdentity.createdAt.toIso8601String(),
+        'id': sensitiveKeypair.id,
+        'label': sensitiveKeypair.label,
+        'algorithm': keyAlgorithmToString(sensitiveKeypair.algorithm),
+        'publicKey': sensitiveKeypair.publicKey,
+        'createdAt': sensitiveKeypair.createdAt.toIso8601String(),
       };
 
       expect(publicData.containsKey('privateKey'), false);
@@ -215,6 +215,6 @@ void main() {
   });
 }
 
-// Constants that should match those in SecureIdentityRepository
+// Constants that should match those in SecureKeypairRepository
 const String _privateKeyPrefix = 'identity_private_key_';
 const String _mnemonicPrefix = 'identity_mnemonic_';

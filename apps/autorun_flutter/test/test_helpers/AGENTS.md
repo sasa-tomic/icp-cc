@@ -16,7 +16,7 @@ This directory contains standardized test utilities for testing ICP AutoRun func
 - ALL tests communicating with the backend MUST use real cryptographic identities
 - NO hardcoded mock signatures
 - NO fake keys (e.g., `base64Encode(List.filled(32, 1))`)
-- Use `TestIdentityFactory` for all identity creation
+- Use `TestKeypairFactory` for all identity creation
 
 ### DRY Principle
 - NEVER duplicate test helper code
@@ -25,7 +25,7 @@ This directory contains standardized test utilities for testing ICP AutoRun func
 
 ## Standard Test Helpers
 
-### 1. TestIdentityFactory (`test_identity_factory.dart`)
+### 1. TestKeypairFactory (`test_keypair_factory.dart`)
 
 **Purpose:** Create deterministic test identities with real cryptographic keys
 
@@ -38,16 +38,16 @@ This directory contains standardized test utilities for testing ICP AutoRun func
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import '../test_helpers/test_identity_factory.dart';
+import '../test_helpers/test_keypair_factory.dart';
 
 void main() {
   test('example test', () async {
     // Get the default test identity (cached, consistent across tests)
-    final identity = await TestIdentityFactory.getEd25519Identity();
+    final identity = await TestKeypairFactory.getEd25519Keypair();
 
     // Or create identities from seeds for multiple users
-    final user1 = await TestIdentityFactory.fromSeed(1);
-    final user2 = await TestIdentityFactory.fromSeed(2);
+    final user1 = await TestKeypairFactory.fromSeed(1);
+    final user2 = await TestKeypairFactory.fromSeed(2);
 
     // Use the identity...
     final principal = PrincipalUtils.textFromRecord(identity);
@@ -56,10 +56,10 @@ void main() {
 ```
 
 **Key Methods:**
-- `getEd25519Identity()` - Get default Ed25519 test identity (cached)
-- `getSecp256k1Identity()` - Get default secp256k1 test identity (cached)
+- `getEd25519Keypair()` - Get default Ed25519 test identity (cached)
+- `getSecp256k1Keypair()` - Get default secp256k1 test identity (cached)
 - `fromSeed(int seed)` - Generate deterministic identity from seed
-- `getIdentity(KeyAlgorithm algorithm)` - Get identity by algorithm
+- `getKeypair(KeyAlgorithm algorithm)` - Get identity by algorithm
 
 **Important Notes:**
 - All identities are cached for performance
@@ -133,31 +133,31 @@ final payload = {
 final signature = TestSignatureUtils.generateTestSignatureSync(payload);
 ```
 
-### 3. FakeSecureIdentityRepository (`fake_secure_identity_repository.dart`)
+### 3. FakeSecureKeypairRepository (`fake_secure_keypair_repository.dart`)
 
-**Purpose:** In-memory implementation of SecureIdentityRepository for testing
+**Purpose:** In-memory implementation of SecureKeypairRepository for testing
 
 **When to use:**
-- Tests that need IdentityController
+- Tests that need KeypairController
 - Tests that verify identity management logic
 - Widget tests that require identity state
 
 **Usage:**
 
 ```dart
-import '../test_helpers/fake_secure_identity_repository.dart';
-import '../test_helpers/test_identity_factory.dart';
+import '../test_helpers/fake_secure_keypair_repository.dart';
+import '../test_helpers/test_keypair_factory.dart';
 
 test('example test', () async {
   // Create test identities
-  final identity1 = await TestIdentityFactory.fromSeed(1);
-  final identity2 = await TestIdentityFactory.fromSeed(2);
+  final identity1 = await TestKeypairFactory.fromSeed(1);
+  final identity2 = await TestKeypairFactory.fromSeed(2);
 
   // Create repository with identities
-  final repository = FakeSecureIdentityRepository([identity1, identity2]);
+  final repository = FakeSecureKeypairRepository([identity1, identity2]);
 
-  // Use with IdentityController
-  final controller = IdentityController(
+  // Use with KeypairController
+  final controller = KeypairController(
     secureRepository: repository,
     marketplaceService: marketplaceService,
   );
@@ -167,13 +167,13 @@ test('example test', () async {
 ```
 
 **DO NOT:**
-- Create local `_FakeSecureIdentityRepository` classes in test files
+- Create local `_FakeSecureKeypairRepository` classes in test files
 - Duplicate this implementation
 - Use mock/stub repositories with fake data
 
 **ALWAYS:**
-- Import and use the centralized `FakeSecureIdentityRepository`
-- Populate it with real identities from `TestIdentityFactory`
+- Import and use the centralized `FakeSecureKeypairRepository`
+- Populate it with real identities from `TestKeypairFactory`
 
 ## Anti-Patterns to Avoid
 
@@ -194,7 +194,7 @@ String _createFakeSignature() {
 }
 
 // ❌ Local duplicate repository implementations
-class _FakeSecureIdentityRepository implements SecureIdentityRepository {
+class _FakeSecureKeypairRepository implements SecureKeypairRepository {
   // ... duplicate code ...
 }
 
@@ -205,14 +205,14 @@ const testPrincipal = 'aaaaa-aa';
 ### ✅ ALWAYS Do This:
 
 ```dart
-// ✅ Use TestIdentityFactory
-final identity = await TestIdentityFactory.getEd25519Identity();
+// ✅ Use TestKeypairFactory
+final identity = await TestKeypairFactory.getEd25519Keypair();
 
 // ✅ Use TestSignatureUtils
 final signature = TestSignatureUtils.generateTestSignatureSync(payload);
 
-// ✅ Use centralized FakeSecureIdentityRepository
-final repository = FakeSecureIdentityRepository([identity]);
+// ✅ Use centralized FakeSecureKeypairRepository
+final repository = FakeSecureKeypairRepository([identity]);
 
 // ✅ Use real principals from identities
 final principal = PrincipalUtils.textFromRecord(identity);
@@ -224,7 +224,7 @@ When testing code that communicates with the backend (API calls, script uploads,
 
 1. **Always use real test identities:**
    ```dart
-   final identity = await TestIdentityFactory.getEd25519Identity();
+   final identity = await TestKeypairFactory.getEd25519Keypair();
    ```
 
 2. **Always use real signatures:**
@@ -249,9 +249,9 @@ When testing scenarios with multiple users/identities:
 ```dart
 test('multiple users scenario', () async {
   // Create distinct identities using different seeds
-  final alice = await TestIdentityFactory.fromSeed(100);
-  final bob = await TestIdentityFactory.fromSeed(200);
-  final charlie = await TestIdentityFactory.fromSeed(300);
+  final alice = await TestKeypairFactory.fromSeed(100);
+  final bob = await TestKeypairFactory.fromSeed(200);
+  final charlie = await TestKeypairFactory.fromSeed(300);
 
   // Each will have unique principal, keys, etc.
   expect(alice.id, isNot(equals(bob.id)));
@@ -282,7 +282,7 @@ If tests fail with signature/authentication errors:
 2. **Verify you're using real identities:**
    ```dart
    // Good
-   final identity = await TestIdentityFactory.getEd25519Identity();
+   final identity = await TestKeypairFactory.getEd25519Keypair();
 
    // Bad
    final identity = ProfileKeypair(...hardcoded values...);
@@ -312,14 +312,14 @@ When adding new test helpers to this directory:
 
 ## Summary: Quick Reference
 
-| Need                  | Use                                                     | Import                                 |
-|-----------------------|---------------------------------------------------------|----------------------------------------|
-| Test identity         | `TestIdentityFactory.getEd25519Identity()`              | `test_identity_factory.dart`           |
-| Multiple users        | `TestIdentityFactory.fromSeed(N)`                       | `test_identity_factory.dart`           |
-| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`            |
-| Custom signature      | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`            |
-| Identity repository   | `FakeSecureIdentityRepository([identities])`            | `fake_secure_identity_repository.dart` |
-| Test principal        | `TestSignatureUtils.getPrincipal()`                     | `test_signature_utils.dart`            |
+| Need                  | Use                                                     | Import                                |
+|-----------------------|---------------------------------------------------------|---------------------------------------|
+| Test identity         | `TestKeypairFactory.getEd25519Keypair()`                | `test_keypair_factory.dart`           |
+| Multiple users        | `TestKeypairFactory.fromSeed(N)`                        | `test_keypair_factory.dart`           |
+| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`           |
+| Custom signature      | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`           |
+| Keypair repository    | `FakeSecureKeypairRepository([identities])`             | `fake_secure_keypair_repository.dart` |
+| Test principal        | `TestSignatureUtils.getPrincipal()`                     | `test_signature_utils.dart`           |
 
 ## Remember
 

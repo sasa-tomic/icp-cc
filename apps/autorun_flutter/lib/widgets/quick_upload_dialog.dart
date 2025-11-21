@@ -37,7 +37,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
-  late final TextEditingController _authorController;
   late final TextEditingController _tagsController;
   late final TextEditingController _priceController;
 
@@ -76,7 +75,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
     _titleController = TextEditingController();
     _descriptionController = TextEditingController();
-    _authorController = TextEditingController();
     _tagsController = TextEditingController();
     _priceController = TextEditingController(text: '0.0');
 
@@ -86,7 +84,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   void _initializeFromScript() {
     if (widget.script != null) {
       _titleController.text = widget.script!.title;
-      _authorController.text = 'Anonymous Developer';
 
       // Auto-generate description from script analysis
       _generateDescriptionFromScript();
@@ -98,7 +95,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       _generateTagsFromScript();
     } else if (widget.preFilledTitle != null) {
       _titleController.text = widget.preFilledTitle!;
-      _authorController.text = 'Anonymous Developer';
     }
   }
 
@@ -174,7 +170,6 @@ end''';
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _authorController.dispose();
     _tagsController.dispose();
     _priceController.dispose();
     super.dispose();
@@ -223,7 +218,6 @@ end''';
           .map((String tag) => tag.trim())
           .where((String tag) => tag.isNotEmpty)
           .toList();
-      final String authorName = _authorController.text.trim();
       final double price = double.tryParse(_priceController.text.trim()) ?? 0.0;
       const String version = '1.0.0';
       final String timestamp = DateTime.now().toUtc().toIso8601String();
@@ -267,7 +261,7 @@ end''';
       }
 
       final String signature = await ScriptSignatureService.signScriptUpload(
-        authorIdentity: identity,
+        authorKeypair: identity,
         title: title,
         description: description,
         category: _selectedCategory,
@@ -292,7 +286,6 @@ end''';
         category: _selectedCategory,
         tags: tags,
         luaSource: luaSource,
-        authorName: authorName,
         price: price,
         version: version,
         authorPrincipal: authorPrincipal,
@@ -462,29 +455,15 @@ end''';
                                   },
                                 ),
                                 const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _authorController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Author Name *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Author name is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
                                 Text(
-                                  'Identity context',
+                                  'Keypair context',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleSmall
                                       ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 8),
-                                _buildIdentityCard(_profileController(context)),
+                                _buildKeypairCard(_profileController(context)),
                                 const SizedBox(height: 16),
                                 DropdownButtonFormField<String>(
                                   initialValue: _selectedCategory,
@@ -656,7 +635,7 @@ end''';
     );
   }
 
-  Widget _buildIdentityCard(ProfileController controller) {
+  Widget _buildKeypairCard(ProfileController controller) {
     final ProfileKeypair? identity = controller.activeKeypair;
     if (identity == null) {
       return Card(

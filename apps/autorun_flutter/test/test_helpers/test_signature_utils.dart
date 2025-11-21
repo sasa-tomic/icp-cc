@@ -4,52 +4,52 @@ import 'package:flutter/foundation.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:cryptography/cryptography.dart';
-import 'test_identity_factory.dart';
+import 'test_keypair_factory.dart';
 
 /// Utility class for generating test signatures for development/testing
 /// Uses real cryptographic signatures with deterministic test identities
 class TestSignatureUtils {
-  static ProfileKeypair? _syncIdentity;
-  static Future<ProfileKeypair>? _identityFuture;
+  static ProfileKeypair? _syncKeypair;
+  static Future<ProfileKeypair>? _keypairFuture;
 
   /// Initialize and cache the test identity
   /// Call this in setUpAll() to ensure synchronous access
   static Future<void> ensureInitialized() async {
-    if (_syncIdentity == null) {
-      _identityFuture ??= TestIdentityFactory.getEd25519Identity();
-      _syncIdentity = await _identityFuture!;
+    if (_syncKeypair == null) {
+      _keypairFuture ??= TestKeypairFactory.getEd25519Keypair();
+      _syncKeypair = await _keypairFuture!;
     }
   }
 
   /// Get the cached test identity (throws if not initialized)
-  static ProfileKeypair _getIdentity() {
-    if (_syncIdentity == null) {
+  static ProfileKeypair _getKeypair() {
+    if (_syncKeypair == null) {
       throw StateError(
         'TestSignatureUtils not initialized. Call ensureInitialized() in setUpAll()',
       );
     }
-    return _syncIdentity!;
+    return _syncKeypair!;
   }
 
   /// Get test principal (synchronous after initialization)
   static String getPrincipal() {
-    return PrincipalUtils.textFromRecord(_getIdentity());
+    return PrincipalUtils.textFromRecord(_getKeypair());
   }
 
   /// Get test public key (synchronous after initialization)
   static String getPublicKey() {
-    return _getIdentity().publicKey;
+    return _getKeypair().publicKey;
   }
 
   /// Get test private key (for advanced testing)
   static String getPrivateKey() {
-    return _getIdentity().privateKey;
+    return _getKeypair().privateKey;
   }
 
   /// Get the test identity (async version for backwards compatibility)
-  static Future<ProfileKeypair> getTestIdentity() async {
+  static Future<ProfileKeypair> getTestKeypair() async {
     await ensureInitialized();
-    return _getIdentity();
+    return _getKeypair();
   }
 
   /// Generate a real cryptographic test signature (async)
@@ -58,13 +58,13 @@ class TestSignatureUtils {
   static Future<String> generateTestSignature(
       Map<String, dynamic> payload) async {
     await ensureInitialized();
-    return _generateSignatureInternal(_getIdentity(), payload);
+    return _generateSignatureInternal(_getKeypair(), payload);
   }
 
   /// Generate a real cryptographic test signature (synchronous after initialization)
   /// Requires calling ensureInitialized() first
   static String generateTestSignatureSync(Map<String, dynamic> payload) {
-    return _generateSignatureSyncInternal(_getIdentity(), payload);
+    return _generateSignatureSyncInternal(_getKeypair(), payload);
   }
 
   /// Internal method to generate signature (async version)
@@ -150,7 +150,7 @@ class TestSignatureUtils {
   }
 
   /// Create a complete test script request with valid signature
-  /// This mirrors TestIdentity.createTestScriptRequest
+  /// This mirrors TestKeypair.createTestScriptRequest
   static Map<String, dynamic> createTestScriptRequest(
       {Map<String, dynamic>? overrides}) {
     final timestamp = DateTime.now().toIso8601String();
@@ -186,7 +186,7 @@ class TestSignatureUtils {
   }
 
   /// Create a test update request with valid signature
-  /// This mirrors TestIdentity.createTestUpdateRequest
+  /// This mirrors TestKeypair.createTestUpdateRequest
   static Map<String, dynamic> createTestUpdateRequest(String scriptId,
       {Map<String, dynamic>? updates}) {
     final timestamp = DateTime.now().toIso8601String();
@@ -215,7 +215,7 @@ class TestSignatureUtils {
   }
 
   /// Create a test delete request with valid signature
-  /// This mirrors TestIdentity.createTestDeleteRequest
+  /// This mirrors TestKeypair.createTestDeleteRequest
   static Map<String, dynamic> createTestDeleteRequest(String scriptId) {
     final timestamp = DateTime.now().toIso8601String();
     final principal = getPrincipal();

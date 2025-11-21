@@ -8,11 +8,11 @@ void main() {
   const String mnemonic = kTestMnemonic;
 
   test('Ed25519 principal from Rust FFI matches expected', () async {
-    final ProfileKeypair record = await IdentityGenerator.generate(
+    final ProfileKeypair record = await KeypairGenerator.generate(
       algorithm: KeyAlgorithm.ed25519,
       mnemonic: mnemonic,
       label: 'Test',
-      identityCount: 0,
+      keypairCount: 0,
     );
 
     // Verify principal is stored (from Rust FFI)
@@ -28,11 +28,11 @@ void main() {
   });
 
   test('secp256k1 principal from Rust FFI matches expected', () async {
-    final ProfileKeypair record = await IdentityGenerator.generate(
+    final ProfileKeypair record = await KeypairGenerator.generate(
       algorithm: KeyAlgorithm.secp256k1,
       mnemonic: mnemonic,
       label: 'Test',
-      identityCount: 0,
+      keypairCount: 0,
     );
 
     // Verify principal is stored (from Rust FFI)

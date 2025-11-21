@@ -10,8 +10,8 @@ import 'package:icp_autorun/widgets/profile_scope.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../test_helpers/fake_secure_identity_repository.dart';
-import '../test_helpers/test_identity_factory.dart';
+import '../test_helpers/fake_secure_keypair_repository.dart';
+import '../test_helpers/test_keypair_factory.dart';
 
 class _MockMarketplaceService extends Mock
     implements MarketplaceOpenApiService {}
@@ -30,9 +30,9 @@ void main() {
 
     setUp(() async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
-      identity = await TestIdentityFactory.getEd25519Identity();
+      identity = await TestKeypairFactory.getEd25519Keypair();
       final repository =
-          FakeSecureIdentityRepository(<ProfileKeypair>[identity]);
+          FakeSecureKeypairRepository(<ProfileKeypair>[identity]);
       profileController =
           ProfileController(profileRepository: repository.profileRepository);
       await profileController.ensureLoaded();
@@ -101,7 +101,6 @@ void main() {
           category: any(named: 'category'),
           tags: any(named: 'tags'),
           luaSource: any(named: 'luaSource'),
-          authorName: any(named: 'authorName'),
           price: any(named: 'price'),
           version: any(named: 'version'),
           canisterIds: any(named: 'canisterIds'),
@@ -121,7 +120,6 @@ void main() {
           category: 'Example',
           tags: const <String>[],
           authorId: identity.id,
-          authorName: 'Author',
           luaSource: '-- test script',
           price: 0,
           createdAt: DateTime.now(),
@@ -153,7 +151,6 @@ void main() {
             category: any(named: 'category'),
             tags: any(named: 'tags'),
             luaSource: any(named: 'luaSource'),
-            authorName: any(named: 'authorName'),
             price: any(named: 'price'),
             version: any(named: 'version'),
             canisterIds: any(named: 'canisterIds'),
@@ -185,7 +182,6 @@ void main() {
           category: any(named: 'category'),
           tags: any(named: 'tags'),
           luaSource: any(named: 'luaSource'),
-          authorName: any(named: 'authorName'),
           price: any(named: 'price'),
           version: any(named: 'version'),
           canisterIds: any(named: 'canisterIds'),
@@ -205,7 +201,6 @@ void main() {
           category: 'Example',
           tags: const <String>[],
           authorId: identity.id,
-          authorName: 'Author',
           authorPrincipal: PrincipalUtils.textFromRecord(identity),
           authorPublicKey: identity.publicKey,
           uploadSignature: 'dummy-signature',
@@ -216,7 +211,7 @@ void main() {
         ),
       );
 
-      // Identity is already active through IdentityScope
+      // Keypair is already active through KeypairScope
 
       // Click Next to go to code preview step
       final Finder nextButton = find.byKey(const Key('quick-upload-next'));
@@ -241,7 +236,6 @@ void main() {
           category: 'Example',
           tags: captureAny(named: 'tags'),
           luaSource: '-- test script',
-          authorName: 'Author',
           price: 0.0,
           version: '1.0.0',
           canisterIds: captureAny(named: 'canisterIds'),

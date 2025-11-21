@@ -7,7 +7,7 @@ import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
-import 'test_identity_factory.dart';
+import 'test_keypair_factory.dart';
 import 'http_response_utils.dart';
 
 /// HTTP client wrapper with timeout to prevent infinite hanging in tests
@@ -249,7 +249,7 @@ class TestableScriptRepository extends ScriptRepository {
       case AuthenticationMethod.realSignature:
         // Use real cryptographic signature (Ed25519 or secp256k1)
         final identity =
-            await TestIdentityFactory.getIdentity(_signatureAlgorithm);
+            await TestKeypairFactory.getKeypair(_signatureAlgorithm);
         final principal = PrincipalUtils.textFromRecord(identity);
 
         // Update with real principal and public key
@@ -260,7 +260,7 @@ class TestableScriptRepository extends ScriptRepository {
         final String signature;
         if (action == 'upload') {
           signature = await ScriptSignatureService.signScriptUpload(
-            authorIdentity: identity,
+            authorKeypair: identity,
             title: scriptData['title'],
             description: scriptData['description'],
             category: scriptData['category'],
@@ -277,7 +277,7 @@ class TestableScriptRepository extends ScriptRepository {
           }
           final Map<String, dynamic> signedUpdate =
               await ScriptSignatureService.buildSignedUpdateRequest(
-            authorIdentity: identity,
+            authorKeypair: identity,
             scriptId: resolvedScriptId,
             updates: scriptData,
             timestampIso: timestamp,
@@ -289,7 +289,7 @@ class TestableScriptRepository extends ScriptRepository {
         } else {
           // Default to upload signature for unknown actions
           signature = await ScriptSignatureService.signScriptUpload(
-            authorIdentity: identity,
+            authorKeypair: identity,
             title: scriptData['title'],
             description: scriptData['description'],
             category: scriptData['category'],
@@ -344,7 +344,7 @@ class TestableScriptRepository extends ScriptRepository {
       case AuthenticationMethod.realSignature:
         // Use real cryptographic signature (Ed25519 or secp256k1)
         final identity =
-            await TestIdentityFactory.getIdentity(_signatureAlgorithm);
+            await TestKeypairFactory.getKeypair(_signatureAlgorithm);
         final principal = PrincipalUtils.textFromRecord(identity);
 
         // Update with real principal and public key
@@ -353,7 +353,7 @@ class TestableScriptRepository extends ScriptRepository {
 
         // Create signature using ScriptSignatureService
         final signature = await ScriptSignatureService.signScriptDeletion(
-          authorIdentity: identity,
+          authorKeypair: identity,
           scriptId: id,
           timestampIso: timestamp,
         );

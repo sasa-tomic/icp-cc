@@ -6,30 +6,30 @@ import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 
-import '../test_helpers/test_identity_factory.dart';
+import '../test_helpers/test_keypair_factory.dart';
 
 void main() {
   group('ScriptSignatureService', () {
     late Ed25519 algorithm;
     late SimplePublicKey publicKey;
-    late ProfileKeypair identity;
+    late ProfileKeypair keypair;
     late String principal;
 
     setUpAll(() async {
       algorithm = Ed25519();
-      identity = await TestIdentityFactory.getEd25519Identity();
-      final publicKeyBytes = base64Decode(identity.publicKey);
+      keypair = await TestKeypairFactory.getEd25519Keypair();
+      final publicKeyBytes = base64Decode(keypair.publicKey);
       publicKey = SimplePublicKey(
         publicKeyBytes,
         type: KeyPairType.ed25519,
       );
-      principal = PrincipalUtils.textFromRecord(identity);
+      principal = PrincipalUtils.textFromRecord(keypair);
     });
 
     test('signScriptUpload uses provided timestamp', () async {
       final timestamp = '2025-01-01T00:00:00Z';
       final signature = await ScriptSignatureService.signScriptUpload(
-        authorIdentity: identity,
+        authorKeypair: keypair,
         title: 'Upload Title',
         description: 'Upload Description',
         category: 'utilities',
@@ -88,7 +88,7 @@ void main() {
       final timestamp = '2025-01-01T00:00:00Z';
 
       final signature = await ScriptSignatureService.signScriptUpdate(
-        authorIdentity: identity,
+        authorKeypair: keypair,
         scriptId: scriptId,
         updates: {
           'title': 'Updated Title',
@@ -136,7 +136,7 @@ void main() {
 
       await expectLater(
         () => ScriptSignatureService.signScriptUpdate(
-          authorIdentity: identity,
+          authorKeypair: keypair,
           scriptId: '',
           updates: const {},
         ),
@@ -150,7 +150,7 @@ void main() {
       final timestamp = '2025-02-02T03:04:05Z';
 
       final signature = await ScriptSignatureService.signScriptDeletion(
-        authorIdentity: identity,
+        authorKeypair: keypair,
         scriptId: scriptId,
         timestampIso: timestamp,
       );
@@ -187,7 +187,7 @@ void main() {
 
       await expectLater(
         () => ScriptSignatureService.signScriptDeletion(
-          authorIdentity: identity,
+          authorKeypair: keypair,
           scriptId: '',
         ),
         throwsA(isA<ArgumentError>()),
@@ -216,16 +216,16 @@ void main() {
       () async {
     const scriptId = 'script-321';
     final timestamp = '2025-03-03T03:03:03Z';
-    final localIdentity = await TestIdentityFactory.getEd25519Identity();
-    final localPrincipal = PrincipalUtils.textFromRecord(localIdentity);
+    final localKeypair = await TestKeypairFactory.getEd25519Keypair();
+    final localPrincipal = PrincipalUtils.textFromRecord(localKeypair);
     final localPublicKey = SimplePublicKey(
-      base64Decode(localIdentity.publicKey),
+      base64Decode(localKeypair.publicKey),
       type: KeyPairType.ed25519,
     );
     final localAlgorithm = Ed25519();
 
     final request = await ScriptSignatureService.buildSignedUpdateRequest(
-      authorIdentity: localIdentity,
+      authorKeypair: localKeypair,
       scriptId: scriptId,
       updates: {
         'title': 'Update Title',
@@ -239,7 +239,7 @@ void main() {
     expect(request['action'], equals('update'));
     expect(request['script_id'], equals(scriptId));
     expect(request['author_principal'], equals(localPrincipal));
-    expect(request['author_public_key'], equals(localIdentity.publicKey));
+    expect(request['author_public_key'], equals(localKeypair.publicKey));
     expect(request['tags'], equals(['alpha', 'delta']));
     expect(request['price'], equals(3.5));
     expect(request['timestamp'], equals(timestamp));

@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 
-import 'test_helpers/fake_secure_identity_repository.dart';
-import 'test_helpers/test_identity_factory.dart';
+import 'test_helpers/fake_secure_keypair_repository.dart';
+import 'test_helpers/test_keypair_factory.dart';
 
 class _FakeBridge implements ScriptBridge {
   _FakeBridge({required this.responses});
@@ -12,7 +12,12 @@ class _FakeBridge implements ScriptBridge {
   final List<Map<String, dynamic>> callLog = [];
 
   @override
-  String? callAnonymous({required String canisterId, required String method, required int kind, String args = '()', String? host}) {
+  String? callAnonymous(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      String args = '()',
+      String? host}) {
     callLog.add({
       'type': 'anonymous',
       'canisterId': canisterId,
@@ -25,7 +30,13 @@ class _FakeBridge implements ScriptBridge {
   }
 
   @override
-  String? callAuthenticated({required String canisterId, required String method, required int kind, required String privateKeyB64, String args = '()', String? host}) {
+  String? callAuthenticated(
+      {required String canisterId,
+      required String method,
+      required int kind,
+      required String privateKeyB64,
+      String args = '()',
+      String? host}) {
     callLog.add({
       'type': 'authenticated',
       'canisterId': canisterId,
@@ -45,7 +56,8 @@ class _FakeBridge implements ScriptBridge {
       return json.encode({'ok': true, 'result': 0});
     }
 
-    final Map<String, dynamic> arg = json.decode(jsonArg) as Map<String, dynamic>;
+    final Map<String, dynamic> arg =
+        json.decode(jsonArg) as Map<String, dynamic>;
     final calls = arg['calls'] as Map<String, dynamic>?;
 
     // For identity tests, just return 0 since we're only testing call routing
@@ -70,13 +82,24 @@ class _FakeBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppInit({required String script, String? jsonArg, int budgetMs = 50}) => null;
+  String? luaAppInit(
+          {required String script, String? jsonArg, int budgetMs = 50}) =>
+      null;
 
   @override
-  String? luaAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) => null;
+  String? luaAppUpdate(
+          {required String script,
+          required String msgJson,
+          required String stateJson,
+          int budgetMs = 50}) =>
+      null;
 
   @override
-  String? luaAppView({required String script, required String stateJson, int budgetMs = 50}) => null;
+  String? luaAppView(
+          {required String script,
+          required String stateJson,
+          int budgetMs = 50}) =>
+      null;
 }
 
 void main() {
@@ -91,8 +114,18 @@ void main() {
     final plan = ScriptRunPlan(
       luaSource: 'return 0',
       calls: [
-        CanisterCallSpec(label: 'a', canisterId: 'cid1', method: 'm1', kind: 0, argsJson: '()'),
-        CanisterCallSpec(label: 'b', canisterId: 'cid2', method: 'm2', kind: 0, argsJson: '()'),
+        CanisterCallSpec(
+            label: 'a',
+            canisterId: 'cid1',
+            method: 'm1',
+            kind: 0,
+            argsJson: '()'),
+        CanisterCallSpec(
+            label: 'b',
+            canisterId: 'cid2',
+            method: 'm2',
+            kind: 0,
+            argsJson: '()'),
       ],
     );
 
@@ -101,12 +134,12 @@ void main() {
     expect(res.result, 5);
   });
 
-  group('ScriptRunner Identity Resolution Tests', () {
+  group('ScriptRunner Keypair Resolution Tests', () {
     late _FakeBridge bridge;
-    late FakeSecureIdentityRepository secureRepo;
-    late String testIdentityId1;
+    late FakeSecureKeypairRepository secureRepo;
+    late String TestKeypairId1;
     late String testPrivateKey1;
-    late String testIdentityId2;
+    late String TestKeypairId2;
     late String testPrivateKey2;
 
     setUp(() async {
@@ -114,19 +147,21 @@ void main() {
         'test-canister::method': json.encode({'result': 'success'}),
       });
 
-      // Create test identities using TestIdentityFactory for real cryptographic keys
-      final identity1 = await TestIdentityFactory.fromSeed(1);
-      final identity2 = await TestIdentityFactory.fromSeed(2);
+      // Create test identities using TestKeypairFactory for real cryptographic keys
+      final identity1 = await TestKeypairFactory.fromSeed(1);
+      final identity2 = await TestKeypairFactory.fromSeed(2);
 
-      testIdentityId1 = identity1.id;
+      TestKeypairId1 = identity1.id;
       testPrivateKey1 = identity1.privateKey;
-      testIdentityId2 = identity2.id;
+      TestKeypairId2 = identity2.id;
       testPrivateKey2 = identity2.privateKey;
 
-      secureRepo = FakeSecureIdentityRepository([identity1, identity2]);
+      secureRepo = FakeSecureKeypairRepository([identity1, identity2]);
     });
 
-    test('CanisterCallSpec with identityId uses authenticated call with resolved identity', () async {
+    test(
+        'CanisterCallSpec with identityId uses authenticated call with resolved identity',
+        () async {
       final runner = ScriptRunner(bridge, secureRepository: secureRepo);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
@@ -136,7 +171,7 @@ void main() {
             canisterId: 'test-canister',
             method: 'method',
             kind: 0,
-            identityId: testIdentityId1,
+            identityId: TestKeypairId1,
           ),
         ],
       );
@@ -151,7 +186,9 @@ void main() {
       bridge.callLog.clear();
     });
 
-    test('CanisterCallSpec with privateKeyB64 uses authenticated call with provided key', () async {
+    test(
+        'CanisterCallSpec with privateKeyB64 uses authenticated call with provided key',
+        () async {
       final runner = ScriptRunner(bridge);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
@@ -176,7 +213,9 @@ void main() {
       bridge.callLog.clear();
     });
 
-    test('CanisterCallSpec with isAnonymous=true uses anonymous call even when privateKey provided', () async {
+    test(
+        'CanisterCallSpec with isAnonymous=true uses anonymous call even when privateKey provided',
+        () async {
       final runner = ScriptRunner(bridge);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
@@ -201,7 +240,8 @@ void main() {
       bridge.callLog.clear();
     });
 
-    test('CanisterCallSpec defaults to anonymous when no identity specified', () async {
+    test('CanisterCallSpec defaults to anonymous when no identity specified',
+        () async {
       final runner = ScriptRunner(bridge);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
@@ -224,7 +264,8 @@ void main() {
       bridge.callLog.clear();
     });
 
-    test('CanisterCallSpec prioritizes identityId over privateKeyB64', () async {
+    test('CanisterCallSpec prioritizes identityId over privateKeyB64',
+        () async {
       final runner = ScriptRunner(bridge, secureRepository: secureRepo);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
@@ -235,7 +276,7 @@ void main() {
             method: 'method',
             kind: 0,
             privateKeyB64: 'should_be_ignored',
-            identityId: testIdentityId2,
+            identityId: TestKeypairId2,
           ),
         ],
       );
@@ -267,14 +308,17 @@ void main() {
 
       final res = await runner.run(plan);
       expect(res.ok, false);
-      expect(res.error, contains('Identity with ID "non-existent-id" not found'));
+      expect(
+          res.error, contains('Keypair with ID "non-existent-id" not found'));
 
       // Verify no calls were made
       expect(bridge.callLog.isEmpty, true);
       bridge.callLog.clear();
     });
 
-    test('CanisterCallSpec fails when identityId specified but no repository provided', () async {
+    test(
+        'CanisterCallSpec fails when identityId specified but no repository provided',
+        () async {
       final runner = ScriptRunner(bridge); // No identity repository
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
@@ -291,14 +335,18 @@ void main() {
 
       final res = await runner.run(plan);
       expect(res.ok, false);
-      expect(res.error, contains('Identity ID specified but no secure identity repository provided'));
+      expect(
+          res.error,
+          contains(
+              'Keypair ID specified but no secure identity repository provided'));
 
       // Verify no calls were made
       expect(bridge.callLog.isEmpty, true);
       bridge.callLog.clear();
     });
 
-    test('CanisterCallSpec with empty privateKey defaults to anonymous', () async {
+    test('CanisterCallSpec with empty privateKey defaults to anonymous',
+        () async {
       final runner = ScriptRunner(bridge);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',
@@ -322,7 +370,9 @@ void main() {
       bridge.callLog.clear();
     });
 
-    test('CanisterCallSpec with whitespace-only privateKey defaults to anonymous', () async {
+    test(
+        'CanisterCallSpec with whitespace-only privateKey defaults to anonymous',
+        () async {
       final runner = ScriptRunner(bridge);
       final plan = ScriptRunPlan(
         luaSource: 'return 0',

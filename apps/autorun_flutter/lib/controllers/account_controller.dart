@@ -226,7 +226,7 @@ class AccountController extends ChangeNotifier {
       // Step 3: Sign request with existing keypair from profile
       final signingKeypair = profile.primaryKeypair;
       final request = await AccountSignatureService.createAddPublicKeyRequest(
-        signingIdentity: signingKeypair,
+        signingKeypair: signingKeypair,
         username: profile.username!,
         newPublicKeyB64: newKeypair.publicKey,
       );
@@ -286,7 +286,7 @@ class AccountController extends ChangeNotifier {
   Future<AccountPublicKey> removePublicKey({
     required String username,
     required String keyId,
-    required ProfileKeypair signingIdentity,
+    required ProfileKeypair signingKeypair,
   }) async {
     _setBusy(true);
     try {
@@ -296,7 +296,7 @@ class AccountController extends ChangeNotifier {
       // Create signed request
       final request =
           await AccountSignatureService.createRemovePublicKeyRequest(
-        signingIdentity: signingIdentity,
+        signingKeypair: signingKeypair,
         username: normalizedUsername,
         keyId: keyId,
       );
@@ -337,7 +337,7 @@ class AccountController extends ChangeNotifier {
   /// Returns the updated account on success.
   Future<Account> updateProfile({
     required String username,
-    required ProfileKeypair signingIdentity,
+    required ProfileKeypair signingKeypair,
     String? displayName,
     String? contactEmail,
     String? contactTelegram,
@@ -353,7 +353,7 @@ class AccountController extends ChangeNotifier {
 
       // Create signed request
       final request = await AccountSignatureService.createUpdateAccountRequest(
-        signingIdentity: signingIdentity,
+        signingKeypair: signingKeypair,
         username: normalizedUsername,
         displayName: displayName,
         contactEmail: contactEmail,

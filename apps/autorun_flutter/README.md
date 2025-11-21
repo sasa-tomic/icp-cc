@@ -11,7 +11,7 @@ Cross-platform Flutter client that allows easy scripting and provides a marketpl
 
 ## Project Layout
 - `lib/main.dart`: Material UI, dialogs, and screen flow.
-- `lib/controllers/identity_controller.dart`: Identity lifecycle, persistence orchestration, and key generation.
+- `lib/controllers/identity_controller.dart`: Keypair lifecycle, persistence orchestration, and key generation.
 - `lib/services/identity_repository.dart`: File-backed store using `path_provider`.
 - `lib/models/profile_keypair.dart`: Data model for identity payloads.
 

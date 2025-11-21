@@ -7,7 +7,7 @@ import 'dart:convert';
 import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/services/account_signature_service.dart';
-import '../test_helpers/test_identity_factory.dart';
+import '../test_helpers/test_keypair_factory.dart';
 
 void main() {
   // Initialize secure storage mock for tests
@@ -27,14 +27,16 @@ void main() {
     });
 
     test('successfully removes public key from account', () async {
-      final signingIdentity = await TestIdentityFactory.getEd25519Identity();
+      final signingKeypair = await TestKeypairFactory.getEd25519Keypair();
       final username = 'testuser';
       final keyToRemove = 'key-2';
 
-      final signingKeyHex = AccountSignatureService.publicKeyToHex(signingIdentity.publicKey);
+      final signingKeyHex =
+          AccountSignatureService.publicKeyToHex(signingKeypair.publicKey);
 
       final mockClient = MockClient((request) async {
-        if (request.url.path.contains('/api/v1/accounts/$username/keys/$keyToRemove') &&
+        if (request.url.path
+                .contains('/api/v1/accounts/$username/keys/$keyToRemove') &&
             request.method == 'DELETE') {
           // Mock successful key removal - return the disabled key
           return http.Response(
@@ -95,19 +97,20 @@ void main() {
       await controller.removePublicKey(
         username: username,
         keyId: keyToRemove,
-        signingIdentity: signingIdentity,
+        signingKeypair: signingKeypair,
       );
 
       // Success - removal completed without error
     });
 
     test('throws error when removing last active key', () async {
-      final signingIdentity = await TestIdentityFactory.getEd25519Identity();
+      final signingKeypair = await TestKeypairFactory.getEd25519Keypair();
       final username = 'testuser';
       final keyToRemove = 'key-1';
 
       final mockClient = MockClient((request) async {
-        if (request.url.path.endsWith('/api/v1/accounts/$username/keys/$keyToRemove')) {
+        if (request.url.path
+            .endsWith('/api/v1/accounts/$username/keys/$keyToRemove')) {
           // Mock error for removing last active key
           return http.Response(
             jsonEncode({
@@ -128,7 +131,7 @@ void main() {
         () => controller.removePublicKey(
           username: username,
           keyId: keyToRemove,
-          signingIdentity: signingIdentity,
+          signingKeypair: signingKeypair,
         ),
         throwsA(isA<Exception>()),
       );

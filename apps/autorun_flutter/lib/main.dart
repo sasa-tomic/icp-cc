@@ -13,22 +13,21 @@ import 'screens/profile_home_page.dart';
 import 'screens/scripts_screen.dart';
 import 'widgets/profile_scope.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ScriptTemplates.ensureInitialized();
   AppConfig.debugPrintConfig();
-  runApp(const IdentityApp());
+  runApp(const KeypairApp());
 }
 
-class IdentityApp extends StatefulWidget {
-  const IdentityApp({super.key});
+class KeypairApp extends StatefulWidget {
+  const KeypairApp({super.key});
 
   @override
-  State<IdentityApp> createState() => _IdentityAppState();
+  State<KeypairApp> createState() => _KeypairAppState();
 }
 
-class _IdentityAppState extends State<IdentityApp> {
+class _KeypairAppState extends State<KeypairApp> {
   late final ProfileController _profileController;
 
   @override
@@ -70,7 +69,8 @@ class _MainHomePageState extends State<MainHomePage> {
   int _currentIndex = 0;
   final RustBridgeLoader _bridge = const RustBridgeLoader();
 
-  Future<void> _openCanisterClient({String? initialCanisterId, String? initialMethodName}) async {
+  Future<void> _openCanisterClient(
+      {String? initialCanisterId, String? initialMethodName}) async {
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -93,7 +93,6 @@ class _MainHomePageState extends State<MainHomePage> {
         bottom: true,
         child: Column(
           children: [
-
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -102,8 +101,14 @@ class _MainHomePageState extends State<MainHomePage> {
                     end: Alignment.bottomCenter,
                     colors: [
                       Theme.of(context).colorScheme.surface,
-                      Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
-                      Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+                      Theme.of(context)
+                          .colorScheme
+                          .surface
+                          .withValues(alpha: 0.95),
+                      Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withValues(alpha: 0.05),
                     ],
                   ),
                 ),
@@ -111,7 +116,8 @@ class _MainHomePageState extends State<MainHomePage> {
                   index: _currentIndex,
                   children: <Widget>[
                     const ScriptsScreen(),
-                    BookmarksScreen(bridge: _bridge, onOpenClient: _openCanisterClient),
+                    BookmarksScreen(
+                        bridge: _bridge, onOpenClient: _openCanisterClient),
                     const ProfileHomePage(),
                   ],
                 ),
@@ -124,8 +130,6 @@ class _MainHomePageState extends State<MainHomePage> {
       bottomNavigationBar: _buildModernNavigationBar(),
     );
   }
-
-
 
   Widget _buildModernNavigationBar() {
     final ProfileController profileController = ProfileScope.of(context);

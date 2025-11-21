@@ -434,7 +434,6 @@ class MarketplaceOpenApiService {
     required String category,
     required List<String> tags,
     required String luaSource,
-    required String authorName,
     List<String>? canisterIds,
     String? iconUrl,
     List<String>? screenshots,
@@ -454,7 +453,6 @@ class MarketplaceOpenApiService {
         'category': category,
         'tags': tags,
         'lua_source': luaSource,
-        'author_name': authorName,
         'canister_ids': canisterIds ?? [],
         'screenshots': screenshots ?? [],
         'version': version ?? '1.0.0',
@@ -471,7 +469,6 @@ class MarketplaceOpenApiService {
       }
       if (authorPrincipal != null) {
         requestBodyMap['author_principal'] = authorPrincipal;
-        requestBodyMap['author_id'] = authorPrincipal; // Backend expects author_id
       }
       if (authorPublicKey != null) {
         requestBodyMap['author_public_key'] = authorPublicKey;
@@ -538,8 +535,6 @@ class MarketplaceOpenApiService {
           description: description,
           category: category,
           tags: tags,
-          authorId: authorPrincipal ?? 'anonymous',
-          authorName: authorName,
           authorPrincipal: authorPrincipal,
           authorPublicKey: authorPublicKey,
           uploadSignature: signature,

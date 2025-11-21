@@ -17,7 +17,7 @@ void main() {
     setUp(() async {
       // Initialize mock service
       mockService = MockMarketplaceOpenApiService();
-      
+
       // Add mock test data
       mockService.addMockTestData();
     });
@@ -36,12 +36,12 @@ void main() {
         expect(result.scripts, isNotEmpty);
         expect(result.total, greaterThan(0));
         expect(result.scripts.length, lessThanOrEqualTo(result.total));
-        
+
         // Verify all results contain the search query
         for (final script in result.scripts) {
           expect(
             script.title.toLowerCase().contains('test'.toLowerCase()) ||
-            script.description.toLowerCase().contains('test'.toLowerCase()),
+                script.description.toLowerCase().contains('test'.toLowerCase()),
             isTrue,
           );
         }
@@ -53,7 +53,7 @@ void main() {
 
         // Assert
         expect(result.scripts, isNotEmpty);
-        
+
         // Verify all results are in the specified category
         for (final script in result.scripts) {
           expect(script.category, equals('Development'));
@@ -66,7 +66,7 @@ void main() {
 
         // Assert
         expect(result.scripts, isNotEmpty);
-        
+
         // Verify all results contain the specified tags
         for (final script in result.scripts) {
           expect(script.tags.contains('test'), isTrue);
@@ -76,22 +76,24 @@ void main() {
       test('should handle pagination correctly', () async {
         // Act - Get first page
         final firstPage = await mockService.searchScripts(limit: 1, offset: 0);
-        
+
         // Act - Get second page
         final secondPage = await mockService.searchScripts(limit: 1, offset: 1);
 
         // Assert
         expect(firstPage.scripts.length, lessThanOrEqualTo(1));
         expect(secondPage.scripts.length, lessThanOrEqualTo(1));
-        
+
         if (firstPage.total > 1) {
-          expect(firstPage.scripts.first.id, isNot(equals(secondPage.scripts.first.id)));
+          expect(firstPage.scripts.first.id,
+              isNot(equals(secondPage.scripts.first.id)));
         }
       });
 
       test('should return empty result for non-matching query', () async {
         // Act
-        final result = await mockService.searchScripts(query: 'NonExistentQuery12345');
+        final result =
+            await mockService.searchScripts(query: 'NonExistentQuery12345');
 
         // Assert
         expect(result.scripts, isEmpty);
@@ -113,7 +115,7 @@ void main() {
           expect(script.tags.contains('test'), isTrue);
           expect(
             script.title.toLowerCase().contains('test'.toLowerCase()) ||
-            script.description.toLowerCase().contains('test'.toLowerCase()),
+                script.description.toLowerCase().contains('test'.toLowerCase()),
             isTrue,
           );
         }
@@ -125,7 +127,7 @@ void main() {
         // Arrange - Get a script from search results
         final searchResult = await mockService.searchScripts(limit: 1);
         expect(searchResult.scripts, isNotEmpty);
-        
+
         final scriptId = searchResult.scripts.first.id;
 
         // Act
@@ -229,7 +231,6 @@ void main() {
           category: 'Testing',
           tags: ['consistency', 'test'],
           authorId: 'test_author_id',
-          authorName: 'Consistency Tester',
           luaSource: '-- Consistency test',
           version: '1.0.0',
           price: 0.0,
@@ -262,17 +263,18 @@ void main() {
 
         // Act - Retrieve by different methods
         final byId = await mockService.getScriptById(uploadedScriptId);
-        final bySearch = await mockService.searchScripts(query: 'Consistency Test Script');
+        final bySearch =
+            await mockService.searchScripts(query: 'Consistency Test Script');
 
         // Assert - Data should be consistent
         expect(byId, isNotNull);
         expect(bySearch.scripts, isNotEmpty);
-        
+
         final foundInSearch = bySearch.scripts.firstWhere(
           (s) => s.id == 'consistency-test',
           orElse: () => byId ?? bySearch.scripts.first,
         );
-        
+
         expect(byId!.title, equals(foundInSearch.title));
         expect(byId.description, equals(foundInSearch.description));
         expect(byId.category, equals(foundInSearch.category));
@@ -281,14 +283,16 @@ void main() {
     });
 
     group('Performance', () {
-      test('should complete search operations within reasonable time', () async {
+      test('should complete search operations within reasonable time',
+          () async {
         // Act
         final stopwatch = Stopwatch()..start();
         await mockService.searchScripts(limit: 10);
         stopwatch.stop();
 
         // Assert
-        expect(stopwatch.elapsedMilliseconds, lessThan(1000)); // Should complete within 1 second
+        expect(stopwatch.elapsedMilliseconds,
+            lessThan(1000)); // Should complete within 1 second
       });
 
       test('should handle concurrent search requests', () async {
@@ -297,7 +301,7 @@ void main() {
         for (int i = 0; i < 5; i++) {
           futures.add(mockService.searchScripts(query: 'Test', limit: 5));
         }
-        
+
         final results = await Future.wait(futures);
 
         // Assert - All should complete successfully
@@ -327,7 +331,8 @@ void main() {
       test('includes timestamp and signature when uploading scripts', () async {
         Map<String, dynamic>? capturedBody;
         final client = MockClient((request) async {
-          expect(request.url.toString(), equals('https://mock.api/api/v1/scripts'));
+          expect(request.url.toString(),
+              equals('https://mock.api/api/v1/scripts'));
           capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(
             jsonEncode({
@@ -365,7 +370,6 @@ void main() {
           category: 'Development',
           tags: const ['test', 'upload'],
           luaSource: '-- lua',
-          authorName: 'Uploader',
           price: 0.0,
           version: '1.0.0',
           authorPrincipal: 'author-principal',
@@ -384,7 +388,8 @@ void main() {
 
       test('surfaces server error details in exception message', () async {
         final client = MockClient((request) async {
-          expect(request.url.toString(), equals('https://mock.api/api/v1/scripts'));
+          expect(request.url.toString(),
+              equals('https://mock.api/api/v1/scripts'));
           return http.Response(
             jsonEncode({
               'success': false,
@@ -406,7 +411,6 @@ void main() {
             category: 'Testing',
             tags: const ['fail'],
             luaSource: '--',
-            authorName: 'Uploader',
             price: 1.0,
             version: '1.0.0',
             authorPrincipal: 'author-principal',
@@ -418,14 +422,15 @@ void main() {
             isA<Exception>().having(
               (error) => error.toString(),
               'message',
-              contains('Upload failed (HTTP 401): Missing signature for verification'),
+              contains(
+                  'Upload failed (HTTP 401): Missing signature for verification'),
             ),
           ),
         );
       });
     });
 
-    group('Identity profile API', () {
+    group('Keypair profile API', () {
       late MarketplaceOpenApiService service;
 
       setUp(() {
@@ -437,7 +442,7 @@ void main() {
         service.resetHttpClient();
       });
 
-      // Identity profile API tests removed - profiles are now local-only
+      // Keypair profile API tests removed - profiles are now local-only
     });
   });
 }

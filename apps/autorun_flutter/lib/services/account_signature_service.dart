@@ -71,13 +71,13 @@ class AccountSignatureService {
 
   /// Create and sign an add key request
   static Future<AddPublicKeyRequest> createAddPublicKeyRequest({
-    required ProfileKeypair signingIdentity,
+    required ProfileKeypair signingKeypair,
     required String username,
     required String newPublicKeyB64,
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final signingPublicKeyHex = _publicKeyToHex(signingIdentity.publicKey);
+    final signingPublicKeyHex = _publicKeyToHex(signingKeypair.publicKey);
     final newPublicKeyHex = _publicKeyToHex(newPublicKeyB64);
 
     final request = AddPublicKeyRequest(
@@ -90,7 +90,7 @@ class AccountSignatureService {
     );
 
     final signature = await _signPayload(
-      identity: signingIdentity,
+      identity: signingKeypair,
       payload: request.toCanonicalPayload(),
     );
 
@@ -106,13 +106,13 @@ class AccountSignatureService {
 
   /// Create and sign a remove key request
   static Future<RemovePublicKeyRequest> createRemovePublicKeyRequest({
-    required ProfileKeypair signingIdentity,
+    required ProfileKeypair signingKeypair,
     required String username,
     required String keyId,
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final signingPublicKeyHex = _publicKeyToHex(signingIdentity.publicKey);
+    final signingPublicKeyHex = _publicKeyToHex(signingKeypair.publicKey);
 
     final request = RemovePublicKeyRequest(
       username: username,
@@ -124,7 +124,7 @@ class AccountSignatureService {
     );
 
     final signature = await _signPayload(
-      identity: signingIdentity,
+      identity: signingKeypair,
       payload: request.toCanonicalPayload(),
     );
 
@@ -140,7 +140,7 @@ class AccountSignatureService {
 
   /// Create and sign an update account request
   static Future<UpdateAccountRequest> createUpdateAccountRequest({
-    required ProfileKeypair signingIdentity,
+    required ProfileKeypair signingKeypair,
     required String username,
     String? displayName,
     String? contactEmail,
@@ -152,7 +152,7 @@ class AccountSignatureService {
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final signingPublicKeyHex = _publicKeyToHex(signingIdentity.publicKey);
+    final signingPublicKeyHex = _publicKeyToHex(signingKeypair.publicKey);
 
     final request = UpdateAccountRequest(
       username: username,
@@ -170,7 +170,7 @@ class AccountSignatureService {
     );
 
     final signature = await _signPayload(
-      identity: signingIdentity,
+      identity: signingKeypair,
       payload: request.toCanonicalPayload(),
     );
 

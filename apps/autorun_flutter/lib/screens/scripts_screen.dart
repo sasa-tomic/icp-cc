@@ -35,10 +35,12 @@ class ScriptsScreen extends StatefulWidget {
   State<ScriptsScreen> createState() => _ScriptsScreenState();
 }
 
-class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateMixin {
+class _ScriptsScreenState extends State<ScriptsScreen>
+    with TickerProviderStateMixin {
   late final ScriptController _controller;
   late final TabController _tabController;
-  final ScriptAppRuntime _appRuntime = ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
+  final ScriptAppRuntime _appRuntime =
+      ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
   final ValueNotifier<bool> _showFab = ValueNotifier<bool>(true);
 
   void _handleTabChange() {
@@ -46,16 +48,19 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     // Update FAB visibility without full rebuild
     _showFab.value = _tabController.index == 0;
   }
-  
+
   // Marketplace properties
-  final MarketplaceOpenApiService _marketplaceService = MarketplaceOpenApiService();
-  final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
+  final MarketplaceOpenApiService _marketplaceService =
+      MarketplaceOpenApiService();
+  final DownloadHistoryService _downloadHistoryService =
+      DownloadHistoryService();
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<MarketplaceScript> _marketplaceScripts = [];
   List<String> _categories = [];
   final Set<String> _downloadingScriptIds = <String>{};
-  final Map<String, double> _downloadProgress = <String, double>{}; // Track download progress 0.0 to 1.0
+  final Map<String, double> _downloadProgress =
+      <String, double>{}; // Track download progress 0.0 to 1.0
   Set<String> _downloadedScriptIds = {};
   bool _isMarketplaceLoading = false;
   bool _isLoadingMore = false;
@@ -69,13 +74,13 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   final String _sortOrder = 'desc';
   String _searchQuery = '';
 
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this)
       ..addListener(_handleTabChange);
-    _controller = ScriptController(ScriptRepository.instance)..addListener(_onChanged);
+    _controller = ScriptController(ScriptRepository.instance)
+      ..addListener(_onChanged);
     _controller.ensureLoaded();
     _initializeMarketplace();
     _loadCategories();
@@ -151,7 +156,6 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         _hasMore = result.hasMore;
         _offset += result.scripts.length;
       });
-
     } catch (e) {
       setState(() {
         _marketplaceError = _formatErrorMessage(e.toString());
@@ -172,7 +176,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     if (error.contains('HTTP 404') || error.contains('Not Found')) {
       return 'Marketplace is currently unavailable\n\nThe script marketplace server is not responding. This may be due to maintenance or deployment issues. Please try again later.\n\nTechnical details: $error';
     }
-    if (error.contains('Connection refused') || error.contains('Network is unreachable')) {
+    if (error.contains('Connection refused') ||
+        error.contains('Network is unreachable')) {
       return 'Network connection failed\n\nUnable to connect to the marketplace. Please check your internet connection and try again.\n\nTechnical details: $error';
     }
     if (error.contains('Connection timeout')) {
@@ -230,16 +235,14 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     _loadMarketplaceScripts();
   }
 
-  
-
   Future<void> _loadDownloadedScripts() async {
     try {
       // Load from download history service
-      final downloadHistory = await _downloadHistoryService.getDownloadHistory();
-      final downloadedIds = downloadHistory
-          .map((record) => record.marketplaceScriptId)
-          .toSet();
-      
+      final downloadHistory =
+          await _downloadHistoryService.getDownloadHistory();
+      final downloadedIds =
+          downloadHistory.map((record) => record.marketplaceScriptId).toSet();
+
       setState(() {
         _downloadedScriptIds = downloadedIds;
       });
@@ -291,7 +294,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
       await _downloadHistoryService.addToHistory(
         marketplaceScriptId: script.id,
         title: script.title,
-        authorName: script.authorName,
+        authorName: script.authorName ?? 'Unknown',
         version: script.version,
         localScriptId: createdScript.id,
       );
@@ -329,7 +332,6 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           ),
         );
       }
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -367,7 +369,10 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => Scaffold(
         appBar: AppBar(title: Text(record.title)),
-        body: ScriptAppHost(runtime: _appRuntime, script: record.luaSource, initialArg: const <String, dynamic>{}),
+        body: ScriptAppHost(
+            runtime: _appRuntime,
+            script: record.luaSource,
+            initialArg: const <String, dynamic>{}),
       ),
     ));
   }
@@ -380,8 +385,12 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           title: const Text('Delete script'),
           content: Text('Delete "${record.title}"? This cannot be undone.'),
           actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-            FilledButton.tonal(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel')),
+            FilledButton.tonal(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete')),
           ],
         );
       },
@@ -389,7 +398,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     if (confirmed == true) {
       await _controller.deleteScript(record.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Script deleted')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Script deleted')));
     }
   }
 
@@ -442,7 +452,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         script: record,
       ),
     );
-    
+
     if (uploaded == true) {
       // Refresh downloaded scripts to include the newly published one
       await _loadDownloadedScripts();
@@ -461,7 +471,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   void _viewInMarketplace(ScriptRecord record) {
     // Extract the original marketplace title from metadata if available
     final marketplaceTitle = record.metadata['marketplace_title'] as String? ??
-                             record.title.replaceAll(' (Marketplace)', '');
+        record.title.replaceAll(' (Marketplace)', '');
 
     // Switch to marketplace tab
     _tabController.animateTo(1);
@@ -490,9 +500,9 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         imageUrl: record.imageUrl,
         luaSourceOverride: record.luaSource,
       );
-      
+
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Script duplicated as "${newScript.title}"'),
@@ -521,7 +531,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
     // For now, just copy the source code to clipboard
     // In a real implementation, you might want to export as a file
     await Clipboard.setData(ClipboardData(text: record.luaSource));
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -535,7 +545,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final scripts = _controller.scripts;
-    
+
     return Scaffold(
       body: Stack(
         children: [
@@ -551,7 +561,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                     Tab(icon: Icon(Icons.store), text: 'Marketplace'),
                   ],
                   labelColor: Theme.of(context).colorScheme.primary,
-                  unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  unselectedLabelColor:
+                      Theme.of(context).colorScheme.onSurfaceVariant,
                   indicatorColor: Theme.of(context).colorScheme.primary,
                 ),
               ),
@@ -576,7 +587,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
             },
             child: Positioned(
               right: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 90, // Better spacing from navigation bar
+              bottom: MediaQuery.of(context).padding.bottom +
+                  90, // Better spacing from navigation bar
               child: AnimatedFab(
                 heroTag: 'scripts_fab',
                 onPressed: _controller.isBusy ? null : _showCreateSheet,
@@ -602,7 +614,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
           return ModernEmptyState(
             icon: Icons.code_rounded,
             title: 'Your Script Library is Empty',
-            subtitle: 'Start building amazing ICP scripts with our intuitive editor and powerful marketplace',
+            subtitle:
+                'Start building amazing ICP scripts with our intuitive editor and powerful marketplace',
             action: _showCreateSheet,
             actionLabel: 'Create Your First Script',
           );
@@ -623,7 +636,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
               final ScriptRecord rec = scripts[index];
               final screenWidth = MediaQuery.of(context).size.width;
               final isCompactScreen = screenWidth < 380;
-              
+
               return Dismissible(
                 key: ValueKey<String>(rec.id),
                 direction: DismissDirection.endToStart,
@@ -658,10 +671,12 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                         label: 'Undo',
                         onPressed: () async {
                           // Restore the script by persisting current scripts + deleted one
-                          final currentScripts = await scriptRepository.loadScripts();
+                          final currentScripts =
+                              await scriptRepository.loadScripts();
                           currentScripts.add(deletedScript);
                           await scriptRepository.persistScripts(currentScripts);
-                          await _controller.refresh(); // Refresh controller to pick up change
+                          await _controller
+                              .refresh(); // Refresh controller to pick up change
                         },
                       ),
                     ),
@@ -699,7 +714,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                               decoration: BoxDecoration(
                                 color: Colors.green,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border:
+                                    Border.all(color: Colors.white, width: 2),
                               ),
                               child: Icon(
                                 Icons.cloud_upload,
@@ -730,13 +746,15 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                               const SizedBox(width: 8),
                               Container(
                                 padding: EdgeInsets.symmetric(
-                                  horizontal: isCompactScreen ? 4 : 6, 
+                                  horizontal: isCompactScreen ? 4 : 6,
                                   vertical: isCompactScreen ? 1 : 2,
                                 ),
                                 decoration: BoxDecoration(
                                   color: Colors.green.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                                  border: Border.all(
+                                      color:
+                                          Colors.green.withValues(alpha: 0.3)),
                                 ),
                                 child: Text(
                                   'Published',
@@ -755,7 +773,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                           'Updated ${rec.updatedAt.toLocal()}',
                           style: TextStyle(
                             fontSize: isCompactScreen ? 11 : 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -763,7 +782,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                     onTap: () {
                       showDialog<void>(
                         context: context,
-                                  builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
+                        builder: (_) => _ScriptEditorDialog(
+                            controller: _controller, record: rec),
                       );
                     },
                     trailing: Row(
@@ -776,7 +796,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                             icon: const Icon(Icons.play_arrow),
                             onPressed: () => _runScript(rec),
                           ),
-                          
+
                           // Quick publish button for scripts not yet published
                           if (!_isPublishedToMarketplace(rec))
                             IconButton(
@@ -785,7 +805,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                               onPressed: () => _publishToMarketplace(rec),
                             ),
                         ],
-                        
+
                         // More actions menu - always show
                         PopupMenuButton<int>(
                           tooltip: 'More Actions',
@@ -795,21 +815,30 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                           ),
                           itemBuilder: (BuildContext context) {
                             final List<PopupMenuEntry<int>> items = [
-                              const PopupMenuItem<int>(value: 1, child: Text('Edit details…')),
-                              const PopupMenuItem<int>(value: 2, child: Text('Edit code…')),
+                              const PopupMenuItem<int>(
+                                  value: 1, child: Text('Edit details…')),
+                              const PopupMenuItem<int>(
+                                  value: 2, child: Text('Edit code…')),
                             ];
-                            
+
                             if (!_isPublishedToMarketplace(rec)) {
-                              items.add(const PopupMenuItem<int>(value: 3, child: Text('Publish to Marketplace')));
+                              items.add(const PopupMenuItem<int>(
+                                  value: 3,
+                                  child: Text('Publish to Marketplace')));
                             } else {
-                              items.add(const PopupMenuItem<int>(value: 4, child: Text('View in Marketplace')));
+                              items.add(const PopupMenuItem<int>(
+                                  value: 4,
+                                  child: Text('View in Marketplace')));
                             }
-                            
-                            items.add(const PopupMenuItem<int>(value: 5, child: Text('Duplicate')));
-                            items.add(const PopupMenuItem<int>(value: 6, child: Text('Export')));
+
+                            items.add(const PopupMenuItem<int>(
+                                value: 5, child: Text('Duplicate')));
+                            items.add(const PopupMenuItem<int>(
+                                value: 6, child: Text('Export')));
                             items.add(const PopupMenuDivider());
-                            items.add(const PopupMenuItem<int>(value: 7, child: Text('Delete')));
-                            
+                            items.add(const PopupMenuItem<int>(
+                                value: 7, child: Text('Delete')));
+
                             return items;
                           },
                           onSelected: (int value) {
@@ -817,13 +846,15 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                               case 1:
                                 showDialog<void>(
                                   context: context,
-                                  builder: (_) => _ScriptDetailsDialog(controller: _controller, record: rec),
+                                  builder: (_) => _ScriptDetailsDialog(
+                                      controller: _controller, record: rec),
                                 );
                                 break;
                               case 2:
                                 showDialog<void>(
                                   context: context,
-                        builder: (_) => _ScriptEditorDialog(controller: _controller, record: rec),
+                                  builder: (_) => _ScriptEditorDialog(
+                                      controller: _controller, record: rec),
                                 );
                                 break;
                               case 3:
@@ -883,8 +914,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
             },
           ),
         ),
-        if (_isSearching)
-          const LinearProgressIndicator(minHeight: 2),
+        if (_isSearching) const LinearProgressIndicator(minHeight: 2),
       ],
     );
   }
@@ -946,7 +976,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
             child: ModernEmptyState(
               icon: Icons.search_off_rounded,
               title: 'No Scripts Found',
-              subtitle: 'Try adjusting your search terms or browse different categories to discover amazing scripts',
+              subtitle:
+                  'Try adjusting your search terms or browse different categories to discover amazing scripts',
             ),
           ),
         ),
@@ -967,7 +998,8 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
         },
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final gridConfig = ResponsiveGridConfig.forWidth(constraints.maxWidth);
+            final gridConfig =
+                ResponsiveGridConfig.forWidth(constraints.maxWidth);
             return GridView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
@@ -991,13 +1023,15 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                 final script = _marketplaceScripts[index];
                 final isDownloading = _downloadingScriptIds.contains(script.id);
                 final isDownloaded = _downloadedScriptIds.contains(script.id);
-                
+
                 return Stack(
                   children: [
                     ScriptCard(
                       script: script,
                       onTap: () => _showScriptDetails(context, script),
-                      onDownload: script.price == 0 ? () => _downloadScript(script) : null,
+                      onDownload: script.price == 0
+                          ? () => _downloadScript(script)
+                          : null,
                       isDownloading: isDownloading,
                       isDownloaded: isDownloaded,
                       onQuickPreview: () => _showScriptDetails(context, script),
@@ -1020,8 +1054,11 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
                                 children: [
                                   CircularProgressIndicator(
                                     value: _downloadProgress[script.id],
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                                    backgroundColor: Colors.white.withValues(alpha: 0.3),
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                            Colors.white),
+                                    backgroundColor:
+                                        Colors.white.withValues(alpha: 0.3),
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
@@ -1101,9 +1138,7 @@ class _ScriptsScreenState extends State<ScriptsScreen> with TickerProviderStateM
   }
 }
 
-
-
-  // Legacy script creation components replaced by improved versions
+// Legacy script creation components replaced by improved versions
 
 /// Improved script editor dialog with syntax highlighting and improved UX
 class _ScriptEditorDialog extends StatefulWidget {
@@ -1165,95 +1200,103 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
     }
   }
 
-   @override
-   Widget build(BuildContext context) {
-     final screenSize = MediaQuery.of(context).size;
-     final isCompactScreen = screenSize.width < 400;
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isCompactScreen = screenSize.width < 400;
 
-     return Dialog(
-       insetPadding: EdgeInsets.zero,
-       child: Container(
-         width: screenSize.width,
-         height: screenSize.height,
-         color: Theme.of(context).colorScheme.surface,
+    return Dialog(
+      insetPadding: EdgeInsets.zero,
+      child: Container(
+        width: screenSize.width,
+        height: screenSize.height,
+        color: Theme.of(context).colorScheme.surface,
         child: Column(
           children: [
-             // Compact Header
-             Container(
-               padding: EdgeInsets.symmetric(horizontal: isCompactScreen ? 12 : 16, vertical: 8),
-               decoration: BoxDecoration(
-                 color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
-                 border: Border(
-                   bottom: BorderSide(
-                     color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                   ),
-                 ),
-               ),
-               child: Row(
-                 children: [
-                   Icon(
-                     Icons.edit,
-                     color: Theme.of(context).colorScheme.primary,
-                     size: isCompactScreen ? 18 : 20,
-                   ),
-                   const SizedBox(width: 8),
-                   Expanded(
-                     child: Text(
-                       widget.record.title,
-                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                             fontWeight: FontWeight.w600,
-                             fontSize: isCompactScreen ? 14 : 16,
-                           ),
-                       overflow: TextOverflow.ellipsis,
-                       maxLines: 1,
-                     ),
-                   ),
-                   if (!isCompactScreen) ...[
-                     TextButton(
-                       onPressed: () => Navigator.of(context).pop(),
-                       child: const Text('Cancel'),
-                     ),
-                   ],
-                   FilledButton.icon(
-                     onPressed: _saving ? null : _save,
-                     icon: _saving
-                         ? SizedBox(
-                             width: 14,
-                             height: 14,
-                             child: CircularProgressIndicator(strokeWidth: 2),
-                           )
-                         : const Icon(Icons.save, size: 16),
-                     label: const Text('Save'),
-                     style: FilledButton.styleFrom(
-                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                     ),
-                   ),
-                   if (isCompactScreen) ...[
-                     const SizedBox(width: 8),
-                     IconButton(
-                       onPressed: () => Navigator.of(context).pop(),
-                       icon: const Icon(Icons.close),
-                       iconSize: 18,
-                       visualDensity: VisualDensity.compact,
-                     ),
-                   ],
-                 ],
-               ),
-             ),
+            // Compact Header
+            Container(
+              padding: EdgeInsets.symmetric(
+                  horizontal: isCompactScreen ? 12 : 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.5),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.2),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.edit,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: isCompactScreen ? 18 : 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.record.title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: isCompactScreen ? 14 : 16,
+                          ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                  if (!isCompactScreen) ...[
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save, size: 16),
+                    label: const Text('Save'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                  if (isCompactScreen) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                      iconSize: 18,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ],
+              ),
+            ),
 
-             // Maximized Editor
-             Expanded(
-               child: Padding(
-                 padding: EdgeInsets.all(isCompactScreen ? 4 : 8),
-                 child: ScriptEditor(
-                   initialCode: widget.record.luaSource,
-                   onCodeChanged: _onCodeChanged,
-                   language: 'lua',
-                   showIntegrations: !isCompactScreen,
-                   minLines: isCompactScreen ? 20 : 30,
-                 ),
-               ),
-             ),
+            // Maximized Editor
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(isCompactScreen ? 4 : 8),
+                child: ScriptEditor(
+                  initialCode: widget.record.luaSource,
+                  onCodeChanged: _onCodeChanged,
+                  language: 'lua',
+                  showIntegrations: !isCompactScreen,
+                  minLines: isCompactScreen ? 20 : 30,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1271,12 +1314,14 @@ class _ScriptDetailsDialog extends StatefulWidget {
 }
 
 class _NewScriptDetailsDialog extends StatefulWidget {
-  const _NewScriptDetailsDialog({required this.controller, required this.luaSource});
+  const _NewScriptDetailsDialog(
+      {required this.controller, required this.luaSource});
   final ScriptController controller;
   final String luaSource;
 
   @override
-  State<_NewScriptDetailsDialog> createState() => _NewScriptDetailsDialogState();
+  State<_NewScriptDetailsDialog> createState() =>
+      _NewScriptDetailsDialogState();
 }
 
 class _NewScriptDetailsDialogState extends State<_NewScriptDetailsDialog> {
@@ -1309,15 +1354,20 @@ class _NewScriptDetailsDialogState extends State<_NewScriptDetailsDialog> {
     try {
       final rec = await widget.controller.createScript(
         title: _titleController.text.trim(),
-        emoji: _emojiController.text.trim().isEmpty ? null : _emojiController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isEmpty ? null : _imageUrlController.text.trim(),
+        emoji: _emojiController.text.trim().isEmpty
+            ? null
+            : _emojiController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isEmpty
+            ? null
+            : _imageUrlController.text.trim(),
         luaSourceOverride: widget.luaSource,
       );
       if (!mounted) return;
       Navigator.of(context).pop(rec);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Save failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -1337,34 +1387,45 @@ class _NewScriptDetailsDialogState extends State<_NewScriptDetailsDialog> {
             children: <Widget>[
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Title', border: OutlineInputBorder()),
                 textInputAction: TextInputAction.next,
-                validator: (v) => (v ?? '').trim().isEmpty ? 'Title is required' : null,
+                validator: (v) =>
+                    (v ?? '').trim().isEmpty ? 'Title is required' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _emojiController,
-                decoration: const InputDecoration(labelText: 'Emoji (optional)', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Emoji (optional)',
+                    border: OutlineInputBorder()),
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _imageUrlController,
-                decoration: const InputDecoration(labelText: 'Image URL (optional)', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Image URL (optional)',
+                    border: OutlineInputBorder()),
                 textInputAction: TextInputAction.done,
               ),
               const SizedBox(height: 8),
               const Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Provide either an emoji or an image URL', style: TextStyle(fontSize: 12)),
+                child: Text('Provide either an emoji or an image URL',
+                    style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
         ),
       ),
       actions: <Widget>[
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        FilledButton(onPressed: _isSubmitting ? null : _save, child: const Text('Create script')),
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: _isSubmitting ? null : _save,
+            child: const Text('Create script')),
       ],
     );
   }
@@ -1382,7 +1443,8 @@ class _ScriptDetailsDialogState extends State<_ScriptDetailsDialog> {
     super.initState();
     _titleController = TextEditingController(text: widget.record.title);
     _emojiController = TextEditingController(text: widget.record.emoji ?? '');
-    _imageUrlController = TextEditingController(text: widget.record.imageUrl ?? '');
+    _imageUrlController =
+        TextEditingController(text: widget.record.imageUrl ?? '');
   }
 
   @override
@@ -1401,14 +1463,19 @@ class _ScriptDetailsDialogState extends State<_ScriptDetailsDialog> {
       await widget.controller.updateDetails(
         id: widget.record.id,
         title: _titleController.text.trim(),
-        emoji: _emojiController.text.trim().isEmpty ? null : _emojiController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isEmpty ? null : _imageUrlController.text.trim(),
+        emoji: _emojiController.text.trim().isEmpty
+            ? null
+            : _emojiController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isEmpty
+            ? null
+            : _imageUrlController.text.trim(),
       );
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Save failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -1428,34 +1495,44 @@ class _ScriptDetailsDialogState extends State<_ScriptDetailsDialog> {
             children: <Widget>[
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Title', border: OutlineInputBorder()),
                 textInputAction: TextInputAction.next,
-                validator: (v) => (v ?? '').trim().isEmpty ? 'Title is required' : null,
+                validator: (v) =>
+                    (v ?? '').trim().isEmpty ? 'Title is required' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _emojiController,
-                decoration: const InputDecoration(labelText: 'Emoji (optional)', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Emoji (optional)',
+                    border: OutlineInputBorder()),
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _imageUrlController,
-                decoration: const InputDecoration(labelText: 'Image URL (optional)', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Image URL (optional)',
+                    border: OutlineInputBorder()),
                 textInputAction: TextInputAction.done,
               ),
               const SizedBox(height: 8),
               const Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Provide either an emoji or an image URL', style: TextStyle(fontSize: 12)),
+                child: Text('Provide either an emoji or an image URL',
+                    style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
         ),
       ),
       actions: <Widget>[
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        FilledButton(onPressed: _isSubmitting ? null : _save, child: const Text('Save')),
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: _isSubmitting ? null : _save, child: const Text('Save')),
       ],
     );
   }
@@ -1464,10 +1541,12 @@ class _ScriptDetailsDialogState extends State<_ScriptDetailsDialog> {
 /// Dialog for selecting a script template when creating a new script
 class _ScriptTemplateSelectionDialog extends StatefulWidget {
   @override
-  State<_ScriptTemplateSelectionDialog> createState() => _ScriptTemplateSelectionDialogState();
+  State<_ScriptTemplateSelectionDialog> createState() =>
+      _ScriptTemplateSelectionDialogState();
 }
 
-class _ScriptTemplateSelectionDialogState extends State<_ScriptTemplateSelectionDialog> {
+class _ScriptTemplateSelectionDialogState
+    extends State<_ScriptTemplateSelectionDialog> {
   String _selectedLevel = 'all';
   String _searchQuery = '';
 
@@ -1512,8 +1591,8 @@ class _ScriptTemplateSelectionDialogState extends State<_ScriptTemplateSelection
             Text(
               'Select a template to get started with your Lua script',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
             const SizedBox(height: 24),
 
@@ -1535,7 +1614,8 @@ class _ScriptTemplateSelectionDialogState extends State<_ScriptTemplateSelection
                   segments: const [
                     ButtonSegment(value: 'all', label: Text('All')),
                     ButtonSegment(value: 'beginner', label: Text('Beginner')),
-                    ButtonSegment(value: 'intermediate', label: Text('Intermediate')),
+                    ButtonSegment(
+                        value: 'intermediate', label: Text('Intermediate')),
                     ButtonSegment(value: 'advanced', label: Text('Advanced')),
                   ],
                   selected: {_selectedLevel},
@@ -1554,7 +1634,9 @@ class _ScriptTemplateSelectionDialogState extends State<_ScriptTemplateSelection
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.outline),
+                          Icon(Icons.search_off,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.outline),
                           const SizedBox(height: 16),
                           Text(
                             'No templates found',
@@ -1563,15 +1645,19 @@ class _ScriptTemplateSelectionDialogState extends State<_ScriptTemplateSelection
                           const SizedBox(height: 8),
                           Text(
                             'Try adjusting your search or filters',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
                           ),
                         ],
                       ),
                     )
                   : GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         childAspectRatio: 2,
                         crossAxisSpacing: 16,
@@ -1601,7 +1687,8 @@ class _ScriptTemplateSelectionDialogState extends State<_ScriptTemplateSelection
                 TextButton.icon(
                   onPressed: () {
                     // Use default template
-                    final defaultTemplate = ScriptTemplates.templates.firstWhere(
+                    final defaultTemplate =
+                        ScriptTemplates.templates.firstWhere(
                       (t) => t.id == 'hello_world',
                     );
                     Navigator.of(context).pop(defaultTemplate);
@@ -1656,17 +1743,20 @@ class _TemplateCard extends StatelessWidget {
                       children: [
                         Text(
                           template.title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: _getLevelColor(template.level, colorScheme),
+                                color:
+                                    _getLevelColor(template.level, colorScheme),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -1680,7 +1770,8 @@ class _TemplateCard extends StatelessWidget {
                             ),
                             if (template.isRecommended) ...[
                               const SizedBox(width: 8),
-                              Icon(Icons.star, size: 16, color: Colors.amber[600]),
+                              Icon(Icons.star,
+                                  size: 16, color: Colors.amber[600]),
                             ],
                           ],
                         ),
@@ -1708,7 +1799,8 @@ class _TemplateCard extends StatelessWidget {
                 runSpacing: 4,
                 children: template.tags.take(3).map((tag) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),

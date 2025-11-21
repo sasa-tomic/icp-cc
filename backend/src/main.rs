@@ -98,7 +98,10 @@ async fn run_marketplace_search(
         .filter(|s| !s.is_empty())
     {
         let like_pattern = format!("%{}%", query);
-        conditions.push("(scripts.title LIKE ? OR scripts.description LIKE ? OR scripts.category LIKE ?)".to_string());
+        conditions.push(
+            "(scripts.title LIKE ? OR scripts.description LIKE ? OR scripts.category LIKE ?)"
+                .to_string(),
+        );
         condition_binds.push(BindValue::Text(like_pattern.clone()));
         condition_binds.push(BindValue::Text(like_pattern.clone()));
         condition_binds.push(BindValue::Text(like_pattern));

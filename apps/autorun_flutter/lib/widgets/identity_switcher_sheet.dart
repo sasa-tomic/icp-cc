@@ -4,37 +4,38 @@ import '../controllers/profile_controller.dart';
 import '../models/profile.dart';
 import '../utils/principal.dart';
 
-class IdentitySwitcherResult {
-  const IdentitySwitcherResult({this.profileId, this.openIdentityManager = false});
+class KeypairSwitcherResult {
+  const KeypairSwitcherResult(
+      {this.profileId, this.openKeypairManager = false});
 
   final String? profileId;
-  final bool openIdentityManager;
+  final bool openKeypairManager;
 }
 
-Future<IdentitySwitcherResult?> showIdentitySwitcherSheet({
+Future<KeypairSwitcherResult?> showKeypairSwitcherSheet({
   required BuildContext context,
   required ProfileController controller,
 }) {
-  return showModalBottomSheet<IdentitySwitcherResult>(
+  return showModalBottomSheet<KeypairSwitcherResult>(
     context: context,
     useSafeArea: true,
     isScrollControlled: true,
     builder: (BuildContext context) {
-      return IdentitySwitcherSheet(controller: controller);
+      return KeypairSwitcherSheet(controller: controller);
     },
   );
 }
 
-class IdentitySwitcherSheet extends StatefulWidget {
-  const IdentitySwitcherSheet({super.key, required this.controller});
+class KeypairSwitcherSheet extends StatefulWidget {
+  const KeypairSwitcherSheet({super.key, required this.controller});
 
   final ProfileController controller;
 
   @override
-  State<IdentitySwitcherSheet> createState() => _IdentitySwitcherSheetState();
+  State<KeypairSwitcherSheet> createState() => _KeypairSwitcherSheetState();
 }
 
-class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
+class _KeypairSwitcherSheetState extends State<KeypairSwitcherSheet> {
   late String? _selectedId;
 
   @override
@@ -81,7 +82,7 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
               child: ListView(
                 shrinkWrap: true,
                 children: <Widget>[
-                  _IdentityChoiceTile(
+                  _KeypairChoiceTile(
                     title: 'Incognito mode',
                     subtitle: 'Read-only mode, publishing disabled',
                     selected: _selectedId == null,
@@ -92,10 +93,15 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
                     const Divider(height: 24),
                     ...profiles.map((Profile profile) {
                       final bool selected = _selectedId == profile.id;
-                      final String principal = PrincipalUtils.textFromRecord(profile.primaryKeypair);
-                      final String keyCount = profile.keypairs.length == 1 ? '1 key' : '${profile.keypairs.length} keys';
-                      return _IdentityChoiceTile(
-                        title: profile.name.isEmpty ? 'Untitled profile' : profile.name,
+                      final String principal =
+                          PrincipalUtils.textFromRecord(profile.primaryKeypair);
+                      final String keyCount = profile.keypairs.length == 1
+                          ? '1 key'
+                          : '${profile.keypairs.length} keys';
+                      return _KeypairChoiceTile(
+                        title: profile.name.isEmpty
+                            ? 'Untitled profile'
+                            : profile.name,
                         subtitle: '$principal ($keyCount)',
                         selected: selected,
                         icon: Icons.verified_user_outlined,
@@ -111,7 +117,10 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
                           Icon(
                             Icons.info_outline,
                             size: 32,
-                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.6),
                           ),
                           const SizedBox(height: 12),
                           Text(
@@ -121,9 +130,12 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
                           const SizedBox(height: 4),
                           Text(
                             'Create a profile to sign uploads',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
                             textAlign: TextAlign.center,
                           ),
                         ],
@@ -161,17 +173,18 @@ class _IdentitySwitcherSheetState extends State<IdentitySwitcherSheet> {
   void _completeSelection(String? profileId) {
     setState(() => _selectedId = profileId);
     Navigator.of(context).pop(
-      IdentitySwitcherResult(profileId: profileId),
+      KeypairSwitcherResult(profileId: profileId),
     );
   }
 
   void _handleManageTap() {
-    Navigator.of(context).pop(const IdentitySwitcherResult(openIdentityManager: true));
+    Navigator.of(context)
+        .pop(const KeypairSwitcherResult(openKeypairManager: true));
   }
 }
 
-class _IdentityChoiceTile extends StatelessWidget {
-  const _IdentityChoiceTile({
+class _KeypairChoiceTile extends StatelessWidget {
+  const _KeypairChoiceTile({
     required this.title,
     required this.subtitle,
     required this.selected,
@@ -190,7 +203,10 @@ class _IdentityChoiceTile extends StatelessWidget {
     return Card(
       elevation: selected ? 3 : 0,
       color: selected
-          ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4)
+          ? Theme.of(context)
+              .colorScheme
+              .primaryContainer
+              .withValues(alpha: 0.4)
           : Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -208,7 +224,8 @@ class _IdentityChoiceTile extends StatelessWidget {
         trailing: AnimatedSwitcher(
           duration: const Duration(milliseconds: 150),
           child: selected
-              ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+              ? Icon(Icons.check_circle,
+                  color: Theme.of(context).colorScheme.primary)
               : const SizedBox(width: 24, height: 24),
         ),
       ),

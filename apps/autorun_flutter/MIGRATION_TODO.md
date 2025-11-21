@@ -10,9 +10,9 @@
 - [x] ProfileKeypair model (renamed from ProfileKeypair with typedef)
 - [x] ProfileRepository for profile-centric storage
 - [x] ProfileController for profile management
-- [x] IdentityController refactored as compatibility wrapper
+- [x] KeypairController refactored as compatibility wrapper
 - [x] AccountController fixed (cross-profile violations eliminated)
-- [x] Test infrastructure updated (FakeSecureIdentityRepository with profile support)
+- [x] Test infrastructure updated (FakeSecureKeypairRepository with profile support)
 - [x] All 441 tests passing
 - [x] Production code deprecation warnings suppressed with `// ignore`
 
@@ -38,7 +38,7 @@ These tests validate backward compatibility and will be removed in Phase 3.
 
 **Completed:**
 - `test/controllers/account_controller_test.dart` - All deprecation warnings suppressed
-  - `accountForIdentity` usage (lines 125, 192) - ignored
+  - `accountForKeypair` usage (lines 125, 192) - ignored
   - `addPublicKey` usage (lines 317, 351, 384, 418) - ignored
 
 **Effort:** Low (completed)
@@ -58,15 +58,15 @@ These tests validate backward compatibility and will be removed in Phase 3.
 
 ### Phase 3: Remove Compatibility Layers - ✅ COMPLETE
 
-1. **IdentityController wrapper** - ✅ DELETED
+1. **KeypairController wrapper** - ✅ DELETED
    - Migrated all code to ProfileController
    - Deleted `lib/controllers/identity_controller.dart`
 
-2. **IdentityScope widget** - ✅ DELETED
+2. **KeypairScope widget** - ✅ DELETED
    - All widgets now use ProfileScope
    - Deleted `lib/widgets/identity_scope.dart`
 
-3. **IdentityHomePage** - ✅ DELETED
+3. **KeypairHomePage** - ✅ DELETED
    - ProfileHomePage is now the home page
    - Deleted `lib/screens/identity_home_page.dart`
 
@@ -83,9 +83,9 @@ These tests validate backward compatibility and will be removed in Phase 3.
 
 6. **Deprecated AccountController methods removed:**
    - `addPublicKey` - deleted
-   - `accountForIdentity` - deleted
-   - `getAccountForIdentity` - deleted
-   - `fetchAccountForIdentity` - deleted
+   - `accountForKeypair` - deleted
+   - `getAccountForKeypair` - deleted
+   - `fetchAccountForKeypair` - deleted
    - Tests for deprecated methods deleted (6 tests removed)
    - Unused imports cleaned up
 
@@ -118,9 +118,9 @@ All migration phases are complete. The codebase is now profile-centric:
 - [x] No regression in functionality
 
 ### Phase 3 Complete When:
-- [x] IdentityController deleted
-- [x] IdentityScope deleted
-- [x] IdentityHomePage deleted
+- [x] KeypairController deleted
+- [x] KeypairScope deleted
+- [x] KeypairHomePage deleted
 - [x] All widgets use ProfileController
 - [x] Documentation updated
 - [x] All 441 tests passing

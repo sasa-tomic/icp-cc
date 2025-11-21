@@ -1,6 +1,6 @@
 use crate::{
     canister_client::{self, MethodKind},
-    generate_ed25519_identity, generate_secp256k1_identity, lua_engine, principal_from_public_key,
+    generate_ed25519_keypair, generate_secp256k1_keypair, lua_engine, principal_from_public_key,
     ValidationContext,
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
@@ -11,7 +11,7 @@ use std::os::raw::c_char;
 /// # Safety
 /// `mnemonic` must be either null or a valid, null-terminated C string pointer.
 #[no_mangle]
-pub unsafe extern "C" fn icp_generate_identity(alg: i32, mnemonic: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn icp_generate_keypair(alg: i32, mnemonic: *const c_char) -> *mut c_char {
     let alg_str = match alg {
         0 => "ed25519",
         1 => "secp256k1",
@@ -27,8 +27,8 @@ pub unsafe extern "C" fn icp_generate_identity(alg: i32, mnemonic: *const c_char
     };
 
     let result = match alg_str {
-        "ed25519" => generate_ed25519_identity(mnemonic_opt),
-        _ => generate_secp256k1_identity(mnemonic_opt),
+        "ed25519" => generate_ed25519_keypair(mnemonic_opt),
+        _ => generate_secp256k1_keypair(mnemonic_opt),
     };
 
     let json = format!(
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn icp_principal_from_public_key(
 }
 
 /// # Safety
-/// `ptr` must be a pointer returned by `icp_generate_identity` and not freed yet.
+/// `ptr` must be a pointer returned by `icp_generate_keypair` and not freed yet.
 #[no_mangle]
 pub unsafe extern "C" fn icp_free_string(ptr: *mut c_char) {
     if ptr.is_null() {

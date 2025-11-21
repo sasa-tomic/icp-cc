@@ -5,8 +5,8 @@ import '../rust/native_bridge.dart' as rust;
 
 import '../models/profile_keypair.dart';
 
-class IdentityGenerator {
-  const IdentityGenerator._();
+class KeypairGenerator {
+  const KeypairGenerator._();
 
   static final Uuid _uuid = const Uuid();
 
@@ -14,19 +14,19 @@ class IdentityGenerator {
     required KeyAlgorithm algorithm,
     String? label,
     String? mnemonic,
-    int? identityCount,
+    int? keypairCount,
   }) async {
     if (kIsWeb) {
-      throw UnsupportedError('IdentityGenerator does not support web.');
+      throw UnsupportedError('KeypairGenerator does not support web.');
     }
 
     final String resolvedMnemonic = _resolveMnemonic(mnemonic);
-    final String resolvedLabel = _resolveLabel(label, identityCount);
+    final String resolvedLabel = _resolveLabel(label, keypairCount);
     final DateTime now = DateTime.now().toUtc();
 
     final rust.RustBridgeLoader loader = const rust.RustBridgeLoader();
     final int algCode = algorithm == KeyAlgorithm.ed25519 ? 0 : 1;
-    final rust.RustIdentityResult? r = loader.generateIdentity(
+    final rust.RustKeypairResult? r = loader.generateKeypair(
       alg: algCode,
       mnemonic: resolvedMnemonic,
     );
@@ -50,12 +50,12 @@ class IdentityGenerator {
     );
   }
 
-  static String _resolveLabel(String? label, int? identityCount) {
+  static String _resolveLabel(String? label, int? keypairCount) {
     if (label != null && label.trim().isNotEmpty) {
       return label.trim();
     }
-    if (identityCount != null) {
-      return 'Identity ${identityCount + 1}';
+    if (keypairCount != null) {
+      return 'Keypair ${keypairCount + 1}';
     }
     return 'New identity';
   }

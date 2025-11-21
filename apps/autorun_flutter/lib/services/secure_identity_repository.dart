@@ -16,8 +16,8 @@ import 'profile_repository.dart';
 /// - Old code: ProfileKeypair = standalone keypair
 /// - New code: Profile with 1 keypair
 /// - Each ProfileKeypair is converted to a Profile with a single keypair
-class SecureIdentityRepository {
-  SecureIdentityRepository({Directory? overrideDirectory})
+class SecureKeypairRepository {
+  SecureKeypairRepository({Directory? overrideDirectory})
       : _profileRepository =
             ProfileRepository(overrideDirectory: overrideDirectory);
 
@@ -68,7 +68,7 @@ class SecureIdentityRepository {
     await _profileRepository.persistProfiles(profiles);
   }
 
-  Future<void> deleteIdentitySecureData(String identityId) async {
+  Future<void> deleteKeypairSecureData(String identityId) async {
     // Delete sensitive data (delegates to ProfileRepository)
     await _profileRepository.deleteKeypairSecureData(identityId);
   }

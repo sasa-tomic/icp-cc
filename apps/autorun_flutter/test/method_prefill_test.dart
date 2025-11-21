@@ -12,15 +12,18 @@ void main() {
       await ApiServiceManager.initialize();
     } catch (e) {
       // If the service isn't available, skip these tests
-      debugPrint('Warning: Local API service not available, skipping method prefill tests: $e');
+      debugPrint(
+          'Warning: Local API service not available, skipping method prefill tests: $e');
     }
   });
-  testWidgets('prefills method when selecting a well-known canister', (tester) async {
-    await tester.pumpWidget(const IdentityApp());
+  testWidgets('prefills method when selecting a well-known canister',
+      (tester) async {
+    await tester.pumpWidget(const KeypairApp());
     // Navigate to Bookmarks screen first
     await tester.tap(find.byIcon(Icons.bookmark_border_rounded));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 1)); // Give more time for content to load
+    await tester
+        .pump(const Duration(seconds: 1)); // Give more time for content to load
 
     // Tap a well-known canister entry (NNS Registry) on the Bookmarks screen
     expect(find.text('Popular Canisters'), findsWidgets);

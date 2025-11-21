@@ -5,7 +5,7 @@ import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
-import 'test_identity_factory.dart';
+import 'test_keypair_factory.dart';
 import 'http_response_utils.dart';
 
 /// Repository implementation that uses the Poem API server for end-to-end tests.
@@ -17,9 +17,9 @@ class PoemScriptRepository extends ScriptRepository {
     String? baseUrl,
     http.Client? client,
     super.overrideDirectory,
-  }) : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
-       _client = client ?? http.Client(),
-       super.internal();
+  })  : baseUrl = baseUrl ?? _getDefaultBaseUrl(),
+        _client = client ?? http.Client(),
+        super.internal();
 
   static String _getDefaultBaseUrl() {
     try {
@@ -31,17 +31,15 @@ class PoemScriptRepository extends ScriptRepository {
     } catch (e) {
       // Fall through to exception below
     }
-    throw Exception(
-      'API server port file not found at /tmp/icp-api.port. '
-      'Please start the API server with: just api-up'
-    );
+    throw Exception('API server port file not found at /tmp/icp-api.port. '
+        'Please start the API server with: just api-up');
   }
 
   @override
   Future<List<ScriptRecord>> loadScripts() async {
     try {
       final response = await _client.get(Uri.parse('$baseUrl/api/v1/scripts'));
-      
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true && data['data'] != null) {
@@ -86,7 +84,6 @@ class PoemScriptRepository extends ScriptRepository {
           body: json.encode(scriptData),
         );
 
-
         ensureSuccessStatus(
           response: response,
           operation: 'Failed to save script ${script.id}',
@@ -100,19 +97,17 @@ class PoemScriptRepository extends ScriptRepository {
     }
   }
 
-
-
   Future<Map<String, dynamic>> _scriptToApiJson(ScriptRecord script) async {
     // Always generate a fresh timestamp for the API request
     final timestamp = DateTime.now().toUtc().toIso8601String();
 
     // Get test identity for signing
-    final identity = await TestIdentityFactory.getEd25519Identity();
+    final identity = await TestKeypairFactory.getEd25519Keypair();
     final principal = PrincipalUtils.textFromRecord(identity);
 
     // Generate real cryptographic signature
     final signature = await ScriptSignatureService.signScriptUpload(
-      authorIdentity: identity,
+      authorKeypair: identity,
       title: script.title,
       description: script.metadata['description'] ?? '',
       category: script.metadata['category'] ?? 'Development',
@@ -150,13 +145,13 @@ class PoemScriptRepository extends ScriptRepository {
     if (json.isEmpty) {
       throw Exception('Empty JSON data');
     }
-    
+
     final id = json['id'];
     final title = json['title'];
     if (id == null || title == null) {
       throw Exception('Missing required fields: id or title');
     }
-    
+
     return ScriptRecord(
       id: id.toString(),
       title: title.toString(),
@@ -172,13 +167,15 @@ class PoemScriptRepository extends ScriptRepository {
         'downloads': (json['downloads'] as int?) ?? 0,
         'rating': (json['rating'] as num?)?.toDouble() ?? 0.0,
         'reviewCount': (json['review_count'] as int?) ?? 0,
-        ...json['metadata'] is Map ? json['metadata'] as Map<String, dynamic> : {},
+        ...json['metadata'] is Map
+            ? json['metadata'] as Map<String, dynamic>
+            : {},
       },
       createdAt: _parseDateTime(json['created_at'] ?? json['createdAt']),
       updatedAt: _parseDateTime(json['updated_at'] ?? json['updatedAt']),
     );
   }
-  
+
   DateTime _parseDateTime(dynamic value) {
     if (value == null) return DateTime.now();
     if (value is String) {
@@ -203,14 +200,16 @@ class PoemScriptRepository extends ScriptRepository {
   }
 
   /// Additional methods for testing purposes
-  Future<ScriptRecord?> getScriptById(String id, {bool includePrivate = true}) async {
+  Future<ScriptRecord?> getScriptById(String id,
+      {bool includePrivate = true}) async {
     try {
-      final response = await _client.get(Uri.parse('$baseUrl/api/v1/scripts/$id?includePrivate=true'));
-      
+      final response = await _client
+          .get(Uri.parse('$baseUrl/api/v1/scripts/$id?includePrivate=true'));
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data is Map<String, dynamic> && 
-            data['success'] == true && 
+        if (data is Map<String, dynamic> &&
+            data['success'] == true &&
             data['data'] != null &&
             data['data'] is Map<String, dynamic>) {
           return _scriptFromJson(data['data'] as Map<String, dynamic>);
@@ -226,7 +225,8 @@ class PoemScriptRepository extends ScriptRepository {
       }
     } catch (e) {
       // For e2e tests, fail if server is not available
-      if (e.toString().contains('Connection') || e.toString().contains('SocketException')) {
+      if (e.toString().contains('Connection') ||
+          e.toString().contains('SocketException')) {
         throw Exception('Failed to get script: $e');
       }
       rethrow;
@@ -236,11 +236,11 @@ class PoemScriptRepository extends ScriptRepository {
   Future<void> deleteScript(String id) async {
     try {
       // Generate proper signature for script deletion
-      final identity = await TestIdentityFactory.getEd25519Identity();
+      final identity = await TestKeypairFactory.getEd25519Keypair();
       final principal = PrincipalUtils.textFromRecord(identity);
       final timestamp = DateTime.now().toUtc().toIso8601String();
       final signature = await ScriptSignatureService.signScriptDeletion(
-        authorIdentity: identity,
+        authorKeypair: identity,
         scriptId: id,
         timestampIso: timestamp,
       );
@@ -262,7 +262,9 @@ class PoemScriptRepository extends ScriptRepository {
         body: json.encode(deleteData),
       );
 
-      if (response.statusCode != 200 && response.statusCode != 204 && response.statusCode != 404) {
+      if (response.statusCode != 200 &&
+          response.statusCode != 204 &&
+          response.statusCode != 404) {
         throwDetailedHttpException(
           operation: 'Failed to delete script $id',
           response: response,
@@ -331,14 +333,13 @@ class PoemScriptRepository extends ScriptRepository {
 
   Future<List<ScriptRecord>> getScriptsByCategory(String category) async {
     try {
-      final response = await _client.get(
-        Uri.parse('$baseUrl/api/v1/scripts/category/${Uri.encodeComponent(category)}')
-      );
-      
+      final response = await _client.get(Uri.parse(
+          '$baseUrl/api/v1/scripts/category/${Uri.encodeComponent(category)}'));
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data is Map<String, dynamic> && 
-            data['success'] == true && 
+        if (data is Map<String, dynamic> &&
+            data['success'] == true &&
             data['data'] != null &&
             data['data'] is List) {
           final List<dynamic> scriptsJson = data['data'] as List<dynamic>;
@@ -359,10 +360,9 @@ class PoemScriptRepository extends ScriptRepository {
 
   Future<List<ScriptRecord>> getPublicScripts() async {
     try {
-      final response = await _client.get(
-        Uri.parse('$baseUrl/api/v1/scripts?public=true')
-      );
-      
+      final response =
+          await _client.get(Uri.parse('$baseUrl/api/v1/scripts?public=true'));
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true && data['data'] != null) {
@@ -384,9 +384,10 @@ class PoemScriptRepository extends ScriptRepository {
   Future<String> publishScript(ScriptRecord script) async {
     try {
       // Generate proper signature for publish
-      final identity = await TestIdentityFactory.getEd25519Identity();
-      final updateRequest = await ScriptSignatureService.buildSignedUpdateRequest(
-        authorIdentity: identity,
+      final identity = await TestKeypairFactory.getEd25519Keypair();
+      final updateRequest =
+          await ScriptSignatureService.buildSignedUpdateRequest(
+        authorKeypair: identity,
         scriptId: script.id,
         updates: {'is_public': true},
       );
@@ -416,14 +417,16 @@ class PoemScriptRepository extends ScriptRepository {
 
   Future<int> getScriptsCount() async {
     try {
-      final response = await _client.get(Uri.parse('$baseUrl/api/v1/scripts/count'));
+      final response =
+          await _client.get(Uri.parse('$baseUrl/api/v1/scripts/count'));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true && data['data'] != null) {
-          final dynamic countValue = (data['data'] as Map<String, dynamic>)['count'] ??
-              (data['data'] as Map<String, dynamic>)['total'] ??
-              (data['data'] as Map<String, dynamic>)['scripts_count'];
+          final dynamic countValue =
+              (data['data'] as Map<String, dynamic>)['count'] ??
+                  (data['data'] as Map<String, dynamic>)['total'] ??
+                  (data['data'] as Map<String, dynamic>)['scripts_count'];
           if (countValue is int) {
             return countValue;
           }
@@ -446,8 +449,9 @@ class PoemScriptRepository extends ScriptRepository {
 
   Future<String> saveScript(ScriptRecord script) async {
     try {
-      File('poem_debug.log')
-          .writeAsStringSync('metadata ${script.id}: ${script.metadata}\n', mode: FileMode.append);
+      File('poem_debug.log').writeAsStringSync(
+          'metadata ${script.id}: ${script.metadata}\n',
+          mode: FileMode.append);
 
       // First try to check if script exists using a simple GET request
       final checkResponse = await _client.get(
@@ -461,7 +465,7 @@ class PoemScriptRepository extends ScriptRepository {
 
       if (checkResponse.statusCode == 200) {
         // Generate proper signature for script update
-        final identity = await TestIdentityFactory.getEd25519Identity();
+        final identity = await TestKeypairFactory.getEd25519Keypair();
 
         final updates = <String, dynamic>{
           'title': script.title,
@@ -497,8 +501,9 @@ class PoemScriptRepository extends ScriptRepository {
           }
         }
 
-        final updateData = await ScriptSignatureService.buildSignedUpdateRequest(
-          authorIdentity: identity,
+        final updateData =
+            await ScriptSignatureService.buildSignedUpdateRequest(
+          authorKeypair: identity,
           scriptId: script.id,
           updates: updates,
         );
@@ -506,7 +511,6 @@ class PoemScriptRepository extends ScriptRepository {
         if (!updateData.containsKey('version')) {
           throw Exception('Update payload missing version for ${script.id}');
         }
-
 
         File('poem_debug.log').writeAsStringSync(
           'update ${script.id}: ${json.encode(updateData)}\n',
@@ -519,13 +523,12 @@ class PoemScriptRepository extends ScriptRepository {
           body: json.encode(updateData),
         );
 
-
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        throwDetailedHttpException(
-          operation: 'Failed to save script ${script.id}',
-          response: response,
-        );
-      }
+        if (response.statusCode != 200 && response.statusCode != 201) {
+          throwDetailedHttpException(
+            operation: 'Failed to save script ${script.id}',
+            response: response,
+          );
+        }
 
         _assertSuccessfulMutation(response, 'update script ${script.id}');
         return script.id;
@@ -537,13 +540,11 @@ class PoemScriptRepository extends ScriptRepository {
         final scriptData = Map<String, dynamic>.from(baseScriptData);
         scriptData['action'] = 'upload';
 
-
         final response = await _client.post(
           Uri.parse('$baseUrl/api/v1/scripts'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode(scriptData),
         );
-
 
         if (response.statusCode != 200 && response.statusCode != 201) {
           throwDetailedHttpException(

@@ -4,7 +4,7 @@ use bip39::{Language, Mnemonic};
 use ed25519_dalek::{SigningKey as Ed25519Secret, VerifyingKey as Ed25519Public};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IdentityData {
+pub struct KeypairData {
     pub public_key_b64: String,
     pub private_key_b64: String,
     pub principal_text: String,
@@ -22,7 +22,7 @@ fn resolve_mnemonic(m: Option<String>) -> Mnemonic {
     }
 }
 
-pub fn generate_ed25519_identity(mnemonic: Option<String>) -> IdentityData {
+pub fn generate_ed25519_keypair(mnemonic: Option<String>) -> KeypairData {
     // Dart uses mnemonicToSeed(...).sublist(0, 32) as seed for Ed25519
     let m = resolve_mnemonic(mnemonic);
     let seed = m.to_seed("");
@@ -32,14 +32,14 @@ pub fn generate_ed25519_identity(mnemonic: Option<String>) -> IdentityData {
     let private_b64 = B64.encode(secret.to_bytes());
     let public_b64 = B64.encode(public.as_bytes());
     let principal = principal_from_public_key("ed25519", public.as_bytes());
-    IdentityData {
+    KeypairData {
         public_key_b64: public_b64,
         private_key_b64: private_b64,
         principal_text: principal,
     }
 }
 
-pub fn generate_secp256k1_identity(mnemonic: Option<String>) -> IdentityData {
+pub fn generate_secp256k1_keypair(mnemonic: Option<String>) -> KeypairData {
     // Dart derives BIP32 at m/44'/223'/0'/0/0 and exports uncompressed pubkey
     use bitcoin::bip32::{DerivationPath, Xpriv};
     use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
@@ -57,7 +57,7 @@ pub fn generate_secp256k1_identity(mnemonic: Option<String>) -> IdentityData {
     let private_b64 = B64.encode(sk.secret_bytes());
     let public_b64 = B64.encode(uncompressed);
     let principal = principal_from_public_key("secp256k1", &uncompressed);
-    IdentityData {
+    KeypairData {
         public_key_b64: public_b64,
         private_key_b64: private_b64,
         principal_text: principal,

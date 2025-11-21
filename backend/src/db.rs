@@ -148,7 +148,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .expect("Failed to create identity_profiles table");
 
     sqlx::query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_identity_profiles_principal ON identity_profiles(principal)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_keypair_profiles_principal ON identity_profiles(principal)",
     )
     .execute(pool)
     .await

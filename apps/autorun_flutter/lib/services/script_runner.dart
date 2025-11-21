@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../rust/native_bridge.dart';
 import '../models/profile_keypair.dart';
-import 'secure_identity_repository.dart';
+import 'secure_keypair_repository.dart';
 
 class IntegrationInfo {
   const IntegrationInfo({
@@ -41,7 +41,7 @@ class CanisterCallSpec {
   final String argsJson;
   final String? host;
 
-  /// Identity specification options (in order of precedence):
+  /// Keypair specification options (in order of precedence):
   /// 1. identityId: Reference to a stored identity by ID
   /// 2. privateKeyB64: Direct private key specification (legacy)
   /// 3. isAnonymous: Force anonymous call
@@ -184,11 +184,11 @@ class RustScriptBridge implements ScriptBridge {
 }
 
 class ScriptRunner {
-  ScriptRunner(this._bridge, {SecureIdentityRepository? secureRepository})
+  ScriptRunner(this._bridge, {SecureKeypairRepository? secureRepository})
       : _secureRepository = secureRepository;
 
   final ScriptBridge _bridge;
-  final SecureIdentityRepository? _secureRepository;
+  final SecureKeypairRepository? _secureRepository;
 
   /// Catalog of integrations available to Lua scripts.
   /// Extend this list as new helpers are added in [_injectHelpers].
@@ -276,18 +276,18 @@ class ScriptRunner {
 
   /// Resolve identity specification to a private key or null (for anonymous calls).
   /// Returns null if anonymous call is requested or if identity resolution fails.
-  Future<String?> _resolveIdentity(CanisterCallSpec spec) async {
+  Future<String?> _resolveKeypair(CanisterCallSpec spec) async {
     // 1. Explicit anonymous call takes precedence
     if (spec.isAnonymous) {
       return null;
     }
 
-    // 2. Identity ID reference (takes priority over direct private key)
+    // 2. Keypair ID reference (takes priority over direct private key)
     if (spec.identityId != null && spec.identityId!.trim().isNotEmpty) {
-      final SecureIdentityRepository? repository = _secureRepository;
+      final SecureKeypairRepository? repository = _secureRepository;
       if (repository == null) {
         throw Exception(
-            'Identity ID specified but no secure identity repository provided');
+            'Keypair ID specified but no secure identity repository provided');
       }
 
       try {
@@ -300,7 +300,7 @@ class ScriptRunner {
                 );
 
         if (identity == null) {
-          throw Exception('Identity with ID "${spec.identityId}" not found');
+          throw Exception('Keypair with ID "${spec.identityId}" not found');
         }
 
         // Get private key from secure storage
@@ -331,7 +331,7 @@ class ScriptRunner {
     for (final CanisterCallSpec spec in plan.calls) {
       final String? privateKey;
       try {
-        privateKey = await _resolveIdentity(spec);
+        privateKey = await _resolveKeypair(spec);
       } catch (e) {
         return ScriptRunResult(
             ok: false,
@@ -426,7 +426,7 @@ class ScriptRunner {
 
         final String? privateKey;
         try {
-          privateKey = await _resolveIdentity(tempSpec);
+          privateKey = await _resolveKeypair(tempSpec);
         } catch (e) {
           return ScriptRunResult(
               ok: false,
@@ -511,7 +511,7 @@ class ScriptRunner {
 
           final String? privateKey;
           try {
-            privateKey = await _resolveIdentity(tempSpec);
+            privateKey = await _resolveKeypair(tempSpec);
           } catch (e) {
             return ScriptRunResult(
                 ok: false,
@@ -606,7 +606,7 @@ class ScriptRunner {
 
       final String? privateKey;
       try {
-        privateKey = await _resolveIdentity(tempSpec);
+        privateKey = await _resolveKeypair(tempSpec);
       } catch (e) {
         return ScriptRunResult(
             ok: false, error: 'Failed to resolve identity for action call: $e');
@@ -687,7 +687,7 @@ class ScriptRunner {
 
         final String? privateKey;
         try {
-          privateKey = await _resolveIdentity(tempSpec);
+          privateKey = await _resolveKeypair(tempSpec);
         } catch (e) {
           return ScriptRunResult(
               ok: false,

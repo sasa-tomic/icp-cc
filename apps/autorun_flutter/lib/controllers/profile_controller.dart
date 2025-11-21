@@ -46,8 +46,8 @@ class ProfileController extends ChangeNotifier {
   bool get isBusy => _isBusy;
   String? get activeProfileId => _activeProfileId;
   bool get hasActiveProfile => _activeProfileId != null;
-  Profile? get activeProfile =>
-      _profiles.firstWhereOrNull((Profile profile) => profile.id == _activeProfileId);
+  Profile? get activeProfile => _profiles
+      .firstWhereOrNull((Profile profile) => profile.id == _activeProfileId);
 
   /// Get primary keypair of active profile (for backward compatibility)
   ProfileKeypair? get activeKeypair => activeProfile?.primaryKeypair;
@@ -93,11 +93,11 @@ class ProfileController extends ChangeNotifier {
     _setBusy(true);
     try {
       // Generate initial keypair for this profile
-      final ProfileKeypair keypair = await IdentityGenerator.generate(
+      final ProfileKeypair keypair = await KeypairGenerator.generate(
         algorithm: algorithm,
         label: '$profileName - Primary',
         mnemonic: mnemonic,
-        identityCount: 0,
+        keypairCount: 0,
       );
 
       // Create Profile container
@@ -145,15 +145,16 @@ class ProfileController extends ChangeNotifier {
       }
 
       if (!profile.canAddKeypair) {
-        throw StateError('Profile already has maximum number of keypairs (10).');
+        throw StateError(
+            'Profile already has maximum number of keypairs (10).');
       }
 
       // Generate NEW keypair for this profile
-      final ProfileKeypair keypair = await IdentityGenerator.generate(
+      final ProfileKeypair keypair = await KeypairGenerator.generate(
         algorithm: algorithm,
         label: label ?? '${profile.name} - Key ${profile.keypairs.length + 1}',
         mnemonic: mnemonic,
-        identityCount: profile.keypairs.length,
+        keypairCount: profile.keypairs.length,
       );
 
       // Update profile with new keypair
@@ -251,7 +252,8 @@ class ProfileController extends ChangeNotifier {
 
     final keypair = profile.getKeypair(keypairId);
     if (keypair == null) {
-      throw ArgumentError('Keypair $keypairId does not exist in profile $profileId.');
+      throw ArgumentError(
+          'Keypair $keypairId does not exist in profile $profileId.');
     }
 
     final updatedProfile = profile.copyWith(
@@ -314,10 +316,12 @@ class ProfileController extends ChangeNotifier {
       }
 
       if (profile.keypairs.length == 1) {
-        throw StateError('Cannot delete the last keypair. Delete the profile instead.');
+        throw StateError(
+            'Cannot delete the last keypair. Delete the profile instead.');
       }
 
-      final updatedKeypairs = profile.keypairs.where((k) => k.id != keypairId).toList();
+      final updatedKeypairs =
+          profile.keypairs.where((k) => k.id != keypairId).toList();
 
       final updatedProfile = profile.copyWith(
         keypairs: updatedKeypairs,
@@ -404,7 +408,8 @@ class ProfileController extends ChangeNotifier {
     }
     final SharedPreferences prefs = await _prefs();
     final String? storedId = prefs.getString(_activeProfilePrefsKey);
-    if (storedId != null && _profiles.any((Profile profile) => profile.id == storedId)) {
+    if (storedId != null &&
+        _profiles.any((Profile profile) => profile.id == storedId)) {
       _activeProfileId = storedId;
     } else if (storedId != null) {
       await prefs.remove(_activeProfilePrefsKey);
@@ -417,7 +422,8 @@ class ProfileController extends ChangeNotifier {
     if (_activeProfileId == null) {
       return;
     }
-    final bool exists = _profiles.any((Profile profile) => profile.id == _activeProfileId);
+    final bool exists =
+        _profiles.any((Profile profile) => profile.id == _activeProfileId);
     if (!exists) {
       await _updateActiveProfile(null);
     }

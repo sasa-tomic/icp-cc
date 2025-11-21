@@ -3,7 +3,7 @@ import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 
 void main() async {
   final marketplaceService = MarketplaceOpenApiService();
-  
+
   debugPrint('Testing upload with fix...');
 
   try {
@@ -32,7 +32,6 @@ end
 function update(msg, state)
   return state, {}
 end''',
-      authorName: 'Manual Test Runner',
       version: '1.0.0',
       price: 0.0,
     );
@@ -45,7 +44,6 @@ end''',
     // Clean up
     await marketplaceService.deleteScript(uploadedScript.id);
     debugPrint('✅ Cleanup completed');
-
   } catch (e) {
     debugPrint('❌ Upload failed: $e');
   }

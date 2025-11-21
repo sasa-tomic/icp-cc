@@ -10,12 +10,10 @@ import '../widgets/profile_scope.dart';
 class PreFilledUploadData {
   final String title;
   final String luaSource;
-  final String authorName;
 
   PreFilledUploadData({
     required this.title,
     required this.luaSource,
-    required this.authorName,
   });
 }
 
@@ -36,7 +34,6 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
   // Form controllers
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _authorController = TextEditingController();
   final TextEditingController _categoryController = TextEditingController();
   final TextEditingController _tagsController = TextEditingController();
   final TextEditingController _canisterIdsController = TextEditingController();
@@ -75,19 +72,13 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     // Pre-fill data if provided
     if (widget.preFilledData != null) {
       _titleController.text = widget.preFilledData!.title;
-      _authorController.text = widget.preFilledData!.authorName;
     }
 
     // Set default category
     _categoryController.text = 'Example';
-
-    // Set default author if not pre-filled
-    if (_authorController.text.isEmpty) {
-      _authorController.text = 'Anonymous Developer';
-    }
   }
 
-  Widget _buildIdentityCard(ProfileController controller) {
+  Widget _buildKeypairCard(ProfileController controller) {
     final ProfileKeypair? identity = controller.activeKeypair;
     if (identity == null) {
       return Card(
@@ -175,8 +166,8 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
     // Check if identity is selected
     final ProfileController profileController =
         ProfileScope.of(context, listen: false);
-    final ProfileKeypair? activeIdentity = profileController.activeKeypair;
-    if (activeIdentity == null) {
+    final ProfileKeypair? activeKeypair = profileController.activeKeypair;
+    if (activeKeypair == null) {
       setState(() {
         _error =
             'No identity selected. Go to the Identities tab to select one.';
@@ -204,7 +195,6 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
           .map((tag) => tag.trim())
           .where((tag) => tag.isNotEmpty)
           .toList();
-      final authorName = _authorController.text.trim();
       final canisterIds = _canisterIdsController.text
           .split(',')
           .map((id) => id.trim())
@@ -262,7 +252,7 @@ end''';
 
       // Sign the script upload
       final signature = await ScriptSignatureService.signScriptUpload(
-        authorIdentity: activeIdentity,
+        authorKeypair: activeKeypair,
         title: title,
         description: description,
         category: category,
@@ -273,7 +263,7 @@ end''';
         timestampIso: timestamp,
       );
 
-      final authorPrincipal = PrincipalUtils.textFromRecord(activeIdentity);
+      final authorPrincipal = PrincipalUtils.textFromRecord(activeKeypair);
 
       // Upload script with signature
       await _marketplaceService.uploadScript(
@@ -283,7 +273,6 @@ end''';
         category: category,
         tags: tags,
         luaSource: defaultLuaSource,
-        authorName: authorName,
         canisterIds: canisterIds.isEmpty ? null : canisterIds,
         iconUrl: iconUrl,
         screenshots: screenshots.isEmpty ? null : screenshots,
@@ -291,7 +280,7 @@ end''';
         compatibility: compatibility,
         price: price,
         authorPrincipal: authorPrincipal,
-        authorPublicKey: activeIdentity.publicKey,
+        authorPublicKey: activeKeypair.publicKey,
         signature: signature,
         timestampIso: timestamp,
       );
@@ -419,24 +408,10 @@ end''';
 
                     const SizedBox(height: 16),
 
-                    _buildTextField(
-                      controller: _authorController,
-                      label: 'Author Name',
-                      hint: 'Your name or organization name',
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Author name is required';
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Identity Selection Section
-                    _buildSectionHeader('Identity Context'),
+                    // Keypair Selection Section
+                    _buildSectionHeader('Keypair Context'),
                     const SizedBox(height: 8),
-                    _buildIdentityCard(profileController),
+                    _buildKeypairCard(profileController),
                     const SizedBox(height: 24),
 
                     // Category and Tags Section

@@ -74,11 +74,13 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
   ProfileKeypair? _findMatchingKeypair(AccountPublicKey accountKey) {
     // AccountPublicKey has publicKey in hex format (0x...)
     // ProfileKeypair has publicKey in base64 format
-    final String accountKeyHex = accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
+    final String accountKeyHex =
+        accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
 
     for (final keypair in _profile.keypairs) {
       // Convert base64 to hex for comparison
-      final keypairHex = convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
+      final keypairHex =
+          convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
       if (keypairHex == accountKeyHex) {
         return keypair;
       }
@@ -102,10 +104,12 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
 
   /// Find the AccountPublicKey that matches a ProfileKeypair
   AccountPublicKey? _findAccountKeyForKeypair(ProfileKeypair keypair) {
-    final keypairHex = convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
+    final keypairHex =
+        convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
 
     for (final accountKey in _account.publicKeys) {
-      final accountKeyHex = accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
+      final accountKeyHex =
+          accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
       if (accountKeyHex == keypairHex) {
         return accountKey;
       }
@@ -176,7 +180,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
   Future<void> _refreshAccount() async {
     setState(() => _isRefreshing = true);
     try {
-      final refreshed = await widget.accountController.refreshAccount(_account.username);
+      final refreshed =
+          await widget.accountController.refreshAccount(_account.username);
       if (refreshed != null && mounted) {
         setState(() => _account = refreshed);
       }
@@ -262,7 +267,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: AppDesignSystem.errorDark),
+                Icon(Icons.warning_amber_rounded,
+                    color: AppDesignSystem.errorDark),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -279,9 +285,9 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             Text(
               canRecover
                   ? 'Your current signing key is not registered with this account, but another key in your profile is. '
-                    'Switch to that key to restore access, then optionally add your preferred key.'
+                      'Switch to that key to restore access, then optionally add your preferred key.'
                   : 'Your profile\'s signing key is not registered with this account. '
-                    'You need to recover the original signing key or unlink this account.',
+                      'You need to recover the original signing key or unlink this account.',
               style: AppDesignSystem.bodySmall.copyWith(
                 color: AppDesignSystem.errorDark,
               ),
@@ -561,14 +567,28 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
     try {
       final updatedAccount = await widget.accountController.updateProfile(
         username: _account.username,
-        signingIdentity: _profile.primaryKeypair,
-        displayName: _displayNameController.text.trim().isEmpty ? null : _displayNameController.text.trim(),
-        contactEmail: _contactEmailController.text.trim().isEmpty ? null : _contactEmailController.text.trim(),
-        contactTelegram: _contactTelegramController.text.trim().isEmpty ? null : _contactTelegramController.text.trim(),
-        contactTwitter: _contactTwitterController.text.trim().isEmpty ? null : _contactTwitterController.text.trim(),
-        contactDiscord: _contactDiscordController.text.trim().isEmpty ? null : _contactDiscordController.text.trim(),
-        websiteUrl: _websiteUrlController.text.trim().isEmpty ? null : _websiteUrlController.text.trim(),
-        bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+        signingKeypair: _profile.primaryKeypair,
+        displayName: _displayNameController.text.trim().isEmpty
+            ? null
+            : _displayNameController.text.trim(),
+        contactEmail: _contactEmailController.text.trim().isEmpty
+            ? null
+            : _contactEmailController.text.trim(),
+        contactTelegram: _contactTelegramController.text.trim().isEmpty
+            ? null
+            : _contactTelegramController.text.trim(),
+        contactTwitter: _contactTwitterController.text.trim().isEmpty
+            ? null
+            : _contactTwitterController.text.trim(),
+        contactDiscord: _contactDiscordController.text.trim().isEmpty
+            ? null
+            : _contactDiscordController.text.trim(),
+        websiteUrl: _websiteUrlController.text.trim().isEmpty
+            ? null
+            : _websiteUrlController.text.trim(),
+        bio: _bioController.text.trim().isEmpty
+            ? null
+            : _bioController.text.trim(),
       );
 
       if (mounted) {
@@ -777,7 +797,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: AppDesignSystem.warningLight.withValues(alpha: 0.2),
+                      color:
+                          AppDesignSystem.warningLight.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -837,7 +858,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.copy, size: 16),
-                  onPressed: () => _copyToClipboard(key.publicKey, 'Public key'),
+                  onPressed: () =>
+                      _copyToClipboard(key.publicKey, 'Public key'),
                   tooltip: 'Copy',
                   visualDensity: VisualDensity.compact,
                 ),
@@ -866,7 +888,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.copy, size: 16),
-                  onPressed: () => _copyToClipboard(key.icPrincipal, 'Principal'),
+                  onPressed: () =>
+                      _copyToClipboard(key.icPrincipal, 'Principal'),
                   tooltip: 'Copy',
                   visualDensity: VisualDensity.compact,
                 ),
@@ -961,7 +984,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       await widget.accountController.removePublicKey(
         username: _account.username,
         keyId: key.id,
-        signingIdentity: _profile.primaryKeypair,
+        signingKeypair: _profile.primaryKeypair,
       );
 
       if (mounted) {

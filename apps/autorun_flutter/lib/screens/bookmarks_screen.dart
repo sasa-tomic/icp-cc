@@ -15,10 +15,12 @@ import '../widgets/empty_state.dart';
 import '../widgets/bookmark_composer.dart';
 
 class BookmarksScreen extends StatelessWidget {
-  const BookmarksScreen({super.key, required this.bridge, required this.onOpenClient});
+  const BookmarksScreen(
+      {super.key, required this.bridge, required this.onOpenClient});
 
   final RustBridgeLoader bridge;
-  final Future<void> Function({String? initialCanisterId, String? initialMethodName}) onOpenClient;
+  final Future<void> Function(
+      {String? initialCanisterId, String? initialMethodName}) onOpenClient;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,8 @@ class BookmarksScreen extends StatelessWidget {
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -55,7 +58,10 @@ class BookmarksScreen extends StatelessWidget {
               end: Alignment.bottomCenter,
               colors: [
                 Theme.of(context).colorScheme.surface,
-                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.05),
+                Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.05),
               ],
             ),
           ),
@@ -64,7 +70,10 @@ class BookmarksScreen extends StatelessWidget {
               left: 16,
               right: 16,
               top: 16,
-              bottom: 16 + MediaQuery.of(context).padding.bottom, // Account for bottom safe area
+              bottom: 16 +
+                  MediaQuery.of(context)
+                      .padding
+                      .bottom, // Account for bottom safe area
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,16 +86,19 @@ class BookmarksScreen extends StatelessWidget {
                   icon: Icons.star_rounded,
                 ),
                 const SizedBox(height: 16),
-                _WellKnownList(onSelect: (cid, method) {
-                  HapticFeedback.lightImpact();
-                  onOpenClient(
-                    initialCanisterId: cid,
-                    initialMethodName: method?.isNotEmpty == true ? method : null,
-                  );
-                }, onBookmark: (entry) => _bookmarkWellKnown(context, entry)),
-                
+                _WellKnownList(
+                    onSelect: (cid, method) {
+                      HapticFeedback.lightImpact();
+                      onOpenClient(
+                        initialCanisterId: cid,
+                        initialMethodName:
+                            method?.isNotEmpty == true ? method : null,
+                      );
+                    },
+                    onBookmark: (entry) => _bookmarkWellKnown(context, entry)),
+
                 const SizedBox(height: 32),
-                
+
                 // Bookmarks section
                 _buildSectionHeader(
                   context,
@@ -112,7 +124,8 @@ class BookmarksScreen extends StatelessWidget {
                   bridge: bridge,
                   onTapEntry: (cid, method) {
                     HapticFeedback.lightImpact();
-                    onOpenClient(initialCanisterId: cid, initialMethodName: method);
+                    onOpenClient(
+                        initialCanisterId: cid, initialMethodName: method);
                   },
                 ),
               ],
@@ -131,7 +144,7 @@ class BookmarksScreen extends StatelessWidget {
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompactScreen = screenWidth < 380;
-    
+
     return Container(
       padding: EdgeInsets.all(isCompactScreen ? 16 : 20),
       decoration: BoxDecoration(
@@ -154,7 +167,8 @@ class BookmarksScreen extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(isCompactScreen ? 10 : 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -171,18 +185,18 @@ class BookmarksScreen extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: isCompactScreen ? 18 : 20,
-                    letterSpacing: -0.5,
-                  ),
+                        fontWeight: FontWeight.w700,
+                        fontSize: isCompactScreen ? 18 : 20,
+                        letterSpacing: -0.5,
+                      ),
                 ),
                 SizedBox(height: isCompactScreen ? 2 : 4),
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: isCompactScreen ? 12 : 14,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: isCompactScreen ? 12 : 14,
+                      ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -194,7 +208,8 @@ class BookmarksScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _bookmarkWellKnown(BuildContext context, WellKnownCanister entry) {
+  Future<void> _bookmarkWellKnown(
+      BuildContext context, WellKnownCanister entry) {
     final messenger = ScaffoldMessenger.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     return BookmarksService.add(
@@ -220,7 +235,11 @@ class BookmarksScreen extends StatelessWidget {
 }
 
 class CanisterClientSheet extends StatefulWidget {
-  const CanisterClientSheet({super.key, required this.bridge, this.initialCanisterId, this.initialMethodName});
+  const CanisterClientSheet(
+      {super.key,
+      required this.bridge,
+      this.initialCanisterId,
+      this.initialMethodName});
   final RustBridgeLoader bridge;
   final String? initialCanisterId;
   final String? initialMethodName;
@@ -231,14 +250,16 @@ class CanisterClientSheet extends StatefulWidget {
 
 class _CanisterClientSheetState extends State<CanisterClientSheet> {
   final TextEditingController _canisterController = TextEditingController();
-  final TextEditingController _hostController = TextEditingController(text: 'https://ic0.app');
+  final TextEditingController _hostController =
+      TextEditingController(text: 'https://ic0.app');
   final TextEditingController _methodController = TextEditingController();
-  final TextEditingController _identityKeyController = TextEditingController();
+  final TextEditingController _keypairKeyController = TextEditingController();
   int _selectedKind = 0; // 0=query,1=update,2=comp
   // Args input
   final TextEditingController _jsonArgsController = TextEditingController();
   bool _useAutoForm = true;
-  List<Map<String, dynamic>> _currentMethodSig = const <Map<String, dynamic>>[]; // [{"name": "arg0", "type": "text"}, ...]
+  List<Map<String, dynamic>> _currentMethodSig =
+      const <Map<String, dynamic>>[]; // [{"name": "arg0", "type": "text"}, ...]
   String? _resultJson;
   String? _candidRaw;
   List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
@@ -251,10 +272,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     if (_resolvedArgs.isEmpty) return;
     final String args = _jsonArgsController.text.trim();
     try {
-      final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: args);
+      final v =
+          validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: args);
       if (mounted) setState(() => _validationErrors = v.errors);
     } catch (e) {
-      if (mounted) setState(() => _validationErrors = <String>['Validation error: $e']);
+      if (mounted)
+        setState(() => _validationErrors = <String>['Validation error: $e']);
     }
   }
 
@@ -263,7 +286,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     _canisterController.dispose();
     _hostController.dispose();
     _methodController.dispose();
-    _identityKeyController.dispose();
+    _keypairKeyController.dispose();
     _jsonArgsController.removeListener(_onArgsChanged);
     _jsonArgsController.dispose();
     super.dispose();
@@ -280,7 +303,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       _methodController.text = widget.initialMethodName!.trim();
     }
     // Auto-fetch methods if we have a target canister and method preset
-    if (_canisterController.text.trim().isNotEmpty && _methodController.text.trim().isNotEmpty) {
+    if (_canisterController.text.trim().isNotEmpty &&
+        _methodController.text.trim().isNotEmpty) {
       // Defer to next microtask to allow build context to settle
       scheduleMicrotask(_fetchAndParse);
     }
@@ -293,21 +317,27 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     try {
       final String? did = await widget.bridge.fetchCandid(
         canisterId: cid,
-        host: _hostController.text.trim().isEmpty ? null : _hostController.text.trim(),
+        host: _hostController.text.trim().isEmpty
+            ? null
+            : _hostController.text.trim(),
       );
       if (did == null || did.trim().isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch Candid')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to fetch Candid')));
         return;
       }
       final String? parsedJson = widget.bridge.parseCandid(candidText: did);
       if (parsedJson == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to parse Candid')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to parse Candid')));
         return;
       }
-      final Map<String, dynamic> parsed = json.decode(parsedJson) as Map<String, dynamic>;
-      final List<dynamic> methods = (parsed['methods'] as List<dynamic>? ?? <dynamic>[]);
+      final Map<String, dynamic> parsed =
+          json.decode(parsedJson) as Map<String, dynamic>;
+      final List<dynamic> methods =
+          (parsed['methods'] as List<dynamic>? ?? <dynamic>[]);
       setState(() {
         _candidRaw = did;
         _methods = methods
@@ -315,8 +345,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
             .map((m) => {
                   'name': m['name'] as String? ?? '',
                   'kind': m['kind'] as String? ?? '',
-                  'args': (m['args'] as List<dynamic>? ?? const <dynamic>[]).map((e) => e.toString()).toList(),
-                  'rets': (m['rets'] as List<dynamic>? ?? const <dynamic>[]).map((e) => e.toString()).toList(),
+                  'args': (m['args'] as List<dynamic>? ?? const <dynamic>[])
+                      .map((e) => e.toString())
+                      .toList(),
+                  'rets': (m['rets'] as List<dynamic>? ?? const <dynamic>[])
+                      .map((e) => e.toString())
+                      .toList(),
                 })
             .toList();
         // If a method was preselected, align kind and arg fields to its signature
@@ -330,10 +364,13 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         }
         if (selected != null) {
           final String kind = (selected['kind'] as String).toLowerCase();
-          _selectedKind = kind.contains('update') ? 1 : (kind.contains('composite') ? 2 : 0);
+          _selectedKind = kind.contains('update')
+              ? 1
+              : (kind.contains('composite') ? 2 : 0);
           // Expand aliases using Candid source
           final resolver = CandidTypeResolver(_candidRaw ?? '');
-          _resolvedArgs = resolver.resolveArgTypes((selected['args'] as List<String>));
+          _resolvedArgs =
+              resolver.resolveArgTypes((selected['args'] as List<String>));
           _currentMethodSig = _resolvedArgs
               .asMap()
               .entries
@@ -342,7 +379,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
           _jsonArgsController.text = _expectedJsonExample;
           // Trigger validation display for the example
-          final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: _jsonArgsController.text.trim());
+          final v = validateJsonArgs(
+              resolvedArgTypes: _resolvedArgs,
+              jsonText: _jsonArgsController.text.trim());
           _validationErrors = v.errors;
           _useAutoForm = false;
         } else if (_methods.isNotEmpty) {
@@ -354,7 +393,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isFetching = false);
     }
@@ -368,61 +408,62 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       controller: _jsonArgsController,
       onToggle: (v) => setState(() => _useAutoForm = v),
     );
-     final viewInsets = MediaQuery.of(context).viewInsets;
-     final safeAreaPadding = MediaQuery.of(context).padding;
-     
-      final screenWidth = MediaQuery.of(context).size.width;
-      final isCompactScreen = screenWidth < 380;
-      
-      return Padding(
-        padding: EdgeInsets.only(
-          bottom: viewInsets.bottom + safeAreaPadding.bottom,
-          left: isCompactScreen ? 8 : 16,
-          right: isCompactScreen ? 8 : 16,
-          top: isCompactScreen ? 8 : 16,
-        ),
-        child: ListView(
-         padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
-         shrinkWrap: true,
-         children: <Widget>[
-           Text('ICP Canister Client', style: Theme.of(context).textTheme.titleLarge?.copyWith(
-             fontSize: isCompactScreen ? 20 : 24,
-           )),
-           SizedBox(height: isCompactScreen ? 8 : 12),
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    final safeAreaPadding = MediaQuery.of(context).padding;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompactScreen = screenWidth < 380;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: viewInsets.bottom + safeAreaPadding.bottom,
+        left: isCompactScreen ? 8 : 16,
+        right: isCompactScreen ? 8 : 16,
+        top: isCompactScreen ? 8 : 16,
+      ),
+      child: ListView(
+        padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
+        shrinkWrap: true,
+        children: <Widget>[
+          Text('ICP Canister Client',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontSize: isCompactScreen ? 20 : 24,
+                  )),
+          SizedBox(height: isCompactScreen ? 8 : 12),
           ExpansionTile(
             initiallyExpanded: false,
             title: const Text('Connection (optional)'),
             subtitle: const Text('Canister ID and Replica host'),
             children: <Widget>[
-               TextField(
-                 key: const Key('canisterField'),
-                 controller: _canisterController,
-                 decoration: InputDecoration(
-                   labelText: 'Canister ID',
-                   border: const OutlineInputBorder(),
-                   contentPadding: EdgeInsets.symmetric(
-                     horizontal: isCompactScreen ? 12 : 16,
-                     vertical: isCompactScreen ? 12 : 16,
-                   ),
-                 ),
-                 style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
-                 textInputAction: TextInputAction.next,
-               ),
-               SizedBox(height: isCompactScreen ? 6 : 8),
-               TextField(
-                 controller: _hostController,
-                 decoration: InputDecoration(
-                   labelText: 'Replica Host (optional)',
-                   hintText: 'https://ic0.app',
-                   border: const OutlineInputBorder(),
-                   contentPadding: EdgeInsets.symmetric(
-                     horizontal: isCompactScreen ? 12 : 16,
-                     vertical: isCompactScreen ? 12 : 16,
-                   ),
-                 ),
-                 style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
-                 textInputAction: TextInputAction.done,
-               ),
+              TextField(
+                key: const Key('canisterField'),
+                controller: _canisterController,
+                decoration: InputDecoration(
+                  labelText: 'Canister ID',
+                  border: const OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: isCompactScreen ? 12 : 16,
+                    vertical: isCompactScreen ? 12 : 16,
+                  ),
+                ),
+                style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
+                textInputAction: TextInputAction.next,
+              ),
+              SizedBox(height: isCompactScreen ? 6 : 8),
+              TextField(
+                controller: _hostController,
+                decoration: InputDecoration(
+                  labelText: 'Replica Host (optional)',
+                  hintText: 'https://ic0.app',
+                  border: const OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: isCompactScreen ? 12 : 16,
+                    vertical: isCompactScreen ? 12 : 16,
+                  ),
+                ),
+                style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
+                textInputAction: TextInputAction.done,
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -447,7 +488,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                 items: const <DropdownMenuItem<int>>[
                   DropdownMenuItem<int>(value: 0, child: Text('Query')),
                   DropdownMenuItem<int>(value: 1, child: Text('Update')),
-                  DropdownMenuItem<int>(value: 2, child: Text('Composite Query')),
+                  DropdownMenuItem<int>(
+                      value: 2, child: Text('Composite Query')),
                 ],
                 onChanged: (int? v) => setState(() => _selectedKind = v ?? 0),
               ),
@@ -457,15 +499,21 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           argsEditor,
           if (_validationErrors.isNotEmpty) ...<Widget>[
             const SizedBox(height: 8),
-            Text('Input issues', style: Theme.of(context).textTheme.titleSmall!.copyWith(color: Theme.of(context).colorScheme.error)),
+            Text('Input issues',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall!
+                    .copyWith(color: Theme.of(context).colorScheme.error)),
             const SizedBox(height: 4),
             ..._validationErrors.map(
-              (e) => Text('• $e', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              (e) => Text('• $e',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
           ],
           if (_expectedJsonExample.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
-            Text('Expected args (JSON)', style: Theme.of(context).textTheme.titleMedium),
+            Text('Expected args (JSON)',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Container(
               decoration: BoxDecoration(
@@ -482,7 +530,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
             subtitle: const Text('Ed25519 private key (base64)'),
             children: <Widget>[
               TextField(
-                controller: _identityKeyController,
+                controller: _keypairKeyController,
                 decoration: const InputDecoration(
                   labelText: 'Private key (base64)',
                   border: OutlineInputBorder(),
@@ -499,7 +547,10 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                 child: FilledButton(
                   onPressed: _isFetching ? null : _fetchAndParse,
                   child: _isFetching
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Fetch & List Methods'),
                 ),
               ),
@@ -511,9 +562,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                       context: context,
                       builder: (context) => AlertDialog(
                         title: const Text('Candid (raw)'),
-                        content: SingleChildScrollView(child: SelectableText(_candidRaw!)),
+                        content: SingleChildScrollView(
+                            child: SelectableText(_candidRaw!)),
                         actions: <Widget>[
-                          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+                          TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Close')),
                         ],
                       ),
                     );
@@ -530,27 +584,35 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
               final String cid = _canisterController.text.trim();
               final String method = _methodController.text.trim();
               if (cid.isEmpty || method.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter canister and method')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter canister and method')));
                 return;
               }
               final String args = _jsonArgsController.text.trim();
               // Live validation before sending
               if (_resolvedArgs.isNotEmpty) {
-                final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: args);
+                final v = validateJsonArgs(
+                    resolvedArgTypes: _resolvedArgs, jsonText: args);
                 setState(() => _validationErrors = v.errors);
                 if (!v.ok) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fix input errors')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fix input errors')));
                   return;
                 }
               }
-                // Fail-fast check: do not allow accidental empty JSON for single-arg non-empty types
-                if (_resolvedArgs.length == 1 && args.isEmpty) {
-                  setState(() => _validationErrors = <String>['(root) expected value for ${_resolvedArgs.first}']);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide argument value')));
-                  return;
-                }
-              final String? host = _hostController.text.trim().isEmpty ? null : _hostController.text.trim();
-              final String key = _identityKeyController.text.trim();
+              // Fail-fast check: do not allow accidental empty JSON for single-arg non-empty types
+              if (_resolvedArgs.length == 1 && args.isEmpty) {
+                setState(() => _validationErrors = <String>[
+                      '(root) expected value for ${_resolvedArgs.first}'
+                    ]);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Please provide argument value')));
+                return;
+              }
+              final String? host = _hostController.text.trim().isEmpty
+                  ? null
+                  : _hostController.text.trim();
+              final String key = _keypairKeyController.text.trim();
               String? out;
               if (key.isEmpty) {
                 out = widget.bridge.callAnonymous(
@@ -578,7 +640,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           ),
           if ((_resultJson ?? '').isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
-            Text('Result (JSON)', style: Theme.of(context).textTheme.titleMedium),
+            Text('Result (JSON)',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Container(
               decoration: BoxDecoration(
@@ -600,17 +663,23 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: _methods.length,
-                  separatorBuilder: (BuildContext _, int __) => const Divider(height: 1),
+                  separatorBuilder: (BuildContext _, int __) =>
+                      const Divider(height: 1),
                   itemBuilder: (BuildContext context, int index) {
                     final m = _methods[index];
                     final String name = m['name'] as String;
                     final String kind = (m['kind'] as String).toString();
-                    final List<String> args = (m['args'] as List<dynamic>).cast<String>();
-                    final List<String> rets = (m['rets'] as List<dynamic>).cast<String>();
-                    final String sig = '(${args.join(', ')}) -> (${rets.join(', ')})';
+                    final List<String> args =
+                        (m['args'] as List<dynamic>).cast<String>();
+                    final List<String> rets =
+                        (m['rets'] as List<dynamic>).cast<String>();
+                    final String sig =
+                        '(${args.join(', ')}) -> (${rets.join(', ')})';
                     return ListTile(
                       leading: Icon(
-                        kind.toLowerCase().contains('update') ? Icons.sync_alt : Icons.search,
+                        kind.toLowerCase().contains('update')
+                            ? Icons.sync_alt
+                            : Icons.search,
                       ),
                       title: Text(name),
                       subtitle: Text('$kind • $sig'),
@@ -620,46 +689,61 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                           IconButton(
                             tooltip: 'Use method',
                             icon: const Icon(Icons.input),
-                          onPressed: () {
+                            onPressed: () {
                               _methodController.text = name;
                               setState(() {
-                                _selectedKind = kind.toLowerCase().contains('update')
+                                _selectedKind = kind
+                                        .toLowerCase()
+                                        .contains('update')
                                     ? 1
-                                    : (kind.toLowerCase().contains('composite') ? 2 : 0);
-                              final resolver = CandidTypeResolver(_candidRaw ?? '');
-                              _resolvedArgs = resolver.resolveArgTypes(args);
-                              _currentMethodSig = _resolvedArgs
-                                  .asMap()
-                                  .entries
-                                  .map((e) => {'name': 'arg${e.key}', 'type': e.value})
-                                  .toList();
-                              _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
-                              _jsonArgsController.text = _expectedJsonExample;
-                              final v = validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: _jsonArgsController.text.trim());
-                              _validationErrors = v.errors;
-                              _useAutoForm = false;
+                                    : (kind.toLowerCase().contains('composite')
+                                        ? 2
+                                        : 0);
+                                final resolver =
+                                    CandidTypeResolver(_candidRaw ?? '');
+                                _resolvedArgs = resolver.resolveArgTypes(args);
+                                _currentMethodSig = _resolvedArgs
+                                    .asMap()
+                                    .entries
+                                    .map((e) => {
+                                          'name': 'arg${e.key}',
+                                          'type': e.value
+                                        })
+                                    .toList();
+                                _expectedJsonExample =
+                                    buildJsonExampleForArgs(_resolvedArgs);
+                                _jsonArgsController.text = _expectedJsonExample;
+                                final v = validateJsonArgs(
+                                    resolvedArgTypes: _resolvedArgs,
+                                    jsonText: _jsonArgsController.text.trim());
+                                _validationErrors = v.errors;
+                                _useAutoForm = false;
                               });
                             },
                           ),
-IconButton(
-                             tooltip: 'Bookmark',
-                             icon: const Icon(Icons.bookmark_border),
-                             onPressed: () async {
-                               final cid = _canisterController.text.trim();
-                               if (cid.isEmpty) return;
-                               final messenger = ScaffoldMessenger.of(context);
-                               try {
-                                 await BookmarksService.add(canisterId: cid, method: name);
-                                 if (mounted) {
-                                   messenger.showSnackBar(const SnackBar(content: Text('Added to bookmarks')));
-                                 }
-                               } catch (e) {
-                                 if (mounted) {
-                                   messenger.showSnackBar(SnackBar(content: Text('Failed to add bookmark: $e')));
-                                 }
-                               }
-                             },
-                           ),
+                          IconButton(
+                            tooltip: 'Bookmark',
+                            icon: const Icon(Icons.bookmark_border),
+                            onPressed: () async {
+                              final cid = _canisterController.text.trim();
+                              if (cid.isEmpty) return;
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                await BookmarksService.add(
+                                    canisterId: cid, method: name);
+                                if (mounted) {
+                                  messenger.showSnackBar(const SnackBar(
+                                      content: Text('Added to bookmarks')));
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  messenger.showSnackBar(SnackBar(
+                                      content:
+                                          Text('Failed to add bookmark: $e')));
+                                }
+                              }
+                            },
+                          ),
                         ],
                       ),
                     );
@@ -668,7 +752,8 @@ IconButton(
               ],
             ),
           const SizedBox(height: 16),
-          Text('Well-known canisters', style: Theme.of(context).textTheme.titleMedium),
+          Text('Well-known canisters',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           _WellKnownList(onSelect: (cid, method) {
             _canisterController.text = cid;
@@ -776,7 +861,9 @@ class _ArgsEditorState extends State<_ArgsEditor> {
       ],
     );
 
-    if (!widget.useAuto || widget.argTypes.isEmpty || !model.isSupportedByForm) {
+    if (!widget.useAuto ||
+        widget.argTypes.isEmpty ||
+        !model.isSupportedByForm) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -785,7 +872,8 @@ class _ArgsEditorState extends State<_ArgsEditor> {
           if (!widget.useAuto && widget.argTypes.isNotEmpty)
             const SizedBox.shrink()
           else if (!model.isSupportedByForm)
-            const Text('Some argument types are not supported by auto form. Use raw JSON below.'),
+            const Text(
+                'Some argument types are not supported by auto form. Use raw JSON below.'),
           if (widget.argTypes.isEmpty)
             const Text('No input required for this method')
           else
@@ -793,7 +881,8 @@ class _ArgsEditorState extends State<_ArgsEditor> {
               controller: widget.controller,
               decoration: const InputDecoration(
                 labelText: 'Args JSON',
-                hintText: '[] for multiple args; object/array/scalar for single arg',
+                hintText:
+                    '[] for multiple args; object/array/scalar for single arg',
                 border: OutlineInputBorder(),
               ),
               minLines: 1,
@@ -817,7 +906,9 @@ class _ArgsEditorState extends State<_ArgsEditor> {
             final String t = widget.argTypes[index];
             final String label = 'Arg ${index + 1} ($t)';
             final String lower = t.toLowerCase();
-            final TextInputType inputType = (lower.contains('int') || lower.contains('float') || lower.contains('nat'))
+            final TextInputType inputType = (lower.contains('int') ||
+                    lower.contains('float') ||
+                    lower.contains('nat'))
                 ? TextInputType.number
                 : TextInputType.text;
             final String? hint = lower.startsWith('record')
@@ -838,9 +929,11 @@ class _ArgsEditorState extends State<_ArgsEditor> {
                 // Best-effort live validation comparing built JSON vs expected types
                 try {
                   final model = CandidFormModel(widget.argTypes);
-                  final List<dynamic> values = _controllers.map((c) => c.text.trim()).toList();
+                  final List<dynamic> values =
+                      _controllers.map((c) => c.text.trim()).toList();
                   final jsonStr = model.buildJson(values);
-                  validateJsonArgs(resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
+                  validateJsonArgs(
+                      resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
                   // Bubble up? The parent shows errors from main controller text; skip here.
                 } catch (_) {}
               },
@@ -953,9 +1046,8 @@ class _WellKnownList extends StatelessWidget {
         return _WellKnownCard(
           entry: entry,
           onTap: () => onSelect(entry.canisterId, entry.method),
-          onBookmark: onBookmark == null
-              ? null
-              : () => unawaited(onBookmark!(entry)),
+          onBookmark:
+              onBookmark == null ? null : () => unawaited(onBookmark!(entry)),
         );
       },
     );
@@ -963,7 +1055,8 @@ class _WellKnownList extends StatelessWidget {
 }
 
 class _WellKnownCard extends StatelessWidget {
-  const _WellKnownCard({required this.entry, required this.onTap, this.onBookmark});
+  const _WellKnownCard(
+      {required this.entry, required this.onTap, this.onBookmark});
 
   final WellKnownCanister entry;
   final VoidCallback onTap;
@@ -993,7 +1086,8 @@ class _WellKnownCard extends StatelessWidget {
                       color: theme.colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(entry.icon, color: theme.colorScheme.primary, size: 20),
+                    child: Icon(entry.icon,
+                        color: theme.colorScheme.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1002,7 +1096,8 @@ class _WellKnownCard extends StatelessWidget {
                       children: [
                         Text(
                           entry.label,
-                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -1019,7 +1114,8 @@ class _WellKnownCard extends StatelessWidget {
                   if (onBookmark != null)
                     IconButton(
                       tooltip: 'Bookmark',
-                      icon: Icon(Icons.bookmark_add_outlined, color: theme.colorScheme.primary),
+                      icon: Icon(Icons.bookmark_add_outlined,
+                          color: theme.colorScheme.primary),
                       onPressed: onBookmark,
                       visualDensity: VisualDensity.compact,
                     ),
@@ -1028,9 +1124,11 @@ class _WellKnownCard extends StatelessWidget {
               if ((entry.method ?? '').isNotEmpty) ...[
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    color: theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -1101,7 +1199,8 @@ class _BookmarksListState extends State<_BookmarksList> {
       return EmptyState(
         icon: Icons.bookmark_border_rounded,
         title: 'No Bookmarks Yet',
-        subtitle: 'Use the Add Bookmark form above or tap a popular canister to save it here.',
+        subtitle:
+            'Use the Add Bookmark form above or tap a popular canister to save it here.',
       );
     }
     return ListView.separated(
@@ -1114,7 +1213,7 @@ class _BookmarksListState extends State<_BookmarksList> {
         final cid = entry.canisterId;
         final method = entry.method;
         final label = entry.label ?? '';
-        
+
         return Card(
           elevation: 2,
           shadowColor: Colors.black.withValues(alpha: 0.1),
@@ -1152,35 +1251,48 @@ class _BookmarksListState extends State<_BookmarksList> {
                       children: [
                         Text(
                           label.isNotEmpty ? label : method,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           cid,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primaryContainer
+                                .withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             method,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onPrimaryContainer,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                ),
                           ),
                         ),
                       ],
@@ -1199,7 +1311,8 @@ class _BookmarksListState extends State<_BookmarksList> {
                           HapticFeedback.mediumImpact();
                           final messenger = ScaffoldMessenger.of(context);
                           try {
-                            await BookmarksService.remove(canisterId: cid, method: method);
+                            await BookmarksService.remove(
+                                canisterId: cid, method: method);
                             if (mounted) {
                               messenger.showSnackBar(
                                 SnackBar(
@@ -1211,7 +1324,9 @@ class _BookmarksListState extends State<_BookmarksList> {
                           } catch (e) {
                             if (mounted) {
                               messenger.showSnackBar(
-                                SnackBar(content: Text('Failed to remove bookmark: $e')),
+                                SnackBar(
+                                    content:
+                                        Text('Failed to remove bookmark: $e')),
                               );
                             }
                           }

@@ -1,14 +1,14 @@
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
-import 'package:icp_autorun/services/secure_identity_repository.dart';
+import 'package:icp_autorun/services/secure_keypair_repository.dart';
 
-import 'test_identity_factory.dart';
+import 'test_keypair_factory.dart';
 
-/// Fake implementation of SecureIdentityRepository for testing
+/// Fake implementation of SecureKeypairRepository for testing
 /// Stores identities in memory and provides full control for test scenarios
-class FakeSecureIdentityRepository implements SecureIdentityRepository {
-  FakeSecureIdentityRepository(List<ProfileKeypair> initialIdentities)
+class FakeSecureKeypairRepository implements SecureKeypairRepository {
+  FakeSecureKeypairRepository(List<ProfileKeypair> initialIdentities)
       : _identities = List.of(initialIdentities),
         _fakeProfileRepository = FakeProfileRepository(
           // Convert initial identities to profiles
@@ -55,7 +55,7 @@ class FakeSecureIdentityRepository implements SecureIdentityRepository {
   }
 
   @override
-  Future<void> deleteIdentitySecureData(String identityId) async {
+  Future<void> deleteKeypairSecureData(String identityId) async {
     _identities.removeWhere((identity) => identity.id == identityId);
   }
 
@@ -68,7 +68,7 @@ class FakeSecureIdentityRepository implements SecureIdentityRepository {
   Future<String?> getPrivateKey(String identityId) async {
     final identity = _identities.firstWhere(
       (identity) => identity.id == identityId,
-      orElse: () => throw StateError('Identity not found: $identityId'),
+      orElse: () => throw StateError('Keypair not found: $identityId'),
     );
     return identity.privateKey;
   }
@@ -106,9 +106,9 @@ class FakeProfileRepository implements ProfileRepository {
   static Future<ProfileKeypair> _generateTestKeypair(
       {required String label}) async {
     // Import test identity factory
-    final testIdentity = await TestIdentityFactory.getEd25519Identity();
+    final TestKeypair = await TestKeypairFactory.getEd25519Keypair();
     // Create a copy with the desired label
-    return testIdentity.copyWith(label: label);
+    return TestKeypair.copyWith(label: label);
   }
 
   @override

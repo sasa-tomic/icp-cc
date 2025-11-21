@@ -4,8 +4,8 @@ import '../controllers/profile_controller.dart';
 import '../models/profile_keypair.dart';
 import '../utils/principal.dart';
 
-class IdentitySessionBanner extends StatelessWidget {
-  const IdentitySessionBanner({
+class KeypairSessionBanner extends StatelessWidget {
+  const KeypairSessionBanner({
     super.key,
     required this.controller,
     required this.onManageIdentities,
@@ -18,12 +18,12 @@ class IdentitySessionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final ProfileKeypair? active = controller.activeKeypair;
     if (active == null) {
-      return _AnonymousIdentityCard(
+      return _AnonymousKeypairCard(
         onManageIdentities: onManageIdentities,
       );
     }
     // With the new system, all identities have an account (draft or registered)
-    return _ActiveIdentityCard(
+    return _ActiveKeypairCard(
       identity: active,
       principal: PrincipalUtils.textFromRecord(active),
       isProfileComplete: true, // Always true now - all identities have accounts
@@ -32,8 +32,8 @@ class IdentitySessionBanner extends StatelessWidget {
   }
 }
 
-class _AnonymousIdentityCard extends StatelessWidget {
-  const _AnonymousIdentityCard({
+class _AnonymousKeypairCard extends StatelessWidget {
+  const _AnonymousKeypairCard({
     required this.onManageIdentities,
   });
 
@@ -86,8 +86,8 @@ class _AnonymousIdentityCard extends StatelessWidget {
   }
 }
 
-class _ActiveIdentityCard extends StatelessWidget {
-  const _ActiveIdentityCard({
+class _ActiveKeypairCard extends StatelessWidget {
+  const _ActiveKeypairCard({
     required this.identity,
     required this.principal,
     required this.isProfileComplete,

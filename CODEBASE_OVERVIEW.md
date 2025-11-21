@@ -82,7 +82,7 @@ icp-cc/
 │       │   ├── services/             # Business logic
 │       │   │   ├── marketplace_open_api_service.dart - HTTP API CLIENT
 │       │   │   ├── script_signature_service.dart - ED25519/SECP256K1 SIGNING
-│       │   │   ├── secure_identity_repository.dart - ENCRYPTED STORAGE
+│       │   │   ├── secure_keypair_repository.dart - ENCRYPTED STORAGE
 │       │   │   ├── script_repository.dart - LOCAL SCRIPT STORAGE
 │       │   │   ├── script_runner.dart
 │       │   │   ├── download_history_service.dart
@@ -116,7 +116,7 @@ icp-cc/
 ## 3. Authentication & Security Mechanisms
 
 ### Frontend Security
-1. **Private Key Storage** (`SecureIdentityRepository`):
+1. **Private Key Storage** (`SecureKeypairRepository`):
    - Private keys stored in platform-native secure storage (Android Keychain, iOS Keychain)
    - Mnemonics also encrypted in secure storage
    - Non-sensitive data in regular JSON files
@@ -127,10 +127,10 @@ icp-cc/
    - Supports both Ed25519 and secp256k1 algorithms
    - Timestamp included in all signatures
 
-3. **Identity Management** (`IdentityController`):
+3. **Keypair Management** (`KeypairController`):
    - Multiple identity support
    - Active identity selection
-   - Identity profiles with extended metadata
+   - Keypair profiles with extended metadata
 
 ### Backend Security
 1. **Signature Verification Functions**:
@@ -202,7 +202,7 @@ CREATE TABLE reviews (
 );
 ```
 
-### Identity Profiles Table
+### Keypair Profiles Table
 ```sql
 CREATE TABLE identity_profiles (
   id TEXT PRIMARY KEY,
@@ -223,7 +223,7 @@ CREATE TABLE identity_profiles (
 
 ### Key Indexes
 - `idx_reviews_script_id` on reviews.script_id
-- `idx_identity_profiles_principal` on identity_profiles.principal (UNIQUE)
+- `idx_keypair_profiles_principal` on identity_profiles.principal (UNIQUE)
 
 ---
 
@@ -276,7 +276,7 @@ CREATE TABLE identity_profiles (
 - `POST /api/v1/update-script-stats` - Update download/engagement counters
   - Body: `scriptId`, `incrementDownloads` (optional)
 
-### Identity & Profiles
+### Keypair & Profiles
 - `GET /api/v1/identities/:principal/profile` - Get identity profile by principal
   - Public read endpoint
 - `POST /api/v1/identities/profile` - Create/update own profile
@@ -368,8 +368,8 @@ CREATE TABLE identity_profiles (
 
 ## 8. Profile Management Implementation
 
-### Identity Model (`ProfileKeypair`)
-- **Location**: Flutter local storage via `SecureIdentityRepository`
+### Keypair Model (`ProfileKeypair`)
+- **Location**: Flutter local storage via `SecureKeypairRepository`
 - **Fields**:
   - id (UUID)
   - label (user-friendly name)
@@ -380,7 +380,7 @@ CREATE TABLE identity_profiles (
   - publicKey (base64)
   - createdAt timestamp
 
-### Profile Model (`IdentityProfile`)
+### Profile Model (`KeypairProfile`)
 - **Location**: Rust backend database (`identity_profiles` table)
 - **Fields**:
   - id (UUID)
@@ -396,17 +396,17 @@ CREATE TABLE identity_profiles (
 
 ### Profile Management Flows
 
-**Creating/Generating Identity** (Frontend):
+**Creating/Generating Keypair** (Frontend):
 1. User navigates to Identities tab
-2. Clicks "Create New Identity"
+2. Clicks "Create New Keypair"
 3. Chooses algorithm (Ed25519 or secp256k1)
 4. System generates: mnemonic, private key, public key
 5. User optionally provides custom label
-6. Saved to secure storage via `SecureIdentityRepository`
+6. Saved to secure storage via `SecureKeypairRepository`
 
 **Setting Up Profile** (Frontend → Backend):
 1. User clicks "Edit Profile" on identity
-2. `IdentityProfileSheet` widget opens
+2. `KeypairProfileSheet` widget opens
 3. User fills in displayName (required) + optional social contacts
 4. Frontend POSTs to `/api/v1/identities/profile`
 5. Backend saves/updates profile via UPSERT (ON CONFLICT)
@@ -479,7 +479,7 @@ CREATE TABLE identity_profiles (
    - ⚠️ **REDUNDANT**: Duplicates marketplace functionality from scripts_screen
    - ⚠️ **UX ISSUE**: Users unclear which view to use
 
-3. **Identity Management** (806 lines)
+3. **Keypair Management** (806 lines)
    - ✅ Create identities
    - ✅ View identity details (principal, keys, mnemonic)
    - ✅ Edit profiles (display name, social contacts)
@@ -555,14 +555,14 @@ CREATE TABLE identity_profiles (
 |---------------------------------------------------|-------|---------------------------------|
 | `/lib/services/marketplace_open_api_service.dart` | ~200  | HTTP API client for marketplace |
 | `/lib/services/script_signature_service.dart`     | ~300  | Ed25519/secp256k1 signing       |
-| `/lib/services/secure_identity_repository.dart`   | ~300  | Encrypted key storage           |
+| `/lib/services/secure_keypair_repository.dart`    | ~300  | Encrypted key storage           |
 | `/lib/services/script_repository.dart`            | 84    | Local script file storage       |
 | `/lib/services/download_history_service.dart`     | ~150  | Download tracking               |
 
 ### Frontend Controllers
 | File                                        | Lines | Purpose                           |
 |---------------------------------------------|-------|-----------------------------------|
-| `/lib/controllers/identity_controller.dart` | 6947  | Identity lifecycle management     |
+| `/lib/controllers/identity_controller.dart` | 6947  | Keypair lifecycle management      |
 | `/lib/controllers/script_controller.dart`   | 8919  | Local script lifecycle management |
 
 ### Frontend Screens (UI Pages)
@@ -570,7 +570,7 @@ CREATE TABLE identity_profiles (
 |---------------------------------------------|-------|--------------------------------------|
 | `/lib/screens/scripts_screen.dart`          | 1624  | Local scripts + marketplace (tabbed) |
 | `/lib/screens/marketplace_screen.dart`      | 676   | Dedicated marketplace view           |
-| `/lib/screens/identity_home_page.dart`      | 806   | Identity management and profiles     |
+| `/lib/screens/identity_home_page.dart`      | 806   | Keypair management and profiles      |
 | `/lib/screens/script_upload_screen.dart`    | 736   | Script publish workflow              |
 | `/lib/screens/script_creation_screen.dart`  | 490   | Create new local script              |
 | `/lib/screens/bookmarks_screen.dart`        | 1237  | Bookmarks + canister client          |

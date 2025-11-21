@@ -194,7 +194,7 @@ curl -X POST http://localhost:8080/api/v1/admin/accounts/alice/recovery-key \
 
 **Steps**:
 
-1. **Verify User Identity** (out-of-band):
+1. **Verify User Keypair** (out-of-band):
    - Email verification
    - Phone call
    - Security questions
@@ -228,7 +228,7 @@ curl http://localhost:8080/api/v1/accounts/bob
 
 **Steps**:
 
-1. **Verify User Identity** (strict verification required):
+1. **Verify User Keypair** (strict verification required):
    - Email verification (send code to registered email)
    - Phone verification (SMS or call to registered number)
    - KYC documents if available

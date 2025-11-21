@@ -11,7 +11,7 @@ class ScriptSignatureService {
   /// Sign a script upload payload with the author's private key
   /// Returns a base64-encoded signature
   static Future<String> signScriptUpload({
-    required ProfileKeypair authorIdentity,
+    required ProfileKeypair authorKeypair,
     required String title,
     required String description,
     required String category,
@@ -32,23 +32,23 @@ class ScriptSignatureService {
       version: version,
       tags: tags,
       compatibility: compatibility,
-      authorPrincipal: PrincipalUtils.textFromRecord(authorIdentity),
+      authorPrincipal: PrincipalUtils.textFromRecord(authorKeypair),
       timestampIso: resolvedTimestamp,
     );
 
-    return await _signPayload(authorIdentity, payload);
+    return await _signPayload(authorKeypair, payload);
   }
 
   /// Sign a script update request with the author's private key
   /// Returns a base64-encoded signature
   static Future<String> signScriptUpdate({
-    required ProfileKeypair authorIdentity,
+    required ProfileKeypair authorKeypair,
     required String scriptId,
     Map<String, dynamic>? updates,
     String? timestampIso,
   }) async {
     final request = await buildSignedUpdateRequest(
-      authorIdentity: authorIdentity,
+      authorKeypair: authorKeypair,
       scriptId: scriptId,
       updates: updates ?? const {},
       timestampIso: timestampIso,
@@ -59,7 +59,7 @@ class ScriptSignatureService {
   /// Sign a script deletion request with the author's private key
   /// Returns a base64-encoded signature
   static Future<String> signScriptDeletion({
-    required ProfileKeypair authorIdentity,
+    required ProfileKeypair authorKeypair,
     required String scriptId,
     String? timestampIso,
   }) async {
@@ -71,11 +71,11 @@ class ScriptSignatureService {
     // Create the canonical payload to sign
     final payload = _createDeletePayload(
       scriptId: scriptId,
-      authorPrincipal: PrincipalUtils.textFromRecord(authorIdentity),
+      authorPrincipal: PrincipalUtils.textFromRecord(authorKeypair),
       timestampIso: resolvedTimestamp,
     );
 
-    return await _signPayload(authorIdentity, payload);
+    return await _signPayload(authorKeypair, payload);
   }
 
   /// Create a canonical payload for script uploads
@@ -247,7 +247,7 @@ class ScriptSignatureService {
   /// when constructing HTTP bodies to guarantee byte-for-byte parity with the
   /// signing input.
   static Future<Map<String, dynamic>> buildSignedUpdateRequest({
-    required ProfileKeypair authorIdentity,
+    required ProfileKeypair authorKeypair,
     required String scriptId,
     required Map<String, dynamic> updates,
     String? timestampIso,
@@ -258,8 +258,7 @@ class ScriptSignatureService {
         _sanitizeUpdateFields(Map<String, dynamic>.from(updates));
     final String resolvedTimestamp =
         timestampIso ?? DateTime.now().toUtc().toIso8601String();
-    final String authorPrincipal =
-        PrincipalUtils.textFromRecord(authorIdentity);
+    final String authorPrincipal = PrincipalUtils.textFromRecord(authorKeypair);
 
     final Map<String, dynamic> canonicalPayload = _createUpdatePayload(
       scriptId: scriptId,
@@ -269,11 +268,11 @@ class ScriptSignatureService {
     );
 
     final String signature =
-        await _signPayload(authorIdentity, canonicalPayload);
+        await _signPayload(authorKeypair, canonicalPayload);
 
     return {
       ...canonicalPayload,
-      'author_public_key': authorIdentity.publicKey,
+      'author_public_key': authorKeypair.publicKey,
       'signature': signature,
     };
   }
