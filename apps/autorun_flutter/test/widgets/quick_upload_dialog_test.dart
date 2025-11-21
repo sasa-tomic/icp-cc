@@ -88,8 +88,6 @@ void main() {
       await tester.enterText(
           find.widgetWithText(TextFormField, 'Description *'),
           'Short description');
-      await tester.enterText(
-          find.widgetWithText(TextFormField, 'Author Name *'), 'Author');
       await tester.pumpAndSettle();
 
       when(
@@ -169,8 +167,6 @@ void main() {
       await tester.enterText(
           find.widgetWithText(TextFormField, 'Description *'),
           'Short description');
-      await tester.enterText(
-          find.widgetWithText(TextFormField, 'Author Name *'), 'Author');
       await tester.pumpAndSettle();
 
       when(
