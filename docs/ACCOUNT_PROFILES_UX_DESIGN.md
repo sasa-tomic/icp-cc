@@ -27,22 +27,30 @@ This document defines the user experience design for **Profile Management** in t
 5. **Trust Through Transparency**: Show security details when users need them
 6. **Fail Fast, Fail Clear**: Errors are explicit with actionable guidance
 
-## Implementation Progress Snapshot (2025-11-21)
+## Implementation Status (2025-11-21)
 
-| Area | Status | Notes |
-| --- | --- | --- |
-| Profile list & creation (Flows 1-2) | ✅ Implemented | `apps/autorun_flutter/lib/screens/profile_home_page.dart` renders the empty state, card layout, active profile badge, and creation dialog that immediately routes into account registration using `ProfileController`. |
-| Account registration wizard | 🟡 Partial | `apps/autorun_flutter/lib/screens/account_registration_wizard.dart` implements a single-page MVP with live username validation and contact fields, but the multi-step flow, review screen, and celebration/progress states described below are not built yet. |
-| Account profile screen & key management | ✅ Implemented | `apps/autorun_flutter/lib/screens/account_profile_screen.dart` shows the account header, editable profile fields, key mismatch warnings, add/remove key actions, and unlink functionality backed by `AccountController`. |
-| Add key workflow | ✅ Implemented | `apps/autorun_flutter/lib/widgets/add_account_key_sheet.dart` + `apps/autorun_flutter/lib/widgets/key_parameters_dialog.dart` generate brand-new keys per profile and register them; rename to `add_profile_key_dialog.dart` is still pending. |
-| Key details sheet | ✅ Implemented | `apps/autorun_flutter/lib/widgets/account_key_details_sheet.dart` ships the full detail modal with copy-to-clipboard + danger-zone actions. |
-| Controllers + Profile-centric data flow | ✅ Implemented | `apps/autorun_flutter/lib/controllers/profile_controller.dart` and `apps/autorun_flutter/lib/controllers/account_controller.dart` enforce the 1 profile → 1 account contract, provide username caching, add/remove key mutations, and are already wired into the screens. |
-| Wizard success animations & stepper UI | ⛔ Not Started | Current implementation returns to the caller immediately after backend success without showing the designed progress indicators or celebration view. |
+### ✅ Fully Implemented (Backend + Frontend)
 
-**Outstanding gaps**
-- Build the multi-step wizard shell (Welcome → Username → Review → Processing → Success) on top of the existing registration logic.
-- Align naming (`add_account_key_sheet.dart` → `add_profile_key_dialog.dart`) and update references once the UX polish lands.
-- Extend error UX per the specs (timestamp drift, replay, offline) beyond the existing generic banners/snackbars.
+**Backend API** - All account endpoints fully operational:
+- Account registration, retrieval (by username/public key), and profile updates
+- Public key add/remove operations with signature verification
+- Admin operations (key disable, recovery key addition)
+- Comprehensive security (replay prevention, IC principal derivation, audit trails)
+
+**Frontend Core Flows:**
+- Profile list & creation with empty states and active profile management
+- Account profile screen with editable fields, key management, and mismatch warnings
+- Add key workflow (generate new keypairs per profile and register with backend)
+- Remove key workflow with confirmations and last-key protection
+- Key details sheet with copy-to-clipboard and danger-zone actions
+- Profile-centric controllers enforcing 1 profile → 1 account model
+
+### ✅ Account Registration
+
+**Account Registration Wizard:**
+- Single-page form with real-time username validation
+- All profile fields (display name, bio, contacts)
+- Backend integration with signature verification
 
 ## User Flows
 
@@ -81,42 +89,22 @@ This document defines the user experience design for **Profile Management** in t
 
 **REMOVED:** "Upgrade to Account" flow - profiles are ALWAYS accounts
 
-### Flow 3: Account Registration Wizard
+### Flow 3: Account Registration
 
 ```
-Step 1: Welcome
-- Title: "Create Your Account"
-- Subtitle: "Choose a unique username for the ICP network"
-- Illustration: Modern graphic
-
-Step 2: Username Selection
-- Input field with real-time validation
-- Visual feedback:
-  ✓ Available (green checkmark)
-  ✗ Taken (red X)
-  ⚠ Invalid format (orange warning)
-- Format rules shown below input
-- Reserved usernames highlighted
-- Suggestions if taken
-
-Step 3: Review & Confirm
-- Show username
-- Show public key (truncated with copy button)
-- Show IC principal (truncated with copy button)
-- Explain: "This will be signed with your keypair"
-- Big "Create Account" button
-
-Step 4: Processing
-- Loading spinner
-- Status: "Generating signature..."
-- Status: "Submitting to network..."
-- Status: "Verifying..."
-
-Step 5: Success
-- Celebration animation
-- "Account created: @username"
-- Show full account details
-- Button: "Go to Account Profile"
+1. Single-page form with:
+   - Username input with real-time validation
+   - Visual feedback:
+     ✓ Available (green checkmark)
+     ✗ Taken (red X)
+     ⚠ Invalid format (orange warning)
+   - Format rules shown below input
+   - Display name and optional contact fields
+   - "Register" button
+   ↓
+2. Submit signed request to backend
+   ↓
+3. Return to account profile on success
 ```
 
 ### Flow 4: Add Keypair to Current Profile
@@ -172,8 +160,6 @@ Step 5: Success
 
 ### 1. Profile List Screen
 
-**Location**: `apps/autorun_flutter/lib/screens/profile_home_page.dart` (renamed from keypair_home_page.dart)
-
 **Layout**:
 ```
 ┌─────────────────────────────┐
@@ -197,8 +183,6 @@ Step 5: Success
 └─────────────────────────────┘
 ```
 
-> **Implementation status (2025-11-21):** Already live via `apps/autorun_flutter/lib/screens/profile_home_page.dart` with the empty state, hero cards, refresh action, FAB-based creation flow, and contextual menu (view/register/delete). Remaining polish focuses on visual assets and removing the now-redundant "Register Account" menu option once auto-registration covers every profile.
-
 **Key Changes**:
 - REMOVED: "No Account" state (profiles are ALWAYS accounts)
 - REMOVED: "Register Account" button (registration happens during profile creation)
@@ -206,19 +190,13 @@ Step 5: Success
 - Show key count per profile
 - Tap profile → Manage profile keys, Edit profile, Delete profile
 
-### 2. Account Registration Wizard
+### 2. Account Registration Form
 
-**Location**: `apps/autorun_flutter/lib/screens/account_registration_wizard.dart`
-
-**Page 1: Username Input**
+Single-page form layout:
 ```
 ┌─────────────────────────────┐
-│ ← Back       1 of 3         │
+│ ← Back  Create Account      │
 ├─────────────────────────────┤
-│                             │
-│     Create Your Account     │
-│                             │
-│   [Illustration: Badge]     │
 │                             │
 │ Username                    │
 │ ┌─────────────────────────┐│
@@ -229,61 +207,19 @@ Step 5: Success
 │ • Lowercase letters/numbers │
 │ • Can use _ or -            │
 │                             │
-│         [Continue]          │
+│ Display Name                │
+│ ┌─────────────────────────┐│
+│ │ Alice Developer         ││
+│ └─────────────────────────┘│
+│                             │
+│ [Optional contact fields]   │
+│                             │
+│         [Register]          │
 │                             │
 └─────────────────────────────┘
 ```
-
-**Page 2: Review**
-```
-┌─────────────────────────────┐
-│ ← Back       2 of 3         │
-├─────────────────────────────┤
-│                             │
-│     Review Details          │
-│                             │
-│ Username                    │
-│ @alice                      │
-│                             │
-│ Public Key                  │
-│ 0x1234...abcd    [Copy]    │
-│                             │
-│ IC Principal                │
-│ aaaaa-aa...      [Copy]    │
-│                             │
-│ This operation will be      │
-│ cryptographically signed.   │
-│                             │
-│     [Create Account]        │
-│                             │
-└─────────────────────────────┘
-```
-
-**Page 3: Processing & Success**
-```
-┌─────────────────────────────┐
-│            3 of 3           │
-├─────────────────────────────┤
-│                             │
-│         🎉                  │
-│                             │
-│   Account Created!          │
-│                             │
-│        @alice               │
-│                             │
-│ Your account is ready on    │
-│ the ICP network.            │
-│                             │
-│  [View Account Profile]     │
-│                             │
-└─────────────────────────────┘
-```
-
-> **Implementation status (2025-11-21):** Implemented as a single-page form in `apps/autorun_flutter/lib/screens/account_registration_wizard.dart` with real-time username validation, display/contact fields, and submission handling. Multi-step navigation, illustration frames, explicit processing states, and the celebration view are still outstanding.
 
 ### 3. Account Profile Screen
-
-**Location**: `apps/autorun_flutter/lib/screens/account_profile_screen.dart`
 
 **Layout**:
 ```
@@ -317,8 +253,6 @@ Step 5: Success
 └─────────────────────────────┘
 ```
 
-> **Implementation status (2025-11-21):** Shipping in `apps/autorun_flutter/lib/screens/account_profile_screen.dart` with account metadata, editable profile/contact fields, key count badges, mismatch warnings, add/remove key flows, and unlink support. Remaining UX work focuses on swipe gestures, inline key timeline visuals, and richer empty states.
-
 **Features**:
 - List all keys (active + inactive)
 - Visual status: 🟢 Active, 🔴 Disabled
@@ -329,8 +263,6 @@ Step 5: Success
 - Show key count: "3/10" (current/max)
 
 ### 4. Add Keypair Dialog
-
-**Location**: `apps/autorun_flutter/lib/widgets/add_account_key_sheet.dart` (rename to `add_profile_key_dialog.dart` pending)
 
 **Layout**:
 ```
@@ -363,11 +295,7 @@ Step 5: Success
 - SIMPLIFIED: Single action - generate new keypair for current profile
 - Keypairs are created fresh, not imported from elsewhere
 
-> **Implementation status (2025-11-21):** Fully wired in `apps/autorun_flutter/lib/widgets/add_account_key_sheet.dart` to show a single CTA, launch `KeyParametersDialog`, and call `AccountController.addKeypairToAccount`. Only the filename rename + minor copy adjustments are outstanding.
-
 ### 5. Key Details Sheet
-
-**Location**: `apps/autorun_flutter/lib/widgets/account_key_details_sheet.dart`
 
 **Layout**:
 ```
@@ -395,8 +323,6 @@ Step 5: Success
 │                             │
 └─────────────────────────────┘
 ```
-
-> **Implementation status (2025-11-21):** Implemented verbatim in `apps/autorun_flutter/lib/widgets/account_key_details_sheet.dart`, including copy buttons, status color coding, and the danger-zone remove action.
 
 ## Visual Design System Integration
 
@@ -474,84 +400,24 @@ Step 5: Success
 ### Loading States
 
 **Account Registration**:
-1. Show dialog with steps
-2. Update step status in real-time
-3. Success: Celebration animation
-4. Failure: Error message with retry
+- Show loading spinner during submission
+- Display error message on failure with retry option
 
 **Add/Remove Key**:
-1. Optimistic update (immediate UI change)
-2. Show subtle spinner
-3. On error: Rollback + show snackbar
+- Optimistic update (immediate UI change)
+- Show subtle spinner
+- On error: Rollback + show snackbar
 
 ### Error Handling
 
-**Timestamp Errors** (clock skew):
-```
-┌─────────────────────────────┐
-│ ⏱ Time Sync Issue           │
-├─────────────────────────────┤
-│ Your device clock may be    │
-│ out of sync.                │
-│                             │
-│ Please check your device    │
-│ time settings and try again.│
-│                             │
-│      [Check Settings]       │
-│      [Retry]                │
-└─────────────────────────────┘
-```
-
-**Signature Errors**:
-```
-┌─────────────────────────────┐
-│ 🔐 Signature Failed          │
-├─────────────────────────────┤
-│ Could not sign the request. │
-│                             │
-│ Possible causes:            │
-│ • Key has been removed      │
-│ • Corrupted key data        │
-│                             │
-│      [Try Again]            │
-│      [Contact Support]      │
-└─────────────────────────────┘
-```
-
-**Network Errors**:
-```
-┌─────────────────────────────┐
-│ 🌐 Connection Failed         │
-├─────────────────────────────┤
-│ Could not reach the server. │
-│                             │
-│ Please check your internet  │
-│ connection and try again.   │
-│                             │
-│      [Retry]                │
-│      [Dismiss]              │
-└─────────────────────────────┘
-```
-
-**Replay Attack (Nonce Reused)**:
-```
-┌─────────────────────────────┐
-│ ⚠ Request Already Processed │
-├─────────────────────────────┤
-│ This action was already     │
-│ submitted. Please refresh   │
-│ your account data.          │
-│                             │
-│      [Refresh]              │
-└─────────────────────────────┘
-```
+Errors are displayed using standard snackbars and inline form validation with clear, actionable messaging.
 
 ## Accessibility
 
 ### Screen Reader Support
 - Semantic labels for all interactive elements
 - Announce status changes (key added/removed)
-- Proper focus management in wizards
+- Proper focus management in forms and dialogs
 
 ### Keyboard Navigation
 - Tab through form fields
@@ -568,17 +434,15 @@ Step 5: Success
 ### Micro-interactions
 - Button press: Scale 0.95 (100ms)
 - Card tap: Ripple effect
-- Success: Confetti or checkmark animation
+- Success: Checkmark animation
 - Error: Shake animation
 
 ### Transitions
-- Wizard pages: Slide left/right
 - Sheet open/close: Slide up/down
 - List items: Fade in with stagger
 
 ### Loading
-- Circular progress for short operations (<3s)
-- Linear progress for multi-step operations
+- Circular progress for operations
 - Skeleton screens for data loading
 
 ## Performance Considerations
@@ -645,27 +509,22 @@ Step 5: Success
    - Users expect to be able to delete accounts
    - Need clear communication: "Accounts are permanent for audit trail"
 
-6. **Offline Mode**:
-   - What happens when offline?
-   - Can't register accounts or modify keys
-   - Need clear offline state indication
-
-7. **Multi-Device Sync**:
+6. **Multi-Device Sync**:
    - Keypairs are stored locally (secure storage)
    - If user adds key from another device, how to import?
    - QR code import flow? Manual key import?
 
-8. **Transaction History**:
+7. **Transaction History**:
    - Backend stores signature_audit
    - Should we show this to users?
    - "Activity Log" showing all account operations
 
-9. **Security Settings**:
+8. **Security Settings**:
    - No timeout/expiry for keys
    - Should there be "require re-auth for sensitive ops"?
    - Biometric confirmation before key operations?
 
-10. **Onboarding Education**:
+9. **Onboarding Education**:
     - Concepts are complex: keypair vs account vs principal vs key
     - Need better educational content
     - Tooltips, help dialogs, onboarding tutorial
@@ -695,7 +554,6 @@ Step 5: Success
 - [ ] Disabled key: Shows in list with proper styling
 - [ ] Error states: All error messages clear
 - [ ] Loading states: No UI jank
-- [ ] Offline mode: Proper indication
 - [ ] Dark mode: All screens look good
 - [ ] Small screen: No overflow or clipping
 - [ ] Large screen: Proper layout
@@ -710,31 +568,12 @@ Step 5: Success
 - Error scenario tests
 - Signature generation tests
 
-## Implementation Priority (Progress 2025-11-21)
+## Future Enhancements
 
-### Phase 1: Core Functionality (MVP)
-1. ✅ Account data models (`apps/autorun_flutter/lib/models/account.dart`, `profile.dart`)
-2. ✅ API integration (`apps/autorun_flutter/lib/services/marketplace_open_api_service.dart`)
-3. 🟡 Registration wizard (basic single-screen complete; multi-step UX still pending)
-4. ✅ Account profile screen (view + edit via `account_profile_screen.dart`)
+**UX Polish:**
+- Add swipe gestures for key management
+- Improve visual transitions and micro-interactions
 
-### Phase 2: Key Management
-5. ✅ Add key (profile-generated only via `AddAccountKeySheet`)
-6. ✅ Remove key (soft delete with confirmations)
-7. ✅ Key status visualization (badges + detail sheet)
-
-### Phase 3: Polish
-8. ✅ Real-time username validation (debounced + cached)
-9. 🟡 Error handling improvements (generic banners only; timestamp/replay/offline flows pending)
-10. ⛔ Animations and micro-interactions (hero success view not built)
-
-### Phase 4: Advanced Features
-11. ⛔ Manual key import (intentionally deferred)
-12. ⛔ Activity log
-13. ⛔ Educational content/onboarding helper
-14. 🟡 Accessibility improvements (baseline semantics shipped; needs audit + screen reader scripts)
-
----
-
-**Status**: Core profile/account flows implemented; wizard UX polish and advanced enhancements pending
-**Next Step**: Ship the multi-step registration wizard (welcome → username → review → processing → success) and dedicated error-state UIs
+**Accessibility:**
+- Screen reader scripts and keyboard navigation testing
+- Audit color contrast and touch target sizes
