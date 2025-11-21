@@ -216,6 +216,55 @@ class ProfileController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clear profile username (unlink from account)
+  Future<void> clearProfileUsername({required String profileId}) async {
+    final Profile? profile = findById(profileId);
+    if (profile == null) {
+      return;
+    }
+
+    final updatedProfile = Profile(
+      id: profile.id,
+      name: profile.name,
+      keypairs: profile.keypairs,
+      username: null, // Explicitly clear
+      activeKeypairId: profile.activeKeypairId,
+      createdAt: profile.createdAt,
+      updatedAt: DateTime.now().toUtc(),
+    );
+
+    final index = _profiles.indexOf(profile);
+    _profiles[index] = updatedProfile;
+    await _profileRepository.persistProfiles(_profiles);
+    notifyListeners();
+  }
+
+  /// Set the active keypair for a profile (used for signing operations)
+  Future<void> setActiveKeypair({
+    required String profileId,
+    required String keypairId,
+  }) async {
+    final Profile? profile = findById(profileId);
+    if (profile == null) {
+      throw ArgumentError('Profile $profileId does not exist.');
+    }
+
+    final keypair = profile.getKeypair(keypairId);
+    if (keypair == null) {
+      throw ArgumentError('Keypair $keypairId does not exist in profile $profileId.');
+    }
+
+    final updatedProfile = profile.copyWith(
+      activeKeypairId: keypairId,
+      updatedAt: DateTime.now().toUtc(),
+    );
+
+    final index = _profiles.indexOf(profile);
+    _profiles[index] = updatedProfile;
+    await _profileRepository.persistProfiles(_profiles);
+    notifyListeners();
+  }
+
   /// Update keypair label within a profile
   Future<void> updateKeypairLabel({
     required String profileId,

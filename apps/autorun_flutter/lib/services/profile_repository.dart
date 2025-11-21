@@ -177,6 +177,7 @@ class ProfileRepository {
               'id': profile.id,
               'name': profile.name,
               'username': profile.username,
+              'activeKeypairId': profile.activeKeypairId,
               'keypairs': profile.keypairs
                   .map((ProfileKeypair keypair) => <String, dynamic>{
                         'id': keypair.id,

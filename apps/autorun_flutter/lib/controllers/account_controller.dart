@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/account.dart';
 import '../models/identity_record.dart';
 import '../models/profile.dart';
@@ -42,7 +40,6 @@ class AccountNetworkException implements Exception {
 /// - Works with Profile objects, not individual IdentityRecords
 /// - Generates keypairs through ProfileController (no importing)
 /// - Stores username in Profile, not separate mapping
-/// - Draft accounts are part of Profile (not separate storage)
 ///
 /// Manages account state, registration, and key management.
 /// Integrates with MarketplaceOpenApiService for backend communication
@@ -50,25 +47,15 @@ class AccountNetworkException implements Exception {
 class AccountController extends ChangeNotifier {
   AccountController({
     MarketplaceOpenApiService? marketplaceService,
-    FlutterSecureStorage? secureStorage,
     ProfileController? profileController,
   }) : _marketplaceService = marketplaceService ?? MarketplaceOpenApiService(),
-       _secureStorage = secureStorage ?? const FlutterSecureStorage(),
        _profileController = profileController;
 
   final MarketplaceOpenApiService _marketplaceService;
-  final FlutterSecureStorage _secureStorage;
   final ProfileController? _profileController;
-
-  // DEPRECATED: For backward compatibility with old code
-  static const String _identityUsernamePrefix = 'identity_username_';
-  static const String _draftAccountPrefix = 'draft_account_';
 
   /// Cache of accounts by username (registered on marketplace)
   final Map<String, Account> _accounts = <String, Account>{};
-
-  /// Cache of draft accounts by identity ID (local only, not yet registered)
-  final Map<String, Account> _draftAccounts = <String, Account>{};
 
   /// Cache of username availability checks (username -> isAvailable)
   final Map<String, bool> _availabilityCache = <String, bool>{};
@@ -133,9 +120,6 @@ class AccountController extends ChangeNotifier {
       // Cache the account
       _accounts[normalizedUsername] = account;
       _availabilityCache.remove(normalizedUsername); // Clear availability cache
-
-      // Store identity-username mapping for future app loads
-      await storeUsernameForIdentity(identity.id, normalizedUsername);
 
       notifyListeners();
       return account;
@@ -388,119 +372,9 @@ class AccountController extends ChangeNotifier {
     return AccountSignatureService.validateUsername(username);
   }
 
-  /// Store identity-to-username mapping in secure storage
-  ///
-  /// This mapping is used to fetch accounts when the app restarts.
-  Future<void> storeUsernameForIdentity(String identityId, String username) async {
-    await _secureStorage.write(
-      key: '$_identityUsernamePrefix$identityId',
-      value: username,
-    );
-  }
-
-  /// Get stored username for an identity
-  ///
-  /// Returns null if no mapping exists.
-  Future<String?> getUsernameForIdentity(String identityId) async {
-    return await _secureStorage.read(
-      key: '$_identityUsernamePrefix$identityId',
-    );
-  }
-
-  /// Create a draft account (local only, not registered on marketplace)
-  ///
-  /// FIXME - ARCHITECTURE ISSUE:
-  /// Draft accounts are stored per-identity, but should be per-profile.
-  /// Once Profile model exists, this should be:
-  /// - createDraftProfile(username, displayName, algorithm)
-  /// - Generates initial keypair
-  /// - Creates Profile with Account reference
-  /// - Returns Profile (not Account)
-  ///
-  /// This creates a local account that will be used until the user registers
-  /// on the marketplace. The draft account is persisted and will survive app restarts.
-  Future<Account> createDraftAccount({
-    required IdentityRecord identity,
-    required String username,
-    required String displayName,
-  }) async {
-    final normalizedUsername = AccountSignatureService.normalizeUsername(username);
-    final publicKeyHex = AccountSignatureService.publicKeyToHex(identity.publicKey);
-
-    final now = DateTime.now();
-    final draftAccount = Account(
-      id: 'draft_${identity.id}',
-      username: normalizedUsername,
-      displayName: displayName,
-      publicKeys: [
-        AccountPublicKey(
-          id: 'draft_key_${identity.id}',
-          publicKey: publicKeyHex,
-          icPrincipal: '', // Will be populated when registered
-          isActive: true,
-          addedAt: now,
-          disabledAt: null,
-        ),
-      ],
-      createdAt: now,
-      updatedAt: now,
-    );
-
-    // Store in cache
-    _draftAccounts[identity.id] = draftAccount;
-
-    // Persist to secure storage
-    await _secureStorage.write(
-      key: '$_draftAccountPrefix${identity.id}',
-      value: jsonEncode(draftAccount.toJson()),
-    );
-
-    notifyListeners();
-    return draftAccount;
-  }
-
-  /// Load all draft accounts from secure storage
-  Future<void> loadDraftAccounts() async {
-    // Note: FlutterSecureStorage doesn't provide a way to list all keys,
-    // so we'll load draft accounts on-demand in getDraftAccount
-  }
-
-  /// Get draft account for an identity
-  ///
-  /// Returns null if no draft account exists.
-  Future<Account?> getDraftAccount(String identityId) async {
-    // Check cache first
-    if (_draftAccounts.containsKey(identityId)) {
-      return _draftAccounts[identityId];
-    }
-
-    // Load from secure storage
-    final json = await _secureStorage.read(key: '$_draftAccountPrefix$identityId');
-    if (json != null) {
-      try {
-        final account = Account.fromJson(jsonDecode(json) as Map<String, dynamic>);
-        _draftAccounts[identityId] = account;
-        return account;
-      } catch (e) {
-        debugPrint('Failed to parse draft account: $e');
-        return null;
-      }
-    }
-
-    return null;
-  }
-
-  /// Delete draft account
-  Future<void> deleteDraftAccount(String identityId) async {
-    _draftAccounts.remove(identityId);
-    await _secureStorage.delete(key: '$_draftAccountPrefix$identityId');
-    notifyListeners();
-  }
-
   /// Clear all cached data
   void clearCache() {
     _accounts.clear();
-    _draftAccounts.clear();
     _availabilityCache.clear();
     notifyListeners();
   }

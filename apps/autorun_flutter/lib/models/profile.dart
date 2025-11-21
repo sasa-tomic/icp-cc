@@ -20,6 +20,7 @@ class Profile {
     required this.name,
     required this.keypairs,
     this.username,
+    this.activeKeypairId,
     required this.createdAt,
     required this.updatedAt,
   }) : assert(keypairs.isNotEmpty, 'Profile must have at least one keypair'),
@@ -39,14 +40,25 @@ class Profile {
   /// Null if profile hasn't been registered on marketplace yet
   final String? username;
 
+  /// ID of the active keypair used for signing operations
+  /// Null means use the first keypair (default behavior)
+  final String? activeKeypairId;
+
   /// Profile creation timestamp
   final DateTime createdAt;
 
   /// Profile last update timestamp
   final DateTime updatedAt;
 
-  /// Get primary (first) keypair
-  ProfileKeypair get primaryKeypair => keypairs.first;
+  /// Get active keypair used for signing operations
+  /// Returns the keypair with activeKeypairId, or the first keypair if not set
+  ProfileKeypair get primaryKeypair {
+    if (activeKeypairId != null) {
+      final keypair = getKeypair(activeKeypairId!);
+      if (keypair != null) return keypair;
+    }
+    return keypairs.first;
+  }
 
   /// Check if profile is registered on backend
   bool get isRegistered => username != null;
@@ -68,6 +80,8 @@ class Profile {
     String? name,
     List<ProfileKeypair>? keypairs,
     String? username,
+    String? activeKeypairId,
+    bool clearActiveKeypairId = false,
     DateTime? updatedAt,
   }) {
     return Profile(
@@ -75,6 +89,7 @@ class Profile {
       name: name ?? this.name,
       keypairs: keypairs ?? this.keypairs,
       username: username ?? this.username,
+      activeKeypairId: clearActiveKeypairId ? null : (activeKeypairId ?? this.activeKeypairId),
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -87,6 +102,7 @@ class Profile {
       'name': name,
       'keypairs': keypairs.map((k) => k.toJson()).toList(),
       if (username != null) 'username': username,
+      if (activeKeypairId != null) 'activeKeypairId': activeKeypairId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -101,6 +117,7 @@ class Profile {
           .map((k) => ProfileKeypair.fromJson(k as Map<String, dynamic>))
           .toList(),
       username: json['username'] as String?,
+      activeKeypairId: json['activeKeypairId'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );

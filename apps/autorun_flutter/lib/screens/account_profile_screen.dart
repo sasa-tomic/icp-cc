@@ -1,7 +1,10 @@
+import 'dart:convert';
+import 'package:convert/convert.dart' as convert;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/account.dart';
 import '../models/profile.dart';
+import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../controllers/profile_controller.dart';
 import '../theme/app_design_system.dart';
@@ -66,6 +69,98 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
     _bioController.text = _account.bio ?? '';
   }
 
+  /// Find matching local keypair for an AccountPublicKey
+  /// Returns null if no matching keypair found
+  ProfileKeypair? _findMatchingKeypair(AccountPublicKey accountKey) {
+    // AccountPublicKey has publicKey in hex format (0x...)
+    // ProfileKeypair has publicKey in base64 format
+    final String accountKeyHex = accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
+
+    for (final keypair in _profile.keypairs) {
+      // Convert base64 to hex for comparison
+      final keypairHex = convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
+      if (keypairHex == accountKeyHex) {
+        return keypair;
+      }
+    }
+    return null;
+  }
+
+  /// Check if the given account key is the current signing key
+  bool _isSigningKey(AccountPublicKey accountKey) {
+    final matchingKeypair = _findMatchingKeypair(accountKey);
+    if (matchingKeypair == null) return false;
+    return _profile.primaryKeypair.id == matchingKeypair.id;
+  }
+
+  /// Check if the profile's signing keypair exists in the account's public keys
+  /// Returns true if there's a match, false if there's a mismatch (data corruption)
+  bool _profileKeypairExistsInAccount() {
+    final signingKeypair = _profile.primaryKeypair;
+    return _findAccountKeyForKeypair(signingKeypair) != null;
+  }
+
+  /// Find the AccountPublicKey that matches a ProfileKeypair
+  AccountPublicKey? _findAccountKeyForKeypair(ProfileKeypair keypair) {
+    final keypairHex = convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
+
+    for (final accountKey in _account.publicKeys) {
+      final accountKeyHex = accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
+      if (accountKeyHex == keypairHex) {
+        return accountKey;
+      }
+    }
+    return null;
+  }
+
+  /// Find a profile keypair that IS registered with the account (for recovery)
+  ProfileKeypair? _findRegisteredKeypair() {
+    for (final keypair in _profile.keypairs) {
+      if (_findAccountKeyForKeypair(keypair) != null) {
+        return keypair;
+      }
+    }
+    return null;
+  }
+
+  /// Set a key as the signing key for this profile
+  Future<void> _setAsSigningKey(AccountPublicKey accountKey) async {
+    final matchingKeypair = _findMatchingKeypair(accountKey);
+    if (matchingKeypair == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot find matching local keypair')),
+      );
+      return;
+    }
+
+    try {
+      await widget.profileController.setActiveKeypair(
+        profileId: _profile.id,
+        keypairId: matchingKeypair.id,
+      );
+
+      // Refresh the local profile reference
+      final updatedProfile = widget.profileController.findById(_profile.id);
+      if (updatedProfile != null && mounted) {
+        setState(() {
+          _profile = updatedProfile;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signing key updated'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to set signing key: $e')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _displayNameController.dispose();
@@ -124,6 +219,11 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Show warning if profile's signing key is not in account
+              if (!_profileKeypairExistsInAccount()) ...[
+                _buildKeypairMismatchWarning(),
+                const SizedBox(height: 16),
+              ],
               _buildAccountHeader(),
               const SizedBox(height: 24),
               _buildProfileSection(),
@@ -142,6 +242,146 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
               label: const Text('Add Key'),
             ),
     );
+  }
+
+  Widget _buildKeypairMismatchWarning() {
+    final registeredKeypair = _findRegisteredKeypair();
+    final canRecover = registeredKeypair != null;
+
+    return Card(
+      elevation: 0,
+      color: AppDesignSystem.errorLight.withValues(alpha: 0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppDesignSystem.errorLight),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: AppDesignSystem.errorDark),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Signing Key Not Registered',
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      color: AppDesignSystem.errorDark,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              canRecover
+                  ? 'Your current signing key is not registered with this account, but another key in your profile is. '
+                    'Switch to that key to restore access, then optionally add your preferred key.'
+                  : 'Your profile\'s signing key is not registered with this account. '
+                    'You need to recover the original signing key or unlink this account.',
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: AppDesignSystem.errorDark,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (canRecover)
+              FilledButton.icon(
+                onPressed: () => _switchToRegisteredKey(registeredKeypair),
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: const Text('Switch to Registered Key'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppDesignSystem.errorDark,
+                ),
+              )
+            else
+              FilledButton.icon(
+                onPressed: _unlinkAccount,
+                icon: const Icon(Icons.link_off, size: 18),
+                label: const Text('Unlink Account'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppDesignSystem.errorDark,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _switchToRegisteredKey(ProfileKeypair keypair) async {
+    try {
+      await widget.profileController.setActiveKeypair(
+        profileId: _profile.id,
+        keypairId: keypair.id,
+      );
+
+      // Refresh the local profile reference
+      final updatedProfile = widget.profileController.findById(_profile.id);
+      if (updatedProfile != null && mounted) {
+        setState(() {
+          _profile = updatedProfile;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Switched to registered signing key'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to switch key: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _unlinkAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unlink Account'),
+        content: const Text(
+          'This will remove the link between this profile and the account. '
+          'You can re-register the profile with a new account later.\n\n'
+          'The account itself will NOT be deleted from the marketplace.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Unlink'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await widget.profileController.clearProfileUsername(
+          profileId: _profile.id,
+        );
+        if (mounted) {
+          Navigator.pop(context); // Return to profile list
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to unlink account: $e')),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildAccountHeader() {
@@ -443,6 +683,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
 
   Widget _buildKeyCard(AccountPublicKey key, {required bool isActive}) {
     final isLastActive = isActive && _account.activeKeys.length == 1;
+    final isSigningKey = _isSigningKey(key);
+    final hasMatchingKeypair = _findMatchingKeypair(key) != null;
 
     return InkWell(
       onTap: () => _showKeyDetails(key),
@@ -450,14 +692,19 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isActive
-              ? context.colors.surfaceContainerHighest
-              : context.colors.surfaceContainer,
+          color: isSigningKey
+              ? context.colors.primaryContainer.withValues(alpha: 0.3)
+              : isActive
+                  ? context.colors.surfaceContainerHighest
+                  : context.colors.surfaceContainer,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isActive
-                ? AppDesignSystem.successLight.withValues(alpha: 0.3)
-                : context.colors.outline,
+            color: isSigningKey
+                ? context.colors.primary
+                : isActive
+                    ? AppDesignSystem.successLight.withValues(alpha: 0.3)
+                    : context.colors.outline,
+            width: isSigningKey ? 2 : 1,
           ),
         ),
         child: Column(
@@ -489,7 +736,40 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   ),
                 ),
 
-                if (isLastActive) ...[
+                // Signing key badge
+                if (isSigningKey) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.colors.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.edit,
+                          size: 12,
+                          color: context.colors.onPrimary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'SIGNING KEY',
+                          style: AppDesignSystem.caption.copyWith(
+                            color: context.colors.onPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                if (isLastActive && !isSigningKey) ...[
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -511,6 +791,18 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 ],
 
                 const Spacer(),
+
+                // Set as signing key button (only show for active keys that are not already signing key)
+                if (isActive && !isSigningKey && hasMatchingKeypair)
+                  TextButton.icon(
+                    onPressed: () => _setAsSigningKey(key),
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Use for signing'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
 
                 // Action buttons
                 if (isActive && !isLastActive)

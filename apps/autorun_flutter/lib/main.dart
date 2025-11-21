@@ -130,7 +130,7 @@ class _MainHomePageState extends State<MainHomePage> {
   Widget _buildModernNavigationBar() {
     final ProfileController profileController = ProfileScope.of(context);
     final bool shouldShowBadge = _shouldShowProfileBadge(profileController);
-    
+
     return ModernNavigationBar(
       currentIndex: _currentIndex,
       onTap: (index) {
@@ -150,7 +150,7 @@ class _MainHomePageState extends State<MainHomePage> {
         ModernNavigationItem(
           icon: Icons.verified_user_outlined,
           activeIcon: Icons.verified_user_rounded,
-          label: 'Identities',
+          label: 'Profile',
           showBadge: shouldShowBadge,
         ),
       ],
@@ -163,4 +163,3 @@ class _MainHomePageState extends State<MainHomePage> {
     return active == null;
   }
 }
- 

@@ -7,6 +7,7 @@ import '../controllers/account_controller.dart';
 import '../models/profile.dart';
 import '../models/account.dart';
 import '../theme/app_design_system.dart';
+import '../utils/principal.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/key_parameters_dialog.dart';
@@ -294,6 +295,8 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
     // Use account displayName if registered, otherwise fall back to profile name
     final Account? account = profile.username != null ? _accountController?.getAccount(profile.username!) : null;
     final String displayName = account?.displayName ?? profile.name;
+    // Show signing principal for active profile
+    final String signingPrincipal = PrincipalUtils.textFromRecord(profile.primaryKeypair);
 
     return Hero(
       tag: 'profile_${profile.id}',
@@ -434,6 +437,30 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                         ),
                         const SizedBox(height: 4),
                       ],
+                      // Show signing principal (this is the key used for marketplace operations)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.key,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              signingPrincipal,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Container(
