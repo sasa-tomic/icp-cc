@@ -302,15 +302,6 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   backgroundColor: AppDesignSystem.errorDark,
                 ),
               )
-            else
-              FilledButton.icon(
-                onPressed: _unlinkAccount,
-                icon: const Icon(Icons.link_off, size: 18),
-                label: const Text('Unlink Account'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppDesignSystem.errorDark,
-                ),
-              ),
           ],
         ),
       ),
@@ -342,50 +333,6 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to switch key: $e')),
         );
-      }
-    }
-  }
-
-  Future<void> _unlinkAccount() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unlink Account'),
-        content: const Text(
-          'This will remove the link between this profile and the account. '
-          'You can re-register the profile with a new account later.\n\n'
-          'The account itself will NOT be deleted from the marketplace.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Unlink'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      try {
-        await widget.profileController.clearProfileUsername(
-          profileId: _profile.id,
-        );
-        if (mounted) {
-          Navigator.pop(context); // Return to profile list
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to unlink account: $e')),
-          );
-        }
       }
     }
   }
