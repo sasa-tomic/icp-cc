@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../models/profile.dart';
 import '../models/profile_keypair.dart';
 import '../services/profile_repository.dart';
+import '../services/marketplace_open_api_service.dart';
+import '../services/account_signature_service.dart';
 import '../utils/keypair_generator.dart';
 
 /// ProfileController manages user profiles
@@ -25,14 +27,17 @@ class ProfileController extends ChangeNotifier {
   ProfileController({
     ProfileRepository? profileRepository,
     SharedPreferences? preferences,
+    MarketplaceOpenApiService? marketplaceService,
   })  : _profileRepository = profileRepository ?? ProfileRepository(),
-        _preferencesOverride = preferences;
+        _preferencesOverride = preferences,
+        _marketplaceService = marketplaceService;
 
   static const String _activeProfilePrefsKey = 'active_profile_id';
   static const _uuid = Uuid();
 
   final ProfileRepository _profileRepository;
   final SharedPreferences? _preferencesOverride;
+  final MarketplaceOpenApiService? _marketplaceService;
   SharedPreferences? _preferences;
 
   final List<Profile> _profiles = <Profile>[];
@@ -130,6 +135,9 @@ class ProfileController extends ChangeNotifier {
   /// IMPORTANT: This GENERATES a new keypair for the profile.
   /// It does NOT import/share keypairs from other profiles.
   ///
+  /// If the profile is registered (has username), automatically registers
+  /// the new public key with the marketplace backend.
+  ///
   /// Returns the updated Profile.
   Future<Profile> addKeypairToProfile({
     required String profileId,
@@ -168,11 +176,53 @@ class ProfileController extends ChangeNotifier {
       _profiles[index] = updatedProfile;
       await _profileRepository.persistProfiles(_profiles);
 
+      // If profile is registered, automatically register the new key with marketplace
+      if (profile.username != null) {
+        await _registerKeypairWithMarketplace(
+          profile: profile,
+          newKeypair: keypair,
+        );
+      }
+
       notifyListeners();
       return updatedProfile;
     } finally {
       _setBusy(false);
     }
+  }
+
+  /// Register a newly added keypair with the marketplace backend
+  ///
+  /// Uses the profile's primary (active) keypair to sign the registration request.
+  Future<void> _registerKeypairWithMarketplace({
+    required Profile profile,
+    required ProfileKeypair newKeypair,
+  }) async {
+    final marketplaceService = _marketplaceService;
+    if (marketplaceService == null) {
+      throw StateError(
+          'Cannot register keypair: MarketplaceOpenApiService not provided. '
+          'Inject MarketplaceOpenApiService into ProfileController constructor.');
+    }
+
+    final username = profile.username;
+    if (username == null) {
+      throw StateError('Cannot register keypair for profile without username');
+    }
+
+    // Sign request with existing primary keypair
+    final signingKeypair = profile.primaryKeypair;
+    final request = await AccountSignatureService.createAddPublicKeyRequest(
+      signingKeypair: signingKeypair,
+      username: username,
+      newPublicKeyB64: newKeypair.publicKey,
+    );
+
+    // Submit to backend
+    await marketplaceService.addPublicKey(
+      username: username,
+      request: request,
+    );
   }
 
   /// Update profile metadata (name)

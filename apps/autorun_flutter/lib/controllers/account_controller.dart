@@ -193,10 +193,13 @@ class AccountController extends ChangeNotifier {
   /// This method GENERATES a new keypair for the profile and registers it with the backend.
   /// - Generates NEW keypair through ProfileController
   /// - Adds keypair to profile (stored locally)
-  /// - Registers public key with backend account
+  /// - Automatically registers public key with backend account (via ProfileController)
   /// - NO cross-profile operations
   ///
-  /// Returns the newly added AccountPublicKey from backend.
+  /// Note: ProfileController now handles marketplace registration automatically
+  /// when adding keypairs to registered profiles (profiles with username).
+  ///
+  /// Returns the newly added AccountPublicKey from backend by refreshing the account.
   Future<AccountPublicKey> addKeypairToAccount({
     required Profile profile,
     required KeyAlgorithm algorithm,
@@ -213,42 +216,22 @@ class AccountController extends ChangeNotifier {
 
     _setBusy(true);
     try {
-      // Step 1: Generate NEW keypair within the profile (via ProfileController)
-      final updatedProfile = await _profileController.addKeypairToProfile(
+      // Generate NEW keypair within the profile (via ProfileController)
+      // ProfileController automatically registers the key with marketplace
+      await _profileController.addKeypairToProfile(
         profileId: profile.id,
         algorithm: algorithm,
         label: keypairLabel,
       );
 
-      // Step 2: Get the newly added keypair (last one in the list)
-      final newKeypair = updatedProfile.keypairs.last;
-
-      // Step 3: Sign request with existing keypair from profile
-      final signingKeypair = profile.primaryKeypair;
-      final request = await AccountSignatureService.createAddPublicKeyRequest(
-        signingKeypair: signingKeypair,
-        username: profile.username!,
-        newPublicKeyB64: newKeypair.publicKey,
-      );
-
-      // Step 4: Submit to backend
-      final newKey = await _marketplaceService.addPublicKey(
-        username: profile.username!,
-        request: request,
-      );
-
-      // Step 5: Update cached account
-      final cachedAccount = _accounts[profile.username];
-      if (cachedAccount != null) {
-        final updatedKeys = <AccountPublicKey>[
-          ...cachedAccount.publicKeys,
-          newKey
-        ];
-        _accounts[profile.username!] = cachedAccount.copyWith(
-          publicKeys: updatedKeys,
-          updatedAt: DateTime.now(),
-        );
+      // Refresh account from backend to get the newly added key
+      final refreshedAccount = await fetchAccount(profile.username!);
+      if (refreshedAccount == null) {
+        throw Exception('Failed to refresh account after adding keypair');
       }
+
+      // Return the most recently added key
+      final newKey = refreshedAccount.publicKeys.last;
 
       notifyListeners();
       return newKey;

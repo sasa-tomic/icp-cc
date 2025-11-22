@@ -6,6 +6,7 @@ import 'controllers/profile_controller.dart';
 import 'models/profile.dart';
 import 'models/script_template.dart';
 import 'rust/native_bridge.dart';
+import 'services/marketplace_open_api_service.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
@@ -33,7 +34,9 @@ class _KeypairAppState extends State<KeypairApp> {
   @override
   void initState() {
     super.initState();
-    _profileController = ProfileController();
+    _profileController = ProfileController(
+      marketplaceService: MarketplaceOpenApiService(),
+    );
     unawaited(_profileController.ensureLoaded());
   }
 
