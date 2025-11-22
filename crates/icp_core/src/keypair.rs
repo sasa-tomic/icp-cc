@@ -95,7 +95,7 @@ pub fn sign_ed25519(message: &[u8], private_key_b64: &str) -> Result<String, Str
 
 /// Sign a message with secp256k1 private key.
 /// According to ECDSA requirements, we hash the message with SHA-256 first, then sign.
-/// Returns hex-encoded signature.
+/// Returns base64-encoded signature (64 bytes).
 pub fn sign_secp256k1(message: &[u8], private_key_b64: &str) -> Result<String, String> {
     use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
     use sha2::{Digest, Sha256};
@@ -125,6 +125,6 @@ pub fn sign_secp256k1(message: &[u8], private_key_b64: &str) -> Result<String, S
     let secp = Secp256k1::new();
     let signature = secp.sign_ecdsa(&message, &secret);
 
-    // Encode as hex (matching Dart/frontend expectations)
-    Ok(hex::encode(signature.serialize_compact()))
+    // Encode as base64 (consistent with Ed25519)
+    Ok(B64.encode(signature.serialize_compact()))
 }

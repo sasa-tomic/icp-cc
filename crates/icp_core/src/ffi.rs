@@ -78,7 +78,7 @@ pub unsafe extern "C" fn icp_principal_from_public_key(
 /// - `message_b64` must be a valid, null-terminated C string containing base64-encoded message.
 /// - `private_key_b64` must be a valid, null-terminated C string containing base64-encoded private key.
 /// - `alg`: 0 = Ed25519, 1 = secp256k1
-/// - Returns JSON: {"ok": true, "signature": "<hex>"} or {"ok": false, "error": "..."}
+/// - Returns JSON: {"ok": true, "signature": "<base64>"} or {"ok": false, "error": "..."}
 /// - The returned pointer must be freed by `icp_free_string`.
 #[no_mangle]
 pub unsafe extern "C" fn icp_sign_message(

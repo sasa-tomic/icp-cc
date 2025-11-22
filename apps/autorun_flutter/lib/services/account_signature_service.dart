@@ -260,9 +260,9 @@ class AccountSignatureService {
           throw Exception('secp256k1 signing failed: ${result['error']}');
         }
 
-        // Signature is returned as hex string, convert to bytes
-        final signatureHex = result['signature'] as String;
-        return _hexToBytes(signatureHex);
+        // Signature is returned as base64 string, decode to bytes
+        final signatureB64 = result['signature'] as String;
+        return base64Decode(signatureB64);
     }
   }
 
@@ -290,27 +290,6 @@ class AccountSignatureService {
     return DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
   }
 
-  /// Convert base64 public key to hex (with 0x prefix)
-  /// Note: This is kept for debugging purposes but is no longer used in production code
-  static String publicKeyToHex(String base64Key) {
-    final bytes = base64Decode(base64Key);
-    return '0x${_bytesToHex(bytes)}';
-  }
-
-  /// Convert bytes to hex string (without 0x prefix)
-  static String _bytesToHex(List<int> bytes) {
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  }
-
-  /// Convert hex string to bytes (handles with or without 0x prefix)
-  static List<int> _hexToBytes(String hex) {
-    final cleanHex = hex.startsWith('0x') ? hex.substring(2) : hex;
-    final bytes = <int>[];
-    for (var i = 0; i < cleanHex.length; i += 2) {
-      bytes.add(int.parse(cleanHex.substring(i, i + 2), radix: 16));
-    }
-    return bytes;
-  }
 
   /// Validate username format
   ///
