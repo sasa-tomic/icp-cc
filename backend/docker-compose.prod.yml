@@ -1,5 +1,5 @@
 services:
-  api:
+  api-prod:
     build:
       context: ..
       dockerfile: backend/Dockerfile
@@ -25,7 +25,7 @@ services:
       start_period: 5s
       retries: 3
 
-  cloudflared:
+  cloudflared-prod:
     image: cloudflare/cloudflared:latest
     container_name: icp-marketplace-tunnel-prod
     restart: unless-stopped
@@ -35,7 +35,7 @@ services:
     networks:
       - api-network-prod
     depends_on:
-      api:
+      api-prod:
         condition: service_healthy
 
 networks:

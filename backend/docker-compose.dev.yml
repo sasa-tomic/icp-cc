@@ -1,9 +1,9 @@
 services:
-  api:
+  api-dev:
     build:
       context: ..
       dockerfile: backend/Dockerfile
-    image: icp-marketplace-api:latest
+    image: icp-marketplace-api:dev
     container_name: icp-marketplace-api-dev
     restart: no
     user: "${UID:-1000}:${GID:-1000}"
