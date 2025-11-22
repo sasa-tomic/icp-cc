@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:convert/convert.dart' as convert;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/account.dart';
@@ -72,16 +70,9 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
   /// Find matching local keypair for an AccountPublicKey
   /// Returns null if no matching keypair found
   ProfileKeypair? _findMatchingKeypair(AccountPublicKey accountKey) {
-    // AccountPublicKey has publicKey in hex format (0x...)
-    // ProfileKeypair has publicKey in base64 format
-    final String accountKeyHex =
-        accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
-
+    // Both AccountPublicKey and ProfileKeypair use base64 format - simple string comparison
     for (final keypair in _profile.keypairs) {
-      // Convert base64 to hex for comparison
-      final keypairHex =
-          convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
-      if (keypairHex == accountKeyHex) {
+      if (keypair.publicKey == accountKey.publicKey) {
         return keypair;
       }
     }
@@ -104,13 +95,9 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
 
   /// Find the AccountPublicKey that matches a ProfileKeypair
   AccountPublicKey? _findAccountKeyForKeypair(ProfileKeypair keypair) {
-    final keypairHex =
-        convert.hex.encode(base64Decode(keypair.publicKey)).toLowerCase();
-
+    // Both use base64 format - simple string comparison
     for (final accountKey in _account.publicKeys) {
-      final accountKeyHex =
-          accountKey.publicKey.toLowerCase().replaceFirst('0x', '');
-      if (accountKeyHex == keypairHex) {
+      if (accountKey.publicKey == keypair.publicKey) {
         return accountKey;
       }
     }

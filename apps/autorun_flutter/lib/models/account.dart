@@ -161,7 +161,7 @@ class AccountPublicKey {
   }
 
   final String id;
-  final String publicKey; // hex encoded (0x...)
+  final String publicKey; // base64 encoded
   final String icPrincipal; // IC principal derived from public key
   final bool isActive;
   final DateTime addedAt;
