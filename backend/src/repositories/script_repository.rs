@@ -353,6 +353,7 @@ impl ScriptRepository {
         }
 
         let total = count_query.fetch_one(&self.pool).await.map_err(|e| {
+            tracing::error!("Search count query failed: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to count scripts: {}", e),
@@ -360,7 +361,7 @@ impl ScriptRepository {
         })?;
 
         let search_sql = format!(
-            "SELECT {} FROM scripts WHERE deleted_at IS NULL AND ({}) ORDER BY {} {} LIMIT {} OFFSET {}",
+            "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.deleted_at IS NULL AND ({}) ORDER BY scripts.{} {} LIMIT {} OFFSET {}",
             SCRIPT_COLUMNS_WITH_ACCOUNT, where_clause, sort_column, sort_order, limit, offset
         );
 
@@ -373,6 +374,7 @@ impl ScriptRepository {
         }
 
         let scripts = query.fetch_all(&self.pool).await.map_err(|e| {
+            tracing::error!("Search fetch query failed: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to fetch scripts: {}", e),

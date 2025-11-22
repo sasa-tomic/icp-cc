@@ -942,12 +942,20 @@ async fn search_scripts(
     Json(request): Json<SearchRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
+    tracing::info!(
+        "Search request: query={:?}, category={:?}, limit={:?}, offset={:?}",
+        request.query,
+        request.category,
+        request.limit,
+        request.offset
+    );
+
     match state.script_service.search_scripts(&request).await {
         Ok(result) => {
             let has_more = result.offset + (result.scripts.len() as i64) < result.total;
 
-            tracing::debug!(
-                "Marketplace search returned {} scripts (offset={}, limit={}, total={})",
+            tracing::info!(
+                "Search returned {} scripts (offset={}, limit={}, total={})",
                 result.scripts.len(),
                 result.offset,
                 result.limit,
@@ -966,7 +974,10 @@ async fn search_scripts(
             }))
             .into_response()
         }
-        Err((status, message)) => error_response(status, &message),
+        Err((status, message)) => {
+            tracing::error!("Search failed with status {}: {}", status, message);
+            error_response(status, &message)
+        }
     }
 }
 
