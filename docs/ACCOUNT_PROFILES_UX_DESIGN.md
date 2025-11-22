@@ -1,7 +1,7 @@
 # Account Profiles - Frontend UX Design
 
-**Version:** 1.2
-**Status:** Implementation In Progress
+**Version:** 2.0
+**Status:** Implemented
 **Created:** 2025-11-17
 **Updated:** 2025-11-21
 
@@ -17,6 +17,21 @@ This document defines the user experience design for **Profile Management** in t
 - Each profile maps to exactly ONE backend **account** (@username)
 - Keypairs belong to ONE profile only - NO key sharing across profiles
 - Tree structure: Profile → Keypairs (not a graph)
+
+### Signing Key Concept
+
+**Every profile has one "signing key"** (also called "primary keypair" or "active keypair"):
+- This is the keypair currently used for all cryptographic operations
+- Used to sign: add key, remove key, update profile, upload scripts
+- Displayed on profile cards as the "signing principal"
+- User can switch which keypair is the signing key via "Use for signing" button
+- The signing key MUST be registered with the backend account to perform operations
+
+**Incognito Profiles:**
+- At least one profile without a registered account should always be available
+- Allows users to interact with the app anonymously
+- Can upload scripts and perform operations without account registration
+- User can choose to register the profile later if desired
 
 ## Core UX Principles
 
@@ -39,18 +54,25 @@ This document defines the user experience design for **Profile Management** in t
 
 **Frontend Core Flows:**
 - Profile list & creation with empty states and active profile management
+- Profile switching (tap card to switch, visual feedback with ACTIVE badge)
+- Profile menu (three-dot menu with View/Register/Delete options)
+- Profile cards show signing principal and "(incognito)" label for unregistered profiles
 - Account profile screen with editable fields, key management, and mismatch warnings
+- Signing key concept: One keypair per profile used for all operations
+- Signing key switching: "Use for signing" button to change active keypair
+- Signing key badge: Visual indicator showing which key is currently signing
+- Auto-recovery from key mismatch: Automatically registers signing key if recoverable
+- Unlink account functionality: Clear username without deleting backend account
 - Add key workflow (generate new keypairs per profile and register with backend)
 - Remove key workflow with confirmations and last-key protection
 - Key details sheet with copy-to-clipboard and danger-zone actions
 - Profile-centric controllers enforcing 1 profile → 1 account model
 
-### ✅ Account Registration
-
-**Account Registration Wizard:**
+**Account Registration:**
 - Single-page form with real-time username validation
 - All profile fields (display name, bio, contacts)
 - Backend integration with signature verification
+- Auto-routes from profile creation (can skip to stay incognito)
 
 ## User Flows
 
@@ -80,14 +102,33 @@ This document defines the user experience design for **Profile Management** in t
 ```
 1. Profile List Screen
    ↓
-2. Tap "Add Profile" button
+2. Tap "+" FAB button
    ↓
-3. Create Profile Wizard (same as Flow 1)
+3. Create Profile Dialog:
+   - Choose algorithm (Ed25519 recommended)
+   - Set profile name (optional)
+   - Save mnemonic securely
    ↓
-4. New profile created (isolated from existing profiles)
+4. Profile created with initial keypair
+   ↓
+5. Automatically navigate to Account Registration Form
+   ↓
+6. User can register (@username) OR skip to use incognito
 ```
 
-**REMOVED:** "Upgrade to Account" flow - profiles are ALWAYS accounts
+### Flow 2b: Switch Active Profile
+
+```
+1. Profile List Screen
+   ↓
+2. Tap any profile card (not already active)
+   ↓
+3. Profile becomes active immediately
+   ↓
+4. Snackbar: "{Profile Name} is now active"
+   ↓
+5. Visual update: Card gains border, elevation, "ACTIVE" badge
+```
 
 ### Flow 3: Account Registration
 
@@ -134,7 +175,40 @@ This document defines the user experience design for **Profile Management** in t
 - REMOVED: "Import public key manually" option (keys are generated, not imported)
 - Keys are GENERATED for the current profile, not imported from elsewhere
 
-### Flow 5: Remove Public Key
+### Flow 5: Change Signing Key
+
+```
+1. Account Profile → Key List
+   ↓
+2. Tap "Use for signing" button on an active key
+   ↓
+3. Profile's signing key switches immediately
+   ↓
+4. Snackbar: "Signing key updated"
+   ↓
+5. UI updates: New key gets "SIGNING KEY" badge, old badge removed
+```
+
+### Flow 6: Signing Key Mismatch Recovery
+
+**Scenario**: Profile's signing key is not registered with the account
+
+```
+IF another key in profile IS registered:
+  1. Warning banner appears: "Signing Key Not Registered"
+  2. System automatically registers signing key using registered key to sign
+  3. Toast: "Registered your signing key with account"
+  4. Banner disappears
+
+IF NO keys in profile are registered:
+  1. Warning banner appears: "Signing Key Not Registered"
+  2. Banner shows: "You need to recover the original signing key or unlink this account"
+  3. User taps "Unlink Account" button
+  4. Confirmation dialog explains account stays on marketplace
+  5. Profile.username cleared, can re-register later
+```
+
+### Flow 7: Remove Public Key
 
 ```
 1. Account Profile → Key List
@@ -163,32 +237,49 @@ This document defines the user experience design for **Profile Management** in t
 **Layout**:
 ```
 ┌─────────────────────────────┐
-│ Profiles              [+]   │ ← App bar
+│ Profiles        [Refresh]   │ ← App bar
 ├─────────────────────────────┤
 │                             │
 │ ┌─────────────────────────┐│
-│ │ 👤 Alice                ││ ← Profile card
+│ │ 👤 Alice          [⋮]  ││ ← Profile card with menu
 │ │ @alice                  ││ ← Backend username
-│ │ 3 keys • Ed25519        ││ ← Key count + algorithm
-│ │ aaaaa-aa... (primary)   ││ ← Primary principal
+│ │ 🔑 aaaaa-aa...          ││ ← Signing principal
+│ │ 3 keys • ACTIVE         ││ ← Key count + active badge
 │ └─────────────────────────┘│
 │                             │
 │ ┌─────────────────────────┐│
-│ │ 👤 Bob                  ││
-│ │ @bob                    ││
-│ │ 1 key • Ed25519         ││
-│ │ bbbbb-bb... (primary)   ││
+│ │ 👤 Bob (incognito) [⋮] ││ ← Incognito profile
+│ │ 🔑 bbbbb-bb...          ││ ← Signing principal
+│ │ 1 key                   ││ ← Key count
 │ └─────────────────────────┘│
 │                             │
+│                        [+]  │ ← FAB: Create profile
 └─────────────────────────────┘
 ```
 
-**Key Changes**:
-- REMOVED: "No Account" state (profiles are ALWAYS accounts)
-- REMOVED: "Register Account" button (registration happens during profile creation)
-- Focus on PROFILE as primary concept, not individual keys
-- Show key count per profile
-- Tap profile → Manage profile keys, Edit profile, Delete profile
+**Profile Card Menu** (tap ⋮):
+```
+┌─────────────────────────────┐
+│     Alice                   │
+├─────────────────────────────┤
+│ 👤 View Account             │ ← If username exists
+│    @alice                   │
+├─────────────────────────────┤
+│ ➕ Register Account         │ ← If username is null
+│    Create @username for     │
+│    this profile             │
+├─────────────────────────────┤
+│ 🗑️ Delete                  │ ← Red text
+└─────────────────────────────┘
+```
+
+**Interactions**:
+- **Tap card body**: Switch to this profile (if not already active)
+- **Tap menu (⋮)**: Show profile actions menu
+- **Tap refresh**: Reload all accounts from backend
+- **Tap FAB (+)**: Create new profile
+- **Active profile**: Shows elevated card with border and "ACTIVE" badge
+- **Incognito profiles**: Show "(incognito)" label if no username
 
 ### 2. Account Registration Form
 
@@ -224,43 +315,61 @@ Single-page form layout:
 **Layout**:
 ```
 ┌─────────────────────────────┐
-│ ← Account Profile           │
+│ ← Account Profile  [Refresh]│
 ├─────────────────────────────┤
-│                             │
+│ ⚠️ SIGNING KEY NOT REGISTERED│ ← Warning (if mismatch)
+│ [Switch Key] or [Unlink]    │
+├─────────────────────────────┤
 │      👤                     │
+│   Alice Developer           │ ← Display name (editable)
 │     @alice                  │
 │ Created: Nov 17, 2024       │
-│                             │
+├─────────────────────────────┤
+│ PROFILE                     │
 │ ┌─────────────────────────┐│
-│ │ PUBLIC KEYS        3/10 ││ ← Section header
-│ ├─────────────────────────┤│
-│ │ 🟢 0x1234...abcd       ││ ← Active key
-│ │    Principal: aaa...    ││
-│ │    Added: Nov 17, 10:00 ││
-│ │    [View] [Remove]      ││
-│ ├─────────────────────────┤│
-│ │ 🟢 0x5678...efgh       ││
-│ │    Principal: bbb...    ││
-│ │    Added: Nov 17, 10:05 ││
-│ │    [View] [Remove]      ││
-│ ├─────────────────────────┤│
-│ │ 🔴 0x9012...ijkl       ││ ← Disabled key
-│ │    Principal: ccc...    ││
-│ │    Disabled: Nov 17     ││
+│ │ Display Name *          ││ ← Editable fields
+│ │ Email                   ││
+│ │ Telegram                ││
+│ │ Twitter/X               ││
+│ │ Discord                 ││
+│ │ Website                 ││
+│ │ Bio                     ││
+│ │    [Save Changes]       ││
 │ └─────────────────────────┘│
+├─────────────────────────────┤
+│ PUBLIC KEYS          3/10   │
+├─────────────────────────────┤
+│ 🟢 0x1234...abcd           │ ← Active key
+│    ✏️ SIGNING KEY          │ ← Signing badge
+│    Principal: aaa...        │
+│    Added: 2 days ago        │
+│    [View] [Remove]          │
+├─────────────────────────────┤
+│ 🟢 0x5678...efgh           │
+│    Principal: bbb...        │
+│    Added: 1 day ago         │
+│    [Use for signing] [View] │ ← Switch signing key
+│    [Remove]                 │
+├─────────────────────────────┤
+│ 🔴 0x9012...ijkl           │ ← Disabled key
+│    Principal: ccc...        │
+│    Disabled: today          │
+│    [View]                   │
 │                             │
-│              [+]            │ ← FAB: Add key
+│                        [+]  │ ← FAB: Add key
 └─────────────────────────────┘
 ```
 
-**Features**:
-- List all keys (active + inactive)
-- Visual status: 🟢 Active, 🔴 Disabled
-- Show IC principal for each key
-- Timestamps for added/disabled
-- Tap key → show full details
-- Swipe to remove (if not last active)
-- Show key count: "3/10" (current/max)
+**Key Features**:
+- **Mismatch Warning**: Red banner at top if signing key not registered
+  - Auto-recovers if possible (another key registered)
+  - Shows manual actions if not recoverable
+- **Editable Profile Section**: All account fields editable with save button
+- **Signing Key Badge**: Current signing key shows "✏️ SIGNING KEY" badge
+- **Use for Signing Button**: Appears on active keys (except current signing key)
+- **Key Status**: 🟢 Active, 🔴 Disabled with appropriate actions
+- **Last Active Protection**: Cannot remove last active key
+- **Tap key card**: Opens full details in bottom sheet
 
 ### 4. Add Keypair Dialog
 
@@ -324,6 +433,58 @@ Single-page form layout:
 └─────────────────────────────┘
 ```
 
+### 6. Key Mismatch Warning Banner
+
+**Scenario 1: Recoverable (another key registered)**
+```
+┌─────────────────────────────┐
+│ ⚠️ Auto-Recovering          │
+├─────────────────────────────┤
+│ Your signing key wasn't     │
+│ registered. We're fixing    │
+│ this now...                 │
+│                             │
+│ [Spinner]                   │
+└─────────────────────────────┘
+```
+After auto-recovery:
+```
+Toast: "✓ Registered your signing key with account"
+```
+
+**Scenario 2: Not Recoverable (no keys registered)**
+```
+┌─────────────────────────────┐
+│ ⚠️ Signing Key Not Registered│
+├─────────────────────────────┤
+│ Your profile's signing key  │
+│ is not registered with this │
+│ account. You need to recover│
+│ the original signing key or │
+│ unlink this account.        │
+│                             │
+│     [Unlink Account]        │
+└─────────────────────────────┘
+```
+
+### 7. Delete Profile Confirmation
+
+```
+┌─────────────────────────────┐
+│ Delete Profile              │
+├─────────────────────────────┤
+│ Are you sure you want to    │
+│ delete "Alice"?             │
+│                             │
+│ This will permanently       │
+│ delete the profile and all  │
+│ its keypairs. This action   │
+│ cannot be undone.           │
+│                             │
+│   [Cancel]   [Delete]       │
+└─────────────────────────────┘
+```
+
 ## Visual Design System Integration
 
 ### Colors (from AppDesignSystem)
@@ -381,10 +542,17 @@ Single-page form layout:
 
 ### Key Status Visualization
 
-**Active Key**:
+**Signing Key** (profile's active keypair):
+- Green status dot
+- "✏️ SIGNING KEY" badge
+- Cannot remove (primary auth method)
+- Used for all cryptographic operations
+
+**Active Key** (registered but not signing):
 - Green status dot
 - Full brightness
-- All actions available
+- Shows "Use for signing" button
+- Can be removed if not last active key
 
 **Disabled Key**:
 - Red status dot
@@ -392,10 +560,48 @@ Single-page form layout:
 - No remove action
 - Show disabled timestamp
 
-**Last Active Key**:
+**Last Active Key Protection**:
 - Green status dot
-- Badge: "Last Active" (cannot remove)
-- Disable remove button
+- Badge: "LAST ACTIVE" (if only active key besides signing key)
+- Disable remove button to prevent lockout
+
+### Profile Switching
+
+**Interaction**:
+1. User taps any profile card body (not the menu)
+2. If already active: No action
+3. If different profile:
+   - Profile becomes active immediately
+   - Card gains border, elevation, "ACTIVE" badge
+   - Previous active profile loses active styling
+   - Snackbar: "{Profile Name} is now active"
+   - All subsequent operations use this profile's signing key
+
+### Signing Key Switching
+
+**Interaction**:
+1. User taps "Use for signing" button on an active key
+2. Profile's signing key switches immediately (no confirmation)
+3. UI updates:
+   - New key gains "✏️ SIGNING KEY" badge
+   - Old signing key loses badge, shows "Use for signing" button
+4. Snackbar: "Signing key updated"
+5. All future operations use the new signing key
+
+### Auto-Registration of a Key
+
+**Scenario**: Currently selected keypair is not registered with account
+
+**Automatic Registration** (if another profile key of the same account IS registered):
+1. Warning banner appears: "➕ Registering Key"
+2. System uses registered key to sign "add key" request
+3. Signing key is registered with backend account
+4. Banner disappears
+5. Toast: "✓ Registered your signing key with account"
+
+**Manual Registration** (if NO profile keys are registered):
+1. Warning banner appears with explanation
+2. User may choose: "Register Account"
 
 ### Loading States
 
