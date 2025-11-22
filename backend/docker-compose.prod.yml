@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
-    image: icp-marketplace-api:latest
+    image: icp-marketplace-api:prod
     container_name: icp-marketplace-api-prod
     restart: unless-stopped
     user: "${UID:-1000}:${GID:-1000}"
