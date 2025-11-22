@@ -47,8 +47,8 @@ if docker compose -f docker-compose.dev.yml up -d --build; then
     echo
     echo -e "${GREEN}=========================================="
     echo "Development Container Started!"
-    echo "==========================================${NC}"
-    echo
+    echo "=========================================="
+    echo -e "${NC}"
     echo "Services started:"
     echo "  • ICP Marketplace API (dev mode)"
     echo

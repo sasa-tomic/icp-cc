@@ -1,5 +1,3 @@
-# Self-contained production configuration with Cloudflare Tunnel
-# IMPORTANT: This file is completely independent - do not merge with other compose files
 services:
   api:
     build:

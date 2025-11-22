@@ -1,5 +1,3 @@
-# Self-contained development configuration
-# IMPORTANT: This file is completely independent - do not merge with other compose files
 services:
   api:
     build:
@@ -7,11 +5,11 @@ services:
       dockerfile: backend/Dockerfile
     image: icp-marketplace-api:latest
     container_name: icp-marketplace-api-dev
-    restart: "no"
+    restart: no
     user: "${UID:-1000}:${GID:-1000}"
     environment:
       - RUST_LOG=debug
-      - DATABASE_URL=sqlite:///data/dev.db?mode=rwc
+      - DATABASE_URL=sqlite:///data/marketplace-dev.db?mode=rwc
       - ENVIRONMENT=development
       - PORT=58000
     volumes:
