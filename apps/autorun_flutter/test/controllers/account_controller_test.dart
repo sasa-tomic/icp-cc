@@ -6,7 +6,6 @@ import 'dart:convert';
 
 import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
-import 'package:icp_autorun/services/account_signature_service.dart';
 import '../test_helpers/test_keypair_factory.dart';
 
 void main() {
@@ -31,9 +30,6 @@ void main() {
       final username = 'testuser';
       final keyToRemove = 'key-2';
 
-      final signingKeyHex =
-          AccountSignatureService.publicKeyToHex(signingKeypair.publicKey);
-
       final mockClient = MockClient((request) async {
         if (request.url.path
                 .contains('/api/v1/accounts/$username/keys/$keyToRemove') &&
@@ -44,7 +40,7 @@ void main() {
               'success': true,
               'data': {
                 'id': keyToRemove,
-                'public_key': '0xremoved',
+                'public_key': 'cmVtb3ZlZA==',
                 'ic_principal': 'removed-principal-aa',
                 'is_active': false,
                 'added_at': DateTime.now().toIso8601String(),
@@ -66,14 +62,14 @@ void main() {
                 'publicKeys': [
                   {
                     'id': 'key-1',
-                    'public_key': signingKeyHex,
+                    'public_key': signingKeypair.publicKey,
                     'ic_principal': 'signing-principal-aa',
                     'is_active': true,
                     'added_at': DateTime.now().toIso8601String(),
                   },
                   {
                     'id': 'key-2',
-                    'public_key': '0xremoved',
+                    'public_key': 'cmVtb3ZlZA==',
                     'ic_principal': 'removed-principal-aa',
                     'is_active': false,
                     'added_at': DateTime.now().toIso8601String(),

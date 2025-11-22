@@ -32,7 +32,6 @@ class AccountSignatureService {
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final publicKeyHex = _publicKeyToHex(keypair.publicKey);
 
     final request = RegisterAccountRequest(
       username: username,
@@ -43,7 +42,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      publicKey: publicKeyHex,
+      publicKey: keypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -63,7 +62,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      publicKey: publicKeyHex,
+      publicKey: keypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -78,13 +77,11 @@ class AccountSignatureService {
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final signingPublicKeyHex = _publicKeyToHex(signingKeypair.publicKey);
-    final newPublicKeyHex = _publicKeyToHex(newPublicKeyB64);
 
     final request = AddPublicKeyRequest(
       username: username,
-      newPublicKey: newPublicKeyHex,
-      signingPublicKey: signingPublicKeyHex,
+      newPublicKey: newPublicKeyB64,
+      signingPublicKey: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -97,8 +94,8 @@ class AccountSignatureService {
 
     return AddPublicKeyRequest(
       username: username,
-      newPublicKey: newPublicKeyHex,
-      signingPublicKey: signingPublicKeyHex,
+      newPublicKey: newPublicKeyB64,
+      signingPublicKey: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -113,12 +110,11 @@ class AccountSignatureService {
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final signingPublicKeyHex = _publicKeyToHex(signingKeypair.publicKey);
 
     final request = RemovePublicKeyRequest(
       username: username,
       keyId: keyId,
-      signingPublicKey: signingPublicKeyHex,
+      signingPublicKey: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -132,7 +128,7 @@ class AccountSignatureService {
     return RemovePublicKeyRequest(
       username: username,
       keyId: keyId,
-      signingPublicKey: signingPublicKeyHex,
+      signingPublicKey: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -153,7 +149,6 @@ class AccountSignatureService {
   }) async {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
-    final signingPublicKeyHex = _publicKeyToHex(signingKeypair.publicKey);
 
     final request = UpdateAccountRequest(
       username: username,
@@ -164,7 +159,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      signingPublicKey: signingPublicKeyHex,
+      signingPublicKey: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -184,7 +179,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      signingPublicKey: signingPublicKeyHex,
+      signingPublicKey: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -199,7 +194,7 @@ class AccountSignatureService {
   /// 3. Sign with algorithm-specific process:
   ///    - Ed25519: Sign message directly (standard RFC 8032)
   ///    - secp256k1: SHA-256 hash then sign (ECDSA requirement)
-  /// 4. Hex encode the signature
+  /// 4. Base64 encode the signature
   static Future<String> _signPayload({
     required ProfileKeypair keypair,
     required Map<String, dynamic> payload,
@@ -219,8 +214,8 @@ class AccountSignatureService {
       algorithm: keypair.algorithm,
     );
 
-    // 4. Hex encode
-    return _bytesToHex(signature);
+    // 4. Base64 encode
+    return base64Encode(signature);
   }
 
   /// Sign a message with the private key (algorithm-specific)
@@ -296,13 +291,11 @@ class AccountSignatureService {
   }
 
   /// Convert base64 public key to hex (with 0x prefix)
+  /// Note: This is kept for debugging purposes but is no longer used in production code
   static String publicKeyToHex(String base64Key) {
     final bytes = base64Decode(base64Key);
     return '0x${_bytesToHex(bytes)}';
   }
-
-  // Private alias for internal use
-  static String _publicKeyToHex(String base64Key) => publicKeyToHex(base64Key);
 
   /// Convert bytes to hex string (without 0x prefix)
   static String _bytesToHex(List<int> bytes) {
