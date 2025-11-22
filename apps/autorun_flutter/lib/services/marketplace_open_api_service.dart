@@ -5,6 +5,7 @@ import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 import '../models/account.dart';
 import '../config/app_config.dart';
+import '../utils/base64_utils.dart';
 
 // Flag to control debug output in tests
 bool suppressDebugOutput = false;
@@ -787,11 +788,12 @@ class MarketplaceOpenApiService {
   /// Get account details by public key
   /// GET /api/v1/accounts/by-public-key/{publicKey}
   ///
-  /// Allows looking up an account using only the public key (hex encoded).
+  /// Allows looking up an account using only the public key (base64 encoded).
   /// Returns null if no account is associated with this public key.
-  Future<Account?> getAccountByPublicKey({required String publicKeyHex}) async {
+  Future<Account?> getAccountByPublicKey({required String publicKeyB64}) async {
     try {
-      final encodedPublicKey = Uri.encodeComponent(publicKeyHex);
+      Base64Utils.requireBytes(publicKeyB64, fieldName: 'publicKeyB64');
+      final encodedPublicKey = Uri.encodeComponent(publicKeyB64);
       final response = await _httpClient
           .get(Uri.parse('$_baseUrl/accounts/by-public-key/$encodedPublicKey'))
           .timeout(_timeout);

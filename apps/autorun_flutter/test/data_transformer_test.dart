@@ -17,9 +17,11 @@ void main() {
       });
 
       test('formatNumber with decimal places', () {
-        expect(DataTransformer.formatNumber(3.14159, decimals: 2), equals('3.14'));
+        expect(
+            DataTransformer.formatNumber(3.14159, decimals: 2), equals('3.14'));
         expect(DataTransformer.formatNumber(42, decimals: 1), equals('42.0'));
-        expect(DataTransformer.formatNumber(123.456, decimals: 0), equals('123'));
+        expect(
+            DataTransformer.formatNumber(123.456, decimals: 0), equals('123'));
       });
 
       test('formatNumber with string inputs', () {
@@ -41,12 +43,15 @@ void main() {
       });
 
       test('formatIcp with custom decimals', () {
-        expect(DataTransformer.formatIcp(1234560000, decimals: 4), equals('12.3456 ICP'));
-        expect(DataTransformer.formatIcp(100000000, decimals: 2), equals('1.00 ICP'));
+        expect(DataTransformer.formatIcp(1234560000, decimals: 4),
+            equals('12.3456 ICP'));
+        expect(DataTransformer.formatIcp(100000000, decimals: 2),
+            equals('1.00 ICP'));
       });
 
       test('formatIcp with string inputs', () {
-        expect(DataTransformer.formatIcp('100000000'), equals('1.00000000 ICP'));
+        expect(
+            DataTransformer.formatIcp('100000000'), equals('1.00000000 ICP'));
         expect(DataTransformer.formatIcp('50000000'), equals('0.50000000 ICP'));
         expect(DataTransformer.formatIcp('invalid'), equals('invalid ICP'));
       });
@@ -60,27 +65,33 @@ void main() {
       test('formatTimestamp with nanosecond timestamps', () {
         // 2024-01-01 00:00:00 UTC in nanoseconds
         const nanoseconds = 1704067200000000000;
-        final result = DataTransformer.formatTimestamp(nanoseconds, format: 'iso');
+        final result =
+            DataTransformer.formatTimestamp(nanoseconds, format: 'iso');
         expect(result, contains('2024-01-01'));
       });
 
       test('formatTimestamp with millisecond timestamps', () {
         // 2024-01-01 00:00:00 UTC in milliseconds
         const milliseconds = 1704067200000;
-        final result = DataTransformer.formatTimestamp(milliseconds, format: 'iso');
+        final result =
+            DataTransformer.formatTimestamp(milliseconds, format: 'iso');
         expect(result, contains('2024-01-01'));
       });
 
       test('formatTimestamp with different formats', () {
         const timestamp = 1704067200000000000;
 
-        expect(DataTransformer.formatTimestamp(timestamp, format: 'date'), equals('2024-01-01'));
-        expect(DataTransformer.formatTimestamp(timestamp, format: 'time'), contains('00:00:00'));
-        expect(DataTransformer.formatTimestamp(timestamp, format: 'relative'), isA<String>());
+        expect(DataTransformer.formatTimestamp(timestamp, format: 'date'),
+            equals('2024-01-01'));
+        expect(DataTransformer.formatTimestamp(timestamp, format: 'time'),
+            contains('00:00:00'));
+        expect(DataTransformer.formatTimestamp(timestamp, format: 'relative'),
+            isA<String>());
       });
 
       test('formatTimestamp with string inputs', () {
-        expect(DataTransformer.formatTimestamp('1704067200000000000'), contains('2024'));
+        expect(DataTransformer.formatTimestamp('1704067200000000000'),
+            contains('2024'));
         expect(DataTransformer.formatTimestamp('invalid'), equals('invalid'));
       });
 
@@ -108,7 +119,8 @@ void main() {
 
       test('formatFileSize with string inputs', () {
         expect(DataTransformer.formatFileSize('1024'), equals('1.0 KB'));
-        expect(DataTransformer.formatFileSize('invalid'), equals('invalid bytes'));
+        expect(
+            DataTransformer.formatFileSize('invalid'), equals('invalid bytes'));
       });
 
       test('formatFileSize with null values', () {
@@ -118,13 +130,19 @@ void main() {
 
     group('Text Processing', () {
       test('truncateText with short text', () {
-        expect(DataTransformer.truncateText('Hello', maxLength: 10), equals('Hello'));
-        expect(DataTransformer.truncateText('Short', maxLength: 10), equals('Short'));
+        expect(DataTransformer.truncateText('Hello', maxLength: 10),
+            equals('Hello'));
+        expect(DataTransformer.truncateText('Short', maxLength: 10),
+            equals('Short'));
       });
 
       test('truncateText with long text', () {
-        expect(DataTransformer.truncateText('This is a very long text', maxLength: 10), equals('This is a…'));
-        expect(DataTransformer.truncateText('Hello World', maxLength: 8), equals('Hello W…'));
+        expect(
+            DataTransformer.truncateText('This is a very long text',
+                maxLength: 10),
+            equals('This is a…'));
+        expect(DataTransformer.truncateText('Hello World', maxLength: 8),
+            equals('Hello W…'));
       });
 
       test('truncateText with default maxLength', () {
@@ -135,49 +153,10 @@ void main() {
       });
     });
 
-    group('Hex Conversion', () {
-      test('bytesToHex with simple bytes', () {
-        expect(DataTransformer.bytesToHex([0, 1, 255]), equals('0001ff'));
-        expect(DataTransformer.bytesToHex([16, 32, 48]), equals('102030'));
-      });
-
-      test('bytesToHex with string input', () {
-        expect(DataTransformer.bytesToHex('Hi'), equals('4869'));
-        expect(DataTransformer.bytesToHex('ABC'), equals('414243'));
-      });
-
-      test('bytesToHex with list input', () {
-        expect(DataTransformer.bytesToHex([0x48, 0x69]), equals('4869'));
-      });
-
-      test('bytesToHex with null values', () {
-        expect(DataTransformer.bytesToHex(null), equals('null'));
-      });
-
-      test('hexToBytes with valid hex', () {
-        expect(DataTransformer.hexToBytes('4869'), equals([72, 105]));
-        expect(DataTransformer.hexToBytes('0001ff'), equals([0, 1, 255]));
-      });
-
-      test('hexToBytes with formatted hex', () {
-        expect(DataTransformer.hexToBytes('48 69'), equals([72, 105]));
-        expect(DataTransformer.hexToBytes('0x4869'), equals([72, 105]));
-      });
-
-      test('hexToBytes with odd length', () {
-        expect(DataTransformer.hexToBytes('f'), equals([15]));
-        expect(DataTransformer.hexToBytes('123'), equals([1, 35]));
-      });
-
-      test('hexToBytes throws on invalid hex', () {
-        expect(() => DataTransformer.hexToBytes('xyz'), throwsFormatException);
-        expect(() => DataTransformer.hexToBytes('gg'), throwsFormatException);
-      });
-    });
-
     group('URL Extraction', () {
       test('extractUrls with multiple URLs', () {
-        final text = 'Visit https://example.com and also http://test.org for more info';
+        final text =
+            'Visit https://example.com and also http://test.org for more info';
         final urls = DataTransformer.extractUrls(text);
         expect(urls, contains('https://example.com'));
         expect(urls, contains('http://test.org'));
@@ -193,14 +172,16 @@ void main() {
       test('extractUrls with query parameters', () {
         final text = 'Check https://example.com/path?param=value&other=test';
         final urls = DataTransformer.extractUrls(text);
-        expect(urls, contains('https://example.com/path?param=value&other=test'));
+        expect(
+            urls, contains('https://example.com/path?param=value&other=test'));
       });
     });
 
     group('Principal Formatting', () {
       test('formatPrincipal with valid principal', () {
         expect(DataTransformer.formatPrincipal('aaaaa-aa'), equals('aaaaa-aa'));
-        expect(DataTransformer.formatPrincipal('RRKAH-FQAAA-AAAAA-AAAAQ-CAI'), equals('rrkah-fqaaa-aaaaa-aaaaq-cai'));
+        expect(DataTransformer.formatPrincipal('RRKAH-FQAAA-AAAAA-AAAAQ-CAI'),
+            equals('rrkah-fqaaa-aaaaa-aaaaq-cai'));
       });
 
       test('formatPrincipal with empty string', () {
@@ -208,44 +189,62 @@ void main() {
       });
 
       test('formatPrincipal throws on invalid format', () {
-        expect(() => DataTransformer.formatPrincipal('invalid@principal'), throwsFormatException);
-        expect(() => DataTransformer.formatPrincipal('ABC123'), throwsFormatException);
+        expect(() => DataTransformer.formatPrincipal('invalid@principal'),
+            throwsFormatException);
+        expect(() => DataTransformer.formatPrincipal('ABC123'),
+            throwsFormatException);
       });
     });
 
     group('Data Processing', () {
       final sampleItems = [
-        {'title': 'Item 1', 'type': 'transfer', 'amount': 100000000, 'timestamp': 1704067200000000000},
-        {'title': 'Item 2', 'type': 'stake', 'amount': 50000000, 'timestamp': 1704067200000000001},
-        {'title': 'Item 3', 'type': 'transfer', 'amount': 200000000, 'timestamp': 1704067200000000002},
+        {
+          'title': 'Item 1',
+          'type': 'transfer',
+          'amount': 100000000,
+          'timestamp': 1704067200000000000
+        },
+        {
+          'title': 'Item 2',
+          'type': 'stake',
+          'amount': 50000000,
+          'timestamp': 1704067200000000001
+        },
+        {
+          'title': 'Item 3',
+          'type': 'transfer',
+          'amount': 200000000,
+          'timestamp': 1704067200000000002
+        },
       ];
 
       test('filterSortItems with filter only', () {
-        final filtered = DataTransformer.filterSortList(sampleItems, filterBy: 'type', filterValue: 'transfer');
+        final filtered = DataTransformer.filterSortList(sampleItems,
+            filterBy: 'type', filterValue: 'transfer');
         expect(filtered.length, equals(2));
         expect(filtered.every((item) => item['type'] == 'transfer'), isTrue);
       });
 
       test('filterSortItems with sort only (ascending)', () {
-        final sorted = DataTransformer.filterSortList(sampleItems, sortBy: 'amount', ascending: true);
+        final sorted = DataTransformer.filterSortList(sampleItems,
+            sortBy: 'amount', ascending: true);
         expect(sorted.first['amount'], equals(50000000));
         expect(sorted.last['amount'], equals(200000000));
       });
 
       test('filterSortItems with sort only (descending)', () {
-        final sorted = DataTransformer.filterSortList(sampleItems, sortBy: 'amount', ascending: false);
+        final sorted = DataTransformer.filterSortList(sampleItems,
+            sortBy: 'amount', ascending: false);
         expect(sorted.first['amount'], equals(200000000));
         expect(sorted.last['amount'], equals(50000000));
       });
 
       test('filterSortItems with both filter and sort', () {
-        final result = DataTransformer.filterSortList(
-          sampleItems,
-          filterBy: 'type',
-          filterValue: 'transfer',
-          sortBy: 'amount',
-          ascending: true
-        );
+        final result = DataTransformer.filterSortList(sampleItems,
+            filterBy: 'type',
+            filterValue: 'transfer',
+            sortBy: 'amount',
+            ascending: true);
         expect(result.length, equals(2));
         expect(result.first['amount'], equals(100000000));
         expect(result.last['amount'], equals(200000000));
@@ -328,14 +327,21 @@ void main() {
       });
 
       test('deepMerge with nested maps', () {
-        final map1 = {'a': {'x': 1, 'y': 2}};
-        final map2 = {'a': {'y': 3, 'z': 4}, 'b': 5};
+        final map1 = {
+          'a': {'x': 1, 'y': 2}
+        };
+        final map2 = {
+          'a': {'y': 3, 'z': 4},
+          'b': 5
+        };
         final result = DataTransformer.deepMerge(map1, map2);
 
-        expect(result, equals({
-          'a': {'x': 1, 'y': 3, 'z': 4},
-          'b': 5
-        }));
+        expect(
+            result,
+            equals({
+              'a': {'x': 1, 'y': 3, 'z': 4},
+              'b': 5
+            }));
       });
 
       test('deepMerge with non-conflicting maps', () {

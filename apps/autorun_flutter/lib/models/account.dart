@@ -207,7 +207,7 @@ class RegisterAccountRequest {
     this.contactDiscord,
     this.websiteUrl,
     this.bio,
-    required this.publicKey,
+    required this.publicKeyB64,
     required this.timestamp,
     required this.nonce,
     required this.signature,
@@ -221,10 +221,10 @@ class RegisterAccountRequest {
   final String? contactDiscord;
   final String? websiteUrl;
   final String? bio;
-  final String publicKey; // hex encoded
+  final String publicKeyB64;
   final int timestamp; // Unix timestamp (seconds)
   final String nonce; // UUID v4
-  final String signature; // hex or base64 encoded
+  final String signature; // base64 encoded
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -236,7 +236,7 @@ class RegisterAccountRequest {
       if (contactDiscord != null) 'contactDiscord': contactDiscord,
       if (websiteUrl != null) 'websiteUrl': websiteUrl,
       if (bio != null) 'bio': bio,
-      'publicKey': publicKey,
+      'publicKeyB64': publicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -245,12 +245,12 @@ class RegisterAccountRequest {
 
   /// Create canonical JSON for signing (alphabetically ordered fields)
   ///
-  /// Example: {"action":"register_account","nonce":"...","publicKey":"...","timestamp":1700000000,"username":"alice"}
+  /// Example: {"action":"register_account","nonce":"...","publicKeyB64":"...","timestamp":1700000000,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
     return <String, dynamic>{
       'action': 'register_account',
       'nonce': nonce,
-      'publicKey': publicKey,
+      'publicKeyB64': publicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };
@@ -260,7 +260,7 @@ class RegisterAccountRequest {
 /// Request payload for adding a public key to an account
 ///
 /// FIXME - ARCHITECTURE VIOLATION:
-/// Current implementation allows passing ANY public key (newPublicKey) to be added
+/// Current implementation allows passing ANY public key (newPublicKeyB64) to be added
 /// to ANY account. This violates the profile-centric model where:
 /// - Keys should be GENERATED for the current profile, not imported
 /// - Keys belong to ONE profile only
@@ -269,28 +269,28 @@ class RegisterAccountRequest {
 /// Correct behavior:
 /// - Service should GENERATE a new keypair for the current profile
 /// - Only the generated public key should be sent to backend
-/// - newPublicKey should come from a newly generated keypair, not from user input
+/// - newPublicKeyB64 should come from a newly generated keypair, not from user input
 class AddPublicKeyRequest {
   AddPublicKeyRequest({
     required this.username,
-    required this.newPublicKey,
-    required this.signingPublicKey,
+    required this.newPublicKeyB64,
+    required this.signingPublicKeyB64,
     required this.timestamp,
     required this.nonce,
     required this.signature,
   });
 
   final String username;
-  final String newPublicKey; // hex encoded - FIXME: should be from newly generated keypair only
-  final String signingPublicKey; // hex encoded (must be active key from same profile)
+  final String newPublicKeyB64; // base64 encoded - generated keypair only
+  final String signingPublicKeyB64; // base64 encoded (must be active key from same profile)
   final int timestamp; // Unix timestamp (seconds)
   final String nonce; // UUID v4
-  final String signature; // hex or base64 encoded
+  final String signature; // base64 encoded
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
-      'newPublicKey': newPublicKey,
-      'signingPublicKey': signingPublicKey,
+      'newPublicKeyB64': newPublicKeyB64,
+      'signingPublicKeyB64': signingPublicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -299,13 +299,13 @@ class AddPublicKeyRequest {
 
   /// Create canonical JSON for signing
   ///
-  /// Example: {"action":"add_key","newPublicKey":"...","nonce":"...","signingPublicKey":"...","timestamp":1700000100,"username":"alice"}
+  /// Example: {"action":"add_key","newPublicKeyB64":"...","nonce":"...","signingPublicKeyB64":"...","timestamp":1700000100,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
     return <String, dynamic>{
       'action': 'add_key',
-      'newPublicKey': newPublicKey,
+      'newPublicKeyB64': newPublicKeyB64,
       'nonce': nonce,
-      'signingPublicKey': signingPublicKey,
+      'signingPublicKeyB64': signingPublicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };
@@ -317,7 +317,7 @@ class RemovePublicKeyRequest {
   RemovePublicKeyRequest({
     required this.username,
     required this.keyId,
-    required this.signingPublicKey,
+    required this.signingPublicKeyB64,
     required this.timestamp,
     required this.nonce,
     required this.signature,
@@ -325,14 +325,14 @@ class RemovePublicKeyRequest {
 
   final String username;
   final String keyId; // UUID of key to remove
-  final String signingPublicKey; // hex encoded (must be active key)
+  final String signingPublicKeyB64; // base64 encoded (must be active key)
   final int timestamp; // Unix timestamp (seconds)
   final String nonce; // UUID v4
-  final String signature; // hex or base64 encoded
+  final String signature; // base64 encoded
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
-      'signingPublicKey': signingPublicKey,
+      'signingPublicKeyB64': signingPublicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -341,13 +341,13 @@ class RemovePublicKeyRequest {
 
   /// Create canonical JSON for signing
   ///
-  /// Example: {"action":"remove_key","keyId":"...","nonce":"...","signingPublicKey":"...","timestamp":1700000200,"username":"alice"}
+  /// Example: {"action":"remove_key","keyId":"...","nonce":"...","signingPublicKeyB64":"...","timestamp":1700000200,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
     return <String, dynamic>{
       'action': 'remove_key',
       'keyId': keyId,
       'nonce': nonce,
-      'signingPublicKey': signingPublicKey,
+      'signingPublicKeyB64': signingPublicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };
@@ -365,7 +365,7 @@ class UpdateAccountRequest {
     this.contactDiscord,
     this.websiteUrl,
     this.bio,
-    required this.signingPublicKey,
+    required this.signingPublicKeyB64,
     required this.timestamp,
     required this.nonce,
     required this.signature,
@@ -379,10 +379,10 @@ class UpdateAccountRequest {
   final String? contactDiscord;
   final String? websiteUrl;
   final String? bio;
-  final String signingPublicKey; // hex encoded (must be active key)
+  final String signingPublicKeyB64; // base64 encoded (must be active key)
   final int timestamp; // Unix timestamp (seconds)
   final String nonce; // UUID v4
-  final String signature; // hex or base64 encoded
+  final String signature; // base64 encoded
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -393,7 +393,7 @@ class UpdateAccountRequest {
       if (contactDiscord != null) 'contactDiscord': contactDiscord,
       if (websiteUrl != null) 'websiteUrl': websiteUrl,
       if (bio != null) 'bio': bio,
-      'signingPublicKey': signingPublicKey,
+      'signingPublicKeyB64': signingPublicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -402,12 +402,12 @@ class UpdateAccountRequest {
 
   /// Create canonical JSON for signing (only includes fields being updated)
   ///
-  /// Example: {"action":"update_profile","bio":"New bio","displayName":"New Name","nonce":"...","signingPublicKey":"...","timestamp":1700000300,"username":"alice"}
+  /// Example: {"action":"update_profile","bio":"New bio","displayName":"New Name","nonce":"...","signingPublicKeyB64":"...","timestamp":1700000300,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
     final Map<String, dynamic> payload = <String, dynamic>{
       'action': 'update_profile',
       'nonce': nonce,
-      'signingPublicKey': signingPublicKey,
+      'signingPublicKeyB64': signingPublicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };

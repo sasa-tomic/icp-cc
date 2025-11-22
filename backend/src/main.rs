@@ -194,7 +194,6 @@ mod signature_tests {
     use ed25519_dalek::{Signer, SigningKey};
 
     /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
-    /// Returns (hex_signature, hex_public_key)
     fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
         use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
         // Standard Ed25519: sign message directly (RFC 8032)
@@ -229,7 +228,7 @@ mod signature_tests {
         });
 
         let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
+        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
 
         let mut request_payload = canonical_payload
             .as_object()
@@ -237,11 +236,11 @@ mod signature_tests {
             .clone();
         request_payload.insert(
             "author_public_key".to_string(),
-            serde_json::Value::String(public_key_hex),
+            serde_json::Value::String(public_key_b64),
         );
         request_payload.insert(
             "signature".to_string(),
-            serde_json::Value::String(signature_hex),
+            serde_json::Value::String(signature_b64),
         );
 
         let req: UpdateScriptRequest =
@@ -279,7 +278,7 @@ mod signature_tests {
         });
 
         let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
+        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
 
         let mut request_payload = canonical_payload
             .as_object()
@@ -287,11 +286,11 @@ mod signature_tests {
             .clone();
         request_payload.insert(
             "author_public_key".to_string(),
-            serde_json::Value::String(public_key_hex),
+            serde_json::Value::String(public_key_b64),
         );
         request_payload.insert(
             "signature".to_string(),
-            serde_json::Value::String(signature_hex),
+            serde_json::Value::String(signature_b64),
         );
         request_payload.insert(
             "extra_field".to_string(),
@@ -1412,7 +1411,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
     /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
-    /// Returns (hex_signature, hex_public_key)
+    /// Returns (base64_signature, base64_public_key)
     fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
         use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
         // Standard Ed25519: sign message directly (RFC 8032)
@@ -1648,7 +1647,7 @@ mod tests {
         });
 
         let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
+        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
 
         let mut request_payload = canonical_payload
             .as_object()
@@ -1656,11 +1655,11 @@ mod tests {
             .clone();
         request_payload.insert(
             "author_public_key".to_string(),
-            serde_json::Value::String(public_key_hex),
+            serde_json::Value::String(public_key_b64),
         );
         request_payload.insert(
             "signature".to_string(),
-            serde_json::Value::String(signature_hex),
+            serde_json::Value::String(signature_b64),
         );
 
         let request: UpdateScriptRequest =
@@ -1695,7 +1694,7 @@ mod tests {
         });
 
         let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_hex, public_key_hex) = sign_test_payload(&signing_key, &canonical_json);
+        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
 
         let mut request_payload = canonical_payload
             .as_object()
@@ -1703,11 +1702,11 @@ mod tests {
             .clone();
         request_payload.insert(
             "author_public_key".to_string(),
-            serde_json::Value::String(public_key_hex),
+            serde_json::Value::String(public_key_b64),
         );
         request_payload.insert(
             "signature".to_string(),
-            serde_json::Value::String(signature_hex),
+            serde_json::Value::String(signature_b64),
         );
 
         let request: UpdateScriptRequest =

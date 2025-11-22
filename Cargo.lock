@@ -1464,12 +1464,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hex-literal"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcaaec4551594c969335c98c903c1397853d4198408ea609190f420500f6be71"
-
-[[package]]
 name = "hex_lit"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1782,7 +1776,6 @@ dependencies = [
  "chrono",
  "dotenv",
  "ed25519-dalek",
- "hex",
  "ic-agent",
  "k256",
  "poem",
@@ -1812,8 +1805,6 @@ dependencies = [
  "dirs",
  "ed25519-dalek",
  "getrandom 0.2.16",
- "hex",
- "hex-literal",
  "ic-agent",
  "js-sys",
  "k256",

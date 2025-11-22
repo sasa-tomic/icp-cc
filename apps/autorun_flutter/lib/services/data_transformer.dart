@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 /// Utility class for transforming and formatting canister call results
 class DataTransformer {
   /// Format numbers with locale-appropriate formatting
@@ -58,10 +56,12 @@ class DataTransformer {
         // Assume nanoseconds (ICP format) or milliseconds
         if (value > 1e15) {
           // Likely nanoseconds
-          dateTime = DateTime.fromMillisecondsSinceEpoch(value ~/ 1000000, isUtc: true);
+          dateTime = DateTime.fromMillisecondsSinceEpoch(value ~/ 1000000,
+              isUtc: true);
         } else if (value > 1e14) {
           // Likely microseconds
-          dateTime = DateTime.fromMillisecondsSinceEpoch(value ~/ 1000, isUtc: true);
+          dateTime =
+              DateTime.fromMillisecondsSinceEpoch(value ~/ 1000, isUtc: true);
         } else {
           // Assume milliseconds
           dateTime = DateTime.fromMillisecondsSinceEpoch(value, isUtc: true);
@@ -72,13 +72,16 @@ class DataTransformer {
           final intTime = int.parse(value);
           if (intTime > 1e15) {
             // Likely nanoseconds
-            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime ~/ 1000000, isUtc: true);
+            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime ~/ 1000000,
+                isUtc: true);
           } else if (intTime > 1e14) {
             // Likely microseconds
-            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime ~/ 1000, isUtc: true);
+            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime ~/ 1000,
+                isUtc: true);
           } else {
             // Assume milliseconds
-            dateTime = DateTime.fromMillisecondsSinceEpoch(intTime, isUtc: true);
+            dateTime =
+                DateTime.fromMillisecondsSinceEpoch(intTime, isUtc: true);
           }
         } catch (_) {
           // If not a number, try parsing as ISO string
@@ -135,7 +138,9 @@ class DataTransformer {
       final bytes = double.parse(value.toString());
       if (bytes < 1024) return '${bytes.toStringAsFixed(0)} B';
       if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-      if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      if (bytes < 1024 * 1024 * 1024) {
+        return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      }
       return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
     } catch (_) {
       return '$value bytes';
@@ -143,52 +148,10 @@ class DataTransformer {
   }
 
   /// Truncate text with ellipsis
-  static String truncateText(String text, {int maxLength = 50, String suffix = '…'}) {
+  static String truncateText(String text,
+      {int maxLength = 50, String suffix = '…'}) {
     if (text.length <= maxLength) return text;
     return '${text.substring(0, maxLength - suffix.length)}$suffix';
-  }
-
-  /// Convert bytes to hex string
-  static String bytesToHex(dynamic value) {
-    if (value == null) return 'null';
-
-    try {
-      List<int> bytes;
-      if (value is String) {
-        bytes = utf8.encode(value);
-      } else if (value is List) {
-        bytes = value.cast<int>();
-      } else {
-        return value.toString();
-      }
-
-      return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
-    } catch (_) {
-      return value.toString();
-    }
-  }
-
-  /// Convert hex string to bytes
-  static List<int> hexToBytes(String hex) {
-    try {
-      // Remove common hex prefixes
-      if (hex.startsWith('0x') || hex.startsWith('0X')) {
-        hex = hex.substring(2);
-      }
-
-      hex = hex.replaceAll(RegExp(r'[^0-9a-fA-F]'), '');
-      if (hex.isEmpty) throw FormatException('Invalid hex string');
-
-      if (hex.length % 2 != 0) hex = '0$hex';
-
-      final bytes = <int>[];
-      for (int i = 0; i < hex.length; i += 2) {
-        bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
-      }
-      return bytes;
-    } catch (_) {
-      throw FormatException('Invalid hex string');
-    }
   }
 
   /// Extract URLs from text
@@ -206,7 +169,8 @@ class DataTransformer {
     if (principal.isEmpty) return principal;
 
     // ICP principals should contain hyphens and be alphanumeric
-    if (RegExp(r'^[a-zA-Z0-9-]+$').hasMatch(principal) && principal.contains('-')) {
+    if (RegExp(r'^[a-zA-Z0-9-]+$').hasMatch(principal) &&
+        principal.contains('-')) {
       return principal.toLowerCase();
     }
 
@@ -296,7 +260,9 @@ class DataTransformer {
     final sum = numValues.reduce((a, b) => a + b);
     final mean = sum / numValues.length;
     final median = numValues.length % 2 == 0
-        ? (numValues[numValues.length ~/ 2 - 1] + numValues[numValues.length ~/ 2]) / 2
+        ? (numValues[numValues.length ~/ 2 - 1] +
+                numValues[numValues.length ~/ 2]) /
+            2
         : numValues[numValues.length ~/ 2];
 
     return {
@@ -318,7 +284,8 @@ class DataTransformer {
 
     map2.forEach((key, value) {
       if (result.containsKey(key) && result[key] is Map && value is Map) {
-        result[key] = deepMerge(result[key] as Map<String, dynamic>, value as Map<String, dynamic>);
+        result[key] = deepMerge(
+            result[key] as Map<String, dynamic>, value as Map<String, dynamic>);
       } else {
         result[key] = value;
       }

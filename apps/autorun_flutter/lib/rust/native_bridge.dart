@@ -143,7 +143,7 @@ class RustBridgeLoader {
   /// [alg]: 0 = Ed25519, 1 = secp256k1
   /// [messageB64]: base64-encoded message
   /// [privateKeyB64]: base64-encoded private key
-  /// Returns JSON: {"ok": true, "signature": "<hex>"} or {"ok": false, "error": "..."}
+  /// Returns JSON: {"ok": true, "signature": "<base64>"} or {"ok": false, "error": "..."}
   String? signMessage({
     required int alg,
     required String messageB64,

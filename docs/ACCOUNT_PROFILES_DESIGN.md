@@ -56,7 +56,7 @@ Every state-changing request includes:
 3. Sign with algorithm:
    - **Ed25519**: Sign message directly (RFC 8032)
    - **secp256k1**: SHA-256 hash then sign (ECDSA)
-4. Hex encode the signature
+4. Base64 encode the signature
 
 ### IC Principal Generation
 - Principals are **deterministically derived** from public keys
@@ -90,7 +90,7 @@ POST /api/v1/accounts
   "publicKey": "0x1234abcd...",
   "timestamp": 1700000000,
   "nonce": "550e8400-e29b-41d4-a716-446655440000",
-  "signature": "0xabcd1234..."
+  "signature": "abc..."
 }
 ```
 
@@ -127,7 +127,7 @@ POST /api/v1/accounts/{username}/keys
   "signingPublicKey": "0x1234abcd...",
   "timestamp": 1700000100,
   "nonce": "550e8400-...",
-  "signature": "0xefgh5678..."
+  "signature": "abc..."
 }
 ```
 Must be signed by an existing active key. Max 10 keys per account.
@@ -188,7 +188,7 @@ final keypair = await ProfileKeypair.generate(KeyAlgorithm.ed25519);
 final payload = {
   "action": "register_account",
   "nonce": Uuid().v4(),
-  "publicKey": publicKeyHex,
+  "publicKey": publicKeyB64,
   "timestamp": DateTime.now().millisecondsSinceEpoch ~/ 1000,
   "username": "alice"
 };

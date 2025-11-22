@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../models/profile_keypair.dart';
 import '../models/account.dart';
 import '../rust/native_bridge.dart';
+import '../utils/base64_utils.dart';
 
 /// Digital signature service for account management operations
 ///
@@ -12,7 +13,7 @@ import '../rust/native_bridge.dart';
 /// 2. UTF-8 encode to bytes
 /// 3. Compute SHA-256 hash
 /// 4. Sign hash with Ed25519 private key
-/// 5. Encode signature as hex
+/// 5. Encode signature as base64
 class AccountSignatureService {
   const AccountSignatureService._();
 
@@ -30,6 +31,7 @@ class AccountSignatureService {
     String? websiteUrl,
     String? bio,
   }) async {
+    _assertBase64(keypair.publicKey, fieldName: 'publicKeyB64');
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
 
@@ -42,7 +44,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      publicKey: keypair.publicKey,
+      publicKeyB64: keypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -62,7 +64,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      publicKey: keypair.publicKey,
+      publicKeyB64: keypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -75,13 +77,14 @@ class AccountSignatureService {
     required String username,
     required String newPublicKeyB64,
   }) async {
+    _assertBase64(newPublicKeyB64, fieldName: 'newPublicKeyB64');
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
 
     final request = AddPublicKeyRequest(
       username: username,
-      newPublicKey: newPublicKeyB64,
-      signingPublicKey: signingKeypair.publicKey,
+      newPublicKeyB64: newPublicKeyB64,
+      signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -94,8 +97,8 @@ class AccountSignatureService {
 
     return AddPublicKeyRequest(
       username: username,
-      newPublicKey: newPublicKeyB64,
-      signingPublicKey: signingKeypair.publicKey,
+      newPublicKeyB64: newPublicKeyB64,
+      signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -111,10 +114,12 @@ class AccountSignatureService {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
 
+    _assertBase64(signingKeypair.publicKey, fieldName: 'signingPublicKeyB64');
+
     final request = RemovePublicKeyRequest(
       username: username,
       keyId: keyId,
-      signingPublicKey: signingKeypair.publicKey,
+      signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -128,7 +133,7 @@ class AccountSignatureService {
     return RemovePublicKeyRequest(
       username: username,
       keyId: keyId,
-      signingPublicKey: signingKeypair.publicKey,
+      signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -150,6 +155,8 @@ class AccountSignatureService {
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
 
+    _assertBase64(signingKeypair.publicKey, fieldName: 'signingPublicKeyB64');
+
     final request = UpdateAccountRequest(
       username: username,
       displayName: displayName,
@@ -159,7 +166,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      signingPublicKey: signingKeypair.publicKey,
+      signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: '', // placeholder
@@ -179,7 +186,7 @@ class AccountSignatureService {
       contactDiscord: contactDiscord,
       websiteUrl: websiteUrl,
       bio: bio,
-      signingPublicKey: signingKeypair.publicKey,
+      signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
       signature: signature,
@@ -206,6 +213,7 @@ class AccountSignatureService {
     final payloadBytes = utf8.encode(canonicalJson);
 
     // 3. Sign (algorithm-specific)
+    _assertBase64(keypair.privateKey, fieldName: 'privateKeyB64');
     final privateKeyBytes = base64Decode(keypair.privateKey);
 
     final signature = await _signMessage(
@@ -288,6 +296,10 @@ class AccountSignatureService {
   /// Get current Unix timestamp in seconds
   static int _getCurrentTimestamp() {
     return DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+  }
+
+  static void _assertBase64(String value, {required String fieldName}) {
+    Base64Utils.requireBytes(value, fieldName: fieldName);
   }
 
 
