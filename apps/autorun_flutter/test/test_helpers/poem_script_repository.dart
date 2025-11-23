@@ -23,7 +23,7 @@ class PoemScriptRepository extends ScriptRepository {
 
   static String _getDefaultBaseUrl() {
     try {
-      final portFile = File('/tmp/icp-api.port');
+      final portFile = File('.just-tmp/icp-api.port');
       if (portFile.existsSync()) {
         final port = portFile.readAsStringSync().trim();
         return 'http://127.0.0.1:$port';
@@ -31,7 +31,7 @@ class PoemScriptRepository extends ScriptRepository {
     } catch (e) {
       // Fall through to exception below
     }
-    throw Exception('API server port file not found at /tmp/icp-api.port. '
+    throw Exception('API server port file not found at .just-tmp/icp-api.port. '
         'Please start the API server with: just api-up');
   }
 

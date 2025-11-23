@@ -7,7 +7,7 @@ import 'package:icp_autorun/config/app_config.dart';
 /// started via `just api-up`, so the test harness must fail fast when the
 /// service is missing.
 class ApiServiceManager {
-  static const String _portFilePath = '/tmp/icp-api.port';
+  static const String _portFilePath = '.just-tmp/icp-api.port';
   static bool _isConfigured = false;
   static String? _cachedEndpoint;
 

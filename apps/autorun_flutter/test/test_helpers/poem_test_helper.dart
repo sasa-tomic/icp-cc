@@ -8,10 +8,10 @@ import 'poem_script_repository.dart';
 /// Test helper utilities for API server integration testing
 class PoemTestHelper {
   static String get defaultBaseUrl {
-    final portFile = File('/tmp/icp-api.port');
+    final portFile = File('.just-tmp/icp-api.port');
     if (!portFile.existsSync()) {
       throw Exception(
-        'API server port file not found at /tmp/icp-api.port. '
+        'API server port file not found at .just-tmp/icp-api.port. '
         'Please start the API server with: just api-up'
       );
     }
