@@ -9,6 +9,8 @@
   - ANY infrastructure failure must cause immediate test failure
   - Issues must be detected EARLY, not hidden behind "graceful degradation"
 
+You may under no circumstances delete the DB or DB tables. You have to ask the user to do it if necessary.
+
 ## Architecture: Profile-Centric Model
 
 **CRITICAL DESIGN PRINCIPLE:** This app uses a **browser profile** mental model (like Chrome/Firefox profiles):
