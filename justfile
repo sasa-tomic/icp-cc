@@ -122,13 +122,13 @@ flutter-tests:
     api_started=0
     cleanup() {
         if [ "$api_started" -eq 1 ]; then
-            just api-down
+            just api-dev-down
         fi
     }
     trap cleanup EXIT
     echo "==> Building native library for Flutter tests..."
     just linux
-    just api-up
+    just api-dev-up
     api_started=1
     # Source API environment variables
     if [ -f "{{tmp_dir}}/api-env.sh" ]; then
@@ -145,15 +145,15 @@ flutter-tests:
     echo "✅ All Flutter tests passed"
 
 # =============================================================================
-# Local API Server (Cargo-based Development)
+# Development API Server (Local Cargo-based)
 # =============================================================================
 
 # Helper to get API port with error checking
-_api-port:
+_api-dev-port:
     @if [ ! -f "{{api_port_file}}" ]; then echo "❌ API server not running" >&2; exit 1; fi; cat "{{api_port_file}}"
 
-# Start API server in background (port=0 for auto-assign)
-api-up port="0":
+# Start local development API server in background (port=0 for auto-assign)
+api-dev-up port="0":
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Starting ICP Marketplace API server"
@@ -211,8 +211,8 @@ api-up port="0":
     fi
     exit 1
 
-# Stop API server
-api-down:
+# Stop local development API server
+api-dev-down:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Stopping API server"
@@ -247,30 +247,30 @@ api-down:
 
     rm -f "{{api_pid_file}}" "{{api_port_file}}"
 
-# Restart API server
-api-restart: api-down api-up
+# Restart local development API server
+api-dev-restart: api-dev-down api-dev-up
 
-# Show API server logs
-api-logs:
+# Show local development API server logs
+api-dev-logs:
     @tail -f {{logs_dir}}/api-server.log
 
-# Run API server in foreground (for development/debugging)
+# Run local development API server in foreground (for debugging)
 api-dev:
     @echo "==> Starting API server in development mode"
     cd {{api_dir}} && cargo run
 
 # Build API server in release mode
-api-build:
+api-dev-build:
     @echo "==> Building API server (release mode)"
     cd {{api_dir}} && cargo build --release
     @echo "==> ✅ API server built successfully"
 
-# Test API endpoints
-api-test:
+# Test local development API endpoints
+api-dev-test:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Testing API endpoints"
-    api_port=$(just _api-port)
+    api_port=$(just _api-dev-port)
     JQ_CMD=$(command -v jq >/dev/null 2>&1 && echo "jq ." || echo "cat")
     [ "$JQ_CMD" = "cat" ] && echo "==> Note: jq not installed, showing raw JSON"
 
@@ -285,12 +285,12 @@ api-test:
 
     echo "==> ✅ All endpoint tests completed"
 
-# Reset API database (development only)
-api-reset:
+# Reset local development API database
+api-dev-reset:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Resetting API database"
-    api_port=$(just _api-port)
+    api_port=$(just _api-dev-port)
     JQ_CMD=$(command -v jq >/dev/null 2>&1 && echo "jq ." || echo "cat")
     curl -X POST -s "http://127.0.0.1:$api_port/api/dev/reset-database" | $JQ_CMD
 
@@ -298,12 +298,12 @@ api-reset:
 # Flutter Development
 # =============================================================================
 
-# Run Flutter app with local API server
+# Run Flutter app with local development API server
 flutter-local +args="":
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Starting Flutter app with local API server"
-    api_port=$(just _api-port)
+    api_port=$(just _api-dev-port)
     echo "==> Using API endpoint: http://127.0.0.1:$api_port"
     cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=http://127.0.0.1:$api_port {{args}}
 
@@ -331,76 +331,69 @@ docker-deploy-dev:
     cargo build --release
     cd {{api_dir}} && ./scripts/start-dev.sh
 
-# Start Docker containers (env: prod or dev)
-docker-up env="dev":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ "{{env}}" = "prod" ]; then
-        echo "==> Starting production Docker containers"
-        cd {{api_dir}} && export $(cat .env | xargs) && {{compose_prod}} up -d
-    else
-        echo "==> Starting development Docker containers"
-        cd {{api_dir}} && {{compose_dev}} up -d
-    fi
+# Start production Docker containers
+docker-prod-up:
+    @echo "==> Starting production Docker containers"
+    cd {{api_dir}} && export $(cat .env | xargs) && {{compose_prod}} up -d
 
-# Stop Docker containers (env: prod, dev, or all)
-docker-down env="all":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd {{api_dir}}
-    if [ "{{env}}" = "all" ]; then
-        echo "==> Stopping all Docker containers"
-        {{compose_prod}} down 2>/dev/null || true
-        {{compose_dev}} down 2>/dev/null || true
-    elif [ "{{env}}" = "prod" ]; then
-        echo "==> Stopping production Docker containers"
-        {{compose_prod}} down
-    else
-        echo "==> Stopping development Docker containers"
-        {{compose_dev}} down
-    fi
+# Start development Docker containers
+docker-dev-up:
+    @echo "==> Starting development Docker containers"
+    cd {{api_dir}} && {{compose_dev}} up -d
 
-# View Docker logs (env: prod or dev)
-docker-logs env="dev":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "==> Viewing {{env}} Docker logs (Ctrl+C to stop)"
-    if [ "{{env}}" = "prod" ]; then
-        cd {{api_dir}} && {{compose_prod}} logs -f
-    else
-        cd {{api_dir}} && {{compose_dev}} logs -f
-    fi
+# Stop production Docker containers
+docker-prod-down:
+    @echo "==> Stopping production Docker containers"
+    cd {{api_dir}} && {{compose_prod}} down
 
-# Check Docker container status (env: prod, dev, or all)
-docker-status env="all":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd {{api_dir}}
-    if [ "{{env}}" = "all" ]; then
-        echo "==> Production:"
-        {{compose_prod}} ps
-        echo ""
-        echo "==> Development:"
-        {{compose_dev}} ps
-    elif [ "{{env}}" = "prod" ]; then
-        echo "==> Production Docker container status"
-        {{compose_prod}} ps
-    else
-        echo "==> Development Docker container status"
-        {{compose_dev}} ps
-    fi
+# Stop development Docker containers
+docker-dev-down:
+    @echo "==> Stopping development Docker containers"
+    cd {{api_dir}} && {{compose_dev}} down
 
-# Rebuild and restart Docker containers (env: prod or dev)
-docker-rebuild env="dev":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ "{{env}}" = "prod" ]; then
-        echo "==> Rebuilding and restarting production Docker containers"
-        cd {{api_dir}} && export $(cat .env | xargs) && {{compose_prod}} up -d --build
-    else
-        echo "==> Rebuilding and restarting development Docker containers"
-        cd {{api_dir}} && {{compose_dev}} up -d --build
-    fi
+# Stop all Docker containers (both prod and dev)
+docker-all-down:
+    @echo "==> Stopping all Docker containers"
+    cd {{api_dir}} && {{compose_prod}} down 2>/dev/null || true
+    cd {{api_dir}} && {{compose_dev}} down 2>/dev/null || true
+
+# View production Docker logs
+docker-prod-logs:
+    @echo "==> Viewing production Docker logs (Ctrl+C to stop)"
+    cd {{api_dir}} && {{compose_prod}} logs -f
+
+# View development Docker logs
+docker-dev-logs:
+    @echo "==> Viewing development Docker logs (Ctrl+C to stop)"
+    cd {{api_dir}} && {{compose_dev}} logs -f
+
+# Check production Docker container status
+docker-prod-status:
+    @echo "==> Production Docker container status"
+    cd {{api_dir}} && {{compose_prod}} ps
+
+# Check development Docker container status
+docker-dev-status:
+    @echo "==> Development Docker container status"
+    cd {{api_dir}} && {{compose_dev}} ps
+
+# Check all Docker container status (both prod and dev)
+docker-all-status:
+    @echo "==> Production:"
+    cd {{api_dir}} && {{compose_prod}} ps
+    @echo ""
+    @echo "==> Development:"
+    cd {{api_dir}} && {{compose_dev}} ps
+
+# Rebuild and restart production Docker containers
+docker-prod-rebuild:
+    @echo "==> Rebuilding and restarting production Docker containers"
+    cd {{api_dir}} && export $(cat .env | xargs) && {{compose_prod}} up -d --build
+
+# Rebuild and restart development Docker containers
+docker-dev-rebuild:
+    @echo "==> Rebuilding and restarting development Docker containers"
+    cd {{api_dir}} && {{compose_dev}} up -d --build
 
 # =============================================================================
 # Maintenance
