@@ -299,7 +299,7 @@ api-dev-reset:
 # =============================================================================
 
 # Run Flutter app with local development API server
-flutter-local +args="":
+flutter-dev-local +args="":
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> Starting Flutter app with local API server"
@@ -315,9 +315,6 @@ android-emulator:
 # =============================================================================
 # Docker Deployment
 # =============================================================================
-
-# Deploy to production (with Cloudflare Tunnel)
-docker-deploy: docker-deploy-prod
 
 # Deploy to production with Docker Compose and Cloudflare Tunnel
 docker-deploy-prod:

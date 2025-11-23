@@ -42,12 +42,12 @@ extract_and_categorize() {
 
     declare -A category_patterns=(
         ["Quick Start"]="^(all|test|clean|distclean)$"
-        ["API Server (Local)"]="^api-"
+        ["API Server (Local)"]="^api-dev"
         ["Flutter Builds"]="^(linux|android|macos|ios|windows|android-emulator)$"
         ["Flutter Development"]="^flutter-(local|production)$"
-        ["Docker Deployment"]="^docker-(deploy|up|down)-(prod|dev)$"
-        ["Docker Logs & Status"]="^docker-(logs|status)-(prod|dev)$"
-        ["Docker Rebuild"]="^docker-rebuild-(prod|dev)$"
+        ["Docker Deployment"]="^docker-(deploy|prod-up|dev-up|prod-down|dev-down|all-down)$"
+        ["Docker Logs & Status"]="^docker-(prod-logs|dev-logs|prod-status|dev-status|all-status)$"
+        ["Docker Rebuild"]="^docker-(prod-rebuild|dev-rebuild)$"
         ["Testing (Internal)"]="^(rust-tests|flutter-tests)$"
     )
 
@@ -158,13 +158,10 @@ extract_and_categorize
 
 echo -e "${YELLOW}Quick Examples:${NC}"
 echo "  just test                      # Run all tests"
-echo "  just api-up                    # Start local API server (port 58000)"
-echo "  just docker-deploy-dev         # Deploy API to Docker (port 58000)"
+echo "  just api-dev-up                # Start local dev API server"
+echo "  just docker-dev-up             # Start Docker dev containers"
 echo "  just docker-deploy-prod        # Deploy to production with CF Tunnel"
 echo "  just flutter-local             # Run Flutter app with local API"
 echo ""
-echo -e "${GREEN}Environment Ports:${NC}"
-echo "  58000 - Docker Dev API"
-echo "  58100 - Docker Prod API (local testing)"
 echo ""
 echo -e "${GREEN}Tip: Run 'just --list' to see all targets with descriptions${NC}"
