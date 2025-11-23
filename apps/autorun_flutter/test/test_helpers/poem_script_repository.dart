@@ -22,16 +22,11 @@ class PoemScriptRepository extends ScriptRepository {
         super.internal();
 
   static String _getDefaultBaseUrl() {
-    try {
-      final portFile = File('.just-tmp/icp-api.port');
-      if (portFile.existsSync()) {
-        final port = portFile.readAsStringSync().trim();
-        return 'http://127.0.0.1:$port';
-      }
-    } catch (e) {
-      // Fall through to exception below
+    final port = Platform.environment['MARKETPLACE_API_PORT'];
+    if (port != null && port.isNotEmpty) {
+      return 'http://127.0.0.1:$port';
     }
-    throw Exception('API server port file not found at .just-tmp/icp-api.port. '
+    throw Exception('MARKETPLACE_API_PORT environment variable not set. '
         'Please start the API server with: just api-up');
   }
 

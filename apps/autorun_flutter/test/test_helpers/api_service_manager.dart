@@ -7,23 +7,21 @@ import 'package:icp_autorun/config/app_config.dart';
 /// started via `just api-up`, so the test harness must fail fast when the
 /// service is missing.
 class ApiServiceManager {
-  static const String _portFilePath = '.just-tmp/icp-api.port';
   static bool _isConfigured = false;
   static String? _cachedEndpoint;
 
-  /// Get target endpoint URL by reading the port file
+  /// Get target endpoint URL from MARKETPLACE_API_PORT environment variable
   static String get endpoint {
     if (_cachedEndpoint != null) return _cachedEndpoint!;
 
-    final portFile = File(_portFilePath);
-    if (!portFile.existsSync()) {
+    final port = Platform.environment['MARKETPLACE_API_PORT'];
+    if (port == null || port.isEmpty) {
       throw Exception(
-        'API server port file not found at $_portFilePath. '
+        'MARKETPLACE_API_PORT environment variable not set. '
         'Please start the API server with: just api-up'
       );
     }
 
-    final port = portFile.readAsStringSync().trim();
     _cachedEndpoint = 'http://127.0.0.1:$port';
     return _cachedEndpoint!;
   }

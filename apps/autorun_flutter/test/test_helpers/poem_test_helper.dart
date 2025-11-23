@@ -8,14 +8,13 @@ import 'poem_script_repository.dart';
 /// Test helper utilities for API server integration testing
 class PoemTestHelper {
   static String get defaultBaseUrl {
-    final portFile = File('.just-tmp/icp-api.port');
-    if (!portFile.existsSync()) {
+    final port = Platform.environment['MARKETPLACE_API_PORT'];
+    if (port == null || port.isEmpty) {
       throw Exception(
-        'API server port file not found at .just-tmp/icp-api.port. '
+        'MARKETPLACE_API_PORT environment variable not set. '
         'Please start the API server with: just api-up'
       );
     }
-    final port = portFile.readAsStringSync().trim();
     return 'http://127.0.0.1:$port';
   }
   

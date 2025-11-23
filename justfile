@@ -130,6 +130,11 @@ flutter-tests:
     just linux
     just api-up
     api_started=1
+    # Source API environment variables
+    if [ -f "{{tmp_dir}}/api-env.sh" ]; then
+        source "{{tmp_dir}}/api-env.sh"
+        echo "==> Using MARKETPLACE_API_PORT=$MARKETPLACE_API_PORT"
+    fi
     echo "==> Running Flutter analysis..."
     cd {{flutter_dir}} && flutter analyze 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
     if grep -qE "(info •|warning •|error •)" {{logs_dir}}/test-output.log; then echo "❌ Flutter analysis found issues!"; exit 1; fi
@@ -184,11 +189,13 @@ api-up port="0":
             api_port=$(grep -aoP 'listening.*?(\[::\]|127\.0\.0\.1|0\.0\.0\.0):\K\d+' {{logs_dir}}/api-server.log | tail -1 || true)
             if [ -n "$api_port" ]; then
                 echo "$api_port" > {{api_port_file}}
+                export MARKETPLACE_API_PORT="$api_port"
                 if timeout 5 curl -s "http://127.0.0.1:$api_port/api/v1/health" >/dev/null 2>&1; then
                     echo "==> ✅ API server is healthy and ready!"
                     echo "==> API Endpoint: http://127.0.0.1:$api_port"
                     echo "==> Health Check: http://127.0.0.1:$api_port/api/v1/health"
                     echo "==> Server logs: {{logs_dir}}/api-server.log"
+                    echo "export MARKETPLACE_API_PORT=$api_port" > {{tmp_dir}}/api-env.sh
                     exit 0
                 fi
             fi
