@@ -158,6 +158,7 @@ class TestSignatureUtils {
     final publicKey = getPublicKey();
 
     final basePayload = {
+      'slug': 'test-script',
       'title': 'Test Script',
       'description': 'A test script for development',
       'category': 'utility',

@@ -211,6 +211,7 @@ class TestableScriptRepository extends ScriptRepository {
     final String version = (script.metadata['version'] ?? '1.0.0').toString();
 
     final baseScriptData = {
+      'slug': script.id.isNotEmpty ? script.id : 'test-script-${DateTime.now().millisecondsSinceEpoch}',
       'title': script.title,
       'description': script.metadata['description'] ?? '',
       'category': script.metadata['category'] ?? 'Development',

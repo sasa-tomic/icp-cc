@@ -115,6 +115,7 @@ class PoemScriptRepository extends ScriptRepository {
     );
 
     return {
+      'slug': script.id.isNotEmpty ? script.id : 'test-script-${DateTime.now().millisecondsSinceEpoch}',
       'title': script.title,
       'description': script.metadata['description'] ?? '',
       'category': script.metadata['category'] ?? 'Development',
