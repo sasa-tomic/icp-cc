@@ -1276,13 +1276,23 @@ async fn main() -> Result<(), std::io::Error> {
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "sqlite:./data/marketplace-dev.db?mode=rwc".to_string());
 
+    // Ensure data directory exists
+    if let Some(db_path) = database_url.strip_prefix("sqlite:") {
+        let path = db_path.split('?').next().unwrap_or(db_path);
+        if let Some(parent) = std::path::Path::new(path).parent() {
+            std::fs::create_dir_all(parent).expect("Failed to create database directory");
+        }
+    }
+
     tracing::info!("Connecting to database: {}", database_url);
 
     let pool = SqlitePool::connect(&database_url)
         .await
         .expect("Failed to connect to database");
 
+    tracing::info!("Initializing database schema...");
     db::initialize_database(&pool).await;
+    tracing::info!("Database schema initialized successfully");
 
     // Clone pool for background cleanup job before moving it to state
     let cleanup_pool = pool.clone();

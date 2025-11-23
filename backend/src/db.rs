@@ -381,6 +381,4 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .execute(pool)
     .await
     .expect("Failed to create user_vaults principal index");
-
-    tracing::info!("Database initialized successfully");
 }
