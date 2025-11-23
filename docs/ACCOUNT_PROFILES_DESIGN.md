@@ -87,10 +87,10 @@ POST /api/v1/accounts
   "username": "alice",
   "displayName": "Alice Smith",
   "contactEmail": "alice@example.com",
-  "publicKey": "0x1234abcd...",
+  "publicKeyB64": "BASE64_PUBLIC_KEY",
   "timestamp": 1700000000,
   "nonce": "550e8400-e29b-41d4-a716-446655440000",
-  "signature": "abc..."
+  "signature": "BASE64_SIGNATURE"
 }
 ```
 
@@ -102,7 +102,7 @@ POST /api/v1/accounts
   "publicKeys": [
     {
       "id": "650e8400-...",
-      "publicKey": "0x1234abcd...",
+      "publicKey": "BASE64_PUBLIC_KEY",
       "icPrincipal": "aaaaa-aa...",
       "isActive": true
     }
@@ -123,11 +123,11 @@ POST /api/v1/accounts/{username}/keys
 **Request:**
 ```json
 {
-  "newPublicKey": "0x5678efgh...",
-  "signingPublicKey": "0x1234abcd...",
+  "newPublicKeyB64": "BASE64_PUBLIC_KEY",
+  "signingPublicKeyB64": "BASE64_PUBLIC_KEY",
   "timestamp": 1700000100,
   "nonce": "550e8400-...",
-  "signature": "abc..."
+  "signature": "BASE64_SIGNATURE"
 }
 ```
 Must be signed by an existing active key. Max 10 keys per account.
