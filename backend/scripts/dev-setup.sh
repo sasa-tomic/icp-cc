@@ -11,7 +11,7 @@ echo "🚀 Setting up ICP Marketplace API development environment..."
 mkdir -p data
 
 # Set environment variables
-export DATABASE_URL="sqlite:./data/dev.db"
+export DATABASE_URL="sqlite:./data/marketplace-dev.db"
 export PORT=58000
 export ENVIRONMENT="development"
 export RUST_LOG="info,icp_marketplace_api_poem=debug"
@@ -26,21 +26,33 @@ sqlx migrate run --database-url "$DATABASE_URL" --source migrations
 
 # Create some sample data if needed
 echo "📝 Creating sample data..."
-sqlite3 ./data/dev.db << 'EOF'
+sqlite3 ./data/marketplace-dev.db << 'EOF'
+-- Create sample account
+INSERT OR IGNORE INTO accounts (
+    id, username, display_name, created_at, updated_at
+) VALUES (
+    'account-dev',
+    'dev',
+    'Test Developer',
+    datetime('now'),
+    datetime('now')
+);
+
+-- Create sample script
 INSERT OR IGNORE INTO scripts (
-    id, title, description, category, tags, lua_source, author_name, author_id,
+    id, slug, owner_account_id, title, description, category, tags, lua_source,
     author_principal, author_public_key, upload_signature, canister_ids, icon_url,
     screenshots, version, compatibility, price, is_public, downloads, rating,
     review_count, created_at, updated_at
 ) VALUES (
     'sample-script-1',
+    'hello-world-sample',
+    'account-dev',
     'Hello World Script',
     'A simple hello world script for testing',
     'utility',
     '["hello", "world", "test"]',
     'print("Hello, World!")',
-    'Test Developer',
-    'dev-123',
     '2vxsx-fae',
     'test-public-key',
     'test-signature',

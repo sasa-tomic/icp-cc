@@ -243,22 +243,22 @@ nslookup icp-mp.kalaj.org
 
 ## Data Persistence
 
-The SQLite database is stored in `./data/marketplace.db` on your host machine:
+The SQLite database is stored in `./data/marketplace-prod.db` on your host machine:
 
-- **Location**: `backend/data/marketplace.db`
+- **Location**: `backend/data/marketplace-prod.db`
 - **Automatic Creation**: Database file and schema are created automatically on first startup
 - **Backups**: Simply copy the `data/` directory
 - **Direct Access**: You can query the database directly with any SQLite client
 
 ```bash
 # View database file
-ls -lh data/marketplace.db
+ls -lh data/marketplace-prod.db
 
 # Backup database
 cp -r data/ data-backup-$(date +%Y%m%d)/
 
 # Query with sqlite3
-sqlite3 data/marketplace.db "SELECT COUNT(*) FROM scripts;"
+sqlite3 data/marketplace-prod.db "SELECT COUNT(*) FROM scripts;"
 ```
 
 ## Production Recommendations

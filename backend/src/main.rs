@@ -1273,8 +1273,8 @@ async fn main() -> Result<(), std::io::Error> {
     dotenv::dotenv().ok();
 
     // Database setup
-    let database_url =
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/dev.db?mode=rwc".to_string());
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite:./data/marketplace-dev.db?mode=rwc".to_string());
 
     tracing::info!("Connecting to database: {}", database_url);
 

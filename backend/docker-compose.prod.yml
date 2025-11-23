@@ -9,7 +9,7 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     environment:
       - RUST_LOG=${RUST_LOG:-info}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/marketplace.db?mode=rwc}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/marketplace-prod.db?mode=rwc}
       - ENVIRONMENT=production
       - PORT=58000
     volumes:

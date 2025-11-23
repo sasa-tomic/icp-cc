@@ -65,7 +65,7 @@ backend/
 ├── src/
 │   └── main.rs          # All application code (clean & minimal)
 ├── data/
-│   └── dev.db           # SQLite database file (auto-created)
+│   └── marketplace-dev.db           # SQLite database file (auto-created)
 ├── Cargo.toml           # Rust dependencies
 ├── .env                 # Environment configuration
 └── README.md            # This file

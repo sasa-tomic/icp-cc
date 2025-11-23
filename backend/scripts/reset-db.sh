@@ -7,16 +7,16 @@ set -e
 
 echo "🗑️ Resetting SQLite database..."
 
-export DATABASE_URL="sqlite:./data/dev.db"
+export DATABASE_URL="sqlite:./data/marketplace-dev.db"
 
 # Check if database exists
-if [ ! -f "./data/dev.db" ]; then
+if [ ! -f "./data/marketplace-dev.db" ]; then
     echo "❌ Database file not found. Run ./scripts/dev-setup.sh first."
     exit 1
 fi
 
 # Delete all data from tables
-sqlite3 ./data/dev.db << 'EOF'
+sqlite3 ./data/marketplace-dev.db << 'EOF'
 DELETE FROM reviews;
 DELETE FROM scripts;
 EOF

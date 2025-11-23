@@ -1,13 +1,13 @@
 -- Create scripts table (SQLite)
 CREATE TABLE IF NOT EXISTS scripts (
     id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
+    owner_account_id TEXT,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     category TEXT NOT NULL,
     tags TEXT, -- JSON as TEXT for SQLite
     lua_source TEXT NOT NULL,
-    author_name TEXT NOT NULL,
-    author_id TEXT NOT NULL,
     author_principal TEXT,
     author_public_key TEXT,
     upload_signature TEXT,
@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS scripts (
     rating REAL NOT NULL DEFAULT 0.0,
     review_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    deleted_at TEXT,
+    FOREIGN KEY (owner_account_id) REFERENCES accounts(id)
 );
 
 -- Create indexes

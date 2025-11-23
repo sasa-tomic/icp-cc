@@ -6,36 +6,64 @@ set -e
 
 echo "📝 Adding sample data to SQLite database..."
 
-export DATABASE_URL="sqlite:./data/dev.db"
+export DATABASE_URL="sqlite:./data/marketplace-dev.db"
 
 # Check if database exists
-if [ ! -f "./data/dev.db" ]; then
+if [ ! -f "./data/marketplace-dev.db" ]; then
     echo "❌ Database file not found. Run ./scripts/dev-setup.sh first."
     exit 1
 fi
 
 # Add sample scripts
-sqlite3 ./data/dev.db << 'EOF'
+sqlite3 ./data/marketplace-dev.db << 'EOF'
 -- Clear existing data
 DELETE FROM reviews;
 DELETE FROM scripts;
+DELETE FROM account_public_keys;
+DELETE FROM accounts;
+
+-- Sample accounts
+INSERT INTO accounts (
+    id, username, display_name, created_at, updated_at
+) VALUES
+(
+    'account-alice',
+    'alice',
+    'Alice Developer',
+    datetime('now', '-30 days'),
+    datetime('now', '-30 days')
+),
+(
+    'account-bob',
+    'bob',
+    'Bob Coder',
+    datetime('now', '-20 days'),
+    datetime('now', '-20 days')
+),
+(
+    'account-gamedev',
+    'gamedev',
+    'GameDev Pro',
+    datetime('now', '-15 days'),
+    datetime('now', '-15 days')
+);
 
 -- Sample scripts
 INSERT INTO scripts (
-    id, title, description, category, tags, lua_source, author_name, author_id,
+    id, slug, owner_account_id, title, description, category, tags, lua_source,
     author_principal, author_public_key, upload_signature, canister_ids, icon_url,
     screenshots, version, compatibility, price, is_public, downloads, rating,
     review_count, created_at, updated_at
 ) VALUES
 (
     'hello-world-001',
+    'hello-world',
+    'account-alice',
     'Hello World Script',
     'A simple hello world script that prints a greeting message',
     'utility',
     '["hello", "world", "greeting", "beginner"]',
     'print("Hello, World!")\nprint("Welcome to ICP Marketplace!")',
-    'Alice Developer',
-    'alice-123',
     '2vxsx-fae',
     'test-public-key-alice',
     'test-signature-hello-world',
@@ -54,13 +82,13 @@ INSERT INTO scripts (
 ),
 (
     'data-parser-002',
+    'json-data-parser',
+    'account-bob',
     'JSON Data Parser',
     'Parse and manipulate JSON data structures with ease',
     'data-processing',
     '["json", "parser", "data", "utilities"]',
     'local data = {"name": "John", "age": 30}\nprint("Parsed data:", data.name)',
-    'Bob Coder',
-    'bob-456',
     '3v5f3-hae',
     'test-public-key-bob',
     'test-signature-data-parser',
@@ -79,13 +107,13 @@ INSERT INTO scripts (
 ),
 (
     'game-score-003',
+    'game-score-tracker',
+    'account-gamedev',
     'Game Score Tracker',
     'Track high scores and game statistics across sessions',
     'gaming',
     '["game", "score", "tracker", "statistics"]',
     '-- Score tracking implementation\nlocal scores = {}\nfunction addScore(player, score)\n  scores[player] = (scores[player] or 0) + score\nend',
-    'GameDev Pro',
-    'gamedev-789',
     '4w5t6-yae',
     'test-public-key-gamedev',
     'test-signature-game-score',

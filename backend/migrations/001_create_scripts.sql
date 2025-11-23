@@ -1,13 +1,13 @@
 -- Create scripts table
 CREATE TABLE IF NOT EXISTS scripts (
     id VARCHAR(64) PRIMARY KEY,
+    slug VARCHAR(255) NOT NULL,
+    owner_account_id VARCHAR(255),
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
     category VARCHAR(100) NOT NULL,
     tags JSONB,
     lua_source TEXT NOT NULL,
-    author_name VARCHAR(255) NOT NULL,
-    author_id VARCHAR(255) NOT NULL,
     author_principal VARCHAR(255),
     author_public_key TEXT,
     upload_signature TEXT,
@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS scripts (
     rating DECIMAL(3,2) NOT NULL DEFAULT 0.0,
     review_count INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    FOREIGN KEY (owner_account_id) REFERENCES accounts(id)
 );
 
 -- Create indexes
