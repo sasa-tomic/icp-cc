@@ -1,5 +1,17 @@
 # ICP Script Marketplace - TODO
 
+## Passkey Authentication (HIGH)
+
+See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for architecture and details.
+
+- [ ] Backend: WebAuthn endpoints (register/authenticate start/finish)
+- [ ] Backend: Vault encryption utilities (Argon2id + AES-GCM)
+- [ ] Backend: Recovery code system (generate, hash, verify)
+- [ ] Backend: Database schema (passkeys, recovery_codes, user_vaults tables)
+- [ ] Frontend: PasskeyService using `passkeys` package
+- [ ] Frontend: Vault password UI (setup, unlock, recovery)
+- [ ] Frontend: Passkey management UI (list, add, delete)
+
 ## Script Management (HIGH)
 
 - [ ] Add secp256k1 script signing via Rust FFI (account signing done, script signing has `UnimplementedError` in `script_signature_service.dart:163`)
