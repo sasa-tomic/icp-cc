@@ -51,6 +51,28 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] Key import/export: Encrypted backup file for disaster recovery (password-derived key, mnemonic + private key)
 - [ ] Hardware key support: WebAuthn integration for YubiKey etc.
 
+## Canister Interaction (LOW)
+
+- [ ] Canister autocomplete/search by ID or name
+- [ ] Smart input forms based on Candid interface (.did file parsing)
+- [ ] Response viewer with multiple formats (JSON, Table, Raw)
+- [ ] Interaction history with replay capability
+- [ ] Favorite canisters list
+
+## Script Automation (LOW)
+
+- [ ] Script scheduler UI (cron-like but user-friendly)
+- [ ] Trigger system (time-based initially, event-based later)
+- [ ] Automation logs with filtering and search
+- [ ] Enable/disable toggle for automations
+- [ ] Failure notifications
+
+## Discovery (LOW)
+
+- [ ] Trending algorithm based on recent downloads + ratings
+- [ ] Personalized recommendations based on user's downloads
+- [ ] Trust system: verified author badges, reputation score
+
 ---
 
 ## Architecture Reference

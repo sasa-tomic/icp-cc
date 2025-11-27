@@ -1,121 +1,82 @@
-# ICP Autorun - Build Guide
+# ICP Autorun
 
-Use Just (modern build tool) and scripts in `scripts/` to build native libraries and fail fast if missing.
+A smooth, intuitive platform where users can discover, manage, and automate interactions with Internet Computer canisters through scripts.
 
-## 🚀 Quick Start
+## Quick Start
 
-First, install all dependencies for local development (one-time setup):
 ```bash
-./scripts/bootstrap.sh
+./scripts/bootstrap.sh    # Install dependencies (one-time)
+./install-just.sh         # Install Just build tool (one-time)
+just                      # Show all commands
 ```
 
-Then install Just (one-time setup):
+## Development
+
+### Run the App
 ```bash
-./install-just.sh
+# Linux
+just linux && cd apps/autorun_flutter && flutter run -d linux
+
+# With local API server
+just api-dev-up
+just flutter-dev-local
+
+# Android
+just android && cd apps/autorun_flutter && flutter run -d <device-id>
 ```
 
-Then build for your platform:
-
-### Platform Builds
-- **Linux desktop**:
-  ```bash
-  just linux
-  cd apps/autorun_flutter && flutter run -d linux
-  ```
-- **Android**:
-  ```bash
-  ./scripts/bootstrap.sh  # Install Android SDK/NDK/toolchains and rust targets
-  just android
-  cd apps/autorun_flutter && flutter run -d <your-device-id>
-  ```
-- **macOS**:
-  ```bash
-  just macos
-  ```
-- **iOS**:
-  ```bash
-  just ios
-  ```
-- **Windows**:
-  ```bash
-  just windows
-  ```
-
-### Development Commands
+### API Server
 ```bash
-just                    # Show all available commands
-just test               # Run all tests with linting
-just clean              # Clean build artifacts
-just all                # Build all platforms
+just api-dev-up           # Start local server (background)
+just api-dev-down         # Stop server
+just api-dev-logs         # View logs
+just api-dev-test         # Test endpoints
+just api-dev-reset        # Reset database
 ```
 
-### API Server Development
+### Testing
 ```bash
-just api-up             # Start local API server
-just api-down           # Stop local API server
-just api-test           # Test API endpoints
-just api-logs           # View server logs
+just test                 # Run all tests (Rust + Flutter)
+just rust-tests           # Rust tests + clippy
+just flutter-tests        # Flutter tests
 ```
 
-## ⚡ Features
-
-### Fail-fast Build System
-- Linux/Windows builds abort if native lib is missing with actionable messages
-- Android builds abort if any ABI lib is missing, showing which ones and suggesting fixes
-
-### Just Benefits
-- **Cross-platform**: Works consistently on Linux, macOS, Windows
-- **Better arguments**: Natural syntax: `just cmd -- --args`
-- **Smart caching**: Intelligent build optimization
-- **Clear errors**: Better error messages and debugging
-
-## 📁 Repository Layout
-
-- `apps/autorun_flutter`: Flutter application
-- `crates/icp_core`: Rust FFI crate (cdylib)
-- `backend/`: Poem-based API server implementation
-- `justfile`: Modern build configuration (replaces Makefile)
-- `scripts/`: Build and bootstrap helpers
-- `docs/`: Architecture and build documentation
-- `server-deploy/`: Deployment tools
-
-## 🔧 Scripts
-
-- `scripts/bootstrap.sh`: Installs rustup and Android SDK/NDK on Linux; sets targets
-- `scripts/build_linux.sh`: Builds `libicp_core.so` and copies into Flutter bundle dirs
-- `scripts/build_android.sh`: Builds all Android ABIs and copies into `jniLibs/`
-- `scripts/build_macos.sh`: Builds `libicp_core.dylib` and copies to common output dirs
-- `scripts/build_ios.sh`: Builds iOS static libs; assemble xcframework as needed
-- `scripts/build_windows.sh`: Builds `icp_core.dll` and copies into runner dirs
-
-## 📖 Help
-
-### Getting Started
+### Build Platforms
 ```bash
-just                           # Show help
-just --list                     # List all commands
-just cloudflare-deploy -- --help   # Show command-specific help
+just linux                # Linux desktop
+just android              # Android (all ABIs)
+just macos                # macOS
+just ios                  # iOS
+just windows              # Windows
+just all                  # All platforms
 ```
 
-### Advanced Usage
-- **Parallel builds**: `just all` builds all platforms concurrently when possible
-- **Flexible arguments**: `just cloudflare-deploy -- --dry-run --verbose`
-- **Platform detection**: Just automatically detects your OS and architecture
+### Docker Deployment
+```bash
+just docker-dev-up        # Start dev containers
+just docker-prod-up       # Start prod with Cloudflare Tunnel
+just docker-all-status    # Check all containers
+```
 
-## 📖 Command Reference
+## Repository Layout
 
-| Common Task | Command |
-|-------------|---------|
-| Show help | `just` |
-| Run tests | `just test` |
-| Build Linux | `just linux` |
-| Build Android | `just android` |
-| Clean artifacts | `just clean` |
-| Deploy with dry-run | `just cloudflare-deploy -- --dry-run` |
+```
+apps/autorun_flutter/     # Flutter application
+crates/icp_core/          # Rust FFI library
+backend/                  # Poem-based API server
+scripts/                  # Build helpers
+docs/                     # Architecture docs
+```
 
-## ⚠️ Notes
+## Documentation
 
-- For Android, ensure an emulator or device is connected
-- Use `apps/autorun_flutter/tool/run_android.sh` to start a default emulator and run
-- For iOS/macOS, additional Xcode project copy phases can be added to auto-embed the dylib/xcframework
-- Just provides better error handling and cross-platform compatibility with improved features
+- [TODO.md](TODO.md) - Active tasks
+- [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) - Security architecture
+- [docs/ACCOUNT_PROFILES_DESIGN.md](docs/ACCOUNT_PROFILES_DESIGN.md) - Account system
+
+## UX Principles
+
+1. **Smoothness**: Instant feedback, optimistic updates
+2. **Clarity**: Always clear what's happening
+3. **Fast**: Everything feels instant
+4. **Forgiving**: Easy to undo and recover
