@@ -1,30 +1,42 @@
 services:
-  # Single container development environment
   agent:
     build:
       context: ..
       dockerfile: agent/Dockerfile
     image: icp-cc-agent:latest
-    container_name: icp-cc-agent-dev
-    user: "${UID:-1000}:${GID:-1000}"
+    # Run with docker group to access the socket
+    group_add:
+      - ${DOCKER_GID:-999}
+    user: "0:0" # Start as root to fix volume permissions
+    entrypoint: ["/tini", "--", "/home/ubuntu/entrypoint.sh"]
     environment:
-      # Development environment variables for ICP-CC project
+      # Development environment variables
       - RUST_LOG=info
       - RUST_BACKTRACE=1
       - HOME=/home/ubuntu
+      - VIRTUAL_ENV=/home/ubuntu/.venv
     volumes:
-      # Mount the entire repository directory
+      # Mount the entire repository directory to /code
       - ..:/code/icp-cc
+      # Use container-local target/ dir to avoid conflicts between concurrent agents
+      # Volume name includes project name (-p flag) so each agent gets its own
+      - target-cache:/code/icp-cc/target
       # Mount some other configuration from home directory
       - ${HOME}/.claude.json:/home/ubuntu/.claude.json
       - ${HOME}/.claude:/home/ubuntu/.claude
-      - ${HOME}/.codex:/home/ubuntu/.codex
       - ${HOME}/.happy:/home/ubuntu/.happy
-      - ${HOME}/.serena:/home/ubuntu/.serena
+      - ${HOME}/.opencode:/home/ubuntu/.opencode
+      - ${HOME}/.config/opencode:/home/ubuntu/.config/opencode
+      - ${HOME}/.local/share/opencode:/home/ubuntu/.local/share/opencode
       # Cache volumes for rust tooling and dependencies (controlled by ubuntu user)
       - rustup-cache:/usr/local/rustup
       - cargo-cache:/home/ubuntu/.cargo
       - home-cache:/home/ubuntu/.cache
+      # SSH key for agent access to remote nodes
+      - ${HOME}/.ssh/claude-code:/tmp/claude-ssh/claude-code:ro
+      - ${HOME}/.ssh/claude-code.pub:/tmp/claude-ssh/claude-code.pub:ro
+      # Docker socket for running docker commands inside the container
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /code/icp-cc
     stdin_open: true
     tty: true
@@ -39,6 +51,8 @@ volumes:
   cargo-cache:
     driver: local
   home-cache:
+    driver: local
+  target-cache:
     driver: local
 
 networks:

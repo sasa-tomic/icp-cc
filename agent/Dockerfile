@@ -1,35 +1,46 @@
 # Dockerfile for ICP-CC (ICP Autorun/Script Marketplace) + Containerized development environment
-# Based on project requirements with additions for coding agents
+# Based on decent-cloud agent with ICP-CC specific additions
 
-FROM rust:latest
+FROM rust:1.91
 
-# Environment variables (from CI Dockerfile)
+# Environment variables
 ENV HOME=/home/ubuntu \
     XDG_DATA_HOME=/home/ubuntu/.cache/data \
-    PATH=/home/ubuntu/.cache/data/dfx/bin:/home/ubuntu/.cache/data/bin:/home/ubuntu/.cache/bin:/home/ubuntu/.cargo/bin:/usr/local/cargo/bin:/home/ubuntu/.local/bin:/home/ubuntu/bin:/home/ubuntu/.npm-global/bin:$PATH \
+    PATH=/usr/lib/postgresql/17/bin:/home/ubuntu/.cache/data/dfx/bin:/home/ubuntu/.cache/data/bin:/home/ubuntu/.cache/bin:/home/ubuntu/.cargo/bin:/usr/local/cargo/bin:/home/ubuntu/.local/bin:/home/ubuntu/bin:/home/ubuntu/.npm-global/bin:/home/ubuntu/.venv/bin:$PATH \
     POCKET_IC_BIN=/home/ubuntu/bin/pocket-ic \
-    RUST_BACKTRACE=1
+    RUST_BACKTRACE=1 \
+    VIRTUAL_ENV=/home/ubuntu/.venv
 
 # Create working directory and non-root user
 RUN useradd -m -u 1000 ubuntu && mkdir -p $HOME/.git/hooks $HOME/bin $XDG_DATA_HOME
 WORKDIR $HOME
 
-# Add tini for proper signal handling (from CI Dockerfile)
+# Add tini for proper signal handling
 ENV TINI_VERSION=v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
-# Install dfx (exact from CI Dockerfile)
+# Install dfx
 RUN DFXVM_INIT_YES=yes sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)" \
     && dfxvm default 0.29.2
 
-# Install deps for ICP-CC project
+# Install deps
 RUN apt update && \
-    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq net-tools lsof sqlite3
+    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq clang mold sqlite3 curl gosu postgresql \
+    # Docker CLI for running docker commands inside the container
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources-docker.list \
+    && cat /etc/apt/sources-docker.list >> /etc/apt/sources.list.d/docker.list \
+    && apt update && apt install -y docker-ce-cli docker-compose-plugin
 
-# Install Node.js directly from NodeSource repository (required for Flutter and Cloudflare Workers)
+# Install Node.js directly from NodeSource repository
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs
+
+# Install pip
+RUN apt install -y python3-pip python3-venv
 
 # Install Flutter dependencies
 RUN apt-get update && apt-get install -y \
@@ -39,28 +50,39 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install UV for Python package management
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install Just build system (as root, it's system-wide)
-RUN curl -Lo /tmp/just.tar.gz "https://github.com/casey/just/releases/download/1.35.0/just-1.35.0-x86_64-unknown-linux-musl.tar.gz" \
-    && tar -xzf /tmp/just.tar.gz -C /tmp \
-    && mv /tmp/just /usr/local/bin/ \
-    && chmod +x /usr/local/bin/just \
-    && rm /tmp/just.tar.gz
-
 RUN chown -R ubuntu:ubuntu $HOME /usr/local/cargo /usr/local/rustup
+
+# Install Playwright system dependencies (requires root)
+RUN npx playwright install-deps chromium && chown -R ubuntu:ubuntu /home/ubuntu
 
 # Switch to non-root user
 USER ubuntu
 
-# Install Rust (exact from CI Dockerfile)
+# Install pocket-ic-server
+RUN curl -L https://github.com/dfinity/pocketic/releases/download/10.0.0/pocket-ic-x86_64-linux.gz -o $HOME/bin/pocket-ic.gz \
+    && gunzip $HOME/bin/pocket-ic.gz && chmod +x $HOME/bin/pocket-ic
+
+# Install Rust
 RUN rustup target add x86_64-unknown-linux-gnu wasm32-unknown-unknown \
-    && rustup toolchain install nightly --profile=complete \
+    && rustup toolchain install nightly-2025-11-27 --profile=complete \
     && curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install cargo tools using binstall for faster installation
-RUN cargo binstall cargo-make cargo-nextest wasm-pack ripgrep
+RUN cargo binstall cargo-make cargo-nextest sqlx-cli ripgrep cargo-sweep wasm-pack
+
+# Install UV to .local/bin (not .cargo/bin which gets shadowed by cargo-cache volume)
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME/.local/bin" sh
+
+# Create Python virtual environment and install common packages
+RUN $HOME/.local/bin/uv venv $HOME/.venv \
+    && $HOME/.local/bin/uv pip install python-dotenv pytest black ruff
+
+# Install Just build system
+RUN curl -Lo /tmp/just.tar.gz "https://github.com/casey/just/releases/download/1.35.0/just-1.35.0-x86_64-unknown-linux-musl.tar.gz" \
+    && tar -xzf /tmp/just.tar.gz -C /tmp \
+    && mv /tmp/just $HOME/.local/bin/ \
+    && chmod +x $HOME/.local/bin/just \
+    && rm /tmp/just.tar.gz
 
 # Configure npm to use user-specific global directory and install tools
 RUN mkdir -p ~/.npm-global \
@@ -68,8 +90,11 @@ RUN mkdir -p ~/.npm-global \
     && echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc \
     && echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.profile \
     && export PATH=~/.npm-global/bin:$PATH \
-    && npm install -g @anthropic-ai/claude-code happy-coder \
-    && npm install -g @openai/codex
+    && npm install -g @anthropic-ai/claude-code happy-coder playwright \
+    && npx playwright install chromium
+
+# Install OpenCode
+RUN curl -fsSL https://opencode.ai/install | bash
 
 # Install Flutter SDK for ICP-CC project
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \
@@ -84,5 +109,10 @@ RUN chmod +x $HOME/.git-hooks/commit-msg \
     && git config --global core.hooksPath $HOME/.git-hooks \
     && git config --global init.defaultBranch main
 
-# Set entrypoint to use tini for proper signal handling
+# Copy entrypoint script (runs as root, fixes perms, drops to ubuntu)
+USER root
+COPY agent/entrypoint.sh $HOME/entrypoint.sh
+RUN chmod +x $HOME/entrypoint.sh
+
+# Default entrypoint uses tini for signal handling (compose overrides with entrypoint.sh)
 ENTRYPOINT ["/tini", "--"]
