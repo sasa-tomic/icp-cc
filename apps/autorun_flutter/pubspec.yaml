@@ -50,6 +50,7 @@ dependencies:
   flutter_highlight: ^0.7.0
   highlight: ^0.7.0
   shared_preferences: ^2.3.2
+  passkeys: ^2.1.0
 
 dev_dependencies:
   flutter_test:

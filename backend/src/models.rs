@@ -150,6 +150,7 @@ pub struct AppState {
     pub account_service: crate::services::AccountService,
     pub script_service: crate::services::ScriptService,
     pub review_service: crate::services::ReviewService,
+    pub passkey_service: crate::services::PasskeyService,
 }
 
 #[derive(Debug, Deserialize)]

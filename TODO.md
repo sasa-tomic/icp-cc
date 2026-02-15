@@ -14,7 +14,7 @@
 |------|--------|------------|
 | Profile Management | Complete | 95% |
 | Account Registration | Complete | 95% |
-| Passkey Auth | Partial | 60% |
+| Passkey Auth | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
 | Script Execution (Lua) | Partial | 80% |
@@ -39,10 +39,45 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Recovery code system (generate, hash, verify)
 - [x] Database schema (passkeys, recovery_codes, user_vaults tables)
 
-**Frontend (TODO):**
-- [ ] PasskeyService using `passkeys` package
-- [ ] Vault password UI (setup, unlock, recovery screens)
-- [ ] Passkey management UI (list, add, delete passkeys)
+**Frontend (DONE):**
+- [x] PasskeyService using `passkeys` package
+- [x] Vault password setup screen
+- [x] Vault unlock screen
+- [x] Recovery codes display screen
+- [x] Passkey management screen (list, add, delete)
+
+**Tests (DONE):**
+- [x] PasskeyService unit tests
+- [x] Screen widget tests
+
+**Remaining (for full production):**
+- [ ] Client-side vault decryption via Rust FFI (Argon2id + AES-GCM)
+- [ ] Integration flow: prompt passkey setup after account registration
+- [ ] E2E tests on real device (WebAuthn requires hardware authenticator)
+
+### Profile Management
+
+**Done:**
+- [x] ProfileController with create/switch/delete profiles
+- [x] ProfileRepository (local storage)
+- [x] Profile model with 1-10 keypairs per profile
+
+**Missing:**
+- [ ] ProfileController tests (MISSING - critical)
+- [ ] Add key labels (e.g., "Mobile", "Desktop") to `account_public_keys` table
+
+### Account Registration
+
+**Done:**
+- [x] AccountController (register, add/remove keys, update profile)
+- [x] AccountSignatureService (Ed25519 signing)
+- [x] AccountRegistrationWizard screen
+- [x] Account profile screen
+
+**Missing:**
+- [ ] Full AccountController test coverage (only `removePublicKey` tested)
+- [ ] AccountProfileScreen widget tests
+- [ ] Integration: redirect to passkey setup after registration
 
 ### Script Management
 - [ ] Add secp256k1 script signing via Rust FFI (throws `UnimplementedError` in `script_signature_service.dart:163`)
@@ -56,22 +91,25 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 ### Testing (CRITICAL - Blocking Production)
 - [ ] Profile Controller tests (MISSING)
-- [ ] Script Controller tests (MISSING)
-- [ ] Passkey Service tests (MISSING)
+- [ ] Account Controller full coverage (only `removePublicKey` tested)
+- [x] Passkey Service tests (DONE)
 - [ ] Scripts Screen widget tests (MISSING - largest screen, 0 tests)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Bookmarks Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
 
+**Cannot Test (requires hardware):**
+- WebAuthn passkey registration/authentication (needs real authenticator)
+
 ---
 
 ## MEDIUM Priority
 
-### Account/Profile
-- [ ] Add `label` field to `account_public_keys` table (e.g., "Mobile", "Desktop")
-- [ ] Multi-device sync: QR code import or encrypted export
-- [ ] Key import/export: Encrypted backup file for disaster recovery
+### Multi-Device & Recovery
+- [ ] QR code import for multi-device sync
+- [ ] Encrypted keypair export for disaster recovery
+- [ ] Encrypted backup file generation/restore
 
 ### UX Improvements
 - [ ] Create hybrid view combining local and marketplace scripts

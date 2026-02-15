@@ -6,6 +6,7 @@ mod models;
 mod repositories;
 mod responses;
 mod services;
+mod vault;
 
 #[cfg(test)]
 use auth::create_canonical_payload;
@@ -21,7 +22,10 @@ use poem::{
     EndpointExt, IntoResponse, Response, Route, Server,
 };
 use responses::error_response;
-use services::{AccountService, ReviewService, ScriptService};
+use services::{
+    AccountService, PasskeyAuthenticationFinish, PasskeyRegistrationFinish, PasskeyService,
+    ReviewService, ScriptService,
+};
 use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
 
@@ -835,6 +839,310 @@ async fn admin_add_recovery_key(
     }
 }
 
+// ============================================================================
+// Passkey Authentication Handlers
+// ============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+struct PasskeyRegisterStartRequest {
+    account_id: String,
+    username: String,
+}
+
+#[handler]
+async fn passkey_register_start(
+    Json(req): Json<PasskeyRegisterStartRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .passkey_service
+        .start_registration(&req.account_id, &req.username)
+        .await
+    {
+        Ok(result) => Json(serde_json::json!({
+            "success": true,
+            "data": result
+        }))
+        .into_response(),
+        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
+    }
+}
+
+#[handler]
+async fn passkey_register_finish(
+    Json(req): Json<PasskeyRegistrationFinish>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state.passkey_service.finish_registration(req).await {
+        Ok(passkey) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "success": true,
+                "data": passkey
+            })),
+        )
+            .into_response(),
+        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PasskeyAuthStartRequest {
+    account_id: String,
+}
+
+#[handler]
+async fn passkey_authenticate_start(
+    Json(req): Json<PasskeyAuthStartRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .passkey_service
+        .start_authentication(&req.account_id)
+        .await
+    {
+        Ok(result) => Json(serde_json::json!({
+            "success": true,
+            "data": result
+        }))
+        .into_response(),
+        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
+    }
+}
+
+#[handler]
+async fn passkey_authenticate_finish(
+    Json(req): Json<PasskeyAuthenticationFinish>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state.passkey_service.finish_authentication(req).await {
+        Ok(account_id) => Json(serde_json::json!({
+            "success": true,
+            "data": { "account_id": account_id }
+        }))
+        .into_response(),
+        Err(e) => error_response(StatusCode::UNAUTHORIZED, &e),
+    }
+}
+
+#[handler]
+async fn passkey_list(
+    Path(account_id): Path<String>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state.passkey_service.list_passkeys(&account_id).await {
+        Ok(passkeys) => Json(serde_json::json!({
+            "success": true,
+            "data": passkeys
+        }))
+        .into_response(),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PasskeyDeleteRequest {
+    account_id: String,
+}
+
+#[handler]
+async fn passkey_delete(
+    Path(passkey_id): Path<String>,
+    Json(req): Json<PasskeyDeleteRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .passkey_service
+        .delete_passkey(&passkey_id, &req.account_id)
+        .await
+    {
+        Ok(()) => Json(serde_json::json!({
+            "success": true
+        }))
+        .into_response(),
+        Err(e) => {
+            let status = if e.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else if e.contains("Cannot delete last") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, &e)
+        }
+    }
+}
+
+// ============================================================================
+// Vault Handlers
+// ============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+struct VaultCreateRequest {
+    account_id: String,
+    password: String,
+    data: String, // base64 encoded
+}
+
+#[handler]
+async fn vault_create(
+    Json(req): Json<VaultCreateRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    let data = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &req.data) {
+        Ok(d) => d,
+        Err(e) => return error_response(StatusCode::BAD_REQUEST, &format!("Invalid base64: {}", e)),
+    };
+
+    match state
+        .passkey_service
+        .create_vault(&req.account_id, &req.password, &data)
+        .await
+    {
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "success": true })),
+        )
+            .into_response(),
+        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct VaultGetQuery {
+    account_id: String,
+}
+
+#[handler]
+async fn vault_get(
+    Query(query): Query<VaultGetQuery>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state.passkey_service.get_vault(&query.account_id).await {
+        Ok(Some(vault)) => Json(serde_json::json!({
+            "success": true,
+            "data": vault
+        }))
+        .into_response(),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "Vault not found"),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct VaultUpdateRequest {
+    account_id: String,
+    password: String,
+    data: String, // base64 encoded
+}
+
+#[handler]
+async fn vault_update(
+    Json(req): Json<VaultUpdateRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    let data = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &req.data) {
+        Ok(d) => d,
+        Err(e) => return error_response(StatusCode::BAD_REQUEST, &format!("Invalid base64: {}", e)),
+    };
+
+    match state
+        .passkey_service
+        .update_vault(&req.account_id, &req.password, &data)
+        .await
+    {
+        Ok(()) => Json(serde_json::json!({ "success": true })).into_response(),
+        Err(e) => {
+            let status = if e.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            error_response(status, &e)
+        }
+    }
+}
+
+// ============================================================================
+// Recovery Code Handlers
+// ============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+struct RecoveryGenerateRequest {
+    account_id: String,
+}
+
+#[handler]
+async fn recovery_generate(
+    Json(req): Json<RecoveryGenerateRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .passkey_service
+        .generate_recovery_codes_for_account(&req.account_id)
+        .await
+    {
+        Ok(result) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "success": true,
+                "data": result
+            })),
+        )
+            .into_response(),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct RecoveryVerifyRequest {
+    account_id: String,
+    code: String,
+}
+
+#[handler]
+async fn recovery_verify(
+    Json(req): Json<RecoveryVerifyRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .passkey_service
+        .verify_recovery_code_for_account(&req.account_id, &req.code)
+        .await
+    {
+        Ok(true) => Json(serde_json::json!({
+            "success": true,
+            "data": { "valid": true }
+        }))
+        .into_response(),
+        Ok(false) => Json(serde_json::json!({
+            "success": true,
+            "data": { "valid": false }
+        }))
+        .into_response(),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    }
+}
+
+#[handler]
+async fn recovery_status(
+    Path(account_id): Path<String>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state
+        .passkey_service
+        .get_recovery_code_status(&account_id)
+        .await
+    {
+        Ok(remaining) => Json(serde_json::json!({
+            "success": true,
+            "data": { "remaining_codes": remaining }
+        }))
+        .into_response(),
+        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    }
+}
+
 #[handler]
 async fn update_script(
     Path(script_id): Path<String>,
@@ -1297,10 +1605,17 @@ async fn main() -> Result<(), std::io::Error> {
     // Clone pool for background cleanup job before moving it to state
     let cleanup_pool = pool.clone();
 
+    // WebAuthn configuration
+    let rp_id = env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".to_string());
+    let rp_origin = env::var("WEBAUTHN_RP_ORIGIN").unwrap_or_else(|_| "http://localhost:58000".to_string());
+    let passkey_service = PasskeyService::new(pool.clone(), &rp_id, &rp_origin)
+        .expect("Failed to create PasskeyService");
+
     let state = Arc::new(AppState {
         account_service: AccountService::new(pool.clone()),
         script_service: ScriptService::new(pool.clone()),
         review_service: ReviewService::new(pool.clone()),
+        passkey_service,
         pool,
     });
 
@@ -1342,6 +1657,37 @@ async fn main() -> Result<(), std::io::Error> {
             "/api/v1/accounts/:username/keys/:key_id",
             delete(remove_account_key),
         )
+        // Passkey Authentication endpoints
+        .at(
+            "/api/v1/passkey/register/start",
+            post(passkey_register_start),
+        )
+        .at(
+            "/api/v1/passkey/register/finish",
+            post(passkey_register_finish),
+        )
+        .at(
+            "/api/v1/passkey/authenticate/start",
+            post(passkey_authenticate_start),
+        )
+        .at(
+            "/api/v1/passkey/authenticate/finish",
+            post(passkey_authenticate_finish),
+        )
+        .at("/api/v1/passkey/list/:account_id", get(passkey_list))
+        .at(
+            "/api/v1/passkey/:passkey_id",
+            delete(passkey_delete),
+        )
+        // Vault endpoints
+        .at("/api/v1/vault", post(vault_create).get(vault_get).put(vault_update))
+        // Recovery code endpoints
+        .at(
+            "/api/v1/recovery/generate",
+            post(recovery_generate),
+        )
+        .at("/api/v1/recovery/verify", post(recovery_verify))
+        .at("/api/v1/recovery/status/:account_id", get(recovery_status))
         // Admin Account endpoints (require admin authentication)
         .at(
             "/api/v1/admin/accounts/:username/keys/:key_id/disable",
@@ -1520,10 +1866,14 @@ mod tests {
         )
         .await;
 
+        let passkey_service = PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
+            .expect("Failed to create PasskeyService");
+
         Arc::new(AppState {
             account_service: AccountService::new(pool.clone()),
             script_service: ScriptService::new(pool.clone()),
             review_service: ReviewService::new(pool.clone()),
+            passkey_service,
             pool,
         })
     }
