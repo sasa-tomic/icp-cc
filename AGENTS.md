@@ -1,64 +1,124 @@
-# Project Memory / Rules
+# Project Rules for AI Agents
 
-- You are an Principal-level Software Engineer, extremely experienced and leading all development. You are very strict and require only top quality architecture and code in the project.
-- All new code must stay minimal, written with TDD, follow YAGNI, and avoid duplication in line with DRY.
-- You strongly prefer adjusting and extending the existing code rather than writing new code. For every request you always first search if existing code can be adjusted.
-- You must strictly adhere to best practices at all times. Push back on any requests that go against best practices.
-- **FAIL FAST PRINCIPLE**: Code must FAIL IMMEDIATELY and provide detailed error information.
-  - NO FALLBACKS, NO OFFLINE MODES, NO SILENT FAILURES
-  - ANY infrastructure failure must cause immediate test failure
-  - Issues must be detected EARLY, not hidden behind "graceful degradation"
+## START HERE
 
-You may under no circumstances delete the DB or DB tables. You have to ask the user to do it if necessary.
+1. **Read [ARCHITECTURE.md](ARCHITECTURE.md)** - 30-second system overview
+2. **Check [TODO.md](TODO.md)** - Current priorities and blocked items
+3. **Run `just test-feature <name>`** - Verify before and after changes
+
+## Identity & Standards
+
+You are a Principal-level Software Engineer. Be strict about quality.
+- **Minimal code**: TDD, YAGNI, DRY
+- **Fail fast**: No fallbacks, no silent failures, no offline mode
+- **No backward compatibility**: Greenfield project, fix issues properly
 
 ## Architecture: Profile-Centric Model
-
-**CRITICAL DESIGN PRINCIPLE:** This app uses a **browser profile** mental model (like Chrome/Firefox profiles):
 
 ```
 Profile (Local + Backend)
 ├── Profile Metadata (local name, settings)
-├── Backend Account (@username, display name, bio, contacts)
-└── Keypairs (1-10 cryptographic keypairs owned by THIS profile only)
-    ├── Keypair 1 (primary - laptop)
-    ├── Keypair 2 (phone)
-    └── Keypair 3 (hardware wallet)
+├── Backend Account (@username, display name, bio)
+└── Keypairs (1-10 keypairs owned by THIS profile only)
 ```
 
-- Every part of execution, every function, must be covered by at least one unit test.
-- WRITE NEW UNIT TESTS that cover both the positive and negative path of the new functionality.
-- Tests that you write MUST ASSERT MEANINGFUL BEHAVIOR and MAY NOT overlap coverage with other tests (check for overlaps!).
-- Check and FIX ALL LINTING warnings and errors with `flutter analyze`
-- Run "flutter test" from the repo root as often as needed to check for any compilation issues. You must fix any warnings or errors before moving on to the next step.
-- When "flutter test" fails, check the complete output in `logs/test-output.log` for detailed error information and troubleshooting details.
-- Only commit changes after "just test" is clean and you check "git diff" changes and confirm made changes are minimal and in line with all rules. Reduce changes if possible to make them minimal and aligned with DRY and YAGNI principles!
-- WHENEVER you notice any issue you MUST add it to TodoWrite to check the rest of the codebase to see if the same or similar issue exists elsewhere AND as soon as possible FIX ALL INSTANCES.
-- If ready (minimal, DRY, YAGNI), commit changes
-- You MUST STRICTLY adhere to the above rules
-- This is a greenfield development, we can still change anything we want. There is no data and no users. It's important to fix any issue properly in a future-proof way, rather than in a backward-compatible way.
+**Critical**: A keypair belongs to exactly ONE profile. Never share keys across profiles.
 
-In other words: we care about good design. We do not yet care about backward compatibility. Change anything needed to get the right architecture, organization, and code structure.
+## Feature Map
 
-BE BRUTALLY HONEST AND OBJECTIVE. You are smart and confident.
+| Feature | Start Here | Key Files |
+|---------|-----------|-----------|
+| Marketplace | `lib/screens/scripts_screen.dart` | service: `marketplace_open_api_service.dart`, model: `marketplace_script.dart` |
+| Script Upload | `lib/screens/script_upload_screen.dart` | service: `script_signature_service.dart` |
+| Script Execution | `lib/services/script_runner.dart` | FFI: `lib/rust/native_bridge.dart` |
+| Profile | `lib/controllers/profile_controller.dart` | repo: `profile_repository.dart`, model: `profile.dart` |
+| Account | `lib/controllers/account_controller.dart` | service: `account_signature_service.dart` |
+| Passkey | `lib/services/passkey_service.dart` | backend: `backend/src/services/passkey_service.rs` |
 
-ALWAYS REMOVE ALL DUPLICATION AND COMPLEXITY. No backward compatibility! No unnecessary complexity.
+## Test Commands
 
-CRITICAL: After you are done verify that changes are highly aligned with the project rules
+```bash
+# Quick verification (use constantly)
+just test-feature marketplace   # Marketplace browse/upload/download
+just test-feature scripts       # Script execution, Lua runtime
+just test-feature profile       # Profile/account management
 
-### Quick Reference
+# Full suite (before committing)
+just test                       # All tests (Rust + Flutter)
 
-| Task                  | Use                                                     | File                                  | Notes                                    |
-|-----------------------|---------------------------------------------------------|---------------------------------------|------------------------------------------|
-| Create test keypair   | `TestKeypairFactory.getEd25519Keypair()`                | `test_keypair_factory.dart`           | Creates ProfileKeypair for testing       |
-| Multiple test users   | `TestKeypairFactory.fromSeed(N)`                        | `test_keypair_factory.dart`           | Creates deterministic keypairs from seed |
-| Script upload request | `TestSignatureUtils.createTestScriptRequest()`          | `test_signature_utils.dart`           |                                          |
-| Generate signature    | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test_signature_utils.dart`           |                                          |
-| Keypair repository    | `FakeSecureKeypairRepository([keypairs])`               | `fake_secure_keypair_repository.dart` | In-memory keypair storage for tests      |
+# Specific file
+cd apps/autorun_flutter && flutter test test/features/marketplace/browse_test.dart
+```
 
-# MCP servers that you should use in the project
-- Use context7 mcp server if you would like to obtain additional information for a library or API
-- Use web-search-prime if you need to perform a web search
+## Test Helpers
 
-# Other notes
+| Need | Use | Location |
+|------|-----|----------|
+| Test keypair | `TestKeypairFactory.getEd25519Keypair()` | `test/shared/test_keypair_factory.dart` |
+| Multiple users | `TestKeypairFactory.fromSeed(N)` | `test/shared/test_keypair_factory.dart` |
+| Sign payload | `TestSignatureUtils.generateTestSignatureSync(payload)` | `test/shared/test_signature_utils.dart` |
+| In-memory storage | `FakeSecureKeypairRepository([keypairs])` | `test/shared/fake_repositories.dart` |
+| Upload request | `TestSignatureUtils.createTestScriptRequest()` | `test/shared/test_signature_utils.dart` |
 
-- Zero redundant data. Zero duplication. Backend is the single source of truth.
+## Before Making Changes
+
+1. **Find the feature** in the Feature Map above
+2. **Read the main screen/service** to understand current implementation
+3. **Check for existing tests** in `test/features/<feature>/`
+4. **Run the relevant test** to see current behavior: `just test-feature <name>`
+
+## After Making Changes
+
+1. **Run `just test-feature <name>`** - Must pass
+2. **Run `just test`** - Full suite must pass
+3. **Check `git diff`** - Changes should be minimal
+4. **Fix ALL lint errors**: `flutter analyze` must be clean
+
+## Writing Tests
+
+```dart
+// GOOD: Test user behavior, not implementation
+test('user can browse marketplace scripts', () async {
+  final result = await service.searchScripts(query: 'nns');
+  expect(result.scripts, isNotEmpty);
+  expect(result.scripts.first.title, contains('NNS'));
+});
+
+// BAD: Test implementation details
+test('searchScripts calls HTTP POST', () async {
+  // ...
+});
+```
+
+## Common Patterns
+
+### Adding a new API endpoint
+1. Add method to `marketplace_open_api_service.dart`
+2. Create test in `test/features/marketplace/`
+3. Run `just test-feature marketplace`
+
+### Adding a new screen
+1. Create screen in `lib/screens/`
+2. Create test in `test/features/<feature>/`
+3. If state needed, add to appropriate controller
+
+### Modifying script execution
+1. Change `script_runner.dart` or Rust FFI
+2. Add test in `test/features/scripts/`
+3. Run `just test-feature scripts`
+
+## Forbidden Patterns
+
+- ❌ `try { ... } catch (_) { /* ignore */ }` - Silent failures
+- ❌ `if (response.statusCode != 200) return null;` - Hidden errors
+- ❌ Fallback to cached data on API failure - No offline mode
+- ❌ Mocking cryptography in tests - Use real keypairs
+
+## MCP Servers
+
+- Use `context7` for library/API documentation
+- Use `web-search-prime` for web searches
+
+## Database Rule
+
+Never delete DB or tables. Ask the user if necessary.

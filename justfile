@@ -145,6 +145,83 @@ flutter-tests:
     echo "✅ All Flutter tests passed"
 
 # =============================================================================
+# Feature-Specific Testing (for rapid iteration)
+# =============================================================================
+
+# Test marketplace features (browse, upload, download)
+test-feature name:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "{{logs_dir}}"
+    
+    feature_dir="{{flutter_dir}}/test/features/{{name}}"
+    
+    # Check if feature test directory exists
+    if [ ! -d "$feature_dir" ]; then
+        # Fall back to pattern matching in existing test files
+        echo "==> No feature tests in test/features/{{name}}, searching existing tests..."
+        cd {{flutter_dir}} && flutter test --name="{{name}}" --timeout=120s 2>&1 | tee {{logs_dir}}/test-output.log
+        exit 0
+    fi
+    
+    echo "==> Testing feature: {{name}}"
+    
+    # Ensure API server is running for integration tests
+    api_started=0
+    cleanup() {
+        if [ "$api_started" -eq 1 ]; then
+            just api-dev-down
+        fi
+    }
+    trap cleanup EXIT
+    
+    # Check if we need the API server (look for integration tests)
+    if ls "$feature_dir"/*_test.dart 2>/dev/null | xargs grep -l "MarketplaceOpenApiService\|api.*test" 2>/dev/null; then
+        echo "==> Starting API server for integration tests..."
+        just api-dev-up
+        api_started=1
+        if [ -f "{{tmp_dir}}/api-env.sh" ]; then
+            source "{{tmp_dir}}/api-env.sh"
+        fi
+    fi
+    
+    # Run the feature tests
+    cd {{flutter_dir}} && flutter test "$feature_dir" --timeout=180s 2>&1 | tee {{logs_dir}}/test-output.log
+    
+    if grep -qiE "❌|FAILED|error:" {{logs_dir}}/test-output.log; then
+        echo "❌ Feature tests failed!"
+        exit 1
+    fi
+    echo "✅ Feature tests passed: {{name}}"
+
+# Quick test without API server (unit tests only)
+test-unit:
+    @echo "==> Running unit tests only (no API server)..."
+    cd {{flutter_dir}} && flutter test test/utils test/models --timeout=60s
+
+# Test marketplace specifically
+test-marketplace:
+    @just test-feature marketplace
+
+# Test scripts/execution specifically
+test-scripts:
+    @just test-feature scripts
+
+# Test profile/account specifically
+test-profile:
+    @just test-feature profile
+
+# Watch mode for rapid development
+test-watch name="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{name}}" ]; then
+        cd {{flutter_dir}} && flutter test test/features/{{name}} --watch
+    else
+        cd {{flutter_dir}} && flutter test --watch
+    fi
+
+# =============================================================================
 # Development API Server (Local Cargo-based)
 # =============================================================================
 

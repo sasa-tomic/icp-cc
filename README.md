@@ -5,74 +5,90 @@ A smooth, intuitive platform where users can discover, manage, and automate inte
 ## Quick Start
 
 ```bash
-./scripts/bootstrap.sh    # Install dependencies (one-time)
 ./install-just.sh         # Install Just build tool (one-time)
 just                      # Show all commands
 ```
+
+## For AI Agents (and Humans)
+
+**Start here:**
+1. Read [ARCHITECTURE.md](ARCHITECTURE.md) - 30-second system overview
+2. Check [TODO.md](TODO.md) - Current priorities
+3. Review [AGENTS.md](AGENTS.md) - Development rules and patterns
 
 ## Development
 
 ### Run the App
 ```bash
-# Linux
-just linux && cd apps/autorun_flutter && flutter run -d linux
-
-# With local API server
-just api-dev-up
-just flutter-dev-local
-
-# Android
-just android && cd apps/autorun_flutter && flutter run -d <device-id>
+just linux                # Build native library
+just api-dev-up           # Start local API server
+just flutter-dev-local    # Run Flutter with local API
 ```
 
-### API Server
+### Testing (Feature-Based)
+
 ```bash
-just api-dev-up           # Start local server (background)
-just api-dev-down         # Stop server
-just api-dev-logs         # View logs
-just api-dev-test         # Test endpoints
-just api-dev-reset        # Reset database
+just test-feature marketplace   # Marketplace browse/upload
+just test-feature scripts       # Script execution
+just test-feature profile       # Profile/account management
+just test                       # Full suite (Rust + Flutter)
 ```
 
-### Testing
-```bash
-just test                 # Run all tests (Rust + Flutter)
-just rust-tests           # Rust tests + clippy
-just flutter-tests        # Flutter tests
-```
+### Feature Test Locations
 
-### Build Platforms
-```bash
-just linux                # Linux desktop
-just android              # Android (all ABIs)
-just macos                # macOS
-just ios                  # iOS
-just windows              # Windows
-just all                  # All platforms
 ```
-
-### Docker Deployment
-```bash
-just docker-dev-up        # Start dev containers
-just docker-prod-up       # Start prod with Cloudflare Tunnel
-just docker-all-status    # Check all containers
+test/
+├── features/
+│   ├── marketplace/        # Browse, upload, download scripts
+│   ├── scripts/            # Lua execution, effects, UI
+│   ├── profile/            # Profiles, keypairs, accounts
+│   └── passkey/            # Passkey authentication
+└── shared/                 # Test helpers (keypairs, signatures)
 ```
 
 ## Repository Layout
 
 ```
 apps/autorun_flutter/     # Flutter application
-crates/icp_core/          # Rust FFI library
-backend/                  # Poem-based API server
-scripts/                  # Build helpers
-docs/                     # Architecture docs
+├── lib/
+│   ├── screens/           # UI screens
+│   ├── controllers/       # State management
+│   ├── services/          # Business logic + API
+│   ├── models/            # Data models
+│   └── rust/              # Dart FFI bindings
+├── test/
+│   ├── features/          # E2E tests by feature
+│   └── shared/            # Test utilities
+crates/icp_core/           # Rust FFI library (crypto, Lua, ICP)
+backend/                   # Poem-based API server
+docs/                      # Architecture documentation
+```
+
+## Key Files by Feature
+
+| Feature | Screen | Service | Test Directory |
+|---------|--------|---------|----------------|
+| Marketplace | `scripts_screen.dart` | `marketplace_open_api_service.dart` | `test/features/marketplace/` |
+| Script Upload | `script_upload_screen.dart` | `script_signature_service.dart` | `test/features/marketplace/` |
+| Script Execution | - | `script_runner.dart` | `test/features/scripts/` |
+| Profile | `profile_home_page.dart` | `profile_repository.dart` | `test/features/profile/` |
+| Account | `account_registration_wizard.dart` | `account_signature_service.dart` | `test/features/profile/` |
+
+## API Server
+
+```bash
+just api-dev-up           # Start local server (background)
+just api-dev-down         # Stop server
+just api-dev-logs         # View logs
+just api-dev-test         # Test endpoints
 ```
 
 ## Documentation
 
-- [TODO.md](TODO.md) - Active tasks
-- [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) - Security architecture
-- [docs/ACCOUNT_PROFILES_DESIGN.md](docs/ACCOUNT_PROFILES_DESIGN.md) - Account system
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture (read first)
+- [TODO.md](TODO.md) - Active tasks and priorities
+- [AGENTS.md](AGENTS.md) - Development rules and patterns
+- [docs/specs/](docs/specs/) - Detailed implementation status
 
 ## UX Principles
 
