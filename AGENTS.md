@@ -50,6 +50,20 @@ just test                       # All tests (Rust + Flutter)
 cd apps/autorun_flutter && flutter test test/features/marketplace/browse_test.dart
 ```
 
+## Passkey Testing on Linux
+
+The `passkeys` package does NOT support Linux desktop. Use Flutter Web:
+
+```bash
+# Run as web app (browser WebAuthn works with KeePassXC, YubiKey, Android phone)
+cd apps/autorun_flutter && flutter run -d chrome
+```
+
+**Supported authenticators via browser:**
+- KeePassXC (software authenticator)
+- Android phone via hybrid auth (QR code scan)
+- Hardware security keys (YubiKey, Titan Key)
+
 ## Test Helpers
 
 | Need | Use | Location |

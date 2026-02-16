@@ -129,7 +129,19 @@ CREATE TABLE user_vaults (
 | macOS 15+ | ✅ iCloud Keychain | ✅ | Full support |
 | Windows 11 | ✅ Windows Hello | ✅ | Full support |
 | Web (Chrome/Safari) | ✅ | ✅ | Full support |
-| Linux | ⚠️ Hardware keys only | ✅ | Limited passkey |
+| Linux Desktop | ❌ | ✅ | `passkeys` package unsupported |
+| Linux (via Web) | ✅ Browser WebAuthn | ✅ | Use `flutter run -d chrome` |
+
+### Linux Development Workflow
+
+The `passkeys` Flutter package does NOT support Linux natively. For Linux development:
+
+1. **Run as Web**: `flutter run -d chrome` - Browser WebAuthn handles passkeys
+2. **Authenticators that work via browser**:
+   - KeePassXC (software authenticator)
+   - Android phone via hybrid auth (QR code)
+   - Hardware security keys (YubiKey, Titan Key)
+3. **Platform check**: App should hide passkey UI on Linux desktop, show on Web
 
 ## References
 

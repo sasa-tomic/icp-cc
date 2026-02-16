@@ -4,17 +4,19 @@
 
 ## Current Focus
 
-**Goal:** Make marketplace and scripts fully usable (free scripts only) with comprehensive test coverage.
+**Goal:** Complete passkey UI integration and Linux support, then make marketplace fully usable.
 
-**Reality Check:** The marketplace is NOT production-ready. Core features lack tests, screens are untested, and the script execution flow needs work. Payments and messaging are explicitly out of scope until the foundation is solid.
+**Reality Check:** Passkey screens/services are implemented but NOT wired into navigation. The marketplace is NOT production-ready. Payments and messaging are explicitly out of scope until the foundation is solid.
 
 ## Implementation Summary
 
 | Area | Status | Completion |
 |------|--------|------------|
+| Passkey UI Integration | **IN PROGRESS** | 50% |
+| Linux Passkey Support | **IN PROGRESS** | 0% |
 | Profile Management | Complete | 95% |
 | Account Registration | Complete | 95% |
-| Passkey Auth | Complete | 95% |
+| Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
 | Script Execution (Lua) | Partial | 80% |
@@ -49,11 +51,28 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 **Tests (DONE):**
 - [x] PasskeyService unit tests
 - [x] Screen widget tests
+- [x] E2E tests with FakePasskeyAuthenticator (software emulator for CI)
+
+**UI Integration (CURRENT PRIORITY):**
+- [ ] Add "Passkeys" menu item to AccountProfileScreen (in the profile menu sheet)
+- [ ] Wire PasskeyManagementScreen into navigation from account profile
+- [ ] Prompt passkey setup after account registration (optional onboarding step)
+- [ ] Add passkey status indicator on account profile (shows count, last used)
+
+**Linux Support:**
+> **Note:** The `passkeys` package does NOT support Linux natively (only Android, iOS, macOS, Web, Windows).
+>
+> **Solution:** Run as Flutter Web on Linux. Browser WebAuthn works with:
+> - KeePassXC (software authenticator)
+> - Android phone via hybrid auth (QR code flow)
+> - Hardware security keys (YubiKey, etc.)
+
+- [ ] Document Linux testing workflow in AGENTS.md
+- [ ] Add platform check: disable passkey UI on Linux desktop, enable on Web
+- [ ] Test passkey flow via `flutter run -d chrome` on Linux
 
 **Remaining (for full production):**
 - [ ] Client-side vault decryption via Rust FFI (Argon2id + AES-GCM)
-- [ ] Integration flow: prompt passkey setup after account registration
-- [x] E2E tests with FakePasskeyAuthenticator (software emulator for CI)
 
 ### Profile Management
 
