@@ -4,9 +4,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
+import 'package:icp_autorun/models/account.dart';
+import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../test_helpers/fake_secure_keypair_repository.dart';
 import '../../test_helpers/test_keypair_factory.dart';
+
+class _MockMarketplaceService extends Mock
+    implements MarketplaceOpenApiService {}
 
 void main() {
   FlutterSecureStorage.setMockInitialValues({});
@@ -799,6 +805,305 @@ void main() {
       expect(keypair1.privateKey, equals(keypair2.privateKey));
       expect(keypair1.publicKey, equals(keypair2.publicKey));
       expect(keypair1.principal, equals(keypair2.principal));
+    });
+  });
+
+  group('ProfileController - Marketplace Integration', () {
+    setUpAll(() {
+      registerFallbackValue(AddPublicKeyRequest(
+        username: 'fallback',
+        newPublicKeyB64: 'fallback',
+        signingPublicKeyB64: 'fallback',
+        timestamp: 0,
+        nonce: 'fallback',
+        signature: 'fallback',
+      ));
+    });
+
+    test('addKeypairToProfile calls marketplace when profile has username',
+        () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final mockMarketplace = _MockMarketplaceService();
+      when(() => mockMarketplace.addPublicKey(
+            username: any(named: 'username'),
+            request: any(named: 'request'),
+          )).thenAnswer((_) async => AccountPublicKey(
+            id: 'key-1',
+            publicKey: 'test-public-key',
+            icPrincipal: 'test-principal',
+            isActive: true,
+            addedAt: DateTime.now(),
+          ));
+
+      final controller = ProfileController(
+        profileRepository: fakeRepo,
+        marketplaceService: mockMarketplace,
+      );
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      await controller.updateProfileUsername(
+        profileId: profile.id,
+        username: 'testuser',
+      );
+
+      await controller.addKeypairToProfile(
+        profileId: profile.id,
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      verify(() => mockMarketplace.addPublicKey(
+            username: 'testuser',
+            request: any(named: 'request'),
+          )).called(1);
+    });
+
+    test(
+        'addKeypairToProfile throws StateError when profile has username but MarketplaceService is null',
+        () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      await controller.updateProfileUsername(
+        profileId: profile.id,
+        username: 'testuser',
+      );
+
+      expect(
+        () => controller.addKeypairToProfile(
+          profileId: profile.id,
+          algorithm: KeyAlgorithm.ed25519,
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test(
+        'addKeypairToProfile propagates error when marketplace addPublicKey fails',
+        () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final mockMarketplace = _MockMarketplaceService();
+      when(() => mockMarketplace.addPublicKey(
+            username: any(named: 'username'),
+            request: any(named: 'request'),
+          )).thenThrow(Exception('Marketplace error'));
+
+      final controller = ProfileController(
+        profileRepository: fakeRepo,
+        marketplaceService: mockMarketplace,
+      );
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      await controller.updateProfileUsername(
+        profileId: profile.id,
+        username: 'testuser',
+      );
+
+      await expectLater(
+        () => controller.addKeypairToProfile(
+          profileId: profile.id,
+          algorithm: KeyAlgorithm.ed25519,
+        ),
+        throwsA(isA<Exception>()),
+      );
+    });
+  });
+
+  group('ProfileController - isBusy State Transitions', () {
+    test('createProfile sets isBusy during creation', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+      expect(controller.isBusy, isFalse);
+
+      final busyStates = <bool>[];
+      controller.addListener(() => busyStates.add(controller.isBusy));
+
+      await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      expect(busyStates, contains(true));
+      expect(controller.isBusy, isFalse);
+    });
+
+    test('addKeypairToProfile sets isBusy during operation', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final busyStates = <bool>[];
+      controller.addListener(() => busyStates.add(controller.isBusy));
+
+      await controller.addKeypairToProfile(
+        profileId: profile.id,
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      expect(busyStates, contains(true));
+      expect(controller.isBusy, isFalse);
+    });
+
+    test('deleteProfile sets isBusy during operation', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final busyStates = <bool>[];
+      controller.addListener(() => busyStates.add(controller.isBusy));
+
+      await controller.deleteProfile(profile.id);
+
+      expect(busyStates, contains(true));
+      expect(controller.isBusy, isFalse);
+    });
+
+    test('deleteKeypair sets isBusy during operation', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+      final updatedProfile = await controller.addKeypairToProfile(
+        profileId: profile.id,
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final busyStates = <bool>[];
+      controller.addListener(() => busyStates.add(controller.isBusy));
+
+      await controller.deleteKeypair(
+        profileId: profile.id,
+        keypairId: updatedProfile.keypairs.last.id,
+      );
+
+      expect(busyStates, contains(true));
+      expect(controller.isBusy, isFalse);
+    });
+
+    test('refresh sets isBusy during refresh', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final busyStates = <bool>[];
+      controller.addListener(() => busyStates.add(controller.isBusy));
+
+      await controller.refresh();
+
+      expect(busyStates, contains(true));
+      expect(controller.isBusy, isFalse);
+    });
+  });
+
+  group('ProfileController - Persistence', () {
+    test('createProfile persists to repository after creation', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+      expect(controller.profiles, isEmpty);
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final controller2 = ProfileController(profileRepository: fakeRepo);
+      await controller2.ensureLoaded();
+
+      expect(controller2.profiles, hasLength(1));
+      expect(controller2.profiles.first.id, equals(profile.id));
+      expect(controller2.profiles.first.name, equals('Test Profile'));
+    });
+
+    test('setActiveProfile persists to SharedPreferences', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(
+        profileRepository: fakeRepo,
+        preferences: prefs,
+      );
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      await controller.setActiveProfile(profile.id);
+
+      expect(prefs.getString('active_profile_id'), equals(profile.id));
+
+      final controller2 = ProfileController(
+        profileRepository: fakeRepo,
+        preferences: prefs,
+      );
+      await controller2.ensureLoaded();
+
+      expect(controller2.activeProfileId, equals(profile.id));
+    });
+
+    test('deleteProfile calls repository.deleteProfileSecureData', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'To Delete',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      expect(controller.profiles, hasLength(1));
+
+      await controller.deleteProfile(profile.id);
+
+      expect(controller.profiles, isEmpty);
+
+      final controller2 = ProfileController(profileRepository: fakeRepo);
+      await controller2.ensureLoaded();
+
+      expect(controller2.profiles, isEmpty);
     });
   });
 }

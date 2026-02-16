@@ -25,7 +25,8 @@ class MockMarketplaceOpenApiService {
         downloads: 10,
         rating: 4.5,
         reviewCount: 2,
-        luaSource: '-- Test script 1\nfunction init() return {}, {} end\nfunction view(state) return {type="text", text="Hello World"} end\nfunction update(msg, state) return state, {} end',
+        luaSource:
+            '-- Test script 1\nfunction init() return {}, {} end\nfunction view(state) return {type="text", text="Hello World"} end\nfunction update(msg, state) return state, {} end',
         createdAt: DateTime.now().subtract(const Duration(days: 1)),
         updatedAt: DateTime.now().subtract(const Duration(days: 1)),
         version: '1.0.0',
@@ -43,7 +44,8 @@ class MockMarketplaceOpenApiService {
         downloads: 5,
         rating: 3.0,
         reviewCount: 1,
-        luaSource: '-- Test script 2\nfunction init() return {}, {} end\nfunction view(state) return {type="text", text="Another test"} end\nfunction update(msg, state) return state, {} end',
+        luaSource:
+            '-- Test script 2\nfunction init() return {}, {} end\nfunction view(state) return {type="text", text="Another test"} end\nfunction update(msg, state) return state, {} end',
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
         updatedAt: DateTime.now().subtract(const Duration(days: 2)),
         version: '1.0.0',
@@ -75,16 +77,18 @@ class MockMarketplaceOpenApiService {
     int limit = 20,
     int offset = 0,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 100)); // Simulate network delay
+    await Future.delayed(
+        const Duration(milliseconds: 100)); // Simulate network delay
 
     var scripts = _mockScripts.values.toList();
 
     // Apply filters
     if (query != null && query.isNotEmpty) {
-      scripts = scripts.where((script) =>
-        script.title.toLowerCase().contains(query.toLowerCase()) ||
-        script.description.toLowerCase().contains(query.toLowerCase())
-      ).toList();
+      scripts = scripts
+          .where((script) =>
+              script.title.toLowerCase().contains(query.toLowerCase()) ||
+              script.description.toLowerCase().contains(query.toLowerCase()))
+          .toList();
     }
 
     if (category != null && category.isNotEmpty) {
@@ -108,34 +112,37 @@ class MockMarketplaceOpenApiService {
     // Apply sorting
     switch (sortBy) {
       case 'title':
-        scripts.sort((a, b) => sortOrder == 'asc' 
-          ? a.title.compareTo(b.title) 
-          : b.title.compareTo(a.title));
+        scripts.sort((a, b) => sortOrder == 'asc'
+            ? a.title.compareTo(b.title)
+            : b.title.compareTo(a.title));
         break;
       case 'rating':
-        scripts.sort((a, b) => sortOrder == 'asc' 
-          ? a.rating.compareTo(b.rating) 
-          : b.rating.compareTo(a.rating));
+        scripts.sort((a, b) => sortOrder == 'asc'
+            ? a.rating.compareTo(b.rating)
+            : b.rating.compareTo(a.rating));
         break;
       case 'downloads':
-        scripts.sort((a, b) => sortOrder == 'asc' 
-          ? a.downloads.compareTo(b.downloads) 
-          : b.downloads.compareTo(a.downloads));
+        scripts.sort((a, b) => sortOrder == 'asc'
+            ? a.downloads.compareTo(b.downloads)
+            : b.downloads.compareTo(a.downloads));
         break;
       case 'createdAt':
       default:
-        scripts.sort((a, b) => sortOrder == 'asc' 
-          ? a.createdAt.compareTo(b.createdAt) 
-          : b.createdAt.compareTo(a.createdAt));
+        scripts.sort((a, b) => sortOrder == 'asc'
+            ? a.createdAt.compareTo(b.createdAt)
+            : b.createdAt.compareTo(a.createdAt));
         break;
     }
 
     // Apply pagination with validation
     final total = scripts.length;
-    final validLimit = limit < 0 ? 20 : limit; // Default to 20 for invalid limit
-    final validOffset = offset < 0 ? 0 : offset; // Default to 0 for invalid offset
+    final validLimit =
+        limit < 0 ? 20 : limit; // Default to 20 for invalid limit
+    final validOffset =
+        offset < 0 ? 0 : offset; // Default to 0 for invalid offset
     final hasMore = validOffset + validLimit < total;
-    final paginatedScripts = scripts.skip(validOffset).take(validLimit).toList();
+    final paginatedScripts =
+        scripts.skip(validOffset).take(validLimit).toList();
 
     return MarketplaceSearchResult(
       scripts: paginatedScripts,
@@ -148,16 +155,18 @@ class MockMarketplaceOpenApiService {
 
   // Get script by ID
   Future<MarketplaceScript?> getScriptById(String scriptId) async {
-    await Future.delayed(const Duration(milliseconds: 50)); // Simulate network delay
+    await Future.delayed(
+        const Duration(milliseconds: 50)); // Simulate network delay
     return _mockScripts[scriptId];
   }
 
   // Upload script (returns script ID)
   Future<String> uploadScript(ScriptRecord scriptRecord) async {
-    await Future.delayed(const Duration(milliseconds: 200)); // Simulate network delay
+    await Future.delayed(
+        const Duration(milliseconds: 200)); // Simulate network delay
 
     final scriptId = 'mock_script_${_scriptIdCounter++}';
-    
+
     // Create MarketplaceScript from ScriptRecord
     final marketplaceScript = MarketplaceScript(
       id: scriptId,
@@ -187,7 +196,8 @@ class MockMarketplaceOpenApiService {
 
   // Update script
   Future<bool> updateScript(String scriptId, ScriptRecord updatedScript) async {
-    await Future.delayed(const Duration(milliseconds: 150)); // Simulate network delay
+    await Future.delayed(
+        const Duration(milliseconds: 150)); // Simulate network delay
 
     if (!_mockScripts.containsKey(scriptId)) {
       return false;
@@ -197,12 +207,16 @@ class MockMarketplaceOpenApiService {
     final updatedMarketplaceScript = MarketplaceScript(
       id: scriptId,
       title: updatedScript.title,
-      description: updatedScript.metadata['description'] ?? existingScript.description,
+      description:
+          updatedScript.metadata['description'] ?? existingScript.description,
       category: updatedScript.metadata['category'] ?? existingScript.category,
-      tags: List<String>.from(updatedScript.metadata['tags'] ?? existingScript.tags),
+      tags: List<String>.from(
+          updatedScript.metadata['tags'] ?? existingScript.tags),
       authorId: existingScript.authorId,
-      authorName: updatedScript.metadata['authorName'] ?? existingScript.authorName,
-      price: (updatedScript.metadata['price'] as num?)?.toDouble() ?? existingScript.price,
+      authorName:
+          updatedScript.metadata['authorName'] ?? existingScript.authorName,
+      price: (updatedScript.metadata['price'] as num?)?.toDouble() ??
+          existingScript.price,
       currency: existingScript.currency,
       downloads: existingScript.downloads,
       rating: existingScript.rating,
@@ -211,7 +225,8 @@ class MockMarketplaceOpenApiService {
       createdAt: existingScript.createdAt,
       updatedAt: updatedScript.updatedAt,
       version: updatedScript.metadata['version'] ?? existingScript.version,
-      isPublic: updatedScript.metadata['isPublic'] as bool? ?? existingScript.isPublic,
+      isPublic: updatedScript.metadata['isPublic'] as bool? ??
+          existingScript.isPublic,
     );
 
     _mockScripts[scriptId] = updatedMarketplaceScript;
@@ -222,7 +237,8 @@ class MockMarketplaceOpenApiService {
 
   // Delete script
   Future<bool> deleteScript(String scriptId) async {
-    await Future.delayed(const Duration(milliseconds: 100)); // Simulate network delay
+    await Future.delayed(
+        const Duration(milliseconds: 100)); // Simulate network delay
     _mockScripts.remove(scriptId);
     _mockScriptRecords.remove(scriptId);
     return true; // Always succeed for mock
@@ -230,22 +246,28 @@ class MockMarketplaceOpenApiService {
 
   // Get user scripts
   Future<List<MarketplaceScript>> getUserScripts() async {
-    await Future.delayed(const Duration(milliseconds: 100)); // Simulate network delay
-    return _mockScripts.values.where((script) => 
-      script.authorId == 'mock_author_id'
-    ).toList();
+    await Future.delayed(
+        const Duration(milliseconds: 100)); // Simulate network delay
+    return _mockScripts.values
+        .where((script) => script.authorId == 'mock_author_id')
+        .toList();
   }
 
   // Get marketplace stats
   Future<Map<String, dynamic>> getMarketplaceStats() async {
-    await Future.delayed(const Duration(milliseconds: 100)); // Simulate network delay
-    
+    await Future.delayed(
+        const Duration(milliseconds: 100)); // Simulate network delay
+
     final scripts = _mockScripts.values.toList();
-    final totalDownloads = scripts.fold<int>(0, (sum, script) => sum + script.downloads);
-    final averageRating = scripts.isEmpty ? 0.0 : 
-      scripts.fold<double>(0, (sum, script) => sum + script.rating) / scripts.length;
-    
-    final categories = scripts.map((script) => script.category).toSet().toList();
+    final totalDownloads =
+        scripts.fold<int>(0, (sum, script) => sum + script.downloads);
+    final averageRating = scripts.isEmpty
+        ? 0.0
+        : scripts.fold<double>(0, (sum, script) => sum + script.rating) /
+            scripts.length;
+
+    final categories =
+        scripts.map((script) => script.category).toSet().toList();
 
     return {
       'totalScripts': scripts.length,
