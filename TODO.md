@@ -53,7 +53,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 **Remaining (for full production):**
 - [ ] Client-side vault decryption via Rust FFI (Argon2id + AES-GCM)
 - [ ] Integration flow: prompt passkey setup after account registration
-- [ ] E2E tests on real device (WebAuthn requires hardware authenticator)
+- [x] E2E tests with FakePasskeyAuthenticator (software emulator for CI)
 
 ### Profile Management
 
@@ -100,7 +100,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] Integration tests for complete user flows
 
 **Cannot Test (requires hardware):**
-- WebAuthn passkey registration/authentication (needs real authenticator)
+- WebAuthn passkey registration/authentication (use FakePasskeyAuthenticator for CI; real device for final validation)
 
 ---
 

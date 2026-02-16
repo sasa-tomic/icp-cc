@@ -64,6 +64,9 @@ dev_dependencies:
   mockito: ^5.4.4
   mocktail: ^1.0.4
   build_runner: ^2.4.13
+  cbor: ^6.2.0
+  pointycastle: ^3.9.1
+  crypto: ^3.0.6
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
