@@ -5,6 +5,7 @@ import '../models/account.dart';
 import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../theme/app_design_system.dart';
+import '../utils/passkey_platform.dart';
 
 /// Account registration screen with single-page form
 ///
@@ -523,8 +524,17 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
 
       HapticFeedback.mediumImpact();
 
-      // Success! Close the screen and return the account
-      if (mounted) {
+      if (!mounted) return;
+
+      if (PasskeyPlatform.isSupported) {
+        final shouldSetupPasskey = await _showPasskeySetupPrompt(account);
+        if (!mounted) return;
+        if (shouldSetupPasskey == true) {
+          Navigator.pop(context, (account, true));
+        } else {
+          Navigator.pop(context, account);
+        }
+      } else {
         Navigator.pop(context, account);
       }
     } catch (e) {
@@ -533,5 +543,61 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
         _isRegistering = false;
       });
     }
+  }
+
+  Future<bool?> _showPasskeySetupPrompt(Account account) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.key, color: AppDesignSystem.primaryLight),
+            const SizedBox(width: 12),
+            const Text('Set Up Passkey?'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your account has been created successfully!',
+              style: AppDesignSystem.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Would you like to add a passkey for secure, passwordless login?',
+              style: AppDesignSystem.bodyMedium.copyWith(
+                color: AppDesignSystem.neutral600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You can always set this up later from your account settings.',
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: AppDesignSystem.neutral500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Skip for now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppDesignSystem.primaryLight,
+            ),
+            child: const Text('Set Up Passkey'),
+          ),
+        ],
+      ),
+    );
   }
 }

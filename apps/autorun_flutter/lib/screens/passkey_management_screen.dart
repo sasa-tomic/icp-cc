@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/passkey_service.dart';
 import '../theme/app_design_system.dart';
+import '../utils/passkey_platform.dart';
 
 class PasskeyManagementScreen extends StatefulWidget {
   const PasskeyManagementScreen({
@@ -29,6 +30,15 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
   }
 
   Future<void> _loadPasskeys() async {
+    if (!PasskeyPlatform.isSupported) {
+      setState(() {
+        _errorMessage =
+            'Passkeys are not supported on Linux desktop. Use Flutter Web (chrome) for passkey authentication.';
+        _isLoading = false;
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -90,7 +100,8 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppDesignSystem.errorDark),
+            style: TextButton.styleFrom(
+                foregroundColor: AppDesignSystem.errorDark),
             child: const Text('Delete'),
           ),
         ],
@@ -169,11 +180,13 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: AppDesignSystem.errorDark),
+            Icon(Icons.error_outline,
+                size: 48, color: AppDesignSystem.errorDark),
             const SizedBox(height: 16),
             Text(_errorMessage!, style: AppDesignSystem.bodyMedium),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadPasskeys, child: const Text('Retry')),
+            ElevatedButton(
+                onPressed: _loadPasskeys, child: const Text('Retry')),
           ],
         ),
       );
@@ -271,7 +284,7 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
                       ),
                       child: Text(
                         passkey.deviceType!,
-                        style: AppDesignSystem.labelSmall.copyWith(
+                        style: AppDesignSystem.caption.copyWith(
                           color: AppDesignSystem.neutral600,
                         ),
                       ),
@@ -290,12 +303,4 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
       ),
     );
   }
-}
-
-extension on BuildContext {
-  AppColors get colors => AppColors();
-}
-
-class AppColors {
-  Color get background => AppDesignSystem.neutral50;
 }

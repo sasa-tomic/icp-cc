@@ -33,7 +33,7 @@ Profile (Local + Backend)
 | Script Execution | `lib/services/script_runner.dart` | FFI: `lib/rust/native_bridge.dart` |
 | Profile | `lib/controllers/profile_controller.dart` | repo: `profile_repository.dart`, model: `profile.dart` |
 | Account | `lib/controllers/account_controller.dart` | service: `account_signature_service.dart` |
-| Passkey | `lib/services/passkey_service.dart` | backend: `backend/src/services/passkey_service.rs` |
+| Passkey | `lib/screens/passkey_management_screen.dart` | service: `passkey_service.dart`, platform: `utils/passkey_platform.dart` |
 
 ## Test Commands
 
@@ -63,6 +63,16 @@ cd apps/autorun_flutter && flutter run -d chrome
 - KeePassXC (software authenticator)
 - Android phone via hybrid auth (QR code scan)
 - Hardware security keys (YubiKey, Titan Key)
+
+**Platform Detection:**
+- `PasskeyPlatform.isSupported` - Returns `false` on Linux desktop
+- `PasskeyPlatform.isLinuxDesktop` - Returns `true` on Linux (not web)
+- `PasskeyPlatform.isWeb` - Returns `true` in browser
+
+**UI Behavior on Linux Desktop:**
+- Account profile shows warning card: "Passkeys require Web. Run with: flutter run -d chrome"
+- Passkey setup prompt is skipped after account registration
+- PasskeyManagementScreen shows error if opened directly
 
 ## Test Helpers
 

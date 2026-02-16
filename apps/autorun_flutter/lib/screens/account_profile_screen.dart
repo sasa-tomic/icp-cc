@@ -8,6 +8,8 @@ import '../controllers/profile_controller.dart';
 import '../theme/app_design_system.dart';
 import '../widgets/account_key_details_sheet.dart';
 import '../widgets/add_account_key_sheet.dart';
+import '../utils/passkey_platform.dart';
+import 'passkey_management_screen.dart';
 
 /// Account profile screen showing account details and key management
 ///
@@ -219,6 +221,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
               _buildAccountHeader(),
               const SizedBox(height: 24),
               _buildProfileSection(),
+              const SizedBox(height: 24),
+              _buildPasskeySection(),
               const SizedBox(height: 24),
               _buildKeysSection(),
             ],
@@ -538,6 +542,142 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         setState(() => _isRefreshing = false);
       }
     }
+  }
+
+  Widget _buildPasskeySection() {
+    if (PasskeyPlatform.isLinuxDesktop) {
+      return _buildLinuxUnsupportedCard();
+    }
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: context.colors.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'PASSKEYS',
+                  style: AppDesignSystem.bodySmall.copyWith(
+                    color: context.colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                Icon(
+                  Icons.key,
+                  color: AppDesignSystem.primaryLight,
+                  size: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Secure passwordless login using biometrics or security keys',
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: context.colors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => _navigateToPasskeyManagement(),
+              icon: const Icon(Icons.manage_accounts),
+              label: const Text('Manage Passkeys'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppDesignSystem.primaryLight,
+                side: BorderSide(color: AppDesignSystem.primaryLight),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLinuxUnsupportedCard() {
+    return Card(
+      elevation: 0,
+      color: AppDesignSystem.warningLight.withValues(alpha: 0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppDesignSystem.warningLight),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: AppDesignSystem.warningDark,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'PASSKEYS',
+                  style: AppDesignSystem.bodySmall.copyWith(
+                    color: AppDesignSystem.warningDark,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Passkeys are not supported on Linux desktop.',
+              style: AppDesignSystem.bodyMedium.copyWith(
+                color: AppDesignSystem.warningDark,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Use Flutter Web (chrome) to set up passkeys:',
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: AppDesignSystem.warningDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppDesignSystem.neutral100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'flutter run -d chrome',
+                style: AppDesignSystem.bodySmall.copyWith(
+                  fontFamily: 'monospace',
+                  color: AppDesignSystem.neutral700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateToPasskeyManagement() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PasskeyManagementScreen(
+          accountId: _account.id,
+          username: _account.username,
+        ),
+      ),
+    );
   }
 
   Widget _buildKeysSection() {

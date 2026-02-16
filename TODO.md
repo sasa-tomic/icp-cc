@@ -1,19 +1,19 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2025-02-15
+**Last Updated:** 2026-02-16
 
 ## Current Focus
 
-**Goal:** Complete passkey UI integration and Linux support, then make marketplace fully usable.
+**Goal:** Make marketplace fully usable. Passkey UI integration is COMPLETE.
 
-**Reality Check:** Passkey screens/services are implemented but NOT wired into navigation. The marketplace is NOT production-ready. Payments and messaging are explicitly out of scope until the foundation is solid.
+**Reality Check:** Passkey screens/services are now wired into navigation with platform detection. The marketplace is NOT production-ready. Payments and messaging are explicitly out of scope until the foundation is solid.
 
 ## Implementation Summary
 
 | Area | Status | Completion |
 |------|--------|------------|
-| Passkey UI Integration | **IN PROGRESS** | 50% |
-| Linux Passkey Support | **IN PROGRESS** | 0% |
+| Passkey UI Integration | **COMPLETE** | 100% |
+| Linux Passkey Support | **COMPLETE** | 100% |
 | Profile Management | Complete | 95% |
 | Account Registration | Complete | 95% |
 | Passkey Auth (backend) | Complete | 95% |
@@ -53,13 +53,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Screen widget tests
 - [x] E2E tests with FakePasskeyAuthenticator (software emulator for CI)
 
-**UI Integration (CURRENT PRIORITY):**
-- [ ] Add "Passkeys" menu item to AccountProfileScreen (in the profile menu sheet)
-- [ ] Wire PasskeyManagementScreen into navigation from account profile
-- [ ] Prompt passkey setup after account registration (optional onboarding step)
-- [ ] Add passkey status indicator on account profile (shows count, last used)
+**UI Integration (DONE):**
+- [x] Add "Passkeys" menu item to AccountProfileScreen (in the profile menu sheet)
+- [x] Wire PasskeyManagementScreen into navigation from account profile
+- [x] Prompt passkey setup after account registration (optional onboarding step)
+- [x] Add passkey status indicator on account profile (shows count, last used)
 
-**Linux Support:**
+**Linux Support (DONE):**
 > **Note:** The `passkeys` package does NOT support Linux natively (only Android, iOS, macOS, Web, Windows).
 >
 > **Solution:** Run as Flutter Web on Linux. Browser WebAuthn works with:
@@ -67,9 +67,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 > - Android phone via hybrid auth (QR code flow)
 > - Hardware security keys (YubiKey, etc.)
 
-- [ ] Document Linux testing workflow in AGENTS.md
-- [ ] Add platform check: disable passkey UI on Linux desktop, enable on Web
-- [ ] Test passkey flow via `flutter run -d chrome` on Linux
+- [x] Document Linux testing workflow in AGENTS.md
+- [x] Add platform check: disable passkey UI on Linux desktop, enable on Web
+- [x] Test passkey flow via `flutter run -d chrome` on Linux
 
 **Remaining (for full production):**
 - [ ] Client-side vault decryption via Rust FFI (Argon2id + AES-GCM)
@@ -96,7 +96,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 **Missing:**
 - [ ] Full AccountController test coverage (only `removePublicKey` tested)
 - [ ] AccountProfileScreen widget tests
-- [ ] Integration: redirect to passkey setup after registration
+- [x] Integration: redirect to passkey setup after registration
 
 ### Script Management
 - [ ] Add secp256k1 script signing via Rust FFI (throws `UnimplementedError` in `script_signature_service.dart:163`)
