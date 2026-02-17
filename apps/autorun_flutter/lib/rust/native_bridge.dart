@@ -19,6 +19,8 @@ class _Symbols {
   static const String luaAppInit = 'icp_lua_app_init';
   static const String luaAppView = 'icp_lua_app_view';
   static const String luaAppUpdate = 'icp_lua_app_update';
+  static const String encryptVault = 'icp_encrypt_vault';
+  static const String decryptVault = 'icp_decrypt_vault';
 }
 
 class RustKeypairResult {
@@ -30,6 +32,17 @@ class RustKeypairResult {
   final String publicKeyB64;
   final String privateKeyB64;
   final String principalText;
+}
+
+class EncryptedVaultResult {
+  EncryptedVaultResult({
+    required this.encryptedDataB64,
+    required this.saltB64,
+    required this.nonceB64,
+  });
+  final String encryptedDataB64;
+  final String saltB64;
+  final String nonceB64;
 }
 
 class RustBridgeLoader {
@@ -420,6 +433,78 @@ class RustBridgeLoader {
       // Memory managed by toNativeUtf8() - no manual free needed
     }
   }
+
+  // ---- Vault encryption (Argon2id + AES-256-GCM) ----
+
+  /// Encrypts plaintext using password-derived key.
+  /// Returns EncryptedVaultResult with base64-encoded fields, or throws on error.
+  EncryptedVaultResult? encryptVault({
+    required String password,
+    required String plaintextB64,
+  }) {
+    final lib = _open();
+    if (lib == null) return null;
+
+    final fn = lib.lookupFunction<_EncryptVaultNative, _EncryptVaultDart>(
+      _Symbols.encryptVault,
+    );
+    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+
+    final pwd = password.toNativeUtf8().cast<ffi.Int8>();
+    final pt = plaintextB64.toNativeUtf8().cast<ffi.Int8>();
+    final res = fn(pwd, pt);
+    if (res == ffi.nullptr) return null;
+    try {
+      final jsonStr = res.cast<pkg_ffi.Utf8>().toDartString();
+      final obj = json.decode(jsonStr) as Map<String, dynamic>;
+      if (obj['ok'] != true) {
+        throw VaultEncryptionException(
+            obj['error'] as String? ?? 'Encryption failed');
+      }
+      return EncryptedVaultResult(
+        encryptedDataB64: obj['encrypted_data'] as String,
+        saltB64: obj['salt'] as String,
+        nonceB64: obj['nonce'] as String,
+      );
+    } finally {
+      free(res);
+    }
+  }
+
+  /// Decrypts vault data using password-derived key.
+  /// Returns plaintext as base64 string, or throws on error.
+  String? decryptVault({
+    required String password,
+    required String encryptedDataB64,
+    required String saltB64,
+    required String nonceB64,
+  }) {
+    final lib = _open();
+    if (lib == null) return null;
+
+    final fn = lib.lookupFunction<_DecryptVaultNative, _DecryptVaultDart>(
+      _Symbols.decryptVault,
+    );
+    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+
+    final pwd = password.toNativeUtf8().cast<ffi.Int8>();
+    final ed = encryptedDataB64.toNativeUtf8().cast<ffi.Int8>();
+    final salt = saltB64.toNativeUtf8().cast<ffi.Int8>();
+    final nonce = nonceB64.toNativeUtf8().cast<ffi.Int8>();
+    final res = fn(pwd, ed, salt, nonce);
+    if (res == ffi.nullptr) return null;
+    try {
+      final jsonStr = res.cast<pkg_ffi.Utf8>().toDartString();
+      final obj = json.decode(jsonStr) as Map<String, dynamic>;
+      if (obj['ok'] != true) {
+        throw VaultDecryptionException(
+            obj['error'] as String? ?? 'Decryption failed');
+      }
+      return obj['plaintext'] as String;
+    } finally {
+      free(res);
+    }
+  }
 }
 
 // Convenience wrapper class for easier access
@@ -559,3 +644,41 @@ typedef _LuaAppUpdateDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
   int,
 );
+
+// Vault encryption FFI typedefs
+typedef _EncryptVaultNative = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>, // password
+  ffi.Pointer<ffi.Int8>, // plaintext_b64
+);
+typedef _EncryptVaultDart = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+);
+typedef _DecryptVaultNative = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>, // password
+  ffi.Pointer<ffi.Int8>, // encrypted_data_b64
+  ffi.Pointer<ffi.Int8>, // salt_b64
+  ffi.Pointer<ffi.Int8>, // nonce_b64
+);
+typedef _DecryptVaultDart = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+  ffi.Pointer<ffi.Int8>,
+);
+
+/// Exception thrown when vault encryption fails
+class VaultEncryptionException implements Exception {
+  VaultEncryptionException(this.message);
+  final String message;
+  @override
+  String toString() => 'VaultEncryptionException: $message';
+}
+
+/// Exception thrown when vault decryption fails
+class VaultDecryptionException implements Exception {
+  VaultDecryptionException(this.message);
+  final String message;
+  @override
+  String toString() => 'VaultDecryptionException: $message';
+}

@@ -72,7 +72,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Test passkey flow via `flutter run -d chrome` on Linux
 
 **Remaining (for full production):**
-- [ ] Client-side vault decryption via Rust FFI (Argon2id + AES-GCM)
+(none - vault decryption now available via Rust FFI)
 
 ### Profile Management
 

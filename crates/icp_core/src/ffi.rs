@@ -1,7 +1,9 @@
 use crate::{
     canister_client::{self, MethodKind},
     generate_ed25519_keypair, generate_secp256k1_keypair, lua_engine, principal_from_public_key,
-    sign_ed25519, sign_secp256k1, ValidationContext,
+    sign_ed25519, sign_secp256k1,
+    vault::{self, EncryptedVault},
+    ValidationContext,
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde_json::json;
@@ -439,4 +441,153 @@ pub unsafe extern "C" fn icp_lua_app_update(
     let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
     let out = lua_engine::app_update(s, m, st, budget_ms);
     CString::new(out).unwrap().into_raw()
+}
+
+// ---- Vault encryption FFI ----
+
+/// Encrypts data with AES-256-GCM using a password-derived key (Argon2id).
+///
+/// # Safety
+/// - `password` and `plaintext_b64` must be null or valid, null-terminated C strings.
+/// - `plaintext_b64` must contain base64-encoded plaintext data.
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+/// - JSON format on success: {"ok":true,"encrypted_data":"...","salt":"...","nonce":"..."}
+/// - JSON format on error: {"ok":false,"error":"..."}
+#[no_mangle]
+pub unsafe extern "C" fn icp_encrypt_vault(
+    password: *const c_char,
+    plaintext_b64: *const c_char,
+) -> *mut c_char {
+    if password.is_null() || plaintext_b64.is_null() {
+        let err_json = json!({"ok": false, "error": "Null parameters"}).to_string();
+        return CString::new(err_json).unwrap().into_raw();
+    }
+
+    let password_str = match CStr::from_ptr(password).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            let err_json = json!({"ok": false, "error": "Invalid password encoding"}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let plaintext_b64_str = match CStr::from_ptr(plaintext_b64).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            let err_json = json!({"ok": false, "error": "Invalid plaintext encoding"}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let plaintext = match B64.decode(plaintext_b64_str) {
+        Ok(b) => b,
+        Err(e) => {
+            let err_json =
+                json!({"ok": false, "error": format!("Failed to decode plaintext: {}", e)})
+                    .to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    match vault::encrypt_vault(password_str, &plaintext) {
+        Ok(encrypted) => {
+            let json = json!({
+                "ok": true,
+                "encrypted_data": B64.encode(&encrypted.encrypted_data),
+                "salt": B64.encode(&encrypted.salt),
+                "nonce": B64.encode(&encrypted.nonce)
+            })
+            .to_string();
+            CString::new(json).unwrap().into_raw()
+        }
+        Err(e) => {
+            let err_json = json!({"ok": false, "error": e}).to_string();
+            CString::new(err_json).unwrap().into_raw()
+        }
+    }
+}
+
+/// Decrypts AES-256-GCM encrypted data using a password-derived key (Argon2id).
+///
+/// # Safety
+/// - `password`, `encrypted_data_b64`, `salt_b64`, and `nonce_b64` must be null or valid,
+///   null-terminated C strings containing base64-encoded data.
+/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
+/// - JSON format on success: {"ok":true,"plaintext":"<base64>"}
+/// - JSON format on error: {"ok":false,"error":"..."}
+#[no_mangle]
+pub unsafe extern "C" fn icp_decrypt_vault(
+    password: *const c_char,
+    encrypted_data_b64: *const c_char,
+    salt_b64: *const c_char,
+    nonce_b64: *const c_char,
+) -> *mut c_char {
+    if password.is_null()
+        || encrypted_data_b64.is_null()
+        || salt_b64.is_null()
+        || nonce_b64.is_null()
+    {
+        let err_json = json!({"ok": false, "error": "Null parameters"}).to_string();
+        return CString::new(err_json).unwrap().into_raw();
+    }
+
+    let password_str = match CStr::from_ptr(password).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            let err_json = json!({"ok": false, "error": "Invalid password encoding"}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let encrypted_data = match B64.decode(CStr::from_ptr(encrypted_data_b64).to_str().unwrap_or(""))
+    {
+        Ok(b) => b,
+        Err(e) => {
+            let err_json =
+                json!({"ok": false, "error": format!("Failed to decode encrypted_data: {}", e)})
+                    .to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let salt = match B64.decode(CStr::from_ptr(salt_b64).to_str().unwrap_or("")) {
+        Ok(b) => b,
+        Err(e) => {
+            let err_json =
+                json!({"ok": false, "error": format!("Failed to decode salt: {}", e)}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let nonce = match B64.decode(CStr::from_ptr(nonce_b64).to_str().unwrap_or("")) {
+        Ok(b) => b,
+        Err(e) => {
+            let err_json =
+                json!({"ok": false, "error": format!("Failed to decode nonce: {}", e)}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    let vault = match EncryptedVault::new(encrypted_data, salt, nonce) {
+        Ok(v) => v,
+        Err(e) => {
+            let err_json = json!({"ok": false, "error": e}).to_string();
+            return CString::new(err_json).unwrap().into_raw();
+        }
+    };
+
+    match vault::decrypt_vault(password_str, &vault) {
+        Ok(plaintext) => {
+            let json = json!({
+                "ok": true,
+                "plaintext": B64.encode(&plaintext)
+            })
+            .to_string();
+            CString::new(json).unwrap().into_raw()
+        }
+        Err(e) => {
+            let err_json = json!({"ok": false, "error": e}).to_string();
+            CString::new(err_json).unwrap().into_raw()
+        }
+    }
 }

@@ -4,6 +4,7 @@ pub mod ffi;
 pub mod keypair;
 pub mod lua_engine;
 pub mod principal;
+pub mod vault;
 
 // Include Wasm exports when target is wasm32
 #[cfg(target_arch = "wasm32")]
@@ -18,3 +19,4 @@ pub use lua_engine::{
     ValidationResult,
 };
 pub use principal::{der_encode_public_key, principal_from_der, principal_from_public_key};
+pub use vault::{decrypt_vault, encrypt_vault, derive_key, generate_salt, generate_nonce, EncryptedVault};
