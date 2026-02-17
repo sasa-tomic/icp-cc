@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:passkeys/passkey_auth.dart';
-import 'package:passkeys/types.dart';
+import 'passkey_authenticator.dart';
 import '../config/app_config.dart';
+import '../utils/passkey_platform.dart';
 
-/// Service for passkey authentication and vault operations
 class PasskeyService {
   static final PasskeyService _instance = PasskeyService._internal();
   factory PasskeyService() => _instance;
@@ -14,32 +13,22 @@ class PasskeyService {
   String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1';
   final Duration _timeout = const Duration(seconds: 30);
   http.Client _httpClient;
-  late final PasskeyAuth _passkeys;
-  bool _initialized = false;
+  final NativePasskeyAuthenticator _authenticator =
+      NativePasskeyAuthenticator();
 
   @visibleForTesting
   void overrideHttpClient(http.Client client) => _httpClient = client;
 
-  /// Initialize the passkey authenticator
-  Future<void> initialize() async {
-    if (_initialized) return;
-    _passkeys = PasskeyAuth(PasskeyAuthenticator());
-    _initialized = true;
-  }
-
-  // ============================================================================
-  // Passkey Registration
-  // ============================================================================
-
-  /// Start passkey registration for an account
   Future<PasskeyRegistrationResult> registerPasskey({
     required String accountId,
     required String username,
     String? deviceName,
   }) async {
-    await initialize();
+    if (!PasskeyPlatform.isSupported) {
+      throw PasskeyException(
+          'Passkeys not supported on this platform. Use Web (flutter run -d chrome).');
+    }
 
-    // 1. Get registration options from backend
     final startResponse = await _post('/passkey/register/start', {
       'account_id': accountId,
       'username': username,
@@ -48,15 +37,11 @@ class PasskeyService {
     final challengeId = options['challenge_id'] as String;
     final webAuthnOptions = options['options'] as Map<String, dynamic>;
 
-    // 2. Create credential using platform authenticator
-    final credential = await _passkeys.register(
-      RegisterRequestType.fromJson(webAuthnOptions),
-    );
+    final credential = await _authenticator.register(webAuthnOptions);
 
-    // 3. Complete registration on backend
     final finishResponse = await _post('/passkey/register/finish', {
       'challenge_id': challengeId,
-      'credential': credential.toJson(),
+      'credential': credential,
       'device_name': deviceName,
       'device_type': _getPlatformDeviceType(),
     });
@@ -64,17 +49,14 @@ class PasskeyService {
     return PasskeyRegistrationResult.fromJson(finishResponse['data']);
   }
 
-  // ============================================================================
-  // Passkey Authentication
-  // ============================================================================
-
-  /// Authenticate using passkey
   Future<PasskeyAuthResult> authenticateWithPasskey({
     required String accountId,
   }) async {
-    await initialize();
+    if (!PasskeyPlatform.isSupported) {
+      throw PasskeyException(
+          'Passkeys not supported on this platform. Use Web (flutter run -d chrome).');
+    }
 
-    // 1. Get authentication options from backend
     final startResponse = await _post('/passkey/authenticate/start', {
       'account_id': accountId,
     });
@@ -82,15 +64,11 @@ class PasskeyService {
     final challengeId = options['challenge_id'] as String;
     final webAuthnOptions = options['options'] as Map<String, dynamic>;
 
-    // 2. Get assertion from platform authenticator
-    final credential = await _passkeys.authenticate(
-      AuthenticateRequestType.fromJson(webAuthnOptions),
-    );
+    final credential = await _authenticator.authenticate(webAuthnOptions);
 
-    // 3. Verify on backend
     final finishResponse = await _post('/passkey/authenticate/finish', {
       'challenge_id': challengeId,
-      'credential': credential.toJson(),
+      'credential': credential,
     });
 
     return PasskeyAuthResult(
@@ -98,18 +76,12 @@ class PasskeyService {
     );
   }
 
-  // ============================================================================
-  // Passkey Management
-  // ============================================================================
-
-  /// List all passkeys for an account
   Future<List<PasskeyInfo>> listPasskeys(String accountId) async {
     final response = await _get('/passkey/list/$accountId');
     final data = response['data'] as List;
     return data.map((p) => PasskeyInfo.fromJson(p)).toList();
   }
 
-  /// Delete a passkey
   Future<void> deletePasskey({
     required String passkeyId,
     required String accountId,
@@ -117,17 +89,12 @@ class PasskeyService {
     await _delete('/passkey/$passkeyId', body: {'account_id': accountId});
   }
 
-  // ============================================================================
-  // Recovery Codes
-  // ============================================================================
-
-  /// Generate new recovery codes (invalidates old ones)
   Future<RecoveryCodesResult> generateRecoveryCodes(String accountId) async {
-    final response = await _post('/recovery/generate', {'account_id': accountId});
+    final response =
+        await _post('/recovery/generate', {'account_id': accountId});
     return RecoveryCodesResult.fromJson(response['data']);
   }
 
-  /// Verify a recovery code (marks it as used if valid)
   Future<bool> verifyRecoveryCode({
     required String accountId,
     required String code,
@@ -139,17 +106,11 @@ class PasskeyService {
     return response['data']['valid'] as bool;
   }
 
-  /// Get number of unused recovery codes
   Future<int> getRecoveryCodeStatus(String accountId) async {
     final response = await _get('/recovery/status/$accountId');
     return response['data']['remaining_codes'] as int;
   }
 
-  // ============================================================================
-  // Vault Operations
-  // ============================================================================
-
-  /// Create encrypted vault
   Future<void> createVault({
     required String accountId,
     required String password,
@@ -162,7 +123,6 @@ class PasskeyService {
     });
   }
 
-  /// Get encrypted vault data
   Future<VaultData?> getVault(String accountId) async {
     try {
       final response = await _get('/vault?account_id=$accountId');
@@ -175,7 +135,6 @@ class PasskeyService {
     }
   }
 
-  /// Update encrypted vault
   Future<void> updateVault({
     required String accountId,
     required String password,
@@ -188,23 +147,19 @@ class PasskeyService {
     });
   }
 
-  // ============================================================================
-  // HTTP Helpers
-  // ============================================================================
-
   String _getPlatformDeviceType() {
     if (kIsWeb) return 'cross-platform';
     return 'platform';
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
-    final response = await _httpClient
-        .get(Uri.parse('$_baseUrl$path'))
-        .timeout(_timeout);
+    final response =
+        await _httpClient.get(Uri.parse('$_baseUrl$path')).timeout(_timeout);
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> _post(
+      String path, Map<String, dynamic> body) async {
     final response = await _httpClient
         .post(
           Uri.parse('$_baseUrl$path'),
@@ -215,7 +170,8 @@ class PasskeyService {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> _put(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> _put(
+      String path, Map<String, dynamic> body) async {
     final response = await _httpClient
         .put(
           Uri.parse('$_baseUrl$path'),
@@ -256,10 +212,6 @@ class PasskeyService {
     }
   }
 }
-
-// ============================================================================
-// Models
-// ============================================================================
 
 class PasskeyException implements Exception {
   final String message;
@@ -341,7 +293,8 @@ class VaultData {
   final String salt;
   final String nonce;
 
-  VaultData({required this.encryptedData, required this.salt, required this.nonce});
+  VaultData(
+      {required this.encryptedData, required this.salt, required this.nonce});
 
   factory VaultData.fromJson(Map<String, dynamic> json) {
     return VaultData(
