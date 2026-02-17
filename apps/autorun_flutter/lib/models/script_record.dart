@@ -10,8 +10,8 @@ class ScriptRecord {
     required this.createdAt,
     required this.updatedAt,
     this.metadata = const {},
-  }) : assert(emoji == null || emoji.isNotEmpty),
-       assert(imageUrl == null || imageUrl.isNotEmpty);
+  })  : assert(emoji == null || emoji.isNotEmpty),
+        assert(imageUrl == null || imageUrl.isNotEmpty);
 
   final String id;
   final String title;
@@ -20,24 +20,26 @@ class ScriptRecord {
   final String luaSource; // The Lua script source code
   final DateTime createdAt;
   final DateTime updatedAt;
-  final Map<String, dynamic> metadata; // Additional metadata for marketplace integration
+  final Map<String, dynamic>
+      metadata; // Additional metadata for marketplace integration
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-    'id': id,
-    'title': title,
-    'emoji': emoji,
-    'imageUrl': imageUrl,
-    'luaSource': luaSource,
-    'createdAt': createdAt.toIso8601String(),
-    'updatedAt': updatedAt.toIso8601String(),
-    'metadata': metadata,
-  };
+        'id': id,
+        'title': title,
+        'emoji': emoji,
+        'imageUrl': imageUrl,
+        'luaSource': luaSource,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'metadata': metadata,
+      };
 
   factory ScriptRecord.fromJson(Map<String, dynamic> json) {
     final String id = json['id'] as String? ?? '';
     final String title = json['title'] as String? ?? '';
     if (id.isEmpty || title.isEmpty) {
-      throw const FormatException('ScriptRecord requires non-empty id and title');
+      throw const FormatException(
+          'ScriptRecord requires non-empty id and title');
     }
     final String luaSource = json['luaSource'] as String? ?? '';
     if (luaSource.isEmpty) {
@@ -61,6 +63,7 @@ class ScriptRecord {
     String? imageUrl,
     String? luaSource,
     DateTime? updatedAt,
+    Map<String, dynamic>? metadata,
   }) {
     return ScriptRecord(
       id: id,
@@ -70,6 +73,7 @@ class ScriptRecord {
       luaSource: luaSource ?? this.luaSource,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      metadata: metadata ?? this.metadata,
     );
   }
 

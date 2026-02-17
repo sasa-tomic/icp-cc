@@ -100,7 +100,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 ### Script Management
 - [x] Add secp256k1 script signing via Rust FFI
-- [ ] Implement SHA256 checksums for script integrity verification
+- [x] Implement SHA256 checksums for script integrity verification
 - [ ] Add support for installing specific script versions locally
 
 ### Lua Scripting UI

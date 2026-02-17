@@ -212,8 +212,11 @@ class ScriptController extends ChangeNotifier {
       throw ArgumentError('title is required');
     }
     // Default to a sensible emoji when none provided.
-    String? finalEmoji = (emoji != null && emoji.trim().isNotEmpty) ? emoji.trim() : null;
-    String? finalImageUrl = (imageUrl != null && imageUrl.trim().isNotEmpty) ? imageUrl.trim() : null;
+    String? finalEmoji =
+        (emoji != null && emoji.trim().isNotEmpty) ? emoji.trim() : null;
+    String? finalImageUrl = (imageUrl != null && imageUrl.trim().isNotEmpty)
+        ? imageUrl.trim()
+        : null;
     if (finalEmoji == null && finalImageUrl == null) {
       finalEmoji = '📜';
     }
@@ -221,9 +224,10 @@ class ScriptController extends ChangeNotifier {
     try {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now().toUtc();
-      final String defaultLua = luaSourceOverride == null || luaSourceOverride.trim().isEmpty
-          ? kDefaultSampleLua
-          : luaSourceOverride;
+      final String defaultLua =
+          luaSourceOverride == null || luaSourceOverride.trim().isEmpty
+              ? kDefaultSampleLua
+              : luaSourceOverride;
 
       final ScriptRecord record = ScriptRecord(
         id: id,
@@ -250,15 +254,20 @@ class ScriptController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateSource({required String id, required String luaSource}) async {
+  Future<void> updateSource(
+      {required String id, required String luaSource}) async {
     final int idx = _scripts.indexWhere((ScriptRecord r) => r.id == id);
     if (idx < 0) {
       throw ArgumentError('Script not found: $id');
     }
     final ScriptRecord current = _scripts[idx];
+    final Map<String, dynamic> updatedMetadata =
+        Map<String, dynamic>.from(current.metadata);
+    updatedMetadata.remove('sha256_checksum');
     final ScriptRecord updated = current.copyWith(
       luaSource: luaSource,
       updatedAt: DateTime.now().toUtc(),
+      metadata: updatedMetadata,
     );
     _scripts[idx] = updated;
     await _repository.persistScripts(_scripts);
@@ -279,8 +288,11 @@ class ScriptController extends ChangeNotifier {
     if (trimmedTitle.isEmpty) {
       throw ArgumentError('title is required');
     }
-    String? finalEmoji = (emoji != null && emoji.trim().isNotEmpty) ? emoji.trim() : null;
-    String? finalImageUrl = (imageUrl != null && imageUrl.trim().isNotEmpty) ? imageUrl.trim() : null;
+    String? finalEmoji =
+        (emoji != null && emoji.trim().isNotEmpty) ? emoji.trim() : null;
+    String? finalImageUrl = (imageUrl != null && imageUrl.trim().isNotEmpty)
+        ? imageUrl.trim()
+        : null;
     if (finalEmoji == null && finalImageUrl == null) {
       finalEmoji = '📜';
     }
@@ -302,7 +314,8 @@ class ScriptController extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _areScriptListsEqual(List<ScriptRecord> list1, List<ScriptRecord> list2) {
+  bool _areScriptListsEqual(
+      List<ScriptRecord> list1, List<ScriptRecord> list2) {
     if (list1.length != list2.length) return false;
     for (int i = 0; i < list1.length; i++) {
       if (list1[i].id != list2[i].id ||

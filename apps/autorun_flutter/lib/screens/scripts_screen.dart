@@ -11,6 +11,7 @@ import '../services/script_repository.dart';
 import '../services/script_runner.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
+import '../services/script_integrity_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/modern_empty_state.dart';
@@ -274,6 +275,10 @@ class _ScriptsScreenState extends State<ScriptsScreen>
       // Download script source
       final luaSource = await _marketplaceService.downloadScript(script.id);
 
+      // Compute integrity checksum
+      final integrityService = ScriptIntegrityService();
+      final sha256Checksum = integrityService.computeChecksum(luaSource);
+
       // Create local script with marketplace metadata
       final createdScript = await _controller.createScript(
         title: '${script.title} (Marketplace)',
@@ -285,6 +290,7 @@ class _ScriptsScreenState extends State<ScriptsScreen>
           'marketplace_author': script.authorName,
           'marketplace_version': script.version ?? '1.0.0',
           'downloaded_at': DateTime.now().toIso8601String(),
+          'sha256_checksum': sha256Checksum,
         },
       );
 
@@ -364,6 +370,25 @@ class _ScriptsScreenState extends State<ScriptsScreen>
   }
 
   Future<void> _runScript(ScriptRecord record) async {
+    // Verify integrity for marketplace scripts
+    final checksum = record.metadata['sha256_checksum'] as String?;
+    if (checksum != null) {
+      final integrityService = ScriptIntegrityService();
+      try {
+        integrityService.verifyChecksum(record.luaSource, checksum,
+            scriptId: record.id);
+      } on ScriptIntegrityException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Script integrity check failed: ${e.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
     // Launch persistent app host for TEA-style scripts
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute<void>(
