@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-16
+**Last Updated:** 2026-02-17
 
 ## Current Focus
 
@@ -99,7 +99,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Integration: redirect to passkey setup after registration
 
 ### Script Management
-- [ ] Add secp256k1 script signing via Rust FFI (throws `UnimplementedError` in `script_signature_service.dart:163`)
+- [x] Add secp256k1 script signing via Rust FFI
 - [ ] Implement SHA256 checksums for script integrity verification
 - [ ] Add support for installing specific script versions locally
 
@@ -195,7 +195,6 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 | Issue | Location | Severity |
 |-------|----------|----------|
-| secp256k1 script signing throws `UnimplementedError` | `lib/services/script_signature_service.dart:163` | HIGH |
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
 | Returns empty arrays on connection failure (anti-pattern) | `lib/services/marketplace_open_api_service.dart:168,196` | MEDIUM |
 

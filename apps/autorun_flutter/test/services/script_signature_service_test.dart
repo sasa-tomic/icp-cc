@@ -195,6 +195,118 @@ void main() {
     });
   });
 
+  group('ScriptSignatureService secp256k1', () {
+    late ProfileKeypair keypair;
+    late String principal;
+
+    setUpAll(() async {
+      keypair = await TestKeypairFactory.getSecp256k1Keypair();
+      principal = PrincipalUtils.textFromRecord(keypair);
+    });
+
+    test('signScriptUpload produces valid secp256k1 signature', () async {
+      final timestamp = '2025-01-01T00:00:00Z';
+      final signature = await ScriptSignatureService.signScriptUpload(
+        authorKeypair: keypair,
+        title: 'Secp256k1 Script',
+        description: 'Test secp256k1 signing',
+        category: 'utilities',
+        luaSource: 'print("hello")',
+        version: '1.0.0',
+        tags: ['test'],
+        timestampIso: timestamp,
+      );
+
+      final sigBytes = base64Decode(signature);
+      expect(sigBytes.length, equals(64),
+          reason: 'ECDSA compact signature is 64 bytes');
+    });
+
+    test('signScriptUpdate produces valid secp256k1 signature', () async {
+      const scriptId = 'script-secp-123';
+      final timestamp = '2025-01-01T00:00:00Z';
+
+      final signature = await ScriptSignatureService.signScriptUpdate(
+        authorKeypair: keypair,
+        scriptId: scriptId,
+        updates: {'title': 'Updated Title'},
+        timestampIso: timestamp,
+      );
+
+      final sigBytes = base64Decode(signature);
+      expect(sigBytes.length, equals(64),
+          reason: 'ECDSA compact signature is 64 bytes');
+    });
+
+    test('signScriptDeletion produces valid secp256k1 signature', () async {
+      const scriptId = 'script-secp-456';
+      final timestamp = '2025-02-02T03:04:05Z';
+
+      final signature = await ScriptSignatureService.signScriptDeletion(
+        authorKeypair: keypair,
+        scriptId: scriptId,
+        timestampIso: timestamp,
+      );
+
+      final sigBytes = base64Decode(signature);
+      expect(sigBytes.length, equals(64),
+          reason: 'ECDSA compact signature is 64 bytes');
+    });
+
+    test('different payloads produce different signatures', () async {
+      final sig1 = await ScriptSignatureService.signScriptUpload(
+        authorKeypair: keypair,
+        title: 'Script A',
+        description: 'Description A',
+        category: 'utilities',
+        luaSource: 'print("a")',
+        version: '1.0.0',
+        tags: [],
+        timestampIso: '2025-01-01T00:00:00Z',
+      );
+
+      final sig2 = await ScriptSignatureService.signScriptUpload(
+        authorKeypair: keypair,
+        title: 'Script B',
+        description: 'Description B',
+        category: 'utilities',
+        luaSource: 'print("b")',
+        version: '1.0.0',
+        tags: [],
+        timestampIso: '2025-01-01T00:00:00Z',
+      );
+
+      expect(sig1, isNot(equals(sig2)),
+          reason: 'Different payloads must produce different signatures');
+    });
+
+    test('throws StateError when Rust bridge fails with invalid key', () async {
+      final badKeypair = ProfileKeypair(
+        id: 'test-id',
+        label: 'Bad Key',
+        algorithm: KeyAlgorithm.secp256k1,
+        publicKey: base64Encode(List.filled(65, 0)),
+        privateKey: base64Encode(List.filled(32, 0)),
+        mnemonic: 'test mnemonic',
+        createdAt: DateTime.now(),
+        principal: 'test-principal',
+      );
+
+      await expectLater(
+        () => ScriptSignatureService.signScriptUpload(
+          authorKeypair: badKeypair,
+          title: 'Test',
+          description: 'Test',
+          category: 'test',
+          luaSource: 'print(1)',
+          version: '1.0.0',
+          tags: [],
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+  });
+
   test('canonicalizeUpdateFields sorts tags and filters unsupported keys', () {
     final canonical = ScriptSignatureService.canonicalizeUpdateFields({
       'tags': ['beta', 'alpha'],

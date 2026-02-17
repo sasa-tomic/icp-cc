@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import '../models/profile_keypair.dart';
+import '../rust/native_bridge.dart';
 import '../utils/principal.dart';
 
 /// Digital signature service for ICP marketplace operations
@@ -160,11 +161,20 @@ class ScriptSignatureService {
         return base64Encode(signature.bytes);
 
       case KeyAlgorithm.secp256k1:
-        // TODO: Implement proper secp256k1 ECDSA signature using Rust FFI
-        // For now, throw to indicate this needs Rust bridge implementation
-        // The elliptic Dart package doesn't provide the right signing API
-        throw UnimplementedError(
-            'secp256k1 signatures require Rust FFI bridge - use Ed25519 for now');
+        final messageB64 = base64Encode(payloadBytes);
+        final result = const RustBridgeLoader().signMessage(
+          alg: 1,
+          messageB64: messageB64,
+          privateKeyB64: keypair.privateKey,
+        );
+        if (result == null) {
+          throw StateError('secp256k1 signing failed: Rust bridge unavailable');
+        }
+        final response = jsonDecode(result) as Map<String, dynamic>;
+        if (response['ok'] != true) {
+          throw StateError('secp256k1 signing failed: ${response['error']}');
+        }
+        return response['signature'] as String;
     }
   }
 
