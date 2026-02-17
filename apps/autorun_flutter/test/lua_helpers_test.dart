@@ -282,16 +282,77 @@ class MockBridge implements ScriptBridge {
     if (script.contains('return icp_table(') ||
         (script.contains('icp_table(') &&
             !script.contains('function icp_table'))) {
+      final columns = <Map<String, dynamic>>[];
+      final rows = <Map<String, dynamic>>[];
+      String title = '';
+
+      if (script.contains('columns = {')) {
+        if (script.contains('key = "name"')) {
+          columns.add({'key': 'name', 'label': 'Name'});
+        }
+        if (script.contains('key = "balance"')) {
+          columns.add({'key': 'balance', 'label': 'Balance'});
+        }
+        if (script.contains('key = "id"')) {
+          columns.add({'key': 'id', 'label': 'id'});
+        }
+        if (script.contains('key = "status"')) {
+          columns.add({'key': 'status', 'label': 'status'});
+        }
+      }
+
+      final hasEmptyRows =
+          script.contains('rows = {}') || script.contains('rows={}');
+      final hasExplicitRows = script.contains('rows = {') && !hasEmptyRows;
+
+      if (hasExplicitRows) {
+        if (script.contains('Alice')) {
+          rows.add({'name': 'Alice', 'balance': '100 ICP'});
+        }
+        if (script.contains('Bob')) {
+          rows.add({'name': 'Bob', 'balance': '200 ICP'});
+        }
+        if (script.contains('"active"')) {
+          rows.add({'id': 1, 'status': 'active'});
+        }
+        if (script.contains('"inactive"')) {
+          rows.add({'id': 2, 'status': 'inactive'});
+        }
+      } else if (arg?['rows'] != null && !hasEmptyRows) {
+        rows.addAll((arg!['rows'] as List).cast<Map<String, dynamic>>());
+      }
+
+      if (script.contains('title = "Account Balances"')) {
+        title = 'Account Balances';
+      }
+
+      if (columns.isEmpty && rows.isNotEmpty) {
+        for (final key in rows.first.keys) {
+          columns.add({'key': key, 'label': key});
+        }
+      }
+
+      final useDefaultRows = rows.isEmpty && !hasEmptyRows && !hasExplicitRows;
+
       return json.encode({
         'ok': true,
         'result': {
           'action': 'ui',
           'ui': {
-            'type': 'result_display',
+            'type': 'table',
             'props': {
-              'data':
-                  arg?['data'] ?? {'column1': 'value1', 'column2': 'value2'},
-              'title': 'Table Data'
+              'columns': columns.isNotEmpty
+                  ? columns
+                  : [
+                      {'key': 'column1', 'label': 'Column 1'},
+                      {'key': 'column2', 'label': 'Column 2'}
+                    ],
+              'rows': useDefaultRows
+                  ? [
+                      {'column1': 'value1', 'column2': 'value2'}
+                    ]
+                  : rows,
+              'title': title
             }
           }
         }
@@ -476,11 +537,18 @@ void main() {
     });
 
     group('icp_table Helper', () {
-      test('generates table UI with data', () async {
+      test('generates table UI with columns and rows', () async {
         const script = '''
           return icp_table({
-            column1 = "Value 1",
-            column2 = "Value 2"
+            columns = {
+              { key = "name", label = "Name" },
+              { key = "balance", label = "Balance" }
+            },
+            rows = {
+              { name = "Alice", balance = "100 ICP" },
+              { name = "Bob", balance = "200 ICP" }
+            },
+            title = "Account Balances"
           })
         ''';
 
@@ -493,10 +561,76 @@ void main() {
         expect(uiResult['action'], equals('ui'));
 
         final ui = uiResult['ui'] as Map<String, dynamic>;
-        expect(ui['type'], equals('result_display'));
+        expect(ui['type'], equals('table'));
 
         final props = ui['props'] as Map<String, dynamic>;
-        expect(props['title'], equals('Table Data'));
+        expect(props['title'], equals('Account Balances'));
+        expect(props['columns'], isA<List>());
+        expect(props['rows'], isA<List>());
+
+        final columns = props['columns'] as List;
+        expect(columns.length, equals(2));
+        expect(columns[0]['key'], equals('name'));
+        expect(columns[0]['label'], equals('Name'));
+
+        final rows = props['rows'] as List;
+        expect(rows.length, equals(2));
+        expect(rows[0]['name'], equals('Alice'));
+        expect(rows[0]['balance'], equals('100 ICP'));
+      });
+
+      test('auto-generates columns from row data', () async {
+        const script = '''
+          return icp_table({
+            rows = {
+              { id = 1, status = "active" },
+              { id = 2, status = "inactive" }
+            }
+          })
+        ''';
+
+        final plan = ScriptRunPlan(luaSource: script);
+        final result = await runner.run(plan);
+
+        expect(result.ok, isTrue);
+
+        final uiResult = result.result as Map<String, dynamic>;
+        final ui = uiResult['ui'] as Map<String, dynamic>;
+        expect(ui['type'], equals('table'));
+
+        final props = ui['props'] as Map<String, dynamic>;
+        final columns = props['columns'] as List;
+
+        expect(columns.length, equals(2));
+        final columnKeys = columns.map((c) => c['key']).toList();
+        expect(columnKeys, containsAll(['id', 'status']));
+      });
+
+      test('handles empty rows', () async {
+        const script = '''
+          return icp_table({
+            columns = {
+              { key = "name", label = "Name" }
+            },
+            rows = {}
+          })
+        ''';
+
+        final plan = ScriptRunPlan(luaSource: script);
+        final result = await runner.run(plan);
+
+        expect(result.ok, isTrue);
+
+        final uiResult = result.result as Map<String, dynamic>;
+        final ui = uiResult['ui'] as Map<String, dynamic>;
+        expect(ui['type'], equals('table'));
+
+        final props = ui['props'] as Map<String, dynamic>;
+        final columns = props['columns'] as List;
+        expect(columns.length, equals(1));
+
+        final rows = props['rows'] as List;
+        expect(rows, isEmpty);
       });
     });
 

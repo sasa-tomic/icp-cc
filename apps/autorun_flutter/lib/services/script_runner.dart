@@ -737,7 +737,7 @@ class ScriptRunner {
         'function icp_result_display(spec) spec = spec or {}; return { action = "ui", ui = { type = "result_display", props = spec } } end\n'
         'function icp_searchable_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { searchable = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end\n'
         'function icp_section(title, content) return { type = "section", props = { title = title }, children = content and { content } or {} } end\n'
-        'function icp_table(data) return { action = "ui", ui = { type = "result_display", props = { data = data, title = "Table Data" } } } end\n'
+        'function icp_table(spec) spec = spec or {}; local columns = spec.columns or {}; local rows = spec.rows or {}; local title = spec.title or ""; if #columns == 0 and #rows > 0 then for k, _ in pairs(rows[1]) do table.insert(columns, { key = k, label = k }) end end; return { action = "ui", ui = { type = "table", props = { columns = columns, rows = rows, title = title } } } end\n'
         'function icp_format_number(value, decimals) return tostring(tonumber(value) or 0) end\n'
         'function icp_format_icp(value, decimals) local v = tonumber(value) or 0; local d = decimals or 8; return tostring(v / math.pow(10, d)) end\n'
         'function icp_format_timestamp(value) local t = tonumber(value) or 0; return tostring(t) end\n'

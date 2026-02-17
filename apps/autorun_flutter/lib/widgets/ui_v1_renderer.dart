@@ -6,52 +6,56 @@ import 'result_display.dart';
 typedef UiEventHandler = void Function(Map<String, dynamic> msg);
 
 /// Convert mixed-type list items to Map format for SearchableResultList
-List<Map<String, dynamic>> _normalizeItemsForSearchableList(List<dynamic> items) {
-  return items.map((item) {
-    if (item is Map<String, dynamic>) {
-      return item;
-    }
+List<Map<String, dynamic>> _normalizeItemsForSearchableList(
+    List<dynamic> items) {
+  return items
+      .map((item) {
+        if (item is Map<String, dynamic>) {
+          return item;
+        }
 
-    // Convert primitive types to map format
-    if (item == null) {
-      return {
-        'title': 'null',
-        'subtitle': 'Null value',
-        'data': {'original': null}
-      };
-    }
+        // Convert primitive types to map format
+        if (item == null) {
+          return {
+            'title': 'null',
+            'subtitle': 'Null value',
+            'data': {'original': null}
+          };
+        }
 
-    if (item is String) {
-      return {
-        'title': item,
-        'subtitle': 'String value',
-        'data': {'original': item, 'type': 'string'}
-      };
-    }
+        if (item is String) {
+          return {
+            'title': item,
+            'subtitle': 'String value',
+            'data': {'original': item, 'type': 'string'}
+          };
+        }
 
-    if (item is num) {
-      return {
-        'title': item.toString(),
-        'subtitle': 'Number value',
-        'data': {'original': item, 'type': 'number'}
-      };
-    }
+        if (item is num) {
+          return {
+            'title': item.toString(),
+            'subtitle': 'Number value',
+            'data': {'original': item, 'type': 'number'}
+          };
+        }
 
-    if (item is bool) {
-      return {
-        'title': item.toString(),
-        'subtitle': 'Boolean value',
-        'data': {'original': item, 'type': 'boolean'}
-      };
-    }
+        if (item is bool) {
+          return {
+            'title': item.toString(),
+            'subtitle': 'Boolean value',
+            'data': {'original': item, 'type': 'boolean'}
+          };
+        }
 
-    // Fallback for other types
-    return {
-      'title': item.toString(),
-      'subtitle': '${item.runtimeType} value',
-      'data': {'original': item}
-    };
-  }).cast<Map<String, dynamic>>().toList();
+        // Fallback for other types
+        return {
+          'title': item.toString(),
+          'subtitle': '${item.runtimeType} value',
+          'data': {'original': item}
+        };
+      })
+      .cast<Map<String, dynamic>>()
+      .toList();
 }
 
 class UiV1Renderer extends StatelessWidget {
@@ -69,8 +73,10 @@ class UiV1Renderer extends StatelessWidget {
     if (type.isEmpty) {
       return _error('UI node missing type');
     }
-    final Map<String, dynamic> props = (node['props'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
-    final List<dynamic> rawChildren = (node['children'] as List<dynamic>?) ?? const <dynamic>[];
+    final Map<String, dynamic> props =
+        (node['props'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
+    final List<dynamic> rawChildren =
+        (node['children'] as List<dynamic>?) ?? const <dynamic>[];
     final List<Widget> children = rawChildren
         .whereType<Map<String, dynamic>>()
         .map((m) => _buildNode(context, m))
@@ -101,7 +107,8 @@ class UiV1Renderer extends StatelessWidget {
                 if (title.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    child: Text(title,
+                        style: Theme.of(context).textTheme.titleMedium),
                   ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -129,7 +136,8 @@ class UiV1Renderer extends StatelessWidget {
               tooltip: copyLabel,
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: copyValue));
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$copyLabel to clipboard')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('$copyLabel to clipboard')));
               },
             ),
           ],
@@ -137,11 +145,13 @@ class UiV1Renderer extends StatelessWidget {
       case 'button':
         final String label = (props['label'] ?? 'Run').toString();
         final bool disabled = (props['disabled'] as bool?) ?? false;
-        final Map<String, dynamic>? onPress = props['on_press'] as Map<String, dynamic>?;
+        final Map<String, dynamic>? onPress =
+            props['on_press'] as Map<String, dynamic>?;
         return Padding(
           padding: const EdgeInsets.all(4),
           child: FilledButton(
-            onPressed: disabled || onPress == null ? null : () => onEvent(onPress),
+            onPressed:
+                disabled || onPress == null ? null : () => onEvent(onPress),
             child: Text(label),
           ),
         );
@@ -152,8 +162,10 @@ class UiV1Renderer extends StatelessWidget {
         final bool enabled = (props['enabled'] as bool?) ?? true;
         final bool obscure = (props['obscure'] as bool?) ?? false;
         final String? keyboardType = props['keyboard_type'] as String?;
-        final Map<String, dynamic>? onChange = props['on_change'] as Map<String, dynamic>?;
-        final Map<String, dynamic>? onSubmit = props['on_submit'] as Map<String, dynamic>?;
+        final Map<String, dynamic>? onChange =
+            props['on_change'] as Map<String, dynamic>?;
+        final Map<String, dynamic>? onSubmit =
+            props['on_submit'] as Map<String, dynamic>?;
 
         return Padding(
           padding: const EdgeInsets.all(4),
@@ -167,23 +179,28 @@ class UiV1Renderer extends StatelessWidget {
               hintText: placeholder.isEmpty ? null : placeholder,
               border: const OutlineInputBorder(),
             ),
-            onChanged: onChange != null ? (newValue) {
-              final msg = Map<String, dynamic>.from(onChange);
-              msg['value'] = newValue;
-              onEvent(msg);
-            } : null,
-            onFieldSubmitted: onSubmit != null ? (newValue) {
-              final msg = Map<String, dynamic>.from(onSubmit);
-              msg['value'] = newValue;
-              onEvent(msg);
-            } : null,
+            onChanged: onChange != null
+                ? (newValue) {
+                    final msg = Map<String, dynamic>.from(onChange);
+                    msg['value'] = newValue;
+                    onEvent(msg);
+                  }
+                : null,
+            onFieldSubmitted: onSubmit != null
+                ? (newValue) {
+                    final msg = Map<String, dynamic>.from(onSubmit);
+                    msg['value'] = newValue;
+                    onEvent(msg);
+                  }
+                : null,
           ),
         );
       case 'toggle':
         final String label = (props['label'] ?? '').toString();
         final bool value = (props['value'] as bool?) ?? false;
         final bool enabled = (props['enabled'] as bool?) ?? true;
-        final Map<String, dynamic>? onChange = props['on_change'] as Map<String, dynamic>?;
+        final Map<String, dynamic>? onChange =
+            props['on_change'] as Map<String, dynamic>?;
 
         return Padding(
           padding: const EdgeInsets.all(4),
@@ -192,11 +209,13 @@ class UiV1Renderer extends StatelessWidget {
               Expanded(child: Text(label)),
               Switch(
                 value: value,
-                onChanged: enabled && onChange != null ? (newValue) {
-                  final msg = Map<String, dynamic>.from(onChange);
-                  msg['value'] = newValue;
-                  onEvent(msg);
-                } : null,
+                onChanged: enabled && onChange != null
+                    ? (newValue) {
+                        final msg = Map<String, dynamic>.from(onChange);
+                        msg['value'] = newValue;
+                        onEvent(msg);
+                      }
+                    : null,
               ),
             ],
           ),
@@ -204,9 +223,11 @@ class UiV1Renderer extends StatelessWidget {
       case 'select':
         final String label = (props['label'] ?? '').toString();
         final String value = (props['value'] ?? '').toString();
-        final List<dynamic> options = (props['options'] as List<dynamic>?) ?? <dynamic>[];
+        final List<dynamic> options =
+            (props['options'] as List<dynamic>?) ?? <dynamic>[];
         final bool enabled = (props['enabled'] as bool?) ?? true;
-        final Map<String, dynamic>? onChange = props['on_change'] as Map<String, dynamic>?;
+        final Map<String, dynamic>? onChange =
+            props['on_change'] as Map<String, dynamic>?;
 
         return Padding(
           padding: const EdgeInsets.all(4),
@@ -228,13 +249,15 @@ class UiV1Renderer extends StatelessWidget {
               );
             }).toList(),
             initialValue: value.isEmpty ? null : value,
-            onChanged: enabled && onChange != null ? (newValue) {
-              if (newValue != null) {
-                final msg = Map<String, dynamic>.from(onChange);
-                msg['value'] = newValue;
-                onEvent(msg);
-              }
-            } : null,
+            onChanged: enabled && onChange != null
+                ? (newValue) {
+                    if (newValue != null) {
+                      final msg = Map<String, dynamic>.from(onChange);
+                      msg['value'] = newValue;
+                      onEvent(msg);
+                    }
+                  }
+                : null,
           ),
         );
       case 'image':
@@ -300,8 +323,8 @@ class UiV1Renderer extends StatelessWidget {
                       Icon(Icons.broken_image, size: 32, color: Colors.red),
                       SizedBox(height: 4),
                       Text('Failed to load',
-                           textAlign: TextAlign.center,
-                           style: TextStyle(fontSize: 12, color: Colors.red)),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: Colors.red)),
                     ],
                   ),
                 ),
@@ -364,36 +387,45 @@ class UiV1Renderer extends StatelessWidget {
                 ),
               ),
               ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final dynamic item = items[index];
-            if (item is Map<String, dynamic>) {
-              final String title = (item['title'] ?? '').toString();
-              final String? subtitle = (item['subtitle'] as String?);
-              final bool copyable = (item['copy'] as bool?) ?? false;
-              final String copyLabel = (item['copy_label'] ?? 'Copy').toString();
-              final String copyValue = (item['copy_value'] ?? (subtitle?.isNotEmpty == true ? subtitle! : title)).toString();
-              return ListTile(
-                title: Text(title),
-                subtitle: (subtitle == null || subtitle.isEmpty) ? null : Text(subtitle),
-                trailing: (copyable || item.containsKey('copy_value'))
-                    ? IconButton(
-                        icon: const Icon(Icons.copy, size: 18),
-                        tooltip: copyLabel,
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: copyValue));
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$copyLabel to clipboard')));
-                        },
-                      )
-                    : null,
-              );
-            }
-            return ListTile(title: Text(item.toString()));
-          },
-        ),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final dynamic item = items[index];
+                  if (item is Map<String, dynamic>) {
+                    final String title = (item['title'] ?? '').toString();
+                    final String? subtitle = (item['subtitle'] as String?);
+                    final bool copyable = (item['copy'] as bool?) ?? false;
+                    final String copyLabel =
+                        (item['copy_label'] ?? 'Copy').toString();
+                    final String copyValue = (item['copy_value'] ??
+                            (subtitle?.isNotEmpty == true ? subtitle! : title))
+                        .toString();
+                    return ListTile(
+                      title: Text(title),
+                      subtitle: (subtitle == null || subtitle.isEmpty)
+                          ? null
+                          : Text(subtitle),
+                      trailing: (copyable || item.containsKey('copy_value'))
+                          ? IconButton(
+                              icon: const Icon(Icons.copy, size: 18),
+                              tooltip: copyLabel,
+                              onPressed: () {
+                                Clipboard.setData(
+                                    ClipboardData(text: copyValue));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('$copyLabel to clipboard')));
+                              },
+                            )
+                          : null,
+                    );
+                  }
+                  return ListTile(title: Text(item.toString()));
+                },
+              ),
             ],
           ),
         );
@@ -410,6 +442,70 @@ class UiV1Renderer extends StatelessWidget {
           error: error,
           isExpandable: isExpandable,
           initiallyExpanded: initiallyExpanded,
+        );
+      case 'table':
+        final List<dynamic>? rawColumns = props['columns'] as List<dynamic>?;
+        final List<dynamic> rawRows =
+            (props['rows'] as List<dynamic>?) ?? const <dynamic>[];
+        final String tableTitle = (props['title'] ?? '').toString();
+
+        if (rawColumns == null || rawColumns.isEmpty) {
+          return _error('Table requires columns property');
+        }
+
+        final List<Map<String, dynamic>> columns =
+            rawColumns.whereType<Map<String, dynamic>>().toList();
+
+        final List<Map<String, dynamic>> rows =
+            rawRows.whereType<Map<String, dynamic>>().toList();
+
+        return Card(
+          margin: const EdgeInsets.all(8),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (tableTitle.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      tableTitle,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ),
+                    columns: columns.map((col) {
+                      final String label =
+                          (col['label'] ?? col['key'] ?? '').toString();
+                      return DataColumn(
+                        label: Text(
+                          label,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      );
+                    }).toList(),
+                    rows: rows.map((row) {
+                      return DataRow(
+                        cells: columns.map((col) {
+                          final String key = (col['key'] ?? '').toString();
+                          final dynamic value = row[key];
+                          final String displayValue = _formatCellValue(value);
+                          return DataCell(Text(displayValue));
+                        }).toList(),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       default:
         return _error('Unsupported node type: $type');
@@ -462,5 +558,12 @@ class UiV1Renderer extends StatelessWidget {
       ),
       child: Text(message, style: const TextStyle(color: Color(0xFFB00020))),
     );
+  }
+
+  String _formatCellValue(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    if (value is num) return value.toString();
+    return value.toString();
   }
 }

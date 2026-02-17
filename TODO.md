@@ -104,7 +104,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] Add support for installing specific script versions locally
 
 ### Lua Scripting UI
-- [ ] Add tables with columns to UI elements
+- [x] Add tables with columns to UI elements
 - [ ] Support paginated lists with loading states driven by Lua
 - [ ] Add menu to pick common UI elements in script editor
 

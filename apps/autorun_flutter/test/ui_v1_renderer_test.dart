@@ -42,7 +42,8 @@ void main() {
       expect(find.text('Enter text'), findsOneWidget);
     });
 
-    testWidgets('text_field triggers on_change event', (WidgetTester tester) async {
+    testWidgets('text_field triggers on_change event',
+        (WidgetTester tester) async {
       final ui = {
         'type': 'text_field',
         'props': {
@@ -149,7 +150,8 @@ void main() {
       expect(capturedEvent['value'], 'admin');
     });
 
-    testWidgets('renders image widget with network source', (WidgetTester tester) async {
+    testWidgets('renders image widget with network source',
+        (WidgetTester tester) async {
       final ui = {
         'type': 'image',
         'props': {
@@ -169,7 +171,8 @@ void main() {
       expect(image.height, 100);
     });
 
-    testWidgets('renders image widget with local source placeholder', (WidgetTester tester) async {
+    testWidgets('renders image widget with local source placeholder',
+        (WidgetTester tester) async {
       final ui = {
         'type': 'image',
         'props': {
@@ -187,7 +190,8 @@ void main() {
       expect(find.byType(Column), findsOneWidget);
     });
 
-    testWidgets('image widget shows error state for empty src', (WidgetTester tester) async {
+    testWidgets('image widget shows error state for empty src',
+        (WidgetTester tester) async {
       final ui = {
         'type': 'image',
         'props': {
@@ -201,7 +205,8 @@ void main() {
       expect(find.text('Image widget requires src property'), findsOneWidget);
     });
 
-    testWidgets('text_field respects keyboard_type property', (WidgetTester tester) async {
+    testWidgets('text_field respects keyboard_type property',
+        (WidgetTester tester) async {
       final ui = {
         'type': 'text_field',
         'props': {
@@ -217,7 +222,8 @@ void main() {
       expect(find.byType(TextFormField), findsOneWidget);
     });
 
-    testWidgets('text_field supports obscure text', (WidgetTester tester) async {
+    testWidgets('text_field supports obscure text',
+        (WidgetTester tester) async {
       final ui = {
         'type': 'text_field',
         'props': {
@@ -233,7 +239,8 @@ void main() {
       expect(find.byType(TextFormField), findsOneWidget);
     });
 
-    testWidgets('filters out false values in children array', (WidgetTester tester) async {
+    testWidgets('filters out false values in children array',
+        (WidgetTester tester) async {
       // Test case that verifies false values are filtered out (not causing errors)
       // This simulates the conditional UI expression pattern: condition and {...}
       final ui = {
@@ -257,12 +264,13 @@ void main() {
       // Should render the valid nodes without errors
       expect(find.text('Before conditional'), findsOneWidget);
       expect(find.text('After conditional'), findsOneWidget);
-      
+
       // Should not show error for false values (they're filtered out)
       expect(find.text('UI node missing type'), findsNothing);
     });
 
-    testWidgets('filters out null values in children array', (WidgetTester tester) async {
+    testWidgets('filters out null values in children array',
+        (WidgetTester tester) async {
       // Test case that ensures null values are handled gracefully
       final ui = {
         'type': 'column',
@@ -285,7 +293,7 @@ void main() {
       // Should render the valid nodes without errors
       expect(find.text('Before null'), findsOneWidget);
       expect(find.text('After null'), findsOneWidget);
-      
+
       // Should not show error for null values
       expect(find.text('UI node missing type'), findsNothing);
     });
@@ -330,10 +338,178 @@ void main() {
 
       // Should render the error message for missing type
       expect(find.text('UI node missing type'), findsOneWidget);
-      
+
       // Should still render the valid nodes
       expect(find.text('Before invalid node'), findsOneWidget);
       expect(find.text('After invalid node'), findsOneWidget);
+    });
+  });
+
+  group('UiV1Renderer table widget', () {
+    late Map<String, dynamic> capturedEvent;
+
+    setUp(() {
+      capturedEvent = {};
+    });
+
+    Widget createTestWidget(Map<String, dynamic> ui) {
+      return MaterialApp(
+        home: Scaffold(
+          body: UiV1Renderer(
+            ui: ui,
+            onEvent: (msg) => capturedEvent = msg,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('renders table with columns and rows',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'table',
+        'props': {
+          'columns': [
+            {'key': 'name', 'label': 'Name'},
+            {'key': 'balance', 'label': 'Balance'},
+          ],
+          'rows': [
+            {'name': 'Alice', 'balance': '100 ICP'},
+            {'name': 'Bob', 'balance': '200 ICP'},
+          ],
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Name'), findsOneWidget);
+      expect(find.text('Balance'), findsOneWidget);
+      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('Bob'), findsOneWidget);
+      expect(find.text('100 ICP'), findsOneWidget);
+      expect(find.text('200 ICP'), findsOneWidget);
+    });
+
+    testWidgets('renders table with title', (WidgetTester tester) async {
+      final ui = {
+        'type': 'table',
+        'props': {
+          'title': 'Account Balances',
+          'columns': [
+            {'key': 'name', 'label': 'Name'},
+          ],
+          'rows': [
+            {'name': 'Alice'},
+          ],
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Account Balances'), findsOneWidget);
+    });
+
+    testWidgets('renders empty table with headers only',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'table',
+        'props': {
+          'columns': [
+            {'key': 'id', 'label': 'ID'},
+            {'key': 'status', 'label': 'Status'},
+          ],
+          'rows': [],
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ID'), findsOneWidget);
+      expect(find.text('Status'), findsOneWidget);
+    });
+
+    testWidgets('handles missing column key gracefully',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'table',
+        'props': {
+          'columns': [
+            {'key': 'name', 'label': 'Name'},
+          ],
+          'rows': [
+            {'name': 'Alice', 'extra': 'ignored'},
+          ],
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Name'), findsOneWidget);
+      expect(find.text('Alice'), findsOneWidget);
+    });
+
+    testWidgets('renders empty cell for missing row data',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'table',
+        'props': {
+          'columns': [
+            {'key': 'name', 'label': 'Name'},
+            {'key': 'email', 'label': 'Email'},
+          ],
+          'rows': [
+            {'name': 'Alice'},
+          ],
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Name'), findsOneWidget);
+      expect(find.text('Email'), findsOneWidget);
+      expect(find.text('Alice'), findsOneWidget);
+    });
+
+    testWidgets('shows error for missing columns', (WidgetTester tester) async {
+      final ui = {
+        'type': 'table',
+        'props': {
+          'rows': [
+            {'name': 'Alice'},
+          ],
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Table requires columns property'), findsOneWidget);
+    });
+
+    testWidgets('converts numeric values to strings',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'table',
+        'props': {
+          'columns': [
+            {'key': 'count', 'label': 'Count'},
+          ],
+          'rows': [
+            {'count': 42},
+            {'count': 3.14},
+          ],
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('42'), findsOneWidget);
+      expect(find.text('3.14'), findsOneWidget);
     });
   });
 }
