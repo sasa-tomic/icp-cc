@@ -131,9 +131,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] QR code import for multi-device sync
 
 ### UX Improvements
-- [ ] Create hybrid view combining local and marketplace scripts
+- [x] Create hybrid view combining local and marketplace scripts
 - [x] Add source badges (Local/Marketplace) to distinguish origins
-- [ ] Display usage statistics (run count, last used)
+- [x] Display usage statistics (run count, last used)
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints

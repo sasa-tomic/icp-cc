@@ -7,6 +7,7 @@ import '../controllers/script_controller.dart';
 import '../models/script_record.dart';
 import '../models/script_template.dart';
 import '../models/marketplace_script.dart';
+import '../models/script_list_item.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
 import '../services/marketplace_open_api_service.dart';
@@ -46,8 +47,7 @@ class _ScriptsScreenState extends State<ScriptsScreen>
 
   void _handleTabChange() {
     if (!mounted) return;
-    // Update FAB visibility without full rebuild
-    _showFab.value = _tabController.index == 0;
+    _showFab.value = _tabController.index == 0 || _tabController.index == 1;
   }
 
   // Marketplace properties
@@ -74,11 +74,13 @@ class _ScriptsScreenState extends State<ScriptsScreen>
   final String _sortBy = 'createdAt';
   final String _sortOrder = 'desc';
   String _searchQuery = '';
+  ScriptSortOption _allScriptsSortOption = ScriptSortOption.lastRun;
+  bool _allScriptsSortAscending = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this)
+    _tabController = TabController(length: 3, vsync: this)
       ..addListener(_handleTabChange);
     _controller = ScriptController(ScriptRepository.instance)
       ..addListener(_onChanged);
@@ -370,7 +372,6 @@ class _ScriptsScreenState extends State<ScriptsScreen>
   }
 
   Future<void> _runScript(ScriptRecord record) async {
-    // Verify integrity for marketplace scripts
     final checksum = record.metadata['sha256_checksum'] as String?;
     if (checksum != null) {
       final integrityService = ScriptIntegrityService();
@@ -389,7 +390,8 @@ class _ScriptsScreenState extends State<ScriptsScreen>
       }
     }
 
-    // Launch persistent app host for TEA-style scripts
+    await _controller.recordScriptRun(record.id);
+
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => Scaffold(
@@ -466,6 +468,36 @@ class _ScriptsScreenState extends State<ScriptsScreen>
 
   bool _isPublishedToMarketplace(ScriptRecord record) {
     return record.metadata.containsKey('marketplace_id');
+  }
+
+  String _formatTimeAgo(DateTime? dateTime) {
+    if (dateTime == null) return 'Never';
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    if (difference.inDays > 365) {
+      final years = (difference.inDays / 365).floor();
+      return '$years ${years == 1 ? 'year' : 'years'} ago';
+    }
+    if (difference.inDays > 30) {
+      final months = (difference.inDays / 30).floor();
+      return '$months ${months == 1 ? 'month' : 'months'} ago';
+    }
+    if (difference.inDays > 0) {
+      return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+    }
+    if (difference.inHours > 0) {
+      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+    }
+    if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+    }
+    return 'Just now';
+  }
+
+  String _formatRunCount(int count) {
+    if (count == 0) return 'Not run yet';
+    if (count == 1) return 'Run once';
+    return 'Run $count times';
   }
 
   Widget _buildSourceBadge(ScriptRecord record, bool isCompactScreen) {
@@ -615,6 +647,7 @@ class _ScriptsScreenState extends State<ScriptsScreen>
                   controller: _tabController,
                   tabs: const [
                     Tab(icon: Icon(Icons.code), text: 'My Scripts'),
+                    Tab(icon: Icon(Icons.list), text: 'All'),
                     Tab(icon: Icon(Icons.store), text: 'Marketplace'),
                   ],
                   labelColor: Theme.of(context).colorScheme.primary,
@@ -623,12 +656,12 @@ class _ScriptsScreenState extends State<ScriptsScreen>
                   indicatorColor: Theme.of(context).colorScheme.primary,
                 ),
               ),
-              // Tab content
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
                     _buildMyScriptsTab(scripts),
+                    _buildAllScriptsTab(scripts),
                     _buildMarketplaceTab(),
                   ],
                 ),
@@ -838,6 +871,17 @@ class _ScriptsScreenState extends State<ScriptsScreen>
                                 Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
+                        SizedBox(height: isCompactScreen ? 1 : 2),
+                        Text(
+                          '${_formatRunCount(rec.runCount)} • Last run ${_formatTimeAgo(rec.lastRunAt)}',
+                          style: TextStyle(
+                            fontSize: isCompactScreen ? 10 : 11,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withValues(alpha: 0.7),
+                          ),
+                        ),
                       ],
                     ),
                     onTap: () {
@@ -946,6 +990,291 @@ class _ScriptsScreenState extends State<ScriptsScreen>
         );
       },
     );
+  }
+
+  Widget _buildAllScriptsTab(List<ScriptRecord> localScripts) {
+    final lastRunMap = <String, DateTime>{};
+    for (final s in localScripts) {
+      if (s.lastRunAt != null) {
+        lastRunMap[s.id] = s.lastRunAt!;
+      }
+    }
+
+    final hybridItems = ScriptListItem.createHybridList(
+      localScripts: localScripts,
+      marketplaceScripts: _marketplaceScripts,
+      installedMarketplaceIds: _downloadedScriptIds,
+      runCounts: {for (final s in localScripts) s.id: s.runCount},
+      lastRunAt: lastRunMap,
+    );
+
+    final sortedItems = ScriptListItem.sortItems(
+      hybridItems,
+      _allScriptsSortOption,
+      ascending: _allScriptsSortAscending,
+    );
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        if (_controller.isBusy && localScripts.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (sortedItems.isEmpty && !_controller.isBusy) {
+          return ModernEmptyState(
+            icon: Icons.list_alt_rounded,
+            title: 'No Scripts Available',
+            subtitle:
+                'Create your first script or browse the marketplace to discover amazing scripts',
+            action: _showCreateSheet,
+            actionLabel: 'Create Your First Script',
+          );
+        }
+
+        return Column(
+          children: [
+            _buildAllScriptsSortDropdown(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await _controller.refresh();
+                  await _refreshMarketplaceScripts();
+                },
+                child: ListView.separated(
+                  padding: const EdgeInsets.only(
+                    bottom: 100,
+                    top: 8,
+                    left: 8,
+                    right: 8,
+                  ),
+                  itemCount: sortedItems.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final item = sortedItems[index];
+                    return _buildAllScriptsListItem(item);
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAllScriptsSortDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Text(
+            'Sort by:',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(width: 8),
+          DropdownButton<ScriptSortOption>(
+            value: _allScriptsSortOption,
+            underline: const SizedBox(),
+            items: ScriptSortOption.values
+                .map((opt) => DropdownMenuItem(
+                      value: opt,
+                      child: Text(opt.label),
+                    ))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  if (_allScriptsSortOption == value) {
+                    _allScriptsSortAscending = !_allScriptsSortAscending;
+                  } else {
+                    _allScriptsSortOption = value;
+                    _allScriptsSortAscending = false;
+                  }
+                });
+              }
+            },
+          ),
+          IconButton(
+            icon: Icon(
+              _allScriptsSortAscending
+                  ? Icons.arrow_upward
+                  : Icons.arrow_downward,
+              size: 20,
+            ),
+            onPressed: () {
+              setState(() {
+                _allScriptsSortAscending = !_allScriptsSortAscending;
+              });
+            },
+            tooltip: _allScriptsSortAscending ? 'Ascending' : 'Descending',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllScriptsListItem(ScriptListItem item) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompactScreen = screenWidth < 380;
+
+    return ListTile(
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: isCompactScreen ? 12 : 16,
+        vertical: 4,
+      ),
+      leading: CircleAvatar(
+        radius: isCompactScreen ? 20 : 24,
+        child: Text(
+          (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜')).isNotEmpty
+              ? (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜'))[0]
+              : '📜',
+          style: TextStyle(
+            fontSize: isCompactScreen ? 16 : 20,
+          ),
+        ),
+      ),
+      title: Row(
+        children: [
+          _buildHybridSourceBadge(item, isCompactScreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              item.title,
+              style: TextStyle(
+                fontSize: isCompactScreen ? 14 : 16,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          if (!item.isInstalled && item.source == ScriptSource.marketplace)
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompactScreen ? 4 : 6,
+                vertical: isCompactScreen ? 1 : 2,
+              ),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Available',
+                style: TextStyle(
+                  fontSize: isCompactScreen ? 8 : 10,
+                  color: Theme.of(context).colorScheme.onTertiaryContainer,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: isCompactScreen ? 2 : 4),
+          Text(
+            _buildItemSubtitle(item),
+            style: TextStyle(
+              fontSize: isCompactScreen ? 11 : 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      onTap: () => _handleAllScriptsItemTap(item),
+    );
+  }
+
+  Widget _buildHybridSourceBadge(ScriptListItem item, bool isCompactScreen) {
+    final isMarketplace = item.isFromMarketplace;
+    final backgroundColor = isMarketplace
+        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final textColor = isMarketplace
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final borderColor = isMarketplace
+        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+        : Theme.of(context).colorScheme.outlineVariant;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompactScreen ? 4 : 6,
+        vertical: isCompactScreen ? 1 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        isMarketplace ? 'Marketplace' : 'Local',
+        style: TextStyle(
+          fontSize: isCompactScreen ? 8 : 10,
+          color: textColor,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  String _buildItemSubtitle(ScriptListItem item) {
+    final parts = <String>[];
+
+    if (item.author != null) {
+      parts.add(item.author!);
+    }
+    if (item.version != null) {
+      parts.add('v${item.version}');
+    }
+    if (item.runCount > 0) {
+      parts.add('${item.runCount} runs');
+    }
+    if (item.source == ScriptSource.marketplace && item.downloads > 0) {
+      parts.add('${item.downloads} downloads');
+    }
+    parts.add('Updated ${_formatRelativeTime(item.updatedAt)}');
+
+    return parts.join(' • ');
+  }
+
+  String _formatRelativeTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 365) {
+      return '${(difference.inDays / 365).floor()}y ago';
+    } else if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()}mo ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'just now';
+    }
+  }
+
+  void _handleAllScriptsItemTap(ScriptListItem item) {
+    if (item.source == ScriptSource.local && item.localScript != null) {
+      showDialog<void>(
+        context: context,
+        builder: (_) => _ScriptEditorDialog(
+          controller: _controller,
+          record: item.localScript!,
+        ),
+      );
+    } else if (item.source == ScriptSource.marketplace &&
+        item.marketplaceScript != null) {
+      _showScriptDetails(context, item.marketplaceScript!);
+    }
   }
 
   Widget _buildMarketplaceTab() {

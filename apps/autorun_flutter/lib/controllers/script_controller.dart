@@ -308,6 +308,17 @@ class ScriptController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> recordScriptRun(String id) async {
+    final int idx = _scripts.indexWhere((ScriptRecord r) => r.id == id);
+    if (idx < 0) {
+      throw ArgumentError('Script not found: $id');
+    }
+    final ScriptRecord updated = _scripts[idx].recordRun();
+    _scripts[idx] = updated;
+    await _repository.persistScripts(_scripts);
+    notifyListeners();
+  }
+
   void _setBusy(bool value) {
     if (_isBusy == value) return;
     _isBusy = value;
