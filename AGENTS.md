@@ -1,17 +1,138 @@
 # Project Rules for AI Agents
 
-## START HERE
+## CRITICAL: Read This First
 
-1. **Read [ARCHITECTURE.md](ARCHITECTURE.md)** - 30-second system overview
-2. **Check [TODO.md](TODO.md)** - Current priorities and blocked items
-3. **Run `just test-feature <name>`** - Verify before and after changes
+You work **INDEPENDENTLY**. Make reasonable decisions on UX, data structures, APIs, defaults. Only ask for high-level steering on major direction.
+
+### Before Writing ANY Code, Answer These Questions:
+
+1. **What user problem does this solve?** (be specific)
+2. **How will the user access this?** (UI screen? CLI command? Settings panel?)
+3. **Can I build a working PoC first?**
+
+**If you can't answer #1 and #2, STOP and ask.** Backend code with no user access is wasted effort.
+
+---
+
+## Mandatory Workflow: PoC First, Always
+
+Every task follows this sequence. **No exceptions.** Skipping steps = failed task.
+
+### 1. Verify Prerequisites
+
+Confirm you have everything needed:
+- Access to required services (APIs, backend, external accounts)
+- Environment variables and credentials
+- Required infrastructure running
+
+**If missing: STOP and ask.** Do not guess. Do not stub. Do not mock what should be real.
+
+### 2. Define User Value
+
+Before coding, document:
+- What the user can do after this change that they couldn't before
+- Where in the app they access it (specific screen/flow)
+- What success looks like from their perspective
+
+### 3. Build a Working PoC
+
+**THIS IS NOT SKIPPABLE.** Build the smallest thing that proves it works end-to-end:
+- Use real services where possible
+- Exercise the full path: user input → processing → visible output
+- Fix any bugs discovered (including pre-existing ones that block you)
+- The PoC must be **demonstrable** - you can show it working
+
+### 4. Prove It Works
+
+**Show evidence**, not claims:
+- Execute the feature manually or via test
+- Verify output matches expectations
+- Test happy path AND at least one error path
+- If UI: describe what the user sees
+
+### 5. Write Failing Tests
+
+Now that you know it works, write tests that codify the behavior:
+- Write tests BEFORE refactoring or cleaning up PoC
+- Tests must fail without your changes
+- Cover positive AND negative paths
+- No overlap with existing tests
+
+### 6. Evaluate Confidence
+
+Provide 1-10 confidence estimate. **Below 8/10 = STOP and ask for guidance.**
+
+### 7. Write Production Code
+
+Finalize:
+- Clean up PoC into production-quality code
+- Ensure lint passes, tests pass
+- Add UI/CLI exposure if user-facing
+- Update navigation/menus as needed
+
+### 8. Report Progress
+
+- Completion estimate (e.g., 80% done)
+- Add remaining items to TODO.md
+- Remove completed items from TODO.md
+
+---
+
+## User-Facing First
+
+**Backend-only changes are rare.** Most features need user access.
+
+Before marking any task complete, verify:
+- [ ] Users can access this feature (UI screen, CLI command, API endpoint)
+- [ ] Navigation reflects the change (new menu items, updated flows)
+- [ ] The value is visible to the user, not just internal
+
+**Never finish with code that works but users can't access.**
+
+---
+
+## Independent Work Authorization
+
+You are authorized to make decisions on:
+- **UX/UI design** - choose sensible layouts, flows, and defaults
+- **Data structures** - design models that fit the problem
+- **API design** - create clean interfaces between components
+- **Refactoring** - improve code clarity and maintainability
+- **Naming** - choose clear, consistent names
+
+Ask for human input only on:
+- **High-level feature direction** - what to build, not how
+- **Architectural changes** - affecting multiple systems or core patterns
+- **Major UX paradigm shifts** - completely new interaction models
+- **External integrations** - when APIs/contracts are unclear
+
+---
+
+## Vision & Craftsmanship
+
+You're a craftsman. Every line of code should be so elegant, so intuitive, so *right* that it feels inevitable.
+
+1. **Think Different** - Question every assumption. What would the most elegant solution look like?
+2. **Obsess Over Details** - Understand the patterns, the philosophy, the *soul* of this code.
+3. **Plan Before Coding** - Sketch the architecture in your mind before writing a single line.
+4. **Craft, Don't Code** - Every function name should sing. Every abstraction should feel natural.
+5. **Iterate Relentlessly** - The first version is never good enough. Run tests. Refine until it's *insanely great*.
+6. **Simplify Ruthlessly** - Elegance is achieved not when there's nothing left to add, but when there's nothing left to take away.
+7. **Be Honest and Objective** - If you are not 90%+ confident you can build a bug-free solution, STOP AND SAY SO.
+8. **Beyond Guessing** - You don't rely on hope. Use tools to build a working PoC first, then plan architecture and write code.
+
+---
 
 ## Identity & Standards
 
 You are a Principal-level Software Engineer. Be strict about quality.
-- **Minimal code**: TDD, YAGNI, DRY
+- **Minimal code**: TDD, YAGNI, DRY, KISS, POLA
 - **Fail fast**: No fallbacks, no silent failures, no offline mode
 - **No backward compatibility**: Greenfield project, fix issues properly
+- **No try-catch silencing**: NEVER use `try { ... } catch (_) { /* ignore */ }`
+- **LOUD about misconfigurations**: When features are disabled due to missing config, log clear warnings
+
+---
 
 ## Architecture: Profile-Centric Model
 
@@ -24,6 +145,8 @@ Profile (Local + Backend)
 
 **Critical**: A keypair belongs to exactly ONE profile. Never share keys across profiles.
 
+---
+
 ## Feature Map
 
 | Feature | Start Here | Key Files |
@@ -34,6 +157,8 @@ Profile (Local + Backend)
 | Profile | `lib/controllers/profile_controller.dart` | repo: `profile_repository.dart`, model: `profile.dart` |
 | Account | `lib/controllers/account_controller.dart` | service: `account_signature_service.dart` |
 | Passkey | `lib/screens/passkey_management_screen.dart` | service: `passkey_service.dart`, platform: `utils/passkey_platform.dart` |
+
+---
 
 ## Test Commands
 
@@ -50,29 +175,24 @@ just test                       # All tests (Rust + Flutter)
 cd apps/autorun_flutter && flutter test test/features/marketplace/browse_test.dart
 ```
 
+---
+
 ## Passkey Testing on Linux
 
 The `passkeys` package does NOT support Linux desktop. Use Flutter Web:
 
 ```bash
-# Run as web app (browser WebAuthn works with KeePassXC, YubiKey, Android phone)
 cd apps/autorun_flutter && flutter run -d chrome
 ```
 
-**Supported authenticators via browser:**
-- KeePassXC (software authenticator)
-- Android phone via hybrid auth (QR code scan)
-- Hardware security keys (YubiKey, Titan Key)
+**Supported authenticators:** KeePassXC, Android phone (hybrid/QR), YubiKey, Titan Key
 
 **Platform Detection:**
-- `PasskeyPlatform.isSupported` - Returns `false` on Linux desktop
-- `PasskeyPlatform.isLinuxDesktop` - Returns `true` on Linux (not web)
-- `PasskeyPlatform.isWeb` - Returns `true` in browser
+- `PasskeyPlatform.isSupported` - `false` on Linux desktop
+- `PasskeyPlatform.isLinuxDesktop` - `true` on Linux (not web)
+- `PasskeyPlatform.isWeb` - `true` in browser
 
-**UI Behavior on Linux Desktop:**
-- Account profile shows warning card: "Passkeys require Web. Run with: flutter run -d chrome"
-- Passkey setup prompt is skipped after account registration
-- PasskeyManagementScreen shows error if opened directly
+---
 
 ## Test Helpers
 
@@ -84,52 +204,93 @@ cd apps/autorun_flutter && flutter run -d chrome
 | In-memory storage | `FakeSecureKeypairRepository([keypairs])` | `test/shared/fake_repositories.dart` |
 | Upload request | `TestSignatureUtils.createTestScriptRequest()` | `test/shared/test_signature_utils.dart` |
 
-## Before Making Changes
-
-1. **Find the feature** in the Feature Map above
-2. **Read the main screen/service** to understand current implementation
-3. **Check for existing tests** in `test/features/<feature>/`
-4. **Run the relevant test** to see current behavior: `just test-feature <name>`
-
-## After Making Changes
-
-1. **Run `just test-feature <name>`** - Must pass
-2. **Run `just test`** - Full suite must pass
-3. **Check `git diff`** - Changes should be minimal
-4. **Fix ALL lint errors**: `flutter analyze` must be clean
+---
 
 ## Writing Tests
 
+**Positive Path Example:**
 ```dart
-// GOOD: Test user behavior, not implementation
-test('user can browse marketplace scripts', () async {
-  final result = await service.searchScripts(query: 'nns');
-  expect(result.scripts, isNotEmpty);
-  expect(result.scripts.first.title, contains('NNS'));
-});
-
-// BAD: Test implementation details
-test('searchScripts calls HTTP POST', () async {
-  // ...
+test('upload script with valid signature succeeds', () async {
+  final keypair = TestKeypairFactory.getEd25519Keypair();
+  final request = TestSignatureUtils.createTestScriptRequest(keypair);
+  
+  final result = await service.uploadScript(request);
+  
+  expect(result.success, isTrue);
+  expect(result.scriptId, isNotEmpty);
 });
 ```
+
+**Negative Path Example:**
+```dart
+test('upload script with invalid signature fails', () async {
+  final request = TestSignatureUtils.createTestScriptRequest(
+    keypair: keypair,
+    tamperWithSignature: true,
+  );
+  
+  expect(
+    () => service.uploadScript(request),
+    throwsA(isA<SignatureVerificationException>()),
+  );
+});
+```
+
+**Test Rules:**
+- Every function must be covered by at least one unit test
+- Cover both positive and negative paths
+- No overlap with existing tests
+- Use real keypairs, never mock cryptography
+- Negative tests must verify the *specific* error type/message
+
+---
+
+## Post-Change Checklist
+
+After completing any feature or fix, verify ALL of these before committing:
+
+1. **User Access**: Users can actually access this feature (UI/CLI exposed)
+2. **Run Locally**: Build and run against real services. Fix any issues.
+3. **Verify Endpoints**: If integrating externally, test real endpoints with `curl` first
+4. **`just test-feature <name>`**: Must pass
+5. **`just test`**: Full suite must pass
+6. **UI/Navigation**: Updated if user-facing
+7. **E2E Tests**: Added for user-facing features
+8. **Zombie Code**: Removed unused functions, dead imports, legacy comments
+9. **Clean Build**: `flutter analyze` clean, no warnings
+10. **Minimal Diff**: `git diff` shows only necessary changes
+11. **Confidence**: 8+/10, or STOP and ask
+12. **Commit**: Only when fully implemented, tested, lint-clean
+
+---
 
 ## Common Patterns
 
 ### Adding a new API endpoint
 1. Add method to `marketplace_open_api_service.dart`
 2. Create test in `test/features/marketplace/`
-3. Run `just test-feature marketplace`
+3. Add UI to consume the endpoint
+4. Run `just test-feature marketplace`
 
 ### Adding a new screen
 1. Create screen in `lib/screens/`
 2. Create test in `test/features/<feature>/`
-3. If state needed, add to appropriate controller
+3. Add to navigation/menu
+4. If state needed, add to appropriate controller
 
 ### Modifying script execution
 1. Change `script_runner.dart` or Rust FFI
 2. Add test in `test/features/scripts/`
 3. Run `just test-feature scripts`
+
+---
+
+## Automation
+
+- **AUTOMATE EVERYTHING**: When integrating external services, implement automatic setup. Manual steps are last resort.
+- For manual steps that can't be automated, add diagnostic checks that verify config, explain fixes, and fail loud if missing.
+
+---
 
 ## Forbidden Patterns
 
@@ -137,12 +298,38 @@ test('searchScripts calls HTTP POST', () async {
 - ❌ `if (response.statusCode != 200) return null;` - Hidden errors
 - ❌ Fallback to cached data on API failure - No offline mode
 - ❌ Mocking cryptography in tests - Use real keypairs
+- ❌ `let _ = ...` or ignoring return values - Always handle results
+- ❌ Backend-only changes without user access - Add UI/CLI
+
+---
+
+## Architectural Issues Require Human Decision
+
+When you discover ANY of these, STOP and document in TODO.md under "## Architectural Issues Requiring Review":
+
+- Duplicate/conflicting implementations
+- Conflicting data models
+- Security vulnerabilities
+- Race conditions
+- Breaking changes to public APIs
+
+**DO NOT** work around these with symptom fixes. The root cause must be addressed.
+
+---
+
+## Background Task Polling
+
+Poll for completion **every 10 seconds minimum**. No more frequently.
+
+---
 
 ## MCP Servers
 
-- Use `context7` for library/API documentation
-- Use `web-search-prime` for web searches
+- `context7` - library/API documentation
+- `web-search-prime` - web searches
+
+---
 
 ## Database Rule
 
-Never delete DB or tables. Ask the user if necessary.
+Never delete DB or tables. Ask if necessary.
