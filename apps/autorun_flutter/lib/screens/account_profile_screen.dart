@@ -911,7 +911,14 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Public key
+            Text(
+              key.displayLabel,
+              style: AppDesignSystem.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+
             Text(
               'Public Key',
               style: AppDesignSystem.bodySmall.copyWith(

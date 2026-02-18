@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-17
+**Last Updated:** 2026-02-18
 
 ## Current Focus
 
@@ -14,7 +14,7 @@
 |------|--------|------------|
 | Passkey UI Integration | **COMPLETE** | 100% |
 | Linux Passkey Support | **COMPLETE** | 100% |
-| Profile Management | Complete | 95% |
+| Profile Management | Complete | 98% |
 | Account Registration | Complete | 95% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -80,10 +80,12 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] ProfileController with create/switch/delete profiles
 - [x] ProfileRepository (local storage)
 - [x] Profile model with 1-10 keypairs per profile
+- [x] Encrypted keypair export for disaster recovery
+- [x] Encrypted backup file generation/restore
+- [x] Key labels in AccountPublicKey model
 
 **Missing:**
 - [ ] ProfileController tests (MISSING - critical)
-- [ ] Add key labels (e.g., "Mobile", "Desktop") to `account_public_keys` table
 
 ### Account Registration
 
@@ -101,7 +103,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 ### Script Management
 - [x] Add secp256k1 script signing via Rust FFI
 - [x] Implement SHA256 checksums for script integrity verification
-- [ ] Add support for installing specific script versions locally
+- [x] Add support for installing specific script versions locally
 
 ### Lua Scripting UI
 - [x] Add tables with columns to UI elements
@@ -127,12 +129,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 ### Multi-Device & Recovery
 - [ ] QR code import for multi-device sync
-- [ ] Encrypted keypair export for disaster recovery
-- [ ] Encrypted backup file generation/restore
 
 ### UX Improvements
 - [ ] Create hybrid view combining local and marketplace scripts
-- [ ] Add source badges (Local/Marketplace) to distinguish origins
+- [x] Add source badges (Local/Marketplace) to distinguish origins
 - [ ] Display usage statistics (run count, last used)
 
 ### Content Moderation

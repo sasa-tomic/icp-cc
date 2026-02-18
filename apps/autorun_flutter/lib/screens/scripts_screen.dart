@@ -252,7 +252,8 @@ class _ScriptsScreenState extends State<ScriptsScreen>
     }
   }
 
-  Future<void> _downloadScript(MarketplaceScript script) async {
+  Future<void> _downloadScript(MarketplaceScript script,
+      {String? version}) async {
     if (_downloadingScriptIds.contains(script.id)) return;
 
     setState(() {
@@ -261,7 +262,6 @@ class _ScriptsScreenState extends State<ScriptsScreen>
     });
 
     try {
-      // Simulate download progress for better UX (files are small, so we fake it)
       final progressUpdates = [0.3, 0.6, 0.9];
       for (final progress in progressUpdates) {
         await Future.delayed(const Duration(milliseconds: 100));
@@ -272,23 +272,25 @@ class _ScriptsScreenState extends State<ScriptsScreen>
         }
       }
 
-      // Download script source
-      final luaSource = await _marketplaceService.downloadScript(script.id);
+      final luaSource =
+          await _marketplaceService.downloadScript(script.id, version: version);
 
-      // Compute integrity checksum
       final integrityService = ScriptIntegrityService();
       final sha256Checksum = integrityService.computeChecksum(luaSource);
 
-      // Create local script with marketplace metadata
+      final effectiveVersion = version ?? script.version ?? '1.0.0';
+      final titleSuffix =
+          version != null ? ' (Marketplace v$version)' : ' (Marketplace)';
+
       final createdScript = await _controller.createScript(
-        title: '${script.title} (Marketplace)',
+        title: '${script.title}$titleSuffix',
         emoji: '📦',
         luaSourceOverride: luaSource,
         metadata: {
           'marketplace_id': script.id,
           'marketplace_title': script.title,
           'marketplace_author': script.authorName,
-          'marketplace_version': script.version ?? '1.0.0',
+          'marketplace_version': effectiveVersion,
           'downloaded_at': DateTime.now().toIso8601String(),
           'sha256_checksum': sha256Checksum,
         },
@@ -296,22 +298,20 @@ class _ScriptsScreenState extends State<ScriptsScreen>
 
       if (!mounted) return;
 
-      // Add to download history
       await _downloadHistoryService.addToHistory(
         marketplaceScriptId: script.id,
         title: script.title,
         authorName: script.authorName ?? 'Unknown',
-        version: script.version,
+        version: effectiveVersion,
         localScriptId: createdScript.id,
       );
 
-      // Update downloaded state
       setState(() {
         _downloadedScriptIds.add(script.id);
       });
 
-      // Show success feedback and switch to My Scripts tab
       if (mounted) {
+        final versionText = version != null ? ' v$version' : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -320,7 +320,7 @@ class _ScriptsScreenState extends State<ScriptsScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '"${script.title}" added to your library!',
+                    '"${script.title}"$versionText added to your library!',
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                 ),
@@ -332,7 +332,7 @@ class _ScriptsScreenState extends State<ScriptsScreen>
               label: 'View Scripts',
               textColor: Colors.white,
               onPressed: () {
-                _tabController.animateTo(0); // Switch to My Scripts tab
+                _tabController.animateTo(0);
               },
             ),
           ),
@@ -465,8 +465,40 @@ class _ScriptsScreenState extends State<ScriptsScreen>
   }
 
   bool _isPublishedToMarketplace(ScriptRecord record) {
-    // Check if script has marketplace metadata
     return record.metadata.containsKey('marketplace_id');
+  }
+
+  Widget _buildSourceBadge(ScriptRecord record, bool isCompactScreen) {
+    final isFromMarketplace = record.isFromMarketplace;
+    final backgroundColor = isFromMarketplace
+        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final textColor = isFromMarketplace
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final borderColor = isFromMarketplace
+        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+        : Theme.of(context).colorScheme.outlineVariant;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompactScreen ? 4 : 6,
+        vertical: isCompactScreen ? 1 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        isFromMarketplace ? 'Marketplace' : 'Local',
+        style: TextStyle(
+          fontSize: isCompactScreen ? 8 : 10,
+          color: textColor,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 
   Future<void> _publishToMarketplace(ScriptRecord record) async {
@@ -756,6 +788,8 @@ class _ScriptsScreenState extends State<ScriptsScreen>
                       children: [
                         Row(
                           children: [
+                            _buildSourceBadge(rec, isCompactScreen),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 rec.title,
@@ -795,7 +829,9 @@ class _ScriptsScreenState extends State<ScriptsScreen>
                         ),
                         SizedBox(height: isCompactScreen ? 2 : 4),
                         Text(
-                          'Updated ${rec.updatedAt.toLocal()}',
+                          rec.isFromMarketplace
+                              ? 'v${rec.marketplaceVersion ?? '?.?.?'} • Updated ${rec.updatedAt.toLocal()}'
+                              : 'Updated ${rec.updatedAt.toLocal()}',
                           style: TextStyle(
                             fontSize: isCompactScreen ? 11 : 12,
                             color:

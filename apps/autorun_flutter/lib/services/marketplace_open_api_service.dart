@@ -313,11 +313,15 @@ class MarketplaceOpenApiService {
     }
   }
 
-  // Download script (public access - only for free scripts)
-  Future<String> downloadScript(String scriptId) async {
+  Future<String> downloadScript(String scriptId, {String? version}) async {
     try {
-      // First get script details to check if it's free
-      final script = await getScriptDetails(scriptId);
+      MarketplaceScript script;
+
+      if (version != null) {
+        script = await getScriptVersion(scriptId, version);
+      } else {
+        script = await getScriptDetails(scriptId);
+      }
 
       if (script.price > 0) {
         throw Exception('Paid scripts require authentication to download');
@@ -330,6 +334,76 @@ class MarketplaceOpenApiService {
       return script.luaSource;
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Download script failed: $e');
+      rethrow;
+    }
+  }
+
+  Future<MarketplaceScript> getScriptVersion(
+      String scriptId, String version) async {
+    try {
+      final response = await _httpClient
+          .get(Uri.parse('$_baseUrl/scripts/$scriptId/versions/$version'))
+          .timeout(_timeout);
+
+      if (response.statusCode == 404) {
+        throw Exception('Script version $version not found');
+      }
+      if (response.statusCode > 299) {
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(
+            responseData['error'] ?? 'Failed to get script version');
+      }
+
+      final data = responseData['data'];
+      if (data == null || data is! Map<String, dynamic>) {
+        throw Exception('Script version response missing data field');
+      }
+      return MarketplaceScript.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) {
+        debugPrint('Get script version failed: $e');
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<ScriptVersion>> getScriptVersions(String scriptId) async {
+    try {
+      final response = await _httpClient
+          .get(Uri.parse('$_baseUrl/scripts/$scriptId/versions'))
+          .timeout(_timeout);
+
+      if (response.statusCode == 404) {
+        return [];
+      }
+      if (response.statusCode > 299) {
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(
+            responseData['error'] ?? 'Failed to get script versions');
+      }
+
+      final data = responseData['data'];
+      if (data == null || data is! List) {
+        return [];
+      }
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map((v) => ScriptVersion.fromJson(v))
+          .toList();
+    } catch (e) {
+      if (!suppressDebugOutput) {
+        debugPrint('Get script versions failed: $e');
+      }
       rethrow;
     }
   }
@@ -1032,4 +1106,55 @@ class ScriptValidationResult {
       warnings: List<String>.from(json['warnings'] ?? []),
     );
   }
+}
+
+class ScriptVersion {
+  final String version;
+  final String? changelog;
+  final DateTime createdAt;
+  final int downloads;
+  final bool isLatest;
+
+  const ScriptVersion({
+    required this.version,
+    this.changelog,
+    required this.createdAt,
+    this.downloads = 0,
+    this.isLatest = false,
+  });
+
+  factory ScriptVersion.fromJson(Map<String, dynamic> json) {
+    return ScriptVersion(
+      version: json['version'] as String? ?? '',
+      changelog: json['changelog'] as String?,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ??
+              json['created_at'] as String? ??
+              '') ??
+          DateTime.now(),
+      downloads: json['downloads'] as int? ?? 0,
+      isLatest:
+          json['isLatest'] as bool? ?? json['is_latest'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'version': version,
+        'changelog': changelog,
+        'createdAt': createdAt.toIso8601String(),
+        'downloads': downloads,
+        'isLatest': isLatest,
+      };
+
+  @override
+  String toString() => 'ScriptVersion{version: $version, latest: $isLatest}';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScriptVersion &&
+          runtimeType == other.runtimeType &&
+          version == other.version;
+
+  @override
+  int get hashCode => version.hashCode;
 }

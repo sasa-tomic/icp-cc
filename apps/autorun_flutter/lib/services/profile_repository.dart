@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:icp_autorun/utils/encrypted_export.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/profile.dart';
@@ -106,7 +107,8 @@ class ProfileRepository {
               Map<String, dynamic>.from(item);
 
           // Load keypairs with sensitive data from secure storage
-          final List<dynamic> keypairsJson = profileData['keypairs'] as List<dynamic>;
+          final List<dynamic> keypairsJson =
+              profileData['keypairs'] as List<dynamic>;
           final List<ProfileKeypair> keypairs = [];
 
           for (final dynamic keypairItem in keypairsJson) {
@@ -185,7 +187,8 @@ class ProfileRepository {
                         'algorithm': keyAlgorithmToString(keypair.algorithm),
                         'publicKey': keypair.publicKey,
                         'createdAt': keypair.createdAt.toIso8601String(),
-                        if (keypair.principal != null) 'principal': keypair.principal,
+                        if (keypair.principal != null)
+                          'principal': keypair.principal,
                       })
                   .toList(),
               'createdAt': profile.createdAt.toIso8601String(),
@@ -224,7 +227,8 @@ class ProfileRepository {
     try {
       return await _secureStorage.read(key: '$_privateKeyPrefix$keypairId');
     } catch (e) {
-      throw Exception('Failed to retrieve private key for keypair $keypairId: $e');
+      throw Exception(
+          'Failed to retrieve private key for keypair $keypairId: $e');
     }
   }
 
@@ -235,5 +239,105 @@ class ProfileRepository {
     } catch (e) {
       throw Exception('Failed to retrieve mnemonic for keypair $keypairId: $e');
     }
+  }
+
+  /// Export a keypair as encrypted JSON string for disaster recovery
+  /// The keypair must exist in the loaded profiles
+  Future<String> exportKeypairEncrypted(
+    String keypairId,
+    String password,
+  ) async {
+    final profiles = await loadProfiles();
+    ProfileKeypair? keypair;
+    for (final profile in profiles) {
+      final found = profile.getKeypair(keypairId);
+      if (found != null) {
+        keypair = found;
+        break;
+      }
+    }
+
+    if (keypair == null) {
+      throw ArgumentError('Keypair not found: $keypairId');
+    }
+
+    return await keypair.toEncryptedExport(password);
+  }
+
+  /// Import an encrypted keypair and add it to a profile
+  /// Returns the imported keypair
+  Future<ProfileKeypair> importKeypairEncrypted(
+    String encryptedJson,
+    String password,
+    String profileId,
+  ) async {
+    final keypair = await ProfileKeypair.fromEncryptedExport(
+      encryptedJson,
+      password,
+    );
+
+    final profiles = await loadProfiles();
+    final profileIndex = profiles.indexWhere((p) => p.id == profileId);
+
+    if (profileIndex == -1) {
+      throw ArgumentError('Profile not found: $profileId');
+    }
+
+    final profile = profiles[profileIndex];
+    if (profile.keypairs.length >= 10) {
+      throw StateError('Profile already has maximum keypairs (10)');
+    }
+
+    final updatedKeypairs = [...profile.keypairs, keypair];
+    profiles[profileIndex] = profile.copyWith(
+      keypairs: updatedKeypairs,
+      updatedAt: DateTime.now(),
+    );
+
+    await persistProfiles(profiles);
+    return keypair;
+  }
+
+  Future<String> exportProfileBackup(String profileId, String password) async {
+    final profiles = await loadProfiles();
+    final profile = profiles.firstWhere(
+      (p) => p.id == profileId,
+      orElse: () => throw ArgumentError('Profile not found: $profileId'),
+    );
+
+    final backupData = <String, dynamic>{
+      'v': 1,
+      'type': 'profile_backup',
+      'profile': profile.toJson(),
+    };
+
+    return EncryptedExport.encrypt(jsonEncode(backupData), password);
+  }
+
+  Future<Profile> importProfileBackup(
+      String encryptedJson, String password) async {
+    final plainJson = await EncryptedExport.decrypt(encryptedJson, password);
+    final backupData = jsonDecode(plainJson) as Map<String, dynamic>;
+
+    if (backupData['v'] != 1) {
+      throw FormatException('Unsupported backup version: ${backupData['v']}');
+    }
+    if (backupData['type'] != 'profile_backup') {
+      throw FormatException('Invalid backup type: ${backupData['type']}');
+    }
+
+    final profileMap = backupData['profile'] as Map<String, dynamic>;
+    final profile = Profile.fromJson(profileMap);
+
+    final profiles = await loadProfiles();
+    final existingIndex = profiles.indexWhere((p) => p.id == profile.id);
+    if (existingIndex != -1) {
+      throw StateError('Profile with ID ${profile.id} already exists');
+    }
+
+    profiles.add(profile);
+    await persistProfiles(profiles);
+
+    return profile;
   }
 }

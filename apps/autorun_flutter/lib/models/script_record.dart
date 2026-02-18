@@ -15,13 +15,18 @@ class ScriptRecord {
 
   final String id;
   final String title;
-  final String? emoji; // Unicode emoji character, optional
-  final String? imageUrl; // Optional remote/local image path
-  final String luaSource; // The Lua script source code
+  final String? emoji;
+  final String? imageUrl;
+  final String luaSource;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final Map<String, dynamic>
-      metadata; // Additional metadata for marketplace integration
+  final Map<String, dynamic> metadata;
+
+  String? get marketplaceId => metadata['marketplace_id'] as String?;
+  String? get marketplaceVersion => metadata['marketplace_version'] as String?;
+  String? get marketplaceAuthor => metadata['marketplace_author'] as String?;
+  String? get sha256Checksum => metadata['sha256_checksum'] as String?;
+  bool get isFromMarketplace => marketplaceId != null;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,

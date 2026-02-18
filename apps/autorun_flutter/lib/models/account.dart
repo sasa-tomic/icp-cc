@@ -42,18 +42,30 @@ class Account {
     return Account(
       id: json['id'] as String,
       username: json['username'] as String,
-      displayName: json['displayName'] as String? ?? json['display_name'] as String? ?? '',
-      contactEmail: json['contactEmail'] as String? ?? json['contact_email'] as String?,
-      contactTelegram: json['contactTelegram'] as String? ?? json['contact_telegram'] as String?,
-      contactTwitter: json['contactTwitter'] as String? ?? json['contact_twitter'] as String?,
-      contactDiscord: json['contactDiscord'] as String? ?? json['contact_discord'] as String?,
-      websiteUrl: json['websiteUrl'] as String? ?? json['website_url'] as String?,
+      displayName: json['displayName'] as String? ??
+          json['display_name'] as String? ??
+          '',
+      contactEmail:
+          json['contactEmail'] as String? ?? json['contact_email'] as String?,
+      contactTelegram: json['contactTelegram'] as String? ??
+          json['contact_telegram'] as String?,
+      contactTwitter: json['contactTwitter'] as String? ??
+          json['contact_twitter'] as String?,
+      contactDiscord: json['contactDiscord'] as String? ??
+          json['contact_discord'] as String?,
+      websiteUrl:
+          json['websiteUrl'] as String? ?? json['website_url'] as String?,
       bio: json['bio'] as String?,
-      publicKeys: (json['publicKeys'] as List<dynamic>? ?? json['public_keys'] as List<dynamic>? ?? <dynamic>[])
-          .map((dynamic e) => AccountPublicKey.fromJson(e as Map<String, dynamic>))
+      publicKeys: (json['publicKeys'] as List<dynamic>? ??
+              json['public_keys'] as List<dynamic>? ??
+              <dynamic>[])
+          .map((dynamic e) =>
+              AccountPublicKey.fromJson(e as Map<String, dynamic>))
           .toList(),
-      createdAt: DateTime.parse(json['createdAt'] as String? ?? json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String? ?? json['updated_at'] as String),
+      createdAt: DateTime.parse(
+          json['createdAt'] as String? ?? json['created_at'] as String),
+      updatedAt: DateTime.parse(
+          json['updatedAt'] as String? ?? json['updated_at'] as String),
     );
   }
 
@@ -142,6 +154,7 @@ class AccountPublicKey {
     required this.icPrincipal,
     required this.isActive,
     required this.addedAt,
+    this.label,
     this.disabledAt,
     this.disabledByKeyId,
   });
@@ -150,34 +163,62 @@ class AccountPublicKey {
     return AccountPublicKey(
       id: json['id'] as String,
       publicKey: json['publicKey'] as String? ?? json['public_key'] as String,
-      icPrincipal: json['icPrincipal'] as String? ?? json['ic_principal'] as String,
+      icPrincipal:
+          json['icPrincipal'] as String? ?? json['ic_principal'] as String,
       isActive: json['isActive'] as bool? ?? json['is_active'] as bool,
-      addedAt: DateTime.parse(json['addedAt'] as String? ?? json['added_at'] as String),
+      addedAt: DateTime.parse(
+          json['addedAt'] as String? ?? json['added_at'] as String),
+      label: json['label'] as String?,
       disabledAt: json['disabledAt'] != null || json['disabled_at'] != null
-          ? DateTime.parse(json['disabledAt'] as String? ?? json['disabled_at'] as String)
+          ? DateTime.parse(
+              json['disabledAt'] as String? ?? json['disabled_at'] as String)
           : null,
-      disabledByKeyId: json['disabledByKeyId'] as String? ?? json['disabled_by_key_id'] as String?,
+      disabledByKeyId: json['disabledByKeyId'] as String? ??
+          json['disabled_by_key_id'] as String?,
     );
   }
 
   final String id;
-  final String publicKey; // base64 encoded
-  final String icPrincipal; // IC principal derived from public key
+  final String publicKey;
+  final String icPrincipal;
   final bool isActive;
   final DateTime addedAt;
+  final String? label;
   final DateTime? disabledAt;
-  final String? disabledByKeyId; // ID of key that disabled this key
+  final String? disabledByKeyId;
 
-  /// Format public key for display (first 6 + last 4 characters)
   String get displayKey {
     if (publicKey.length <= 12) return publicKey;
     return '${publicKey.substring(0, 6)}...${publicKey.substring(publicKey.length - 4)}';
   }
 
-  /// Format IC principal for display (first 5 + last 3 characters)
   String get displayPrincipal {
     if (icPrincipal.length <= 10) return icPrincipal;
     return '${icPrincipal.substring(0, 5)}...${icPrincipal.substring(icPrincipal.length - 3)}';
+  }
+
+  String get displayLabel => label ?? displayKey;
+
+  AccountPublicKey copyWith({
+    String? id,
+    String? publicKey,
+    String? icPrincipal,
+    bool? isActive,
+    DateTime? addedAt,
+    String? label,
+    DateTime? disabledAt,
+    String? disabledByKeyId,
+  }) {
+    return AccountPublicKey(
+      id: id ?? this.id,
+      publicKey: publicKey ?? this.publicKey,
+      icPrincipal: icPrincipal ?? this.icPrincipal,
+      isActive: isActive ?? this.isActive,
+      addedAt: addedAt ?? this.addedAt,
+      label: label ?? this.label,
+      disabledAt: disabledAt ?? this.disabledAt,
+      disabledByKeyId: disabledByKeyId ?? this.disabledByKeyId,
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -187,6 +228,7 @@ class AccountPublicKey {
       'icPrincipal': icPrincipal,
       'isActive': isActive,
       'addedAt': addedAt.toIso8601String(),
+      if (label != null) 'label': label,
       if (disabledAt != null) 'disabledAt': disabledAt!.toIso8601String(),
       if (disabledByKeyId != null) 'disabledByKeyId': disabledByKeyId,
     };
@@ -278,14 +320,16 @@ class AddPublicKeyRequest {
     required this.timestamp,
     required this.nonce,
     required this.signature,
+    this.label,
   });
 
   final String username;
-  final String newPublicKeyB64; // base64 encoded - generated keypair only
-  final String signingPublicKeyB64; // base64 encoded (must be active key from same profile)
-  final int timestamp; // Unix timestamp (seconds)
-  final String nonce; // UUID v4
-  final String signature; // base64 encoded
+  final String newPublicKeyB64;
+  final String signingPublicKeyB64;
+  final int timestamp;
+  final String nonce;
+  final String signature;
+  final String? label;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -294,14 +338,12 @@ class AddPublicKeyRequest {
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
+      if (label != null) 'label': label,
     };
   }
 
-  /// Create canonical JSON for signing
-  ///
-  /// Example: {"action":"add_key","newPublicKeyB64":"...","nonce":"...","signingPublicKeyB64":"...","timestamp":1700000100,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
-    return <String, dynamic>{
+    final payload = <String, dynamic>{
       'action': 'add_key',
       'newPublicKeyB64': newPublicKeyB64,
       'nonce': nonce,
@@ -309,10 +351,11 @@ class AddPublicKeyRequest {
       'timestamp': timestamp,
       'username': username,
     };
+    if (label != null) payload['label'] = label;
+    return payload;
   }
 }
 
-/// Request payload for removing a public key from an account
 class RemovePublicKeyRequest {
   RemovePublicKeyRequest({
     required this.username,

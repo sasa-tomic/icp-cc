@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/services/secure_keypair_repository.dart';
+import 'package:icp_autorun/utils/encrypted_export.dart';
 
 import 'test_keypair_factory.dart';
 
@@ -156,5 +159,93 @@ class FakeProfileRepository implements ProfileRepository {
       }
     }
     return null;
+  }
+
+  @override
+  Future<String> exportKeypairEncrypted(
+    String keypairId,
+    String password,
+  ) async {
+    for (final profile in _profiles) {
+      final keypair = profile.getKeypair(keypairId);
+      if (keypair != null) {
+        return await keypair.toEncryptedExport(password);
+      }
+    }
+    throw ArgumentError('Keypair not found: $keypairId');
+  }
+
+  @override
+  Future<ProfileKeypair> importKeypairEncrypted(
+    String encryptedJson,
+    String password,
+    String profileId,
+  ) async {
+    final keypair = await ProfileKeypair.fromEncryptedExport(
+      encryptedJson,
+      password,
+    );
+
+    final profileIndex = _profiles.indexWhere((p) => p.id == profileId);
+    if (profileIndex == -1) {
+      throw ArgumentError('Profile not found: $profileId');
+    }
+
+    final profile = _profiles[profileIndex];
+    if (profile.keypairs.length >= 10) {
+      throw StateError('Profile already has maximum keypairs (10)');
+    }
+
+    final updatedKeypairs = [...profile.keypairs, keypair];
+    _profiles[profileIndex] = profile.copyWith(
+      keypairs: updatedKeypairs,
+      updatedAt: DateTime.now(),
+    );
+
+    return keypair;
+  }
+
+  @override
+  Future<String> exportProfileBackup(String profileId, String password) async {
+    final profile = _profiles.firstWhere(
+      (p) => p.id == profileId,
+      orElse: () => throw ArgumentError('Profile not found: $profileId'),
+    );
+
+    final backupData = <String, dynamic>{
+      'v': 1,
+      'type': 'profile_backup',
+      'profile': profile.toJson(),
+    };
+
+    return EncryptedExport.encrypt(jsonEncode(backupData), password);
+  }
+
+  @override
+  Future<Profile> importProfileBackup(
+    String encryptedJson,
+    String password,
+  ) async {
+    final plainJson = await EncryptedExport.decrypt(encryptedJson, password);
+    final backupData = jsonDecode(plainJson) as Map<String, dynamic>;
+
+    if (backupData['v'] != 1) {
+      throw FormatException('Unsupported backup version: ${backupData['v']}');
+    }
+    if (backupData['type'] != 'profile_backup') {
+      throw FormatException('Invalid backup type: ${backupData['type']}');
+    }
+
+    final profileMap = backupData['profile'] as Map<String, dynamic>;
+    final profile = Profile.fromJson(profileMap);
+
+    final existingIndex = _profiles.indexWhere((p) => p.id == profile.id);
+    if (existingIndex != -1) {
+      throw StateError('Profile with ID ${profile.id} already exists');
+    }
+
+    _profiles.add(profile);
+
+    return profile;
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-/// Cryptographic key algorithm
+import 'package:icp_autorun/utils/encrypted_export.dart';
+
 enum KeyAlgorithm { ed25519, secp256k1 }
 
 KeyAlgorithm keyAlgorithmFromString(String value) {
@@ -94,6 +95,19 @@ class ProfileKeypair {
       'Public key (base64)': publicKey,
       'Private key (base64)': privateKey,
     };
+  }
+
+  Future<String> toEncryptedExport(String password) async {
+    return EncryptedExport.encrypt(jsonEncode(toJson()), password);
+  }
+
+  static Future<ProfileKeypair> fromEncryptedExport(
+    String encryptedJson,
+    String password,
+  ) async {
+    final plainJson = await EncryptedExport.decrypt(encryptedJson, password);
+    final keypairMap = jsonDecode(plainJson) as Map<String, dynamic>;
+    return ProfileKeypair.fromJson(keypairMap);
   }
 
   /// Serialize to JSON
