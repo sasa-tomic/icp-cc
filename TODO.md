@@ -196,7 +196,6 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 | Issue | Location | Severity |
 |-------|----------|----------|
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
-| Returns empty arrays on connection failure (anti-pattern) | `lib/services/marketplace_open_api_service.dart:168,196` | MEDIUM |
 
 ---
 

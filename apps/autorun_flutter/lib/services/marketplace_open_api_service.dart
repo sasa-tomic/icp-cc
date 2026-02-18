@@ -11,7 +11,8 @@ import '../utils/base64_utils.dart';
 bool suppressDebugOutput = false;
 
 class MarketplaceOpenApiService {
-  static final MarketplaceOpenApiService _instance = MarketplaceOpenApiService._internal();
+  static final MarketplaceOpenApiService _instance =
+      MarketplaceOpenApiService._internal();
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal() : _httpClient = http.Client();
 
@@ -44,7 +45,7 @@ class MarketplaceOpenApiService {
   }) async {
     try {
       final url = '$_baseUrl/scripts/search';
-      
+
       // Build request body, only including non-null values
       final requestBody = <String, dynamic>{
         'sortBy': sortBy,
@@ -52,14 +53,14 @@ class MarketplaceOpenApiService {
         'limit': limit,
         'offset': offset,
       };
-      
+
       // Only add optional parameters if they're not null
       if (query != null) requestBody['query'] = query;
       if (category != null) requestBody['category'] = category;
       if (canisterId != null) requestBody['canisterId'] = canisterId;
       if (minRating != null) requestBody['minRating'] = minRating;
       if (maxPrice != null) requestBody['maxPrice'] = maxPrice;
-      
+
       final response = await _httpClient
           .post(
             Uri.parse(url),
@@ -69,7 +70,8 @@ class MarketplaceOpenApiService {
           .timeout(_timeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
       final responseData = jsonDecode(response.body);
@@ -90,19 +92,8 @@ class MarketplaceOpenApiService {
         offset: offset,
         limit: limit,
       );
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Search scripts failed: $e');
-      // During tests, if the service isn't available, return empty result rather than failing
-      if (suppressDebugOutput || e.toString().contains('Connection refused')) {
-        return MarketplaceSearchResult(
-          scripts: [],
-          total: 0,
-          hasMore: false,
-          offset: offset,
-          limit: limit,
-        );
-      }
       rethrow;
     }
   }
@@ -118,12 +109,14 @@ class MarketplaceOpenApiService {
         if (response.statusCode == 404) {
           throw Exception('Script not found');
         }
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
       final responseData = jsonDecode(response.body);
       if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Failed to get script details');
+        throw Exception(
+            responseData['error'] ?? 'Failed to get script details');
       }
 
       final data = responseData['data'];
@@ -134,7 +127,6 @@ class MarketplaceOpenApiService {
         throw Exception('Script details response data is not a valid object');
       }
       return MarketplaceScript.fromJson(data);
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get script details failed: $e');
       rethrow;
@@ -143,58 +135,48 @@ class MarketplaceOpenApiService {
 
   // Get featured scripts
   Future<List<MarketplaceScript>> getFeaturedScripts({int limit = 10}) async {
-    try {
-      final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/scripts/featured?limit=$limit'))
-          .timeout(_timeout);
+    final response = await _httpClient
+        .get(Uri.parse('$_baseUrl/scripts/featured?limit=$limit'))
+        .timeout(_timeout);
 
-      if (response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Failed to get featured scripts');
-      }
-
-      final data = responseData['data'] as List;
-      return data
-          .whereType<Map<String, dynamic>>()
-          .map((script) => MarketplaceScript.fromJson(script))
-          .toList();
-
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Get featured scripts failed: $e');
-      return [];
+    if (response.statusCode > 299) {
+      throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
     }
+
+    final responseData = jsonDecode(response.body);
+    if (!responseData['success']) {
+      throw Exception(
+          responseData['error'] ?? 'Failed to get featured scripts');
+    }
+
+    final data = responseData['data'] as List;
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((script) => MarketplaceScript.fromJson(script))
+        .toList();
   }
 
   // Get trending scripts
   Future<List<MarketplaceScript>> getTrendingScripts({int limit = 10}) async {
-    try {
-      final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/scripts/trending?limit=$limit'))
-          .timeout(_timeout);
+    final response = await _httpClient
+        .get(Uri.parse('$_baseUrl/scripts/trending?limit=$limit'))
+        .timeout(_timeout);
 
-      if (response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Failed to get trending scripts');
-      }
-
-      final data = responseData['data'] as List;
-      return data
-          .whereType<Map<String, dynamic>>()
-          .map((script) => MarketplaceScript.fromJson(script))
-          .toList();
-
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Get trending scripts failed: $e');
-      return [];
+    if (response.statusCode > 299) {
+      throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
     }
+
+    final responseData = jsonDecode(response.body);
+    if (!responseData['success']) {
+      throw Exception(
+          responseData['error'] ?? 'Failed to get trending scripts');
+    }
+
+    final data = responseData['data'] as List;
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((script) => MarketplaceScript.fromJson(script))
+        .toList();
   }
 
   // Get scripts by category
@@ -206,7 +188,8 @@ class MarketplaceOpenApiService {
     String sortOrder = 'desc',
   }) async {
     try {
-      final uri = Uri.parse('$_baseUrl/scripts/category/$category').replace(queryParameters: {
+      final uri = Uri.parse('$_baseUrl/scripts/category/$category')
+          .replace(queryParameters: {
         'limit': limit.toString(),
         'offset': offset.toString(),
         'sort_by': sortBy,
@@ -216,12 +199,14 @@ class MarketplaceOpenApiService {
       final response = await _httpClient.get(uri).timeout(_timeout);
 
       if (response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
       final responseData = jsonDecode(response.body);
       if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Failed to get scripts by category');
+        throw Exception(
+            responseData['error'] ?? 'Failed to get scripts by category');
       }
 
       final data = responseData['data'] as List;
@@ -229,9 +214,9 @@ class MarketplaceOpenApiService {
           .whereType<Map<String, dynamic>>()
           .map((script) => MarketplaceScript.fromJson(script))
           .toList();
-
     } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Get scripts by category failed: $e');
+      if (!suppressDebugOutput)
+        debugPrint('Get scripts by category failed: $e');
       rethrow;
     }
   }
@@ -244,7 +229,8 @@ class MarketplaceOpenApiService {
     bool verifiedOnly = false,
   }) async {
     try {
-      final uri = Uri.parse('$_baseUrl/scripts/$scriptId/reviews').replace(queryParameters: {
+      final uri = Uri.parse('$_baseUrl/scripts/$scriptId/reviews')
+          .replace(queryParameters: {
         'limit': limit.toString(),
         'offset': offset.toString(),
         if (verifiedOnly) 'verified_only': 'true',
@@ -253,12 +239,14 @@ class MarketplaceOpenApiService {
       final response = await _httpClient.get(uri).timeout(_timeout);
 
       if (response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
       final responseData = jsonDecode(response.body);
       if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Failed to get script reviews');
+        throw Exception(
+            responseData['error'] ?? 'Failed to get script reviews');
       }
 
       final data = responseData['data'] as List;
@@ -266,7 +254,6 @@ class MarketplaceOpenApiService {
           .whereType<Map<String, dynamic>>()
           .map((review) => ScriptReview.fromJson(review))
           .toList();
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get script reviews failed: $e');
       rethrow;
@@ -319,9 +306,9 @@ class MarketplaceOpenApiService {
       );
 
       return result.scripts;
-
     } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Search scripts by canister ID failed: $e');
+      if (!suppressDebugOutput)
+        debugPrint('Search scripts by canister ID failed: $e');
       rethrow;
     }
   }
@@ -341,7 +328,6 @@ class MarketplaceOpenApiService {
       }
 
       return script.luaSource;
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Download script failed: $e');
       rethrow;
@@ -350,35 +336,22 @@ class MarketplaceOpenApiService {
 
   // Get marketplace statistics (public data)
   Future<MarketplaceStats> getMarketplaceStats() async {
-    try {
-      final url = '$_baseUrl/marketplace-stats';
-      if (!suppressDebugOutput) debugPrint('GET request URL: $url');
-      final response = await _httpClient
-          .get(Uri.parse(url))
-          .timeout(_timeout);
+    final url = '$_baseUrl/marketplace-stats';
+    if (!suppressDebugOutput) debugPrint('GET request URL: $url');
+    final response = await _httpClient.get(Uri.parse(url)).timeout(_timeout);
 
-      if (response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Failed to get marketplace stats');
-      }
-
-      final data = responseData['data'];
-      return MarketplaceStats.fromJson(data);
-
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Get marketplace stats failed: $e');
-      // Return default stats if API fails
-      return MarketplaceStats(
-        totalScripts: 0,
-        totalAuthors: 0,
-        totalDownloads: 0,
-        averageRating: 0.0,
-      );
+    if (response.statusCode > 299) {
+      throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
     }
+
+    final responseData = jsonDecode(response.body);
+    if (!responseData['success']) {
+      throw Exception(
+          responseData['error'] ?? 'Failed to get marketplace stats');
+    }
+
+    final data = responseData['data'];
+    return MarketplaceStats.fromJson(data);
   }
 
   // Get canister compatibility info
@@ -399,19 +372,22 @@ class MarketplaceOpenApiService {
             Uri.parse('$_baseUrl/scripts/compatible'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'canisterId': canisterIds.first, // Cloudflare endpoint expects single canister ID
+              'canisterId': canisterIds
+                  .first, // Cloudflare endpoint expects single canister ID
               'limit': limit,
             }),
           )
           .timeout(_timeout);
 
       if (response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
       final responseData = jsonDecode(response.body);
       if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Failed to get compatible scripts');
+        throw Exception(
+            responseData['error'] ?? 'Failed to get compatible scripts');
       }
 
       final data = responseData['data'] as List;
@@ -419,14 +395,12 @@ class MarketplaceOpenApiService {
           .whereType<Map<String, dynamic>>()
           .map((script) => MarketplaceScript.fromJson(script))
           .toList();
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get compatible scripts failed: $e');
       rethrow;
     }
   }
 
-  
   // Upload a new script to the marketplace
   Future<MarketplaceScript> uploadScript({
     required String slug,
@@ -480,14 +454,14 @@ class MarketplaceOpenApiService {
       if (timestampIso != null) {
         requestBodyMap['timestamp'] = timestampIso;
       }
-      
+
       final requestBody = jsonEncode(requestBodyMap);
-      
+
       if (!suppressDebugOutput) {
         debugPrint('Upload request URL: $_baseUrl/scripts');
         debugPrint('Request body: $requestBody');
       }
-      
+
       final response = await _httpClient
           .post(
             Uri.parse('$_baseUrl/scripts'),
@@ -511,9 +485,10 @@ class MarketplaceOpenApiService {
       }
 
       if (response.body.isEmpty) {
-        throw Exception('Upload failed (HTTP ${response.statusCode}): Empty response from server');
+        throw Exception(
+            'Upload failed (HTTP ${response.statusCode}): Empty response from server');
       }
-      
+
       final responseData = jsonDecode(response.body);
       if (!responseData['success']) {
         final errorDetail = responseData['error']?.toString();
@@ -557,10 +532,10 @@ class MarketplaceOpenApiService {
         );
       }
       if (data is! Map<String, dynamic>) {
-        throw Exception('Upload response data is not a valid object. Data type: ${data.runtimeType}');
+        throw Exception(
+            'Upload response data is not a valid object. Data type: ${data.runtimeType}');
       }
       return MarketplaceScript.fromJson(data);
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Upload script failed: $e');
       rethrow;
@@ -597,7 +572,9 @@ class MarketplaceOpenApiService {
           // Ignore JSON decoding issues and fall back to raw body sample.
         }
 
-        detail ??= bodyText.length > 200 ? '${bodyText.substring(0, 200)}...' : bodyText;
+        detail ??= bodyText.length > 200
+            ? '${bodyText.substring(0, 200)}...'
+            : bodyText;
       }
     }
 
@@ -651,7 +628,8 @@ class MarketplaceOpenApiService {
 
       if (response.statusCode > 299) {
         final responseData = jsonDecode(response.body);
-        throw Exception(responseData['error'] ?? 'Update failed: ${response.reasonPhrase}');
+        throw Exception(
+            responseData['error'] ?? 'Update failed: ${response.reasonPhrase}');
       }
 
       final responseData = jsonDecode(response.body);
@@ -667,7 +645,6 @@ class MarketplaceOpenApiService {
         throw Exception('Update script response data is not a valid object');
       }
       return MarketplaceScript.fromJson(data);
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Update script failed: $e');
       rethrow;
@@ -675,7 +652,8 @@ class MarketplaceOpenApiService {
   }
 
   // Delete a script
-  Future<bool> deleteScript(String scriptId, {String? authorPrincipal, String? signature}) async {
+  Future<bool> deleteScript(String scriptId,
+      {String? authorPrincipal, String? signature}) async {
     try {
       final timestamp = DateTime.now().toIso8601String();
       final body = <String, dynamic>{
@@ -695,7 +673,8 @@ class MarketplaceOpenApiService {
 
       if (response.statusCode > 299) {
         final responseData = jsonDecode(response.body);
-        throw Exception(responseData['error'] ?? 'Delete failed: ${response.reasonPhrase}');
+        throw Exception(
+            responseData['error'] ?? 'Delete failed: ${response.reasonPhrase}');
       }
 
       final responseData = jsonDecode(response.body);
@@ -704,13 +683,11 @@ class MarketplaceOpenApiService {
       }
 
       return true;
-
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Delete script failed: $e');
       rethrow;
     }
   }
-
 
   // Account management endpoints
 
@@ -730,7 +707,8 @@ class MarketplaceOpenApiService {
         final String detail = response.body.isNotEmpty
             ? _extractErrorMessage(response.body)
             : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception('Account registration failed (HTTP ${response.statusCode}): $detail');
+        throw Exception(
+            'Account registration failed (HTTP ${response.statusCode}): $detail');
       }
 
       final dynamic decoded = jsonDecode(response.body);
@@ -740,7 +718,8 @@ class MarketplaceOpenApiService {
       if (decoded['success'] != true) {
         throw Exception(decoded['error'] ?? 'Failed to register account');
       }
-      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      final Map<String, dynamic>? data =
+          decoded['data'] as Map<String, dynamic>?;
       if (data == null) {
         throw Exception('Account registration response missing data');
       }
@@ -764,7 +743,8 @@ class MarketplaceOpenApiService {
         return null; // Account not found
       }
       if (response.statusCode < 200 || response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
       final dynamic decoded = jsonDecode(response.body);
@@ -774,7 +754,8 @@ class MarketplaceOpenApiService {
       if (decoded['success'] != true) {
         throw Exception(decoded['error'] ?? 'Failed to load account');
       }
-      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      final Map<String, dynamic>? data =
+          decoded['data'] as Map<String, dynamic>?;
       if (data == null) {
         throw Exception('Account response missing data field');
       }
@@ -802,7 +783,8 @@ class MarketplaceOpenApiService {
         return null; // No account found for this public key
       }
       if (response.statusCode < 200 || response.statusCode > 299) {
-        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
       }
 
       final dynamic decoded = jsonDecode(response.body);
@@ -810,15 +792,18 @@ class MarketplaceOpenApiService {
         throw Exception('Account by public key response malformed');
       }
       if (decoded['success'] != true) {
-        throw Exception(decoded['error'] ?? 'Failed to load account by public key');
+        throw Exception(
+            decoded['error'] ?? 'Failed to load account by public key');
       }
-      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      final Map<String, dynamic>? data =
+          decoded['data'] as Map<String, dynamic>?;
       if (data == null) {
         throw Exception('Account by public key response missing data field');
       }
       return Account.fromJson(data);
     } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Get account by public key failed: $e');
+      if (!suppressDebugOutput)
+        debugPrint('Get account by public key failed: $e');
       rethrow;
     }
   }
@@ -843,7 +828,8 @@ class MarketplaceOpenApiService {
         final String detail = response.body.isNotEmpty
             ? _extractErrorMessage(response.body)
             : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception('Add key failed (HTTP ${response.statusCode}): $detail');
+        throw Exception(
+            'Add key failed (HTTP ${response.statusCode}): $detail');
       }
 
       final dynamic decoded = jsonDecode(response.body);
@@ -853,7 +839,8 @@ class MarketplaceOpenApiService {
       if (decoded['success'] != true) {
         throw Exception(decoded['error'] ?? 'Failed to add key');
       }
-      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      final Map<String, dynamic>? data =
+          decoded['data'] as Map<String, dynamic>?;
       if (data == null) {
         throw Exception('Add key response missing data');
       }
@@ -885,7 +872,8 @@ class MarketplaceOpenApiService {
         final String detail = response.body.isNotEmpty
             ? _extractErrorMessage(response.body)
             : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception('Remove key failed (HTTP ${response.statusCode}): $detail');
+        throw Exception(
+            'Remove key failed (HTTP ${response.statusCode}): $detail');
       }
 
       final dynamic decoded = jsonDecode(response.body);
@@ -895,7 +883,8 @@ class MarketplaceOpenApiService {
       if (decoded['success'] != true) {
         throw Exception(decoded['error'] ?? 'Failed to remove key');
       }
-      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      final Map<String, dynamic>? data =
+          decoded['data'] as Map<String, dynamic>?;
       if (data == null) {
         throw Exception('Remove key response missing data');
       }
@@ -926,7 +915,8 @@ class MarketplaceOpenApiService {
         final String detail = response.body.isNotEmpty
             ? _extractErrorMessage(response.body)
             : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception('Update account failed (HTTP ${response.statusCode}): $detail');
+        throw Exception(
+            'Update account failed (HTTP ${response.statusCode}): $detail');
       }
 
       final dynamic decoded = jsonDecode(response.body);
@@ -936,7 +926,8 @@ class MarketplaceOpenApiService {
       if (decoded['success'] != true) {
         throw Exception(decoded['error'] ?? 'Failed to update account');
       }
-      final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+      final Map<String, dynamic>? data =
+          decoded['data'] as Map<String, dynamic>?;
       if (data == null) {
         throw Exception('Update account response missing data');
       }
@@ -1017,7 +1008,8 @@ class MarketplaceStats {
       totalScripts: json['totalScripts'] ?? json['total_scripts'] ?? 0,
       totalAuthors: json['totalAuthors'] ?? json['total_authors'] ?? 0,
       totalDownloads: json['totalDownloads'] ?? json['total_downloads'] ?? 0,
-      averageRating: (json['averageRating'] ?? json['average_rating'] ?? 0.0).toDouble(),
+      averageRating:
+          (json['averageRating'] ?? json['average_rating'] ?? 0.0).toDouble(),
     );
   }
 }
