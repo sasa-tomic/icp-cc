@@ -218,9 +218,9 @@ class _MainHomePageState extends State<MainHomePage> {
           label: 'Scripts',
         ),
         const ModernNavigationItem(
-          icon: Icons.bookmark_border_rounded,
-          activeIcon: Icons.bookmark_rounded,
-          label: 'Bookmarks',
+          icon: Icons.explore_outlined,
+          activeIcon: Icons.explore_rounded,
+          label: 'Explorer',
         ),
         ModernNavigationItem(
           icon: Icons.verified_user_outlined,

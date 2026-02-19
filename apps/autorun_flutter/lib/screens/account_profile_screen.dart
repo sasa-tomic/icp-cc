@@ -10,6 +10,8 @@ import '../widgets/account_key_details_sheet.dart';
 import '../widgets/add_account_key_sheet.dart';
 import '../utils/passkey_platform.dart';
 import 'passkey_management_screen.dart';
+import 'export_keys_dialog.dart';
+import 'import_keys_dialog.dart';
 
 /// Account profile screen showing account details and key management
 ///
@@ -706,26 +708,52 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                     letterSpacing: 1.2,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _account.isAtMaxKeys
-                        ? AppDesignSystem.warningLight.withValues(alpha: 0.2)
-                        : AppDesignSystem.accentLight.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${_account.publicKeys.length}/10',
-                    style: AppDesignSystem.bodySmall.copyWith(
-                      color: _account.isAtMaxKeys
-                          ? AppDesignSystem.warningDark
-                          : AppDesignSystem.accentDark,
-                      fontWeight: FontWeight.w600,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _showImportKeysDialog,
+                      icon: const Icon(Icons.upload, size: 18),
+                      label: const Text('Import Keys'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppDesignSystem.primaryLight,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
                     ),
-                  ),
+                    TextButton.icon(
+                      onPressed: _showExportKeysDialog,
+                      icon: const Icon(Icons.download, size: 18),
+                      label: const Text('Export Keys'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppDesignSystem.primaryLight,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _account.isAtMaxKeys
+                            ? AppDesignSystem.warningLight
+                                .withValues(alpha: 0.2)
+                            : AppDesignSystem.accentLight
+                                .withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_account.publicKeys.length}/10',
+                        style: AppDesignSystem.bodySmall.copyWith(
+                          color: _account.isAtMaxKeys
+                              ? AppDesignSystem.warningDark
+                              : AppDesignSystem.accentDark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1124,5 +1152,24 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       final years = (difference.inDays / 365).floor();
       return '$years ${years == 1 ? 'year' : 'years'} ago';
     }
+  }
+
+  void _showExportKeysDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => ExportKeysDialog(
+        profileId: _profile.id,
+        profileController: widget.profileController,
+      ),
+    );
+  }
+
+  void _showImportKeysDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => ImportKeysDialog(
+        profileController: widget.profileController,
+      ),
+    );
   }
 }

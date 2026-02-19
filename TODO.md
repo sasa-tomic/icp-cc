@@ -6,7 +6,7 @@
 
 **Goal:** Make marketplace fully usable. UX improvements COMPLETE.
 
-**Reality Check:** Passkey screens/services are wired into navigation. Welcome onboarding flow guides new users. Script editor has UI component palette. Lua UI supports pagination. Empty states provide contextual guidance. Payments and messaging are explicitly out of scope until the foundation is solid.
+**Reality Check:** Passkey screens/services are wired into navigation. Welcome onboarding flow guides new users. Script editor has UI component palette. Lua UI supports pagination. Empty states provide contextual guidance. Encrypted backup/restore now available. Download History accessible. Navigation labels improved. Payments and messaging are explicitly out of scope until the foundation is solid.
 
 ## Implementation Summary
 
@@ -17,13 +17,15 @@
 | Welcome Onboarding | **COMPLETE** | 100% |
 | Lua Scripting UI | **COMPLETE** | 100% |
 | Enhanced Empty States | **COMPLETE** | 100% |
+| Encrypted Backup/Restore | **COMPLETE** | 100% |
+| Download History Navigation | **COMPLETE** | 100% |
 | Profile Management | Complete | 98% |
 | Account Registration | Complete | 95% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
 | Script Execution (Lua) | Partial | 85% |
-| Testing Coverage | Incomplete | ~65% |
+| Testing Coverage | Incomplete | ~70% |
 
 **Detailed Specs:**
 - [Implementation Status](docs/specs/IMPLEMENTATION_STATUS.md) - Feature-by-feature breakdown
@@ -95,9 +97,12 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Encrypted keypair export for disaster recovery
 - [x] Encrypted backup file generation/restore
 - [x] Key labels in AccountPublicKey model
+- [x] Export Keys dialog with password protection
+- [x] Import Keys dialog for restoring from backup
 
 **Missing:**
 - [ ] ProfileController tests (MISSING - critical)
+- [ ] Key label editing UI (blocked by API - no `updateKeyLabel` endpoint)
 
 ### Account Registration
 
@@ -133,7 +138,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] UI Component Palette tests (DONE - 13 tests)
 - [x] Paginated List tests (DONE - 9 tests)
 - [x] Empty State tests (DONE - 12 tests)
-- [ ] Scripts Screen widget tests (MISSING - largest screen, 0 tests)
+- [x] Scripts Screen navigation tests (DONE - 3 tests)
+- [x] Export/Import Keys dialog tests (DONE - 16 tests)
+- [ ] Scripts Screen widget tests (PARTIAL - navigation done, more needed)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Bookmarks Screen tests (MISSING)
@@ -158,6 +165,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - ScriptsScreen: "Create Script" + "Browse Marketplace" actions
   - BookmarksScreen: "Explore Popular Canisters" action
   - DownloadHistory: "Browse Marketplace" action
+- [x] Rename "Bookmarks" nav to "Explorer" (matches screen title)
+- [x] Add Download History navigation from Scripts screen
+- [x] Add Export/Import Keys buttons for disaster recovery
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
@@ -194,6 +204,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] Search history for marketplace
 - [ ] Quick actions menu (long-press on script cards)
 - [ ] Keyboard shortcuts for desktop users
+- [ ] Simplify Canister Client Sheet (split into Quick Query / Advanced modes)
+- [ ] Flatten Scripts tab (remove nested tabs, elevate Marketplace)
+- [ ] Streamline profile creation (combine profile + account creation)
 
 ---
 
@@ -227,6 +240,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 | Issue | Location | Severity |
 |-------|----------|----------|
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
+| Key label editing blocked by missing API endpoint | `AccountController` | MEDIUM |
 | Pre-existing test failures (passkey, script execution) | `test/features/passkey/`, `test/features/scripts/` | LOW |
 
 ---

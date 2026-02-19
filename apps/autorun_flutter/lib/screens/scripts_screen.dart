@@ -29,6 +29,7 @@ import '../widgets/animated_fab.dart';
 import '../utils/responsive_grid_config.dart';
 import '../widgets/page_transitions.dart';
 import 'script_creation_screen.dart';
+import 'download_history_screen.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -636,6 +637,36 @@ class _ScriptsScreenState extends State<ScriptsScreen>
     final scripts = _controller.scripts;
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scripts'),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'download_history') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DownloadHistoryScreen(),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'download_history',
+                child: Row(
+                  children: [
+                    Icon(Icons.history),
+                    SizedBox(width: 12),
+                    Text('Download History'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           Column(

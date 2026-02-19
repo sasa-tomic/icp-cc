@@ -397,6 +397,26 @@ class ProfileController extends ChangeNotifier {
     return _profiles.firstWhereOrNull((Profile profile) => profile.id == id);
   }
 
+  Future<String> exportProfileBackup(String profileId, String password) async {
+    return _profileRepository.exportProfileBackup(profileId, password);
+  }
+
+  Future<Profile> importProfileBackup(
+      String encryptedJson, String password) async {
+    _setBusy(true);
+    try {
+      final profile = await _profileRepository.importProfileBackup(
+        encryptedJson,
+        password,
+      );
+      _profiles.add(profile);
+      notifyListeners();
+      return profile;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
   /// Find profile that contains a specific keypair
   Profile? findByKeypairId(String keypairId) {
     return _profiles.firstWhereOrNull(

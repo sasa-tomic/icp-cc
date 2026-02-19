@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
+import 'package:icp_autorun/utils/encrypted_export.dart';
 
 import '../../test_helpers/fake_secure_keypair_repository.dart';
 import '../../test_helpers/test_keypair_factory.dart';
@@ -415,6 +417,100 @@ void main() {
       expect(loadedKeypair.privateKey, equals(originalKeypair.privateKey));
       expect(loadedKeypair.mnemonic, equals(originalKeypair.mnemonic));
       expect(loadedKeypair.publicKey, equals(originalKeypair.publicKey));
+    });
+  });
+
+  group('Profile Backup Export', () {
+    test('exportProfileBackup produces valid encrypted output', () async {
+      final keypair = await TestKeypairFactory.getEd25519Keypair();
+      final repo = FakeSecureKeypairRepository([keypair]);
+      const password = 'backup-password-123';
+
+      final profiles = await repo.profileRepository.loadProfiles();
+      final profileId = profiles.first.id;
+
+      final encrypted = await repo.profileRepository.exportProfileBackup(
+        profileId,
+        password,
+      );
+
+      expect(encrypted, isNotEmpty);
+      final decrypted = await EncryptedExport.decrypt(encrypted, password);
+      final map = jsonDecode(decrypted) as Map<String, dynamic>;
+      expect(map['v'], equals(1));
+      expect(map['type'], equals('profile_backup'));
+      expect(map['profile'], isA<Map>());
+    });
+
+    test('exportProfileBackup contains all keypair data', () async {
+      final keypair1 = await TestKeypairFactory.fromSeed(1);
+      final keypair2 = await TestKeypairFactory.fromSeed(2);
+      final now = DateTime.now().toUtc();
+
+      final profile = Profile(
+        id: 'test-profile-backup',
+        name: 'Backup Test Profile',
+        keypairs: [keypair1, keypair2],
+        username: 'backupuser',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final repo = FakeSecureKeypairRepository([]);
+      await repo.profileRepository.persistProfiles([profile]);
+
+      final encrypted = await repo.profileRepository.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      expect(encrypted, isNotEmpty);
+      final decrypted =
+          await EncryptedExport.decrypt(encrypted, 'test-password');
+      final map = jsonDecode(decrypted) as Map<String, dynamic>;
+      final profileMap = map['profile'] as Map<String, dynamic>;
+      final keypairs = profileMap['keypairs'] as List<dynamic>;
+
+      expect(keypairs.length, equals(2));
+    });
+
+    test('exportProfileBackup round-trip preserves profile data', () async {
+      final keypair = await TestKeypairFactory.getEd25519Keypair();
+      final repo = FakeSecureKeypairRepository([keypair]);
+      const password = 'secure-backup-password';
+
+      final profiles = await repo.profileRepository.loadProfiles();
+      final originalProfile = profiles.first;
+      final profileId = originalProfile.id;
+
+      final encrypted = await repo.profileRepository.exportProfileBackup(
+        profileId,
+        password,
+      );
+
+      final decrypted = await EncryptedExport.decrypt(encrypted, password);
+      final backupData = jsonDecode(decrypted) as Map<String, dynamic>;
+      final restoredProfileMap = backupData['profile'] as Map<String, dynamic>;
+      final restoredProfile = Profile.fromJson(restoredProfileMap);
+
+      expect(restoredProfile.id, equals(originalProfile.id));
+      expect(restoredProfile.name, equals(originalProfile.name));
+      expect(restoredProfile.keypairs.length,
+          equals(originalProfile.keypairs.length));
+      expect(restoredProfile.keypairs.first.privateKey,
+          equals(originalProfile.keypairs.first.privateKey));
+      expect(restoredProfile.keypairs.first.mnemonic,
+          equals(originalProfile.keypairs.first.mnemonic));
+    });
+
+    test('exportProfileBackup with non-existent profile throws error',
+        () async {
+      final repo = FakeSecureKeypairRepository([]);
+
+      await expectLater(
+        repo.profileRepository.exportProfileBackup('non-existent', 'password'),
+        throwsA(isA<ArgumentError>()),
+      );
     });
   });
 }
