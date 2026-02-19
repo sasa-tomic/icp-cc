@@ -1,12 +1,12 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-19
 
 ## Current Focus
 
-**Goal:** Make marketplace fully usable. Passkey UI integration is COMPLETE.
+**Goal:** Make marketplace fully usable. UX improvements COMPLETE.
 
-**Reality Check:** Passkey screens/services are now wired into navigation with platform detection. The marketplace is NOT production-ready. Payments and messaging are explicitly out of scope until the foundation is solid.
+**Reality Check:** Passkey screens/services are wired into navigation. Welcome onboarding flow guides new users. Script editor has UI component palette. Lua UI supports pagination. Empty states provide contextual guidance. Payments and messaging are explicitly out of scope until the foundation is solid.
 
 ## Implementation Summary
 
@@ -14,13 +14,16 @@
 |------|--------|------------|
 | Passkey UI Integration | **COMPLETE** | 100% |
 | Linux Passkey Support | **COMPLETE** | 100% |
+| Welcome Onboarding | **COMPLETE** | 100% |
+| Lua Scripting UI | **COMPLETE** | 100% |
+| Enhanced Empty States | **COMPLETE** | 100% |
 | Profile Management | Complete | 98% |
 | Account Registration | Complete | 95% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
-| Script Execution (Lua) | Partial | 80% |
-| Testing Coverage | Incomplete | ~60% |
+| Script Execution (Lua) | Partial | 85% |
+| Testing Coverage | Incomplete | ~65% |
 
 **Detailed Specs:**
 - [Implementation Status](docs/specs/IMPLEMENTATION_STATUS.md) - Feature-by-feature breakdown
@@ -74,6 +77,15 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 **Remaining (for full production):**
 (none - vault decryption now available via Rust FFI)
 
+### Welcome Onboarding Flow (DONE)
+- [x] `OnboardingService` - manages onboarding state with versioning
+- [x] `WelcomeOnboardingScreen` - animated welcome with feature highlights
+- [x] "Get Started" button -> profile creation
+- [x] "Browse Marketplace" button -> marketplace tab
+- [x] "Skip for now" option
+- [x] Only shows when NO profiles AND NO scripts
+- [x] 20 unit/widget tests
+
 ### Profile Management
 
 **Done:**
@@ -105,15 +117,22 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Implement SHA256 checksums for script integrity verification
 - [x] Add support for installing specific script versions locally
 
-### Lua Scripting UI
+### Lua Scripting UI (DONE)
 - [x] Add tables with columns to UI elements
-- [ ] Support paginated lists with loading states driven by Lua
-- [ ] Add menu to pick common UI elements in script editor
+- [x] Support paginated lists with loading states driven by Lua (`paginated_list` widget)
+- [x] Add menu to pick common UI elements in script editor (UI Component Palette)
+  - 12 components across 4 categories (Layout, Text, Input, Display)
+  - Inserts Lua templates at cursor position
+  - 13 unit/widget tests
 
 ### Testing (CRITICAL - Blocking Production)
 - [ ] Profile Controller tests (MISSING)
 - [ ] Account Controller full coverage (only `removePublicKey` tested)
 - [x] Passkey Service tests (DONE)
+- [x] Onboarding tests (DONE - 20 tests)
+- [x] UI Component Palette tests (DONE - 13 tests)
+- [x] Paginated List tests (DONE - 9 tests)
+- [x] Empty State tests (DONE - 12 tests)
 - [ ] Scripts Screen widget tests (MISSING - largest screen, 0 tests)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
@@ -130,10 +149,15 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 ### Multi-Device & Recovery
 - [ ] QR code import for multi-device sync
 
-### UX Improvements
+### UX Improvements (DONE)
 - [x] Create hybrid view combining local and marketplace scripts
 - [x] Add source badges (Local/Marketplace) to distinguish origins
 - [x] Display usage statistics (run count, last used)
+- [x] Welcome onboarding flow for first-time users
+- [x] Enhanced empty states with contextual guidance
+  - ScriptsScreen: "Create Script" + "Browse Marketplace" actions
+  - BookmarksScreen: "Explore Popular Canisters" action
+  - DownloadHistory: "Browse Marketplace" action
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
@@ -163,6 +187,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] Trending algorithm based on recent downloads + ratings
 - [ ] Personalized recommendations
 - [ ] Trust system: verified author badges, reputation score
+
+### Future UX Enhancements
+- [ ] Script execution progress indicator (showing current effect)
+- [ ] Pull-to-refresh on all list views
+- [ ] Search history for marketplace
+- [ ] Quick actions menu (long-press on script cards)
+- [ ] Keyboard shortcuts for desktop users
 
 ---
 
@@ -196,6 +227,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 | Issue | Location | Severity |
 |-------|----------|----------|
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
+| Pre-existing test failures (passkey, script execution) | `test/features/passkey/`, `test/features/scripts/` | LOW |
 
 ---
 
@@ -213,6 +245,14 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - `update(msg, state) -> state, effects[]`
 - Effects: `icp_call`, `icp_batch`
 - Host emits: `{ type:"effect/result", id, ok, data?|error? }`
+
+### UI_v1 Widget Types
+- `column`, `row` - Layout containers
+- `text`, `button`, `text_field` - Basic inputs
+- `card`, `section` - Containers with styling
+- `list`, `table`, `paginated_list` - Data display
+- `image`, `result_display` - Media and results
+- `select`, `toggle` - Selection widgets
 
 ---
 

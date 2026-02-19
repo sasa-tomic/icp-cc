@@ -512,4 +512,205 @@ void main() {
       expect(find.text('3.14'), findsOneWidget);
     });
   });
+
+  group('UiV1Renderer paginated_list widget', () {
+    late Map<String, dynamic> capturedEvent;
+
+    setUp(() {
+      capturedEvent = {};
+    });
+
+    Widget createTestWidget(Map<String, dynamic> ui) {
+      return MaterialApp(
+        home: Scaffold(
+          body: UiV1Renderer(
+            ui: ui,
+            onEvent: (msg) => capturedEvent = msg,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('renders paginated list with items',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'title': 'Test List',
+          'items': [
+            {'title': 'Item 1', 'subtitle': 'Description 1'},
+            {'title': 'Item 2', 'subtitle': 'Description 2'},
+          ],
+          'has_more': false,
+          'loading': false,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test List'), findsOneWidget);
+      expect(find.text('Item 1'), findsOneWidget);
+      expect(find.text('Item 2'), findsOneWidget);
+      expect(find.text('Description 1'), findsOneWidget);
+      expect(find.text('Description 2'), findsOneWidget);
+    });
+
+    testWidgets('shows Load More button when has_more is true',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': [
+            {'title': 'Item 1'},
+          ],
+          'has_more': true,
+          'loading': false,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Load More'), findsOneWidget);
+    });
+
+    testWidgets('Load More triggers correct message',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': [
+            {'title': 'Item 1'},
+          ],
+          'has_more': true,
+          'loading': false,
+          'load_more_msg': 'custom_load',
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Load More'));
+      await tester.pumpAndSettle();
+
+      expect(capturedEvent['type'], 'custom_load');
+    });
+
+    testWidgets('shows loading spinner while loading',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': [
+            {'title': 'Item 1'},
+          ],
+          'has_more': true,
+          'loading': true,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Load More'), findsNothing);
+    });
+
+    testWidgets('shows No more items when has_more is false and items exist',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': [
+            {'title': 'Item 1'},
+          ],
+          'has_more': false,
+          'loading': false,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No more items'), findsOneWidget);
+    });
+
+    testWidgets('shows No items when list is empty',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': <dynamic>[],
+          'has_more': false,
+          'loading': false,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No items'), findsOneWidget);
+      expect(find.text('No more items'), findsNothing);
+    });
+
+    testWidgets('uses default load_more message when not specified',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': [
+            {'title': 'Item 1'},
+          ],
+          'has_more': true,
+          'loading': false,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Load More'));
+      await tester.pumpAndSettle();
+
+      expect(capturedEvent['type'], 'load_more');
+    });
+
+    testWidgets('shows error for non-array items', (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': 'not an array',
+          'has_more': false,
+          'loading': false,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.text('Paginated list items must be an array'), findsOneWidget);
+    });
+
+    testWidgets('renders primitive items as strings',
+        (WidgetTester tester) async {
+      final ui = {
+        'type': 'paginated_list',
+        'props': {
+          'items': ['String item', 42, true],
+          'has_more': false,
+          'loading': false,
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      expect(find.text('String item'), findsOneWidget);
+      expect(find.text('42'), findsOneWidget);
+      expect(find.text('true'), findsOneWidget);
+    });
+  });
 }

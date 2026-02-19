@@ -701,13 +701,17 @@ class _ScriptsScreenState extends State<ScriptsScreen>
         }
 
         if (scripts.isEmpty && !_controller.isBusy) {
+          final hasMarketplaceScripts = _marketplaceScripts.isNotEmpty;
           return ModernEmptyState(
             icon: Icons.code_rounded,
             title: 'Your Script Library is Empty',
-            subtitle:
-                'Start building amazing ICP scripts with our intuitive editor and powerful marketplace',
+            subtitle: hasMarketplaceScripts
+                ? 'Download scripts from the marketplace or create your own'
+                : 'Create your first script or browse the marketplace to get started',
             action: _showCreateSheet,
-            actionLabel: 'Create Your First Script',
+            actionLabel: 'Create Script',
+            secondaryAction: () => _tabController.animateTo(2),
+            secondaryActionLabel: 'Browse Marketplace',
           );
         }
 
@@ -1024,11 +1028,13 @@ class _ScriptsScreenState extends State<ScriptsScreen>
         if (sortedItems.isEmpty && !_controller.isBusy) {
           return ModernEmptyState(
             icon: Icons.list_alt_rounded,
-            title: 'No Scripts Available',
+            title: 'Your Script Library is Empty',
             subtitle:
-                'Create your first script or browse the marketplace to discover amazing scripts',
+                'Create your first script or browse the marketplace to get started',
             action: _showCreateSheet,
-            actionLabel: 'Create Your First Script',
+            actionLabel: 'Create Script',
+            secondaryAction: () => _tabController.animateTo(2),
+            secondaryActionLabel: 'Browse Marketplace',
           );
         }
 

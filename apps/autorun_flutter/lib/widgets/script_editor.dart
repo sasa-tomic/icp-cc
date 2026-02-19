@@ -9,6 +9,7 @@ import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:highlight/languages/lua.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/integrations_help.dart';
+import '../widgets/ui_component_palette.dart';
 
 /// Script editor with syntax highlighting, live linting, and improved UX
 class ScriptEditor extends StatefulWidget {
@@ -67,7 +68,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
   void didUpdateWidget(ScriptEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Update controller text when initialCode changes
-    if (oldWidget.initialCode != widget.initialCode && 
+    if (oldWidget.initialCode != widget.initialCode &&
         _controller.text != widget.initialCode) {
       _controller.text = widget.initialCode;
       _scheduleLint();
@@ -123,8 +124,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
     }
 
     try {
-      final String? out = (const RustBridgeLoader())
-          .luaLint(script: code);
+      final String? out = (const RustBridgeLoader()).luaLint(script: code);
 
       if (out == null || out.trim().isEmpty) {
         if (mounted) setState(() => _lintError = 'Linter unavailable');
@@ -138,9 +138,11 @@ class _ScriptEditorState extends State<ScriptEditor> {
         if (ok) {
           setState(() => _lintError = null);
         } else {
-          final List<dynamic> errs = (obj['errors'] as List<dynamic>? ?? const <dynamic>[]);
+          final List<dynamic> errs =
+              (obj['errors'] as List<dynamic>? ?? const <dynamic>[]);
           final String msg = errs.isNotEmpty
-              ? ((errs.first as Map<String, dynamic>)['message'] as String? ?? 'Invalid script')
+              ? ((errs.first as Map<String, dynamic>)['message'] as String? ??
+                  'Invalid script')
               : 'Invalid script';
           setState(() => _lintError = msg);
         }
@@ -160,24 +162,32 @@ class _ScriptEditorState extends State<ScriptEditor> {
     _insertSnippet(snippet);
   }
 
+  void _showUiComponentPalette() async {
+    final String? template = await showUiComponentPalette(context: context);
+    if (template == null || template.isEmpty) return;
+    _insertSnippet(template);
+  }
+
   void _insertSnippet(String snippet) {
     final text = _controller.text;
     final selection = _controller.selection;
     final baseOffset = selection.baseOffset;
     final extentOffset = selection.extentOffset;
-    final hasSelection = baseOffset >= 0 && extentOffset >= 0 && baseOffset != extentOffset;
+    final hasSelection =
+        baseOffset >= 0 && extentOffset >= 0 && baseOffset != extentOffset;
 
-    final before = hasSelection
-        ? text.replaceRange(baseOffset, extentOffset, '')
-        : text;
+    final before =
+        hasSelection ? text.replaceRange(baseOffset, extentOffset, '') : text;
 
     final insertPos = hasSelection
         ? baseOffset
         : (selection.baseOffset >= 0 ? selection.baseOffset : before.length);
 
-    final updated = before.substring(0, insertPos) + snippet + before.substring(insertPos);
+    final updated =
+        before.substring(0, insertPos) + snippet + before.substring(insertPos);
     _controller.text = updated;
-    _controller.selection = TextSelection.collapsed(offset: insertPos + snippet.length);
+    _controller.selection =
+        TextSelection.collapsed(offset: insertPos + snippet.length);
   }
 
   @override
@@ -193,7 +203,10 @@ class _ScriptEditorState extends State<ScriptEditor> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                color: Theme.of(context)
+                    .colorScheme
+                    .outline
+                    .withValues(alpha: 0.3),
               ),
               color: _getBackgroundColorForTheme(),
             ),
@@ -214,7 +227,10 @@ class _ScriptEditorState extends State<ScriptEditor> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.5),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(8),
           topRight: Radius.circular(8),
@@ -319,7 +335,8 @@ class _ScriptEditorState extends State<ScriptEditor> {
                       Switch.adaptive(
                         key: const Key('lineNumberSwitch'),
                         value: _showLineNumbers,
-                        onChanged: (value) => setState(() => _showLineNumbers = value),
+                        onChanged: (value) =>
+                            setState(() => _showLineNumbers = value),
                         activeTrackColor: Theme.of(context).colorScheme.primary,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -329,6 +346,18 @@ class _ScriptEditorState extends State<ScriptEditor> {
 
                   // Action buttons
                   if (widget.showIntegrations) ...[
+                    Tooltip(
+                      message: 'UI Components',
+                      child: IconButton(
+                        key: const Key('uiPaletteButton'),
+                        onPressed: _showUiComponentPalette,
+                        icon: Icon(Icons.widgets_rounded),
+                        iconSize: 18,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                     Tooltip(
                       message: 'Code snippets',
                       child: IconButton(
@@ -378,8 +407,14 @@ class _ScriptEditorState extends State<ScriptEditor> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: hasError
-            ? Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3)
-            : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            ? Theme.of(context)
+                .colorScheme
+                .errorContainer
+                .withValues(alpha: 0.3)
+            : Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.3),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(8),
           bottomRight: Radius.circular(8),
@@ -464,10 +499,14 @@ class _ScriptEditorState extends State<ScriptEditor> {
           maxLines: widget.maxLines,
           readOnly: widget.readOnly,
           gutterStyle: GutterStyle(
-            showErrors: _showLineNumbers, // Only show errors when line numbers are shown
-            showFoldingHandles: _showLineNumbers, // Only show folding handles when line numbers are shown
+            showErrors:
+                _showLineNumbers, // Only show errors when line numbers are shown
+            showFoldingHandles:
+                _showLineNumbers, // Only show folding handles when line numbers are shown
             showLineNumbers: _showLineNumbers,
-            width: _showLineNumbers ? 40 : 0, // Eliminate gutter width when line numbers are hidden
+            width: _showLineNumbers
+                ? 40
+                : 0, // Eliminate gutter width when line numbers are hidden
           ),
           textStyle: const TextStyle(
             fontSize: 14,

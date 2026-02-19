@@ -3,7 +3,7 @@ import '../services/download_history_service.dart';
 import '../controllers/script_controller.dart';
 import '../services/script_repository.dart';
 import '../widgets/loading_indicator.dart';
-import '../widgets/empty_state.dart';
+import '../widgets/modern_empty_state.dart';
 
 class DownloadHistoryScreen extends StatefulWidget {
   const DownloadHistoryScreen({super.key});
@@ -13,9 +13,10 @@ class DownloadHistoryScreen extends StatefulWidget {
 }
 
 class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
-  final DownloadHistoryService _downloadHistoryService = DownloadHistoryService();
+  final DownloadHistoryService _downloadHistoryService =
+      DownloadHistoryService();
   late final ScriptController _scriptController;
-  
+
   List<DownloadRecord> _downloadHistory = [];
   bool _isLoading = true;
   String? _error;
@@ -23,7 +24,8 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _scriptController = ScriptController(ScriptRepository.instance)..addListener(_onChanged);
+    _scriptController = ScriptController(ScriptRepository.instance)
+      ..addListener(_onChanged);
     _loadDownloadHistory();
   }
 
@@ -66,7 +68,8 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Remove from library'),
-          content: Text('Remove "${record.title}" from your download library? This will not delete the local script.'),
+          content: Text(
+              'Remove "${record.title}" from your download library? This will not delete the local script.'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -83,7 +86,8 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
 
     if (confirmed == true) {
       try {
-        await _downloadHistoryService.removeFromHistory(record.marketplaceScriptId);
+        await _downloadHistoryService
+            .removeFromHistory(record.marketplaceScriptId);
         await _loadDownloadHistory();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -105,7 +109,8 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Clear Library'),
-          content: const Text('Clear your entire download library? This will not delete any local scripts.'),
+          content: const Text(
+              'Clear your entire download library? This will not delete any local scripts.'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -185,8 +190,8 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
             Text(
               _error!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.error,
-              ),
+                    color: Theme.of(context).colorScheme.error,
+                  ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -201,10 +206,20 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
     }
 
     if (_downloadHistory.isEmpty) {
-      return const EmptyState(
-        icon: Icons.download_for_offline,
-        title: 'No downloads yet',
-        subtitle: 'Scripts you download from the marketplace will appear here.',
+      return ModernEmptyState(
+        icon: Icons.download_for_offline_rounded,
+        title: 'No Download History',
+        subtitle: 'Scripts you download from the marketplace will appear here',
+        action: () {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Select the Marketplace tab to browse scripts'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        },
+        actionLabel: 'Browse Marketplace',
       );
     }
 
@@ -314,7 +329,9 @@ class _DownloadHistoryTile extends StatelessWidget {
         try {
           // Find the script by ID from the controller's scripts list
           await scriptController.ensureLoaded();
-          final script = scriptController.scripts.where((s) => s.id == record.localScriptId).firstOrNull;
+          final script = scriptController.scripts
+              .where((s) => s.id == record.localScriptId)
+              .firstOrNull;
 
           if (script == null) {
             if (context.mounted) {

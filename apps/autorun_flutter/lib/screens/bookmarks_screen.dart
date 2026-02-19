@@ -11,16 +11,41 @@ import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
-import '../widgets/empty_state.dart';
+import '../widgets/modern_empty_state.dart';
 import '../widgets/bookmark_composer.dart';
 
-class BookmarksScreen extends StatelessWidget {
+class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen(
       {super.key, required this.bridge, required this.onOpenClient});
 
   final RustBridgeLoader bridge;
   final Future<void> Function(
       {String? initialCanisterId, String? initialMethodName}) onOpenClient;
+
+  @override
+  State<BookmarksScreen> createState() => _BookmarksScreenState();
+}
+
+class _BookmarksScreenState extends State<BookmarksScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _popularCanistersKey = GlobalKey();
+
+  void _scrollToPopularCanisters() {
+    final context = _popularCanistersKey.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +63,7 @@ class BookmarksScreen extends StatelessWidget {
             child: IconButton(
               onPressed: () {
                 HapticFeedback.mediumImpact();
-                onOpenClient();
+                widget.onOpenClient();
               },
               tooltip: 'Open Canister Client',
               icon: Icon(
@@ -50,7 +75,7 @@ class BookmarksScreen extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        top: false, // AppBar already handles top safe area
+        top: false,
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -66,40 +91,37 @@ class BookmarksScreen extends StatelessWidget {
             ),
           ),
           child: SingleChildScrollView(
+            controller: _scrollController,
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
               top: 16,
-              bottom: 16 +
-                  MediaQuery.of(context)
-                      .padding
-                      .bottom, // Account for bottom safe area
+              bottom: 16 + MediaQuery.of(context).padding.bottom,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Well-known canisters section
-                _buildSectionHeader(
-                  context,
-                  title: 'Popular Canisters',
-                  subtitle: 'Quick access to essential ICP services',
-                  icon: Icons.star_rounded,
+                Container(
+                  key: _popularCanistersKey,
+                  child: _buildSectionHeader(
+                    context,
+                    title: 'Popular Canisters',
+                    subtitle: 'Quick access to essential ICP services',
+                    icon: Icons.star_rounded,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _WellKnownList(
                     onSelect: (cid, method) {
                       HapticFeedback.lightImpact();
-                      onOpenClient(
+                      widget.onOpenClient(
                         initialCanisterId: cid,
                         initialMethodName:
                             method?.isNotEmpty == true ? method : null,
                       );
                     },
                     onBookmark: (entry) => _bookmarkWellKnown(context, entry)),
-
                 const SizedBox(height: 32),
-
-                // Bookmarks section
                 _buildSectionHeader(
                   context,
                   title: 'Your Bookmarks',
@@ -121,12 +143,13 @@ class BookmarksScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 _BookmarksList(
-                  bridge: bridge,
+                  bridge: widget.bridge,
                   onTapEntry: (cid, method) {
                     HapticFeedback.lightImpact();
-                    onOpenClient(
+                    widget.onOpenClient(
                         initialCanisterId: cid, initialMethodName: method);
                   },
+                  onExplorePopular: _scrollToPopularCanisters,
                 ),
               ],
             ),
@@ -1150,9 +1173,14 @@ class _WellKnownCard extends StatelessWidget {
 }
 
 class _BookmarksList extends StatefulWidget {
-  const _BookmarksList({required this.bridge, required this.onTapEntry});
+  const _BookmarksList({
+    required this.bridge,
+    required this.onTapEntry,
+    this.onExplorePopular,
+  });
   final RustBridgeLoader bridge;
   final void Function(String canisterId, String method) onTapEntry;
+  final VoidCallback? onExplorePopular;
 
   @override
   State<_BookmarksList> createState() => _BookmarksListState();
@@ -1197,11 +1225,12 @@ class _BookmarksListState extends State<_BookmarksList> {
   @override
   Widget build(BuildContext context) {
     if (_entries.isEmpty) {
-      return EmptyState(
+      return ModernEmptyState(
         icon: Icons.bookmark_border_rounded,
         title: 'No Bookmarks Yet',
-        subtitle:
-            'Use the Add Bookmark form above or tap a popular canister to save it here.',
+        subtitle: 'Save your favorite canister methods for quick access',
+        action: widget.onExplorePopular,
+        actionLabel: 'Explore Popular Canisters',
       );
     }
     return ListView.separated(

@@ -429,6 +429,94 @@ class UiV1Renderer extends StatelessWidget {
             ],
           ),
         );
+      case 'paginated_list':
+        final dynamic rawItems = props['items'];
+        final List<dynamic> items;
+        if (rawItems == null) {
+          items = const <dynamic>[];
+        } else if (rawItems is List<dynamic>) {
+          items = rawItems;
+        } else {
+          return _error('Paginated list items must be an array');
+        }
+
+        final bool hasMore = (props['has_more'] as bool?) ?? false;
+        final bool loading = (props['loading'] as bool?) ?? false;
+        final String title = (props['title'] ?? 'Results').toString();
+        final String loadMoreMsg = (props['load_more_msg'] ?? 'load_more').toString();
+
+        final List<Widget> listChildren = [];
+
+        listChildren.add(
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        );
+
+        if (items.isEmpty) {
+          listChildren.add(
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No items'),
+            ),
+          );
+        } else {
+          for (int i = 0; i < items.length; i++) {
+            final dynamic item = items[i];
+            listChildren.add(
+              _buildPaginatedListItem(context, item, i),
+            );
+            if (i < items.length - 1) {
+              listChildren.add(const Divider(height: 1));
+            }
+          }
+        }
+
+        if (loading) {
+          listChildren.add(
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        } else if (hasMore && items.isNotEmpty) {
+          listChildren.add(
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Center(
+                child: TextButton(
+                  onPressed: () => onEvent({'type': loadMoreMsg}),
+                  child: const Text('Load More'),
+                ),
+              ),
+            ),
+          );
+        } else if (!hasMore && items.isNotEmpty) {
+          listChildren.add(
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(
+                child: Text(
+                  'No more items',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Card(
+          margin: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: listChildren,
+          ),
+        );
       case 'result_display':
         final dynamic data = props['data'];
         final String? title = props['title'] as String?;
@@ -546,6 +634,36 @@ class UiV1Renderer extends StatelessWidget {
       default:
         return BoxFit.cover;
     }
+  }
+
+  Widget _buildPaginatedListItem(BuildContext context, dynamic item, int index) {
+    if (item is Map<String, dynamic>) {
+      final String title = (item['title'] ?? '').toString();
+      final String? subtitle = (item['subtitle'] as String?);
+      final bool copyable = (item['copy'] as bool?) ?? false;
+      final String copyLabel = (item['copy_label'] ?? 'Copy').toString();
+      final String copyValue = (item['copy_value'] ??
+              (subtitle?.isNotEmpty == true ? subtitle! : title))
+          .toString();
+      return ListTile(
+        title: Text(title),
+        subtitle: (subtitle == null || subtitle.isEmpty)
+            ? null
+            : Text(subtitle),
+        trailing: (copyable || item.containsKey('copy_value'))
+            ? IconButton(
+                icon: const Icon(Icons.copy, size: 18),
+                tooltip: copyLabel,
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: copyValue));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$copyLabel to clipboard')));
+                },
+              )
+            : null,
+      );
+    }
+    return ListTile(title: Text(item.toString()));
   }
 
   Widget _error(String message) {
