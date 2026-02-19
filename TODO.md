@@ -4,14 +4,24 @@
 
 ## Current Focus
 
-**Goal:** Make marketplace fully usable. UX improvements COMPLETE.
+**Goal:** Polish UX and complete test coverage. Core marketplace is now user-friendly.
 
-**Reality Check:** Passkey screens/services are wired into navigation. Welcome onboarding flow guides new users. Script editor has UI component palette. Lua UI supports pagination. Empty states provide contextual guidance. Encrypted backup/restore now available. Download History accessible. Navigation labels improved. Payments and messaging are explicitly out of scope until the foundation is solid.
+**Reality Check:** Major UX overhaul complete:
+- Unified setup wizard (profile + account in one step)
+- Flattened Scripts screen (no nested tabs, Marketplace prominent)
+- Script execution progress indicator
+- Pull-to-refresh on all lists
+- Navigation is simpler and more intuitive
+Payments and messaging are explicitly out of scope until the foundation is solid.
 
 ## Implementation Summary
 
 | Area | Status | Completion |
 |------|--------|------------|
+| Unified Setup Wizard | **COMPLETE** | 100% |
+| Flattened Scripts Screen | **COMPLETE** | 100% |
+| Script Execution Progress | **COMPLETE** | 100% |
+| Pull-to-Refresh | **COMPLETE** | 100% |
 | Passkey UI Integration | **COMPLETE** | 100% |
 | Linux Passkey Support | **COMPLETE** | 100% |
 | Welcome Onboarding | **COMPLETE** | 100% |
@@ -25,7 +35,7 @@
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
 | Script Execution (Lua) | Partial | 85% |
-| Testing Coverage | Incomplete | ~70% |
+| Testing Coverage | Incomplete | ~75% |
 
 **Detailed Specs:**
 - [Implementation Status](docs/specs/IMPLEMENTATION_STATUS.md) - Feature-by-feature breakdown
@@ -79,11 +89,43 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 **Remaining (for full production):**
 (none - vault decryption now available via Rust FFI)
 
+### Unified Setup Wizard (DONE)
+- [x] `UnifiedSetupWizard` - single form for profile + optional account
+- [x] Display name field (required)
+- [x] Username field (optional, skip to create local-only profile)
+- [x] Real-time username validation with debouncing
+- [x] Success screen showing created profile/account
+- [x] 12 unit/widget tests
+- [x] Replaced old multi-step flow (KeyParametersDialog + AccountRegistrationWizard)
+
+### Flattened Scripts Screen (DONE)
+- [x] Removed nested tabs (My Scripts, All, Marketplace)
+- [x] Single unified list showing both local and marketplace scripts
+- [x] Source filter chips: All / Local / Marketplace
+- [x] Category filter chips
+- [x] Sort dropdown with ascending/descending toggle
+- [x] Source badges on each item (Local/Marketplace)
+- [x] "Available" badge for non-installed marketplace scripts
+- [x] 7 unit/widget tests
+
+### Script Execution Progress (DONE)
+- [x] `ScriptExecutionProgress` model with phases (idle, initializing, calling_canister, processing, complete, error)
+- [x] `ScriptExecutionProgressIndicator` widget with spinner and step message
+- [x] Cancel support during cancellable phases
+- [x] Integrated with `ScriptAppHost`
+- [x] 12 unit/widget tests
+
+### Pull-to-Refresh (DONE)
+- [x] RefreshIndicator on BookmarksScreen
+- [x] RefreshIndicator on PasskeyManagementScreen
+- [x] Already existed on: ScriptsScreen, DownloadHistoryScreen, ProfileHomePage
+- [x] 3 unit tests
+
 ### Welcome Onboarding Flow (DONE)
 - [x] `OnboardingService` - manages onboarding state with versioning
 - [x] `WelcomeOnboardingScreen` - animated welcome with feature highlights
-- [x] "Get Started" button -> profile creation
-- [x] "Browse Marketplace" button -> marketplace tab
+- [x] "Get Started" button -> unified setup wizard
+- [x] "Browse Marketplace" button -> scripts screen
 - [x] "Skip for now" option
 - [x] Only shows when NO profiles AND NO scripts
 - [x] 20 unit/widget tests
@@ -109,7 +151,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 **Done:**
 - [x] AccountController (register, add/remove keys, update profile)
 - [x] AccountSignatureService (Ed25519 signing)
-- [x] AccountRegistrationWizard screen
+- [x] AccountRegistrationWizard screen (legacy - replaced by UnifiedSetupWizard)
 - [x] Account profile screen
 
 **Missing:**
@@ -140,7 +182,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Empty State tests (DONE - 12 tests)
 - [x] Scripts Screen navigation tests (DONE - 3 tests)
 - [x] Export/Import Keys dialog tests (DONE - 16 tests)
-- [ ] Scripts Screen widget tests (PARTIAL - navigation done, more needed)
+- [x] Scripts Screen widget tests (DONE - 7 unified view tests)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Bookmarks Screen tests (MISSING)
@@ -156,18 +198,30 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 ### Multi-Device & Recovery
 - [ ] QR code import for multi-device sync
 
-### UX Improvements (DONE)
+### UX Improvements (ONGOING)
+Based on comprehensive UX analysis (2026-02-19):
+
+**Completed:**
 - [x] Create hybrid view combining local and marketplace scripts
 - [x] Add source badges (Local/Marketplace) to distinguish origins
 - [x] Display usage statistics (run count, last used)
 - [x] Welcome onboarding flow for first-time users
 - [x] Enhanced empty states with contextual guidance
-  - ScriptsScreen: "Create Script" + "Browse Marketplace" actions
-  - BookmarksScreen: "Explore Popular Canisters" action
-  - DownloadHistory: "Browse Marketplace" action
 - [x] Rename "Bookmarks" nav to "Explorer" (matches screen title)
 - [x] Add Download History navigation from Scripts screen
 - [x] Add Export/Import Keys buttons for disaster recovery
+- [x] Flatten Scripts tab (remove nested tabs, elevate Marketplace)
+- [x] Streamline profile creation (combine profile + account creation)
+- [x] Script execution progress indicator
+- [x] Pull-to-refresh on all list views
+
+**Remaining (from UX analysis):**
+- [ ] Post-onboarding call-to-action (guide users after profile creation)
+- [ ] Rename "Explorer" tab to something more approachable (e.g., "Tools" or "Services")
+- [ ] Simplify Canister Client Sheet (too many fields, technical jargon)
+- [ ] Add tooltips/explanations for technical terms (canister, principal, candid)
+- [ ] Reduce script item menu options (currently 7+ options)
+- [ ] Keyboard shortcuts for desktop users
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
@@ -199,14 +253,8 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] Trust system: verified author badges, reputation score
 
 ### Future UX Enhancements
-- [ ] Script execution progress indicator (showing current effect)
-- [ ] Pull-to-refresh on all list views
 - [ ] Search history for marketplace
 - [ ] Quick actions menu (long-press on script cards)
-- [ ] Keyboard shortcuts for desktop users
-- [ ] Simplify Canister Client Sheet (split into Quick Query / Advanced modes)
-- [ ] Flatten Scripts tab (remove nested tabs, elevate Marketplace)
-- [ ] Streamline profile creation (combine profile + account creation)
 
 ---
 
@@ -242,6 +290,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
 | Key label editing blocked by missing API endpoint | `AccountController` | MEDIUM |
 | Pre-existing test failures (passkey, script execution) | `test/features/passkey/`, `test/features/scripts/` | LOW |
+| Dead code in scripts_screen.dart (unused methods from refactor) | `lib/screens/scripts_screen.dart` | LOW |
 
 ---
 

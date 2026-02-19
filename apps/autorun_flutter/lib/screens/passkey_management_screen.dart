@@ -196,10 +196,14 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
       return _buildEmptyState();
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _passkeys.length,
-      itemBuilder: (context, index) => _buildPasskeyCard(_passkeys[index]),
+    return RefreshIndicator(
+      onRefresh: _loadPasskeys,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _passkeys.length,
+        itemBuilder: (context, index) => _buildPasskeyCard(_passkeys[index]),
+      ),
     );
   }
 

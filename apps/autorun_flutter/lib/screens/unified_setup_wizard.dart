@@ -1,0 +1,618 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../models/account.dart';
+import '../models/profile.dart';
+import '../models/profile_keypair.dart';
+import '../controllers/account_controller.dart';
+import '../controllers/profile_controller.dart';
+import '../theme/app_design_system.dart';
+
+class UnifiedSetupResult {
+  const UnifiedSetupResult({
+    required this.profile,
+    this.account,
+  });
+
+  final Profile profile;
+  final Account? account;
+
+  bool get hasAccount => account != null;
+}
+
+class UnifiedSetupWizard extends StatefulWidget {
+  const UnifiedSetupWizard({
+    required this.profileController,
+    required this.accountController,
+    this.initialDisplayName,
+    super.key,
+  });
+
+  final ProfileController profileController;
+  final AccountController accountController;
+  final String? initialDisplayName;
+
+  @override
+  State<UnifiedSetupWizard> createState() => _UnifiedSetupWizardState();
+}
+
+class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
+  final _displayNameController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  bool _isValidating = false;
+  UsernameValidation? _usernameValidation;
+  Timer? _debounceTimer;
+
+  bool _isCreating = false;
+  bool _isSuccess = false;
+  UnifiedSetupResult? _result;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialDisplayName != null) {
+      _displayNameController.text = widget.initialDisplayName!;
+    }
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    _usernameController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isSuccess && _result != null) {
+      return _buildSuccessScreen();
+    }
+    return _buildSetupForm();
+  }
+
+  Widget _buildSetupForm() {
+    return Scaffold(
+      backgroundColor: context.colors.background,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: _isCreating ? null : () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Get Started',
+          style: AppDesignSystem.heading3.copyWith(
+            color: AppDesignSystem.neutral900,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              Text(
+                'Create Your Profile',
+                style: AppDesignSystem.heading2.copyWith(
+                  color: context.colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Set up your profile to start creating and running scripts.',
+                style: AppDesignSystem.bodyMedium.copyWith(
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 32),
+              _displayNameField(),
+              const SizedBox(height: 24),
+              _usernameSection(),
+              const SizedBox(height: 32),
+              if (_errorMessage != null) ...[
+                _buildErrorBanner(_errorMessage!),
+                const SizedBox(height: 16),
+              ],
+              _buildCreateButton(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _displayNameField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Display Name',
+          style: AppDesignSystem.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+            color: context.colors.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _displayNameController,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'How should we call you?',
+            prefixIcon: const Icon(Icons.person_outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onChanged: (_) => setState(() {}),
+          textCapitalization: TextCapitalization.words,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Display name is required';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _usernameSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Username (optional)',
+              style: AppDesignSystem.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.colors.onSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppDesignSystem.accentLight.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Marketplace',
+                style: AppDesignSystem.caption.copyWith(
+                  color: AppDesignSystem.accentDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Create a marketplace account to share scripts and interact with the community',
+          style: AppDesignSystem.bodySmall.copyWith(
+            color: context.colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _usernameController,
+          decoration: InputDecoration(
+            hintText: 'alice_dev',
+            prefixIcon: const Icon(Icons.alternate_email),
+            suffixIcon: _buildUsernameValidationIcon(),
+            errorText: _usernameValidation?.isValid == false
+                ? _usernameValidation!.error
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onChanged: _onUsernameChanged,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_-]')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildUsernameRules(),
+      ],
+    );
+  }
+
+  Widget _buildUsernameValidationIcon() {
+    if (_isValidating) {
+      return const Padding(
+        padding: EdgeInsets.all(12.0),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (_usernameValidation == null || _usernameController.text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (_usernameValidation!.isValid) {
+      return const Icon(
+        Icons.check_circle,
+        color: AppDesignSystem.successLight,
+      );
+    }
+    return const Icon(
+      Icons.cancel,
+      color: AppDesignSystem.errorLight,
+    );
+  }
+
+  Widget _buildUsernameRules() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Username requirements:',
+          style: AppDesignSystem.bodySmall.copyWith(
+            color: AppDesignSystem.neutral600,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            _buildRuleChip('3-32 chars'),
+            _buildRuleChip('Lowercase'),
+            _buildRuleChip('a-z, 0-9, _, -'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRuleChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppDesignSystem.neutral100,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: AppDesignSystem.caption.copyWith(
+          color: AppDesignSystem.neutral600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppDesignSystem.errorLight.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppDesignSystem.errorLight.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: AppDesignSystem.errorDark,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: AppDesignSystem.errorDark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreateButton() {
+    final canCreate = _canCreate;
+
+    return FilledButton(
+      onPressed: (canCreate && !_isCreating) ? _handleCreate : null,
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        backgroundColor: AppDesignSystem.primaryLight,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      child: _isCreating
+          ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Text(
+              'Get Started',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+    );
+  }
+
+  Widget _buildSuccessScreen() {
+    final result = _result!;
+
+    return Scaffold(
+      backgroundColor: context.colors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: AppDesignSystem.primaryGradient,
+                  shape: BoxShape.circle,
+                  boxShadow: AppDesignSystem.shadowColored,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  size: 40,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Success!',
+                style: AppDesignSystem.heading1.copyWith(
+                  color: context.colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                result.hasAccount
+                    ? 'Your profile and marketplace account are ready.'
+                    : 'Your profile is ready to use.',
+                style: AppDesignSystem.bodyMedium.copyWith(
+                  color: context.colors.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              _buildSuccessDetails(result),
+              const Spacer(),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, result),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  backgroundColor: AppDesignSystem.primaryLight,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Start Exploring',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuccessDetails(UnifiedSetupResult result) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: context.colors.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        children: [
+          _buildDetailRow(
+            icon: Icons.person_outline,
+            label: 'Profile',
+            value: result.profile.name,
+          ),
+          if (result.hasAccount) ...[
+            const SizedBox(height: 12),
+            _buildDetailRow(
+              icon: Icons.alternate_email,
+              label: 'Username',
+              value: '@${result.account!.username}',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: context.colors.primary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppDesignSystem.caption.copyWith(
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                value,
+                style: AppDesignSystem.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _onUsernameChanged(String value) {
+    _debounceTimer?.cancel();
+
+    if (value.isEmpty) {
+      setState(() {
+        _usernameValidation = null;
+        _isValidating = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isValidating = true;
+    });
+
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _validateUsername(value);
+    });
+  }
+
+  Future<void> _validateUsername(String username) async {
+    final normalized = username.toLowerCase();
+
+    final formatResult = widget.accountController.validateUsername(normalized);
+    if (!formatResult.isValid) {
+      setState(() {
+        _usernameValidation = formatResult;
+        _isValidating = false;
+      });
+      return;
+    }
+
+    try {
+      final isAvailable =
+          await widget.accountController.isUsernameAvailable(normalized);
+      setState(() {
+        _usernameValidation = isAvailable
+            ? const UsernameValidation(isValid: true)
+            : UsernameValidation.invalid('Username already taken');
+        _isValidating = false;
+      });
+    } catch (e) {
+      setState(() {
+        _usernameValidation =
+            UsernameValidation.invalid('Failed to check availability');
+        _isValidating = false;
+      });
+    }
+  }
+
+  bool get _canCreate {
+    final displayName = _displayNameController.text.trim();
+    if (displayName.isEmpty) return false;
+
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) return true;
+
+    return _usernameValidation?.isValid == true;
+  }
+
+  Future<void> _handleCreate() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    final username = _usernameController.text.trim();
+    if (username.isNotEmpty && _usernameValidation?.isValid != true) {
+      setState(() => _isValidating = true);
+      await _validateUsername(username);
+      setState(() => _isValidating = false);
+      if (_usernameValidation?.isValid != true) return;
+    }
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isCreating = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final displayName = _displayNameController.text.trim();
+      final normalizedUsername =
+          username.isNotEmpty ? username.toLowerCase() : null;
+
+      var profile = await widget.profileController.createProfile(
+        profileName: displayName,
+        algorithm: KeyAlgorithm.ed25519,
+        setAsActive: true,
+      );
+
+      Account? account;
+      if (normalizedUsername != null && normalizedUsername.isNotEmpty) {
+        account = await widget.accountController.registerAccount(
+          keypair: profile.primaryKeypair,
+          username: normalizedUsername,
+          displayName: displayName,
+        );
+
+        await widget.profileController.updateProfileUsername(
+          profileId: profile.id,
+          username: normalizedUsername,
+        );
+
+        profile = profile.copyWith(username: normalizedUsername);
+      }
+
+      HapticFeedback.heavyImpact();
+
+      setState(() {
+        _result = UnifiedSetupResult(profile: profile, account: account);
+        _isSuccess = true;
+        _isCreating = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isCreating = false;
+      });
+    }
+  }
+}

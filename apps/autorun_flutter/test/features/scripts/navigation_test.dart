@@ -11,6 +11,8 @@ void main() {
         ),
       );
 
+      await tester.pump(const Duration(seconds: 2));
+
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });
 
@@ -20,6 +22,8 @@ void main() {
           home: ScriptsScreen(),
         ),
       );
+
+      await tester.pump(const Duration(seconds: 2));
 
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pump();
@@ -36,11 +40,26 @@ void main() {
         ),
       );
 
+      await tester.pump(const Duration(seconds: 2));
+
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pump();
 
       expect(find.byIcon(Icons.history), findsOneWidget);
       expect(find.text('Download History'), findsOneWidget);
+    });
+
+    testWidgets('has no tab bar (flattened UI)', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ScriptsScreen(),
+        ),
+      );
+
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(TabBarView), findsNothing);
     });
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'config/app_config.dart';
+import 'controllers/account_controller.dart';
 import 'controllers/profile_controller.dart';
 import 'controllers/script_controller.dart';
 import 'models/profile.dart';
@@ -15,8 +16,8 @@ import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
 import 'screens/profile_home_page.dart';
 import 'screens/scripts_screen.dart';
+import 'screens/unified_setup_wizard.dart';
 import 'screens/welcome_onboarding_screen.dart';
-import 'widgets/key_parameters_dialog.dart';
 import 'widgets/profile_scope.dart';
 
 Future<void> main() async {
@@ -35,6 +36,7 @@ class KeypairApp extends StatefulWidget {
 
 class _KeypairAppState extends State<KeypairApp> {
   late final ProfileController _profileController;
+  late final AccountController _accountController;
 
   @override
   void initState() {
@@ -42,12 +44,17 @@ class _KeypairAppState extends State<KeypairApp> {
     _profileController = ProfileController(
       marketplaceService: MarketplaceOpenApiService(),
     );
+    _accountController = AccountController(
+      marketplaceService: MarketplaceOpenApiService(),
+      profileController: _profileController,
+    );
     unawaited(_profileController.ensureLoaded());
   }
 
   @override
   void dispose() {
     _profileController.dispose();
+    _accountController.dispose();
     super.dispose();
   }
 
@@ -111,33 +118,35 @@ class _MainHomePageState extends State<MainHomePage> {
       await _onboardingService.markOnboardingShown();
 
       if (result == OnboardingResult.getStarted && mounted) {
-        _showCreateProfileDialog();
+        _showUnifiedSetupWizard();
       } else if (result == OnboardingResult.browseMarketplace && mounted) {
         setState(() => _currentIndex = 0);
       }
     }
   }
 
-  Future<void> _showCreateProfileDialog() async {
+  Future<void> _showUnifiedSetupWizard() async {
     final profileController = ProfileScope.of(context, listen: false);
-    final KeyParameters? params = await showDialog<KeyParameters>(
-      context: context,
-      builder: (context) => const KeyParametersDialog(
-        title: 'Create Your First Profile',
+    final accountController = _getAccountController();
+
+    final result = await Navigator.of(context).push<UnifiedSetupResult>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => UnifiedSetupWizard(
+          profileController: profileController,
+          accountController: accountController,
+        ),
       ),
     );
 
-    if (params == null || !mounted) return;
+    if (result != null && mounted) {
+      setState(() {});
+    }
+  }
 
-    final String profileName =
-        params.label ?? 'Profile ${profileController.profiles.length + 1}';
-
-    await profileController.createProfile(
-      profileName: profileName,
-      algorithm: params.algorithm,
-      mnemonic: params.seed,
-      setAsActive: true,
-    );
+  AccountController _getAccountController() {
+    final appState = context.findAncestorStateOfType<_KeypairAppState>();
+    return appState!._accountController;
   }
 
   Future<void> _openCanisterClient(

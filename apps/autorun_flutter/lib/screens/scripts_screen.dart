@@ -20,13 +20,8 @@ import '../widgets/script_app_host.dart';
 import '../widgets/script_editor.dart';
 import '../widgets/quick_upload_dialog.dart';
 import '../widgets/marketplace_search_bar.dart';
-import '../widgets/script_card.dart';
-import '../widgets/loading_indicator.dart';
-import '../widgets/error_display.dart';
 import '../widgets/script_details_dialog.dart';
 import '../widgets/animated_fab.dart';
-
-import '../utils/responsive_grid_config.dart';
 import '../widgets/page_transitions.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
@@ -38,20 +33,15 @@ class ScriptsScreen extends StatefulWidget {
   State<ScriptsScreen> createState() => _ScriptsScreenState();
 }
 
-class _ScriptsScreenState extends State<ScriptsScreen>
-    with TickerProviderStateMixin {
+enum ScriptSourceFilter { all, local, marketplace }
+
+class _ScriptsScreenState extends State<ScriptsScreen> {
   late final ScriptController _controller;
-  late final TabController _tabController;
   final ScriptAppRuntime _appRuntime =
       ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
-  final ValueNotifier<bool> _showFab = ValueNotifier<bool>(true);
 
-  void _handleTabChange() {
-    if (!mounted) return;
-    _showFab.value = _tabController.index == 0 || _tabController.index == 1;
-  }
+  ScriptSourceFilter _sourceFilter = ScriptSourceFilter.all;
 
-  // Marketplace properties
   final MarketplaceOpenApiService _marketplaceService =
       MarketplaceOpenApiService();
   final DownloadHistoryService _downloadHistoryService =
@@ -61,12 +51,11 @@ class _ScriptsScreenState extends State<ScriptsScreen>
   List<MarketplaceScript> _marketplaceScripts = [];
   List<String> _categories = [];
   final Set<String> _downloadingScriptIds = <String>{};
-  final Map<String, double> _downloadProgress =
-      <String, double>{}; // Track download progress 0.0 to 1.0
+  final Map<String, double> _downloadProgress = <String, double>{};
   Set<String> _downloadedScriptIds = {};
   bool _isMarketplaceLoading = false;
   bool _isLoadingMore = false;
-  bool _isSearching = false; // Add search loading state
+  bool _isSearching = false;
   String? _marketplaceError;
   int _offset = 0;
   bool _hasMore = true;
@@ -81,8 +70,6 @@ class _ScriptsScreenState extends State<ScriptsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this)
-      ..addListener(_handleTabChange);
     _controller = ScriptController(ScriptRepository.instance)
       ..addListener(_onChanged);
     _controller.ensureLoaded();
@@ -99,11 +86,7 @@ class _ScriptsScreenState extends State<ScriptsScreen>
 
   @override
   void dispose() {
-    _tabController
-      ..removeListener(_handleTabChange)
-      ..dispose();
     _searchController.dispose();
-    _showFab.dispose();
     _controller
       ..removeListener(_onChanged)
       ..dispose();
@@ -331,13 +314,6 @@ class _ScriptsScreenState extends State<ScriptsScreen>
             ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'View Scripts',
-              textColor: Colors.white,
-              onPressed: () {
-                _tabController.animateTo(0);
-              },
-            ),
           ),
         );
       }
@@ -559,27 +535,24 @@ class _ScriptsScreenState extends State<ScriptsScreen>
   }
 
   void _viewInMarketplace(ScriptRecord record) {
-    // Extract the original marketplace title from metadata if available
     final marketplaceTitle = record.metadata['marketplace_title'] as String? ??
         record.title.replaceAll(' (Marketplace)', '');
 
-    // Switch to marketplace tab
-    _tabController.animateTo(1);
-
-    // Set search query and trigger search
     setState(() {
+      _sourceFilter = ScriptSourceFilter.marketplace;
       _searchController.text = marketplaceTitle;
       _searchQuery = marketplaceTitle;
     });
     _loadMarketplaceScripts();
 
-    // Show a snackbar to indicate the action
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Searching marketplace for "$marketplaceTitle"'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Searching marketplace for "$marketplaceTitle"'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _duplicateScript(ScriptRecord record) async {
@@ -671,51 +644,23 @@ class _ScriptsScreenState extends State<ScriptsScreen>
         children: [
           Column(
             children: [
-              // Tab bar
-              Container(
-                color: Theme.of(context).colorScheme.surface,
-                child: TabBar(
-                  controller: _tabController,
-                  tabs: const [
-                    Tab(icon: Icon(Icons.code), text: 'My Scripts'),
-                    Tab(icon: Icon(Icons.list), text: 'All'),
-                    Tab(icon: Icon(Icons.store), text: 'Marketplace'),
-                  ],
-                  labelColor: Theme.of(context).colorScheme.primary,
-                  unselectedLabelColor:
-                      Theme.of(context).colorScheme.onSurfaceVariant,
-                  indicatorColor: Theme.of(context).colorScheme.primary,
-                ),
-              ),
+              _buildSearchBar(),
+              _buildSourceFilterChips(),
+              _buildCategoryFilter(),
+              _buildAllScriptsSortDropdown(),
               Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildMyScriptsTab(scripts),
-                    _buildAllScriptsTab(scripts),
-                    _buildMarketplaceTab(),
-                  ],
-                ),
+                child: _buildUnifiedListView(scripts),
               ),
             ],
           ),
-          // Positioned FAB above navigation bar with better spacing
-          ValueListenableBuilder<bool>(
-            valueListenable: _showFab,
-            builder: (context, show, child) {
-              if (!show) return const SizedBox.shrink();
-              return child!;
-            },
-            child: Positioned(
-              right: 16,
-              bottom: MediaQuery.of(context).padding.bottom +
-                  90, // Better spacing from navigation bar
-              child: AnimatedFab(
-                heroTag: 'scripts_fab',
-                onPressed: _controller.isBusy ? null : _showCreateSheet,
-                icon: const Icon(Icons.add_rounded),
-                label: 'New Script',
-              ),
+          Positioned(
+            right: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 90,
+            child: AnimatedFab(
+              heroTag: 'scripts_fab',
+              onPressed: _controller.isBusy ? null : _showCreateSheet,
+              icon: const Icon(Icons.add_rounded),
+              label: 'New Script',
             ),
           ),
         ],
@@ -723,311 +668,37 @@ class _ScriptsScreenState extends State<ScriptsScreen>
     );
   }
 
-  Widget _buildMyScriptsTab(List<ScriptRecord> scripts) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        if (_controller.isBusy && scripts.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (scripts.isEmpty && !_controller.isBusy) {
-          final hasMarketplaceScripts = _marketplaceScripts.isNotEmpty;
-          return ModernEmptyState(
-            icon: Icons.code_rounded,
-            title: 'Your Script Library is Empty',
-            subtitle: hasMarketplaceScripts
-                ? 'Download scripts from the marketplace or create your own'
-                : 'Create your first script or browse the marketplace to get started',
-            action: _showCreateSheet,
-            actionLabel: 'Create Script',
-            secondaryAction: () => _tabController.animateTo(2),
-            secondaryActionLabel: 'Browse Marketplace',
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: _controller.refresh,
-          child: ListView.separated(
-            padding: EdgeInsets.only(
-              bottom: 100, // Consistent space for FAB
-              top: 8,
-              left: 8,
-              right: 8,
+  Widget _buildSourceFilterChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        children: ScriptSourceFilter.values.map((filter) {
+          final isSelected = _sourceFilter == filter;
+          final label = switch (filter) {
+            ScriptSourceFilter.all => 'All',
+            ScriptSourceFilter.local => 'Local',
+            ScriptSourceFilter.marketplace => 'Marketplace',
+          };
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: FilterChip(
+              label: Text(label),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  _sourceFilter = filter;
+                });
+              },
+              selectedColor: Theme.of(context).colorScheme.primaryContainer,
+              checkmarkColor: Theme.of(context).colorScheme.primary,
             ),
-            itemCount: scripts.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final ScriptRecord rec = scripts[index];
-              final screenWidth = MediaQuery.of(context).size.width;
-              final isCompactScreen = screenWidth < 380;
-
-              return Dismissible(
-                key: ValueKey<String>(rec.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: const <Widget>[
-                      Icon(Icons.delete),
-                      SizedBox(width: 8),
-                      Text('Delete'),
-                    ],
-                  ),
-                ),
-                confirmDismiss: (_) async {
-                  // Implement soft delete with undo
-                  final deletedScript = rec;
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  final scriptRepository = ScriptRepository.instance;
-
-                  // Delete the script
-                  await _controller.deleteScript(rec.id);
-
-                  // Show snackbar with undo option
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Script "${deletedScript.title}" deleted'),
-                      duration: const Duration(seconds: 5),
-                      action: SnackBarAction(
-                        label: 'Undo',
-                        onPressed: () async {
-                          // Restore the script by persisting current scripts + deleted one
-                          final currentScripts =
-                              await scriptRepository.loadScripts();
-                          currentScripts.add(deletedScript);
-                          await scriptRepository.persistScripts(currentScripts);
-                          await _controller
-                              .refresh(); // Refresh controller to pick up change
-                        },
-                      ),
-                    ),
-                  );
-
-                  return false; // Don't actually dismiss the widget, let controller update handle it
-                },
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: isCompactScreen ? 12 : 16,
-                      vertical: 4,
-                    ),
-                    leading: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: isCompactScreen ? 20 : 24,
-                          child: Text(
-                            (rec.emoji ?? '📜').isNotEmpty
-                                ? (rec.emoji ?? '📜')[0]
-                                : '📜',
-                            style: TextStyle(
-                              fontSize: isCompactScreen ? 16 : 20,
-                            ),
-                          ),
-                        ),
-                        if (_isPublishedToMarketplace(rec))
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: isCompactScreen ? 14 : 16,
-                              height: isCompactScreen ? 14 : 16,
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: Icon(
-                                Icons.cloud_upload,
-                                size: isCompactScreen ? 8 : 10,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    title: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            _buildSourceBadge(rec, isCompactScreen),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                rec.title,
-                                style: TextStyle(
-                                  fontSize: isCompactScreen ? 14 : 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                            if (_isPublishedToMarketplace(rec)) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isCompactScreen ? 4 : 6,
-                                  vertical: isCompactScreen ? 1 : 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color:
-                                          Colors.green.withValues(alpha: 0.3)),
-                                ),
-                                child: Text(
-                                  'Published',
-                                  style: TextStyle(
-                                    fontSize: isCompactScreen ? 8 : 10,
-                                    color: Colors.green[700],
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        SizedBox(height: isCompactScreen ? 2 : 4),
-                        Text(
-                          rec.isFromMarketplace
-                              ? 'v${rec.marketplaceVersion ?? '?.?.?'} • Updated ${rec.updatedAt.toLocal()}'
-                              : 'Updated ${rec.updatedAt.toLocal()}',
-                          style: TextStyle(
-                            fontSize: isCompactScreen ? 11 : 12,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        SizedBox(height: isCompactScreen ? 1 : 2),
-                        Text(
-                          '${_formatRunCount(rec.runCount)} • Last run ${_formatTimeAgo(rec.lastRunAt)}',
-                          style: TextStyle(
-                            fontSize: isCompactScreen ? 10 : 11,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
-                    ),
-                    onTap: () {
-                      showDialog<void>(
-                        context: context,
-                        builder: (_) => _ScriptEditorDialog(
-                            controller: _controller, record: rec),
-                      );
-                    },
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        // Quick action buttons - only show on larger screens
-                        if (!isCompactScreen) ...[
-                          IconButton(
-                            tooltip: 'Run Script',
-                            icon: const Icon(Icons.play_arrow),
-                            onPressed: () => _runScript(rec),
-                          ),
-
-                          // Quick publish button for scripts not yet published
-                          if (!_isPublishedToMarketplace(rec))
-                            IconButton(
-                              tooltip: 'Publish to Marketplace',
-                              icon: const Icon(Icons.cloud_upload),
-                              onPressed: () => _publishToMarketplace(rec),
-                            ),
-                        ],
-
-                        // More actions menu - always show
-                        PopupMenuButton<int>(
-                          tooltip: 'More Actions',
-                          icon: Icon(
-                            Icons.more_vert,
-                            size: isCompactScreen ? 20 : 24,
-                          ),
-                          itemBuilder: (BuildContext context) {
-                            final List<PopupMenuEntry<int>> items = [
-                              const PopupMenuItem<int>(
-                                  value: 1, child: Text('Edit details…')),
-                              const PopupMenuItem<int>(
-                                  value: 2, child: Text('Edit code…')),
-                            ];
-
-                            if (!_isPublishedToMarketplace(rec)) {
-                              items.add(const PopupMenuItem<int>(
-                                  value: 3,
-                                  child: Text('Publish to Marketplace')));
-                            } else {
-                              items.add(const PopupMenuItem<int>(
-                                  value: 4,
-                                  child: Text('View in Marketplace')));
-                            }
-
-                            items.add(const PopupMenuItem<int>(
-                                value: 5, child: Text('Duplicate')));
-                            items.add(const PopupMenuItem<int>(
-                                value: 6, child: Text('Export')));
-                            items.add(const PopupMenuDivider());
-                            items.add(const PopupMenuItem<int>(
-                                value: 7, child: Text('Delete')));
-
-                            return items;
-                          },
-                          onSelected: (int value) {
-                            switch (value) {
-                              case 1:
-                                showDialog<void>(
-                                  context: context,
-                                  builder: (_) => _ScriptDetailsDialog(
-                                      controller: _controller, record: rec),
-                                );
-                                break;
-                              case 2:
-                                showDialog<void>(
-                                  context: context,
-                                  builder: (_) => _ScriptEditorDialog(
-                                      controller: _controller, record: rec),
-                                );
-                                break;
-                              case 3:
-                                _publishToMarketplace(rec);
-                                break;
-                              case 4:
-                                _viewInMarketplace(rec);
-                                break;
-                              case 5:
-                                _duplicateScript(rec);
-                                break;
-                              case 6:
-                                _exportScript(rec);
-                                break;
-                              case 7:
-                                _confirmAndDeleteScript(rec);
-                                break;
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+          );
+        }).toList(),
+      ),
     );
   }
 
-  Widget _buildAllScriptsTab(List<ScriptRecord> localScripts) {
+  Widget _buildUnifiedListView(List<ScriptRecord> localScripts) {
     final lastRunMap = <String, DateTime>{};
     for (final s in localScripts) {
       if (s.lastRunAt != null) {
@@ -1043,8 +714,20 @@ class _ScriptsScreenState extends State<ScriptsScreen>
       lastRunAt: lastRunMap,
     );
 
+    final filteredItems = hybridItems.where((item) {
+      switch (_sourceFilter) {
+        case ScriptSourceFilter.all:
+          return true;
+        case ScriptSourceFilter.local:
+          return item.source == ScriptSource.local;
+        case ScriptSourceFilter.marketplace:
+          return item.source == ScriptSource.marketplace ||
+              item.isFromMarketplace;
+      }
+    }).toList();
+
     final sortedItems = ScriptListItem.sortItems(
-      hybridItems,
+      filteredItems,
       _allScriptsSortOption,
       ascending: _allScriptsSortAscending,
     );
@@ -1058,43 +741,39 @@ class _ScriptsScreenState extends State<ScriptsScreen>
 
         if (sortedItems.isEmpty && !_controller.isBusy) {
           return ModernEmptyState(
-            icon: Icons.list_alt_rounded,
-            title: 'Your Script Library is Empty',
-            subtitle:
-                'Create your first script or browse the marketplace to get started',
+            icon: Icons.code_rounded,
+            title: _sourceFilter == ScriptSourceFilter.local
+                ? 'No Local Scripts'
+                : _sourceFilter == ScriptSourceFilter.marketplace
+                    ? 'No Marketplace Scripts'
+                    : 'Your Script Library is Empty',
+            subtitle: _sourceFilter == ScriptSourceFilter.local
+                ? 'Create your first script to get started'
+                : 'Create your first script or browse the marketplace',
             action: _showCreateSheet,
             actionLabel: 'Create Script',
-            secondaryAction: () => _tabController.animateTo(2),
-            secondaryActionLabel: 'Browse Marketplace',
           );
         }
 
-        return Column(
-          children: [
-            _buildAllScriptsSortDropdown(),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  await _controller.refresh();
-                  await _refreshMarketplaceScripts();
-                },
-                child: ListView.separated(
-                  padding: const EdgeInsets.only(
-                    bottom: 100,
-                    top: 8,
-                    left: 8,
-                    right: 8,
-                  ),
-                  itemCount: sortedItems.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = sortedItems[index];
-                    return _buildAllScriptsListItem(item);
-                  },
-                ),
-              ),
+        return RefreshIndicator(
+          onRefresh: () async {
+            await _controller.refresh();
+            await _refreshMarketplaceScripts();
+          },
+          child: ListView.separated(
+            padding: const EdgeInsets.only(
+              bottom: 100,
+              top: 8,
+              left: 8,
+              right: 8,
             ),
-          ],
+            itemCount: sortedItems.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = sortedItems[index];
+              return _buildAllScriptsListItem(item);
+            },
+          ),
         );
       },
     );
@@ -1314,18 +993,6 @@ class _ScriptsScreenState extends State<ScriptsScreen>
     }
   }
 
-  Widget _buildMarketplaceTab() {
-    return Column(
-      children: [
-        _buildSearchBar(),
-        _buildCategoryFilter(),
-        Expanded(
-          child: _buildMarketplaceContent(),
-        ),
-      ],
-    );
-  }
-
   Widget _buildSearchBar() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1368,179 +1035,6 @@ class _ScriptsScreenState extends State<ScriptsScreen>
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildMarketplaceContent() {
-    if (_isMarketplaceLoading && _marketplaceScripts.isEmpty) {
-      return const LoadingIndicator(message: 'Loading scripts...');
-    }
-
-    if (_marketplaceError != null && _marketplaceScripts.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _refreshMarketplaceScripts,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height - 200,
-            child: ErrorDisplay(
-              error: _marketplaceError!,
-              onRetry: _refreshMarketplaceScripts,
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (_marketplaceScripts.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _refreshMarketplaceScripts,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height - 200,
-            child: ModernEmptyState(
-              icon: Icons.search_off_rounded,
-              title: 'No Scripts Found',
-              subtitle:
-                  'Try adjusting your search terms or browse different categories to discover amazing scripts',
-            ),
-          ),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _refreshMarketplaceScripts,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification is ScrollEndNotification &&
-              notification.metrics.extentAfter < 200 &&
-              _hasMore &&
-              !_isLoadingMore) {
-            _loadMarketplaceScripts(isLoadMore: true);
-          }
-          return false;
-        },
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final gridConfig =
-                ResponsiveGridConfig.forWidth(constraints.maxWidth);
-            return GridView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16.0),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: gridConfig.crossAxisCount,
-                childAspectRatio: gridConfig.childAspectRatio,
-                crossAxisSpacing: 16.0,
-                mainAxisSpacing: 16.0,
-              ),
-              itemCount: _marketplaceScripts.length + (_hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == _marketplaceScripts.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-
-                final script = _marketplaceScripts[index];
-                final isDownloading = _downloadingScriptIds.contains(script.id);
-                final isDownloaded = _downloadedScriptIds.contains(script.id);
-
-                return Stack(
-                  children: [
-                    ScriptCard(
-                      script: script,
-                      onTap: () => _showScriptDetails(context, script),
-                      onDownload: script.price == 0
-                          ? () => _downloadScript(script)
-                          : null,
-                      isDownloading: isDownloading,
-                      isDownloaded: isDownloaded,
-                      onQuickPreview: () => _showScriptDetails(context, script),
-                      onShare: () => _shareScript(context, script),
-                    ),
-                    // Download progress overlay
-                    if (isDownloading)
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.7),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircularProgressIndicator(
-                                    value: _downloadProgress[script.id],
-                                    valueColor:
-                                        const AlwaysStoppedAnimation<Color>(
-                                            Colors.white),
-                                    backgroundColor:
-                                        Colors.white.withValues(alpha: 0.3),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    '${((_downloadProgress[script.id] ?? 0.0) * 100).toInt()}%',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Downloading...',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    // Downloaded indicator
-                    if (isDownloaded && !isDownloading)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            );
-          },
-        ),
       ),
     );
   }
