@@ -314,9 +314,9 @@ class _MainHomePageState extends State<MainHomePage> {
           label: 'Scripts',
         ),
         const ModernNavigationItem(
-          icon: Icons.explore_outlined,
-          activeIcon: Icons.explore_rounded,
-          label: 'Explorer',
+          icon: Icons.hub_outlined,
+          activeIcon: Icons.hub_rounded,
+          label: 'Services',
         ),
         ModernNavigationItem(
           icon: Icons.verified_user_outlined,

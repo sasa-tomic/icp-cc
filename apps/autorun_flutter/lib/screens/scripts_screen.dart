@@ -922,8 +922,140 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           ),
         ],
       ),
+      trailing: item.source == ScriptSource.local && item.localScript != null
+          ? _buildLocalScriptMenu(item.localScript!)
+          : item.source == ScriptSource.marketplace &&
+                  item.marketplaceScript != null
+              ? _buildMarketplaceScriptMenu(item.marketplaceScript!)
+              : null,
       onTap: () => _handleAllScriptsItemTap(item),
     );
+  }
+
+  Widget _buildLocalScriptMenu(ScriptRecord record) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert),
+      onSelected: (value) => _handleLocalScriptMenuAction(value, record),
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'run',
+          child: Row(
+            children: [
+              Icon(Icons.play_arrow, size: 20),
+              SizedBox(width: 12),
+              Text('Run'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 20),
+              SizedBox(width: 12),
+              Text('Delete'),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'duplicate',
+          child: Row(
+            children: [
+              Icon(Icons.content_copy, size: 20),
+              SizedBox(width: 12),
+              Text('Duplicate'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'export',
+          child: Row(
+            children: [
+              Icon(Icons.copy, size: 20),
+              SizedBox(width: 12),
+              Text('Copy Source'),
+            ],
+          ),
+        ),
+        if (!_isPublishedToMarketplace(record))
+          const PopupMenuItem(
+            value: 'publish',
+            child: Row(
+              children: [
+                Icon(Icons.upload, size: 20),
+                SizedBox(width: 12),
+                Text('Publish to Marketplace'),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _handleLocalScriptMenuAction(String action, ScriptRecord record) {
+    switch (action) {
+      case 'run':
+        _runScript(record);
+        break;
+      case 'delete':
+        _confirmAndDeleteScript(record);
+        break;
+      case 'duplicate':
+        _duplicateScript(record);
+        break;
+      case 'export':
+        _exportScript(record);
+        break;
+      case 'publish':
+        _publishToMarketplace(record);
+        break;
+    }
+  }
+
+  Widget _buildMarketplaceScriptMenu(MarketplaceScript script) {
+    final isDownloaded = _downloadedScriptIds.contains(script.id);
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert),
+      onSelected: (value) => _handleMarketplaceScriptMenuAction(value, script),
+      itemBuilder: (context) => [
+        if (isDownloaded)
+          const PopupMenuItem(
+            value: 'view_in_library',
+            child: Row(
+              children: [
+                Icon(Icons.folder_open, size: 20),
+                SizedBox(width: 12),
+                Text('View in Library'),
+              ],
+            ),
+          ),
+        const PopupMenuItem(
+          value: 'share',
+          child: Row(
+            children: [
+              Icon(Icons.share, size: 20),
+              SizedBox(width: 12),
+              Text('Share'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _handleMarketplaceScriptMenuAction(
+      String action, MarketplaceScript script) {
+    switch (action) {
+      case 'share':
+        _shareScript(context, script);
+        break;
+      case 'view_in_library':
+        setState(() {
+          _sourceFilter = ScriptSourceFilter.local;
+        });
+        break;
+    }
   }
 
   Widget _buildHybridSourceBadge(ScriptListItem item, bool isCompactScreen) {

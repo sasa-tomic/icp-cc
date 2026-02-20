@@ -57,7 +57,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Canister Explorer'),
+        title: const Text('Services'),
         actions: <Widget>[
           Container(
             margin: const EdgeInsets.only(right: 16),

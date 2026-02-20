@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-02-20 (evening session)
 
 ## Current Focus
 
@@ -11,11 +11,19 @@
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
-- Navigation is simpler and more intuitive
+- Navigation is simpler and more intuitive (renamed to "Services")
 - Post-setup guide for new users
 - Keyboard shortcuts for desktop
 - Simplified Canister Client Sheet
 - Technical term tooltips
+- Script menu reduced to 5 local / 2 marketplace options
+
+**Next Wave:** Radical UX improvements identified (see MEDIUM Priority):
+- 2-Tab navigation + Profile menu
+- Home Dashboard
+- Consolidated filter controls
+- Simplified first-run
+
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
 ## Implementation Summary
@@ -38,6 +46,8 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Canister Client UX | **COMPLETE** | 100% |
 | Technical Term Tooltips | **COMPLETE** | 100% |
 | Profile Management | **COMPLETE** | 100% |
+| Navigation Labels (Services) | **COMPLETE** | 100% |
+| Script Menu Reduction | **COMPLETE** | 100% |
 | Account Registration | Complete | 95% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -227,9 +237,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Scripts Screen navigation tests (DONE - 3 tests)
 - [x] Export/Import Keys dialog tests (DONE - 16 tests)
 - [x] Scripts Screen widget tests (DONE - 7 unified view tests)
+- [x] Script Menu tests (DONE - 9 tests - 2026-02-20)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
-- [ ] Bookmarks Screen tests (MISSING)
+- [ ] Bookmarks/Services Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
 
 **Cannot Test (requires hardware):**
@@ -251,7 +262,7 @@ Based on comprehensive UX analysis (2026-02-19):
 - [x] Display usage statistics (run count, last used)
 - [x] Welcome onboarding flow for first-time users
 - [x] Enhanced empty states with contextual guidance
-- [x] Rename "Bookmarks" nav to "Explorer" (matches screen title)
+- [x] Rename "Bookmarks" nav to "Services" (formerly "Explorer") - 2026-02-20
 - [x] Add Download History navigation from Scripts screen
 - [x] Add Export/Import Keys buttons for disaster recovery
 - [x] Flatten Scripts tab (remove nested tabs, elevate Marketplace)
@@ -262,10 +273,44 @@ Based on comprehensive UX analysis (2026-02-19):
 - [x] Simplify Canister Client Sheet (2026-02-20)
 - [x] Add tooltips/explanations for technical terms (2026-02-20)
 - [x] Keyboard shortcuts for desktop users (2026-02-20)
+- [x] Reduce script item menu options (5 local, 2 marketplace) - 2026-02-20
 
 **Remaining (from UX analysis):**
-- [ ] Rename "Explorer" tab to something more approachable (e.g., "Tools" or "Services")
-- [ ] Reduce script item menu options (currently 7+ options)
+(none - all original UX items complete)
+
+### Radical UX Improvements (NEW - 2026-02-20)
+Based on user-perspective analysis. These would dramatically improve intuitiveness:
+
+#### 1. Replace 3-Tab Navigation with 2-Tab + Profile Menu
+- [ ] Remove Profile tab, add avatar menu in app bar
+- [ ] Tab 1: Home (dashboard with recent scripts, quick actions)
+- [ ] Tab 2: Discover (marketplace + canister explorer merged)
+- **Impact:** High | **Effort:** Medium
+
+#### 2. Consolidate Scripts Screen Controls (4 rows → 1)
+- [ ] Single search bar with filter button (popover/dropdown)
+- [ ] Remove Local/Marketplace filter chips - show all with badges
+- [ ] Categories/sort become dropdown inside filter popover
+- **Impact:** High | **Effort:** Low
+
+#### 3. Create Home Dashboard as Default Landing Screen
+- [ ] Quick Actions: "Run Recent Script", "Browse Marketplace"
+- [ ] Recent Scripts: Last 3-5 scripts with one-tap run
+- [ ] Featured from Marketplace: 2-3 curated scripts
+- **Impact:** Very High | **Effort:** High
+
+#### 4. Simplify First-Run to Single Action
+- [ ] Skip Welcome screen - go directly to lightweight profile creation
+- [ ] Profile creation: Just "What's your name?" (one field)
+- [ ] Defer @username registration until user wants to publish
+- **Impact:** High | **Effort:** Medium
+
+#### 5. Add Quick Actions to Services Screen
+- [ ] "Check ICP Balance" → Opens ledger with account_balance_dfx
+- [ ] "View Neurons" → Opens NNS Governance
+- [ ] "Search Dapps" → Opens Kinic
+- [ ] Move raw Canister Client to "Advanced" section
+- **Impact:** Medium | **Effort:** Medium
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
