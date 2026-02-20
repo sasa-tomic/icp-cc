@@ -45,11 +45,13 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   List<MarketplaceScript> _marketplaceScripts = [];
+  List<MarketplaceScript> _featuredScripts = [];
   List<String> _categories = [];
   final Set<String> _downloadingScriptIds = <String>{};
   final Map<String, double> _downloadProgress = <String, double>{};
   Set<String> _downloadedScriptIds = {};
   bool _isMarketplaceLoading = false;
+  bool _isLoadingFeatured = true;
   bool _isLoadingMore = false;
   bool _isSearching = false;
   String? _marketplaceError;
@@ -62,6 +64,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   String _searchQuery = '';
   ScriptSortOption _allScriptsSortOption = ScriptSortOption.lastRun;
   bool _allScriptsSortAscending = false;
+  bool _shareBannerDismissed = false;
+  static const _shareBannerDismissedKey = 'share_banner_dismissed';
 
   @override
   void initState() {
@@ -73,11 +77,54 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _loadCategories();
     _loadDownloadedScripts();
     _initializeMarketplaceData();
+    _loadShareBannerState();
+  }
+
+  Future<void> _loadShareBannerState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _shareBannerDismissed =
+            prefs.getBool(_shareBannerDismissedKey) ?? false;
+      });
+    }
+  }
+
+  Future<void> _dismissShareBanner() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_shareBannerDismissedKey, true);
+    if (mounted) {
+      setState(() {
+        _shareBannerDismissed = true;
+      });
+    }
   }
 
   Future<void> _initializeMarketplaceData() async {
-    await _loadSavedCategory();
+    await Future.wait([
+      _loadSavedCategory(),
+      _loadFeaturedScripts(),
+    ]);
     await _loadMarketplaceScripts();
+  }
+
+  Future<void> _loadFeaturedScripts() async {
+    try {
+      final featured = await _marketplaceService.getFeaturedScripts(limit: 10);
+      if (mounted) {
+        setState(() {
+          _featuredScripts = featured;
+          _isLoadingFeatured = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load featured scripts: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingFeatured = false;
+        });
+      }
+    }
   }
 
   @override
@@ -195,7 +242,11 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _refreshMarketplaceScripts() async {
-    await _loadMarketplaceScripts();
+    setState(() => _isLoadingFeatured = true);
+    await Future.wait([
+      _loadFeaturedScripts(),
+      _loadMarketplaceScripts(),
+    ]);
   }
 
   void _onSearchChanged(String query) {
@@ -695,12 +746,16 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       lastRunAt: lastRunMap,
     );
 
-    // Always show all scripts (no source filter)
     final sortedItems = ScriptListItem.sortItems(
       hybridItems,
       _allScriptsSortOption,
       ascending: _allScriptsSortAscending,
     );
+
+    final hasUnpublishableScripts =
+        localScripts.any((s) => !_isPublishedToMarketplace(s));
+    final showBanner = hasUnpublishableScripts && !_shareBannerDismissed;
+    final showFeatured = _featuredScripts.isNotEmpty || _isLoadingFeatured;
 
     return AnimatedBuilder(
       animation: _controller,
@@ -709,7 +764,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (sortedItems.isEmpty && !_controller.isBusy) {
+        if (sortedItems.isEmpty && !_controller.isBusy && !showFeatured) {
           return ModernEmptyState(
             icon: Icons.code_rounded,
             title: 'Your Script Library is Empty',
@@ -724,23 +779,332 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             await _controller.refresh();
             await _refreshMarketplaceScripts();
           },
-          child: ListView.separated(
-            padding: const EdgeInsets.only(
-              bottom: 100,
-              top: 8,
-              left: 8,
-              right: 8,
-            ),
-            itemCount: sortedItems.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = sortedItems[index];
-              return _buildAllScriptsListItem(item);
-            },
+          child: CustomScrollView(
+            slivers: [
+              if (showFeatured)
+                SliverToBoxAdapter(
+                  child: _buildFeaturedSection(),
+                ),
+              if (showBanner)
+                SliverToBoxAdapter(
+                  child: _buildShareBanner(),
+                ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) =>
+                      _buildAllScriptsListItem(sortedItems[index]),
+                  childCount: sortedItems.length,
+                ),
+              ),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 100),
+              ),
+            ],
           ),
         );
       },
     );
+  }
+
+  Widget _buildFeaturedSection() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.star,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Featured',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 140,
+            child: _isLoadingFeatured
+                ? _buildFeaturedShimmer()
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      children: _featuredScripts
+                          .map((script) => _buildFeaturedCard(script))
+                          .toList(),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeaturedShimmer() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: List.generate(
+          5,
+          (index) => Container(
+            width: 200,
+            height: 140,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturedCard(MarketplaceScript script) {
+    return GestureDetector(
+      onTap: () => _showScriptDetails(context, script),
+      child: Container(
+        width: 200,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: script.iconUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                script.iconUrl!,
+                                width: 24,
+                                height: 24,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.code,
+                                  size: 20,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.code, size: 20),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Featured',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                script.title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                script.authorName ?? 'Unknown',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  if (script.rating > 0) ...[
+                    Icon(
+                      Icons.star,
+                      size: 14,
+                      color: Colors.amber,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      script.rating.toStringAsFixed(1),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Icon(
+                    Icons.download,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    '${script.downloads}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShareBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primaryContainer,
+            Theme.of(context)
+                .colorScheme
+                .secondaryContainer
+                .withValues(alpha: 0.5),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.campaign_rounded,
+                color: Theme.of(context).colorScheme.primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Share your first script!',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Help others by sharing your scripts to the marketplace.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _shareFirstScript,
+              style: TextButton.styleFrom(
+                backgroundColor: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'Share',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: _dismissShareBanner,
+              icon: Icon(
+                Icons.close,
+                size: 18,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              tooltip: 'Dismiss',
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _shareFirstScript() {
+    final scripts = _controller.scripts;
+    final unpublishableScript = scripts.cast<ScriptRecord?>().firstWhere(
+          (s) => s != null && !_isPublishedToMarketplace(s),
+          orElse: () => null,
+        );
+    if (unpublishableScript != null) {
+      _publishToMarketplace(unpublishableScript);
+    }
   }
 
   Widget _buildAllScriptsListItem(ScriptListItem item) {
@@ -823,6 +1187,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Widget _buildLocalScriptMenu(ScriptRecord record) {
+    final canPublish = !_isPublishedToMarketplace(record);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -831,6 +1196,13 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           onPressed: () => _runScript(record),
           tooltip: 'Run script',
         ),
+        if (canPublish)
+          IconButton(
+            icon:
+                Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
+            onPressed: () => _publishToMarketplace(record),
+            tooltip: 'Share to Marketplace',
+          ),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) => _handleLocalScriptMenuAction(value, record),
@@ -866,14 +1238,14 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 ],
               ),
             ),
-            if (!_isPublishedToMarketplace(record))
+            if (!canPublish)
               const PopupMenuItem(
-                value: 'publish',
+                value: 'view_marketplace',
                 child: Row(
                   children: [
-                    Icon(Icons.upload, size: 20),
+                    Icon(Icons.open_in_new, size: 20),
                     SizedBox(width: 12),
-                    Text('Publish to Marketplace'),
+                    Text('View in Marketplace'),
                   ],
                 ),
               ),
@@ -894,8 +1266,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       case 'export':
         _exportScript(record);
         break;
-      case 'publish':
-        _publishToMarketplace(record);
+      case 'view_marketplace':
+        _viewInMarketplace(record);
         break;
     }
   }

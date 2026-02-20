@@ -6,6 +6,7 @@ import '../controllers/profile_controller.dart';
 import '../controllers/account_controller.dart';
 import '../models/profile.dart';
 import '../models/account.dart';
+import '../services/passkey_service.dart';
 import '../utils/passkey_platform.dart';
 import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
@@ -28,11 +29,13 @@ class ProfileMenuWidget extends StatefulWidget {
     super.key,
     required this.profileController,
     required this.accountController,
+    this.passkeyService,
     this.onNavigate,
   });
 
   final ProfileController profileController;
   final AccountController accountController;
+  final PasskeyService? passkeyService;
   final VoidCallback? onNavigate;
 
   @override
@@ -42,6 +45,8 @@ class ProfileMenuWidget extends StatefulWidget {
 class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
   bool _initialized = false;
   Account? _activeAccount;
+  int _passkeyCount = 0;
+  bool _passkeyCountLoaded = false;
 
   @override
   void didChangeDependencies() {
@@ -62,11 +67,40 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           setState(() {
             _activeAccount = account;
           });
+          await _loadPasskeyCount(account.id);
         }
       } catch (e) {
         debugPrint('Error loading account: $e');
       }
     }
+  }
+
+  Future<void> _loadPasskeyCount(String accountId) async {
+    try {
+      final service = widget.passkeyService ?? PasskeyService();
+      final passkeys = await service.listPasskeys(accountId);
+      if (mounted) {
+        setState(() {
+          _passkeyCount = passkeys.length;
+          _passkeyCountLoaded = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading passkey count: $e');
+    }
+  }
+
+  String _getPasskeySubtitle() {
+    if (!_passkeyCountLoaded) {
+      if (!PasskeyPlatform.isSupported) {
+        return 'Not supported on this platform';
+      }
+      return 'Manage secure login keys';
+    }
+    if (_passkeyCount == 0) {
+      return 'No passkeys';
+    }
+    return _passkeyCount == 1 ? '1 passkey' : '$_passkeyCount passkeys';
   }
 
   @override
@@ -220,12 +254,11 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           _MenuTile(
             icon: Icons.key,
             label: 'Passkeys',
-            subtitle: PasskeyPlatform.isSupported
-                ? 'Manage secure login keys'
-                : 'Not supported on this platform',
+            subtitle: _getPasskeySubtitle(),
             onTap: PasskeyPlatform.isSupported
                 ? () => _handleAction(ProfileMenuAction.passkeys)
                 : null,
+            highlight: _passkeyCountLoaded && _passkeyCount == 0,
           ),
         // Switch Profile (if multiple profiles)
         if (profileCount > 1)

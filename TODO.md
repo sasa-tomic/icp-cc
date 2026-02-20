@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (evening session)
+**Last Updated:** 2026-02-21 (late evening)
 
 ## Current Focus
 
@@ -10,6 +10,9 @@
 - **NEW:** 2-Tab navigation (Home, Discover) with Profile menu in app bar
 - **NEW:** Simplified first-run experience (just "What's your name?")
 - **NEW:** Services renamed to "Explore" with subtitle
+- **NEW:** Prominent Publish Button - share icon on local scripts, dismissible banner
+- **NEW:** Passkey Quick Access - shows count in profile menu, highlights when no passkeys
+- **NEW:** Featured Scripts Section - horizontal scroll section at top of scripts screen
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
@@ -43,6 +46,9 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Services Quick Actions | **COMPLETE** | 100% |
 | Script Execution Progress | **COMPLETE** | 100% |
 | Pull-to-Refresh | **COMPLETE** | 100% |
+| Prominent Publish Button | **COMPLETE** | 100% |
+| Passkey Quick Access | **COMPLETE** | 100% |
+| Featured Scripts Section | **COMPLETE** | 100% |
 | Passkey UI Integration | **COMPLETE** | 100% |
 | Linux Passkey Support | **COMPLETE** | 100% |
 | Welcome Onboarding | **COMPLETE** | 100% |
@@ -302,6 +308,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Navigation tests (DONE - 11 tests - 2026-02-21)
 - [x] Quick Profile Creation tests (DONE - 9 tests - 2026-02-21)
 - [x] UX Improvements tests (DONE - 5 tests - 2026-02-21)
+- [x] Publish Button tests (DONE - 11 tests - 2026-02-21)
+- [x] Profile Menu Passkey tests (DONE - 6 tests - 2026-02-21)
+- [x] Featured Section tests (DONE - 5 tests - 2026-02-21)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
@@ -325,10 +334,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Service:** `MarketplaceOpenApiService.getScriptReviews()`
 - **Impact:** Users can make informed decisions about scripts
 
-**2. Featured/Trending Scripts** ⭐ MEDIUM IMPACT, LOW EFFORT
-- [ ] Add "Featured" section to Scripts screen
-- [ ] Call `getFeaturedScripts()` and `getTrendingScripts()`
-- **Service:** `MarketplaceOpenApiService.getFeaturedScripts()`
+**2. Featured/Trending Scripts** ✅ **DONE - 2026-02-21**
+- [x] Add "Featured" section to Scripts screen
+- [x] Horizontal scrolling cards with shimmer loading
+- [x] Call `getFeaturedScripts()` from service
 - **Impact:** Improves script discovery
 
 **3. Script Version History** ⭐ LOW IMPACT, MEDIUM EFFORT
@@ -339,11 +348,11 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 ### UX Improvements - Phase 2
 
-**4. Prominent Publish Button** ⭐ HIGH IMPACT, LOW EFFORT
-- [ ] Add "Share to Marketplace" FAB or banner when viewing local scripts
-- [ ] Show publish count on scripts screen ("Share your first script!")
-- **Impact:** Makes publishing discoverable (currently hidden in 3-dot menu)
-- **File:** `lib/screens/scripts_screen.dart`
+**4. Prominent Publish Button** ✅ **DONE - 2026-02-21**
+- [x] Add visible share icon button on local script rows
+- [x] Add dismissible "Share your first script!" banner
+- **Impact:** Makes publishing discoverable (was hidden in 3-dot menu)
+- **Files:** `lib/screens/scripts_screen.dart`, test: `test/features/scripts/publish_button_test.dart`
 
 **5. Download History Visibility** ⭐ MEDIUM IMPACT, LOW EFFORT
 - [ ] Add "Recent Downloads" section at top of Scripts list
@@ -357,11 +366,11 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Impact:** Increases discoverability of ICP tools
 - **File:** `lib/screens/bookmarks_screen.dart`
 
-**7. Passkey Quick Access** ⭐ HIGH IMPACT, LOW EFFORT
-- [ ] Add "Add Passkey" button to profile menu (before needing to view account)
-- [ ] Show passkey status on main profile menu
-- **Impact:** Reduces 4+ taps to add passkey
-- **File:** `lib/widgets/profile_menu.dart`
+**7. Passkey Quick Access** ✅ **DONE - 2026-02-21**
+- [x] Show passkey count in profile menu subtitle ("No passkeys" / "N passkeys")
+- [x] Highlight Passkey option when user has no passkeys
+- **Impact:** Reduces friction to see passkey status, encourages setup
+- **Files:** `lib/widgets/profile_menu.dart`, test: `test/widgets/profile_menu_passkey_test.dart`
 
 **8. Single-Page Script Creation** ⭐ HIGH IMPACT, MEDIUM EFFORT
 - [ ] Remove tabs from ScriptCreationScreen
