@@ -52,6 +52,7 @@ dependencies:
   shared_preferences: ^2.3.2
   passkeys: ^2.1.0
   crypto: ^3.0.7
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

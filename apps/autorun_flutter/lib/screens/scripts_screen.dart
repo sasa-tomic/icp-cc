@@ -20,7 +20,6 @@ import '../widgets/modern_empty_state.dart';
 import '../widgets/script_app_host.dart';
 import '../widgets/script_editor.dart';
 import '../widgets/quick_upload_dialog.dart';
-import '../widgets/marketplace_search_bar.dart';
 import '../widgets/script_details_dialog.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
@@ -34,14 +33,10 @@ class ScriptsScreen extends StatefulWidget {
   State<ScriptsScreen> createState() => ScriptsScreenState();
 }
 
-enum ScriptSourceFilter { all, local, marketplace }
-
 class ScriptsScreenState extends State<ScriptsScreen> {
   late final ScriptController _controller;
   final ScriptAppRuntime _appRuntime =
       ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
-
-  ScriptSourceFilter _sourceFilter = ScriptSourceFilter.all;
 
   final MarketplaceOpenApiService _marketplaceService =
       MarketplaceOpenApiService();
@@ -555,7 +550,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         record.title.replaceAll(' (Marketplace)', '');
 
     setState(() {
-      _sourceFilter = ScriptSourceFilter.marketplace;
       _searchController.text = marketplaceTitle;
       _searchQuery = marketplaceTitle;
     });
@@ -661,9 +655,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           Column(
             children: [
               _buildSearchBar(),
-              _buildSourceFilterChips(),
-              _buildCategoryFilter(),
-              _buildAllScriptsSortDropdown(),
               Expanded(
                 child: _buildUnifiedListView(scripts),
               ),
@@ -688,36 +679,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     );
   }
 
-  Widget _buildSourceFilterChips() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: ScriptSourceFilter.values.map((filter) {
-          final isSelected = _sourceFilter == filter;
-          final label = switch (filter) {
-            ScriptSourceFilter.all => 'All',
-            ScriptSourceFilter.local => 'Local',
-            ScriptSourceFilter.marketplace => 'Marketplace',
-          };
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: FilterChip(
-              label: Text(label),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  _sourceFilter = filter;
-                });
-              },
-              selectedColor: Theme.of(context).colorScheme.primaryContainer,
-              checkmarkColor: Theme.of(context).colorScheme.primary,
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   Widget _buildUnifiedListView(List<ScriptRecord> localScripts) {
     final lastRunMap = <String, DateTime>{};
     for (final s in localScripts) {
@@ -734,20 +695,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       lastRunAt: lastRunMap,
     );
 
-    final filteredItems = hybridItems.where((item) {
-      switch (_sourceFilter) {
-        case ScriptSourceFilter.all:
-          return true;
-        case ScriptSourceFilter.local:
-          return item.source == ScriptSource.local;
-        case ScriptSourceFilter.marketplace:
-          return item.source == ScriptSource.marketplace ||
-              item.isFromMarketplace;
-      }
-    }).toList();
-
+    // Always show all scripts (no source filter)
     final sortedItems = ScriptListItem.sortItems(
-      filteredItems,
+      hybridItems,
       _allScriptsSortOption,
       ascending: _allScriptsSortAscending,
     );
@@ -762,14 +712,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         if (sortedItems.isEmpty && !_controller.isBusy) {
           return ModernEmptyState(
             icon: Icons.code_rounded,
-            title: _sourceFilter == ScriptSourceFilter.local
-                ? 'No Local Scripts'
-                : _sourceFilter == ScriptSourceFilter.marketplace
-                    ? 'No Marketplace Scripts'
-                    : 'Your Script Library is Empty',
-            subtitle: _sourceFilter == ScriptSourceFilter.local
-                ? 'Create your first script to get started'
-                : 'Create your first script or browse the marketplace',
+            title: 'Your Script Library is Empty',
+            subtitle: 'Create your first script or browse the marketplace',
             action: _showCreateSheet,
             actionLabel: 'Create Script',
           );
@@ -796,60 +740,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildAllScriptsSortDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Text(
-            'Sort by:',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(width: 8),
-          DropdownButton<ScriptSortOption>(
-            value: _allScriptsSortOption,
-            underline: const SizedBox(),
-            items: ScriptSortOption.values
-                .map((opt) => DropdownMenuItem(
-                      value: opt,
-                      child: Text(opt.label),
-                    ))
-                .toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  if (_allScriptsSortOption == value) {
-                    _allScriptsSortAscending = !_allScriptsSortAscending;
-                  } else {
-                    _allScriptsSortOption = value;
-                    _allScriptsSortAscending = false;
-                  }
-                });
-              }
-            },
-          ),
-          IconButton(
-            icon: Icon(
-              _allScriptsSortAscending
-                  ? Icons.arrow_upward
-                  : Icons.arrow_downward,
-              size: 20,
-            ),
-            onPressed: () {
-              setState(() {
-                _allScriptsSortAscending = !_allScriptsSortAscending;
-              });
-            },
-            tooltip: _allScriptsSortAscending ? 'Ascending' : 'Descending',
-          ),
-        ],
-      ),
     );
   }
 
@@ -1051,9 +941,15 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         _shareScript(context, script);
         break;
       case 'view_in_library':
-        setState(() {
-          _sourceFilter = ScriptSourceFilter.local;
-        });
+        // Scripts are now always shown together
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('"${script.title}" is in your library'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
         break;
     }
   }
@@ -1151,41 +1047,160 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       children: [
         Container(
           padding: const EdgeInsets.all(16.0),
-          child: MarketplaceSearchBar(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            onClear: () {
-              _searchController.clear();
-              _onSearchChanged('');
-            },
-          ),
+          child: _buildConsolidatedSearchBar(),
         ),
         if (_isSearching) const LinearProgressIndicator(minHeight: 2),
       ],
     );
   }
 
-  Widget _buildCategoryFilter() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _categories.length,
-        itemBuilder: (context, index) {
-          final category = _categories[index];
-          final isSelected = category == _selectedCategory;
+  /// Builds the consolidated search bar with filter button.
+  /// Replaces the previous 4-row layout with a single row.
+  Widget _buildConsolidatedSearchBar() {
+    final activeFilterCount = _getActiveFilterCount();
 
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: FilterChip(
-              label: Text(category),
-              selected: isSelected,
-              onSelected: (selected) => _onCategoryChanged(category),
-              selectedColor: Theme.of(context).colorScheme.primaryContainer,
-              checkmarkColor: Theme.of(context).colorScheme.primary,
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          );
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search scripts...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _buildFilterButton(activeFilterCount),
+      ],
+    );
+  }
+
+  /// Builds the filter button with a badge showing active filter count.
+  Widget _buildFilterButton(int activeCount) {
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: IconButton(
+            icon: Icon(
+              Icons.tune,
+              color: activeCount > 0
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            onPressed: () => _showFilterPopover(context),
+            tooltip: 'Filter options',
+          ),
+        ),
+        if (activeCount > 0)
+          Positioned(
+            right: 4,
+            top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 18),
+              child: Text(
+                '$activeCount',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Returns the number of active (non-default) filters.
+  int _getActiveFilterCount() {
+    int count = 0;
+    if (_selectedCategory != 'All') count++;
+    if (_allScriptsSortOption != ScriptSortOption.lastRun) count++;
+    return count;
+  }
+
+  /// Shows the filter popover with category and sort options.
+  void _showFilterPopover(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _FilterBottomSheet(
+        categories: _categories,
+        selectedCategory: _selectedCategory,
+        sortOption: _allScriptsSortOption,
+        sortAscending: _allScriptsSortAscending,
+        onCategoryChanged: (category) {
+          _onCategoryChanged(category);
+          Navigator.of(context).pop();
+        },
+        onSortChanged: (option, ascending) {
+          setState(() {
+            _allScriptsSortOption = option;
+            _allScriptsSortAscending = ascending;
+          });
+        },
+        onReset: () {
+          setState(() {
+            _selectedCategory = 'All';
+            _allScriptsSortOption = ScriptSortOption.lastRun;
+            _allScriptsSortAscending = false;
+          });
+          Navigator.of(context).pop();
+          _loadMarketplaceScripts();
         },
       ),
     );
@@ -1906,6 +1921,178 @@ class _TemplateCard extends StatelessWidget {
       default:
         return colorScheme.primary;
     }
+  }
+}
+
+/// Filter bottom sheet containing category and sort options.
+class _FilterBottomSheet extends StatefulWidget {
+  const _FilterBottomSheet({
+    required this.categories,
+    required this.selectedCategory,
+    required this.sortOption,
+    required this.sortAscending,
+    required this.onCategoryChanged,
+    required this.onSortChanged,
+    required this.onReset,
+  });
+
+  final List<String> categories;
+  final String selectedCategory;
+  final ScriptSortOption sortOption;
+  final bool sortAscending;
+  final ValueChanged<String> onCategoryChanged;
+  final void Function(ScriptSortOption, bool) onSortChanged;
+  final VoidCallback onReset;
+
+  @override
+  State<_FilterBottomSheet> createState() => _FilterBottomSheetState();
+}
+
+class _FilterBottomSheetState extends State<_FilterBottomSheet> {
+  late String _selectedCategory;
+  late ScriptSortOption _sortOption;
+  late bool _sortAscending;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = widget.selectedCategory;
+    _sortOption = widget.sortOption;
+    _sortAscending = widget.sortAscending;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header with title and reset button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Filters',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              TextButton.icon(
+                onPressed: widget.onReset,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reset'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Category section
+          Text(
+            'Category',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: widget.categories.map((category) {
+              final isSelected = category == _selectedCategory;
+              return FilterChip(
+                label: Text(category),
+                selected: isSelected,
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedCategory = category;
+                  });
+                  widget.onCategoryChanged(category);
+                },
+                selectedColor: colorScheme.primaryContainer,
+                checkmarkColor: colorScheme.primary,
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+
+          // Sort section
+          Text(
+            'Sort by',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<ScriptSortOption>(
+                  value: _sortOption,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items: ScriptSortOption.values
+                      .map((opt) => DropdownMenuItem(
+                            value: opt,
+                            child: Text(opt.label),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _sortOption = value;
+                      });
+                      widget.onSortChanged(_sortOption, _sortAscending);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _sortAscending = !_sortAscending;
+                  });
+                  widget.onSortChanged(_sortOption, _sortAscending);
+                },
+                icon: Icon(
+                  _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                ),
+                tooltip: _sortAscending ? 'Ascending' : 'Descending',
+                style: IconButton.styleFrom(
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

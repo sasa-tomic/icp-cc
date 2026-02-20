@@ -17,20 +17,6 @@ void main() {
       expect(find.byType(TabBarView), findsNothing);
     });
 
-    testWidgets('shows source filter chips', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
-        ),
-      );
-
-      await tester.pump(const Duration(seconds: 2));
-
-      expect(find.widgetWithText(FilterChip, 'All'), findsWidgets);
-      expect(find.widgetWithText(FilterChip, 'Local'), findsOneWidget);
-      expect(find.widgetWithText(FilterChip, 'Marketplace'), findsOneWidget);
-    });
-
     testWidgets('shows search bar', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -43,7 +29,7 @@ void main() {
       expect(find.byIcon(Icons.search), findsWidgets);
     });
 
-    testWidgets('shows sort dropdown', (tester) async {
+    testWidgets('shows filter button', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: ScriptsScreen(),
@@ -52,7 +38,37 @@ void main() {
 
       await tester.pump(const Duration(seconds: 2));
 
-      expect(find.textContaining('Sort'), findsOneWidget);
+      expect(find.byIcon(Icons.tune), findsOneWidget);
+    });
+
+    testWidgets('does not show source filter chips on main screen',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ScriptsScreen(),
+        ),
+      );
+
+      await tester.pump(const Duration(seconds: 2));
+
+      // Source filter chips should not be visible on main screen
+      // (they are now in the filter popover)
+      expect(find.widgetWithText(FilterChip, 'Local'), findsNothing);
+      expect(find.widgetWithText(FilterChip, 'Marketplace'), findsNothing);
+    });
+
+    testWidgets('does not show sort dropdown on main screen', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ScriptsScreen(),
+        ),
+      );
+
+      await tester.pump(const Duration(seconds: 2));
+
+      // Sort dropdown should not be visible on main screen
+      // (it is now in the filter popover)
+      expect(find.textContaining('Sort'), findsNothing);
     });
 
     testWidgets('has create script FAB', (tester) async {
@@ -77,6 +93,20 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
 
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    });
+
+    testWidgets('search bar and filter button are in same row', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ScriptsScreen(),
+        ),
+      );
+
+      await tester.pump(const Duration(seconds: 2));
+
+      // Both search icon and filter button should be present
+      expect(find.byIcon(Icons.search), findsWidgets);
+      expect(find.byIcon(Icons.tune), findsOneWidget);
     });
   });
 }

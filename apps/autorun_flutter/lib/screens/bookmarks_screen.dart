@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
@@ -58,27 +59,6 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Services'),
-        actions: <Widget>[
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              onPressed: () {
-                HapticFeedback.mediumImpact();
-                widget.onOpenClient();
-              },
-              tooltip: 'Open Canister Client',
-              icon: Icon(
-                Icons.cloud_rounded,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-        ],
       ),
       body: SafeArea(
         top: false,
@@ -110,6 +90,10 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  _QuickActionsList(
+                    onOpenClient: widget.onOpenClient,
+                  ),
+                  const SizedBox(height: 32),
                   Container(
                     key: _popularCanistersKey,
                     child: _buildSectionHeader(
@@ -162,6 +146,15 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                     },
                     onExplorePopular: _scrollToPopularCanisters,
                   ),
+                  const SizedBox(height: 32),
+                  _buildSectionHeader(
+                    context,
+                    title: 'Advanced',
+                    subtitle: 'Direct canister access and raw queries',
+                    icon: Icons.build_rounded,
+                  ),
+                  const SizedBox(height: 16),
+                  _AdvancedSection(onOpenClient: widget.onOpenClient),
                 ],
               ),
             ),
@@ -1176,6 +1169,307 @@ class _ArgsEditorState extends State<_ArgsEditor> {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Quick Action types for one-tap operations
+enum QuickActionType { openCanister, externalLink }
+
+/// Represents a quick action card that can perform common tasks
+class QuickAction {
+  const QuickAction({
+    required this.key,
+    required this.label,
+    required this.description,
+    required this.icon,
+    required this.type,
+    this.canisterId,
+    this.method,
+    this.url,
+  });
+
+  final String key;
+  final String label;
+  final String description;
+  final IconData icon;
+  final QuickActionType type;
+  final String? canisterId;
+  final String? method;
+  final String? url;
+}
+
+/// Quick Actions list at the top of Services screen
+class _QuickActionsList extends StatelessWidget {
+  const _QuickActionsList({required this.onOpenClient});
+
+  final Future<void> Function(
+      {String? initialCanisterId, String? initialMethodName}) onOpenClient;
+
+  static const List<QuickAction> _actions = <QuickAction>[
+    QuickAction(
+      key: 'checkBalance',
+      label: 'Check ICP Balance',
+      description: 'Query your ICP balance on the ledger',
+      icon: Icons.account_balance_wallet_rounded,
+      type: QuickActionType.openCanister,
+      canisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      method: 'account_balance_dfx',
+    ),
+    QuickAction(
+      key: 'viewNeurons',
+      label: 'View Neurons',
+      description: 'See your neurons in NNS Governance',
+      icon: Icons.how_to_vote_rounded,
+      type: QuickActionType.openCanister,
+      canisterId: 'rrkah-fqaaa-aaaaa-aaaaq-cai',
+      method: 'list_neurons',
+    ),
+    QuickAction(
+      key: 'searchDapps',
+      label: 'Search Dapps',
+      description: 'Find IC dapps on Kinic search engine',
+      icon: Icons.search_rounded,
+      type: QuickActionType.externalLink,
+      url: 'https://kinic.io',
+    ),
+  ];
+
+  Future<void> _handleAction(BuildContext context, QuickAction action) async {
+    HapticFeedback.lightImpact();
+
+    switch (action.type) {
+      case QuickActionType.openCanister:
+        await onOpenClient(
+          initialCanisterId: action.canisterId,
+          initialMethodName: action.method,
+        );
+      case QuickActionType.externalLink:
+        if (action.url != null) {
+          final uri = Uri.parse(action.url!);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, webOnlyWindowName: '_blank');
+          }
+        }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    theme.colorScheme.primary.withValues(alpha: 0.2),
+                    theme.colorScheme.secondary.withValues(alpha: 0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.flash_on_rounded,
+                color: theme.colorScheme.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Actions',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  Text(
+                    'One-tap access to common tasks',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: _actions.map((action) {
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: action == _actions.last ? 0 : 12,
+                ),
+                child: _QuickActionCard(
+                  action: action,
+                  onTap: () => _handleAction(context, action),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Quick action card widget
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.action,
+    required this.onTap,
+  });
+
+  final QuickAction action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isExternal = action.type == QuickActionType.externalLink;
+
+    return Material(
+      key: Key('quickAction_${action.key}'),
+      elevation: 2,
+      borderRadius: BorderRadius.circular(16),
+      color: theme.colorScheme.surface,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          constraints: const BoxConstraints(minHeight: 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      action.icon,
+                      color: theme.colorScheme.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (isExternal)
+                    Icon(
+                      Icons.open_in_new,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      size: 16,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                action.label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                action.description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Advanced section for direct canister access
+class _AdvancedSection extends StatelessWidget {
+  const _AdvancedSection({required this.onOpenClient});
+
+  final Future<void> Function(
+      {String? initialCanisterId, String? initialMethodName}) onOpenClient;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          onOpenClient();
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.cloud_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Canister Client',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Query any canister with custom methods',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
