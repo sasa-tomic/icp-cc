@@ -244,7 +244,6 @@ class _ScriptEditorState extends State<ScriptEditor> {
       ),
       child: Row(
         children: [
-          // Compact language indicator
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
@@ -260,10 +259,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
               ),
             ),
           ),
-
           const SizedBox(width: 6),
-
-          // Theme selector
           DropdownButton<String>(
             value: _selectedTheme,
             underline: const SizedBox(),
@@ -289,111 +285,96 @@ class _ScriptEditorState extends State<ScriptEditor> {
               }
             },
           ),
-
           const Spacer(),
-
-          // Stats and actions
-          Flexible(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Line count
-                  Text(
-                    'Lines: $_currentLineCount',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Character count
-                  Text(
-                    'Chars: ${_controller.text.length}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Line #',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+          PopupMenuButton<void>(
+            key: const Key('toolbarOverflowButton'),
+            icon: const Icon(Icons.more_vert),
+            iconSize: 20,
+            onSelected: (_) {},
+            itemBuilder: (context) => [
+              PopupMenuItem<void>(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Lines: $_currentLineCount',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
+                    ),
+                    Text(
+                      'Chars: ${_controller.text.length}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem<void>(
+                key: const Key('lineNumberToggle'),
+                child: StatefulBuilder(
+                  builder: (context, setState) => Row(
+                    children: [
+                      const Text('Line numbers'),
+                      const Spacer(),
                       Switch.adaptive(
-                        key: const Key('lineNumberSwitch'),
                         value: _showLineNumbers,
-                        onChanged: (value) =>
-                            setState(() => _showLineNumbers = value),
+                        onChanged: (value) {
+                          this.setState(() => _showLineNumbers = value);
+                          setState(() {});
+                          Navigator.pop(context);
+                        },
                         activeTrackColor: Theme.of(context).colorScheme.primary,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ],
                   ),
-                  const SizedBox(width: 12),
-
-                  // Action buttons
-                  if (widget.showIntegrations) ...[
-                    Tooltip(
-                      message: 'UI Components',
-                      child: IconButton(
-                        key: const Key('uiPaletteButton'),
-                        onPressed: _showUiComponentPalette,
-                        icon: Icon(Icons.widgets_rounded),
-                        iconSize: 18,
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.all(4),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Tooltip(
-                      message: 'Code snippets',
-                      child: IconButton(
-                        onPressed: _showIntegrationsHelp,
-                        icon: Icon(Icons.extension_rounded),
-                        iconSize: 18,
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.all(4),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                  Tooltip(
-                    message: 'Format code',
-                    child: IconButton(
-                      onPressed: _formatCode,
-                      icon: Icon(Icons.format_align_left_rounded),
-                      iconSize: 18,
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.all(4),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Tooltip(
-                    message: 'Copy code',
-                    child: IconButton(
-                      onPressed: _copyCode,
-                      icon: Icon(Icons.copy_rounded),
-                      iconSize: 18,
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.all(4),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              if (widget.showIntegrations) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem<void>(
+                  key: const Key('uiPaletteButton'),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.widgets_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Text('UI Components'),
+                    ],
+                  ),
+                  onTap: () => Future.microtask(_showUiComponentPalette),
+                ),
+                PopupMenuItem<void>(
+                  key: const Key('snippetsButton'),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.extension_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Text('Code snippets'),
+                    ],
+                  ),
+                  onTap: () => Future.microtask(_showIntegrationsHelp),
+                ),
+              ],
+              const PopupMenuDivider(),
+              PopupMenuItem<void>(
+                key: const Key('copyCodeButton'),
+                onTap: _copyCode,
+                child: const Row(
+                  children: [
+                    Icon(Icons.copy_rounded, size: 18),
+                    SizedBox(width: 12),
+                    Text('Copy code'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -459,21 +440,6 @@ class _ScriptEditorState extends State<ScriptEditor> {
         ],
       ),
     );
-  }
-
-  void _formatCode() {
-    // Basic formatting - could be improved with proper Lua formatter
-    final code = _controller.text;
-    // For now, just trigger a change
-    _controller.text = code;
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Code formatting coming soon!'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    }
   }
 
   void _copyCode() {

@@ -45,14 +45,16 @@ void main() {
       expect(marketplaceScript.isFromMarketplace, isTrue);
     });
 
-    test('Local script menu should have primary actions', () {
-      final primaryActions = ['run', 'delete'];
-      expect(primaryActions.length, equals(2));
+    test(
+        'Local script menu should have secondary actions (run is now a button)',
+        () {
+      final secondaryActions = ['delete', 'duplicate', 'export', 'publish'];
+      expect(secondaryActions.length, equals(4));
     });
 
-    test('Local script menu should have secondary actions after divider', () {
-      final secondaryActions = ['duplicate', 'export', 'publish'];
-      expect(secondaryActions.length, equals(3));
+    test('Run action is now a separate play button, not in menu', () {
+      final popupMenuActions = ['delete', 'duplicate', 'export', 'publish'];
+      expect(popupMenuActions.contains('run'), isFalse);
     });
 
     test('Marketplace script menu should have share action', () {
@@ -60,15 +62,15 @@ void main() {
       expect(marketplaceActions.length, equals(2));
     });
 
-    test('Total menu options for local scripts is 5 (reduced from 7+)', () {
-      final localScriptMenuItems = [
-        'run',
+    test('Popup menu for local scripts has 4 options (run moved to button)',
+        () {
+      final localScriptPopupMenuItems = [
         'delete',
         'duplicate',
         'export',
         'publish',
       ];
-      expect(localScriptMenuItems.length, lessThanOrEqualTo(5));
+      expect(localScriptPopupMenuItems.length, equals(4));
     });
 
     test('Publish option only shows for non-marketplace scripts', () {
@@ -108,6 +110,36 @@ void main() {
 
       expect(find.byIcon(Icons.more_vert), findsWidgets);
     });
+
+    testWidgets('Local script row has Play button for immediate execution',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ScriptsScreenMenuTest(),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+    });
+
+    testWidgets('Play button and menu button are both visible', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ScriptsScreenMenuTest(),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    });
   });
 }
 
@@ -116,39 +148,59 @@ class ScriptsScreenMenuTest extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert),
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 'run',
-          child: Row(
-            children: [
-              Icon(Icons.play_arrow, size: 20),
-              SizedBox(width: 12),
-              Text('Run'),
-            ],
-          ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.play_arrow),
+          onPressed: () {},
+          tooltip: 'Run script',
         ),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 20),
-              SizedBox(width: 12),
-              Text('Delete'),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'duplicate',
-          child: Row(
-            children: [
-              Icon(Icons.content_copy, size: 20),
-              SizedBox(width: 12),
-              Text('Duplicate'),
-            ],
-          ),
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 20),
+                  SizedBox(width: 12),
+                  Text('Delete'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'duplicate',
+              child: Row(
+                children: [
+                  Icon(Icons.content_copy, size: 20),
+                  SizedBox(width: 12),
+                  Text('Duplicate'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'export',
+              child: Row(
+                children: [
+                  Icon(Icons.copy, size: 20),
+                  SizedBox(width: 12),
+                  Text('Copy Source'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'publish',
+              child: Row(
+                children: [
+                  Icon(Icons.upload, size: 20),
+                  SizedBox(width: 12),
+                  Text('Publish to Marketplace'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

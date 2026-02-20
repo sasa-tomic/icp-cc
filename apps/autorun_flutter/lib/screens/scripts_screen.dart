@@ -823,71 +823,68 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Widget _buildLocalScriptMenu(ScriptRecord record) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert),
-      onSelected: (value) => _handleLocalScriptMenuAction(value, record),
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 'run',
-          child: Row(
-            children: [
-              Icon(Icons.play_arrow, size: 20),
-              SizedBox(width: 12),
-              Text('Run'),
-            ],
-          ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.play_arrow),
+          onPressed: () => _runScript(record),
+          tooltip: 'Run script',
         ),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 20),
-              SizedBox(width: 12),
-              Text('Delete'),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'duplicate',
-          child: Row(
-            children: [
-              Icon(Icons.content_copy, size: 20),
-              SizedBox(width: 12),
-              Text('Duplicate'),
-            ],
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'export',
-          child: Row(
-            children: [
-              Icon(Icons.copy, size: 20),
-              SizedBox(width: 12),
-              Text('Copy Source'),
-            ],
-          ),
-        ),
-        if (!_isPublishedToMarketplace(record))
-          const PopupMenuItem(
-            value: 'publish',
-            child: Row(
-              children: [
-                Icon(Icons.upload, size: 20),
-                SizedBox(width: 12),
-                Text('Publish to Marketplace'),
-              ],
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) => _handleLocalScriptMenuAction(value, record),
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 20),
+                  SizedBox(width: 12),
+                  Text('Delete'),
+                ],
+              ),
             ),
-          ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'duplicate',
+              child: Row(
+                children: [
+                  Icon(Icons.content_copy, size: 20),
+                  SizedBox(width: 12),
+                  Text('Duplicate'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'export',
+              child: Row(
+                children: [
+                  Icon(Icons.copy, size: 20),
+                  SizedBox(width: 12),
+                  Text('Copy Source'),
+                ],
+              ),
+            ),
+            if (!_isPublishedToMarketplace(record))
+              const PopupMenuItem(
+                value: 'publish',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload, size: 20),
+                    SizedBox(width: 12),
+                    Text('Publish to Marketplace'),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }
 
   void _handleLocalScriptMenuAction(String action, ScriptRecord record) {
     switch (action) {
-      case 'run':
-        _runScript(record);
-        break;
       case 'delete':
         _confirmAndDeleteScript(record);
         break;

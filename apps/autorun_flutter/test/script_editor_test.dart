@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/widgets/script_editor.dart';
 
 void main() {
-  testWidgets('line numbers are hidden by default and toggle on demand', (tester) async {
+  testWidgets(
+      'line numbers are hidden by default and toggle from overflow menu',
+      (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -30,15 +32,192 @@ void main() {
     final CodeField initialField = tester.widget<CodeField>(codeFieldFinder);
     expect(initialField.gutterStyle.showLineNumbers, isFalse);
 
-    final switchFinder = find.byKey(const Key('lineNumberSwitch'));
-    expect(switchFinder, findsOneWidget);
-    expect(tester.widget<Switch>(switchFinder).value, isFalse);
+    final overflowButton = find.byKey(const Key('toolbarOverflowButton'));
+    expect(overflowButton, findsOneWidget);
 
-      await tester.ensureVisible(switchFinder);
-      await tester.tap(switchFinder, warnIfMissed: false);
-    await tester.pump();
+    await tester.tap(overflowButton);
+    await tester.pumpAndSettle();
+
+    final lineNumbersToggle = find.byKey(const Key('lineNumberToggle'));
+    expect(lineNumbersToggle, findsOneWidget);
+
+    final switchWidget = find.descendant(
+      of: lineNumbersToggle,
+      matching: find.byType(Switch),
+    );
+    expect(switchWidget, findsOneWidget);
+
+    await tester.tap(switchWidget);
+    await tester.pumpAndSettle();
 
     final CodeField updatedField = tester.widget<CodeField>(codeFieldFinder);
     expect(updatedField.gutterStyle.showLineNumbers, isTrue);
+  });
+
+  testWidgets('format code button is removed from toolbar', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 400,
+            child: ScriptEditor(
+              initialCode: 'print("hi")',
+              language: 'lua',
+              minLines: 4,
+              maxLines: 12,
+              showIntegrations: true,
+              onCodeChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    final formatButton = find.byIcon(Icons.format_align_left_rounded);
+    expect(formatButton, findsNothing);
+  });
+
+  testWidgets('theme selector is visible in toolbar', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 400,
+            child: ScriptEditor(
+              initialCode: 'print("hi")',
+              language: 'lua',
+              minLines: 4,
+              maxLines: 12,
+              showIntegrations: false,
+              onCodeChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    final themeDropdown = find.byType(DropdownButton<String>);
+    expect(themeDropdown, findsOneWidget);
+  });
+
+  testWidgets('stats are shown in overflow menu', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 400,
+            child: ScriptEditor(
+              initialCode: 'print("hi")',
+              language: 'lua',
+              minLines: 4,
+              maxLines: 12,
+              showIntegrations: false,
+              onCodeChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.textContaining('Lines:'), findsNothing);
+
+    final overflowButton = find.byKey(const Key('toolbarOverflowButton'));
+    await tester.tap(overflowButton);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Lines:'), findsOneWidget);
+    expect(find.textContaining('Chars:'), findsOneWidget);
+  });
+
+  testWidgets('copy code action is in overflow menu', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 400,
+            child: ScriptEditor(
+              initialCode: 'print("hi")',
+              language: 'lua',
+              minLines: 4,
+              maxLines: 12,
+              showIntegrations: false,
+              onCodeChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    final overflowButton = find.byKey(const Key('toolbarOverflowButton'));
+    await tester.tap(overflowButton);
+    await tester.pumpAndSettle();
+
+    final copyButton = find.byKey(const Key('copyCodeButton'));
+    expect(copyButton, findsOneWidget);
+  });
+
+  testWidgets(
+      'UI components and snippets are in overflow menu when integrations enabled',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 400,
+            child: ScriptEditor(
+              initialCode: 'print("hi")',
+              language: 'lua',
+              minLines: 4,
+              maxLines: 12,
+              showIntegrations: true,
+              onCodeChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.byKey(const Key('uiPaletteButton')), findsNothing);
+
+    final overflowButton = find.byKey(const Key('toolbarOverflowButton'));
+    await tester.tap(overflowButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('uiPaletteButton')), findsOneWidget);
+    expect(find.byKey(const Key('snippetsButton')), findsOneWidget);
+  });
+
+  testWidgets('language badge is visible in toolbar', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 400,
+            child: ScriptEditor(
+              initialCode: 'print("hi")',
+              language: 'lua',
+              minLines: 4,
+              maxLines: 12,
+              showIntegrations: false,
+              onCodeChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('LUA'), findsOneWidget);
   });
 }
