@@ -1,31 +1,29 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (afternoon session)
+**Last Updated:** 2026-02-21 (evening session)
 
 ## Current Focus
 
 **Goal:** Polish UX and complete test coverage. Core marketplace is now user-friendly.
 
 **Reality Check:** Major UX overhaul complete:
-- Unified setup wizard (profile + account in one step)
+- **NEW:** 2-Tab navigation (Home, Discover) with Profile menu in app bar
+- **NEW:** Simplified first-run experience (just "What's your name?")
+- **NEW:** Services renamed to "Explore" with subtitle
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
-- Navigation is simpler and more intuitive (renamed to "Services")
 - Post-setup guide for new users
 - Keyboard shortcuts for desktop
 - Simplified Canister Client Sheet
 - Technical term tooltips
 - Script menu reduced to 5 local / 2 marketplace options
 - Consolidated Scripts Screen controls (4 rows → 1)
-- Quick Actions on Services screen (ICP Balance, View Neurons, Search Dapps)
-- **NEW:** Single-tap script execution (Play button on script rows)
-- **NEW:** Editor toolbar cleanup (collapsed into overflow menu)
+- Quick Actions on Explore screen (ICP Balance, View Neurons, Search Dapps)
+- Single-tap script execution (Play button on script rows)
+- Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Radical UX improvements identified (see MEDIUM Priority):
-- 2-Tab navigation + Profile menu
-- Home Dashboard
-- Defer account creation
+**Next Wave:** Expose hidden backend features (reviews, featured scripts, trending).
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -33,6 +31,10 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 
 | Area | Status | Completion |
 |------|--------|------------|
+| **2-Tab Navigation** | **COMPLETE** | 100% |
+| **Quick Profile Creation** | **COMPLETE** | 100% |
+| **Explore Tab (formerly Services)** | **COMPLETE** | 100% |
+| **Profile Avatar Menu** | **COMPLETE** | 100% |
 | Unified Setup Wizard | **COMPLETE** | 100% |
 | Flattened Scripts Screen | **COMPLETE** | 100% |
 | Consolidated Scripts Controls | **COMPLETE** | 100% |
@@ -53,7 +55,7 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Canister Client UX | **COMPLETE** | 100% |
 | Technical Term Tooltips | **COMPLETE** | 100% |
 | Profile Management | **COMPLETE** | 100% |
-| Navigation Labels (Services) | **COMPLETE** | 100% |
+| Navigation Labels (Explore) | **COMPLETE** | 100% |
 | Script Menu Reduction | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
@@ -113,6 +115,34 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 **Remaining (for full production):**
 (none - vault decryption now available via Rust FFI)
+
+### 2-Tab Navigation with Profile Menu (DONE - 2026-02-21)
+- [x] Remove Profile tab from bottom navigation
+- [x] Add avatar with dropdown menu in app bar
+- [x] Tab 1: "Home" (Scripts screen)
+- [x] Tab 2: "Discover" (Canister explorer - renamed from Services to Explore)
+- [x] `ProfileAvatarButton` widget in top-right corner
+- [x] `ProfileMenuWidget` bottom sheet with profile options
+- [x] 11 new tests for navigation components
+- **Impact:** Simplified navigation, more screen space for content
+- **Files:** `lib/main.dart`, `lib/widgets/profile_menu.dart`
+
+### Quick Profile Creation (DONE - 2026-02-21)
+- [x] Replace Welcome + Setup Wizard with single "What's your name?" dialog
+- [x] `QuickProfileCreationDialog` - minimal first-run experience
+- [x] Creates local-only profile (no account registration required)
+- [x] Account registration accessible from profile settings when user wants to publish
+- [x] 9 new tests
+- **Impact:** Reduces first-run friction from 3+ screens to 1 dialog
+- **Files:** `lib/screens/quick_profile_creation_dialog.dart`, `lib/main.dart`
+
+### Explore Tab Rename (DONE - 2026-02-21)
+- [x] Rename "Services" to "Explore" in AppBar title
+- [x] Add subtitle: "Interact with Internet Computer canisters"
+- [x] Update navigation bar to use "Discover" label
+- [x] 5 new tests
+- **Impact:** Clearer purpose for the tab
+- **Files:** `lib/screens/bookmarks_screen.dart`
 
 ### Unified Setup Wizard (DONE)
 - [x] `UnifiedSetupWizard` - single form for profile + optional account
@@ -189,7 +219,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] `Ctrl/Cmd + N` - New Script
 - [x] `Ctrl/Cmd + F` - Focus search
 - [x] `R` - Refresh current screen
-- [x] `Ctrl/Cmd + 1/2/3` - Switch tabs
+- [x] `Ctrl/Cmd + 1/2` - Switch tabs (updated for 2-tab navigation)
 - [x] `Escape` - Close dialogs/modals
 - [x] Platform detection (desktop only)
 - [x] `ShortcutTooltip` widget for keyboard hints
@@ -269,6 +299,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Script Menu tests (DONE - 11 tests - 2026-02-21)
 - [x] Script Editor tests (DONE - 7 new tests - 2026-02-21)
 - [x] Services Quick Actions tests (DONE - 10 tests - 2026-02-21)
+- [x] Navigation tests (DONE - 11 tests - 2026-02-21)
+- [x] Quick Profile Creation tests (DONE - 9 tests - 2026-02-21)
+- [x] UX Improvements tests (DONE - 5 tests - 2026-02-21)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
@@ -283,94 +316,67 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 ### Multi-Device & Recovery
 - [ ] QR code import for multi-device sync
 
-### UX Improvements (ONGOING)
-Based on comprehensive UX analysis (2026-02-19):
+### Expose Hidden Backend Features
 
-**Completed:**
-- [x] Create hybrid view combining local and marketplace scripts
-- [x] Add source badges (Local/Marketplace) to distinguish origins
-- [x] Display usage statistics (run count, last used)
-- [x] Welcome onboarding flow for first-time users
-- [x] Enhanced empty states with contextual guidance
-- [x] Rename "Bookmarks" nav to "Services" (formerly "Explorer") - 2026-02-20
-- [x] Add Download History navigation from Scripts screen
-- [x] Add Export/Import Keys buttons for disaster recovery
-- [x] Flatten Scripts tab (remove nested tabs, elevate Marketplace)
-- [x] Streamline profile creation (combine profile + account creation)
-- [x] Script execution progress indicator
-- [x] Pull-to-refresh on all list views
-- [x] Post-onboarding call-to-action (2026-02-20)
-- [x] Simplify Canister Client Sheet (2026-02-20)
-- [x] Add tooltips/explanations for technical terms (2026-02-20)
-- [x] Keyboard shortcuts for desktop users (2026-02-20)
-- [x] Reduce script item menu options (5 local, 2 marketplace) - 2026-02-20
-- [x] Consolidate Scripts Screen controls (4 rows → 1) - 2026-02-21
-- [x] Add Quick Actions to Services screen - 2026-02-21
-- [x] Single-tap script execution (Play button) - 2026-02-21
-- [x] Editor toolbar cleanup (overflow menu) - 2026-02-21
+**1. Script Reviews UI** ⭐ MEDIUM IMPACT, MEDIUM EFFORT
+- [ ] Add "Reviews" tab to ScriptDetailsDialog
+- [ ] Show rating distribution chart
+- [ ] Add "Write Review" button for downloaded scripts
+- **Service:** `MarketplaceOpenApiService.getScriptReviews()`
+- **Impact:** Users can make informed decisions about scripts
 
-**Remaining (from UX analysis):**
-(none - all original UX items complete)
+**2. Featured/Trending Scripts** ⭐ MEDIUM IMPACT, LOW EFFORT
+- [ ] Add "Featured" section to Scripts screen
+- [ ] Call `getFeaturedScripts()` and `getTrendingScripts()`
+- **Service:** `MarketplaceOpenApiService.getFeaturedScripts()`
+- **Impact:** Improves script discovery
 
-### Radical UX Improvements (Updated - 2026-02-21)
-Based on user-perspective analysis. These would dramatically improve intuitiveness:
+**3. Script Version History** ⭐ LOW IMPACT, MEDIUM EFFORT
+- [ ] Add "Versions" tab to ScriptDetailsDialog
+- [ ] Allow installing specific versions
+- **Service:** `MarketplaceOpenApiService.getScriptVersions()`
+- **Impact:** Users can rollback to previous versions
 
-#### Quick Wins (Do First)
+### UX Improvements - Phase 2
 
-**1. Rename "Services" Tab** ⭐ MEDIUM IMPACT, LOW EFFORT
-- [ ] Rename to "Explore" or "ICP Tools" for clarity
-- [ ] Add subtitle: "Interact with Internet Computer canisters"
-- **Impact:** MEDIUM | **Effort:** LOW
-- **File:** `lib/main.dart` (lines 316-320)
+**4. Prominent Publish Button** ⭐ HIGH IMPACT, LOW EFFORT
+- [ ] Add "Share to Marketplace" FAB or banner when viewing local scripts
+- [ ] Show publish count on scripts screen ("Share your first script!")
+- **Impact:** Makes publishing discoverable (currently hidden in 3-dot menu)
+- **File:** `lib/screens/scripts_screen.dart`
 
-**2. Profile Badge Explanation** ⭐ MEDIUM IMPACT, LOW EFFORT
-- [ ] Replace badge with clear CTA text: "Set Up Profile" or "Create Account"
-- [ ] Show different icon (person with + sign)
-- **Impact:** MEDIUM | **Effort:** LOW
-- **File:** `lib/main.dart` (lines 331-335)
+**5. Download History Visibility** ⭐ MEDIUM IMPACT, LOW EFFORT
+- [ ] Add "Recent Downloads" section at top of Scripts list
+- [ ] Or add filter chip: "All | Local | Marketplace | Downloaded"
+- **Impact:** Users can find their downloaded scripts easily
+- **File:** `lib/screens/scripts_screen.dart`
 
-**3. Download History Visibility** ⭐ LOW IMPACT, LOW EFFORT
-- [ ] Add as filter option in source chips: "All | Your Library | Marketplace | Downloaded"
-- [ ] Or show "Recent Downloads" section at top of scripts list
-- **Impact:** LOW | **Effort:** LOW
-- **File:** `lib/screens/scripts_screen.dart` (lines 632-656)
+**6. Quick Actions Prominence** ⭐ MEDIUM IMPACT, LOW EFFORT
+- [ ] Make Quick Actions cards larger with gradient backgrounds
+- [ ] Add "See All" link to expanded view
+- **Impact:** Increases discoverability of ICP tools
+- **File:** `lib/screens/bookmarks_screen.dart`
 
-#### Larger Improvements
+**7. Passkey Quick Access** ⭐ HIGH IMPACT, LOW EFFORT
+- [ ] Add "Add Passkey" button to profile menu (before needing to view account)
+- [ ] Show passkey status on main profile menu
+- **Impact:** Reduces 4+ taps to add passkey
+- **File:** `lib/widgets/profile_menu.dart`
 
-**4. Replace 3-Tab Navigation with 2-Tab + Profile Menu**
-- [ ] Remove Profile tab, add avatar menu in app bar
-- [ ] Tab 1: Home (dashboard with recent scripts, quick actions)
-- [ ] Tab 2: Discover (marketplace + canister explorer merged)
-- **Impact:** High | **Effort:** Medium
-
-**5. Create Home Dashboard as Default Landing Screen**
-- [ ] Quick Actions: "Run Recent Script", "Browse Marketplace"
-- [ ] Recent Scripts: Last 3-5 scripts with one-tap run
-- [ ] Featured from Marketplace: 2-3 curated scripts
-- **Impact:** Very High | **Effort:** High
-
-**6. Simplify First-Run to Single Action**
-- [ ] Skip Welcome screen - go directly to lightweight profile creation
-- [ ] Profile creation: Just "What's your name?" (one field)
-- [ ] Defer @username registration until user wants to publish
-- **Impact:** High | **Effort:** Medium
-- **Files:** `lib/main.dart`, `lib/screens/unified_setup_wizard.dart`
-
-**7. Single-Page Script Creation Wizard**
-- [ ] Remove tabs - make single scrollable page
-- [ ] Code editor at top, details below
-- [ ] "Create Script" as sticky bottom button
+**8. Single-Page Script Creation** ⭐ HIGH IMPACT, MEDIUM EFFORT
+- [ ] Remove tabs from ScriptCreationScreen
+- [ ] Single scrollable page with code editor at top
 - [ ] Template selection as prominent cards, not dropdown
-- **Impact:** High | **Effort:** Medium
+- [ ] "Create Script" as sticky bottom button
+- **Impact:** Simplifies script creation flow
 - **File:** `lib/screens/script_creation_screen.dart`
 
-**8. Canister Client Simplification**
-- [ ] Make full screen, not modal
+**9. Canister Client as Full Screen** ⭐ MEDIUM IMPACT, MEDIUM EFFORT
+- [ ] Make full screen instead of modal
 - [ ] Add "What is a Canister?" explainer link
 - [ ] Simplify: Canister → Function → Call (3 numbered steps)
-- [ ] Auto-detect query vs update
-- **Impact:** Medium | **Effort:** High
-- **File:** `lib/screens/bookmarks_screen.dart` (lines 274-1013)
+- **Impact:** Reduces cognitive load for ICP interaction
+- **File:** `lib/screens/bookmarks_screen.dart`
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
@@ -380,7 +386,7 @@ Based on user-perspective analysis. These would dramatically improve intuitivene
 
 ## LOW Priority
 
-### Script Reviews
+### Script Reviews (Backend)
 - [ ] `POST /api/v1/scripts/{id}/reviews` - Submit review
 - [ ] `PUT /api/v1/scripts/{id}/reviews/{reviewId}` - Update review
 - [ ] `DELETE /api/v1/scripts/{id}/reviews/{reviewId}` - Delete review
@@ -439,6 +445,7 @@ Based on user-perspective analysis. These would dramatically improve intuitivene
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
 | Key label editing blocked by missing API endpoint | `AccountController` | MEDIUM |
 | Pre-existing test failures (passkey, script execution tests reference missing files) | `test/features/passkey/`, `test/features/scripts/` | LOW |
+| ProfileController.ensureLoaded() called during didChangeDependencies causes setState during build errors in tests | `lib/main.dart:134-138` | LOW |
 
 ---
 

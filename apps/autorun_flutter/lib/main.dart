@@ -5,7 +5,7 @@ import 'config/app_config.dart';
 import 'controllers/account_controller.dart';
 import 'controllers/profile_controller.dart';
 import 'controllers/script_controller.dart';
-import 'models/profile.dart';
+import 'models/profile_keypair.dart';
 import 'models/script_template.dart';
 import 'rust/native_bridge.dart';
 import 'services/marketplace_open_api_service.dart';
@@ -14,13 +14,12 @@ import 'services/script_repository.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
-import 'screens/profile_home_page.dart';
+import 'screens/quick_profile_creation_dialog.dart';
 import 'screens/scripts_screen.dart';
-import 'screens/unified_setup_wizard.dart';
-import 'screens/welcome_onboarding_screen.dart';
 import 'widgets/keyboard_shortcuts.dart';
 import 'widgets/post_setup_guide.dart';
 import 'widgets/profile_scope.dart';
+import 'widgets/profile_menu.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -121,7 +120,7 @@ class _MainHomePageState extends State<MainHomePage> {
   }
 
   void _handleNavigateToTab(int index) {
-    if (index >= 0 && index < 3) {
+    if (index >= 0 && index < 2) {
       setState(() => _currentIndex = index);
     }
   }
@@ -152,40 +151,25 @@ class _MainHomePageState extends State<MainHomePage> {
     );
 
     if (shouldShow && mounted) {
-      final result = await Navigator.of(context).push<OnboardingResult>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (context) => const WelcomeOnboardingScreen(),
-        ),
+      // Show quick profile creation dialog (single action)
+      final result = await showDialog<QuickProfileCreationResult>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const QuickProfileCreationDialog(),
       );
 
       await _onboardingService.markOnboardingShown();
 
-      if (result == OnboardingResult.getStarted && mounted) {
-        _showUnifiedSetupWizard();
-      } else if (result == OnboardingResult.browseMarketplace && mounted) {
-        setState(() => _currentIndex = 0);
+      // Create profile if name provided
+      if (result != null && result.hasName && mounted) {
+        await profileController.createProfile(
+          profileName: result.profileName!,
+          algorithm: KeyAlgorithm.ed25519,
+          setAsActive: true,
+        );
+        setState(() {});
+        _showPostSetupGuideIfNeeded();
       }
-    }
-  }
-
-  Future<void> _showUnifiedSetupWizard() async {
-    final profileController = ProfileScope.of(context, listen: false);
-    final accountController = _getAccountController();
-
-    final result = await Navigator.of(context).push<UnifiedSetupResult>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (context) => UnifiedSetupWizard(
-          profileController: profileController,
-          accountController: accountController,
-        ),
-      ),
-    );
-
-    if (result != null && mounted) {
-      setState(() {});
-      _showPostSetupGuideIfNeeded();
     }
   }
 
@@ -243,8 +227,30 @@ class _MainHomePageState extends State<MainHomePage> {
     );
   }
 
+  void _showProfileMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => ProfileMenuWidget(
+        profileController: ProfileScope.of(context, listen: false),
+        accountController: _getAccountController(),
+      ),
+    ).then((_) {
+      // Refresh state when menu closes
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final profileController = ProfileScope.of(context);
+    final activeProfile = profileController.activeProfile;
+    final displayName = activeProfile?.name ?? 'Guest';
+
     return DesktopShortcuts(
       onCreateScript: _handleCreateScript,
       onFocusSearch: _handleFocusSearch,
@@ -256,39 +262,52 @@ class _MainHomePageState extends State<MainHomePage> {
           body: SafeArea(
             top: true,
             bottom: true,
-            child: Column(
+            child: Stack(
               children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Theme.of(context).colorScheme.surface,
-                          Theme.of(context)
-                              .colorScheme
-                              .surface
-                              .withValues(alpha: 0.95),
-                          Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.05),
-                        ],
+                Column(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Theme.of(context).colorScheme.surface,
+                              Theme.of(context)
+                                  .colorScheme
+                                  .surface
+                                  .withValues(alpha: 0.95),
+                              Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer
+                                  .withValues(alpha: 0.05),
+                            ],
+                          ),
+                        ),
+                        child: IndexedStack(
+                          index: _currentIndex,
+                          children: <Widget>[
+                            ScriptsScreen(key: _scriptsScreenKey),
+                            BookmarksScreen(
+                                bridge: _bridge,
+                                onOpenClient: _openCanisterClient),
+                          ],
+                        ),
                       ),
                     ),
-                    child: IndexedStack(
-                      index: _currentIndex,
-                      children: <Widget>[
-                        ScriptsScreen(key: _scriptsScreenKey),
-                        BookmarksScreen(
-                            bridge: _bridge, onOpenClient: _openCanisterClient),
-                        const ProfileHomePage(),
-                      ],
-                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+                // Profile avatar button in top-right corner
+                Positioned(
+                  top: 8,
+                  right: 16,
+                  child: ProfileAvatarButton(
+                    displayName: displayName,
+                    onTap: _showProfileMenu,
                   ),
                 ),
-                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -299,38 +318,23 @@ class _MainHomePageState extends State<MainHomePage> {
   }
 
   Widget _buildModernNavigationBar() {
-    final ProfileController profileController = ProfileScope.of(context);
-    final bool shouldShowBadge = _shouldShowProfileBadge(profileController);
-
     return ModernNavigationBar(
       currentIndex: _currentIndex,
       onTap: (index) {
         setState(() => _currentIndex = index);
       },
-      items: [
-        const ModernNavigationItem(
-          icon: Icons.code_rounded,
-          activeIcon: Icons.code_rounded,
-          label: 'Scripts',
-        ),
-        const ModernNavigationItem(
-          icon: Icons.hub_outlined,
-          activeIcon: Icons.hub_rounded,
-          label: 'Services',
+      items: const [
+        ModernNavigationItem(
+          icon: Icons.home_outlined,
+          activeIcon: Icons.home_rounded,
+          label: 'Home',
         ),
         ModernNavigationItem(
-          icon: Icons.verified_user_outlined,
-          activeIcon: Icons.verified_user_rounded,
-          label: 'Profile',
-          showBadge: shouldShowBadge,
+          icon: Icons.explore_outlined,
+          activeIcon: Icons.explore_rounded,
+          label: 'Discover',
         ),
       ],
     );
-  }
-
-  bool _shouldShowProfileBadge(ProfileController controller) {
-    final Profile? active = controller.activeProfile;
-    // Show badge only for anonymous mode (no active profile)
-    return active == null;
   }
 }
