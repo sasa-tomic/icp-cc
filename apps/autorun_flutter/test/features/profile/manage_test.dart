@@ -1033,6 +1033,255 @@ void main() {
     });
   });
 
+  group('ProfileController - Backup/Restore', () {
+    test('exportProfileBackup exports encrypted profile backup', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Backup Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      expect(backup, isNotEmpty);
+      expect(backup, contains('{"v":'));
+    });
+
+    test('exportProfileBackup throws for non-existent profile', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      expect(
+        () => controller.exportProfileBackup('non-existent', 'password'),
+        throwsArgumentError,
+      );
+    });
+
+    test('importProfileBackup imports profile from backup', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Original Profile',
+        algorithm: KeyAlgorithm.ed25519,
+        setAsActive: true,
+      );
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      await controller.deleteProfile(profile.id);
+      expect(controller.profiles, isEmpty);
+
+      final importedProfile = await controller.importProfileBackup(
+        backup,
+        'test-password',
+      );
+
+      expect(importedProfile.name, equals('Original Profile'));
+      expect(importedProfile.keypairs, hasLength(1));
+      expect(controller.profiles, hasLength(1));
+    });
+
+    test('importProfileBackup throws with wrong password', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'correct-password',
+      );
+
+      await controller.deleteProfile(profile.id);
+
+      expect(
+        () => controller.importProfileBackup(backup, 'wrong-password'),
+        throwsA(anything),
+      );
+    });
+
+    test('importProfileBackup throws when profile ID already exists', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Duplicate Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      expect(
+        () => controller.importProfileBackup(backup, 'test-password'),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('importProfileBackup sets isBusy during operation', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      await controller.deleteProfile(profile.id);
+
+      final busyStates = <bool>[];
+      controller.addListener(() => busyStates.add(controller.isBusy));
+
+      await controller.importProfileBackup(backup, 'test-password');
+
+      expect(busyStates, contains(true));
+      expect(controller.isBusy, isFalse);
+    });
+
+    test('backup preserves all keypairs', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Multi-Keypair Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      await controller.addKeypairToProfile(
+        profileId: profile.id,
+        algorithm: KeyAlgorithm.secp256k1,
+      );
+
+      final profileWithMultipleKeys = controller.findById(profile.id);
+      expect(profileWithMultipleKeys?.keypairs, hasLength(2));
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      await controller.deleteProfile(profile.id);
+
+      final importedProfile = await controller.importProfileBackup(
+        backup,
+        'test-password',
+      );
+
+      expect(importedProfile.keypairs, hasLength(2));
+      expect(
+        importedProfile.keypairs[0].algorithm,
+        equals(KeyAlgorithm.ed25519),
+      );
+      expect(
+        importedProfile.keypairs[1].algorithm,
+        equals(KeyAlgorithm.secp256k1),
+      );
+    });
+
+    test('backup preserves username', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Registered Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      await controller.updateProfileUsername(
+        profileId: profile.id,
+        username: 'testuser123',
+      );
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      await controller.deleteProfile(profile.id);
+
+      final importedProfile = await controller.importProfileBackup(
+        backup,
+        'test-password',
+      );
+
+      expect(importedProfile.username, equals('testuser123'));
+      expect(importedProfile.isRegistered, isTrue);
+    });
+
+    test('backup preserves activeKeypairId', () async {
+      final fakeRepo = FakeProfileRepository([]);
+      final controller = ProfileController(profileRepository: fakeRepo);
+
+      await controller.ensureLoaded();
+
+      final profile = await controller.createProfile(
+        profileName: 'Test Profile',
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final updatedProfile = await controller.addKeypairToProfile(
+        profileId: profile.id,
+        algorithm: KeyAlgorithm.ed25519,
+      );
+
+      final secondKeypairId = updatedProfile.keypairs.last.id;
+      await controller.setActiveKeypair(
+        profileId: profile.id,
+        keypairId: secondKeypairId,
+      );
+
+      final backup = await controller.exportProfileBackup(
+        profile.id,
+        'test-password',
+      );
+
+      await controller.deleteProfile(profile.id);
+
+      final importedProfile = await controller.importProfileBackup(
+        backup,
+        'test-password',
+      );
+
+      expect(importedProfile.activeKeypairId, equals(secondKeypairId));
+      expect(importedProfile.primaryKeypair.id, equals(secondKeypairId));
+    });
+  });
+
   group('ProfileController - Persistence', () {
     test('createProfile persists to repository after creation', () async {
       final fakeRepo = FakeProfileRepository([]);

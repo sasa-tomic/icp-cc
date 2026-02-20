@@ -15,6 +15,7 @@ import '../services/download_history_service.dart';
 import '../services/script_integrity_service.dart';
 
 import '../rust/native_bridge.dart';
+import '../widgets/keyboard_shortcuts.dart';
 import '../widgets/modern_empty_state.dart';
 import '../widgets/script_app_host.dart';
 import '../widgets/script_editor.dart';
@@ -30,12 +31,12 @@ class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
 
   @override
-  State<ScriptsScreen> createState() => _ScriptsScreenState();
+  State<ScriptsScreen> createState() => ScriptsScreenState();
 }
 
 enum ScriptSourceFilter { all, local, marketplace }
 
-class _ScriptsScreenState extends State<ScriptsScreen> {
+class ScriptsScreenState extends State<ScriptsScreen> {
   late final ScriptController _controller;
   final ScriptAppRuntime _appRuntime =
       ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
@@ -98,7 +99,22 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
     setState(() {});
   }
 
-  // Marketplace methods
+  void createNewScript() {
+    _showCreateSheet();
+  }
+
+  void focusSearch() {
+    _searchController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _searchController.text.length,
+    );
+  }
+
+  Future<void> refreshContent() async {
+    await _controller.refresh();
+    await _refreshMarketplaceScripts();
+  }
+
   Future<void> _initializeMarketplace() async {
     try {
       // No initialization needed for open API service
@@ -656,11 +672,15 @@ class _ScriptsScreenState extends State<ScriptsScreen> {
           Positioned(
             right: 16,
             bottom: MediaQuery.of(context).padding.bottom + 90,
-            child: AnimatedFab(
-              heroTag: 'scripts_fab',
-              onPressed: _controller.isBusy ? null : _showCreateSheet,
-              icon: const Icon(Icons.add_rounded),
+            child: ShortcutTooltip(
               label: 'New Script',
+              shortcut: DesktopShortcuts.getShortcutLabel('new'),
+              child: AnimatedFab(
+                heroTag: 'scripts_fab',
+                onPressed: _controller.isBusy ? null : _showCreateSheet,
+                icon: const Icon(Icons.add_rounded),
+                label: 'New Script',
+              ),
             ),
           ),
         ],

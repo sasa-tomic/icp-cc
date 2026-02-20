@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/canister_method.dart';
 import '../services/candid_service.dart';
 import '../widgets/candid_args_builder.dart';
+import '../utils/tech_terms.dart';
 
 /// Dialog for building canister method calls that generate Lua code
 class CanisterCallBuilderDialog extends StatefulWidget {
@@ -229,14 +230,31 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Canister selection
+              Row(
+                children: [
+                  Text(
+                    'Canister',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message: TechTerm.canister.fullExplanation,
+                    preferBelow: true,
+                    child: Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       initialValue: _selectedCanisterId,
                       decoration: const InputDecoration(
-                        labelText: 'Canister',
                         border: OutlineInputBorder(),
                         helperText:
                             'Select a well-known canister or enter custom ID',
@@ -345,34 +363,66 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: DropdownButtonFormField<int>(
-                      initialValue: _callKind,
-                      decoration: const InputDecoration(
-                        labelText: 'Call Type',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem<int>(value: 0, child: Text('Query')),
-                        DropdownMenuItem<int>(value: 1, child: Text('Update')),
-                        DropdownMenuItem<int>(
-                            value: 2, child: Text('Composite')),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Call Type',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(width: 4),
+                            Tooltip(
+                              message:
+                                  '${TechTerm.query.fullExplanation}\n\n${TechTerm.update.fullExplanation}',
+                              preferBelow: true,
+                              child: Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<int>(
+                          initialValue: _callKind,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem<int>(
+                                value: 0, child: Text('Query')),
+                            DropdownMenuItem<int>(
+                                value: 1, child: Text('Update')),
+                            DropdownMenuItem<int>(
+                                value: 2, child: Text('Composite')),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _callKind = value ?? 0),
+                        ),
                       ],
-                      onChanged: (value) =>
-                          setState(() => _callKind = value ?? 0),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
 
-              // Authentication
-              CheckboxListTile(
-                title: const Text('Authenticated call'),
-                subtitle: const Text('Requires an keypair for private methods'),
-                value: _isAuthenticated,
-                onChanged: (value) =>
-                    setState(() => _isAuthenticated = value ?? false),
-                controlAffinity: ListTileControlAffinity.leading,
+              Tooltip(
+                message: TechTerm.keypair.fullExplanation,
+                preferBelow: true,
+                child: CheckboxListTile(
+                  title: const Text('Authenticated call'),
+                  subtitle:
+                      const Text('Requires a keypair for private methods'),
+                  value: _isAuthenticated,
+                  onChanged: (value) =>
+                      setState(() => _isAuthenticated = value ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
               ),
               const SizedBox(height: 8),
 

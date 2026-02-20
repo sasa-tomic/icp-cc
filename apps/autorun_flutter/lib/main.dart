@@ -18,6 +18,8 @@ import 'screens/profile_home_page.dart';
 import 'screens/scripts_screen.dart';
 import 'screens/unified_setup_wizard.dart';
 import 'screens/welcome_onboarding_screen.dart';
+import 'widgets/keyboard_shortcuts.dart';
+import 'widgets/post_setup_guide.dart';
 import 'widgets/profile_scope.dart';
 
 Future<void> main() async {
@@ -86,6 +88,48 @@ class _MainHomePageState extends State<MainHomePage> {
   final OnboardingService _onboardingService = OnboardingService();
   bool _onboardingChecked = false;
 
+  final GlobalKey<State<ScriptsScreen>> _scriptsScreenKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _scriptsScreenKey.currentState?.dispose();
+    super.dispose();
+  }
+
+  void _handleCreateScript() {
+    if (_currentIndex != 0) {
+      setState(() => _currentIndex = 0);
+    }
+    final state = _scriptsScreenKey.currentState;
+    if (state != null && state.mounted) {
+      (state as ScriptsScreenState).createNewScript();
+    }
+  }
+
+  void _handleFocusSearch() {
+    final state = _scriptsScreenKey.currentState;
+    if (state != null && state.mounted && _currentIndex == 0) {
+      (state as ScriptsScreenState).focusSearch();
+    }
+  }
+
+  void _handleRefresh() {
+    final state = _scriptsScreenKey.currentState;
+    if (state != null && state.mounted && _currentIndex == 0) {
+      (state as ScriptsScreenState).refreshContent();
+    }
+  }
+
+  void _handleNavigateToTab(int index) {
+    if (index >= 0 && index < 3) {
+      setState(() => _currentIndex = index);
+    }
+  }
+
+  void _handleEscape() {
+    Navigator.of(context).maybePop();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -141,6 +185,40 @@ class _MainHomePageState extends State<MainHomePage> {
 
     if (result != null && mounted) {
       setState(() {});
+      _showPostSetupGuideIfNeeded();
+    }
+  }
+
+  Future<void> _showPostSetupGuideIfNeeded() async {
+    final shouldShow = await _onboardingService.shouldShowPostSetupGuide();
+    if (!shouldShow || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => PostSetupGuide(
+        onActionSelected: (action) {
+          Navigator.of(context).pop();
+          _handlePostSetupAction(action);
+        },
+        onDismiss: () async {
+          Navigator.of(context).pop();
+          await _onboardingService.markPostSetupGuideShown();
+        },
+      ),
+    );
+  }
+
+  void _handlePostSetupAction(PostSetupAction action) async {
+    await _onboardingService.markPostSetupGuideShown();
+
+    switch (action) {
+      case PostSetupAction.browseMarketplace:
+        setState(() => _currentIndex = 0);
+      case PostSetupAction.createScript:
+        setState(() => _currentIndex = 0);
+      case PostSetupAction.exploreCanisters:
+        setState(() => _currentIndex = 1);
     }
   }
 
@@ -167,47 +245,56 @@ class _MainHomePageState extends State<MainHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        top: true,
-        bottom: true,
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Theme.of(context).colorScheme.surface,
-                      Theme.of(context)
-                          .colorScheme
-                          .surface
-                          .withValues(alpha: 0.95),
-                      Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.05),
-                    ],
+    return DesktopShortcuts(
+      onCreateScript: _handleCreateScript,
+      onFocusSearch: _handleFocusSearch,
+      onRefresh: _handleRefresh,
+      onNavigateToTab: _handleNavigateToTab,
+      child: EscapeHandler(
+        onEscape: _handleEscape,
+        child: Scaffold(
+          body: SafeArea(
+            top: true,
+            bottom: true,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Theme.of(context).colorScheme.surface,
+                          Theme.of(context)
+                              .colorScheme
+                              .surface
+                              .withValues(alpha: 0.95),
+                          Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withValues(alpha: 0.05),
+                        ],
+                      ),
+                    ),
+                    child: IndexedStack(
+                      index: _currentIndex,
+                      children: <Widget>[
+                        ScriptsScreen(key: _scriptsScreenKey),
+                        BookmarksScreen(
+                            bridge: _bridge, onOpenClient: _openCanisterClient),
+                        const ProfileHomePage(),
+                      ],
+                    ),
                   ),
                 ),
-                child: IndexedStack(
-                  index: _currentIndex,
-                  children: <Widget>[
-                    const ScriptsScreen(),
-                    BookmarksScreen(
-                        bridge: _bridge, onOpenClient: _openCanisterClient),
-                    const ProfileHomePage(),
-                  ],
-                ),
-              ),
+                const SizedBox(height: 8),
+              ],
             ),
-            const SizedBox(height: 8),
-          ],
+          ),
+          bottomNavigationBar: _buildModernNavigationBar(),
         ),
       ),
-      bottomNavigationBar: _buildModernNavigationBar(),
     );
   }
 

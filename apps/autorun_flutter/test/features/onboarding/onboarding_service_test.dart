@@ -171,5 +171,75 @@ void main() {
         expect(result, isTrue);
       });
     });
+
+    group('shouldShowPostSetupGuide', () {
+      test('returns true when not shown before', () async {
+        SharedPreferences.setMockInitialValues({});
+        final service = OnboardingService();
+
+        final result = await service.shouldShowPostSetupGuide();
+
+        expect(result, isTrue);
+      });
+
+      test('returns false when already shown', () async {
+        SharedPreferences.setMockInitialValues({
+          'post_setup_guide_shown': true,
+        });
+        final service = OnboardingService();
+
+        final result = await service.shouldShowPostSetupGuide();
+
+        expect(result, isFalse);
+      });
+    });
+
+    group('markPostSetupGuideShown', () {
+      test('sets post_setup_guide_shown to true', () async {
+        SharedPreferences.setMockInitialValues({});
+        final service = OnboardingService();
+        final prefs = await SharedPreferences.getInstance();
+
+        await service.markPostSetupGuideShown();
+
+        expect(prefs.getBool('post_setup_guide_shown'), isTrue);
+      });
+
+      test('prevents post setup guide from showing again', () async {
+        SharedPreferences.setMockInitialValues({});
+        final service = OnboardingService();
+
+        await service.markPostSetupGuideShown();
+
+        final result = await service.shouldShowPostSetupGuide();
+        expect(result, isFalse);
+      });
+    });
+
+    group('resetOnboarding resets post setup guide', () {
+      test('removes post_setup_guide_shown', () async {
+        SharedPreferences.setMockInitialValues({
+          'post_setup_guide_shown': true,
+        });
+        final service = OnboardingService();
+        final prefs = await SharedPreferences.getInstance();
+
+        await service.resetOnboarding();
+
+        expect(prefs.containsKey('post_setup_guide_shown'), isFalse);
+      });
+
+      test('allows post setup guide to be shown again', () async {
+        SharedPreferences.setMockInitialValues({
+          'post_setup_guide_shown': true,
+        });
+        final service = OnboardingService();
+
+        await service.resetOnboarding();
+
+        final result = await service.shouldShowPostSetupGuide();
+        expect(result, isTrue);
+      });
+    });
   });
 }

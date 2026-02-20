@@ -12,6 +12,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/key_parameters_dialog.dart';
 import '../widgets/profile_scope.dart';
+import '../utils/tech_terms.dart';
 import 'account_registration_wizard.dart';
 import 'account_profile_screen.dart';
 
@@ -472,76 +473,83 @@ class _ProfileHomePageState extends State<ProfileHomePage> {
                         ),
                         const SizedBox(height: 4),
                       ],
-                      // Show signing principal (this is the key used for marketplace operations)
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.key,
-                            size: 12,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              signingPrincipal,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                    fontFamily: 'monospace',
-                                    fontSize: 10,
-                                  ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
+                      Tooltip(
+                        message:
+                            'Signing Principal: ${TechTerm.principal.shortExplanation}',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.key,
+                              size: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                signingPrincipal,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      fontFamily: 'monospace',
+                                      fontSize: 10,
+                                    ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isActive
-                                  ? Theme.of(context)
+                          Tooltip(
+                            message: TechTerm.keypair.fullExplanation,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? Theme.of(context)
+                                        .colorScheme
+                                        .primary
+                                        .withValues(alpha: 0.8)
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .primaryContainer
+                                        .withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Theme.of(context)
                                       .colorScheme
                                       .primary
-                                      .withValues(alpha: 0.8)
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                      .withValues(alpha: 0.7),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.3),
-                                width: 1,
+                                      .withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              keypairCount,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    color: isActive
-                                        ? Theme.of(context)
-                                            .colorScheme
-                                            .onPrimary
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .onPrimaryContainer,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 11,
-                                  ),
+                              child: Text(
+                                keypairCount,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: isActive
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .onPrimary
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .onPrimaryContainer,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 11,
+                                    ),
+                              ),
                             ),
                           ),
                           if (isActive) ...[

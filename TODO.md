@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-19
+**Last Updated:** 2026-02-20
 
 ## Current Focus
 
@@ -12,6 +12,10 @@
 - Script execution progress indicator
 - Pull-to-refresh on all lists
 - Navigation is simpler and more intuitive
+- Post-setup guide for new users
+- Keyboard shortcuts for desktop
+- Simplified Canister Client Sheet
+- Technical term tooltips
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
 ## Implementation Summary
@@ -29,13 +33,17 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Enhanced Empty States | **COMPLETE** | 100% |
 | Encrypted Backup/Restore | **COMPLETE** | 100% |
 | Download History Navigation | **COMPLETE** | 100% |
-| Profile Management | Complete | 98% |
+| Post-Setup Guide | **COMPLETE** | 100% |
+| Keyboard Shortcuts | **COMPLETE** | 100% |
+| Canister Client UX | **COMPLETE** | 100% |
+| Technical Term Tooltips | **COMPLETE** | 100% |
+| Profile Management | **COMPLETE** | 100% |
 | Account Registration | Complete | 95% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
 | Script Execution (Lua) | Partial | 85% |
-| Testing Coverage | Incomplete | ~75% |
+| Testing Coverage | Incomplete | ~85% |
 
 **Detailed Specs:**
 - [Implementation Status](docs/specs/IMPLEMENTATION_STATUS.md) - Feature-by-feature breakdown
@@ -130,7 +138,43 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Only shows when NO profiles AND NO scripts
 - [x] 20 unit/widget tests
 
-### Profile Management
+### Post-Setup Guide (DONE - 2026-02-20)
+- [x] `PostSetupGuide` dialog after successful profile creation
+- [x] Three action tiles: Browse Marketplace, Create Script, Explore Canisters
+- [x] "Don't show again" option with state persistence
+- [x] "Maybe Later" dismiss option
+- [x] Integration with `OnboardingService` for state tracking
+- [x] 26 tests (18 service + 8 widget tests)
+
+### Keyboard Shortcuts (DONE - 2026-02-20)
+- [x] `Ctrl/Cmd + N` - New Script
+- [x] `Ctrl/Cmd + F` - Focus search
+- [x] `R` - Refresh current screen
+- [x] `Ctrl/Cmd + 1/2/3` - Switch tabs
+- [x] `Escape` - Close dialogs/modals
+- [x] Platform detection (desktop only)
+- [x] `ShortcutTooltip` widget for keyboard hints
+- [x] 11 widget tests
+
+### Canister Client UX Simplification (DONE - 2026-02-20)
+- [x] State machine flow: `disconnected` → `connecting` → `connected` → `ready`
+- [x] Friendly labels with tooltips ("Canister" instead of "Canister ID")
+- [x] Progressive disclosure (advanced options collapsed)
+- [x] Method chips for quick selection
+- [x] Auto-detect method kind (Query/Update) shown as colored badge
+- [x] "No input required" for zero-arg methods
+- [x] Friendly error messages
+- [x] Quick Start section with well-known canisters
+- [x] 10 widget tests
+
+### Technical Term Tooltips (DONE - 2026-02-20)
+- [x] `TechTerms` utility with 10 ICP term definitions
+- [x] `InfoTooltip` widget family (4 variants)
+- [x] Applied to: ProfileHomePage, AccountProfileScreen, CanisterClientSheet
+- [x] Terms: Canister, Principal, Candid, Keypair, Query, Update, Cycles, Replica
+- [x] 25 tests (13 utils + 12 widget tests)
+
+### Profile Management (DONE)
 
 **Done:**
 - [x] ProfileController with create/switch/delete profiles
@@ -141,9 +185,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Key labels in AccountPublicKey model
 - [x] Export Keys dialog with password protection
 - [x] Import Keys dialog for restoring from backup
+- [x] ProfileController tests (67 tests - 2026-02-20)
 
 **Missing:**
-- [ ] ProfileController tests (MISSING - critical)
 - [ ] Key label editing UI (blocked by API - no `updateKeyLabel` endpoint)
 
 ### Account Registration
@@ -173,7 +217,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - 13 unit/widget tests
 
 ### Testing (CRITICAL - Blocking Production)
-- [ ] Profile Controller tests (MISSING)
+- [x] Profile Controller tests (DONE - 67 tests)
 - [ ] Account Controller full coverage (only `removePublicKey` tested)
 - [x] Passkey Service tests (DONE)
 - [x] Onboarding tests (DONE - 20 tests)
@@ -214,14 +258,14 @@ Based on comprehensive UX analysis (2026-02-19):
 - [x] Streamline profile creation (combine profile + account creation)
 - [x] Script execution progress indicator
 - [x] Pull-to-refresh on all list views
+- [x] Post-onboarding call-to-action (2026-02-20)
+- [x] Simplify Canister Client Sheet (2026-02-20)
+- [x] Add tooltips/explanations for technical terms (2026-02-20)
+- [x] Keyboard shortcuts for desktop users (2026-02-20)
 
 **Remaining (from UX analysis):**
-- [ ] Post-onboarding call-to-action (guide users after profile creation)
 - [ ] Rename "Explorer" tab to something more approachable (e.g., "Tools" or "Services")
-- [ ] Simplify Canister Client Sheet (too many fields, technical jargon)
-- [ ] Add tooltips/explanations for technical terms (canister, principal, candid)
 - [ ] Reduce script item menu options (currently 7+ options)
-- [ ] Keyboard shortcuts for desktop users
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
@@ -289,8 +333,7 @@ Based on comprehensive UX analysis (2026-02-19):
 |-------|----------|----------|
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
 | Key label editing blocked by missing API endpoint | `AccountController` | MEDIUM |
-| Pre-existing test failures (passkey, script execution) | `test/features/passkey/`, `test/features/scripts/` | LOW |
-| Dead code in scripts_screen.dart (unused methods from refactor) | `lib/screens/scripts_screen.dart` | LOW |
+| Pre-existing test failures (passkey, script execution tests reference missing files) | `test/features/passkey/`, `test/features/scripts/` | LOW |
 
 ---
 

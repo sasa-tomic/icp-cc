@@ -9,6 +9,7 @@ import '../theme/app_design_system.dart';
 import '../widgets/account_key_details_sheet.dart';
 import '../widgets/add_account_key_sheet.dart';
 import '../utils/passkey_platform.dart';
+import '../utils/tech_terms.dart';
 import 'passkey_management_screen.dart';
 import 'export_keys_dialog.dart';
 import 'import_keys_dialog.dart';
@@ -947,10 +948,25 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
             const SizedBox(height: 8),
 
-            Text(
-              'Public Key',
-              style: AppDesignSystem.bodySmall.copyWith(
-                color: context.colors.onSurfaceVariant,
+            Tooltip(
+              message: TechTerm.keypair.fullExplanation,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Public Key',
+                    style: AppDesignSystem.bodySmall.copyWith(
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.info_outline,
+                    size: 12,
+                    color:
+                        context.colors.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 4),
@@ -976,11 +992,25 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
             const SizedBox(height: 12),
 
-            // IC Principal
-            Text(
-              'IC Principal',
-              style: AppDesignSystem.bodySmall.copyWith(
-                color: context.colors.onSurfaceVariant,
+            Tooltip(
+              message: TechTerm.principal.fullExplanation,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'IC Principal',
+                    style: AppDesignSystem.bodySmall.copyWith(
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.info_outline,
+                    size: 12,
+                    color:
+                        context.colors.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 4),

@@ -269,6 +269,8 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   }
 }
 
+enum _ClientFlowState { disconnected, connecting, connected, ready }
+
 class CanisterClientSheet extends StatefulWidget {
   const CanisterClientSheet(
       {super.key,
@@ -284,17 +286,16 @@ class CanisterClientSheet extends StatefulWidget {
 }
 
 class _CanisterClientSheetState extends State<CanisterClientSheet> {
+  _ClientFlowState _flowState = _ClientFlowState.disconnected;
   final TextEditingController _canisterController = TextEditingController();
   final TextEditingController _hostController =
       TextEditingController(text: 'https://ic0.app');
   final TextEditingController _methodController = TextEditingController();
   final TextEditingController _keypairKeyController = TextEditingController();
-  int _selectedKind = 0; // 0=query,1=update,2=comp
-  // Args input
+  int _selectedKind = 0;
   final TextEditingController _jsonArgsController = TextEditingController();
   bool _useAutoForm = true;
-  List<Map<String, dynamic>> _currentMethodSig =
-      const <Map<String, dynamic>>[]; // [{"name": "arg0", "type": "text"}, ...]
+  List<Map<String, dynamic>> _currentMethodSig = const <Map<String, dynamic>>[];
   String? _resultJson;
   String? _candidRaw;
   List<Map<String, dynamic>> _methods = const <Map<String, dynamic>>[];
@@ -302,6 +303,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   String _expectedJsonExample = '';
   List<String> _resolvedArgs = const <String>[];
   List<String> _validationErrors = const <String>[];
+  Map<String, dynamic>? _selectedMethod;
+  String? _errorMessage;
 
   void _onArgsChanged() {
     if (_resolvedArgs.isEmpty) return;
@@ -338,18 +341,50 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     if ((widget.initialMethodName ?? '').isNotEmpty) {
       _methodController.text = widget.initialMethodName!.trim();
     }
-    // Auto-fetch methods if we have a target canister and method preset
     if (_canisterController.text.trim().isNotEmpty &&
         _methodController.text.trim().isNotEmpty) {
-      // Defer to next microtask to allow build context to settle
       scheduleMicrotask(_fetchAndParse);
+    } else if (_canisterController.text.trim().isNotEmpty) {
+      _flowState = _ClientFlowState.disconnected;
     }
+  }
+
+  void _setError(String message) {
+    setState(() {
+      _errorMessage = message;
+      _isFetching = false;
+    });
+  }
+
+  void _clearError() {
+    setState(() => _errorMessage = null);
+  }
+
+  String _friendlyError(dynamic error) {
+    final errStr = error.toString().toLowerCase();
+    if (errStr.contains('not found') || errStr.contains('404')) {
+      return 'Canister not found. Please check the ID.';
+    }
+    if (errStr.contains('timeout') || errStr.contains('timed out')) {
+      return 'Connection timed out. Please try again.';
+    }
+    if (errStr.contains('network') || errStr.contains('connection refused')) {
+      return 'Network error. Please check your connection.';
+    }
+    if (errStr.contains('invalid') && errStr.contains('candid')) {
+      return 'This canister does not expose a public interface.';
+    }
+    return 'Something went wrong. Please try again.';
   }
 
   Future<void> _fetchAndParse() async {
     final String cid = _canisterController.text.trim();
     if (cid.isEmpty || _isFetching) return;
-    setState(() => _isFetching = true);
+    _clearError();
+    setState(() {
+      _isFetching = true;
+      _flowState = _ClientFlowState.connecting;
+    });
     try {
       final String? did = await widget.bridge.fetchCandid(
         canisterId: cid,
@@ -359,15 +394,13 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       );
       if (did == null || did.trim().isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to fetch Candid')));
+        _setError('Could not load canister interface.');
         return;
       }
       final String? parsedJson = widget.bridge.parseCandid(candidText: did);
       if (parsedJson == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to parse Candid')));
+        _setError('Could not read canister interface.');
         return;
       }
       final Map<String, dynamic> parsed =
@@ -389,66 +422,140 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                       .toList(),
                 })
             .toList();
-        // If a method was preselected, align kind and arg fields to its signature
-        final String preset = _methodController.text.trim();
-        Map<String, dynamic>? selected;
-        if (preset.isNotEmpty) {
-          selected = _methods.cast<Map<String, dynamic>?>().firstWhere(
-                (m) => (m?['name'] as String? ?? '') == preset,
-                orElse: () => null,
-              );
-        }
-        if (selected != null) {
-          final String kind = (selected['kind'] as String).toLowerCase();
-          _selectedKind = kind.contains('update')
-              ? 1
-              : (kind.contains('composite') ? 2 : 0);
-          // Expand aliases using Candid source
-          final resolver = CandidTypeResolver(_candidRaw ?? '');
-          _resolvedArgs =
-              resolver.resolveArgTypes((selected['args'] as List<String>));
-          _currentMethodSig = _resolvedArgs
-              .asMap()
-              .entries
-              .map((e) => {'name': 'arg${e.key}', 'type': e.value})
-              .toList();
-          _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
-          _jsonArgsController.text = _expectedJsonExample;
-          // Trigger validation display for the example
-          final v = validateJsonArgs(
-              resolvedArgTypes: _resolvedArgs,
-              jsonText: _jsonArgsController.text.trim());
-          _validationErrors = v.errors;
-          _useAutoForm = false;
-        } else if (_methods.isNotEmpty) {
-          // Fallback to the first method as a hint when nothing preset matches
-          if (_methodController.text.trim().isEmpty) {
-            _methodController.text = (_methods.first['name'] as String?) ?? '';
-          }
-        }
+        _flowState = _ClientFlowState.connected;
+        _isFetching = false;
       });
+      final String preset = _methodController.text.trim();
+      if (preset.isNotEmpty) {
+        _selectMethodByName(preset);
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      _setError(_friendlyError(e));
     } finally {
-      if (mounted) setState(() => _isFetching = false);
+      if (mounted && _isFetching) setState(() => _isFetching = false);
     }
+  }
+
+  void _selectMethodByName(String name) {
+    final selected = _methods.cast<Map<String, dynamic>?>().firstWhere(
+          (m) => (m?['name'] as String? ?? '') == name,
+          orElse: () => null,
+        );
+    if (selected != null) {
+      _selectMethod(selected);
+    }
+  }
+
+  void _selectMethod(Map<String, dynamic> method) {
+    final String kind = (method['kind'] as String).toLowerCase();
+    final int kindIndex =
+        kind.contains('update') ? 1 : (kind.contains('composite') ? 2 : 0);
+    final resolver = CandidTypeResolver(_candidRaw ?? '');
+    final args = (method['args'] as List<dynamic>).cast<String>();
+    final resolvedArgs = resolver.resolveArgTypes(args);
+    setState(() {
+      _selectedMethod = method;
+      _methodController.text = method['name'] as String;
+      _selectedKind = kindIndex;
+      _resolvedArgs = resolvedArgs;
+      _currentMethodSig = resolvedArgs
+          .asMap()
+          .entries
+          .map((e) => {'name': 'arg${e.key}', 'type': e.value})
+          .toList();
+      _expectedJsonExample = buildJsonExampleForArgs(_resolvedArgs);
+      _jsonArgsController.text = _expectedJsonExample;
+      _validationErrors = const <String>[];
+      _useAutoForm = true;
+      _flowState = _ClientFlowState.ready;
+      _resultJson = null;
+    });
+    final v = validateJsonArgs(
+        resolvedArgTypes: _resolvedArgs,
+        jsonText: _jsonArgsController.text.trim());
+    if (v.errors.isNotEmpty) {
+      setState(() => _validationErrors = v.errors);
+    }
+  }
+
+  void _callMethod() {
+    final String cid = _canisterController.text.trim();
+    final String method = _methodController.text.trim();
+    if (cid.isEmpty || method.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please select a canister and function')));
+      return;
+    }
+    final String args = _jsonArgsController.text.trim();
+    if (_resolvedArgs.isNotEmpty) {
+      final v =
+          validateJsonArgs(resolvedArgTypes: _resolvedArgs, jsonText: args);
+      setState(() => _validationErrors = v.errors);
+      if (!v.ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please fix the input errors')));
+        return;
+      }
+    }
+    if (_resolvedArgs.length == 1 && args.isEmpty) {
+      setState(() =>
+          _validationErrors = <String>['Please provide a value for the input']);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Please provide input')));
+      return;
+    }
+    final String? host = _hostController.text.trim().isEmpty
+        ? null
+        : _hostController.text.trim();
+    final String key = _keypairKeyController.text.trim();
+    String? out;
+    if (key.isEmpty) {
+      out = widget.bridge.callAnonymous(
+        canisterId: cid,
+        method: method,
+        kind: _selectedKind,
+        args: args,
+        host: host,
+      );
+    } else {
+      out = widget.bridge.callAuthenticated(
+        canisterId: cid,
+        method: method,
+        kind: _selectedKind,
+        privateKeyB64: key,
+        args: args,
+        host: host,
+      );
+    }
+    setState(() {
+      final raw = out ?? '';
+      _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
+    });
+  }
+
+  void _resetToDisconnected() {
+    setState(() {
+      _flowState = _ClientFlowState.disconnected;
+      _methods = const <Map<String, dynamic>>[];
+      _selectedMethod = null;
+      _candidRaw = null;
+      _resultJson = null;
+      _validationErrors = const <String>[];
+      _resolvedArgs = const <String>[];
+      _currentMethodSig = const <Map<String, dynamic>>[];
+      _methodController.clear();
+      _jsonArgsController.clear();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget argsEditor = _ArgsEditor(
-      useAuto: _useAutoForm,
-      argTypes: _currentMethodSig.map((m) => m['type'] as String).toList(),
-      controller: _jsonArgsController,
-      onToggle: (v) => setState(() => _useAutoForm = v),
-    );
     final viewInsets = MediaQuery.of(context).viewInsets;
     final safeAreaPadding = MediaQuery.of(context).padding;
-
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompactScreen = screenWidth < 380;
+    final theme = Theme.of(context);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -461,354 +568,446 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         padding: EdgeInsets.all(isCompactScreen ? 12 : 16),
         shrinkWrap: true,
         children: <Widget>[
-          Text('ICP Canister Client',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: isCompactScreen ? 20 : 24,
-                  )),
-          SizedBox(height: isCompactScreen ? 8 : 12),
-          ExpansionTile(
-            initiallyExpanded: false,
-            title: const Text('Connection (optional)'),
-            subtitle: const Text('Canister ID and Replica host'),
-            children: <Widget>[
-              TextField(
-                key: const Key('canisterField'),
-                controller: _canisterController,
-                decoration: InputDecoration(
-                  labelText: 'Canister ID',
-                  border: const OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: isCompactScreen ? 12 : 16,
-                    vertical: isCompactScreen ? 12 : 16,
-                  ),
-                ),
-                style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
-                textInputAction: TextInputAction.next,
+          Row(
+            children: [
+              Expanded(
+                child: Text('Canister Client',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: isCompactScreen ? 20 : 24,
+                    )),
               ),
-              SizedBox(height: isCompactScreen ? 6 : 8),
-              TextField(
-                controller: _hostController,
-                decoration: InputDecoration(
-                  labelText: 'Replica Host (optional)',
-                  hintText: 'https://ic0.app',
-                  border: const OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: isCompactScreen ? 12 : 16,
-                    vertical: isCompactScreen ? 12 : 16,
-                  ),
+              if (_flowState != _ClientFlowState.disconnected)
+                TextButton.icon(
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reset'),
+                  onPressed: _resetToDisconnected,
                 ),
-                style: TextStyle(fontSize: isCompactScreen ? 14 : 16),
-                textInputAction: TextInputAction.done,
-              ),
             ],
           ),
-          const SizedBox(height: 8),
-          TextField(
-            key: const Key('methodField'),
-            controller: _methodController,
-            decoration: const InputDecoration(
-              labelText: 'Method name',
-              border: OutlineInputBorder(),
-            ),
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 8),
-          InputDecorator(
-            decoration: const InputDecoration(
-              labelText: 'Method kind',
-              border: OutlineInputBorder(),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: _selectedKind,
-                items: const <DropdownMenuItem<int>>[
-                  DropdownMenuItem<int>(value: 0, child: Text('Query')),
-                  DropdownMenuItem<int>(value: 1, child: Text('Update')),
-                  DropdownMenuItem<int>(
-                      value: 2, child: Text('Composite Query')),
-                ],
-                onChanged: (int? v) => setState(() => _selectedKind = v ?? 0),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          argsEditor,
-          if (_validationErrors.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 8),
-            Text('Input issues',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall!
-                    .copyWith(color: Theme.of(context).colorScheme.error)),
-            const SizedBox(height: 4),
-            ..._validationErrors.map(
-              (e) => Text('• $e',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ),
-          ],
-          if (_expectedJsonExample.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 12),
-            Text('Expected args (JSON)',
-                style: Theme.of(context).textTheme.titleMedium),
+          SizedBox(height: isCompactScreen ? 8 : 12),
+          _buildCanisterInput(theme, isCompactScreen),
+          if (_errorMessage != null) ...[
             const SizedBox(height: 8),
             Container(
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).dividerColor),
+                color: theme.colorScheme.errorContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
-              padding: const EdgeInsets.all(12),
-              child: SelectableText(_expectedJsonExample),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline,
+                      color: theme.colorScheme.error, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style:
+                          TextStyle(color: theme.colorScheme.onErrorContainer),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
-          const SizedBox(height: 12),
-          ExpansionTile(
-            title: const Text('Authenticated (optional)'),
-            subtitle: const Text('Ed25519 private key (base64)'),
-            children: <Widget>[
-              TextField(
-                controller: _keypairKeyController,
-                decoration: const InputDecoration(
-                  labelText: 'Private key (base64)',
-                  border: OutlineInputBorder(),
-                ),
-                minLines: 1,
-                maxLines: 3,
-              ),
-            ],
+          if (_flowState == _ClientFlowState.connected ||
+              _flowState == _ClientFlowState.ready) ...[
+            const SizedBox(height: 16),
+            _buildMethodSelector(theme, isCompactScreen),
+          ],
+          if (_flowState == _ClientFlowState.ready) ...[
+            const SizedBox(height: 16),
+            _buildInputSection(theme, isCompactScreen),
+            const SizedBox(height: 16),
+            _buildAdvancedOptions(theme, isCompactScreen),
+            const SizedBox(height: 16),
+            _buildCallButton(theme, isCompactScreen),
+          ],
+          if ((_resultJson ?? '').isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildResultSection(theme, isCompactScreen),
+          ],
+          if (_flowState == _ClientFlowState.disconnected) ...[
+            const SizedBox(height: 16),
+            _buildQuickStartSection(theme, isCompactScreen),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCanisterInput(ThemeData theme, bool isCompact) {
+    return Tooltip(
+      message:
+          'A canister is a smart contract running on the Internet Computer.\n'
+          'Enter the canister ID (e.g., ryjl3-tyaaa-aaaaa-aaaba-cai) or name.',
+      child: TextField(
+        key: const Key('canisterField'),
+        controller: _canisterController,
+        decoration: InputDecoration(
+          labelText: 'Canister',
+          hintText: 'Enter canister ID or name',
+          border: const OutlineInputBorder(),
+          suffixIcon: _isFetching
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : (_flowState == _ClientFlowState.connected ||
+                      _flowState == _ClientFlowState.ready)
+                  ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+                  : null,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 12 : 16,
+            vertical: isCompact ? 12 : 16,
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: FilledButton(
-                  onPressed: _isFetching ? null : _fetchAndParse,
-                  child: _isFetching
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Fetch & List Methods'),
-                ),
+        ),
+        style: TextStyle(fontSize: isCompact ? 14 : 16),
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _fetchAndParse(),
+      ),
+    );
+  }
+
+  Widget _buildMethodSelector(ThemeData theme, bool isCompact) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Tooltip(
+          message: 'Choose a function to call on this canister.\n'
+              'Query = fast read, Update = state change.',
+          child: Text('Select Function', style: theme.textTheme.titleMedium),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _methods.map((m) {
+            final name = m['name'] as String;
+            final kind = (m['kind'] as String).toLowerCase();
+            final isSelected = _selectedMethod?['name'] == name;
+            final isUpdate = kind.contains('update');
+            final isComposite = kind.contains('composite');
+            return FilterChip(
+              key: Key('methodChip_$name'),
+              label: Text(name),
+              selected: isSelected,
+              avatar: Icon(
+                isUpdate
+                    ? Icons.sync_alt
+                    : (isComposite ? Icons.merge_type : Icons.search),
+                size: 16,
+                color: isSelected
+                    ? theme.colorScheme.onSecondaryContainer
+                    : (isUpdate
+                        ? Colors.orange
+                        : (isComposite
+                            ? Colors.purple
+                            : theme.colorScheme.primary)),
               ),
+              onSelected: (_) => _selectMethod(m),
+              selectedColor: theme.colorScheme.secondaryContainer,
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInputSection(ThemeData theme, bool isCompact) {
+    if (_resolvedArgs.isEmpty) {
+      return Tooltip(
+        message: 'This function does not require any input.',
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle_outline,
+                  color: theme.colorScheme.primary, size: 20),
               const SizedBox(width: 8),
-              if (_candidRaw != null)
-                OutlinedButton(
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Candid (raw)'),
-                        content: SingleChildScrollView(
-                            child: SelectableText(_candidRaw!)),
-                        actions: <Widget>[
-                          TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Close')),
-                        ],
-                      ),
-                    );
-                  },
-                  child: const Text('View Candid'),
-                ),
+              Text('No input required', style: theme.textTheme.bodyMedium),
             ],
           ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Call method'),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Tooltip(
+          message: 'Provide the input data for this function.\n'
+              'The format is automatically generated based on the function signature.',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Input', style: theme.textTheme.titleMedium),
+              TextButton.icon(
+                icon: Icon(
+                  _useAutoForm ? Icons.code : Icons.edit_note,
+                  size: 18,
+                ),
+                label: Text(_useAutoForm ? 'JSON' : 'Form'),
+                onPressed: () => setState(() => _useAutoForm = !_useAutoForm),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        _ArgsEditor(
+          useAuto: _useAutoForm,
+          argTypes: _currentMethodSig.map((m) => m['type'] as String).toList(),
+          controller: _jsonArgsController,
+          onToggle: (v) => setState(() => _useAutoForm = v),
+        ),
+        if (_validationErrors.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _validationErrors
+                  .map((e) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline,
+                                color: theme.colorScheme.error, size: 16),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(e,
+                                  style: TextStyle(
+                                      color: theme.colorScheme.error,
+                                      fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAdvancedOptions(ThemeData theme, bool isCompact) {
+    return ExpansionTile(
+      key: const Key('advancedOptionsTile'),
+      title: const Text('Advanced Options'),
+      subtitle: const Text('Custom host, authentication, raw Candid'),
+      initiallyExpanded: false,
+      children: <Widget>[
+        const SizedBox(height: 8),
+        TextField(
+          controller: _hostController,
+          decoration: const InputDecoration(
+            labelText: 'Custom Host',
+            hintText: 'https://ic0.app (default)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _keypairKeyController,
+          decoration: const InputDecoration(
+            labelText: 'Private Key (for authenticated calls)',
+            border: OutlineInputBorder(),
+          ),
+          minLines: 1,
+          maxLines: 3,
+        ),
+        if (_candidRaw != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.code, size: 18),
+            label: const Text('View Raw Candid'),
             onPressed: () {
-              final String cid = _canisterController.text.trim();
-              final String method = _methodController.text.trim();
-              if (cid.isEmpty || method.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Enter canister and method')));
-                return;
-              }
-              final String args = _jsonArgsController.text.trim();
-              // Live validation before sending
-              if (_resolvedArgs.isNotEmpty) {
-                final v = validateJsonArgs(
-                    resolvedArgTypes: _resolvedArgs, jsonText: args);
-                setState(() => _validationErrors = v.errors);
-                if (!v.ok) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please fix input errors')));
-                  return;
-                }
-              }
-              // Fail-fast check: do not allow accidental empty JSON for single-arg non-empty types
-              if (_resolvedArgs.length == 1 && args.isEmpty) {
-                setState(() => _validationErrors = <String>[
-                      '(root) expected value for ${_resolvedArgs.first}'
-                    ]);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Please provide argument value')));
-                return;
-              }
-              final String? host = _hostController.text.trim().isEmpty
-                  ? null
-                  : _hostController.text.trim();
-              final String key = _keypairKeyController.text.trim();
-              String? out;
-              if (key.isEmpty) {
-                out = widget.bridge.callAnonymous(
-                  canisterId: cid,
-                  method: method,
-                  kind: _selectedKind,
-                  args: args,
-                  host: host,
-                );
-              } else {
-                out = widget.bridge.callAuthenticated(
-                  canisterId: cid,
-                  method: method,
-                  kind: _selectedKind,
-                  privateKeyB64: key,
-                  args: args,
-                  host: host,
-                );
-              }
-              setState(() {
-                final raw = out ?? '';
-                _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
-              });
+              showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Candid Interface'),
+                  content:
+                      SingleChildScrollView(child: SelectableText(_candidRaw!)),
+                  actions: <Widget>[
+                    TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Close')),
+                  ],
+                ),
+              );
             },
           ),
-          if ((_resultJson ?? '').isNotEmpty) ...<Widget>[
-            const SizedBox(height: 12),
-            Text('Result (JSON)',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCallButton(ThemeData theme, bool isCompact) {
+    final kindLabel = _selectedKind == 1
+        ? 'Update'
+        : (_selectedKind == 2 ? 'Composite Query' : 'Query');
+    final kindColor = _selectedKind == 1
+        ? Colors.orange
+        : (_selectedKind == 2 ? Colors.purple : theme.colorScheme.primary);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
             Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).dividerColor),
-                borderRadius: BorderRadius.circular(8),
+                color: kindColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
               ),
-              padding: const EdgeInsets.all(12),
-              child: SelectableText(_resultJson!),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _selectedKind == 1
+                        ? Icons.sync_alt
+                        : (_selectedKind == 2
+                            ? Icons.merge_type
+                            : Icons.search),
+                    size: 14,
+                    color: kindColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    kindLabel,
+                    style: TextStyle(
+                      color: kindColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            if (_selectedMethod != null)
+              TextButton.icon(
+                icon: const Icon(Icons.bookmark_border, size: 18),
+                label: const Text('Save'),
+                onPressed: () async {
+                  final cid = _canisterController.text.trim();
+                  if (cid.isEmpty || _selectedMethod == null) return;
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await BookmarksService.add(
+                        canisterId: cid, method: _methodController.text.trim());
+                    if (mounted) {
+                      messenger.showSnackBar(
+                          const SnackBar(content: Text('Saved to bookmarks')));
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      messenger.showSnackBar(
+                          SnackBar(content: Text('Failed to save: $e')));
+                    }
+                  }
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          key: const Key('callButton'),
+          icon: const Icon(Icons.play_arrow),
+          label: Text('Call ${_methodController.text.trim()}'),
+          onPressed: _callMethod,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultSection(ThemeData theme, bool isCompact) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Result', style: theme.textTheme.titleMedium),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 18),
+              tooltip: 'Copy result',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _resultJson ?? ''));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copied to clipboard')));
+              },
             ),
           ],
-          const SizedBox(height: 12),
-          if (_methods.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('Methods', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _methods.length,
-                  separatorBuilder: (BuildContext _, int __) =>
-                      const Divider(height: 1),
-                  itemBuilder: (BuildContext context, int index) {
-                    final m = _methods[index];
-                    final String name = m['name'] as String;
-                    final String kind = (m['kind'] as String).toString();
-                    final List<String> args =
-                        (m['args'] as List<dynamic>).cast<String>();
-                    final List<String> rets =
-                        (m['rets'] as List<dynamic>).cast<String>();
-                    final String sig =
-                        '(${args.join(', ')}) -> (${rets.join(', ')})';
-                    return ListTile(
-                      leading: Icon(
-                        kind.toLowerCase().contains('update')
-                            ? Icons.sync_alt
-                            : Icons.search,
-                      ),
-                      title: Text(name),
-                      subtitle: Text('$kind • $sig'),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: <Widget>[
-                          IconButton(
-                            tooltip: 'Use method',
-                            icon: const Icon(Icons.input),
-                            onPressed: () {
-                              _methodController.text = name;
-                              setState(() {
-                                _selectedKind = kind
-                                        .toLowerCase()
-                                        .contains('update')
-                                    ? 1
-                                    : (kind.toLowerCase().contains('composite')
-                                        ? 2
-                                        : 0);
-                                final resolver =
-                                    CandidTypeResolver(_candidRaw ?? '');
-                                _resolvedArgs = resolver.resolveArgTypes(args);
-                                _currentMethodSig = _resolvedArgs
-                                    .asMap()
-                                    .entries
-                                    .map((e) => {
-                                          'name': 'arg${e.key}',
-                                          'type': e.value
-                                        })
-                                    .toList();
-                                _expectedJsonExample =
-                                    buildJsonExampleForArgs(_resolvedArgs);
-                                _jsonArgsController.text = _expectedJsonExample;
-                                final v = validateJsonArgs(
-                                    resolvedArgTypes: _resolvedArgs,
-                                    jsonText: _jsonArgsController.text.trim());
-                                _validationErrors = v.errors;
-                                _useAutoForm = false;
-                              });
-                            },
-                          ),
-                          IconButton(
-                            tooltip: 'Bookmark',
-                            icon: const Icon(Icons.bookmark_border),
-                            onPressed: () async {
-                              final cid = _canisterController.text.trim();
-                              if (cid.isEmpty) return;
-                              final messenger = ScaffoldMessenger.of(context);
-                              try {
-                                await BookmarksService.add(
-                                    canisterId: cid, method: name);
-                                if (mounted) {
-                                  messenger.showSnackBar(const SnackBar(
-                                      content: Text('Added to bookmarks')));
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  messenger.showSnackBar(SnackBar(
-                                      content:
-                                          Text('Failed to add bookmark: $e')));
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.5),
+            border: Border.all(color: theme.dividerColor),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: SelectableText(
+            _resultJson ?? '',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
             ),
-          const SizedBox(height: 16),
-          Text('Well-known canisters',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _WellKnownList(onSelect: (cid, method) {
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickStartSection(ThemeData theme, bool isCompact) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Quick Start', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Choose a popular canister to get started:',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _WellKnownList(
+          onSelect: (cid, method) {
             _canisterController.text = cid;
             if ((method ?? '').isNotEmpty) {
               _methodController.text = method!;
             }
-          }),
-          const SizedBox(height: 16),
-          Text('Bookmarks', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _BookmarksList(
-            bridge: widget.bridge,
-            onTapEntry: (cid, method) {
-              _canisterController.text = cid;
-              _methodController.text = method;
-            },
-          ),
-        ],
-      ),
+            _fetchAndParse();
+          },
+        ),
+        const SizedBox(height: 16),
+        Text('Your Bookmarks', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _BookmarksList(
+          bridge: widget.bridge,
+          onTapEntry: (cid, method) {
+            _canisterController.text = cid;
+            _methodController.text = method;
+            _fetchAndParse();
+          },
+        ),
+      ],
     );
   }
 }
