@@ -18,6 +18,7 @@ import 'screens/bookmarks_screen.dart';
 import 'screens/canister_client_screen.dart';
 import 'screens/quick_profile_creation_dialog.dart';
 import 'screens/scripts_screen.dart';
+import 'widgets/connectivity_scope.dart';
 import 'widgets/keyboard_shortcuts.dart';
 import 'widgets/post_setup_guide.dart';
 import 'widgets/profile_scope.dart';
@@ -75,20 +76,22 @@ class _KeypairAppState extends State<KeypairApp> {
   Widget build(BuildContext context) {
     return ProfileScope(
       controller: _profileController,
-      child: ValueListenableBuilder<ThemeMode>(
-        valueListenable: _themeModeNotifier,
-        builder: (context, themeMode, child) {
-          return MaterialApp(
-            title: 'ICP Autorun',
-            theme: AppDesignSystem.lightTheme,
-            darkTheme: AppDesignSystem.darkTheme,
-            themeMode: themeMode,
-            home: MainHomePage(
-              settingsService: _settingsService,
-              themeModeNotifier: _themeModeNotifier,
-            ),
-          );
-        },
+      child: ConnectivityScope(
+        child: ValueListenableBuilder<ThemeMode>(
+          valueListenable: _themeModeNotifier,
+          builder: (context, themeMode, child) {
+            return MaterialApp(
+              title: 'ICP Autorun',
+              theme: AppDesignSystem.lightTheme,
+              darkTheme: AppDesignSystem.darkTheme,
+              themeMode: themeMode,
+              home: MainHomePage(
+                settingsService: _settingsService,
+                themeModeNotifier: _themeModeNotifier,
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,13 +14,16 @@ import '../services/script_repository.dart';
 import '../services/script_runner.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
+import '../services/favorites_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
 import '../services/onboarding_progress_service.dart';
 
 import '../rust/native_bridge.dart';
+import '../widgets/connectivity_scope.dart';
 import '../widgets/keyboard_shortcuts.dart';
 import '../widgets/modern_empty_state.dart';
+import '../widgets/offline_banner.dart';
 import '../widgets/script_app_host.dart';
 import '../widgets/script_editor.dart';
 import '../widgets/quick_upload_dialog.dart';
@@ -71,6 +76,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   ScriptSortOption _allScriptsSortOption = ScriptSortOption.lastRun;
   bool _allScriptsSortAscending = false;
   bool _showDownloadedOnly = false;
+  bool _showFavoritesOnly = false;
+  Set<String> _favoriteScriptIds = {};
+  final FavoritesService _favoritesService = FavoritesService();
   bool _shareBannerDismissed = false;
   static const _shareBannerDismissedKey = 'share_banner_dismissed';
   List<String> _recentSearches = [];
@@ -84,6 +92,10 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   MarketplaceStats? _marketplaceStats;
   bool _isLoadingStats = false;
   bool _statsLoadError = false;
+
+  // Selection mode for bulk operations
+  bool _isSelectionMode = false;
+  final Set<String> _selectedScriptIds = {};
 
   @override
   void initState() {
@@ -99,7 +111,25 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _loadRecentSearches();
     _loadGettingStartedState();
     _loadMarketplaceStats(); // Load stats in background
+    _loadFavorites(); // Load favorites in background
     _searchFocusNode.addListener(_onSearchFocusChanged);
+  }
+
+  Future<void> _loadFavorites() async {
+    final favorites = await _favoritesService.getAllFavorites();
+    if (mounted) {
+      setState(() {
+        _favoriteScriptIds = favorites;
+      });
+    }
+    // Listen for future changes
+    _favoritesService.favoritesStream.listen((favorites) {
+      if (mounted) {
+        setState(() {
+          _favoriteScriptIds = favorites;
+        });
+      }
+    });
   }
 
   Future<void> _loadMarketplaceStats() async {
@@ -817,97 +847,266 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
+  // =========================================================================
+  // Bulk Selection Mode Methods
+  // =========================================================================
+
+  void _enterSelectionMode(String scriptId) {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedScriptIds.clear();
+      _selectedScriptIds.add(scriptId);
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedScriptIds.clear();
+    });
+  }
+
+  void _toggleScriptSelection(String scriptId) {
+    setState(() {
+      if (_selectedScriptIds.contains(scriptId)) {
+        _selectedScriptIds.remove(scriptId);
+        // Exit selection mode if no scripts selected
+        if (_selectedScriptIds.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedScriptIds.add(scriptId);
+      }
+    });
+  }
+
+  void _selectAllLocalScripts() {
+    final localScripts = _controller.scripts;
+    setState(() {
+      _selectedScriptIds.clear();
+      _selectedScriptIds.addAll(localScripts.map((s) => s.id));
+    });
+  }
+
+  void _deselectAllScripts() {
+    setState(() {
+      _selectedScriptIds.clear();
+    });
+  }
+
+  Future<void> _confirmAndBulkDeleteScripts() async {
+    if (_selectedScriptIds.isEmpty) return;
+
+    final count = _selectedScriptIds.length;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete scripts'),
+          content: Text(
+              'Delete $count ${count == 1 ? 'script' : 'scripts'}? This cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel')),
+            FilledButton.tonal(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete')),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      final selectedIds = Set<String>.from(_selectedScriptIds);
+      final deletedCount = selectedIds.length;
+
+      // Delete each selected script
+      for (final id in selectedIds) {
+        await _controller.deleteScript(id);
+      }
+
+      _exitSelectionMode();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '$deletedCount ${deletedCount == 1 ? 'script' : 'scripts'} deleted'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _bulkExportScripts() async {
+    if (_selectedScriptIds.isEmpty) return;
+
+    final selectedScripts = _controller.scripts
+        .where((s) => _selectedScriptIds.contains(s.id))
+        .toList();
+
+    final exportData = {
+      'version': 1,
+      'exportedAt': DateTime.now().toUtc().toIso8601String(),
+      'scripts': selectedScripts.map((s) => s.toJson()).toList(),
+    };
+
+    final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
+
+    await Clipboard.setData(ClipboardData(text: jsonString));
+
+    final count = selectedScripts.length;
+    _exitSelectionMode();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '$count ${count == 1 ? 'script' : 'scripts'} exported to clipboard as JSON'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scripts = _controller.scripts;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scripts'),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              if (value == 'download_history') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DownloadHistoryScreen(),
-                  ),
-                );
-              } else if (value == 'clear_search_history') {
-                _clearSearchHistory();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'download_history',
-                child: Row(
-                  children: [
-                    Icon(Icons.history),
-                    SizedBox(width: 12),
-                    Text('Download History'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                enabled: _recentSearches.isNotEmpty,
-                value: 'clear_search_history',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.clear_all,
-                      color: _recentSearches.isNotEmpty
-                          ? null
-                          : Theme.of(context).colorScheme.outline,
+      appBar: _isSelectionMode
+          ? _buildSelectionModeAppBar()
+          : AppBar(
+              title: const Text('Scripts'),
+              actions: [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'download_history') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DownloadHistoryScreen(),
+                        ),
+                      );
+                    } else if (value == 'clear_search_history') {
+                      _clearSearchHistory();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'download_history',
+                      child: Row(
+                        children: [
+                          Icon(Icons.history),
+                          SizedBox(width: 12),
+                          Text('Download History'),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Clear Search History',
-                      style: TextStyle(
-                        color: _recentSearches.isNotEmpty
-                            ? null
-                            : Theme.of(context).colorScheme.outline,
+                    PopupMenuItem(
+                      enabled: _recentSearches.isNotEmpty,
+                      value: 'clear_search_history',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.clear_all,
+                            color: _recentSearches.isNotEmpty
+                                ? null
+                                : Theme.of(context).colorScheme.outline,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Clear Search History',
+                            style: TextStyle(
+                              color: _recentSearches.isNotEmpty
+                                  ? null
+                                  : Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
+              ],
+            ),
       body: Stack(
         children: [
           Column(
             children: [
-              MarketplaceStatsBanner(
-                stats: _marketplaceStats,
-                isLoading: _isLoadingStats,
-                hasError: _statsLoadError,
-              ),
-              _buildSearchBar(),
+              if (!_isSelectionMode)
+                OfflineBanner(
+                  isOnline: ConnectivityScope.of(context).isOnline,
+                  onDismiss: () => ConnectivityScope.of(context, listen: false)
+                      .dismissBanner(),
+                ),
+              if (!_isSelectionMode)
+                MarketplaceStatsBanner(
+                  stats: _marketplaceStats,
+                  isLoading: _isLoadingStats,
+                  hasError: _statsLoadError,
+                ),
+              if (!_isSelectionMode) _buildSearchBar(),
               Expanded(
                 child: _buildUnifiedListView(scripts),
               ),
             ],
           ),
-          Positioned(
-            right: 16,
-            bottom: MediaQuery.of(context).padding.bottom + 90,
-            child: ShortcutTooltip(
-              label: 'New Script',
-              shortcut: DesktopShortcuts.getShortcutLabel('new'),
-              child: AnimatedFab(
-                heroTag: 'scripts_fab',
-                onPressed: _controller.isBusy ? null : _showCreateSheet,
-                icon: const Icon(Icons.add_rounded),
+          if (!_isSelectionMode)
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 90,
+              child: ShortcutTooltip(
                 label: 'New Script',
+                shortcut: DesktopShortcuts.getShortcutLabel('new'),
+                child: AnimatedFab(
+                  heroTag: 'scripts_fab',
+                  onPressed: _controller.isBusy ? null : _showCreateSheet,
+                  icon: const Icon(Icons.add_rounded),
+                  label: 'New Script',
+                ),
               ),
             ),
-          ),
         ],
       ),
+    );
+  }
+
+  PreferredSizeWidget _buildSelectionModeAppBar() {
+    final selectedCount = _selectedScriptIds.length;
+    final localScriptCount = _controller.scripts.length;
+    final allSelected =
+        selectedCount == localScriptCount && localScriptCount > 0;
+
+    return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: _exitSelectionMode,
+        tooltip: 'Cancel selection',
+      ),
+      title: Text('$selectedCount selected'),
+      actions: [
+        // Select All / Deselect All
+        IconButton(
+          icon: Icon(allSelected ? Icons.deselect : Icons.select_all),
+          onPressed: allSelected ? _deselectAllScripts : _selectAllLocalScripts,
+          tooltip: allSelected ? 'Deselect all' : 'Select all',
+        ),
+        // Export
+        IconButton(
+          icon: const Icon(Icons.file_download_outlined),
+          onPressed: selectedCount > 0 ? _bulkExportScripts : null,
+          tooltip: 'Export selected',
+        ),
+        // Delete
+        IconButton(
+          icon: const Icon(Icons.delete_outline),
+          onPressed: selectedCount > 0 ? _confirmAndBulkDeleteScripts : null,
+          tooltip: 'Delete selected',
+        ),
+      ],
     );
   }
 
@@ -942,6 +1141,21 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       }).toList();
     }
 
+    if (_showFavoritesOnly) {
+      sortedItems = sortedItems.where((item) {
+        // For local scripts, use their local ID
+        if (item.source == ScriptSource.local && item.localScript != null) {
+          return _favoriteScriptIds.contains(item.localScript!.id);
+        }
+        // For marketplace scripts, use marketplace ID
+        if (item.source == ScriptSource.marketplace &&
+            item.marketplaceScript != null) {
+          return _favoriteScriptIds.contains(item.marketplaceScript!.id);
+        }
+        return false;
+      }).toList();
+    }
+
     final hasUnpublishableScripts =
         localScripts.any((s) => !_isPublishedToMarketplace(s));
     final showBanner = hasUnpublishableScripts && !_shareBannerDismissed;
@@ -963,6 +1177,16 @@ class ScriptsScreenState extends State<ScriptsScreen> {
               subtitle: 'Browse the marketplace to find scripts to download',
               action: _clearDownloadedFilter,
               actionLabel: 'Browse Marketplace',
+            );
+          }
+          // Show specific empty state when Favorites filter is active with no favorites
+          if (_showFavoritesOnly) {
+            return ModernEmptyState(
+              icon: Icons.star_outline,
+              title: "You haven't favorited any scripts yet",
+              subtitle: 'Tap the star icon on scripts to add them to favorites',
+              action: _clearFavoritesFilter,
+              actionLabel: 'Browse Scripts',
             );
           }
           // Generic empty state for empty library
@@ -1319,9 +1543,21 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   Widget _buildAllScriptsListItem(ScriptListItem item) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompactScreen = screenWidth < 380;
+    final isLocalScript =
+        item.source == ScriptSource.local && item.localScript != null;
+    final isSelected =
+        isLocalScript && _selectedScriptIds.contains(item.localScript!.id);
 
+    // In selection mode, only local scripts are tappable for selection
+    if (_isSelectionMode && isLocalScript) {
+      return _buildSelectableListItem(item, isCompactScreen, isSelected);
+    }
+
+    // Normal mode with selection mode entry via long-press
     return GestureDetector(
-      onLongPress: () => _showScriptContextMenu(item),
+      onLongPress: isLocalScript
+          ? () => _enterSelectionMode(item.localScript!.id)
+          : () => _showScriptContextMenu(item),
       onSecondaryTapUp: (details) => _showScriptContextMenuAt(
         item,
         details.globalPosition,
@@ -1391,13 +1627,91 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             ),
           ],
         ),
-        trailing: item.source == ScriptSource.local && item.localScript != null
+        trailing: isLocalScript
             ? _buildLocalScriptMenu(item.localScript!)
             : item.source == ScriptSource.marketplace &&
                     item.marketplaceScript != null
                 ? _buildMarketplaceScriptMenu(item.marketplaceScript!)
                 : null,
         onTap: () => _handleAllScriptsItemTap(item),
+      ),
+    );
+  }
+
+  Widget _buildSelectableListItem(
+    ScriptListItem item,
+    bool isCompactScreen,
+    bool isSelected,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: () => _toggleScriptSelection(item.localScript!.id),
+      child: Container(
+        color: isSelected
+            ? colorScheme.primaryContainer.withValues(alpha: 0.3)
+            : null,
+        child: Row(
+          children: [
+            // Checkbox
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompactScreen ? 8 : 12,
+              ),
+              child: Checkbox(
+                value: isSelected,
+                onChanged: (_) => _toggleScriptSelection(item.localScript!.id),
+              ),
+            ),
+            // Script info
+            Expanded(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  radius: isCompactScreen ? 20 : 24,
+                  child: Text(
+                    (item.emoji ?? '📜').isNotEmpty
+                        ? (item.emoji ?? '📜')[0]
+                        : '📜',
+                    style: TextStyle(
+                      fontSize: isCompactScreen ? 16 : 20,
+                    ),
+                  ),
+                ),
+                title: Row(
+                  children: [
+                    _buildHybridSourceBadge(item, isCompactScreen),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: TextStyle(
+                          fontSize: isCompactScreen ? 14 : 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: isCompactScreen ? 2 : 4),
+                    Text(
+                      _buildItemSubtitle(item),
+                      style: TextStyle(
+                        fontSize: isCompactScreen ? 11 : 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2024,12 +2338,20 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     });
   }
 
+  /// Clears the "Favorites" filter to show all scripts.
+  void _clearFavoritesFilter() {
+    setState(() {
+      _showFavoritesOnly = false;
+    });
+  }
+
   /// Returns the number of active (non-default) filters.
   int _getActiveFilterCount() {
     int count = 0;
     if (_selectedCategory != 'All') count++;
     if (_allScriptsSortOption != ScriptSortOption.lastRun) count++;
     if (_showDownloadedOnly) count++;
+    if (_showFavoritesOnly) count++;
     return count;
   }
 
@@ -2047,6 +2369,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         sortOption: _allScriptsSortOption,
         sortAscending: _allScriptsSortAscending,
         showDownloadedOnly: _showDownloadedOnly,
+        showFavoritesOnly: _showFavoritesOnly,
         onCategoryChanged: (category) {
           _onCategoryChanged(category);
           Navigator.of(context).pop();
@@ -2062,12 +2385,18 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             _showDownloadedOnly = value;
           });
         },
+        onFavoritesFilterChanged: (value) {
+          setState(() {
+            _showFavoritesOnly = value;
+          });
+        },
         onReset: () {
           setState(() {
             _selectedCategory = 'All';
             _allScriptsSortOption = ScriptSortOption.lastRun;
             _allScriptsSortAscending = false;
             _showDownloadedOnly = false;
+            _showFavoritesOnly = false;
           });
           Navigator.of(context).pop();
           _loadMarketplaceScripts();
@@ -2827,9 +3156,11 @@ class _FilterBottomSheet extends StatefulWidget {
     required this.sortOption,
     required this.sortAscending,
     required this.showDownloadedOnly,
+    required this.showFavoritesOnly,
     required this.onCategoryChanged,
     required this.onSortChanged,
     required this.onDownloadedFilterChanged,
+    required this.onFavoritesFilterChanged,
     required this.onReset,
   });
 
@@ -2838,9 +3169,11 @@ class _FilterBottomSheet extends StatefulWidget {
   final ScriptSortOption sortOption;
   final bool sortAscending;
   final bool showDownloadedOnly;
+  final bool showFavoritesOnly;
   final ValueChanged<String> onCategoryChanged;
   final void Function(ScriptSortOption, bool) onSortChanged;
   final ValueChanged<bool> onDownloadedFilterChanged;
+  final ValueChanged<bool> onFavoritesFilterChanged;
   final VoidCallback onReset;
 
   @override
@@ -2852,6 +3185,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
   late ScriptSortOption _sortOption;
   late bool _sortAscending;
   late bool _showDownloadedOnly;
+  late bool _showFavoritesOnly;
 
   @override
   void initState() {
@@ -2860,6 +3194,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
     _sortOption = widget.sortOption;
     _sortAscending = widget.sortAscending;
     _showDownloadedOnly = widget.showDownloadedOnly;
+    _showFavoritesOnly = widget.showFavoritesOnly;
   }
 
   @override
@@ -2945,6 +3280,19 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                   _showDownloadedOnly = selected;
                 });
                 widget.onDownloadedFilterChanged(selected);
+              },
+              selectedColor: colorScheme.primaryContainer,
+              checkmarkColor: colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: const Text('Favorites'),
+              selected: _showFavoritesOnly,
+              onSelected: (selected) {
+                setState(() {
+                  _showFavoritesOnly = selected;
+                });
+                widget.onFavoritesFilterChanged(selected);
               },
               selectedColor: colorScheme.primaryContainer,
               checkmarkColor: colorScheme.primary,

@@ -12,8 +12,10 @@ import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
-import '../widgets/modern_empty_state.dart';
 import '../widgets/bookmark_composer.dart';
+import '../widgets/connectivity_scope.dart';
+import '../widgets/modern_empty_state.dart';
+import '../widgets/offline_banner.dart';
 
 class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen(
@@ -73,103 +75,116 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Theme.of(context).colorScheme.surface,
-                Theme.of(context)
-                    .colorScheme
-                    .primaryContainer
-                    .withValues(alpha: 0.05),
-              ],
+        child: Column(
+          children: [
+            OfflineBanner(
+              isOnline: ConnectivityScope.of(context).isOnline,
+              onDismiss: () =>
+                  ConnectivityScope.of(context, listen: false).dismissBanner(),
             ),
-          ),
-          child: RefreshIndicator(
-            onRefresh: _refreshContent,
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: 16 + MediaQuery.of(context).padding.bottom,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  _QuickActionsList(
-                    onOpenClient: widget.onOpenClient,
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withValues(alpha: 0.05),
+                    ],
                   ),
-                  const SizedBox(height: 32),
-                  Container(
-                    key: _popularCanistersKey,
-                    child: _buildSectionHeader(
-                      context,
-                      title: 'Popular Canisters',
-                      subtitle: 'Quick access to essential ICP services',
-                      icon: Icons.star_rounded,
+                ),
+                child: RefreshIndicator(
+                  onRefresh: _refreshContent,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 16,
+                      bottom: 16 + MediaQuery.of(context).padding.bottom,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _QuickActionsList(
+                          onOpenClient: widget.onOpenClient,
+                        ),
+                        const SizedBox(height: 32),
+                        Container(
+                          key: _popularCanistersKey,
+                          child: _buildSectionHeader(
+                            context,
+                            title: 'Popular Canisters',
+                            subtitle: 'Quick access to essential ICP services',
+                            icon: Icons.star_rounded,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _WellKnownList(
+                            onSelect: (cid, method) {
+                              HapticFeedback.lightImpact();
+                              widget.onOpenClient(
+                                initialCanisterId: cid,
+                                initialMethodName:
+                                    method?.isNotEmpty == true ? method : null,
+                              );
+                            },
+                            onBookmark: (entry) =>
+                                _bookmarkWellKnown(context, entry)),
+                        const SizedBox(height: 32),
+                        _buildSectionHeader(
+                          context,
+                          title: 'Your Bookmarks',
+                          subtitle:
+                              'Your saved canister methods for quick access',
+                          icon: Icons.bookmark_rounded,
+                        ),
+                        const SizedBox(height: 16),
+                        BookmarkComposer(
+                          onSave: BookmarksService.add,
+                          onSaved: (cid, method, label) {
+                            final messenger = ScaffoldMessenger.of(context);
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Saved ${label ?? method} to bookmarks'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _BookmarksList(
+                          bridge: widget.bridge,
+                          onTapEntry: (cid, method) {
+                            HapticFeedback.lightImpact();
+                            widget.onOpenClient(
+                                initialCanisterId: cid,
+                                initialMethodName: method);
+                          },
+                          onExplorePopular: _scrollToPopularCanisters,
+                        ),
+                        const SizedBox(height: 32),
+                        _buildSectionHeader(
+                          context,
+                          title: 'Advanced',
+                          subtitle: 'Direct canister access and raw queries',
+                          icon: Icons.build_rounded,
+                        ),
+                        const SizedBox(height: 16),
+                        _AdvancedSection(onOpenClient: widget.onOpenClient),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  _WellKnownList(
-                      onSelect: (cid, method) {
-                        HapticFeedback.lightImpact();
-                        widget.onOpenClient(
-                          initialCanisterId: cid,
-                          initialMethodName:
-                              method?.isNotEmpty == true ? method : null,
-                        );
-                      },
-                      onBookmark: (entry) =>
-                          _bookmarkWellKnown(context, entry)),
-                  const SizedBox(height: 32),
-                  _buildSectionHeader(
-                    context,
-                    title: 'Your Bookmarks',
-                    subtitle: 'Your saved canister methods for quick access',
-                    icon: Icons.bookmark_rounded,
-                  ),
-                  const SizedBox(height: 16),
-                  BookmarkComposer(
-                    onSave: BookmarksService.add,
-                    onSaved: (cid, method, label) {
-                      final messenger = ScaffoldMessenger.of(context);
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content:
-                              Text('Saved ${label ?? method} to bookmarks'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _BookmarksList(
-                    bridge: widget.bridge,
-                    onTapEntry: (cid, method) {
-                      HapticFeedback.lightImpact();
-                      widget.onOpenClient(
-                          initialCanisterId: cid, initialMethodName: method);
-                    },
-                    onExplorePopular: _scrollToPopularCanisters,
-                  ),
-                  const SizedBox(height: 32),
-                  _buildSectionHeader(
-                    context,
-                    title: 'Advanced',
-                    subtitle: 'Direct canister access and raw queries',
-                    icon: Icons.build_rounded,
-                  ),
-                  const SizedBox(height: 16),
-                  _AdvancedSection(onOpenClient: widget.onOpenClient),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

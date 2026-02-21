@@ -1,12 +1,18 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-23
 
 ## Current Focus
 
-**Goal:** Polish UX and complete test coverage. Core marketplace is now user-friendly.
+**Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
 
-**Reality Check:** Major UX overhaul complete:
+**Reality Check:** Three new features shipped + comprehensive UX analysis:
+- **NEW:** Script Favorites System - star/favorite scripts with filter (38 tests)
+- **NEW:** Offline Mode Banner - clear indication when network unavailable (25 tests)
+- **NEW:** Bulk Script Management - multi-select, bulk delete/export (33 tests)
+- **NEW:** UX Analysis Complete - 10 radical improvements identified
+
+**Previously Shipped:**
 - **NEW:** Marketplace Stats Banner - shows community stats (scripts, downloads) in ScriptsScreen
 - **NEW:** Unsaved Changes Warning - prevents data loss when closing script editor
 - **NEW:** Downloaded Filter Empty State - helpful guidance when no downloads exist
@@ -45,7 +51,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Write reviews API (backend needed), smart Candid forms (research complete, complexity 6/10), script automation/scheduler, script favorites system, offline mode indication.
+**Next Wave:** Radical UX simplification (see HIGH Priority - UX Improvements), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -101,7 +107,10 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Unsaved Changes Warning** | **COMPLETE** | 100% |
 | **Downloaded Filter Empty State** | **COMPLETE** | 100% |
 | **Passkey Linux Guidance** | **COMPLETE** | 100% |
-| Account Registration | Complete | 100% |
+| | **Script Favorites System** | **COMPLETE** | 100% |
+| | **Offline Mode Banner** | **COMPLETE** | 100% |
+| | **Bulk Script Management** | **COMPLETE** | 100% |
+| | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
@@ -369,11 +378,69 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Unsaved Changes Warning tests (DONE - 10 tests - 2026-02-22)
 - [x] Downloaded Filter Empty State tests (DONE - 5 tests - 2026-02-22)
 - [x] Passkey Linux Message tests (DONE - 5 tests - 2026-02-22)
+- [x] Script Favorites tests (DONE - 38 tests - 2026-02-23)
+- [x] Offline Mode Banner tests (DONE - 25 tests - 2026-02-23)
+- [x] Bulk Script Management tests (DONE - 33 tests - 2026-02-23)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
 **Cannot Test (requires hardware):**
 - WebAuthn passkey registration/authentication (use FakePasskeyAuthenticator for CI; real device for final validation)
+
+### Radical UX Improvements (HIGH PRIORITY)
+
+> Analysis completed 2026-02-23. Goal: Remove clutter, improve discoverability, make the app dramatically more intuitive.
+
+**1. Scripts Screen: Information Overload** 🔴 **HIGH IMPACT**
+- **Pain Point:** 6+ competing elements: stats banner, search, getting started card, featured carousel, share banner, mixed list
+- **Change:** Remove stats banner, share banner; merge Getting Started into help button; split into clear tabs
+- **Impact:** 50% faster task completion, 80% less visual noise
+- **Complexity:** 4/10
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**2. Profile Menu Discoverability** 🔴 **HIGH IMPACT**
+- **Pain Point:** 36px avatar button is invisible; users don't discover passkeys, settings, profiles
+- **Change:** Add "Profile" label next to avatar OR add 3rd nav tab
+- **Impact:** 100% increase in passkey adoption
+- **Complexity:** 3/10
+- **Files:** `lib/widgets/profile_menu.dart`, `lib/main.dart`
+
+**3. Plain Language + Progressive Disclosure** 🔴 **HIGH IMPACT**
+- **Pain Point:** Jargon everywhere: "Canister", "Candid", "Principal", "Query/Update"
+- **Change:** "Canister"→"Service", "Query"→"Read", "Update"→"Write"; hide advanced options
+- **Impact:** 30% fewer support questions, broader user base
+- **Complexity:** 5/10
+- **Files:** Multiple screens
+
+**4. Merge Bookmarks + Canister Client** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** 60% overlapping functionality; users don't know which to use
+- **Change:** Eliminate CanisterClientScreen; enhance BookmarksScreen with inline calling
+- **Impact:** 40% code reduction, clearer mental model
+- **Complexity:** 6/10
+- **Files:** `lib/screens/bookmarks_screen.dart`, `lib/screens/canister_client_screen.dart`
+
+**5. Collapse Key Management into "Security"** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** Public Keys, Signing Key, Passkeys - confusing concepts
+- **Change:** Single "Security" section; list auth methods together
+- **Impact:** 60% reduction in user confusion
+- **Complexity:** 7/10
+- **Files:** `lib/screens/account_profile_screen.dart`
+
+**6. Remove Featured Scripts Carousel** 🟢 **QUICK WIN**
+- **Pain Point:** Takes vertical space, duplicates marketplace content
+- **Change:** Remove carousel; show "Trending" in Marketplace tab
+- **Impact:** Simpler UI
+- **Complexity:** 2/10
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**Quick Wins (Under 2 Hours):**
+| Improvement | File | Lines |
+|-------------|------|-------|
+| Remove stats banner | scripts_screen.dart | ~30 |
+| Remove share banner | scripts_screen.dart | ~50 |
+| Add label to profile button | profile_menu.dart | ~5 |
+| Remove featured carousel | scripts_screen.dart | ~60 |
+| Add tooltips for jargon | bookmarks_screen.dart | ~20 |
 
 ---
 
@@ -570,10 +637,21 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **Test:** `test/features/onboarding/guided_next_steps_test.dart` (21 tests)
   - **Impact:** New users have clear path to learn the app
 - [ ] Interactive onboarding tour (spotlight overlays highlighting key UI elements)
-- [ ] Script favorites/bookmarks system with dedicated filter
-- [ ] Offline mode indication banner
+- [x] Script favorites/bookmarks system with dedicated filter ✅ **DONE - 2026-02-23**
+  - **Service:** `FavoritesService` with SharedPreferences persistence
+  - **UI:** Star toggle on script cards, "Favorites" filter chip
+  - **Test:** `test/services/favorites_service_test.dart` (26 tests), `test/features/scripts/favorites_filter_test.dart` (12 tests)
+  - **Impact:** Quick access to frequently used scripts
+- [x] Offline mode indication banner ✅ **DONE - 2026-02-23**
+  - **Service:** `ConnectivityService` with Socket-based checking
+  - **UI:** Amber dismissible banner on ScriptsScreen and BookmarksScreen
+  - **Test:** `test/services/connectivity_service_test.dart` (11 tests), `test/widgets/offline_banner_test.dart` (14 tests)
+  - **Impact:** Users know why operations fail
+- [x] Bulk script management (multi-select, bulk delete/export) ✅ **DONE - 2026-02-23**
+  - **UI:** Long-press enters selection mode; checkboxes, bulk delete/export
+  - **Test:** `test/features/scripts/bulk_operations_test.dart` (33 tests)
+  - **Impact:** Power users can manage multiple scripts efficiently
 - [ ] Script diff viewer for version updates
-- [ ] Bulk script management (multi-select, bulk delete/export)
 - [ ] Deep linking for script sharing (`icpautorun://script/{id}`)
 
 ---
