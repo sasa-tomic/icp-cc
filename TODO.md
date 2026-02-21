@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-22 (early morning)
+**Last Updated:** 2026-02-22
 
 ## Current Focus
 
@@ -17,6 +17,9 @@
 - **NEW:** Downloaded Filter - filter scripts by download status
 - **NEW:** Enhanced Quick Actions - gradient backgrounds, "See All" button, hover effects
 - **NEW:** Single-Page Script Creation - tabs removed, sticky create button
+- **NEW:** Canister Client Full Screen - 3-step flow (Canister → Function → Call)
+- **NEW:** Response Format Toggle - JSON/Table/Raw view selector for results
+- **NEW:** Search History - recent searches dropdown in marketplace
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
@@ -30,7 +33,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Canister Client full-screen conversion, write reviews API (backend needed).
+**Next Wave:** Write reviews API (backend needed), smart Candid forms, canister bookmarks.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -71,12 +74,15 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Downloaded Filter** | **COMPLETE** | 100% |
 | **Enhanced Quick Actions** | **COMPLETE** | 100% |
 | **Single-Page Script Creation** | **COMPLETE** | 100% |
+| **Canister Client Full Screen** | **COMPLETE** | 100% |
+| **Response Format Toggle** | **COMPLETE** | 100% |
+| **Search History** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
 | Script Execution (Lua) | Partial | 85% |
-| Testing Coverage | Improved | ~90% |
+| Testing Coverage | Improved | ~92% |
 
 **Detailed Specs:**
 - [Implementation Status](docs/specs/IMPLEMENTATION_STATUS.md) - Feature-by-feature breakdown
@@ -323,6 +329,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Downloaded Filter tests (DONE - 4 tests - 2026-02-22)
 - [x] Enhanced Quick Actions tests (DONE - 6 new tests, 15 total - 2026-02-22)
 - [x] Single-Page Script Creation tests (DONE - 11 tests - 2026-02-22)
+- [x] Canister Client Full Screen tests (DONE - 11 tests - 2026-02-22)
+- [x] Response Format Toggle tests (DONE - 10 tests - 2026-02-22)
+- [x] Search History tests (DONE - 24 tests - 2026-02-22)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
@@ -403,12 +412,15 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Impact:** Simplifies script creation flow - no tab switching needed
 - **File:** `lib/screens/script_creation_screen.dart`
 
-**9. Canister Client as Full Screen** ⭐ MEDIUM IMPACT, MEDIUM EFFORT
-- [ ] Make full screen instead of modal
-- [ ] Add "What is a Canister?" explainer link
-- [ ] Simplify: Canister → Function → Call (3 numbered steps)
+**9. Canister Client as Full Screen** ✅ **DONE - 2026-02-22**
+- [x] Make full screen instead of modal (via `Navigator.push`)
+- [x] Add "What is a Canister?" explainer link (via tooltip)
+- [x] Simplify: Canister → Function → Call (3 numbered steps)
+- [x] Step indicator in AppBar showing current step
+- [x] Back/Next navigation buttons
+- **Test:** `test/features/canister_client/full_screen_test.dart` (11 tests)
 - **Impact:** Reduces cognitive load for ICP interaction
-- **File:** `lib/screens/bookmarks_screen.dart`
+- **Files:** `lib/screens/canister_client_screen.dart`, `lib/main.dart`
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
@@ -426,9 +438,12 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Note:** Read-only reviews UI is complete. Write APIs needed for user review submission.
 
 ### Canister Interaction
+- [x] Response viewer with multiple formats (JSON, Table, Raw) ✅ **DONE - 2026-02-22**
+  - **Service:** `DisplayFormat` enum in `result_display.dart`
+  - **Test:** `test/result_display_format_test.dart` (10 tests)
+  - **Impact:** Users choose how to view canister call results
 - [ ] Canister autocomplete/search by ID or name
 - [ ] Smart input forms based on Candid interface
-- [ ] Response viewer with multiple formats (JSON, Table, Raw)
 - [ ] Interaction history with replay capability
 
 ### Script Automation
@@ -442,7 +457,11 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [ ] Trust system: verified author badges, reputation score
 
 ### Future UX Enhancements
-- [ ] Search history for marketplace
+- [x] Search history for marketplace ✅ **DONE - 2026-02-22**
+  - **Service:** `SearchHistoryService` with SharedPreferences persistence
+  - **UI:** Recent searches dropdown on search field focus, max 10 items
+  - **Test:** `test/services/search_history_service_test.dart` (17 tests), `test/features/scripts/search_history_test.dart` (7 tests)
+  - **Impact:** Quick access to previous searches
 - [ ] Quick actions menu (long-press on script cards)
 
 ---

@@ -13,6 +13,7 @@ import '../services/script_runner.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
 import '../services/script_integrity_service.dart';
+import '../services/search_history_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/keyboard_shortcuts.dart';
@@ -42,7 +43,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       MarketplaceOpenApiService();
   final DownloadHistoryService _downloadHistoryService =
       DownloadHistoryService();
+  final SearchHistoryService _searchHistoryService = SearchHistoryService();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   List<MarketplaceScript> _marketplaceScripts = [];
   List<MarketplaceScript> _featuredScripts = [];
@@ -67,6 +70,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   bool _showDownloadedOnly = false;
   bool _shareBannerDismissed = false;
   static const _shareBannerDismissedKey = 'share_banner_dismissed';
+  List<String> _recentSearches = [];
+  bool _showRecentSearches = false;
 
   @override
   void initState() {
@@ -79,6 +84,58 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _loadDownloadedScripts();
     _initializeMarketplaceData();
     _loadShareBannerState();
+    _loadRecentSearches();
+    _searchFocusNode.addListener(_onSearchFocusChanged);
+  }
+
+  Future<void> _loadRecentSearches() async {
+    final searches = await _searchHistoryService.getRecentSearches();
+    if (mounted) {
+      setState(() {
+        _recentSearches = searches;
+      });
+    }
+  }
+
+  void _onSearchFocusChanged() {
+    if (_searchFocusNode.hasFocus && _recentSearches.isNotEmpty) {
+      setState(() {
+        _showRecentSearches = true;
+      });
+    } else {
+      setState(() {
+        _showRecentSearches = false;
+      });
+    }
+  }
+
+  void _selectRecentSearch(String query) {
+    _searchController.text = query;
+    _searchQuery = query;
+    _showRecentSearches = false;
+    _searchFocusNode.unfocus();
+    _addSearchToHistory(query);
+    _loadMarketplaceScripts();
+  }
+
+  Future<void> _addSearchToHistory(String query) async {
+    if (query.trim().isNotEmpty) {
+      await _searchHistoryService.addSearchQuery(query);
+      await _loadRecentSearches();
+    }
+  }
+
+  Future<void> _clearSearchHistory() async {
+    await _searchHistoryService.clearHistory();
+    await _loadRecentSearches();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Search history cleared'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   Future<void> _loadShareBannerState() async {
@@ -131,6 +188,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _controller
       ..removeListener(_onChanged)
       ..dispose();
@@ -259,6 +317,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   void _debouncedSearch() {
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted && _searchController.text == _searchQuery) {
+        _addSearchToHistory(_searchQuery);
         _loadMarketplaceScripts();
         setState(() => _isSearching = false);
       }
@@ -685,16 +744,41 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                     builder: (context) => const DownloadHistoryScreen(),
                   ),
                 );
+              } else if (value == 'clear_search_history') {
+                _clearSearchHistory();
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
+            itemBuilder: (context) => [
+              const PopupMenuItem(
                 value: 'download_history',
                 child: Row(
                   children: [
                     Icon(Icons.history),
                     SizedBox(width: 12),
                     Text('Download History'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                enabled: _recentSearches.isNotEmpty,
+                value: 'clear_search_history',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.clear_all,
+                      color: _recentSearches.isNotEmpty
+                          ? null
+                          : Theme.of(context).colorScheme.outline,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Clear Search History',
+                      style: TextStyle(
+                        color: _recentSearches.isNotEmpty
+                            ? null
+                            : Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1428,13 +1512,67 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           padding: const EdgeInsets.all(16.0),
           child: _buildConsolidatedSearchBar(),
         ),
+        if (_showRecentSearches && _recentSearches.isNotEmpty)
+          _buildRecentSearchesDropdown(),
         if (_isSearching) const LinearProgressIndicator(minHeight: 2),
       ],
     );
   }
 
-  /// Builds the consolidated search bar with filter button.
-  /// Replaces the previous 4-row layout with a single row.
+  Widget _buildRecentSearchesDropdown() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              'Recent Searches',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          ...(_recentSearches.take(5).map((query) => ListTile(
+                dense: true,
+                leading: Icon(
+                  Icons.history,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                title: Text(query),
+                onTap: () => _selectRecentSearch(query),
+                trailing: IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: () async {
+                    await _searchHistoryService.removeSearchQuery(query);
+                    await _loadRecentSearches();
+                  },
+                  tooltip: 'Remove',
+                ),
+              ))),
+        ],
+      ),
+    );
+  }
+
   Widget _buildConsolidatedSearchBar() {
     final activeFilterCount = _getActiveFilterCount();
 
@@ -1455,6 +1593,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             ),
             child: TextField(
               controller: _searchController,
+              focusNode: _searchFocusNode,
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Search scripts...',

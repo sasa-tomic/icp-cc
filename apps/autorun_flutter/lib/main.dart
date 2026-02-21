@@ -14,6 +14,7 @@ import 'services/script_repository.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
+import 'screens/canister_client_screen.dart';
 import 'screens/quick_profile_creation_dialog.dart';
 import 'screens/scripts_screen.dart';
 import 'widgets/keyboard_shortcuts.dart';
@@ -213,17 +214,15 @@ class _MainHomePageState extends State<MainHomePage> {
 
   Future<void> _openCanisterClient(
       {String? initialCanisterId, String? initialMethodName}) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return CanisterClientSheet(
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CanisterClientScreen(
           bridge: _bridge,
           initialCanisterId: initialCanisterId,
           initialMethodName: initialMethodName,
-        );
-      },
+        ),
+      ),
     );
   }
 

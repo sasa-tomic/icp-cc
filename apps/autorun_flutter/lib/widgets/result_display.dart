@@ -4,8 +4,9 @@ import 'package:flutter/services.dart';
 
 typedef UiEventHandler = void Function(Map<String, dynamic> msg);
 
-/// Widget for displaying canister call results with various formatting options
-class ResultDisplay extends StatelessWidget {
+enum DisplayFormat { auto, json, raw, table }
+
+class ResultDisplay extends StatefulWidget {
   const ResultDisplay({
     super.key,
     required this.data,
@@ -22,6 +23,15 @@ class ResultDisplay extends StatelessWidget {
   final bool initiallyExpanded;
 
   @override
+  State<ResultDisplay> createState() => _ResultDisplayState();
+}
+
+class _ResultDisplayState extends State<ResultDisplay> {
+  DisplayFormat _selectedFormat = DisplayFormat.auto;
+
+  bool get _supportsFormatToggle => widget.data is Map || widget.data is List;
+
+  @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -29,23 +39,22 @@ class ResultDisplay extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (title != null)
+          if (widget.title != null)
             Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
-                      title!,
+                      widget.title!,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  if (isExpandable)
-                    _buildExpandButton(context),
+                  if (widget.isExpandable) _buildExpandButton(context),
                 ],
               ),
             ),
-          if (error != null)
+          if (widget.error != null)
             _buildErrorSection(context)
           else
             _buildDataSection(context),
@@ -56,11 +65,8 @@ class ResultDisplay extends StatelessWidget {
 
   Widget _buildExpandButton(BuildContext context) {
     return ExpandIcon(
-      isExpanded: initiallyExpanded,
-      onPressed: (bool expanded) {
-        // In a real implementation, you'd want to manage the expansion state
-        // For now, this is just a visual indicator
-      },
+      isExpanded: widget.initiallyExpanded,
+      onPressed: (bool expanded) {},
     );
   }
 
@@ -97,7 +103,7 @@ class ResultDisplay extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            error!,
+            widget.error!,
             style: TextStyle(
               color: Theme.of(context).colorScheme.onErrorContainer,
             ),
@@ -108,7 +114,7 @@ class ResultDisplay extends StatelessWidget {
             children: [
               TextButton.icon(
                 onPressed: () {
-                  Clipboard.setData(ClipboardData(text: error!));
+                  Clipboard.setData(ClipboardData(text: widget.error!));
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Error copied to clipboard')),
                   );
@@ -139,51 +145,123 @@ class ResultDisplay extends StatelessWidget {
 
   Widget _buildDataActions(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        if (data is Map || data is List)
-          TextButton.icon(
-            onPressed: () => _exportAsJson(context),
-            icon: const Icon(Icons.code, size: 16),
-            label: const Text('JSON'),
-          ),
-        if (data is Map)
-          TextButton.icon(
-            onPressed: () => _exportAsCsv(context),
-            icon: const Icon(Icons.table_chart, size: 16),
-            label: const Text('CSV'),
-          ),
-        TextButton.icon(
-          onPressed: () => _copyToClipboard(context),
-          icon: const Icon(Icons.copy, size: 16),
-          label: const Text('Copy'),
+        if (_supportsFormatToggle) _buildFormatToggle(context),
+        Row(
+          children: [
+            if (widget.data is Map || widget.data is List)
+              TextButton.icon(
+                onPressed: () => _exportAsJson(context),
+                icon: const Icon(Icons.code, size: 16),
+                label: const Text('JSON'),
+              ),
+            if (widget.data is Map)
+              TextButton.icon(
+                onPressed: () => _exportAsCsv(context),
+                icon: const Icon(Icons.table_chart, size: 16),
+                label: const Text('CSV'),
+              ),
+            TextButton.icon(
+              onPressed: () => _copyToClipboard(context),
+              icon: const Icon(Icons.copy, size: 16),
+              label: const Text('Copy'),
+            ),
+          ],
         ),
       ],
     );
   }
 
+  Widget _buildFormatToggle(BuildContext context) {
+    final isMap = widget.data is Map;
+    final formats = isMap
+        ? [
+            DisplayFormat.auto,
+            DisplayFormat.json,
+            DisplayFormat.raw,
+            DisplayFormat.table
+          ]
+        : [DisplayFormat.auto, DisplayFormat.json, DisplayFormat.raw];
+
+    return ToggleButtons(
+      isSelected: formats.map((f) => _selectedFormat == f).toList(),
+      onPressed: (int index) {
+        setState(() {
+          _selectedFormat = formats[index];
+        });
+      },
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 32),
+      children: [
+        const Text('Auto'),
+        const Text('JSON'),
+        const Text('Raw'),
+        if (isMap) const Text('Table'),
+      ],
+    );
+  }
+
   Widget _buildDataContent(BuildContext context) {
-    if (data == null) {
+    if (widget.data == null) {
       return const Text('No data');
     }
 
-    // Handle different data types
-    if (data is Map) {
-      return _buildMapDisplay(context, data);
-    } else if (data is List) {
-      return _buildListDisplay(context, data);
-    } else if (data is String) {
-      return _buildStringDisplay(context, data);
-    } else if (data is num) {
-      return _buildNumberDisplay(context, data);
+    switch (_selectedFormat) {
+      case DisplayFormat.json:
+        return _buildJsonDisplay(context);
+      case DisplayFormat.raw:
+        return _buildRawDisplay(context);
+      case DisplayFormat.table:
+        if (widget.data is Map) {
+          return _buildTableOrFallbackDisplay(context, widget.data);
+        }
+        return _buildAutoDisplay(context);
+      case DisplayFormat.auto:
+        return _buildAutoDisplay(context);
+    }
+  }
+
+  Widget _buildJsonDisplay(BuildContext context) {
+    final jsonString = const JsonEncoder.withIndent('  ').convert(widget.data);
+    return SelectableText(
+      jsonString,
+      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+    );
+  }
+
+  Widget _buildRawDisplay(BuildContext context) {
+    return SelectableText(
+      _formatValue(widget.data),
+      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+    );
+  }
+
+  Widget _buildTableOrFallbackDisplay(
+      BuildContext context, Map<String, dynamic> map) {
+    if (_isTableLike(map)) {
+      return _buildTableDisplay(context, map);
+    }
+    return _buildMapDisplay(context, map);
+  }
+
+  Widget _buildAutoDisplay(BuildContext context) {
+    if (widget.data is Map) {
+      return _buildMapDisplay(context, widget.data);
+    } else if (widget.data is List) {
+      return _buildListDisplay(context, widget.data);
+    } else if (widget.data is String) {
+      return _buildStringDisplay(context, widget.data);
+    } else if (widget.data is num) {
+      return _buildNumberDisplay(context, widget.data);
     } else {
-      return _buildGenericDisplay(context, data);
+      return _buildGenericDisplay(context, widget.data);
     }
   }
 
   Widget _buildMapDisplay(BuildContext context, Map<String, dynamic> map) {
     if (map.isEmpty) {
-      return const Text('Empty object', style: TextStyle(fontStyle: FontStyle.italic));
+      return const Text('Empty object',
+          style: TextStyle(fontStyle: FontStyle.italic));
     }
 
     // Check if this looks like a table-like structure
@@ -219,7 +297,8 @@ class ResultDisplay extends StatelessWidget {
 
   Widget _buildListDisplay(BuildContext context, List list) {
     if (list.isEmpty) {
-      return const Text('Empty array', style: TextStyle(fontStyle: FontStyle.italic));
+      return const Text('Empty array',
+          style: TextStyle(fontStyle: FontStyle.italic));
     }
 
     return Column(
@@ -248,7 +327,9 @@ class ResultDisplay extends StatelessWidget {
     if (value is Map || value is List) {
       return ExpansionTile(
         title: Text(
-          value is Map ? 'Object (${value.length} keys)' : 'Array (${value.length} items)',
+          value is Map
+              ? 'Object (${value.length} keys)'
+              : 'Array (${value.length} items)',
           style: const TextStyle(fontSize: 14),
         ),
         children: [
@@ -349,7 +430,8 @@ class ResultDisplay extends StatelessWidget {
                   return DataCell(
                     Text(
                       _formatValue(value),
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                      style: const TextStyle(
+                          fontFamily: 'monospace', fontSize: 12),
                     ),
                   );
                 }).toList(),
@@ -380,7 +462,8 @@ class ResultDisplay extends StatelessWidget {
       if (nonNullValues.isEmpty) return false;
 
       final firstValueType = nonNullValues.first.runtimeType;
-      return nonNullValues.every((value) => value.runtimeType == firstValueType);
+      return nonNullValues
+          .every((value) => value.runtimeType == firstValueType);
     }
   }
 
@@ -393,14 +476,14 @@ class ResultDisplay extends StatelessWidget {
   }
 
   void _copyToClipboard(BuildContext context) {
-    Clipboard.setData(ClipboardData(text: _formatValue(data)));
+    Clipboard.setData(ClipboardData(text: _formatValue(widget.data)));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Data copied to clipboard')),
     );
   }
 
   void _exportAsJson(BuildContext context) {
-    final jsonString = const JsonEncoder.withIndent('  ').convert(data);
+    final jsonString = const JsonEncoder.withIndent('  ').convert(widget.data);
     Clipboard.setData(ClipboardData(text: jsonString));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('JSON copied to clipboard')),
@@ -408,8 +491,8 @@ class ResultDisplay extends StatelessWidget {
   }
 
   void _exportAsCsv(BuildContext context) {
-    if (data is Map) {
-      final map = data as Map<String, dynamic>;
+    if (widget.data is Map) {
+      final map = widget.data as Map<String, dynamic>;
       final csv = [
         map.keys.join(','), // Header
         map.values.map((v) => _formatValue(v)).join(','), // Row
@@ -467,8 +550,8 @@ class _SearchableResultListState extends State<SearchableResultList> {
       } else {
         final query = _searchController.text.toLowerCase();
         _filteredItems = widget.items.where((item) {
-          return item.values.any((value) =>
-              value.toString().toLowerCase().contains(query));
+          return item.values
+              .any((value) => value.toString().toLowerCase().contains(query));
         }).toList();
       }
     });
@@ -538,7 +621,8 @@ class _SearchableResultListState extends State<SearchableResultList> {
                   itemBuilder: (context, index) {
                     final item = _filteredItems[index];
                     return ListTile(
-                      title: Text(item['title']?.toString() ?? 'Item ${index + 1}'),
+                      title: Text(
+                          item['title']?.toString() ?? 'Item ${index + 1}'),
                       subtitle: item['subtitle'] != null
                           ? Text(
                               item['subtitle'].toString(),
@@ -547,7 +631,8 @@ class _SearchableResultListState extends State<SearchableResultList> {
                             )
                           : null,
                       trailing: PopupMenuButton<String>(
-                        onSelected: (action) => _handleItemAction(context, action, item),
+                        onSelected: (action) =>
+                            _handleItemAction(context, action, item),
                         itemBuilder: (context) => [
                           const PopupMenuItem(
                             value: 'copy',
@@ -581,7 +666,8 @@ class _SearchableResultListState extends State<SearchableResultList> {
     );
   }
 
-  void _handleItemAction(BuildContext context, String action, Map<String, dynamic> item) {
+  void _handleItemAction(
+      BuildContext context, String action, Map<String, dynamic> item) {
     switch (action) {
       case 'copy':
         Clipboard.setData(ClipboardData(text: json.encode(item)));
@@ -589,11 +675,7 @@ class _SearchableResultListState extends State<SearchableResultList> {
           const SnackBar(content: Text('Item copied to clipboard')),
         );
         // Trigger event for test purposes
-        widget.onEvent?.call({
-          'type': 'copy',
-          'item': item,
-          'action': 'copy'
-        });
+        widget.onEvent?.call({'type': 'copy', 'item': item, 'action': 'copy'});
         break;
       case 'details':
         showDialog(

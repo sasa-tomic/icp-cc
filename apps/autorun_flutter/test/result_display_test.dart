@@ -41,7 +41,8 @@ void main() {
       expect(find.text('42'), findsOneWidget);
     });
 
-    testWidgets('displays map data as key-value pairs', (WidgetTester tester) async {
+    testWidgets('displays map data as key-value pairs',
+        (WidgetTester tester) async {
       final data = {
         'name': 'John Doe',
         'age': 30,
@@ -163,7 +164,8 @@ void main() {
       expect(find.byIcon(Icons.copy), findsOneWidget);
     });
 
-    testWidgets('copy button copies to clipboard for text data', (WidgetTester tester) async {
+    testWidgets('copy button copies to clipboard for text data',
+        (WidgetTester tester) async {
       const data = 'Test data to copy';
 
       await tester.pumpWidget(
@@ -183,7 +185,8 @@ void main() {
       expect(find.text('Data copied to clipboard'), findsOneWidget);
     });
 
-    testWidgets('copy button copies error to clipboard', (WidgetTester tester) async {
+    testWidgets('copy button copies error to clipboard',
+        (WidgetTester tester) async {
       const error = 'Error message to copy';
 
       await tester.pumpWidget(
@@ -204,7 +207,8 @@ void main() {
       expect(find.text('Error copied to clipboard'), findsOneWidget);
     });
 
-    testWidgets('export buttons available for map data', (WidgetTester tester) async {
+    testWidgets('export buttons available for map data',
+        (WidgetTester tester) async {
       final data = {'key': 'value', 'number': 42};
 
       await tester.pumpWidget(
@@ -218,12 +222,13 @@ void main() {
         ),
       );
 
-      expect(find.text('JSON'), findsOneWidget);
+      expect(find.text('JSON'), findsWidgets);
       expect(find.text('CSV'), findsOneWidget);
       expect(find.text('Copy'), findsOneWidget);
     });
 
-    testWidgets('export buttons available for list data', (WidgetTester tester) async {
+    testWidgets('export buttons available for list data',
+        (WidgetTester tester) async {
       const data = ['item1', 'item2'];
 
       await tester.pumpWidget(
@@ -237,11 +242,12 @@ void main() {
         ),
       );
 
-      expect(find.text('JSON'), findsOneWidget);
+      expect(find.text('JSON'), findsWidgets);
       expect(find.text('Copy'), findsOneWidget);
     });
 
-    testWidgets('JSON export copies formatted JSON to clipboard', (WidgetTester tester) async {
+    testWidgets('JSON export copies formatted JSON to clipboard',
+        (WidgetTester tester) async {
       final data = {'name': 'Test', 'value': 123};
 
       await tester.pumpWidget(
@@ -255,13 +261,15 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('JSON'));
+      final exportButtons = find.widgetWithText(TextButton, 'JSON');
+      await tester.tap(exportButtons.last);
       await tester.pumpAndSettle();
 
       expect(find.text('JSON copied to clipboard'), findsOneWidget);
     });
 
-    testWidgets('CSV export copies CSV to clipboard for map data', (WidgetTester tester) async {
+    testWidgets('CSV export copies CSV to clipboard for map data',
+        (WidgetTester tester) async {
       final data = {'column1': 'value1', 'column2': 'value2'};
 
       await tester.pumpWidget(
@@ -281,14 +289,12 @@ void main() {
       expect(find.text('CSV copied to clipboard'), findsOneWidget);
     });
 
-    testWidgets('handles nested objects with expansion', (WidgetTester tester) async {
+    testWidgets('handles nested objects with expansion',
+        (WidgetTester tester) async {
       final data = {
         'user': {
           'name': 'John',
-          'details': {
-            'age': 30,
-            'city': 'New York'
-          }
+          'details': {'age': 30, 'city': 'New York'}
         }
       };
 
@@ -314,7 +320,8 @@ void main() {
       expect(find.byType(SelectableText), findsWidgets);
     });
 
-    testWidgets('handles long text with expansion', (WidgetTester tester) async {
+    testWidgets('handles long text with expansion',
+        (WidgetTester tester) async {
       final longText = 'A' * 300; // 300 characters
       expect(longText.length, greaterThan(200));
 
@@ -374,7 +381,8 @@ void main() {
       expect(find.byIcon(Icons.copy), findsOneWidget);
     });
 
-    testWidgets('isExpandable parameter controls expansion functionality', (WidgetTester tester) async {
+    testWidgets('isExpandable parameter controls expansion functionality',
+        (WidgetTester tester) async {
       const data = 'Expandable data';
 
       await tester.pumpWidget(
