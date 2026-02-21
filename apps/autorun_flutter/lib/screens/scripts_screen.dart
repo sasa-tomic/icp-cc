@@ -76,6 +76,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   final String _sortBy = 'createdAt';
   final String _sortOrder = 'desc';
   String _searchQuery = '';
+  List<ScriptRecord> _filteredLocalScripts = [];
   ScriptSortOption _allScriptsSortOption = ScriptSortOption.lastRun;
   bool _allScriptsSortAscending = false;
   bool _showDownloadedOnly = false;
@@ -184,7 +185,24 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   void _onChanged() {
     if (!mounted) return;
+    // Update filtered local scripts when controller's scripts change
+    _updateFilteredLocalScripts();
     setState(() {});
+  }
+
+  void _updateFilteredLocalScripts() {
+    final allScripts = _controller.scripts;
+    if (_searchQuery.isEmpty) {
+      _filteredLocalScripts = allScripts;
+    } else {
+      final queryLower = _searchQuery.toLowerCase();
+      _filteredLocalScripts = allScripts.where((s) {
+        final titleMatch = s.title.toLowerCase().contains(queryLower);
+        final authorMatch =
+            s.marketplaceAuthor?.toLowerCase().contains(queryLower) ?? false;
+        return titleMatch || authorMatch;
+      }).toList();
+    }
   }
 
   void createNewScript() {
@@ -268,6 +286,22 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   void _onSearchChanged(String query) {
     _searchQuery = query;
+
+    // Filter local scripts by query
+    final allScripts = _controller.scripts;
+    if (query.isEmpty) {
+      _filteredLocalScripts = allScripts;
+    } else {
+      final queryLower = query.toLowerCase();
+      _filteredLocalScripts = allScripts.where((s) {
+        final titleMatch = s.title.toLowerCase().contains(queryLower);
+        // Also check author for marketplace-downloaded scripts
+        final authorMatch =
+            s.marketplaceAuthor?.toLowerCase().contains(queryLower) ?? false;
+        return titleMatch || authorMatch;
+      }).toList();
+    }
+
     setState(() => _isSearching = true);
     _debouncedSearch();
   }
@@ -678,7 +712,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scripts = _controller.scripts;
+    // Use filtered local scripts (updated in _onChanged and _onSearchChanged)
+    final scripts = _filteredLocalScripts;
 
     return Scaffold(
       appBar: AppBar(

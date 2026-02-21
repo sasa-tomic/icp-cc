@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
+import '../services/canister_history_service.dart';
+import '../services/canister_registry_service.dart';
 import '../utils/candid_form_model.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
@@ -18,12 +20,9 @@ import '../widgets/modern_empty_state.dart';
 import '../widgets/offline_banner.dart';
 
 class BookmarksScreen extends StatefulWidget {
-  const BookmarksScreen(
-      {super.key, required this.bridge, required this.onOpenClient});
+  const BookmarksScreen({super.key, required this.bridge});
 
   final RustBridgeLoader bridge;
-  final Future<void> Function(
-      {String? initialCanisterId, String? initialMethodName}) onOpenClient;
 
   @override
   State<BookmarksScreen> createState() => _BookmarksScreenState();
@@ -48,6 +47,24 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     BookmarksService.invalidateCache();
     await BookmarksService.list();
     BookmarksEvents.notifyChanged();
+  }
+
+  void _openInlineClient(
+      {String? initialCanisterId, String? initialMethodName}) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => CanisterClientSheet(
+        bridge: widget.bridge,
+        initialCanisterId: initialCanisterId,
+        initialMethodName: initialMethodName,
+      ),
+    );
   }
 
   @override
@@ -123,8 +140,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                         const SizedBox(height: 16),
                         _WellKnownList(
                             onSelect: (cid, method) {
-                              HapticFeedback.lightImpact();
-                              widget.onOpenClient(
+                              _openInlineClient(
                                 initialCanisterId: cid,
                                 initialMethodName:
                                     method?.isNotEmpty == true ? method : null,
@@ -158,8 +174,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                         _BookmarksList(
                           bridge: widget.bridge,
                           onTapEntry: (cid, method) {
-                            HapticFeedback.lightImpact();
-                            widget.onOpenClient(
+                            _openInlineClient(
                                 initialCanisterId: cid,
                                 initialMethodName: method);
                           },
@@ -168,12 +183,18 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                         const SizedBox(height: 32),
                         _buildSectionHeader(
                           context,
-                          title: 'Advanced',
-                          subtitle: 'Direct canister access and raw queries',
-                          icon: Icons.build_rounded,
+                          title: 'Recent Calls',
+                          subtitle: 'Your recent canister method calls',
+                          icon: Icons.history_rounded,
                         ),
                         const SizedBox(height: 16),
-                        _AdvancedSection(onOpenClient: widget.onOpenClient),
+                        _RecentCallsList(
+                          onTapEntry: (cid, method, args) {
+                            _openInlineClient(
+                                initialCanisterId: cid,
+                                initialMethodName: method);
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -303,6 +324,7 @@ class CanisterClientSheet extends StatefulWidget {
 class _CanisterClientSheetState extends State<CanisterClientSheet> {
   _ClientFlowState _flowState = _ClientFlowState.disconnected;
   final TextEditingController _canisterController = TextEditingController();
+  final FocusNode _canisterFocusNode = FocusNode();
   final TextEditingController _methodController = TextEditingController();
   int _selectedKind = 0;
   final TextEditingController _jsonArgsController = TextEditingController();
@@ -335,6 +357,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   @override
   void dispose() {
     _canisterController.dispose();
+    _canisterFocusNode.dispose();
     _methodController.dispose();
     _jsonArgsController.removeListener(_onArgsChanged);
     _jsonArgsController.dispose();
@@ -486,7 +509,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     }
   }
 
-  void _callMethod() {
+  void _callMethod() async {
     final String cid = _canisterController.text.trim();
     final String method = _methodController.text.trim();
     if (cid.isEmpty || method.isEmpty) {
@@ -512,17 +535,37 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           .showSnackBar(const SnackBar(content: Text('Please provide input')));
       return;
     }
-    String? out;
-    out = widget.bridge.callAnonymous(
-      canisterId: cid,
-      method: method,
-      kind: _selectedKind,
-      args: args,
-    );
-    setState(() {
-      final raw = out ?? '';
-      _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
-    });
+    CallType callType = _selectedKind == 1
+        ? CallType.update
+        : (_selectedKind == 2 ? CallType.compositeQuery : CallType.query);
+    try {
+      final String? out = widget.bridge.callAnonymous(
+        canisterId: cid,
+        method: method,
+        kind: _selectedKind,
+        args: args,
+      );
+      setState(() {
+        final raw = out ?? '';
+        _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
+      });
+      await CanisterHistoryService().addCall(
+        canisterId: cid,
+        methodName: method,
+        arguments: args,
+        callType: callType,
+        resultSummary: 'success',
+      );
+    } catch (e) {
+      await CanisterHistoryService().addCall(
+        canisterId: cid,
+        methodName: method,
+        arguments: args,
+        callType: callType,
+        resultSummary: 'error: ${e.toString()}',
+      );
+      rethrow;
+    }
   }
 
   void _resetToDisconnected() {
@@ -630,34 +673,144 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       message:
           'A canister is a smart contract running on the Internet Computer.\n'
           'Enter the canister ID (e.g., ryjl3-tyaaa-aaaaa-aaaba-cai) or name.',
-      child: TextField(
-        key: const Key('canisterField'),
-        controller: _canisterController,
-        decoration: InputDecoration(
-          labelText: 'Canister',
-          hintText: 'Enter canister ID or name',
-          border: const OutlineInputBorder(),
-          suffixIcon: _isFetching
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return RawAutocomplete<CanisterRegistryEntry>(
+            key: const Key('canisterAutocomplete'),
+            textEditingController: _canisterController,
+            focusNode: _canisterFocusNode,
+            optionsBuilder: (textEditingValue) {
+              if (textEditingValue.text.isEmpty) {
+                return const Iterable<CanisterRegistryEntry>.empty();
+              }
+              return CanisterRegistryEntry.search(textEditingValue.text);
+            },
+            displayStringForOption: (option) => option.canisterId,
+            fieldViewBuilder: (
+              context,
+              textEditingController,
+              focusNode,
+              onFieldSubmitted,
+            ) {
+              return TextField(
+                key: const Key('canisterField'),
+                controller: textEditingController,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  labelText: 'Canister',
+                  hintText: 'Enter canister ID or name',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _isFetching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : (_flowState == _ClientFlowState.connected ||
+                              _flowState == _ClientFlowState.ready)
+                          ? Icon(Icons.check_circle,
+                              color: theme.colorScheme.primary)
+                          : null,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 12 : 16,
+                    vertical: isCompact ? 12 : 16,
                   ),
-                )
-              : (_flowState == _ClientFlowState.connected ||
-                      _flowState == _ClientFlowState.ready)
-                  ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
-                  : null,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 12 : 16,
-            vertical: isCompact ? 12 : 16,
-          ),
-        ),
-        style: TextStyle(fontSize: isCompact ? 14 : 16),
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => _fetchAndParse(),
+                ),
+                style: TextStyle(fontSize: isCompact ? 14 : 16),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _fetchAndParse(),
+              );
+            },
+            optionsViewBuilder: (context, onSelected, options) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(8),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth,
+                      maxHeight: 200,
+                    ),
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      itemBuilder: (context, index) {
+                        final option = options.elementAt(index);
+                        return InkWell(
+                          key: Key('autocompleteOption_${option.canisterId}'),
+                          onTap: () => onSelected(option),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.storage,
+                                      size: 16,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        option.name,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme.primaryContainer
+                                            .withValues(alpha: 0.5),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        option.category,
+                                        style: theme.textTheme.labelSmall,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  option.canisterId,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontFamily: 'monospace',
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              );
+            },
+            onSelected: (option) {
+              _canisterController.text = option.canisterId;
+              _fetchAndParse();
+            },
+          );
+        },
       ),
     );
   }
@@ -1115,74 +1268,184 @@ class _ArgsEditorState extends State<_ArgsEditor> {
   }
 }
 
-/// Advanced section for direct canister access
-class _AdvancedSection extends StatelessWidget {
-  const _AdvancedSection({required this.onOpenClient});
+/// Recent calls list for displaying call history
+class _RecentCallsList extends StatefulWidget {
+  const _RecentCallsList({required this.onTapEntry});
+  final void Function(String canisterId, String method, String arguments)
+      onTapEntry;
 
-  final Future<void> Function(
-      {String? initialCanisterId, String? initialMethodName}) onOpenClient;
+  @override
+  State<_RecentCallsList> createState() => _RecentCallsListState();
+}
+
+class _RecentCallsListState extends State<_RecentCallsList> {
+  List<CanisterCallRecord> _callHistory = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final history = await CanisterHistoryService().getHistory();
+    if (mounted) {
+      setState(() => _callHistory = history);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          onOpenClient();
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.cloud_rounded,
+    if (_callHistory.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.dividerColor),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.history,
+                size: 20, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No recent calls. Your call history will appear here.',
+                style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                  size: 24,
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Spacer(),
+            TextButton.icon(
+              key: const Key('clearHistoryButton'),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Clear'),
+              onPressed: () async {
+                await CanisterHistoryService().clearHistory();
+                await _loadHistory();
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ListView.builder(
+          key: const Key('callHistoryList'),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _callHistory.length > 10 ? 10 : _callHistory.length,
+          itemBuilder: (context, index) {
+            final record = _callHistory[index];
+            final isSuccess = record.resultSummary == 'success';
+            final isUpdate = record.callType == CallType.update;
+            final isComposite = record.callType == CallType.compositeQuery;
+
+            final icon = isUpdate
+                ? Icons.sync_alt
+                : (isComposite ? Icons.merge_type : Icons.search);
+            final iconColor = isUpdate
+                ? Colors.orange
+                : (isComposite ? Colors.purple : theme.colorScheme.primary);
+
+            final timeAgo = _formatTimeAgo(record.timestamp);
+
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                key: Key(
+                    'historyItem_${record.canisterId}_${record.methodName}'),
+                leading: Icon(icon, color: iconColor, size: 20),
+                title: Text(
+                  record.methodName,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Canister Client',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      'Query any canister with custom methods',
+                      record.canisterId.length > 16
+                          ? '${record.canisterId.substring(0, 8)}...${record.canisterId.substring(record.canisterId.length - 4)}'
+                          : record.canisterId,
                       style: theme.textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
+                    Row(
+                      children: [
+                        Icon(
+                          isSuccess ? Icons.check_circle : Icons.error,
+                          size: 12,
+                          color: isSuccess
+                              ? Colors.green
+                              : theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isSuccess ? 'Success' : record.resultSummary,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isSuccess
+                                ? Colors.green
+                                : theme.colorScheme.error,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          timeAgo,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
+                trailing: const Icon(Icons.replay, size: 18),
+                onTap: () => widget.onTapEntry(
+                  record.canisterId,
+                  record.methodName,
+                  record.arguments,
+                ),
               ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
+            );
+          },
         ),
-      ),
+      ],
     );
+  }
+
+  String _formatTimeAgo(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+
+    if (diff.inMinutes < 1) {
+      return 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}m ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours}h ago';
+    } else {
+      return '${diff.inDays}d ago';
+    }
   }
 }
 

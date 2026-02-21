@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-23 (Phase 8 - UX Simplification Wave 11)
+**Last Updated:** 2026-02-23 (Phase 8 - UX Simplification Wave 12)
 
 ## Current Focus
 
@@ -84,30 +84,22 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Remaining UX items: Merge Bookmarks + Canister Client (POC complete, 6-8hr estimate), collapse 3-step Canister wizard (4-6hr), write reviews API (backend needed), script automation/scheduler.
+**Next Wave:** Script scheduler/automation (6-8hr), write reviews API (backend needed), "My Content" consolidated view (6-8hr), inline script execution (8-10hr), script preview before download (8-12hr).
 
-**Recently Completed (Wave 10 - 2026-02-23):**
-- ✅ Smart Candid Forms - Auto-generated form fields from Candid types (19 tests)
-- ✅ Unified Scripts View - Removed SegmentedButton, marketplace default (7 tests, -332 lines)
-- ✅ Selection Mode Removed - Eliminated undiscoverable bulk selection (24 tests, -764 lines)
-- ✅ Tab Rename - "Canisters" → "Explore ICP Services" (6 tests)
+**Wave 12 COMPLETE (2026-02-23):** -1400+ lines
+- ✅ **Collapse 3-step Canister wizard to single screen** - Eliminated step wizard, all-in-one scrollable layout (19 tests)
+- ✅ **Merge Bookmarks + Canister Client** - Eliminated duplicate screen, enhanced BookmarksScreen with inline calling, autocomplete, history (1338 lines deleted)
+- ✅ **Local Script Search** - Search now filters local scripts by title/author, not just marketplace (6 tests)
 
-**Wave 11 COMPLETE (2026-02-23):** -1774 lines
-- ✅ Unified Account Menu - Merged "My Identity" + "Register Username" into single context-aware item (7 tests)
-- ✅ Quick Actions Removed - Eliminated dead-end "See All" button and redundant section (-591 lines)
-- ✅ Advanced Options Removed - Eliminated unused custom host/key options from Canister Client (~130 lines)
-- ✅ PostSetupGuide Removed - Consolidated onboarding from 4 systems to 3 (-807 lines)
-
-**Wave 11 Status:**
+**Wave 12 Status:**
 | # | Improvement | Status | Notes |
 |---|-------------|--------|-------|
-| 1 | Collapse 3-step Canister wizard to single screen | PENDING | 4-6 hrs, defer to Wave 12 |
-| 2 | Simplify profile menu (merge "My Identity" + "Register Username") | ✅ DONE | Unified "Account" item |
-| 3 | Collapse account security section (merge Passkeys + Keys) | ✅ ALREADY DONE | Wave 9 |
-| 4 | Remove Quick Actions section from Explore screen | ✅ DONE | -591 lines |
-| 5 | Remove Advanced Options expansion from Canister Client | ✅ DONE | ~130 lines |
-| 6 | Remove filter chip badges | PENDING | Low priority |
-| 7 | Remove recent searches dropdown | PENDING | Low priority |
+| 1 | Collapse 3-step Canister wizard to single screen | ✅ DONE | Single scrollable screen |
+| 2 | Merge Bookmarks + Canister Client | ✅ DONE | -1338 lines, inline client |
+| 3 | Local Script Search | ✅ DONE | 6 tests |
+| 4 | Consistent contextual help for jargon | PENDING | Low priority, see Phase 6 |
+
+**Recently Completed (Wave 11 - 2026-02-23):**
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -200,6 +192,9 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Unified Scripts View** | **COMPLETE** | 100% |
 | ~~Selection Mode~~ | **REMOVED** | N/A |
 | ~~Section Separation~~ | **REMOVED** | N/A |
+| **Canister Wizard Collapsed** | **COMPLETE** | 100% |
+| **Bookmarks+Client Merged** | **COMPLETE** | 100% |
+| **Local Script Search** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -490,6 +485,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Profile Avatar Badge tests (DONE - 6 tests - 2026-02-21)
 - [x] Publish Account Prompt tests (DONE - 5 tests - 2026-02-21)
 - [x] Active Filter Chips tests (DONE - 24 tests - 2026-02-21)
+- [x] Canister Wizard Collapsed tests (DONE - 19 tests - 2026-02-23)
+- [x] Merged Bookmarks+Client tests (DONE - autocomplete 13 + history 6 = 19 tests - 2026-02-23)
+- [x] Local Script Search tests (DONE - 6 tests - 2026-02-23)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
@@ -524,14 +522,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Files:** `lib/utils/tech_terms.dart`, `lib/screens/canister_client_screen.dart`, `lib/screens/bookmarks_screen.dart`, `lib/widgets/canister_call_builder.dart`
 - **Tests:** `test/features/ux/plain_language_test.dart` (12 tests)
 
-**4. Merge Bookmarks + Canister Client** 🟡 **MEDIUM IMPACT** (POC COMPLETE)
+**4. Merge Bookmarks + Canister Client** ✅ **DONE - 2026-02-23**
 - **Pain Point:** 65% overlapping functionality; users don't know which to use
-- **Change:** Eliminate CanisterClientScreen; enhance BookmarksScreen with inline calling
-- **Impact:** ~900 lines eliminated, clearer mental model
+- **Change:** Eliminated CanisterClientScreen; enhanced BookmarksScreen with inline calling, autocomplete, history
+- **Impact:** -1338 lines, clearer mental model
 - **Complexity:** 6/10 (6-8 hour estimate)
-- **POC:** `test/features/canister_client/merged_screen_poc_test.dart` (17 tests)
-- **Overlapping code:** `_fetchAndParse()`, `_selectMethod()`, `_callMethod()`, `_ArgsEditor`, `_buildAdvancedOptions()`, `_buildResultSection()`
-- **Files:** `lib/screens/bookmarks_screen.dart`, `lib/screens/canister_client_screen.dart`
+- **Tests:** `test/features/canister_client/autocomplete_test.dart`, `test/features/canister_client/history_test.dart` (19 tests)
+- **Files:** `lib/screens/bookmarks_screen.dart` (deleted: `lib/screens/canister_client_screen.dart`)
 
 **5. Collapse Key Management into "Security"** ✅ **DONE - 2026-02-22**
 - **Pain Point:** Public Keys, Signing Key, Passkeys - confusing concepts
@@ -752,6 +749,42 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 3/10 - Reuse existing GettingStartedCard widget
 - **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/getting_started_card.dart`
 - **Note:** Section separation already provides good guidance; this is now lower priority
+
+---
+
+### Radical UX Improvements - Phase 6 (NEW - 2026-02-23)
+
+> **Analysis completed from NEW USER perspective - identifying remaining UX gaps.**
+
+**30. No Script Preview/Test Before Download** 🔴 **HIGH IMPACT**
+- **Pain Point:** Users can only see first 50 lines of code before downloading. No way to "try before you buy" or see what the script actually does. Major trust barrier.
+- **Change:** Add "Preview" button to ScriptDetailsDialog showing expected input/output format, simulated run with sample data, or full README
+- **Impact:** HIGH - Users make informed download decisions
+- **Complexity:** 7/10
+- **Files:** `lib/widgets/script_details_dialog.dart`, new: `lib/services/script_preview_service.dart`
+- **Note:** Blocked by backend support for script metadata
+
+**31. No "My Content" Consolidated View** 🟡 **MEDIUM-HIGH IMPACT**
+- **Pain Point:** Downloaded scripts, published scripts, bookmarks, download history are scattered across multiple places. No single place to see "everything I've done"
+- **Change:** Add "My Library" section or dedicated screen showing downloaded, published, favorite scripts, and recent activity
+- **Impact:** MEDIUM-HIGH - Users find their content easily
+- **Complexity:** 5/10
+- **Files:** `lib/widgets/profile_menu.dart`, new: `lib/screens/my_library_screen.dart`
+
+**32. Running Scripts Is Disruptive (Full Screen Navigation)** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** Running a script navigates to full screen, losing context. Can't quickly run multiple scripts in succession.
+- **Change:** Show script output in bottom sheet/dialog with "Expand to full screen" option
+- **Impact:** MEDIUM - Faster script execution workflow
+- **Complexity:** 6/10
+- **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/script_app_host.dart`
+
+**33. Contextual Help Is Inconsistent** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** TechTerms tooltips exist but applied inconsistently. "Passkeys", "Signing Key", "Keypair" not explained in profile menu.
+- **Change:** Audit all jargon terms, ensure consistent tooltip coverage, add explainer tooltips to profile menu items
+- **Impact:** MEDIUM - Broader user base understands technical terms
+- **Complexity:** 3/10
+- **Files:** `lib/widgets/profile_menu.dart`, `lib/screens/account_profile_screen.dart`, `lib/utils/tech_terms.dart`
+- **Tests:** 4-6 hrs estimate
 
 
 ## MEDIUM Priority
