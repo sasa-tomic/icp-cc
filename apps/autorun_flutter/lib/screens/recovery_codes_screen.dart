@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/passkey_service.dart';
@@ -171,7 +173,7 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
             '$number.'.padLeft(3),
             style: AppDesignSystem.bodySmall.copyWith(
               color: AppDesignSystem.neutral500,
-              fontFeatures: const [FontFeature.tabularFigures()],
+              fontFeatures: const [FontFeature('tnum')],
             ),
           ),
           const SizedBox(width: 8),
@@ -246,8 +248,4 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
       ),
     );
   }
-}
-
-class FontFeature {
-  static const tabularFigures = 'tabular-figures';
 }

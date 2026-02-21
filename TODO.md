@@ -1,18 +1,18 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-23 (Phase 8 - UX Simplification Wave 12)
+**Last Updated:** 2026-02-23 (Phase 9 - UX Simplification Wave 13)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
 
-**Reality Check - UX Simplification Wave 10 COMPLETE:**
-- **NEW:** Smart Candid Forms - Auto-generate form fields from Candid types (19 tests) - `lib/widgets/candid_smart_form.dart`
-- **NEW:** Unified Scripts View - Removed SegmentedButton, marketplace shown by default (7 tests, -332 lines)
-- **NEW:** Selection Mode Removed - Eliminated undiscoverable long-press bulk selection (24 tests, -764 lines)
-- **NEW:** Tab Rename - "Canisters" → "Explore ICP Services" for clarity (6 tests)
+**Reality Check - UX Simplification Wave 13 COMPLETE:**
+- **NEW:** My Library Screen - Consolidated view of downloads, favorites, scripts, activity (24 tests)
+- **NEW:** Script Execution Bottom Sheet - Run scripts in modal, not full screen (7 tests)
+- **NEW:** Contextual Help for Passkeys - Tooltips on profile menu and account screen (37 tests)
+- **FIXED:** Pre-existing test failures - passkey screens_test.dart and scripts/execute_test.dart (28 tests)
 
-**Reality Check - UX Simplification Wave 9 COMPLETE:**
+**Reality Check - UX Simplification Wave 12 COMPLETE:****
 - Navigation Tab Clarity - "Home"→"Scripts", "Explore"→"Canisters" (icons: code/dns)
 - Security Section Unified - Single section combines Passkeys + Public Keys + Backup (10 tests)
 - QuickUploadDialog Fix - Uses actual script.luaSource instead of generated placeholder (4 tests)
@@ -84,7 +84,12 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Script scheduler/automation (6-8hr), write reviews API (backend needed), "My Content" consolidated view (6-8hr), inline script execution (8-10hr), script preview before download (8-12hr).
+**Next Wave (Wave 14):** ONE-TAP script execution (#34 - highest ROI), empty state redesign (#35), eliminate registration wall (#36), global search (#40).
+
+**Wave 13 COMPLETE (2026-02-23):** +68 new tests
+- ✅ **My Library Screen** - Consolidated view of downloads, favorites, scripts, activity (24 tests)
+- ✅ **Script Execution Bottom Sheet** - Run scripts in modal, not full screen (7 tests)
+- ✅ **Contextual Help for Passkeys** - Tooltips on profile menu and account screen (37 tests)
 
 **Wave 12 COMPLETE (2026-02-23):** -1400+ lines
 - ✅ **Collapse 3-step Canister wizard to single screen** - Eliminated step wizard, all-in-one scrollable layout (19 tests)
@@ -97,7 +102,7 @@
 | 1 | Collapse 3-step Canister wizard to single screen | ✅ DONE | Single scrollable screen |
 | 2 | Merge Bookmarks + Canister Client | ✅ DONE | -1338 lines, inline client |
 | 3 | Local Script Search | ✅ DONE | 6 tests |
-| 4 | Consistent contextual help for jargon | PENDING | Low priority, see Phase 6 |
+| 4 | Consistent contextual help for jargon | ✅ DONE | Phase 6 item #33 (37 tests) |
 
 **Recently Completed (Wave 11 - 2026-02-23):**
 
@@ -195,6 +200,9 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Canister Wizard Collapsed** | **COMPLETE** | 100% |
 | **Bookmarks+Client Merged** | **COMPLETE** | 100% |
 | **Local Script Search** | **COMPLETE** | 100% |
+| **Script Bottom Sheet** | **COMPLETE** | 100% |
+| **My Library View** | **COMPLETE** | 100% |
+| **Contextual Help (Passkeys)** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -488,6 +496,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Canister Wizard Collapsed tests (DONE - 19 tests - 2026-02-23)
 - [x] Merged Bookmarks+Client tests (DONE - autocomplete 13 + history 6 = 19 tests - 2026-02-23)
 - [x] Local Script Search tests (DONE - 6 tests - 2026-02-23)
+- [x] My Library Screen tests (DONE - 24 tests - 2026-02-23)
+- [x] Script Bottom Sheet tests (DONE - 7 tests - 2026-02-23)
+- [x] Contextual Help (Passkey) tests (DONE - 37 tests - 2026-02-23)
+- [x] Passkey/Execute Test Fixes (DONE - 28 tests fixed - 2026-02-23)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
@@ -764,27 +776,107 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Files:** `lib/widgets/script_details_dialog.dart`, new: `lib/services/script_preview_service.dart`
 - **Note:** Blocked by backend support for script metadata
 
-**31. No "My Content" Consolidated View** 🟡 **MEDIUM-HIGH IMPACT**
+**31. No "My Content" Consolidated View** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Downloaded scripts, published scripts, bookmarks, download history are scattered across multiple places. No single place to see "everything I've done"
 - **Change:** Add "My Library" section or dedicated screen showing downloaded, published, favorite scripts, and recent activity
 - **Impact:** MEDIUM-HIGH - Users find their content easily
 - **Complexity:** 5/10
-- **Files:** `lib/widgets/profile_menu.dart`, new: `lib/screens/my_library_screen.dart`
+- **Files:** `lib/widgets/profile_menu.dart`, `lib/screens/my_library_screen.dart`
+- **Tests:** `test/features/my_library/my_library_screen_test.dart` (19 tests), `test/features/my_library/navigation_test.dart` (5 tests)
 
-**32. Running Scripts Is Disruptive (Full Screen Navigation)** 🟡 **MEDIUM IMPACT**
+**32. Running Scripts Is Disruptive (Full Screen Navigation)** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Running a script navigates to full screen, losing context. Can't quickly run multiple scripts in succession.
 - **Change:** Show script output in bottom sheet/dialog with "Expand to full screen" option
 - **Impact:** MEDIUM - Faster script execution workflow
 - **Complexity:** 6/10
-- **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/script_app_host.dart`
+- **Files:** `lib/screens/scripts_screen.dart`, new: `lib/widgets/script_execution_bottom_sheet.dart`
+- **Tests:** `test/features/scripts/script_bottom_sheet_test.dart` (7 tests)
 
-**33. Contextual Help Is Inconsistent** 🟡 **MEDIUM IMPACT**
+**33. Contextual Help Is Inconsistent** ✅ **DONE - 2026-02-23**
 - **Pain Point:** TechTerms tooltips exist but applied inconsistently. "Passkeys", "Signing Key", "Keypair" not explained in profile menu.
-- **Change:** Audit all jargon terms, ensure consistent tooltip coverage, add explainer tooltips to profile menu items
+- **Change:** Added `passkey` term to TechTerms; added tooltips to Passkeys menu item in profile menu and Passkeys section in account profile screen
 - **Impact:** MEDIUM - Broader user base understands technical terms
 - **Complexity:** 3/10
 - **Files:** `lib/widgets/profile_menu.dart`, `lib/screens/account_profile_screen.dart`, `lib/utils/tech_terms.dart`
-- **Tests:** 4-6 hrs estimate
+- **Tests:** `test/utils/tech_terms_test.dart`, `test/widgets/profile_menu_terminology_test.dart`, `test/screens/account_profile_screen_tooltip_test.dart` (37 tests)
+
+---
+
+### Radical UX Improvements - Phase 7 (NEW - 2026-02-23)
+
+> **Analysis completed from NEW USER perspective - identifying radical improvements for intuitiveness.**
+
+**34. ONE-TAP Script Execution** 🔴 **HIGHEST IMPACT - HIGHEST ROI**
+- **Pain Point:** Current flow: Find script → Tap opens editor → Close → Find Run button → Run. 3-4 taps for the most common action.
+- **Change:** Single tap on script = RUN immediately. Move Edit to long-press or explicit button.
+- **Impact:** HIGH - 75% reduction in taps for primary use case
+- **Complexity:** 3/10
+- **Files:** `lib/screens/scripts_screen.dart`
+- **ROI:** BEST - Low complexity, high impact
+
+**35. Empty State Redesign - Never Show Empty** 🔴 **HIGH IMPACT**
+- **Pain Point:** "Your Script Library is Empty" is discouraging. Doesn't guide users to value.
+- **Change:** First visit shows featured marketplace scripts directly. Progressive guidance: First download → "Run it now", First run → "Create your own"
+- **Impact:** HIGH - First impression is critical
+- **Complexity:** 5/10
+- **Files:** `lib/screens/scripts_screen.dart`
+- **Dependencies:** Featured scripts API
+
+**36. Eliminate Registration Wall for Script Creation** 🔴 **HIGH IMPACT**
+- **Pain Point:** Registration form has 8+ fields. Users see "Register @username" badge causing anxiety.
+- **Change:** Deferred registration - allow local-only script creation. Show "Share to Marketplace" only when publishing. Simplify registration to username + display name ONLY.
+- **Impact:** HIGH - Removes friction from first-time script creation
+- **Complexity:** 5/10 (requires backend changes for minimal registration)
+- **Files:** `lib/screens/account_registration_wizard.dart`, `lib/widgets/profile_menu.dart`
+
+**37. Unified "Discover" Tab - Merge Scripts & Explore** 🟡 **HIGH IMPACT**
+- **Pain Point:** Two tabs confusing. "Scripts" = local + marketplace mixed. "Explore" = canister tools (different purpose).
+- **Change:** Three clear tabs: 1) My Scripts (local/downloaded), 2) Discover (marketplace + canisters), 3) Profile
+- **Impact:** HIGH - Clarifies app purpose immediately
+- **Complexity:** 7/10 (significant restructuring)
+- **Files:** `lib/main.dart`, `lib/screens/scripts_screen.dart`, `lib/screens/bookmarks_screen.dart`
+
+**38. Contextual Onboarding - Not Upfront** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** "What's your name?" dialog on first launch + Getting Started card takes space. Tutorial fatigue.
+- **Change:** Remove upfront onboarding. Use in-context tips when user reaches each feature. Store "seen" flags for progressive disclosure.
+- **Impact:** MEDIUM - Faster time-to-first-action
+- **Complexity:** 4/10
+- **Files:** `lib/screens/quick_profile_creation_dialog.dart`, `lib/widgets/getting_started_card.dart`, `lib/services/onboarding_service.dart`
+
+**39. Remove Visual Clutter from Script List** 🟡 **MEDIUM-HIGH IMPACT**
+- **Pain Point:** 10+ interactive elements per script item: avatar, source icon, title, download icon, subtitle, favorite star, hover actions, overflow menu.
+- **Change:** Simplify to 3 visible elements: Avatar + Title + Single action. Use swipe gestures: left=delete, right=favorite. Overflow menu into bottom sheet.
+- **Impact:** MEDIUM-HIGH - Cleaner, less overwhelming interface
+- **Complexity:** 6/10
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**40. Global Search - Not Tab-Scoped** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** Search only searches current context. Users expect app-wide search.
+- **Change:** Unified search bar at app level. Results show ALL types: Scripts, Canisters, Authors. Type-ahead suggestions.
+- **Impact:** MEDIUM - Faster discovery
+- **Complexity:** 7/10 (new global search component, backend integration)
+- **Files:** `lib/main.dart`, new: `lib/widgets/global_search.dart`
+
+**41. Profile Menu Further Simplification** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** Current menu items: Manage Account/Register, Passkeys, Manage Profiles, Settings. Red badge creates anxiety.
+- **Change:** Simplify to 3 items: My Account (combines all), Switch Profile, Settings. Remove red badge - use subtle text.
+- **Impact:** MEDIUM - Cleaner navigation, reduces notification anxiety
+- **Complexity:** 3/10
+- **Files:** `lib/widgets/profile_menu.dart`
+
+**42. Simplify Bookmarks/Canister Screen** 🟡 **MEDIUM IMPACT**
+- **Pain Point:** BookmarksScreen has 4 sections. Heavy technical jargon.
+- **Change:** Combine Popular + Bookmarks into "Saved Services". Move Recent Calls to History. Add "What's this?" info buttons.
+- **Impact:** MEDIUM - Reduces cognitive load
+- **Complexity:** 5/10
+- **Files:** `lib/screens/bookmarks_screen.dart`
+
+**43. Filter Bottom Sheet Simplification** 🟢 **LOW-MEDIUM IMPACT**
+- **Pain Point:** Multiple filters + active filter chips create clutter.
+- **Change:** Reduce to 2 primary filters: Category + Sort. Move Downloaded/Favorites to tabs. Use pill buttons for categories.
+- **Impact:** LOW-MEDIUM - Cleaner search UX
+- **Complexity:** 4/10
+- **Files:** `lib/screens/scripts_screen.dart`
 
 
 ## MEDIUM Priority
@@ -1048,9 +1140,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 |-------|----------|----------|
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
 | Key label editing blocked by missing API endpoint | `AccountController` | MEDIUM |
-| Pre-existing test failures (passkey, script execution tests reference missing files) | `test/features/passkey/`, `test/features/scripts/` | LOW |
 
-**Fixed This Session:**
+**Fixed This Session (2026-02-23):**
+- ~~Pre-existing test failures (passkey, script execution tests)~~ - Fixed import paths, rewrote execute_test.dart to match actual API, fixed extension conflicts in vault screens
 - ~~Passkey Linux error message unclear~~ - Now shows clear instructions with `flutter run -d chrome` command
 
 ---

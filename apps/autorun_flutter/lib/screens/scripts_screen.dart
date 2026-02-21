@@ -35,6 +35,7 @@ import '../widgets/script_details_dialog.dart';
 import '../widgets/profile_scope.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
+import '../widgets/script_execution_bottom_sheet.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
@@ -486,10 +487,19 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
     await _controller.recordScriptRun(record.id);
 
-    // Record first script interaction for GettingStartedCard
     await OnboardingProgressService().recordFirstScriptInteraction();
 
     if (!mounted) return;
+    await showScriptExecutionBottomSheet(
+      context: context,
+      script: record,
+      runtime: _appRuntime,
+      onExpand: () => _expandScriptToFullScreen(record),
+    );
+  }
+
+  void _expandScriptToFullScreen(ScriptRecord record) {
+    Navigator.of(context).pop();
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => Scaffold(
         appBar: AppBar(title: Text(record.title)),

@@ -7,6 +7,7 @@ import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/services/passkey_service.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
+import 'package:icp_autorun/utils/tech_terms.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -164,6 +165,26 @@ void main() {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
         expect(find.text('Passkeys'), findsOneWidget);
+      });
+
+      testWidgets('Passkeys menu item has explanatory tooltip',
+          (WidgetTester tester) async {
+        await pumpProfileMenuWithAccount(tester, hasAccount: true);
+
+        final passkeysTile = find.widgetWithText(ListTile, 'Passkeys');
+        expect(passkeysTile, findsOneWidget);
+
+        final tooltip = tester.widget<Tooltip>(
+          find
+              .ancestor(
+                of: passkeysTile,
+                matching: find.byType(Tooltip),
+              )
+              .first,
+        );
+        expect(tooltip.message, TechTerm.passkey.fullExplanation,
+            reason:
+                'Passkeys menu item should have tooltip explaining what passkeys are');
       });
 
       testWidgets('Settings label remains the same',

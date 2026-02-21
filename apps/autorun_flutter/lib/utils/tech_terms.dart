@@ -78,6 +78,14 @@ enum TechTerm {
     plainExplanation: 'Your identifier derived from your keys.',
     fullExplanation:
         'An IC Principal is the identifier derived from a public key on the Internet Computer. Each keypair has a corresponding principal that identifies it on the network.',
+  ),
+  passkey(
+    term: 'Passkey',
+    plainLabel: 'Biometric Login',
+    shortExplanation: 'Secure login with fingerprint or Face ID',
+    plainExplanation: 'Use your face or fingerprint to log in securely.',
+    fullExplanation:
+        'A passkey is a secure authentication method that uses biometrics (fingerprint, Face ID) or a hardware key instead of a password. Passkeys are phishing-resistant and stored securely on your device.',
   );
 
   const TechTerm({

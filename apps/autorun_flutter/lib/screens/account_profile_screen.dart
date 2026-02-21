@@ -620,7 +620,21 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           color: AppDesignSystem.primaryLight,
         ),
       ),
-      title: const Text('Passkeys'),
+      title: Tooltip(
+        message: TechTerm.passkey.fullExplanation,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Passkeys'),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.info_outline,
+              size: 14,
+              color: context.colors.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
+          ],
+        ),
+      ),
       subtitle: const Text('Biometric authentication for secure login'),
       trailing: OutlinedButton(
         onPressed: () => _navigateToPasskeyManagement(),
@@ -648,7 +662,21 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           color: AppDesignSystem.warningDark,
         ),
       ),
-      title: const Text('Passkeys'),
+      title: Tooltip(
+        message: TechTerm.passkey.fullExplanation,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Passkeys'),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.info_outline,
+              size: 14,
+              color: context.colors.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
+          ],
+        ),
+      ),
       subtitle: Text(
         'Requires browser on Linux',
         style: AppDesignSystem.bodySmall.copyWith(

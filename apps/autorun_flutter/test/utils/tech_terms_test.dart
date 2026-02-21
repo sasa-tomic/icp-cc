@@ -111,6 +111,7 @@ void main() {
         'Replica',
         'Signing Key',
         'IC Principal',
+        'Passkey',
       ];
 
       for (final expected in expectedTerms) {
@@ -120,6 +121,13 @@ void main() {
           reason: 'Missing term: $expected',
         );
       }
+    });
+
+    test('passkey term has correct properties', () {
+      expect(TechTerm.passkey.term, 'Passkey');
+      expect(TechTerm.passkey.plainLabel, isNotEmpty);
+      expect(TechTerm.passkey.shortExplanation, isNotEmpty);
+      expect(TechTerm.passkey.fullExplanation, contains('biometric'));
     });
   });
 }

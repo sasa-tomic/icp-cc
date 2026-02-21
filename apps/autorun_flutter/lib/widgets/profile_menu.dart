@@ -8,10 +8,12 @@ import '../models/account.dart';
 import '../services/passkey_service.dart';
 import '../services/settings_service.dart';
 import '../utils/passkey_platform.dart';
+import '../utils/tech_terms.dart';
 import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
 import '../screens/passkey_management_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/my_library_screen.dart';
 
 /// Profile menu action types
 enum ProfileMenuAction {
@@ -21,6 +23,7 @@ enum ProfileMenuAction {
   passkeys,
   settings,
   manageProfiles,
+  myLibrary,
 }
 
 /// Profile menu widget that can be shown as a bottom sheet or menu
@@ -247,12 +250,20 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
                 : ProfileMenuAction.createAccount),
             highlight: !hasAccount,
           ),
+        // My Library
+        _MenuTile(
+          icon: Icons.folder_special_outlined,
+          label: 'My Library',
+          subtitle: 'Downloads, favorites, and scripts',
+          onTap: () => _handleAction(ProfileMenuAction.myLibrary),
+        ),
         // Passkeys
         if (hasAccount && _activeAccount != null)
           _MenuTile(
             icon: Icons.key,
             label: 'Passkeys',
             subtitle: _getPasskeySubtitle(),
+            tooltip: TechTerm.passkey.fullExplanation,
             onTap: PasskeyPlatform.isSupported
                 ? () => _handleAction(ProfileMenuAction.passkeys)
                 : null,
@@ -314,6 +325,9 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
         break;
       case ProfileMenuAction.manageProfiles:
         await _showManageProfilesSheet();
+        break;
+      case ProfileMenuAction.myLibrary:
+        await _navigateToMyLibrary();
         break;
     }
   }
@@ -384,6 +398,16 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           settingsService: SettingsService(),
           onThemeChanged: widget.onThemeChanged,
         ),
+      ),
+    );
+  }
+
+  Future<void> _navigateToMyLibrary() async {
+    widget.onNavigate?.call();
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MyLibraryScreen(),
       ),
     );
   }

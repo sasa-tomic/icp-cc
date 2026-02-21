@@ -4,10 +4,10 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'dart:convert';
 
-import 'package:autorun_flutter/screens/vault_password_setup_screen.dart';
-import 'package:autorun_flutter/screens/recovery_codes_screen.dart';
-import 'package:autorun_flutter/screens/vault_unlock_screen.dart';
-import 'package:autorun_flutter/services/passkey_service.dart';
+import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
+import 'package:icp_autorun/screens/recovery_codes_screen.dart';
+import 'package:icp_autorun/screens/vault_unlock_screen.dart';
+import 'package:icp_autorun/services/passkey_service.dart';
 
 /// Widget tests for passkey-related screens
 void main() {
@@ -37,10 +37,14 @@ void main() {
         find.widgetWithText(TextFormField, 'Password'),
         'weak',
       );
-      await tester.tap(find.text('Create Vault'));
-      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Confirm Password'),
+        'weak',
+      );
+      await tester.pump();
 
-      expect(find.text('Password must be at least 12 characters'), findsOneWidget);
+      final button = find.widgetWithText(ElevatedButton, 'Create Vault');
+      expect(tester.widget<ElevatedButton>(button).enabled, isFalse);
     });
 
     testWidgets('shows error when passwords do not match', (tester) async {
@@ -58,10 +62,10 @@ void main() {
         find.widgetWithText(TextFormField, 'Confirm Password'),
         'DifferentP@ssw0rd!',
       );
-      await tester.tap(find.text('Create Vault'));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(find.text('Passwords do not match'), findsOneWidget);
+      final button = find.widgetWithText(ElevatedButton, 'Create Vault');
+      expect(tester.widget<ElevatedButton>(button).enabled, isFalse);
     });
 
     testWidgets('disables button until form is valid', (tester) async {
@@ -81,9 +85,9 @@ void main() {
       'ABCD-EFGH-IJKL',
       'MNOP-QRST-UVWX',
       'YZ12-3456-7890',
-      'ABCD-EFGH-IJKL',
-      'MNOP-QRST-UVWX',
-      'YZ12-3456-7890',
+      '1234-5678-90AB',
+      'CDEF-GHIJ-KLMN',
+      'OPQR-STUV-WXYZ',
     ];
 
     testWidgets('displays all recovery codes', (tester) async {

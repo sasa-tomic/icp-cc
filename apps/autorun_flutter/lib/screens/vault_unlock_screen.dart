@@ -28,7 +28,18 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
   int _failedAttempts = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onPasswordChanged);
+  }
+
+  void _onPasswordChanged() {
+    setState(() {});
+  }
+
+  @override
   void dispose() {
+    _passwordController.removeListener(_onPasswordChanged);
     _passwordController.dispose();
     super.dispose();
   }
@@ -162,8 +173,10 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
             hintText: 'Enter vault password',
             prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(
-              icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              icon: Icon(
+                  _obscurePassword ? Icons.visibility : Icons.visibility_off),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
             ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -215,9 +228,11 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
           ? const SizedBox(
               width: 24,
               height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
             )
-          : const Text('Unlock', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          : const Text('Unlock',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -235,12 +250,4 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
       ),
     );
   }
-}
-
-extension on BuildContext {
-  AppColors get colors => AppColors();
-}
-
-class AppColors {
-  Color get background => AppDesignSystem.neutral50;
 }

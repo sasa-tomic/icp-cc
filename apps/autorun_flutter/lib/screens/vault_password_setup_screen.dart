@@ -29,7 +29,20 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onFormChanged);
+    _confirmController.addListener(_onFormChanged);
+  }
+
+  void _onFormChanged() {
+    setState(() {});
+  }
+
+  @override
   void dispose() {
+    _passwordController.removeListener(_onFormChanged);
+    _confirmController.removeListener(_onFormChanged);
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
@@ -194,7 +207,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
         hintText: 'Enter strong password',
         prefixIcon: const Icon(Icons.lock_outline),
         suffixIcon: IconButton(
-          icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+          icon:
+              Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         ),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -232,7 +246,7 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
         children: [
           Text(
             'Requirements:',
-            style: AppDesignSystem.labelMedium.copyWith(
+            style: AppDesignSystem.bodySmall.copyWith(
               color: AppDesignSystem.neutral700,
             ),
           ),
@@ -252,7 +266,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Icon(Icons.check_circle_outline, size: 16, color: AppDesignSystem.neutral500),
+          Icon(Icons.check_circle_outline,
+              size: 16, color: AppDesignSystem.neutral500),
           const SizedBox(width: 8),
           Text(
             text,
@@ -271,7 +286,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
       decoration: BoxDecoration(
         color: AppDesignSystem.errorLight.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppDesignSystem.errorLight.withValues(alpha: 0.3)),
+        border: Border.all(
+            color: AppDesignSystem.errorLight.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -291,8 +307,15 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
   }
 
   Widget _buildCreateButton() {
+    final isValid = _passwordController.text.length >= 12 &&
+        RegExp(r'[A-Z]').hasMatch(_passwordController.text) &&
+        RegExp(r'[a-z]').hasMatch(_passwordController.text) &&
+        RegExp(r'[0-9]').hasMatch(_passwordController.text) &&
+        RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(_passwordController.text) &&
+        _confirmController.text == _passwordController.text;
+
     return ElevatedButton(
-      onPressed: _isCreating ? null : _createVault,
+      onPressed: _isCreating || !isValid ? null : _createVault,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppDesignSystem.primaryLight,
         foregroundColor: Colors.white,
@@ -303,17 +326,11 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
           ? const SizedBox(
               width: 24,
               height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
             )
-          : const Text('Create Vault', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          : const Text('Create Vault',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
     );
   }
-}
-
-extension on BuildContext {
-  AppColors get colors => AppColors();
-}
-
-class AppColors {
-  Color get background => AppDesignSystem.neutral50;
 }
