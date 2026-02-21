@@ -846,6 +846,9 @@ class _CreateProfileDialogState extends State<_CreateProfileDialog> {
 }
 
 /// Profile avatar button for use in app bars
+///
+/// Shows a badge indicator when [hasAccount] is false, indicating
+/// that the user hasn't registered a cloud username yet.
 class ProfileAvatarButton extends StatelessWidget {
   const ProfileAvatarButton({
     super.key,
@@ -853,12 +856,16 @@ class ProfileAvatarButton extends StatelessWidget {
     this.displayName,
     this.size = 36,
     this.showLabel = true,
+    this.hasAccount = true,
   });
 
   final VoidCallback onTap;
   final String? displayName;
   final double size;
   final bool showLabel;
+
+  /// Whether the user has a registered account. When false, shows a badge.
+  final bool hasAccount;
 
   String _getInitials(String? name) {
     if (name == null || name.isEmpty) return '?';
@@ -904,18 +911,46 @@ class ProfileAvatarButton extends StatelessWidget {
       ),
     );
 
+    // Badge indicator for missing account
+    final avatarWithBadge = hasAccount
+        ? avatar
+        : Stack(
+            clipBehavior: Clip.none,
+            children: [
+              avatar,
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.error,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.colorScheme.surface,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+
     if (!showLabel) {
       return GestureDetector(
         onTap: () {
           HapticFeedback.lightImpact();
           onTap();
         },
-        child: avatar,
+        child: avatarWithBadge,
       );
     }
 
     return Semantics(
-      label: 'Profile menu',
+      label: hasAccount
+          ? 'Profile menu'
+          : 'Profile menu - account registration needed',
       button: true,
       child: GestureDetector(
         onTap: () {
@@ -936,7 +971,7 @@ class ProfileAvatarButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              avatar,
+              avatarWithBadge,
               const SizedBox(width: 8),
               Text(
                 'Profile',

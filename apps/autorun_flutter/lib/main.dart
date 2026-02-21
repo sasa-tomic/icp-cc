@@ -394,6 +394,7 @@ class _MainHomePageState extends State<MainHomePage> {
                     child: ProfileAvatarButton(
                       key: _profileMenuKey,
                       displayName: displayName,
+                      hasAccount: activeProfile?.username != null,
                       onTap: _showProfileMenu,
                     ),
                   ),

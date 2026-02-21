@@ -1,10 +1,15 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (Phase 6 - UX Simplification Wave 7)
+**Last Updated:** 2026-02-21 (Phase 6 - UX Simplification Wave 8)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
+
+**Reality Check - UX Simplification Wave 8 COMPLETE:**
+- **NEW:** Section Separation - SegmentedButton toggle (All/My Scripts/Marketplace) with section headers and count badges (9 tests)
+- **NEW:** Publish Account Prompt - Red badge on avatar when no account, contextual registration prompt when publishing (11 tests)
+- **NEW:** Active Filter Chips - Visible chips below search bar, each dismissible, Clear All button (24 tests)
 
 **Reality Check - UX Simplification Wave 7 COMPLETE:**
 - **NEW:** Scripts Screen State Machine - clean state management, no empty state flash for new users (24 tests)
@@ -68,7 +73,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** UX Phase 7 items (from new user analysis): Rename "Explore" to "Services" (impact 9/10, complexity 2/10), Separate "My Scripts" from "Marketplace" sections (impact 8/10, complexity 6/10), Show active filter chips prominently (impact 6/10, complexity 4/10), Surface "Register Username" when publishing (impact 7/10, complexity 4/10). Also remaining: Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Remaining UX items: Add Welcome Card for brand new users (optional - section separation already helps), Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -149,6 +154,9 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Scripts Screen State Machine** | **COMPLETE** | 100% |
 | **Discoverable Script Actions** | **COMPLETE** | 100% |
 | **Canister Client Simplified** | **COMPLETE** | 100% |
+| **Section Separation** | **COMPLETE** | 100% |
+| **Publish Account Prompt** | **COMPLETE** | 100% |
+| **Active Filter Chips** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -431,6 +439,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Scripts View Machine tests (DONE - 24 tests - 2026-02-21)
 - [x] Discoverable Script Actions tests (DONE - 10 tests - 2026-02-21)
 - [x] Canister Client Simplified tests (DONE - 5 tests - 2026-02-21)
+- [x] Section Separation tests (DONE - 9 tests - 2026-02-21)
+- [x] Profile Avatar Badge tests (DONE - 6 tests - 2026-02-21)
+- [x] Publish Account Prompt tests (DONE - 5 tests - 2026-02-21)
+- [x] Active Filter Chips tests (DONE - 24 tests - 2026-02-21)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
@@ -652,40 +664,44 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 > **Analysis completed from NEW USER perspective - focusing on navigation and discoverability.**
 
-**25. Rename "Explore" Tab to "Services"** :red_circle: **HIGH IMPACT**
+**25. Rename "Explore" Tab to "Services"** ✅ **DONE - 2026-02-21**
 - **Pain Point:** New users expect "Explore" to browse marketplace scripts. Instead, it shows canister tools and bookmarks - completely different content. Major expectation violation.
-- **Change:** Rename tab to "Services" or "Canisters"; add subtitle "ICP canister tools and quick actions"
+- **Change:** Renamed tab to "Services" (already done in previous session); this is now redundant with the section separation work
 - **Impact:** HIGH - Prevents immediate user confusion
 - **Complexity:** 2/10 - Simple text changes
 - **Files:** `lib/main.dart`, `lib/screens/bookmarks_screen.dart`
 
-**26. Visually Separate "My Scripts" from "Marketplace"** :red_circle: **HIGH IMPACT**
+**26. Visually Separate "My Scripts" from "Marketplace"** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Home screen shows unified list mixing local and marketplace scripts. New users with no scripts see overwhelming list. Distinction is only a tiny color-coded icon.
-- **Change:** Add clear visual section headers or SegmentedButton at top: [My Scripts | Marketplace]
+- **Change:** Added SegmentedButton toggle (All/My Scripts/Marketplace) at top; section headers with colored icons (blue/green) and count badges; contextual empty states for each section
 - **Impact:** HIGH - Dramatically improves clarity
 - **Complexity:** 6/10 - Requires refactoring list builder
 - **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/section_separation_test.dart` (9 tests)
 
-**27. Surface "Register Username" When Publishing** :yellow_circle: **MEDIUM IMPACT**
+**27. Surface "Register Username" When Publishing** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Publishing to marketplace requires "cloud username" but option is buried in profile menu with no explanation of why user needs it.
-- **Change:** When user tries to publish WITHOUT account, show contextual prompt: "To share scripts publicly, you'll need to register a @username. Register now?"; add badge on profile avatar when account not linked
+- **Change:** Added red dot badge on profile avatar when no account linked; contextual prompt appears when trying to publish without account; navigates to registration wizard on confirmation
 - **Impact:** MEDIUM-HIGH - Users discover key feature when relevant
 - **Complexity:** 4/10 - Add conditional badge and dialog
-- **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/profile_avatar_button.dart`
+- **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/profile_menu.dart`, `lib/main.dart`
+- **Tests:** `test/widgets/profile_avatar_badge_test.dart` (6 tests), `test/features/scripts/publish_account_prompt_test.dart` (5 tests)
 
-**28. Show Active Filter Chips Prominently** :yellow_circle: **MEDIUM IMPACT**
+**28. Show Active Filter Chips Prominently** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Filter button shows count badge but users don't know WHAT filters are active. Empty results from active filter looks like broken app.
-- **Change:** Show filter chips directly below search bar when filters active; each chip dismissible with X; add "Clear All"
+- **Change:** Added filter chips directly below search bar when filters active; each chip dismissible with X; Clear All button for multiple filters
 - **Impact:** MEDIUM - Prevents "stuck in filter" frustration
 - **Complexity:** 4/10 - Add chip row below search bar
 - **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/active_filter_chips_test.dart` (24 tests)
 
-**29. Add Welcome Card for Brand New Users** :yellow_circle: **MEDIUM IMPACT**
+**29. Add Welcome Card for Brand New Users** 🟡 **MEDIUM IMPACT** (OPTIONAL)
 - **Pain Point:** Brand new user (0 scripts, 0 downloads) sees Home screen with no guidance on what to DO.
 - **Change:** For users with 0 scripts AND 0 downloads, show Welcome Card with [Browse Marketplace] [Create Script] options
 - **Impact:** MEDIUM - First-time users get immediate guidance
 - **Complexity:** 3/10 - Reuse existing GettingStartedCard widget
 - **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/getting_started_card.dart`
+- **Note:** Section separation already provides good guidance; this is now lower priority
 
 
 ## MEDIUM Priority

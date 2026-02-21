@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../controllers/script_controller.dart';
+import '../controllers/profile_controller.dart';
+import '../controllers/account_controller.dart';
 import '../models/script_record.dart';
 import '../models/script_template.dart';
 import '../models/marketplace_script.dart';
@@ -30,10 +32,15 @@ import '../widgets/script_app_host.dart';
 import '../widgets/script_editor.dart';
 import '../widgets/quick_upload_dialog.dart';
 import '../widgets/script_details_dialog.dart';
+import '../widgets/profile_scope.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
+import 'account_registration_wizard.dart';
+
+/// View filter for sectioned script display
+enum ScriptsViewFilter { all, myScripts, marketplace }
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -87,6 +94,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   // Selection hint for discoverability
   bool _selectionHintDismissed = false;
+
+  // View filter for sectioned display
+  ScriptsViewFilter _viewFilter = ScriptsViewFilter.all;
 
   @override
   void initState() {
@@ -561,7 +571,46 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _publishToMarketplace(ScriptRecord record) async {
-    // Show quick upload dialog with pre-filled data
+    // Check if user has a registered account
+    final profileController = ProfileScope.of(context, listen: false);
+    final profile = profileController.activeProfile;
+
+    if (profile?.username == null) {
+      // User doesn't have an account - show registration prompt
+      final shouldRegister = await _showAccountRegistrationPrompt();
+      if (!shouldRegister) {
+        // User declined to register
+        return;
+      }
+
+      // Navigate to registration wizard
+      if (!mounted) return;
+      final account = await Navigator.push<dynamic>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AccountRegistrationWizard(
+            keypair: profile!.primaryKeypair,
+            accountController: AccountController(
+              profileController: profileController,
+            ),
+            initialDisplayName: profile.name,
+          ),
+        ),
+      );
+
+      // If registration successful, update profile username
+      if (account != null && mounted) {
+        await profileController.updateProfileUsername(
+          profileId: profile!.id,
+          username: account.username,
+        );
+      } else {
+        // Registration cancelled or failed
+        return;
+      }
+    }
+
+    // Proceed with upload
     final bool? uploaded = await showDialog<bool>(
       context: context,
       builder: (context) => QuickUploadDialog(
@@ -582,6 +631,16 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         );
       }
     }
+  }
+
+  /// Shows a prompt asking user to register for marketplace publishing
+  /// Returns true if user wants to register, false if dismissed
+  Future<bool> _showAccountRegistrationPrompt() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => const _AccountRegistrationPromptDialog(),
+    );
+    return result ?? false;
   }
 
   void _viewInMarketplace(ScriptRecord record) {
@@ -957,9 +1016,28 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       }).toList();
     }
 
+    // Separate items by source for sectioned display
+    final localItems =
+        sortedItems.where((i) => i.source == ScriptSource.local).toList();
+    final marketplaceItems =
+        sortedItems.where((i) => i.source == ScriptSource.marketplace).toList();
+
+    // Filter by view selection
+    List<ScriptListItem> displayedItems;
+    switch (_viewFilter) {
+      case ScriptsViewFilter.myScripts:
+        displayedItems = localItems;
+        break;
+      case ScriptsViewFilter.marketplace:
+        displayedItems = marketplaceItems;
+        break;
+      case ScriptsViewFilter.all:
+        displayedItems = sortedItems;
+    }
+
     // Check if we're still loading data that the user should see
     final isLoadingAnything = _controller.isBusy || _isMarketplaceLoading;
-    final hasNoContent = localScripts.isEmpty && sortedItems.isEmpty;
+    final hasNoContent = localScripts.isEmpty && displayedItems.isEmpty;
 
     return AnimatedBuilder(
       animation: _controller,
@@ -971,7 +1049,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         }
 
         // Only show empty state if we're done loading AND have no content
-        if (sortedItems.isEmpty && !isLoadingAnything) {
+        if (displayedItems.isEmpty && !isLoadingAnything) {
           if (_showDownloadedOnly) {
             return ModernEmptyState(
               icon: Icons.download_outlined,
@@ -988,6 +1066,25 @@ class ScriptsScreenState extends State<ScriptsScreen> {
               subtitle: 'Tap the star icon on scripts to add them to favorites',
               action: _clearFavoritesFilter,
               actionLabel: 'Browse Scripts',
+            );
+          }
+          // Show contextual empty states based on view filter
+          if (_viewFilter == ScriptsViewFilter.myScripts) {
+            return ModernEmptyState(
+              icon: Icons.folder_outlined,
+              title: 'No Scripts Yet',
+              subtitle: 'Create your first script to get started',
+              action: _showCreateSheet,
+              actionLabel: 'Create Script',
+            );
+          }
+          if (_viewFilter == ScriptsViewFilter.marketplace) {
+            return ModernEmptyState(
+              icon: Icons.cloud_outlined,
+              title: 'No Marketplace Scripts',
+              subtitle: 'Check your connection or try a different search',
+              action: _browseMarketplaceFromEmptyState,
+              actionLabel: 'Refresh',
             );
           }
           return ModernEmptyState(
@@ -1008,6 +1105,10 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           },
           child: CustomScrollView(
             slivers: [
+              // View filter segmented button
+              SliverToBoxAdapter(
+                child: _buildViewFilterSegmentedButton(),
+              ),
               // Selection hint banner for discoverability
               if (_shouldShowSelectionHint(localScripts))
                 SliverToBoxAdapter(
@@ -1015,12 +1116,12 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                     onDismiss: _dismissSelectionHint,
                   ),
                 ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      _buildAllScriptsListItem(sortedItems[index]),
-                  childCount: sortedItems.length,
-                ),
+              // Sectioned content based on view filter
+              ..._buildSectionedContent(
+                displayedItems: displayedItems,
+                localItems: localItems,
+                marketplaceItems: marketplaceItems,
+                isLoadingAnything: isLoadingAnything,
               ),
               const SliverToBoxAdapter(
                 child: SizedBox(height: 100),
@@ -1029,6 +1130,288 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Builds the view filter segmented button for switching between All/My Scripts/Marketplace
+  Widget _buildViewFilterSegmentedButton() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Center(
+        child: SegmentedButton<ScriptsViewFilter>(
+          segments: const [
+            ButtonSegment<ScriptsViewFilter>(
+              value: ScriptsViewFilter.all,
+              label: Text('All'),
+              icon: Icon(Icons.list),
+            ),
+            ButtonSegment<ScriptsViewFilter>(
+              value: ScriptsViewFilter.myScripts,
+              label: Text('My Scripts'),
+              icon: Icon(Icons.folder_outlined),
+            ),
+            ButtonSegment<ScriptsViewFilter>(
+              value: ScriptsViewFilter.marketplace,
+              label: Text('Marketplace'),
+              icon: Icon(Icons.cloud_outlined),
+            ),
+          ],
+          selected: {_viewFilter},
+          onSelectionChanged: (Set<ScriptsViewFilter> selection) {
+            setState(() {
+              _viewFilter = selection.first;
+            });
+          },
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Builds sectioned content with headers when showing "All" view
+  List<Widget> _buildSectionedContent({
+    required List<ScriptListItem> displayedItems,
+    required List<ScriptListItem> localItems,
+    required List<ScriptListItem> marketplaceItems,
+    required bool isLoadingAnything,
+  }) {
+    // When filtered to a specific section, show items directly with section header
+    if (_viewFilter == ScriptsViewFilter.myScripts) {
+      return [
+        if (localItems.isEmpty && !isLoadingAnything)
+          SliverToBoxAdapter(
+            child: _buildEmptySectionPlaceholder(
+              message: 'No scripts yet. Create your first script!',
+              icon: Icons.add_circle_outline,
+            ),
+          )
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildAllScriptsListItem(localItems[index]),
+              childCount: localItems.length,
+            ),
+          ),
+      ];
+    }
+
+    if (_viewFilter == ScriptsViewFilter.marketplace) {
+      return [
+        if (marketplaceItems.isEmpty && _isMarketplaceLoading)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          )
+        else if (marketplaceItems.isEmpty)
+          SliverToBoxAdapter(
+            child: _buildEmptySectionPlaceholder(
+              message: 'No marketplace scripts available',
+              icon: Icons.cloud_off_outlined,
+            ),
+          )
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) =>
+                  _buildAllScriptsListItem(marketplaceItems[index]),
+              childCount: marketplaceItems.length,
+            ),
+          ),
+      ];
+    }
+
+    // When showing "All", use section headers
+    final slivers = <Widget>[];
+
+    // My Scripts section with header
+    if (localItems.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _SectionHeader(
+            title: 'My Scripts',
+            icon: Icons.folder_outlined,
+            count: localItems.length,
+            color: Colors.blue,
+          ),
+        ),
+      );
+      slivers.add(
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _buildAllScriptsListItem(localItems[index]),
+            childCount: localItems.length,
+          ),
+        ),
+      );
+    } else {
+      // Show mini empty state for local section when marketplace has items
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _SectionHeader(
+            title: 'My Scripts',
+            icon: Icons.folder_outlined,
+            count: 0,
+            color: Colors.blue,
+          ),
+        ),
+      );
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _buildMiniEmptyState(
+            message: 'No scripts yet',
+            actionLabel: 'Create',
+            onAction: _showCreateSheet,
+          ),
+        ),
+      );
+    }
+
+    // Divider between sections
+    slivers.add(
+      const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Divider(height: 1),
+        ),
+      ),
+    );
+
+    // Marketplace section with header
+    if (_isMarketplaceLoading && marketplaceItems.isEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _SectionHeader(
+            title: 'Marketplace',
+            icon: Icons.cloud_outlined,
+            count: 0,
+            color: Colors.green,
+            isLoading: true,
+          ),
+        ),
+      );
+      slivers.add(
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+      );
+    } else if (marketplaceItems.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _SectionHeader(
+            title: 'Marketplace',
+            icon: Icons.cloud_outlined,
+            count: marketplaceItems.length,
+            color: Colors.green,
+          ),
+        ),
+      );
+      slivers.add(
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) =>
+                _buildAllScriptsListItem(marketplaceItems[index]),
+            childCount: marketplaceItems.length,
+          ),
+        ),
+      );
+    } else {
+      // Show mini empty state for marketplace section
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _SectionHeader(
+            title: 'Marketplace',
+            icon: Icons.cloud_outlined,
+            count: 0,
+            color: Colors.green,
+          ),
+        ),
+      );
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _buildMiniEmptyState(
+            message: 'No scripts available',
+          ),
+        ),
+      );
+    }
+
+    return slivers;
+  }
+
+  /// Builds a mini empty state placeholder for sections within "All" view
+  Widget _buildMiniEmptyState({
+    required String message,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(width: 12),
+              TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(actionLabel),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds an empty section placeholder for filtered views
+  Widget _buildEmptySectionPlaceholder({
+    required String message,
+    required IconData icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1722,6 +2105,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Widget _buildSearchBar() {
+    final activeFilterCount = _getActiveFilterCount();
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1729,11 +2114,112 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           padding: const EdgeInsets.all(16.0),
           child: _buildConsolidatedSearchBar(),
         ),
+        if (activeFilterCount > 0) _buildActiveFilterChips(),
         if (_showRecentSearches && _recentSearches.isNotEmpty)
           _buildRecentSearchesDropdown(),
         if (_isSearching) const LinearProgressIndicator(minHeight: 2),
       ],
     );
+  }
+
+  /// Builds the active filter chips displayed below the search bar.
+  Widget _buildActiveFilterChips() {
+    final activeFilters = _getActiveFilters();
+
+    return Container(
+      key: const Key('active_filter_chips'),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: activeFilters.map((filter) {
+                return _ActiveFilterChip(
+                  label: filter.label,
+                  onDismiss: filter.onDismiss,
+                );
+              }).toList(),
+            ),
+          ),
+          if (activeFilters.length > 1) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _clearAllFilters,
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Clear All'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Returns a list of active filters with their labels and dismiss callbacks.
+  List<_ActiveFilter> _getActiveFilters() {
+    final filters = <_ActiveFilter>[];
+
+    // Category filter (not 'All')
+    if (_selectedCategory != 'All') {
+      filters.add(_ActiveFilter(
+        label: _selectedCategory,
+        onDismiss: () {
+          setState(() {
+            _selectedCategory = 'All';
+          });
+          _loadMarketplaceScripts();
+        },
+      ));
+    }
+
+    // Sort filter (not default 'lastRun')
+    if (_allScriptsSortOption != ScriptSortOption.lastRun) {
+      filters.add(_ActiveFilter(
+        label: 'Sort: ${_allScriptsSortOption.label}',
+        onDismiss: () {
+          setState(() {
+            _allScriptsSortOption = ScriptSortOption.lastRun;
+            _allScriptsSortAscending = false;
+          });
+        },
+      ));
+    }
+
+    // Downloaded filter
+    if (_showDownloadedOnly) {
+      filters.add(_ActiveFilter(
+        label: 'Downloaded',
+        onDismiss: _clearDownloadedFilter,
+      ));
+    }
+
+    // Favorites filter
+    if (_showFavoritesOnly) {
+      filters.add(_ActiveFilter(
+        label: 'Favorites',
+        onDismiss: _clearFavoritesFilter,
+      ));
+    }
+
+    return filters;
+  }
+
+  /// Clears all active filters and refreshes marketplace scripts.
+  void _clearAllFilters() {
+    setState(() {
+      _selectedCategory = 'All';
+      _allScriptsSortOption = ScriptSortOption.lastRun;
+      _allScriptsSortAscending = false;
+      _showDownloadedOnly = false;
+      _showFavoritesOnly = false;
+    });
+    _loadMarketplaceScripts();
   }
 
   Widget _buildRecentSearchesDropdown() {
@@ -2980,6 +3466,64 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
   }
 }
 
+/// Represents an active filter with its label and dismiss callback.
+class _ActiveFilter {
+  _ActiveFilter({
+    required this.label,
+    required this.onDismiss,
+  });
+
+  final String label;
+  final VoidCallback onDismiss;
+}
+
+/// A dismissible chip representing an active filter.
+class _ActiveFilterChip extends StatelessWidget {
+  const _ActiveFilterChip({
+    required this.label,
+    required this.onDismiss,
+  });
+
+  final String label;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: colorScheme.primaryContainer,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onDismiss,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.close,
+                size: 16,
+                color: colorScheme.onPrimaryContainer,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Extension to capitalize strings
 extension StringExtension on String {
   String capitalize() {
@@ -3279,6 +3823,108 @@ class _SelectionHintBanner extends StatelessWidget {
               color: colorScheme.onSurfaceVariant,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dialog prompt for account registration when trying to publish without account
+class _AccountRegistrationPromptDialog extends StatelessWidget {
+  const _AccountRegistrationPromptDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      icon: Icon(
+        Icons.cloud_upload_outlined,
+        size: 48,
+        color: theme.colorScheme.primary,
+      ),
+      title: const Text('Share to Marketplace'),
+      content: const Text(
+        'To share scripts publicly, you\'ll need to register a @username.\n\n'
+        'This lets the community identify you as the script author.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Not now'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Register Username'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Section header widget for visually separating "My Scripts" and "Marketplace" sections
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    required this.icon,
+    required this.count,
+    required this.color,
+    this.isLoading = false,
+  });
+
+  final String title;
+  final IconData icon;
+  final int count;
+  final Color color;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+          ),
+          const SizedBox(width: 8),
+          if (count > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ),
+          if (isLoading) ...[
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: color,
+              ),
+            ),
+          ],
         ],
       ),
     );
