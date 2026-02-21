@@ -17,7 +17,6 @@ import '../services/download_history_service.dart';
 import '../services/favorites_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
-import '../services/onboarding_progress_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
@@ -30,8 +29,6 @@ import '../widgets/quick_upload_dialog.dart';
 import '../widgets/script_details_dialog.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
-import '../widgets/getting_started_card.dart';
-import '../widgets/marketplace_stats_banner.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 
@@ -56,16 +53,13 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   List<MarketplaceScript> _marketplaceScripts = [];
-  List<MarketplaceScript> _featuredScripts = [];
   List<String> _categories = [];
   final Set<String> _downloadingScriptIds = <String>{};
   final Map<String, double> _downloadProgress = <String, double>{};
   Set<String> _downloadedScriptIds = {};
   bool _isMarketplaceLoading = false;
-  bool _isLoadingFeatured = true;
   bool _isLoadingMore = false;
   bool _isSearching = false;
-  String? _marketplaceError;
   int _offset = 0;
   bool _hasMore = true;
 
@@ -79,19 +73,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   bool _showFavoritesOnly = false;
   Set<String> _favoriteScriptIds = {};
   final FavoritesService _favoritesService = FavoritesService();
-  bool _shareBannerDismissed = false;
-  static const _shareBannerDismissedKey = 'share_banner_dismissed';
   List<String> _recentSearches = [];
   bool _showRecentSearches = false;
-
-  final OnboardingProgressService _onboardingProgressService =
-      OnboardingProgressService();
-  bool _showGettingStarted = false;
-
-  // Marketplace stats
-  MarketplaceStats? _marketplaceStats;
-  bool _isLoadingStats = false;
-  bool _statsLoadError = false;
 
   // Selection mode for bulk operations
   bool _isSelectionMode = false;
@@ -107,11 +90,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _loadCategories();
     _loadDownloadedScripts();
     _initializeMarketplaceData();
-    _loadShareBannerState();
     _loadRecentSearches();
-    _loadGettingStartedState();
-    _loadMarketplaceStats(); // Load stats in background
-    _loadFavorites(); // Load favorites in background
+    _loadFavorites();
     _searchFocusNode.addListener(_onSearchFocusChanged);
   }
 
@@ -130,75 +110,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         });
       }
     });
-  }
-
-  Future<void> _loadMarketplaceStats() async {
-    if (_isLoadingStats) return;
-
-    setState(() {
-      _isLoadingStats = true;
-      _statsLoadError = false;
-    });
-
-    try {
-      final stats = await _marketplaceService.getMarketplaceStats();
-      if (mounted) {
-        setState(() {
-          _marketplaceStats = stats;
-          _isLoadingStats = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Failed to load marketplace stats: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingStats = false;
-          _statsLoadError = true;
-        });
-      }
-    }
-  }
-
-  Future<void> _loadGettingStartedState() async {
-    final shouldShow = await _onboardingProgressService.shouldShowGuide();
-    if (mounted) {
-      setState(() {
-        _showGettingStarted = shouldShow;
-      });
-    }
-  }
-
-  void _handleGettingStartedItemTap(OnboardingItem item) {
-    _onboardingProgressService.markComplete(item);
-    switch (item) {
-      case OnboardingItem.browseMarketplace:
-      case OnboardingItem.downloadScript:
-        break;
-      case OnboardingItem.createScript:
-        _showCreateSheet();
-      case OnboardingItem.tryCanisterClient:
-      case OnboardingItem.setUpPasskey:
-        break;
-    }
-    _loadGettingStartedState();
-  }
-
-  Future<void> _dismissGettingStarted() async {
-    await _onboardingProgressService.dismissPermanently();
-    if (mounted) {
-      setState(() {
-        _showGettingStarted = false;
-      });
-    }
-  }
-
-  Future<void> _snoozeGettingStarted() async {
-    await _onboardingProgressService.snooze();
-    if (mounted) {
-      setState(() {
-        _showGettingStarted = false;
-      });
-    }
   }
 
   Future<void> _loadRecentSearches() async {
@@ -251,51 +162,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
-  Future<void> _loadShareBannerState() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _shareBannerDismissed =
-            prefs.getBool(_shareBannerDismissedKey) ?? false;
-      });
-    }
-  }
-
-  Future<void> _dismissShareBanner() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_shareBannerDismissedKey, true);
-    if (mounted) {
-      setState(() {
-        _shareBannerDismissed = true;
-      });
-    }
-  }
-
   Future<void> _initializeMarketplaceData() async {
-    await Future.wait([
-      _loadSavedCategory(),
-      _loadFeaturedScripts(),
-    ]);
+    await _loadSavedCategory();
     await _loadMarketplaceScripts();
-  }
-
-  Future<void> _loadFeaturedScripts() async {
-    try {
-      final featured = await _marketplaceService.getFeaturedScripts(limit: 10);
-      if (mounted) {
-        setState(() {
-          _featuredScripts = featured;
-          _isLoadingFeatured = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Failed to load featured scripts: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingFeatured = false;
-        });
-      }
-    }
   }
 
   @override
@@ -330,13 +199,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _initializeMarketplace() async {
-    try {
-      // No initialization needed for open API service
-    } catch (e) {
-      setState(() {
-        _marketplaceError = 'Failed to initialize marketplace: $e';
-      });
-    }
+    // No initialization needed for open API service
   }
 
   Future<void> _loadMarketplaceScripts({bool isLoadMore = false}) async {
@@ -348,7 +211,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         _isLoadingMore = true;
       } else {
         _isMarketplaceLoading = true;
-        _marketplaceError = null;
         _offset = 0;
         _marketplaceScripts.clear();
       }
@@ -373,15 +235,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         _hasMore = result.hasMore;
         _offset += result.scripts.length;
       });
-
-      if (result.scripts.isNotEmpty) {
-        _onboardingProgressService
-            .markComplete(OnboardingItem.browseMarketplace);
-      }
     } catch (e) {
-      setState(() {
-        _marketplaceError = _formatErrorMessage(e.toString());
-      });
+      debugPrint('Failed to load marketplace scripts: $e');
     } finally {
       setState(() {
         if (isLoadMore) {
@@ -391,22 +246,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         }
       });
     }
-  }
-
-  String _formatErrorMessage(String error) {
-    // Provide user-friendly messages for common errors
-    if (error.contains('HTTP 404') || error.contains('Not Found')) {
-      return 'Marketplace is currently unavailable\n\nThe script marketplace server is not responding. This may be due to maintenance or deployment issues. Please try again later.\n\nTechnical details: $error';
-    }
-    if (error.contains('Connection refused') ||
-        error.contains('Network is unreachable')) {
-      return 'Network connection failed\n\nUnable to connect to the marketplace. Please check your internet connection and try again.\n\nTechnical details: $error';
-    }
-    if (error.contains('Connection timeout')) {
-      return 'Connection timeout\n\nThe marketplace is taking too long to respond. Please check your connection and try again.\n\nTechnical details: $error';
-    }
-    // Return the original error for other cases
-    return error;
   }
 
   Future<void> _loadCategories() async {
@@ -419,11 +258,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Future<void> _refreshMarketplaceScripts() async {
-    setState(() => _isLoadingFeatured = true);
-    await Future.wait([
-      _loadFeaturedScripts(),
-      _loadMarketplaceScripts(),
-    ]);
+    await _loadMarketplaceScripts();
   }
 
   void _onSearchChanged(String query) {
@@ -535,8 +370,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       setState(() {
         _downloadedScriptIds.add(script.id);
       });
-
-      _onboardingProgressService.markComplete(OnboardingItem.downloadScript);
 
       if (mounted) {
         final versionText = version != null ? ' v$version' : '';
@@ -659,7 +492,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       ),
     );
     if (mounted && rec != null) {
-      _onboardingProgressService.markComplete(OnboardingItem.createScript);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -688,69 +520,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   bool _isPublishedToMarketplace(ScriptRecord record) {
     return record.metadata.containsKey('marketplace_id');
-  }
-
-  String _formatTimeAgo(DateTime? dateTime) {
-    if (dateTime == null) return 'Never';
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-    if (difference.inDays > 365) {
-      final years = (difference.inDays / 365).floor();
-      return '$years ${years == 1 ? 'year' : 'years'} ago';
-    }
-    if (difference.inDays > 30) {
-      final months = (difference.inDays / 30).floor();
-      return '$months ${months == 1 ? 'month' : 'months'} ago';
-    }
-    if (difference.inDays > 0) {
-      return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
-    }
-    if (difference.inHours > 0) {
-      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
-    }
-    if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
-    }
-    return 'Just now';
-  }
-
-  String _formatRunCount(int count) {
-    if (count == 0) return 'Not run yet';
-    if (count == 1) return 'Run once';
-    return 'Run $count times';
-  }
-
-  Widget _buildSourceBadge(ScriptRecord record, bool isCompactScreen) {
-    final isFromMarketplace = record.isFromMarketplace;
-    final backgroundColor = isFromMarketplace
-        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
-        : Theme.of(context).colorScheme.surfaceContainerHighest;
-    final textColor = isFromMarketplace
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    final borderColor = isFromMarketplace
-        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
-        : Theme.of(context).colorScheme.outlineVariant;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompactScreen ? 4 : 6,
-        vertical: isCompactScreen ? 1 : 2,
-      ),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: borderColor),
-      ),
-      child: Text(
-        isFromMarketplace ? 'Marketplace' : 'Local',
-        style: TextStyle(
-          fontSize: isCompactScreen ? 8 : 10,
-          color: textColor,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
   }
 
   Future<void> _publishToMarketplace(ScriptRecord record) async {
@@ -1042,12 +811,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                   onDismiss: () => ConnectivityScope.of(context, listen: false)
                       .dismissBanner(),
                 ),
-              if (!_isSelectionMode)
-                MarketplaceStatsBanner(
-                  stats: _marketplaceStats,
-                  isLoading: _isLoadingStats,
-                  hasError: _statsLoadError,
-                ),
               if (!_isSelectionMode) _buildSearchBar(),
               Expanded(
                 child: _buildUnifiedListView(scripts),
@@ -1156,11 +919,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       }).toList();
     }
 
-    final hasUnpublishableScripts =
-        localScripts.any((s) => !_isPublishedToMarketplace(s));
-    final showBanner = hasUnpublishableScripts && !_shareBannerDismissed;
-    final showFeatured = _featuredScripts.isNotEmpty || _isLoadingFeatured;
-
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -1168,8 +926,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (sortedItems.isEmpty && !_controller.isBusy && !showFeatured) {
-          // Show specific empty state when Downloaded filter is active with no downloads
+        if (sortedItems.isEmpty && !_controller.isBusy) {
           if (_showDownloadedOnly) {
             return ModernEmptyState(
               icon: Icons.download_outlined,
@@ -1179,7 +936,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
               actionLabel: 'Browse Marketplace',
             );
           }
-          // Show specific empty state when Favorites filter is active with no favorites
           if (_showFavoritesOnly) {
             return ModernEmptyState(
               icon: Icons.star_outline,
@@ -1189,7 +945,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
               actionLabel: 'Browse Scripts',
             );
           }
-          // Generic empty state for empty library
           return ModernEmptyState(
             icon: Icons.code_rounded,
             title: 'Your Script Library is Empty',
@@ -1206,22 +961,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           },
           child: CustomScrollView(
             slivers: [
-              if (_showGettingStarted)
-                SliverToBoxAdapter(
-                  child: GettingStartedCard(
-                    onItemTap: _handleGettingStartedItemTap,
-                    onDismiss: _dismissGettingStarted,
-                    onSnooze: _snoozeGettingStarted,
-                  ),
-                ),
-              if (showFeatured)
-                SliverToBoxAdapter(
-                  child: _buildFeaturedSection(),
-                ),
-              if (showBanner)
-                SliverToBoxAdapter(
-                  child: _buildShareBanner(),
-                ),
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) =>
@@ -1237,307 +976,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         );
       },
     );
-  }
-
-  Widget _buildFeaturedSection() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(8, 8, 8, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.star,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Featured',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 140,
-            child: _isLoadingFeatured
-                ? _buildFeaturedShimmer()
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Row(
-                      children: _featuredScripts
-                          .map((script) => _buildFeaturedCard(script))
-                          .toList(),
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeaturedShimmer() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: List.generate(
-          5,
-          (index) => Container(
-            width: 200,
-            height: 140,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeaturedCard(MarketplaceScript script) {
-    return GestureDetector(
-      onTap: () => _showScriptDetails(context, script),
-      child: Container(
-        width: 200,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: script.iconUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                script.iconUrl!,
-                                width: 24,
-                                height: 24,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.code,
-                                  size: 20,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.code, size: 20),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Featured',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                script.title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                script.authorName ?? 'Unknown',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const Spacer(),
-              Row(
-                children: [
-                  if (script.rating > 0) ...[
-                    Icon(
-                      Icons.star,
-                      size: 14,
-                      color: Colors.amber,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      script.rating.toStringAsFixed(1),
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Icon(
-                    Icons.download,
-                    size: 14,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 2),
-                  Text(
-                    '${script.downloads}',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShareBanner() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).colorScheme.primaryContainer,
-            Theme.of(context)
-                .colorScheme
-                .secondaryContainer
-                .withValues(alpha: 0.5),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.campaign_rounded,
-                color: Theme.of(context).colorScheme.primary,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Share your first script!',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Help others by sharing your scripts to the marketplace.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: _shareFirstScript,
-              style: TextButton.styleFrom(
-                backgroundColor: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                'Share',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              onPressed: _dismissShareBanner,
-              icon: Icon(
-                Icons.close,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              tooltip: 'Dismiss',
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _shareFirstScript() {
-    final scripts = _controller.scripts;
-    final unpublishableScript = scripts.cast<ScriptRecord?>().firstWhere(
-          (s) => s != null && !_isPublishedToMarketplace(s),
-          orElse: () => null,
-        );
-    if (unpublishableScript != null) {
-      _publishToMarketplace(unpublishableScript);
-    }
   }
 
   Widget _buildAllScriptsListItem(ScriptListItem item) {

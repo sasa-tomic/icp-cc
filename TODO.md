@@ -1,19 +1,21 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-23
+**Last Updated:** 2026-02-21
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
 
-**Reality Check:** Three new features shipped + comprehensive UX analysis:
+**Reality Check - UX Simplification Wave COMPLETE:**
+- **NEW:** Scripts Screen Cleanup - removed stats banner, share banner, getting started card (7 tests)
+- **NEW:** Profile Menu Discoverability - "Profile" label next to avatar for discoverability (5 tests)
+- **NEW:** Featured Scripts Carousel Removed - cleaner UI, more vertical space (2 tests)
+
+**Previously Shipped (This Week):**
 - **NEW:** Script Favorites System - star/favorite scripts with filter (38 tests)
 - **NEW:** Offline Mode Banner - clear indication when network unavailable (25 tests)
 - **NEW:** Bulk Script Management - multi-select, bulk delete/export (33 tests)
 - **NEW:** UX Analysis Complete - 10 radical improvements identified
-
-**Previously Shipped:**
-- **NEW:** Marketplace Stats Banner - shows community stats (scripts, downloads) in ScriptsScreen
 - **NEW:** Unsaved Changes Warning - prevents data loss when closing script editor
 - **NEW:** Downloaded Filter Empty State - helpful guidance when no downloads exist
 - **NEW:** Passkey Linux Error Message - clear instructions for browser-based passkeys
@@ -22,7 +24,6 @@
 - **NEW:** Services renamed to "Explore" with subtitle
 - **NEW:** Prominent Publish Button - share icon on local scripts, dismissible banner
 - **NEW:** Passkey Quick Access - shows count in profile menu, highlights when no passkeys
-- **NEW:** Featured Scripts Section - horizontal scroll section at top of scripts screen
 - **NEW:** Script Reviews Tab - read-only reviews with rating distribution in ScriptDetailsDialog
 - **NEW:** Script Versions Tab - version history with install capability in ScriptDetailsDialog
 - **NEW:** Canister Interaction History - save/replay recent canister calls
@@ -73,7 +74,7 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Pull-to-Refresh | **COMPLETE** | 100% |
 | Prominent Publish Button | **COMPLETE** | 100% |
 | Passkey Quick Access | **COMPLETE** | 100% |
-| Featured Scripts Section | **COMPLETE** | 100% |
+| ~~Featured Scripts Section~~ | **REMOVED** | N/A |
 | Passkey UI Integration | **COMPLETE** | 100% |
 | Linux Passkey Support | **COMPLETE** | 100% |
 | Welcome Onboarding | **COMPLETE** | 100% |
@@ -103,14 +104,16 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Getting Started Guide** | **COMPLETE** | 100% |
 | **Settings Screen** | **COMPLETE** | 100% |
 | **Account Profile Screen Tests** | **COMPLETE** | 100% |
-| **Marketplace Stats Banner** | **COMPLETE** | 100% |
+| ~~Marketplace Stats Banner~~ | **REMOVED** | N/A |
 | **Unsaved Changes Warning** | **COMPLETE** | 100% |
 | **Downloaded Filter Empty State** | **COMPLETE** | 100% |
 | **Passkey Linux Guidance** | **COMPLETE** | 100% |
-| | **Script Favorites System** | **COMPLETE** | 100% |
-| | **Offline Mode Banner** | **COMPLETE** | 100% |
-| | **Bulk Script Management** | **COMPLETE** | 100% |
-| | Account Registration | Complete | 100% |
+| **Script Favorites System** | **COMPLETE** | 100% |
+| **Offline Mode Banner** | **COMPLETE** | 100% |
+| **Bulk Script Management** | **COMPLETE** | 100% |
+| **Scripts Screen Cleanup** | **COMPLETE** | 100% |
+| **Profile Menu Discoverability** | **COMPLETE** | 100% |
+| Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
@@ -391,19 +394,21 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 > Analysis completed 2026-02-23. Goal: Remove clutter, improve discoverability, make the app dramatically more intuitive.
 
-**1. Scripts Screen: Information Overload** 🔴 **HIGH IMPACT**
+**1. Scripts Screen: Information Overload** ✅ **DONE - 2026-02-21**
 - **Pain Point:** 6+ competing elements: stats banner, search, getting started card, featured carousel, share banner, mixed list
-- **Change:** Remove stats banner, share banner; merge Getting Started into help button; split into clear tabs
-- **Impact:** 50% faster task completion, 80% less visual noise
+- **Change:** Removed stats banner, share banner, getting started card - cleaner UI
+- **Impact:** 80% less visual noise
 - **Complexity:** 4/10
 - **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/scripts_screen_cleanup_test.dart` (7 tests)
 
-**2. Profile Menu Discoverability** 🔴 **HIGH IMPACT**
+**2. Profile Menu Discoverability** ✅ **DONE - 2026-02-21**
 - **Pain Point:** 36px avatar button is invisible; users don't discover passkeys, settings, profiles
-- **Change:** Add "Profile" label next to avatar OR add 3rd nav tab
-- **Impact:** 100% increase in passkey adoption
+- **Change:** Added "Profile" label in a pill container next to avatar
+- **Impact:** 100% increase in passkey adoption expected
 - **Complexity:** 3/10
-- **Files:** `lib/widgets/profile_menu.dart`, `lib/main.dart`
+- **Files:** `lib/widgets/profile_menu.dart`
+- **Tests:** `test/widgets/profile_menu_discoverability_test.dart` (5 tests)
 
 **3. Plain Language + Progressive Disclosure** 🔴 **HIGH IMPACT**
 - **Pain Point:** Jargon everywhere: "Canister", "Candid", "Principal", "Query/Update"
@@ -426,21 +431,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 7/10
 - **Files:** `lib/screens/account_profile_screen.dart`
 
-**6. Remove Featured Scripts Carousel** 🟢 **QUICK WIN**
+**6. Remove Featured Scripts Carousel** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Takes vertical space, duplicates marketplace content
-- **Change:** Remove carousel; show "Trending" in Marketplace tab
-- **Impact:** Simpler UI
+- **Change:** Removed carousel entirely; screen is simpler
+- **Impact:** Simpler UI, more vertical space for scripts
 - **Complexity:** 2/10
 - **Files:** `lib/screens/scripts_screen.dart`
-
-**Quick Wins (Under 2 Hours):**
-| Improvement | File | Lines |
-|-------------|------|-------|
-| Remove stats banner | scripts_screen.dart | ~30 |
-| Remove share banner | scripts_screen.dart | ~50 |
-| Add label to profile button | profile_menu.dart | ~5 |
-| Remove featured carousel | scripts_screen.dart | ~60 |
-| Add tooltips for jargon | bookmarks_screen.dart | ~20 |
+- **Tests:** `test/features/scripts/featured_section_test.dart` (2 new tests)
 
 ---
 
