@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/marketplace_script.dart';
+import '../models/purchase_record.dart';
 import '../services/marketplace_open_api_service.dart';
 
 class ScriptDetailsDialog extends StatefulWidget {
@@ -22,15 +23,43 @@ class ScriptDetailsDialog extends StatefulWidget {
 }
 
 class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
-  final MarketplaceOpenApiService _marketplaceService = MarketplaceOpenApiService();
+  final MarketplaceOpenApiService _marketplaceService =
+      MarketplaceOpenApiService();
   bool _isLoadingPreview = false;
   String? _scriptPreview;
   String? _previewError;
+
+  bool _isLoadingReviews = false;
+  List<ScriptReview> _reviews = [];
+  String? _reviewsError;
+  int _selectedTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _loadScriptPreview();
+    _loadReviews();
+  }
+
+  Future<void> _loadReviews() async {
+    setState(() {
+      _isLoadingReviews = true;
+      _reviewsError = null;
+    });
+
+    try {
+      final reviews =
+          await _marketplaceService.getScriptReviews(widget.script.id);
+      setState(() {
+        _reviews = reviews;
+        _isLoadingReviews = false;
+      });
+    } catch (e) {
+      setState(() {
+        _reviewsError = 'Failed to load reviews: $e';
+        _isLoadingReviews = false;
+      });
+    }
   }
 
   Future<void> _loadScriptPreview() async {
@@ -40,7 +69,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     });
 
     try {
-      final luaSource = await _marketplaceService.downloadScript(widget.script.id);
+      final luaSource =
+          await _marketplaceService.downloadScript(widget.script.id);
       // Show first 50 lines as preview
       final lines = luaSource.split('\n');
       final previewLines = lines.take(50).join('\n');
@@ -103,7 +133,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                   widget.script.iconUrl!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.code, color: Colors.white),
+                                      const Icon(Icons.code,
+                                          color: Colors.white),
                                 ),
                               )
                             : const Icon(Icons.code, color: Colors.white),
@@ -117,31 +148,43 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                           children: [
                             Text(
                               widget.script.title,
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'by ${widget.script.authorName}',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
                             ),
                             const SizedBox(height: 8),
                             Row(
                               children: [
                                 // Category badge
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
                                     widget.script.category,
                                     style: TextStyle(
-                                      color: Theme.of(context).colorScheme.onPrimary,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -152,7 +195,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                 // Price
                                 if (widget.script.price > 0)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.green[100],
                                       borderRadius: BorderRadius.circular(12),
@@ -168,7 +212,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                   )
                                 else
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.blue[100],
                                       borderRadius: BorderRadius.circular(12),
@@ -189,13 +234,16 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.star, size: 16, color: Colors.amber),
+                                    const Icon(Icons.star,
+                                        size: 16, color: Colors.amber),
                                     const SizedBox(width: 2),
                                     Text(
                                       widget.script.rating > 0
-                                          ? widget.script.rating.toStringAsFixed(1)
+                                          ? widget.script.rating
+                                              .toStringAsFixed(1)
                                           : 'No rating',
-                                      style: Theme.of(context).textTheme.bodySmall,
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
                                     ),
                                   ],
                                 ),
@@ -216,7 +264,18 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
 
                 // Content
                 Expanded(
-                  child: isNarrow ? _buildNarrowLayout() : _buildWideLayout(),
+                  child: Column(
+                    children: [
+                      _buildTabBar(),
+                      Expanded(
+                        child: _selectedTabIndex == 0
+                            ? (isNarrow
+                                ? _buildNarrowLayout()
+                                : _buildWideLayout())
+                            : _buildReviewsTab(),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -242,8 +301,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                   Text(
                     'Description',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -258,8 +317,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                   Text(
                     'Tags',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -279,17 +338,21 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                 Text(
                   'Code Preview',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outline
+                            .withValues(alpha: 0.2),
                       ),
                     ),
                     child: _isLoadingPreview
@@ -303,7 +366,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                   child: Text(
                                     _previewError!,
                                     style: TextStyle(
-                                      color: Theme.of(context).colorScheme.error,
+                                      color:
+                                          Theme.of(context).colorScheme.error,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -314,9 +378,13 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                 children: [
                                   // Preview header
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
                                     decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest
+                                          .withValues(alpha: 0.5),
                                       borderRadius: const BorderRadius.only(
                                         topLeft: Radius.circular(8),
                                         topRight: Radius.circular(8),
@@ -326,19 +394,27 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                       children: [
                                         Text(
                                           'Lua',
-                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                         ),
                                         const Spacer(),
                                         IconButton(
                                           onPressed: () {
-                                            Clipboard.setData(ClipboardData(text: _scriptPreview ?? ''));
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Preview copied to clipboard')),
+                                            Clipboard.setData(ClipboardData(
+                                                text: _scriptPreview ?? ''));
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                  content: Text(
+                                                      'Preview copied to clipboard')),
                                             );
                                           },
-                                          icon: const Icon(Icons.copy, size: 16),
+                                          icon:
+                                              const Icon(Icons.copy, size: 16),
                                           visualDensity: VisualDensity.compact,
                                           tooltip: 'Copy preview',
                                         ),
@@ -352,9 +428,12 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                       padding: const EdgeInsets.all(12),
                                       child: SelectableText(
                                         _scriptPreview ?? '',
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          fontFamily: 'monospace',
-                                        ),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              fontFamily: 'monospace',
+                                            ),
                                       ),
                                     ),
                                   ),
@@ -381,7 +460,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: widget.isDownloading ? null : widget.onDownload,
+                      onPressed:
+                          widget.isDownloading ? null : widget.onDownload,
                       icon: widget.isDownloading
                           ? const SizedBox(
                               width: 16,
@@ -392,7 +472,9 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                               ),
                             )
                           : Icon(
-                              widget.isDownloaded ? Icons.check_circle : Icons.download,
+                              widget.isDownloaded
+                                  ? Icons.check_circle
+                                  : Icons.download,
                               size: 20,
                             ),
                       label: Text(
@@ -486,8 +568,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                     Text(
                       '... and ${widget.script.canisterIds.length - 3} more',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontStyle: FontStyle.italic,
-                      ),
+                            fontStyle: FontStyle.italic,
+                          ),
                     ),
                 ],
               ],
@@ -520,7 +602,9 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                         ),
                       )
                     : Icon(
-                        widget.isDownloaded ? Icons.check_circle : Icons.download,
+                        widget.isDownloaded
+                            ? Icons.check_circle
+                            : Icons.download,
                         size: 20,
                       ),
                 label: Text(
@@ -552,8 +636,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             Text(
               'Description',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -568,8 +652,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             Text(
               'Tags',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -589,8 +673,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
           Text(
             'Statistics',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 12),
 
@@ -639,8 +723,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
           Text(
             'Code Preview',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           Container(
@@ -649,7 +733,10 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                color: Theme.of(context)
+                    .colorScheme
+                    .outline
+                    .withValues(alpha: 0.2),
               ),
             ),
             child: _isLoadingPreview
@@ -674,9 +761,13 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                         children: [
                           // Preview header
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
+                                  .withValues(alpha: 0.5),
                               borderRadius: const BorderRadius.only(
                                 topLeft: Radius.circular(8),
                                 topRight: Radius.circular(8),
@@ -686,16 +777,22 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                               children: [
                                 Text(
                                   'Lua',
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                 ),
                                 const Spacer(),
                                 IconButton(
                                   onPressed: () {
-                                    Clipboard.setData(ClipboardData(text: _scriptPreview ?? ''));
+                                    Clipboard.setData(ClipboardData(
+                                        text: _scriptPreview ?? ''));
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Preview copied to clipboard')),
+                                      const SnackBar(
+                                          content: Text(
+                                              'Preview copied to clipboard')),
                                     );
                                   },
                                   icon: const Icon(Icons.copy, size: 16),
@@ -712,9 +809,12 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                               padding: const EdgeInsets.all(12),
                               child: SelectableText(
                                 _scriptPreview ?? '',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontFamily: 'monospace',
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      fontFamily: 'monospace',
+                                    ),
                               ),
                             ),
                           ),
@@ -729,8 +829,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             Text(
               'Compatible Canisters',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             ...widget.script.canisterIds.take(3).map((canisterId) {
@@ -747,8 +847,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
               Text(
                 '... and ${widget.script.canisterIds.length - 3} more',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontStyle: FontStyle.italic,
-                ),
+                      fontStyle: FontStyle.italic,
+                    ),
               ),
           ],
         ],
@@ -756,7 +856,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     );
   }
 
-  Widget _buildStatItem(BuildContext context, String label, String value, IconData icon) {
+  Widget _buildStatItem(
+      BuildContext context, String label, String value, IconData icon) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -767,22 +868,25 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 ),
-              ),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -798,7 +902,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     } else if (difference.inDays > 30) {
       return '${(difference.inDays / 30).floor()} month${(difference.inDays / 30).floor() == 1 ? '' : 's'} ago';
     } else if (difference.inDays > 0) {
-      return '$difference.inDays day${difference.inDays == 1 ? '' : 's'} ago';
+      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
     } else if (difference.inHours > 0) {
       return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
     } else if (difference.inMinutes > 0) {
@@ -806,5 +910,302 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     } else {
       return 'Just now';
     }
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          _buildTab('Details', 0),
+          _buildTab('Reviews', 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, int index) {
+    final isSelected = _selectedTabIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedTabIndex = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewsTab() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildRatingSummary(),
+          const SizedBox(height: 20),
+          Expanded(
+            child: _buildReviewsList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingSummary() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Column(
+            children: [
+              Text(
+                widget.script.rating > 0
+                    ? widget.script.rating.toStringAsFixed(1)
+                    : '-',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < widget.script.rating.round()
+                        ? Icons.star
+                        : Icons.star_border,
+                    size: 16,
+                    color: Colors.amber,
+                  );
+                }),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${widget.script.reviewCount} reviews',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: _buildRatingDistribution(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingDistribution() {
+    final distribution = <int, int>{5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
+    for (final review in _reviews) {
+      if (review.rating >= 1 && review.rating <= 5) {
+        distribution[review.rating] = (distribution[review.rating] ?? 0) + 1;
+      }
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [5, 4, 3, 2, 1].map((star) {
+        final count = distribution[star] ?? 0;
+        final percentage = _reviews.isEmpty ? 0.0 : count / _reviews.length;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              Text(
+                '$star',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.star, size: 12, color: Colors.amber),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: percentage,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surfaceContainerHigh,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                    minHeight: 6,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 24,
+                child: Text(
+                  '$count',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildReviewsList() {
+    if (_isLoadingReviews) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_reviewsError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            _reviewsError!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    if (_reviews.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.rate_review_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No reviews yet',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Be the first to review this script!',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: _reviews.length,
+      separatorBuilder: (context, index) => const Divider(),
+      itemBuilder: (context, index) {
+        final review = _reviews[index];
+        return _buildReviewItem(review);
+      },
+    );
+  }
+
+  Widget _buildReviewItem(ScriptReview review) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < review.rating ? Icons.star : Icons.star_border,
+                    size: 16,
+                    color: Colors.amber,
+                  );
+                }),
+              ),
+              const SizedBox(width: 8),
+              if (review.isVerifiedPurchase) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.verified,
+                        size: 12,
+                        color: Colors.green[700],
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        'Verified',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              const Spacer(),
+              Text(
+                _formatDate(review.createdAt),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+          if (review.comment != null && review.comment!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              review.comment!,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

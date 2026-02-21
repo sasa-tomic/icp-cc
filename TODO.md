@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (late evening)
+**Last Updated:** 2026-02-22 (early morning)
 
 ## Current Focus
 
@@ -13,6 +13,10 @@
 - **NEW:** Prominent Publish Button - share icon on local scripts, dismissible banner
 - **NEW:** Passkey Quick Access - shows count in profile menu, highlights when no passkeys
 - **NEW:** Featured Scripts Section - horizontal scroll section at top of scripts screen
+- **NEW:** Script Reviews Tab - read-only reviews with rating distribution in ScriptDetailsDialog
+- **NEW:** Downloaded Filter - filter scripts by download status
+- **NEW:** Enhanced Quick Actions - gradient backgrounds, "See All" button, hover effects
+- **NEW:** Single-Page Script Creation - tabs removed, sticky create button
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
@@ -26,7 +30,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Expose hidden backend features (reviews, featured scripts, trending).
+**Next Wave:** Canister Client full-screen conversion, write reviews API (backend needed).
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -63,6 +67,10 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Profile Management | **COMPLETE** | 100% |
 | Navigation Labels (Explore) | **COMPLETE** | 100% |
 | Script Menu Reduction | **COMPLETE** | 100% |
+| **Script Reviews Tab** | **COMPLETE** | 100% |
+| **Downloaded Filter** | **COMPLETE** | 100% |
+| **Enhanced Quick Actions** | **COMPLETE** | 100% |
+| **Single-Page Script Creation** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -311,6 +319,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Publish Button tests (DONE - 11 tests - 2026-02-21)
 - [x] Profile Menu Passkey tests (DONE - 6 tests - 2026-02-21)
 - [x] Featured Section tests (DONE - 5 tests - 2026-02-21)
+- [x] Script Reviews tests (DONE - 8 tests - 2026-02-22)
+- [x] Downloaded Filter tests (DONE - 4 tests - 2026-02-22)
+- [x] Enhanced Quick Actions tests (DONE - 6 new tests, 15 total - 2026-02-22)
+- [x] Single-Page Script Creation tests (DONE - 11 tests - 2026-02-22)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
@@ -327,12 +339,15 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 ### Expose Hidden Backend Features
 
-**1. Script Reviews UI** ⭐ MEDIUM IMPACT, MEDIUM EFFORT
-- [ ] Add "Reviews" tab to ScriptDetailsDialog
-- [ ] Show rating distribution chart
-- [ ] Add "Write Review" button for downloaded scripts
+**1. Script Reviews UI** ✅ **DONE - 2026-02-22** (READ-ONLY)
+- [x] Add "Reviews" tab to ScriptDetailsDialog
+- [x] Show rating distribution chart (5→1 star bars)
+- [x] Display reviews with: stars, verified badge, comment, relative date
+- [x] Empty state when no reviews
+- **Note:** "Write Review" button NOT implemented (backend mutation API missing)
 - **Service:** `MarketplaceOpenApiService.getScriptReviews()`
-- **Impact:** Users can make informed decisions about scripts
+- **Test:** `test/features/marketplace/script_details_reviews_test.dart` (8 tests)
+- **Impact:** Users can see reviews to make informed download decisions
 
 **2. Featured/Trending Scripts** ✅ **DONE - 2026-02-21**
 - [x] Add "Featured" section to Scripts screen
@@ -354,16 +369,22 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Impact:** Makes publishing discoverable (was hidden in 3-dot menu)
 - **Files:** `lib/screens/scripts_screen.dart`, test: `test/features/scripts/publish_button_test.dart`
 
-**5. Download History Visibility** ⭐ MEDIUM IMPACT, LOW EFFORT
-- [ ] Add "Recent Downloads" section at top of Scripts list
-- [ ] Or add filter chip: "All | Local | Marketplace | Downloaded"
-- **Impact:** Users can find their downloaded scripts easily
+**5. Download History Visibility** ✅ **DONE - 2026-02-22**
+- [x] Add "Downloaded" filter chip to filter bottom sheet
+- [x] Filters scripts that were downloaded from marketplace
+- [x] Works with other filters (category, source, etc.)
+- **Test:** `test/features/scripts/downloaded_filter_test.dart` (4 tests)
+- **Impact:** Users can easily find scripts they've downloaded
 - **File:** `lib/screens/scripts_screen.dart`
 
-**6. Quick Actions Prominence** ⭐ MEDIUM IMPACT, LOW EFFORT
-- [ ] Make Quick Actions cards larger with gradient backgrounds
-- [ ] Add "See All" link to expanded view
-- **Impact:** Increases discoverability of ICP tools
+**6. Quick Actions Prominence** ✅ **DONE - 2026-02-22**
+- [x] Larger cards (min height 120px, padding 20px)
+- [x] Gradient backgrounds (primary color 0.05 → 0.02)
+- [x] "See All" button (shows "coming soon" snackbar)
+- [x] Hover effects (scale 1.02, opacity 0.9 on desktop)
+- [x] Better visual hierarchy (titleMedium, divider between title/description)
+- **Test:** `test/features/services/quick_actions_test.dart` (15 tests, 6 new)
+- **Impact:** More prominent ICP tool discovery
 - **File:** `lib/screens/bookmarks_screen.dart`
 
 **7. Passkey Quick Access** ✅ **DONE - 2026-02-21**
@@ -372,12 +393,14 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Impact:** Reduces friction to see passkey status, encourages setup
 - **Files:** `lib/widgets/profile_menu.dart`, test: `test/widgets/profile_menu_passkey_test.dart`
 
-**8. Single-Page Script Creation** ⭐ HIGH IMPACT, MEDIUM EFFORT
-- [ ] Remove tabs from ScriptCreationScreen
-- [ ] Single scrollable page with code editor at top
-- [ ] Template selection as prominent cards, not dropdown
-- [ ] "Create Script" as sticky bottom button
-- **Impact:** Simplifies script creation flow
+**8. Single-Page Script Creation** ✅ **DONE - 2026-02-22**
+- [x] Remove tabs from ScriptCreationScreen (was 2 tabs: Code/Details)
+- [x] Single scrollable page layout
+- [x] Template selection as prominent cards at top
+- [x] "Create Script" as sticky bottom button
+- [x] Reduced from 527 to 387 lines (27% reduction)
+- **Test:** `test/script_creation_screen_test.dart` (11 tests)
+- **Impact:** Simplifies script creation flow - no tab switching needed
 - **File:** `lib/screens/script_creation_screen.dart`
 
 **9. Canister Client as Full Screen** ⭐ MEDIUM IMPACT, MEDIUM EFFORT
@@ -395,10 +418,12 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 
 ## LOW Priority
 
-### Script Reviews (Backend)
+### Script Reviews (Backend) - Required for Write Review UI
+*Blocking: "Write Review" button in ScriptDetailsDialog*
 - [ ] `POST /api/v1/scripts/{id}/reviews` - Submit review
 - [ ] `PUT /api/v1/scripts/{id}/reviews/{reviewId}` - Update review
 - [ ] `DELETE /api/v1/scripts/{id}/reviews/{reviewId}` - Delete review
+- **Note:** Read-only reviews UI is complete. Write APIs needed for user review submission.
 
 ### Canister Interaction
 - [ ] Canister autocomplete/search by ID or name

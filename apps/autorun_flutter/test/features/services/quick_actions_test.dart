@@ -262,5 +262,125 @@ void main() {
       );
       expect(searchIcon, findsOneWidget);
     });
+
+    testWidgets('Quick action cards have gradient backgrounds', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: BookmarksScreen(
+            bridge: _FakeRustBridgeLoader(),
+            onOpenClient: (
+                {String? initialCanisterId,
+                String? initialMethodName}) async {},
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final balanceCard = find.byKey(const Key('quickAction_checkBalance'));
+      expect(balanceCard, findsOneWidget);
+
+      final containers = find.descendant(
+        of: balanceCard,
+        matching: find.byType(Container),
+      );
+      expect(containers, findsWidgets);
+
+      bool foundGradient = false;
+      for (var i = 0; i < containers.evaluate().length; i++) {
+        final container = tester.widget<Container>(containers.at(i));
+        if (container.decoration is BoxDecoration) {
+          final decoration = container.decoration as BoxDecoration;
+          if (decoration.gradient is LinearGradient) {
+            foundGradient = true;
+            break;
+          }
+        }
+      }
+      expect(foundGradient, isTrue);
+    });
+
+    testWidgets('Quick action cards meet minimum height of 120px',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: BookmarksScreen(
+            bridge: _FakeRustBridgeLoader(),
+            onOpenClient: (
+                {String? initialCanisterId,
+                String? initialMethodName}) async {},
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final balanceCard = find.byKey(const Key('quickAction_checkBalance'));
+      expect(balanceCard, findsOneWidget);
+
+      final cardSize = tester.getSize(balanceCard);
+      expect(cardSize.height, greaterThanOrEqualTo(120));
+    });
+
+    testWidgets('See All button is present and tappable', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: BookmarksScreen(
+            bridge: _FakeRustBridgeLoader(),
+            onOpenClient: (
+                {String? initialCanisterId,
+                String? initialMethodName}) async {},
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final seeAllButton = find.byKey(const Key('quickActions_seeAll'));
+      expect(seeAllButton, findsOneWidget);
+
+      await tester.tap(seeAllButton);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('See All button shows snackbar when tapped', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: BookmarksScreen(
+            bridge: _FakeRustBridgeLoader(),
+            onOpenClient: (
+                {String? initialCanisterId,
+                String? initialMethodName}) async {},
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('quickActions_seeAll')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('More actions coming soon'), findsOneWidget);
+    });
+
+    testWidgets('Quick action cards have divider between title and description',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: BookmarksScreen(
+            bridge: _FakeRustBridgeLoader(),
+            onOpenClient: (
+                {String? initialCanisterId,
+                String? initialMethodName}) async {},
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final balanceCard = find.byKey(const Key('quickAction_checkBalance'));
+      expect(balanceCard, findsOneWidget);
+
+      final divider = find.descendant(
+        of: balanceCard,
+        matching: find.byType(Divider),
+      );
+      expect(divider, findsOneWidget);
+    });
   });
 }

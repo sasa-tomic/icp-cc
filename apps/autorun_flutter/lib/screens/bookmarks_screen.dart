@@ -1314,6 +1314,25 @@ class _QuickActionsList extends StatelessWidget {
                 ],
               ),
             ),
+            TextButton(
+              key: const Key('quickActions_seeAll'),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('More actions coming soon'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: Text(
+                'See All',
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -1338,7 +1357,7 @@ class _QuickActionsList extends StatelessWidget {
 }
 
 /// Quick action card widget
-class _QuickActionCard extends StatelessWidget {
+class _QuickActionCard extends StatefulWidget {
   const _QuickActionCard({
     required this.action,
     required this.onTap,
@@ -1348,65 +1367,103 @@ class _QuickActionCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_QuickActionCard> createState() => _QuickActionCardState();
+}
+
+class _QuickActionCardState extends State<_QuickActionCard> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isExternal = action.type == QuickActionType.externalLink;
+    final isExternal = widget.action.type == QuickActionType.externalLink;
 
-    return Material(
-      key: Key('quickAction_${action.key}'),
-      elevation: 2,
-      borderRadius: BorderRadius.circular(16),
-      color: theme.colorScheme.surface,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          constraints: const BoxConstraints(minHeight: 100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      action.icon,
-                      color: theme.colorScheme.primary,
-                      size: 20,
-                    ),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedScale(
+        scale: _isHovered ? 1.02 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        child: AnimatedOpacity(
+          opacity: _isHovered ? 0.9 : 1.0,
+          duration: const Duration(milliseconds: 150),
+          child: Material(
+            key: Key('quickAction_${widget.action.key}'),
+            elevation: _isHovered ? 4 : 2,
+            borderRadius: BorderRadius.circular(16),
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                constraints: const BoxConstraints(minHeight: 120),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      theme.colorScheme.primary.withValues(alpha: 0.05),
+                      theme.colorScheme.primary.withValues(alpha: 0.02),
+                    ],
                   ),
-                  const Spacer(),
-                  if (isExternal)
-                    Icon(
-                      Icons.open_in_new,
-                      color: theme.colorScheme.onSurfaceVariant,
-                      size: 16,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            widget.action.icon,
+                            color: theme.colorScheme.primary,
+                            size: 22,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (isExternal)
+                          Icon(
+                            Icons.open_in_new,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            size: 16,
+                          ),
+                      ],
                     ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                action.label,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                    const SizedBox(height: 14),
+                    Text(
+                      widget.action.label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Divider(
+                      height: 1,
+                      thickness: 0.5,
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.15),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.action.description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                action.description,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
         ),
       ),

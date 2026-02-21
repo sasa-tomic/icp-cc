@@ -179,6 +179,25 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
       ) as _i4.Future<void>);
 
   @override
+  _i4.Future<void> recordScriptRun(String? id) => (super.noSuchMethod(
+        Invocation.method(
+          #recordScriptRun,
+          [id],
+        ),
+        returnValue: _i4.Future<void>.value(),
+        returnValueForMissingStub: _i4.Future<void>.value(),
+      ) as _i4.Future<void>);
+
+  @override
+  void dispose() => super.noSuchMethod(
+        Invocation.method(
+          #dispose,
+          [],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
   void addListener(_i5.VoidCallback? listener) => super.noSuchMethod(
         Invocation.method(
           #addListener,
@@ -192,15 +211,6 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
         Invocation.method(
           #removeListener,
           [listener],
-        ),
-        returnValueForMissingStub: null,
-      );
-
-  @override
-  void dispose() => super.noSuchMethod(
-        Invocation.method(
-          #dispose,
-          [],
         ),
         returnValueForMissingStub: null,
       );
@@ -275,6 +285,33 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
       ) as Map<String, dynamic>);
 
   @override
+  int get runCount => (super.noSuchMethod(
+        Invocation.getter(#runCount),
+        returnValue: 0,
+      ) as int);
+
+  @override
+  bool get isFromMarketplace => (super.noSuchMethod(
+        Invocation.getter(#isFromMarketplace),
+        returnValue: false,
+      ) as bool);
+
+  @override
+  _i2.ScriptRecord recordRun() => (super.noSuchMethod(
+        Invocation.method(
+          #recordRun,
+          [],
+        ),
+        returnValue: _FakeScriptRecord_0(
+          this,
+          Invocation.method(
+            #recordRun,
+            [],
+          ),
+        ),
+      ) as _i2.ScriptRecord);
+
+  @override
   Map<String, dynamic> toJson() => (super.noSuchMethod(
         Invocation.method(
           #toJson,
@@ -290,6 +327,9 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
     String? imageUrl,
     String? luaSource,
     DateTime? updatedAt,
+    Map<String, dynamic>? metadata,
+    int? runCount,
+    DateTime? lastRunAt,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -301,6 +341,9 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
             #imageUrl: imageUrl,
             #luaSource: luaSource,
             #updatedAt: updatedAt,
+            #metadata: metadata,
+            #runCount: runCount,
+            #lastRunAt: lastRunAt,
           },
         ),
         returnValue: _FakeScriptRecord_0(
@@ -314,6 +357,9 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
               #imageUrl: imageUrl,
               #luaSource: luaSource,
               #updatedAt: updatedAt,
+              #metadata: metadata,
+              #runCount: runCount,
+              #lastRunAt: lastRunAt,
             },
           ),
         ),

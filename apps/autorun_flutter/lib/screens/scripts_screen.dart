@@ -64,6 +64,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   String _searchQuery = '';
   ScriptSortOption _allScriptsSortOption = ScriptSortOption.lastRun;
   bool _allScriptsSortAscending = false;
+  bool _showDownloadedOnly = false;
   bool _shareBannerDismissed = false;
   static const _shareBannerDismissedKey = 'share_banner_dismissed';
 
@@ -746,11 +747,20 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       lastRunAt: lastRunMap,
     );
 
-    final sortedItems = ScriptListItem.sortItems(
+    var sortedItems = ScriptListItem.sortItems(
       hybridItems,
       _allScriptsSortOption,
       ascending: _allScriptsSortAscending,
     );
+
+    if (_showDownloadedOnly) {
+      sortedItems = sortedItems.where((item) {
+        if (item.source == ScriptSource.local && item.localScript != null) {
+          return item.localScript!.isFromMarketplace;
+        }
+        return item.isInstalled;
+      }).toList();
+    }
 
     final hasUnpublishableScripts =
         localScripts.any((s) => !_isPublishedToMarketplace(s));
@@ -1536,6 +1546,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     int count = 0;
     if (_selectedCategory != 'All') count++;
     if (_allScriptsSortOption != ScriptSortOption.lastRun) count++;
+    if (_showDownloadedOnly) count++;
     return count;
   }
 
@@ -1552,6 +1563,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         selectedCategory: _selectedCategory,
         sortOption: _allScriptsSortOption,
         sortAscending: _allScriptsSortAscending,
+        showDownloadedOnly: _showDownloadedOnly,
         onCategoryChanged: (category) {
           _onCategoryChanged(category);
           Navigator.of(context).pop();
@@ -1562,11 +1574,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             _allScriptsSortAscending = ascending;
           });
         },
+        onDownloadedFilterChanged: (value) {
+          setState(() {
+            _showDownloadedOnly = value;
+          });
+        },
         onReset: () {
           setState(() {
             _selectedCategory = 'All';
             _allScriptsSortOption = ScriptSortOption.lastRun;
             _allScriptsSortAscending = false;
+            _showDownloadedOnly = false;
           });
           Navigator.of(context).pop();
           _loadMarketplaceScripts();
@@ -2300,8 +2318,10 @@ class _FilterBottomSheet extends StatefulWidget {
     required this.selectedCategory,
     required this.sortOption,
     required this.sortAscending,
+    required this.showDownloadedOnly,
     required this.onCategoryChanged,
     required this.onSortChanged,
+    required this.onDownloadedFilterChanged,
     required this.onReset,
   });
 
@@ -2309,8 +2329,10 @@ class _FilterBottomSheet extends StatefulWidget {
   final String selectedCategory;
   final ScriptSortOption sortOption;
   final bool sortAscending;
+  final bool showDownloadedOnly;
   final ValueChanged<String> onCategoryChanged;
   final void Function(ScriptSortOption, bool) onSortChanged;
+  final ValueChanged<bool> onDownloadedFilterChanged;
   final VoidCallback onReset;
 
   @override
@@ -2321,6 +2343,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
   late String _selectedCategory;
   late ScriptSortOption _sortOption;
   late bool _sortAscending;
+  late bool _showDownloadedOnly;
 
   @override
   void initState() {
@@ -2328,6 +2351,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
     _selectedCategory = widget.selectedCategory;
     _sortOption = widget.sortOption;
     _sortAscending = widget.sortAscending;
+    _showDownloadedOnly = widget.showDownloadedOnly;
   }
 
   @override
@@ -2336,130 +2360,146 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle bar
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-
-          // Header with title and reset button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Filters',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              TextButton.icon(
-                onPressed: widget.onReset,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Reset'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Category section
-          Text(
-            'Category',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Filters',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: widget.categories.map((category) {
-              final isSelected = category == _selectedCategory;
-              return FilterChip(
-                label: Text(category),
-                selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedCategory = category;
-                  });
-                  widget.onCategoryChanged(category);
-                },
-                selectedColor: colorScheme.primaryContainer,
-                checkmarkColor: colorScheme.primary,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-
-          // Sort section
-          Text(
-            'Sort by',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
+                TextButton.icon(
+                  onPressed: widget.onReset,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reset'),
                 ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<ScriptSortOption>(
-                  value: _sortOption,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Category',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
                   ),
-                  items: ScriptSortOption.values
-                      .map((opt) => DropdownMenuItem(
-                            value: opt,
-                            child: Text(opt.label),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _sortOption = value;
-                      });
-                      widget.onSortChanged(_sortOption, _sortAscending);
-                    }
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: widget.categories.map((category) {
+                final isSelected = category == _selectedCategory;
+                return FilterChip(
+                  label: Text(category),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedCategory = category;
+                    });
+                    widget.onCategoryChanged(category);
                   },
+                  selectedColor: colorScheme.primaryContainer,
+                  checkmarkColor: colorScheme.primary,
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Source',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            FilterChip(
+              label: const Text('Downloaded'),
+              selected: _showDownloadedOnly,
+              onSelected: (selected) {
+                setState(() {
+                  _showDownloadedOnly = selected;
+                });
+                widget.onDownloadedFilterChanged(selected);
+              },
+              selectedColor: colorScheme.primaryContainer,
+              checkmarkColor: colorScheme.primary,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Sort by',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<ScriptSortOption>(
+                    value: _sortOption,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    items: ScriptSortOption.values
+                        .map((opt) => DropdownMenuItem(
+                              value: opt,
+                              child: Text(opt.label),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _sortOption = value;
+                        });
+                        widget.onSortChanged(_sortOption, _sortAscending);
+                      }
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _sortAscending = !_sortAscending;
-                  });
-                  widget.onSortChanged(_sortOption, _sortAscending);
-                },
-                icon: Icon(
-                  _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _sortAscending = !_sortAscending;
+                    });
+                    widget.onSortChanged(_sortOption, _sortAscending);
+                  },
+                  icon: Icon(
+                    _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                  ),
+                  tooltip: _sortAscending ? 'Ascending' : 'Descending',
+                  style: IconButton.styleFrom(
+                    backgroundColor: colorScheme.surfaceContainerHighest,
+                  ),
                 ),
-                tooltip: _sortAscending ? 'Ascending' : 'Descending',
-                style: IconButton.styleFrom(
-                  backgroundColor: colorScheme.surfaceContainerHighest,
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
