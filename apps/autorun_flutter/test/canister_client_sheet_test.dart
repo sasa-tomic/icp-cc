@@ -96,27 +96,6 @@ void main() {
       expect(textField.decoration?.labelText, 'Canister');
     });
 
-    testWidgets('advanced options are collapsed by default in ready state',
-        (tester) async {
-      await pumpSheet(tester);
-
-      await tester.enterText(
-        find.byKey(const Key('canisterField')),
-        'ryjl3-tyaaa-aaaaa-aaaba-cai',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('methodChip_account_balance_dfx')));
-      await tester.pumpAndSettle();
-
-      final advancedTile = find.byKey(const Key('advancedOptionsTile'));
-      expect(advancedTile, findsOneWidget);
-
-      final expansionTile = tester.widget<ExpansionTile>(advancedTile);
-      expect(expansionTile.initiallyExpanded, isFalse);
-    });
-
     testWidgets('method chips appear after connecting to canister',
         (tester) async {
       await pumpSheet(tester);
@@ -131,6 +110,24 @@ void main() {
       expect(find.byKey(const Key('methodChip_account_balance_dfx')),
           findsOneWidget);
       expect(find.byKey(const Key('methodChip_transfer')), findsOneWidget);
+    });
+
+    testWidgets('advanced options are not shown in ready state',
+        (tester) async {
+      await pumpSheet(tester);
+
+      await tester.enterText(
+        find.byKey(const Key('canisterField')),
+        'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('methodChip_account_balance_dfx')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('advancedOptionsTile')), findsNothing);
+      expect(find.text('Advanced Options'), findsNothing);
     });
 
     testWidgets('shows friendly error for invalid canister', (tester) async {

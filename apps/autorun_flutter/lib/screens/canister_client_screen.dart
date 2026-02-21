@@ -38,10 +38,7 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
   _ClientStep _currentStep = _ClientStep.canister;
   final TextEditingController _canisterController = TextEditingController();
   final FocusNode _canisterFocusNode = FocusNode();
-  final TextEditingController _hostController =
-      TextEditingController(text: 'https://ic0.app');
   final TextEditingController _methodController = TextEditingController();
-  final TextEditingController _keypairKeyController = TextEditingController();
   int _selectedKind = 0;
   final TextEditingController _jsonArgsController = TextEditingController();
   bool _useAutoForm = true;
@@ -75,9 +72,7 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
   void dispose() {
     _canisterController.dispose();
     _canisterFocusNode.dispose();
-    _hostController.dispose();
     _methodController.dispose();
-    _keypairKeyController.dispose();
     _jsonArgsController.removeListener(_onArgsChanged);
     _jsonArgsController.dispose();
     super.dispose();
@@ -144,9 +139,6 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
     try {
       final String? did = await widget.bridge.fetchCandid(
         canisterId: cid,
-        host: _hostController.text.trim().isEmpty
-            ? null
-            : _hostController.text.trim(),
       );
       if (did == null || did.trim().isEmpty) {
         if (!mounted) return;
@@ -259,33 +251,17 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
           .showSnackBar(const SnackBar(content: Text('Please provide input')));
       return;
     }
-    final String? host = _hostController.text.trim().isEmpty
-        ? null
-        : _hostController.text.trim();
-    final String key = _keypairKeyController.text.trim();
     String? out;
     CallType callType = _selectedKind == 1
         ? CallType.update
         : (_selectedKind == 2 ? CallType.compositeQuery : CallType.query);
     try {
-      if (key.isEmpty) {
-        out = widget.bridge.callAnonymous(
-          canisterId: cid,
-          method: method,
-          kind: _selectedKind,
-          args: args,
-          host: host,
-        );
-      } else {
-        out = widget.bridge.callAuthenticated(
-          canisterId: cid,
-          method: method,
-          kind: _selectedKind,
-          privateKeyB64: key,
-          args: args,
-          host: host,
-        );
-      }
+      out = widget.bridge.callAnonymous(
+        canisterId: cid,
+        method: method,
+        kind: _selectedKind,
+        args: args,
+      );
       setState(() {
         final raw = out ?? '';
         _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
@@ -896,8 +872,6 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
         const SizedBox(height: 16),
         _buildInputSection(theme),
         const SizedBox(height: 16),
-        _buildAdvancedOptions(theme),
-        const SizedBox(height: 16),
         _buildCallInfo(theme),
         if ((_resultJson ?? '').isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -979,58 +953,6 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
                       ))
                   .toList(),
             ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildAdvancedOptions(ThemeData theme) {
-    return ExpansionTile(
-      key: const Key('advancedOptionsTile'),
-      title: const Text('Advanced Options'),
-      subtitle: const Text('Custom host, authentication, raw Candid'),
-      initiallyExpanded: false,
-      children: <Widget>[
-        const SizedBox(height: 8),
-        TextField(
-          controller: _hostController,
-          decoration: const InputDecoration(
-            labelText: 'Custom Host',
-            hintText: 'https://ic0.app (default)',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _keypairKeyController,
-          decoration: const InputDecoration(
-            labelText: 'Private Key (for authenticated calls)',
-            border: OutlineInputBorder(),
-          ),
-          minLines: 1,
-          maxLines: 3,
-        ),
-        if (_candidRaw != null) ...[
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.code, size: 18),
-            label: const Text('View Raw Candid'),
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Candid Interface'),
-                  content:
-                      SingleChildScrollView(child: SelectableText(_candidRaw!)),
-                  actions: <Widget>[
-                    TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Close')),
-                  ],
-                ),
-              );
-            },
           ),
         ],
       ],

@@ -9,9 +9,8 @@ import 'package:icp_autorun/services/spotlight_service.dart';
 /// These tests verify that the streamlined onboarding flow works correctly:
 /// 1. First launch: QuickProfileCreationDialog (name entry)
 /// 2. After profile created: Show main app immediately (no dialogs!)
-/// 3. PostSetupGuide delayed until 5s OR first meaningful action
-/// 4. SpotlightTour: Only trigger from "Restart Tour" in Settings
-/// 5. GettingStartedCard: Only show AFTER first script interaction
+/// 3. SpotlightTour: Only trigger from "Restart Tour" in Settings
+/// 4. GettingStartedCard: Only show AFTER first script interaction
 void main() {
   group('Consolidated Onboarding Flow', () {
     late OnboardingService onboardingService;
@@ -52,16 +51,6 @@ void main() {
     });
 
     group('Phase 2: After Profile Creation', () {
-      test('PostSetupGuide is NOT ready immediately after profile creation',
-          () async {
-        // User just created profile - hasn't seen app yet
-        final ready = await onboardingService.isPostSetupGuideReady();
-
-        expect(ready, isFalse,
-            reason:
-                'PostSetupGuide should NOT show immediately after profile creation');
-      });
-
       test('GettingStartedCard is NOT shown immediately after profile creation',
           () async {
         // User just created profile - no script interaction yet
@@ -83,40 +72,9 @@ void main() {
       });
     });
 
-    group('Phase 3: PostSetupGuide Timing', () {
-      test('becomes ready after first meaningful action', () async {
-        await onboardingService.recordFirstMeaningfulAction();
-
-        final ready = await onboardingService.isPostSetupGuideReady();
-
-        expect(ready, isTrue,
-            reason:
-                'PostSetupGuide should be ready after first meaningful action');
-      });
-
-      test('becomes ready after 5 second delay', () async {
-        await onboardingService.markAppUsable();
-
-        // Simulate 5+ seconds passing
-        final prefs = await SharedPreferences.getInstance();
-        final fiveSecondsAgo = DateTime.now()
-            .subtract(const Duration(seconds: 5))
-            .millisecondsSinceEpoch;
-        await prefs.setInt('app_usable_since', fiveSecondsAgo);
-
-        final ready = await onboardingService.isPostSetupGuideReady();
-
-        expect(ready, isTrue,
-            reason: 'PostSetupGuide should be ready after 5 second delay');
-      });
-    });
-
-    group('Phase 4: GettingStartedCard Timing', () {
+    group('Phase 3: GettingStartedCard Timing', () {
       test('does NOT show before first script interaction', () async {
         // Even if user has done other things, no GettingStartedCard yet
-        await onboardingService.markAppUsable();
-        await onboardingService.recordFirstMeaningfulAction();
-
         final hasInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final shouldShowGuide = await progressService.shouldShowGuide();
@@ -157,12 +115,8 @@ void main() {
       });
     });
 
-    group('Phase 5: SpotlightTour is Opt-In', () {
+    group('Phase 4: SpotlightTour is Opt-In', () {
       test('does NOT auto-start even for brand new users', () async {
-        // Even after profile creation and meaningful action
-        await onboardingService.markAppUsable();
-        await onboardingService.recordFirstMeaningfulAction();
-
         final shouldShow = await spotlightService.shouldShowTour();
 
         expect(shouldShow, isFalse,
@@ -205,17 +159,14 @@ void main() {
     group('No Overlapping Onboarding', () {
       test('at most one major onboarding UI should be visible', () async {
         // After profile creation:
-        // - PostSetupGuide: NOT ready yet (no action, no delay)
         // - GettingStartedCard: NOT ready yet (no script interaction)
         // - SpotlightTour: NOT ready (opt-in only)
 
-        final postSetupReady = await onboardingService.isPostSetupGuideReady();
         final hasScriptInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final spotlightReady = await spotlightService.shouldShowTour();
 
         final visibleCount = [
-          postSetupReady,
           hasScriptInteraction && await progressService.shouldShowGuide(),
           spotlightReady,
         ].where((v) => v).length;
@@ -228,23 +179,11 @@ void main() {
       test('after first script: only GettingStartedCard shows (not Spotlight)',
           () async {
         await progressService.recordFirstScriptInteraction();
-        await onboardingService.markAppUsable();
-        await onboardingService.recordFirstMeaningfulAction();
 
-        // Simulate 5 seconds passing
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt(
-            'app_usable_since',
-            DateTime.now()
-                .subtract(const Duration(seconds: 5))
-                .millisecondsSinceEpoch);
-
-        final postSetupReady = await onboardingService.isPostSetupGuideReady();
         final hasScriptInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final spotlightReady = await spotlightService.shouldShowTour();
 
-        // PostSetupGuide: may be ready (after action/delay)
         // GettingStartedCard: ready (after script interaction)
         // SpotlightTour: NOT ready (opt-in only)
 
@@ -253,10 +192,6 @@ void main() {
 
         expect(hasScriptInteraction, isTrue,
             reason: 'Script interaction should be recorded');
-
-        // Both PostSetupGuide and GettingStartedCard can coexist
-        // but they are shown at different times in the UI flow
-        expect(postSetupReady || hasScriptInteraction, isTrue);
       });
     });
 
@@ -264,9 +199,6 @@ void main() {
       test('resetOnboarding clears all onboarding state', () async {
         // Set up some state
         await onboardingService.markOnboardingShown();
-        await onboardingService.markAppUsable();
-        await onboardingService.recordFirstMeaningfulAction();
-        await onboardingService.markPostSetupGuideShown();
         await progressService.recordFirstScriptInteraction();
         await spotlightService.completeTour();
 
@@ -281,13 +213,11 @@ void main() {
           hasProfiles: false,
           hasScripts: false,
         );
-        final postSetupReady = await onboardingService.isPostSetupGuideReady();
         final hasInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final spotlightCompleted = await spotlightService.isCompleted();
 
         expect(shouldShowOnboarding, isTrue);
-        expect(postSetupReady, isFalse);
         expect(hasInteraction, isFalse);
         expect(spotlightCompleted, isFalse);
       });

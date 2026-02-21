@@ -234,27 +234,18 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       bool hasAccount, int profileCount) {
     return Column(
       children: [
-        // My Identity (local profile editing)
-        if (hasAccount && _activeAccount != null && profile != null)
+        // Unified Account item (replaces My Identity + Register Username)
+        if (profile != null)
           _MenuTile(
-            icon: Icons.person,
-            label: 'My Identity',
-            subtitle: 'Your local profile (stored on device)',
-            tooltip: 'Your identity is stored locally on this device. '
-                'To share scripts publicly, register a cloud username.',
-            onTap: () => _handleAction(ProfileMenuAction.editProfile),
-          ),
-        // Register Username (cloud account creation)
-        if (!hasAccount && profile != null)
-          _MenuTile(
-            icon: Icons.cloud_upload_outlined,
-            label: 'Register Username',
-            subtitle: 'Get @username to publish to marketplace',
-            tooltip:
-                'A cloud username lets you share scripts publicly on the marketplace. '
-                'Your local identity remains on this device.',
-            onTap: () => _handleAction(ProfileMenuAction.createAccount),
-            highlight: true,
+            icon: hasAccount ? Icons.person : Icons.cloud,
+            label: hasAccount ? 'Manage Account' : 'Register @username',
+            subtitle: hasAccount
+                ? '@${profile.username}'
+                : 'Get a username to publish scripts',
+            onTap: () => _handleAction(hasAccount
+                ? ProfileMenuAction.editProfile
+                : ProfileMenuAction.createAccount),
+            highlight: !hasAccount,
           ),
         // Passkeys
         if (hasAccount && _activeAccount != null)

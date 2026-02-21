@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
@@ -112,10 +111,6 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        _QuickActionsList(
-                          onOpenClient: widget.onOpenClient,
-                        ),
-                        const SizedBox(height: 32),
                         Container(
                           key: _popularCanistersKey,
                           child: _buildSectionHeader(
@@ -308,10 +303,7 @@ class CanisterClientSheet extends StatefulWidget {
 class _CanisterClientSheetState extends State<CanisterClientSheet> {
   _ClientFlowState _flowState = _ClientFlowState.disconnected;
   final TextEditingController _canisterController = TextEditingController();
-  final TextEditingController _hostController =
-      TextEditingController(text: 'https://ic0.app');
   final TextEditingController _methodController = TextEditingController();
-  final TextEditingController _keypairKeyController = TextEditingController();
   int _selectedKind = 0;
   final TextEditingController _jsonArgsController = TextEditingController();
   bool _useAutoForm = true;
@@ -343,9 +335,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   @override
   void dispose() {
     _canisterController.dispose();
-    _hostController.dispose();
     _methodController.dispose();
-    _keypairKeyController.dispose();
     _jsonArgsController.removeListener(_onArgsChanged);
     _jsonArgsController.dispose();
     super.dispose();
@@ -408,9 +398,6 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     try {
       final String? did = await widget.bridge.fetchCandid(
         canisterId: cid,
-        host: _hostController.text.trim().isEmpty
-            ? null
-            : _hostController.text.trim(),
       );
       if (did == null || did.trim().isEmpty) {
         if (!mounted) return;
@@ -525,29 +512,13 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           .showSnackBar(const SnackBar(content: Text('Please provide input')));
       return;
     }
-    final String? host = _hostController.text.trim().isEmpty
-        ? null
-        : _hostController.text.trim();
-    final String key = _keypairKeyController.text.trim();
     String? out;
-    if (key.isEmpty) {
-      out = widget.bridge.callAnonymous(
-        canisterId: cid,
-        method: method,
-        kind: _selectedKind,
-        args: args,
-        host: host,
-      );
-    } else {
-      out = widget.bridge.callAuthenticated(
-        canisterId: cid,
-        method: method,
-        kind: _selectedKind,
-        privateKeyB64: key,
-        args: args,
-        host: host,
-      );
-    }
+    out = widget.bridge.callAnonymous(
+      canisterId: cid,
+      method: method,
+      kind: _selectedKind,
+      args: args,
+    );
     setState(() {
       final raw = out ?? '';
       _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
@@ -638,8 +609,6 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           if (_flowState == _ClientFlowState.ready) ...[
             const SizedBox(height: 16),
             _buildInputSection(theme, isCompactScreen),
-            const SizedBox(height: 16),
-            _buildAdvancedOptions(theme, isCompactScreen),
             const SizedBox(height: 16),
             _buildCallButton(theme, isCompactScreen),
           ],
@@ -817,58 +786,6 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                       ))
                   .toList(),
             ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildAdvancedOptions(ThemeData theme, bool isCompact) {
-    return ExpansionTile(
-      key: const Key('advancedOptionsTile'),
-      title: const Text('Advanced Options'),
-      subtitle: const Text('Custom host, authentication, raw Candid'),
-      initiallyExpanded: false,
-      children: <Widget>[
-        const SizedBox(height: 8),
-        TextField(
-          controller: _hostController,
-          decoration: const InputDecoration(
-            labelText: 'Custom Host',
-            hintText: 'https://ic0.app (default)',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _keypairKeyController,
-          decoration: const InputDecoration(
-            labelText: 'Private Key (for authenticated calls)',
-            border: OutlineInputBorder(),
-          ),
-          minLines: 1,
-          maxLines: 3,
-        ),
-        if (_candidRaw != null) ...[
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.code, size: 18),
-            label: const Text('View Raw Candid'),
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Candid Interface'),
-                  content:
-                      SingleChildScrollView(child: SelectableText(_candidRaw!)),
-                  actions: <Widget>[
-                    TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Close')),
-                  ],
-                ),
-              );
-            },
           ),
         ],
       ],
@@ -1194,293 +1111,6 @@ class _ArgsEditorState extends State<_ArgsEditor> {
           },
         );
       },
-    );
-  }
-}
-
-/// Quick Action types for one-tap operations
-enum QuickActionType { openCanister, externalLink }
-
-/// Represents a quick action card that can perform common tasks
-class QuickAction {
-  const QuickAction({
-    required this.key,
-    required this.label,
-    required this.description,
-    required this.icon,
-    required this.type,
-    this.canisterId,
-    this.method,
-    this.url,
-  });
-
-  final String key;
-  final String label;
-  final String description;
-  final IconData icon;
-  final QuickActionType type;
-  final String? canisterId;
-  final String? method;
-  final String? url;
-}
-
-/// Quick Actions list at the top of Services screen
-class _QuickActionsList extends StatelessWidget {
-  const _QuickActionsList({required this.onOpenClient});
-
-  final Future<void> Function(
-      {String? initialCanisterId, String? initialMethodName}) onOpenClient;
-
-  static const List<QuickAction> _actions = <QuickAction>[
-    QuickAction(
-      key: 'checkBalance',
-      label: 'Check ICP Balance',
-      description: 'Check your token balance',
-      icon: Icons.account_balance_wallet_rounded,
-      type: QuickActionType.openCanister,
-      canisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
-      method: 'account_balance_dfx',
-    ),
-    QuickAction(
-      key: 'viewNeurons',
-      label: 'View Neurons',
-      description: 'See your voting power in governance',
-      icon: Icons.how_to_vote_rounded,
-      type: QuickActionType.openCanister,
-      canisterId: 'rrkah-fqaaa-aaaaa-aaaaq-cai',
-      method: 'list_neurons',
-    ),
-    QuickAction(
-      key: 'searchDapps',
-      label: 'Search Dapps',
-      description: 'Find apps on the Internet Computer',
-      icon: Icons.search_rounded,
-      type: QuickActionType.externalLink,
-      url: 'https://kinic.io',
-    ),
-  ];
-
-  Future<void> _handleAction(BuildContext context, QuickAction action) async {
-    HapticFeedback.lightImpact();
-
-    switch (action.type) {
-      case QuickActionType.openCanister:
-        await onOpenClient(
-          initialCanisterId: action.canisterId,
-          initialMethodName: action.method,
-        );
-      case QuickActionType.externalLink:
-        if (action.url != null) {
-          final uri = Uri.parse(action.url!);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, webOnlyWindowName: '_blank');
-          }
-        }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    theme.colorScheme.primary.withValues(alpha: 0.2),
-                    theme.colorScheme.secondary.withValues(alpha: 0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.flash_on_rounded,
-                color: theme.colorScheme.primary,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Quick Actions',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  Text(
-                    'One-tap access to common tasks',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            TextButton(
-              key: const Key('quickActions_seeAll'),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('More actions coming soon'),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              child: Text(
-                'See All',
-                style: TextStyle(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: _actions.map((action) {
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  right: action == _actions.last ? 0 : 12,
-                ),
-                child: _QuickActionCard(
-                  action: action,
-                  onTap: () => _handleAction(context, action),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-/// Quick action card widget
-class _QuickActionCard extends StatefulWidget {
-  const _QuickActionCard({
-    required this.action,
-    required this.onTap,
-  });
-
-  final QuickAction action;
-  final VoidCallback onTap;
-
-  @override
-  State<_QuickActionCard> createState() => _QuickActionCardState();
-}
-
-class _QuickActionCardState extends State<_QuickActionCard> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isExternal = widget.action.type == QuickActionType.externalLink;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedScale(
-        scale: _isHovered ? 1.02 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        child: AnimatedOpacity(
-          opacity: _isHovered ? 0.9 : 1.0,
-          duration: const Duration(milliseconds: 150),
-          child: Material(
-            key: Key('quickAction_${widget.action.key}'),
-            elevation: _isHovered ? 4 : 2,
-            borderRadius: BorderRadius.circular(16),
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.onTap,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                constraints: const BoxConstraints(minHeight: 120),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.colorScheme.primary.withValues(alpha: 0.05),
-                      theme.colorScheme.primary.withValues(alpha: 0.02),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary
-                                .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            widget.action.icon,
-                            color: theme.colorScheme.primary,
-                            size: 22,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (isExternal)
-                          Icon(
-                            Icons.open_in_new,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            size: 16,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      widget.action.label,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Divider(
-                      height: 1,
-                      thickness: 0.5,
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.15),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.action.description,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

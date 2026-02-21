@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-23 (Phase 8 - UX Simplification Wave 10)
+**Last Updated:** 2026-02-23 (Phase 8 - UX Simplification Wave 11)
 
 ## Current Focus
 
@@ -63,7 +63,7 @@
 - **NEW:** Canister Interaction History - save/replay recent canister calls
 - **NEW:** Long-press Context Menu - quick actions on script cards (mobile + desktop)
 - **NEW:** Downloaded Filter - filter scripts by download status
-- **NEW:** Enhanced Quick Actions - gradient backgrounds, "See All" button, hover effects
+- ~~**NEW:** Enhanced Quick Actions~~ - **REMOVED in Wave 11** (dead-end "See All" button)
 - **NEW:** Single-Page Script Creation - tabs removed, sticky create button
 - **NEW:** Canister Client Full Screen - 3-step flow (Canister → Function → Call)
 - **NEW:** Response Format Toggle - JSON/Table/Raw view selector for results
@@ -76,17 +76,15 @@
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
-- Post-setup guide for new users
 - Keyboard shortcuts for desktop
 - Simplified Canister Client Sheet
 - Technical term tooltips
 - Script menu reduced to 5 local / 2 marketplace options
 - Consolidated Scripts Screen controls (4 rows → 1)
-- Quick Actions on Explore screen (ICP Balance, View Neurons, Search Dapps)
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Remaining UX items: Merge Bookmarks + Canister Client (POC complete, 6-8hr estimate), write reviews API (backend needed), script automation/scheduler, and see Wave 11 candidates below.
+**Next Wave:** Remaining UX items: Merge Bookmarks + Canister Client (POC complete, 6-8hr estimate), collapse 3-step Canister wizard (4-6hr), write reviews API (backend needed), script automation/scheduler.
 
 **Recently Completed (Wave 10 - 2026-02-23):**
 - ✅ Smart Candid Forms - Auto-generated form fields from Candid types (19 tests)
@@ -94,16 +92,22 @@
 - ✅ Selection Mode Removed - Eliminated undiscoverable bulk selection (24 tests, -764 lines)
 - ✅ Tab Rename - "Canisters" → "Explore ICP Services" (6 tests)
 
-**Wave 11 Candidates (from UX Analysis):**
-| # | Improvement | Impact | Effort | ROI |
-|---|-------------|--------|--------|-----|
-| 1 | Collapse 3-step Canister wizard to single screen | 7 | 6 | 7 |
-| 2 | Simplify profile menu (merge "My Identity" + "Register Username") | 7 | 3 | 7 |
-| 3 | Collapse account security section (merge Passkeys + Keys) | 7 | 4 | 5 |
-| 4 | Remove Quick Actions section from Explore screen | 6 | 2 | 3 |
-| 5 | Remove Advanced Options expansion from Canister Client | 6 | 1 | 3 |
-| 6 | Remove filter chip badges | 5 | 2 | 2.5 |
-| 7 | Remove recent searches dropdown | 4 | 1 | 2 |
+**Wave 11 COMPLETE (2026-02-23):** -1774 lines
+- ✅ Unified Account Menu - Merged "My Identity" + "Register Username" into single context-aware item (7 tests)
+- ✅ Quick Actions Removed - Eliminated dead-end "See All" button and redundant section (-591 lines)
+- ✅ Advanced Options Removed - Eliminated unused custom host/key options from Canister Client (~130 lines)
+- ✅ PostSetupGuide Removed - Consolidated onboarding from 4 systems to 3 (-807 lines)
+
+**Wave 11 Status:**
+| # | Improvement | Status | Notes |
+|---|-------------|--------|-------|
+| 1 | Collapse 3-step Canister wizard to single screen | PENDING | 4-6 hrs, defer to Wave 12 |
+| 2 | Simplify profile menu (merge "My Identity" + "Register Username") | ✅ DONE | Unified "Account" item |
+| 3 | Collapse account security section (merge Passkeys + Keys) | ✅ ALREADY DONE | Wave 9 |
+| 4 | Remove Quick Actions section from Explore screen | ✅ DONE | -591 lines |
+| 5 | Remove Advanced Options expansion from Canister Client | ✅ DONE | ~130 lines |
+| 6 | Remove filter chip badges | PENDING | Low priority |
+| 7 | Remove recent searches dropdown | PENDING | Low priority |
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -120,7 +124,7 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Consolidated Scripts Controls | **COMPLETE** | 100% |
 | Single-Tap Script Execution | **COMPLETE** | 100% |
 | Editor Toolbar Cleanup | **COMPLETE** | 100% |
-| Services Quick Actions | **COMPLETE** | 100% |
+| ~~Services Quick Actions~~ | **REMOVED** | N/A |
 | Script Execution Progress | **COMPLETE** | 100% |
 | Pull-to-Refresh | **COMPLETE** | 100% |
 | Prominent Publish Button | **COMPLETE** | 100% |
@@ -133,7 +137,7 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Enhanced Empty States | **COMPLETE** | 100% |
 | Encrypted Backup/Restore | **COMPLETE** | 100% |
 | Download History Navigation | **COMPLETE** | 100% |
-| Post-Setup Guide | **COMPLETE** | 100% |
+| ~~Post-Setup Guide~~ | **REMOVED** | N/A |
 | Keyboard Shortcuts | **COMPLETE** | 100% |
 | Canister Client UX | **COMPLETE** | 100% |
 | Technical Term Tooltips | **COMPLETE** | 100% |
@@ -142,7 +146,7 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | Script Menu Reduction | **COMPLETE** | 100% |
 | **Script Reviews Tab** | **COMPLETE** | 100% |
 | **Downloaded Filter** | **COMPLETE** | 100% |
-| **Enhanced Quick Actions** | **COMPLETE** | 100% |
+| ~~Enhanced Quick Actions~~ | **REMOVED** | N/A |
 | **Single-Page Script Creation** | **COMPLETE** | 100% |
 | **Canister Client Full Screen** | **COMPLETE** | 100% |
 | **Response Format Toggle** | **COMPLETE** | 100% |

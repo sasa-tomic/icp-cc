@@ -104,137 +104,57 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    group('Clear terminology for local identity (Profile)', () {
+    group('Clear terminology for Account management (unified)', () {
       testWidgets(
-          'shows "My Identity" label for editing local profile (not "Edit Profile")',
+          'shows unified "Manage Account" for users with account with @username subtitle',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
-        // Should NOT show confusing "Edit Profile" label
-        expect(find.text('Edit Profile'), findsNothing,
+        expect(find.text('Manage Account'), findsOneWidget,
             reason:
-                '"Edit Profile" is confusing - users don\'t understand it\'s local-only');
+                'Unified "Manage Account" item should be visible for users with account');
 
-        // Should show clearer "My Identity" label
-        expect(find.text('My Identity'), findsOneWidget,
-            reason:
-                '"My Identity" clearly indicates this is your local identity');
+        expect(find.text('@testuser'), findsOneWidget,
+            reason: 'Should show @username as subtitle');
       });
 
       testWidgets(
-          'shows helpful subtitle explaining local identity is stored locally',
+          'shows unified "Register @username" for users without account',
           (WidgetTester tester) async {
-        await pumpProfileMenuWithAccount(tester, hasAccount: true);
+        await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        // Should have subtitle explaining it's local
-        expect(find.textContaining('local'), findsOneWidget,
-            reason: 'Subtitle should explain this is stored locally on device');
+        expect(find.text('Register @username'), findsOneWidget,
+            reason:
+                'Unified "Register @username" item should be visible for users without account');
+      });
+
+      testWidgets(
+          'shows helpful subtitle explaining registration is for publishing',
+          (WidgetTester tester) async {
+        await pumpProfileMenuWithAccount(tester, hasAccount: false);
+
+        expect(find.text('Get a username to publish scripts'), findsOneWidget,
+            reason:
+                'Subtitle should explain username is for publishing scripts');
       });
     });
 
-    group('Clear terminology for cloud registration (Account)', () {
-      testWidgets(
-          'shows "Register Username" label for creating cloud account (not "Create Account")',
-          (WidgetTester tester) async {
-        await pumpProfileMenuWithAccount(tester, hasAccount: false);
-
-        // Should NOT show confusing "Create Account" label
-        expect(find.text('Create Account'), findsNothing,
-            reason:
-                '"Create Account" is confusing - users don\'t understand it registers a cloud username');
-
-        // Should show clearer "Register Username" label
-        expect(find.text('Register Username'), findsOneWidget,
-            reason:
-                '"Register Username" clearly indicates this is for a cloud @username');
-      });
-
-      testWidgets(
-          'shows helpful subtitle explaining cloud registration is for publishing',
-          (WidgetTester tester) async {
-        await pumpProfileMenuWithAccount(tester, hasAccount: false);
-
-        // Should have subtitle explaining it's for publishing/sharing
-        final subtitles = find
-            .descendant(
-              of: find.byType(ListTile),
-              matching: find.byType(Text),
-            )
-            .evaluate()
-            .map((e) => (e.widget as Text).data ?? '');
-
-        // Find the subtitle that mentions publishing or cloud
-        final hasPublishingSubtitle = subtitles.any((text) =>
-            text.toLowerCase().contains('publish') ||
-            text.toLowerCase().contains('share') ||
-            text.toLowerCase().contains('cloud') ||
-            text.toLowerCase().contains('marketplace'));
-
-        expect(hasPublishingSubtitle, isTrue,
-            reason:
-                'Subtitle should explain username is for publishing scripts to marketplace');
-      });
-    });
-
-    group('Explainer tooltips for Profile vs Account distinction', () {
-      testWidgets(
-          'identity menu item has tooltip explaining local vs cloud distinction',
+    group('Legacy terminology removed', () {
+      testWidgets('does NOT show separate "My Identity" item',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
-        // Find the "My Identity" tile
-        final identityTile = find.widgetWithText(ListTile, 'My Identity');
-        expect(identityTile, findsOneWidget);
-
-        // Long press to trigger tooltip (or check for Tooltip widget)
-        final tooltipFinder = find.descendant(
-          of: identityTile,
-          matching: find.byType(Tooltip),
-        );
-
-        // Either there's a Tooltip widget or the ListTile has semantic label
-        if (tooltipFinder.evaluate().isNotEmpty) {
-          final tooltip = tester.widget<Tooltip>(tooltipFinder.first);
-          expect(
-            tooltip.message,
-            anyOf(
-              contains('local'),
-              contains('device'),
-              contains('stored'),
-            ),
-            reason: 'Tooltip should explain local identity concept',
-          );
-        }
+        expect(find.text('My Identity'), findsNothing,
+            reason: '"My Identity" should be merged into unified Account item');
       });
 
-      testWidgets(
-          'register username menu item has tooltip explaining cloud concept',
+      testWidgets('does NOT show separate "Register Username" item',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        // Find the "Register Username" tile
-        final registerTile = find.widgetWithText(ListTile, 'Register Username');
-        expect(registerTile, findsOneWidget);
-
-        // Check for Tooltip widget
-        final tooltipFinder = find.descendant(
-          of: registerTile,
-          matching: find.byType(Tooltip),
-        );
-
-        if (tooltipFinder.evaluate().isNotEmpty) {
-          final tooltip = tester.widget<Tooltip>(tooltipFinder.first);
-          expect(
-            tooltip.message,
-            anyOf(
-              contains('marketplace'),
-              contains('cloud'),
-              contains('share'),
-              contains('publish'),
-            ),
-            reason: 'Tooltip should explain cloud username concept',
-          );
-        }
+        expect(find.text('Register Username'), findsNothing,
+            reason:
+                '"Register Username" should be replaced by "Register @username"');
       });
     });
 

@@ -24,7 +24,6 @@ import 'screens/quick_profile_creation_dialog.dart';
 import 'screens/scripts_screen.dart';
 import 'widgets/connectivity_scope.dart';
 import 'widgets/keyboard_shortcuts.dart';
-import 'widgets/post_setup_guide.dart';
 import 'widgets/profile_scope.dart';
 import 'widgets/profile_menu.dart';
 import 'widgets/spotlight_overlay.dart';
@@ -316,66 +315,13 @@ class _MainHomePageState extends State<MainHomePage> {
           setAsActive: true,
         );
         setState(() {});
-        // Mark app as usable - PostSetupGuide will be delayed until
-        // user has seen the app (either by action or 5 second delay)
-        await _onboardingService.markAppUsable();
-        _schedulePostSetupGuide();
       }
     }
-  }
-
-  /// Schedules the PostSetupGuide to show after delay or first meaningful action
-  void _schedulePostSetupGuide() {
-    // Check immediately in case conditions are already met
-    _tryShowPostSetupGuide();
-
-    // Also check after the delay period
-    Future.delayed(OnboardingService.postSetupGuideDelay, () {
-      if (mounted) _tryShowPostSetupGuide();
-    });
-  }
-
-  Future<void> _tryShowPostSetupGuide() async {
-    // Check if guide was already shown
-    final alreadyShown = !await _onboardingService.shouldShowPostSetupGuide();
-    if (alreadyShown || !mounted) return;
-
-    // Check if conditions are met (action OR delay)
-    final isReady = await _onboardingService.isPostSetupGuideReady();
-    if (!isReady || !mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => PostSetupGuide(
-        onActionSelected: (action) {
-          Navigator.of(context).pop();
-          _handlePostSetupAction(action);
-        },
-        onDismiss: () async {
-          Navigator.of(context).pop();
-          await _onboardingService.markPostSetupGuideShown();
-        },
-      ),
-    );
   }
 
   void _handleSpotlightComplete() {}
 
   void _handleSpotlightDismiss() {}
-
-  void _handlePostSetupAction(PostSetupAction action) async {
-    await _onboardingService.markPostSetupGuideShown();
-
-    switch (action) {
-      case PostSetupAction.browseMarketplace:
-        setState(() => _currentIndex = 0);
-      case PostSetupAction.createScript:
-        setState(() => _currentIndex = 0);
-      case PostSetupAction.exploreCanisters:
-        setState(() => _currentIndex = 1);
-    }
-  }
 
   AccountController _getAccountController() {
     final appState = context.findAncestorStateOfType<_KeypairAppState>();
@@ -384,9 +330,6 @@ class _MainHomePageState extends State<MainHomePage> {
 
   Future<void> _openCanisterClient(
       {String? initialCanisterId, String? initialMethodName}) async {
-    // Record that user performed a meaningful action (exploring canisters)
-    _onboardingService.recordFirstMeaningfulAction();
-
     await Navigator.push<void>(
       context,
       MaterialPageRoute(

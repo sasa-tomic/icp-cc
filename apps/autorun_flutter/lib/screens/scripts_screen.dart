@@ -39,7 +39,6 @@ import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
 
-
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
 
@@ -86,7 +85,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   List<String> _recentSearches = [];
   bool _showRecentSearches = false;
 
-
   @override
   void initState() {
     super.initState();
@@ -118,8 +116,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       }
     });
   }
-
-
 
   Future<void> _loadRecentSearches() async {
     final searches = await _searchHistoryService.getRecentSearches();
@@ -424,9 +420,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   void _showScriptDetails(BuildContext context, MarketplaceScript script) {
-    // Record that user performed a meaningful action
-    OnboardingService().recordFirstMeaningfulAction();
-
     showDialog(
       context: context,
       builder: (context) => ScriptDetailsDialog(
@@ -683,96 +676,95 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     final scripts = _controller.scripts;
 
     return Scaffold(
       appBar: AppBar(
-              title: const Text('Scripts'),
-              actions: [
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (value) {
-                    if (value == 'download_history') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const DownloadHistoryScreen(),
-                        ),
-                      );
-                    } else if (value == 'clear_search_history') {
-                      _clearSearchHistory();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'download_history',
-                      child: Row(
-                        children: [
-                          Icon(Icons.history),
-                          SizedBox(width: 12),
-                          Text('Download History'),
-                        ],
-                      ),
+        title: const Text('Scripts'),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'download_history') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DownloadHistoryScreen(),
+                  ),
+                );
+              } else if (value == 'clear_search_history') {
+                _clearSearchHistory();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'download_history',
+                child: Row(
+                  children: [
+                    Icon(Icons.history),
+                    SizedBox(width: 12),
+                    Text('Download History'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                enabled: _recentSearches.isNotEmpty,
+                value: 'clear_search_history',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.clear_all,
+                      color: _recentSearches.isNotEmpty
+                          ? null
+                          : Theme.of(context).colorScheme.outline,
                     ),
-                    PopupMenuItem(
-                      enabled: _recentSearches.isNotEmpty,
-                      value: 'clear_search_history',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.clear_all,
-                            color: _recentSearches.isNotEmpty
-                                ? null
-                                : Theme.of(context).colorScheme.outline,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Clear Search History',
-                            style: TextStyle(
-                              color: _recentSearches.isNotEmpty
-                                  ? null
-                                  : Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(width: 12),
+                    Text(
+                      'Clear Search History',
+                      style: TextStyle(
+                        color: _recentSearches.isNotEmpty
+                            ? null
+                            : Theme.of(context).colorScheme.outline,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           Column(
             children: [
               OfflineBanner(
-                  isOnline: ConnectivityScope.of(context).isOnline,
-                  onDismiss: () => ConnectivityScope.of(context, listen: false)
-                      .dismissBanner(),
-                ),
+                isOnline: ConnectivityScope.of(context).isOnline,
+                onDismiss: () => ConnectivityScope.of(context, listen: false)
+                    .dismissBanner(),
+              ),
               _buildSearchBar(),
               Expanded(
                 child: _buildUnifiedListView(scripts),
               ),
             ],
           ),
-            Positioned(
-              right: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 90,
-              child: ShortcutTooltip(
+          Positioned(
+            right: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 90,
+            child: ShortcutTooltip(
+              label: 'New Script',
+              shortcut: DesktopShortcuts.getShortcutLabel('new'),
+              child: AnimatedFab(
+                heroTag: 'scripts_fab',
+                onPressed: _controller.isBusy ? null : _showCreateSheet,
+                icon: const Icon(Icons.add_rounded),
                 label: 'New Script',
-                shortcut: DesktopShortcuts.getShortcutLabel('new'),
-                child: AnimatedFab(
-                  heroTag: 'scripts_fab',
-                  onPressed: _controller.isBusy ? null : _showCreateSheet,
-                  icon: const Icon(Icons.add_rounded),
-                  label: 'New Script',
-                ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -902,6 +894,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       ),
     ];
   }
+
   Widget _buildAllScriptsListItem(ScriptListItem item) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompactScreen = screenWidth < 380;

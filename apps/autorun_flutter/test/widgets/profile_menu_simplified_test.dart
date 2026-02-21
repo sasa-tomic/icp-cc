@@ -184,22 +184,46 @@ void main() {
       });
     });
 
-    group('Core menu items present', () {
-      testWidgets('shows "My Identity" for users with account',
+    group('Unified Account menu item', () {
+      testWidgets(
+          'shows "Manage Account" with @username subtitle for users with account',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: true);
 
-        expect(find.text('My Identity'), findsOneWidget,
-            reason: '"My Identity" should be visible for users with account');
+        expect(find.text('Manage Account'), findsOneWidget,
+            reason:
+                '"Manage Account" should be visible for users with account');
+        expect(find.text('@testuser'), findsOneWidget,
+            reason: 'Should show @username as subtitle for users with account');
       });
 
-      testWidgets('shows "Register Username" for users without account',
+      testWidgets(
+          'shows "Register @username" with publish subtitle for users without account',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        expect(find.text('Register Username'), findsOneWidget,
+        expect(find.text('Register @username'), findsOneWidget,
             reason:
-                '"Register Username" should be visible for users without account');
+                '"Register @username" should be visible for users without account');
+        expect(find.text('Get a username to publish scripts'), findsOneWidget,
+            reason: 'Should explain purpose of registration');
+      });
+
+      testWidgets('does NOT show separate "My Identity" item',
+          (WidgetTester tester) async {
+        await pumpProfileMenu(tester, hasAccount: true);
+
+        expect(find.text('My Identity'), findsNothing,
+            reason: '"My Identity" should be merged into unified Account item');
+      });
+
+      testWidgets('does NOT show separate "Register Username" item',
+          (WidgetTester tester) async {
+        await pumpProfileMenu(tester, hasAccount: false);
+
+        expect(find.text('Register Username'), findsNothing,
+            reason:
+                '"Register Username" should be replaced by "Register @username"');
       });
 
       testWidgets('shows "Passkeys" for users with account',
