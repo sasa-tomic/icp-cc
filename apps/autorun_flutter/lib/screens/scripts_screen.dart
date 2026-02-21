@@ -18,6 +18,7 @@ import '../services/favorites_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
 import '../services/onboarding_service.dart';
+import '../services/onboarding_progress_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
@@ -372,6 +373,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         _downloadedScriptIds.add(script.id);
       });
 
+      // Record first script interaction for GettingStartedCard
+      await OnboardingProgressService().recordFirstScriptInteraction();
+
       if (mounted) {
         final versionText = version != null ? ' v$version' : '';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -447,6 +451,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
 
     await _controller.recordScriptRun(record.id);
+
+    // Record first script interaction for GettingStartedCard
+    await OnboardingProgressService().recordFirstScriptInteraction();
 
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute<void>(
@@ -1024,8 +1031,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         ),
         title: Row(
           children: [
-            _buildHybridSourceBadge(item, isCompactScreen),
-            const SizedBox(width: 8),
+            // Source indicator as small color-coded icon
+            _buildSourceIcon(item, isCompactScreen),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 item.title,
@@ -1037,23 +1045,14 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 maxLines: 1,
               ),
             ),
+            // Available indicator as subtle download icon
             if (!item.isInstalled && item.source == ScriptSource.marketplace)
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isCompactScreen ? 4 : 6,
-                  vertical: isCompactScreen ? 1 : 2,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.tertiaryContainer,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'Available',
-                  style: TextStyle(
-                    fontSize: isCompactScreen ? 8 : 10,
-                    color: Theme.of(context).colorScheme.onTertiaryContainer,
-                    fontWeight: FontWeight.w500,
-                  ),
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Icon(
+                  Icons.download_outlined,
+                  size: isCompactScreen ? 14 : 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
           ],
@@ -1124,8 +1123,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 ),
                 title: Row(
                   children: [
-                    _buildHybridSourceBadge(item, isCompactScreen),
-                    const SizedBox(width: 8),
+                    // Source indicator as small color-coded icon
+                    _buildSourceIcon(item, isCompactScreen),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         item.title,
@@ -1380,29 +1380,24 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // PRIMARY ACTION: Play button visible directly
         IconButton(
           icon: const Icon(Icons.play_arrow),
           onPressed: () => _runScript(record),
           tooltip: 'Run script',
         ),
-        if (canPublish)
-          IconButton(
-            icon:
-                Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-            onPressed: () => _publishToMarketplace(record),
-            tooltip: 'Share to Marketplace',
-          ),
+        // OVERFLOW MENU: All secondary actions
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) => _handleLocalScriptMenuAction(value, record),
           itemBuilder: (context) => [
             const PopupMenuItem(
-              value: 'delete',
+              value: 'edit',
               child: Row(
                 children: [
-                  Icon(Icons.delete_outline, size: 20),
+                  Icon(Icons.edit, size: 20),
                   SizedBox(width: 12),
-                  Text('Delete'),
+                  Text('Edit'),
                 ],
               ),
             ),
@@ -1417,6 +1412,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 ],
               ),
             ),
+            if (canPublish)
+              const PopupMenuItem(
+                value: 'publish',
+                child: Row(
+                  children: [
+                    Icon(Icons.share, size: 20),
+                    SizedBox(width: 12),
+                    Text('Share to Marketplace'),
+                  ],
+                ),
+              ),
             const PopupMenuItem(
               value: 'export',
               child: Row(
@@ -1438,6 +1444,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                   ],
                 ),
               ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                  SizedBox(width: 12),
+                  Text('Delete', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
           ],
         ),
       ],
@@ -1446,6 +1463,15 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   void _handleLocalScriptMenuAction(String action, ScriptRecord record) {
     switch (action) {
+      case 'run':
+        _runScript(record);
+        break;
+      case 'edit':
+        _handleAllScriptsItemTap(ScriptListItem.fromLocal(record));
+        break;
+      case 'publish':
+        _publishToMarketplace(record);
+        break;
       case 'delete':
         _confirmAndDeleteScript(record);
         break;
@@ -1463,30 +1489,58 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   Widget _buildMarketplaceScriptMenu(MarketplaceScript script) {
     final isDownloaded = _downloadedScriptIds.contains(script.id);
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert),
-      onSelected: (value) => _handleMarketplaceScriptMenuAction(value, script),
-      itemBuilder: (context) => [
-        if (isDownloaded)
-          const PopupMenuItem(
-            value: 'view_in_library',
-            child: Row(
-              children: [
-                Icon(Icons.folder_open, size: 20),
-                SizedBox(width: 12),
-                Text('View in Library'),
-              ],
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // PRIMARY ACTION: Download (if not downloaded) or View Details (if downloaded)
+        IconButton(
+          icon: Icon(
+            isDownloaded ? Icons.info_outline : Icons.download,
+          ),
+          onPressed: isDownloaded
+              ? () => _showScriptDetails(context, script)
+              : () => _downloadScript(script),
+          tooltip: isDownloaded ? 'View details' : 'Download',
+        ),
+        // OVERFLOW MENU: All secondary actions
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) =>
+              _handleMarketplaceScriptMenuAction(value, script),
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'view_details',
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 20),
+                  SizedBox(width: 12),
+                  Text('View Details'),
+                ],
+              ),
             ),
-          ),
-        const PopupMenuItem(
-          value: 'share',
-          child: Row(
-            children: [
-              Icon(Icons.share, size: 20),
-              SizedBox(width: 12),
-              Text('Share'),
-            ],
-          ),
+            if (!isDownloaded)
+              const PopupMenuItem(
+                value: 'download',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, size: 20),
+                    SizedBox(width: 12),
+                    Text('Download'),
+                  ],
+                ),
+              ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'share',
+              child: Row(
+                children: [
+                  Icon(Icons.share, size: 20),
+                  SizedBox(width: 12),
+                  Text('Share'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -1495,74 +1549,48 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   void _handleMarketplaceScriptMenuAction(
       String action, MarketplaceScript script) {
     switch (action) {
+      case 'view_details':
+        _showScriptDetails(context, script);
+        break;
+      case 'download':
+        _downloadScript(script);
+        break;
       case 'share':
         _shareScript(context, script);
         break;
-      case 'view_in_library':
-        // Scripts are now always shown together
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('"${script.title}" is in your library'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-        break;
     }
   }
 
-  Widget _buildHybridSourceBadge(ScriptListItem item, bool isCompactScreen) {
+  /// Build a small color-coded source icon.
+  /// Blue for local scripts, green for marketplace scripts.
+  Widget _buildSourceIcon(ScriptListItem item, bool isCompactScreen) {
     final isMarketplace = item.isFromMarketplace;
-    final backgroundColor = isMarketplace
-        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
-        : Theme.of(context).colorScheme.surfaceContainerHighest;
-    final textColor = isMarketplace
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    final borderColor = isMarketplace
-        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
-        : Theme.of(context).colorScheme.outlineVariant;
+    final iconColor = isMarketplace ? Colors.green : Colors.blue;
+    final iconSize = isCompactScreen ? 12.0 : 14.0;
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompactScreen ? 4 : 6,
-        vertical: isCompactScreen ? 1 : 2,
-      ),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: borderColor),
-      ),
-      child: Text(
-        isMarketplace ? 'Marketplace' : 'Local',
-        style: TextStyle(
-          fontSize: isCompactScreen ? 8 : 10,
-          color: textColor,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+    return Icon(
+      isMarketplace ? Icons.cloud_outlined : Icons.folder_outlined,
+      size: iconSize,
+      color: iconColor,
     );
   }
 
+  /// Build simplified subtitle for script list items.
+  /// - For marketplace scripts: shows author only
+  /// - For local scripts: shows relative date only
   String _buildItemSubtitle(ScriptListItem item) {
-    final parts = <String>[];
+    // For downloaded marketplace scripts (local with marketplace metadata)
+    if (item.source == ScriptSource.local && item.author != null) {
+      return item.author!;
+    }
 
-    if (item.author != null) {
-      parts.add(item.author!);
+    // For marketplace scripts, show author
+    if (item.source == ScriptSource.marketplace) {
+      return item.author ?? 'Unknown';
     }
-    if (item.version != null) {
-      parts.add('v${item.version}');
-    }
-    if (item.runCount > 0) {
-      parts.add('${item.runCount} runs');
-    }
-    if (item.source == ScriptSource.marketplace && item.downloads > 0) {
-      parts.add('${item.downloads} downloads');
-    }
-    parts.add('Updated ${_formatRelativeTime(item.updatedAt)}');
 
-    return parts.join(' • ');
+    // For local scripts without author, show relative date
+    return _formatRelativeTime(item.updatedAt);
   }
 
   String _formatRelativeTime(DateTime dateTime) {
@@ -1586,6 +1614,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   void _handleAllScriptsItemTap(ScriptListItem item) {
     if (item.source == ScriptSource.local && item.localScript != null) {
+      // Record first script interaction for GettingStartedCard
+      OnboardingProgressService().recordFirstScriptInteraction();
       showDialog<void>(
         context: context,
         builder: (_) => _ScriptEditorDialog(

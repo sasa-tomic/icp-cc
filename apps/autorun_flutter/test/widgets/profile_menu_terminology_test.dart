@@ -253,13 +253,12 @@ void main() {
         expect(find.text('Settings'), findsOneWidget);
       });
 
-      testWidgets(
-          'Create Profile remains clear for adding new local identities',
+      testWidgets('Manage Profiles replaces individual profile options',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        // "Create Profile" is still clear - user understands it's for another local identity
-        expect(find.text('Create Profile'), findsOneWidget);
+        // "Manage Profiles" combines switch + create profile functionality
+        expect(find.text('Manage Profiles'), findsOneWidget);
       });
     });
   });

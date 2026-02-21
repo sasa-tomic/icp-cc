@@ -6,15 +6,13 @@
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
 
-**Reality Check - UX Simplification Wave COMPLETE:**
-- **NEW:** Scripts Screen Cleanup - removed stats banner, share banner, getting started card (7 tests)
-- **NEW:** Profile Menu Discoverability - "Profile" label next to avatar for discoverability (5 tests)
-- **NEW:** Featured Scripts Carousel Removed - cleaner UI, more vertical space (2 tests)
-- **NEW:** Profile vs Account Terminology - "My Identity" (local) vs "Register Username" (cloud) with tooltips (9 tests)
-- **NEW:** First Run Dialog Fatigue Fixed - PostSetupGuide delayed until meaningful action or 5s (10 tests)
-- **NEW:** Empty State Guidance - "Browse Marketplace" secondary action on empty state (4 tests)
-- **NEW:** Canister Quick Actions Clarity - plain-language descriptions replacing jargon (3 tests)
-- **NEW:** Phase 4 UX Analysis - 8 additional improvements identified from comprehensive codebase review
+**Reality Check - UX Simplification Wave 5 COMPLETE:**
+- **NEW:** Scripts Screen Action Simplification - ONE primary action per row (14 tests)
+- **NEW:** Profile Menu Simplification - max 5 items, combined profile management (12 tests)
+- **NEW:** Visual Template Picker - cards with emoji/title/difficulty (9 tests)
+- **NEW:** Script List Visual Hierarchy - simplified subtitle, subtle icons (18 tests)
+- **NEW:** Hidden Developer Options - 7-tap unlock (7 tests)
+- **NEW:** Consolidated Onboarding - Spotlight opt-in, delayed GettingStartedCard (17 tests)
 
 **Previously Shipped (This Week):**
 - **NEW:** Script Favorites System - star/favorite scripts with filter (38 tests)
@@ -58,7 +56,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Phase 4 UX Improvements (8 new issues - navigation, script actions overload, profile menu, canister complexity), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Remaining items: Scripts Screen State Explosion (complexity 8/10), Mixed Local vs Marketplace Mental Model (complexity 6/10), Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), Canister Client Quick Query Mode (complexity 7/10). Also: write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -125,6 +123,12 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Profile/Account Terminology** | **COMPLETE** | 100% |
 | **First Run Dialog Timing** | **COMPLETE** | 100% |
 | **Quick Actions Plain Language** | **COMPLETE** | 100% |
+| **Scripts Action Simplification** | **COMPLETE** | 100% |
+| **Profile Menu Simplification** | **COMPLETE** | 100% |
+| **Visual Template Picker** | **COMPLETE** | 100% |
+| **Script List Visual Hierarchy** | **COMPLETE** | 100% |
+| **Hidden Developer Options** | **COMPLETE** | 100% |
+| **Consolidated Onboarding** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -538,19 +542,21 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 6/10
 - **Files:** `lib/main.dart`, `lib/screens/scripts_screen.dart`, `lib/screens/bookmarks_screen.dart`
 
-**16. Scripts Screen: Too Many Actions Per Script** :red_circle: **HIGH IMPACT**
+**16. Scripts Screen: Too Many Actions Per Script** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Each script has play button, share button, overflow menu with 5+ options, plus 4 filter toggles, category chips, sort options, search history, selection mode. Overwhelming!
-- **Change:** Reduce visible actions to ONE primary action (Run/View); move all secondary actions to single "..." menu; remove inline share button; collapse filters by default
-- **Impact:** HIGH - Main screen feels cluttered and intimidating
+- **Change:** Reduced visible actions to ONE primary action (Play for local, Download/View for marketplace); moved ALL secondary actions to single "..." overflow menu; removed inline share button
+- **Impact:** HIGH - Main screen feels cleaner and less intimidating
 - **Complexity:** 4/10
 - **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/simplified_actions_test.dart` (14 tests), updated `test/features/scripts/publish_button_test.dart` (11 tests)
 
-**17. Profile Menu: Too Many Options** :yellow_circle: **MEDIUM-HIGH IMPACT**
+**17. Profile Menu: Too Many Options** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Profile menu shows 8 options including "Restart Tour", "Getting Started", "Switch Profile", "Create Profile" etc. New users see irrelevant options.
-- **Change:** Show only relevant options based on user state; move "Getting Started"/"Restart Tour" to Settings > Help; combine profile management into single "Manage Profiles" option
-- **Impact:** MEDIUM-HIGH - Profile menu is the first thing users tap
+- **Change:** Reduced to max 5 items; moved "Getting Started"/"Restart Tour" to Settings > Help; combined "Switch Profile" + "Create Profile" into "Manage Profiles" bottom sheet
+- **Impact:** MEDIUM-HIGH - Profile menu is cleaner and less overwhelming
 - **Complexity:** 5/10
-- **Files:** `lib/widgets/profile_menu.dart`
+- **Files:** `lib/widgets/profile_menu.dart`, `lib/screens/settings_screen.dart`
+- **Tests:** `test/widgets/profile_menu_simplified_test.dart` (12 tests)
 
 **18. Canister Client Sheet: Too Complex** :yellow_circle: **MEDIUM IMPACT**
 - **Pain Point:** CanisterClientSheet has 4 flow states, multiple inputs, advanced options, JSON editor toggle, quick start section. Overwhelming for simple queries.
@@ -559,33 +565,37 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 7/10
 - **Files:** `lib/screens/bookmarks_screen.dart`
 
-**19. Template Selector: Buried in Form** :yellow_circle: **MEDIUM IMPACT**
+**19. Template Selector: Buried in Form** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Template selector is a dropdown that looks like form metadata. Users might miss templates exist.
-- **Change:** Replace dropdown with visual template picker as first step; show template cards with emoji, title, difficulty badge
-- **Impact:** MEDIUM - Templates help beginners get started
+- **Change:** Replaced dropdown with visual template cards as first thing users see; each card shows emoji, title, description, difficulty badge (Beginner/Intermediate/Advanced); added "Blank Script" option; selected template is highlighted with checkmark
+- **Impact:** MEDIUM - Templates now discoverable, helps beginners get started
 - **Complexity:** 5/10
 - **Files:** `lib/screens/script_creation_screen.dart`
+- **Tests:** `test/visual_template_picker_test.dart` (9 tests), updated `test/script_creation_screen_test.dart` (10 tests)
 
-**20. Too Many Onboarding Overlays** :yellow_circle: **MEDIUM IMPACT**
+**20. Too Many Onboarding Overlays** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Multiple onboarding mechanisms: QuickProfileCreationDialog, GettingStartedCard, PostSetupGuide, SpotlightTour. Can overlap and overwhelm.
-- **Change:** Consolidate into ONE onboarding flow; show GettingStartedCard only after first script; make spotlight tour optional via Settings
-- **Impact:** MEDIUM - Reduces cognitive load
+- **Change:** Consolidated into ONE streamlined flow: SpotlightTour is now opt-in via Settings only; GettingStartedCard shows only after first script interaction; added "Getting Started" and "Restart Tour" options to Settings screen
+- **Impact:** MEDIUM - Reduces cognitive load, no overlapping dialogs
 - **Complexity:** 6/10
-- **Files:** `lib/main.dart`, `lib/widgets/getting_started_card.dart`, `lib/widgets/post_setup_guide.dart`
+- **Files:** `lib/main.dart`, `lib/screens/settings_screen.dart`, `lib/screens/scripts_screen.dart`, `lib/services/spotlight_service.dart`, `lib/services/onboarding_progress_service.dart`
+- **Tests:** `test/features/onboarding/consolidated_onboarding_test.dart` (17 tests), updated spotlight tests
 
-**21. Script List: Weak Visual Hierarchy** :green_circle: **LOW-MEDIUM IMPACT**
+**21. Script List: Weak Visual Hierarchy** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Each script item shows emoji, title, source badge, subtitle with author/version/run count, action buttons, "Available" badge. Visual noise.
-- **Change:** Simplify to emoji + title + one-line subtitle; move source badge to small icon; show "Available" as subtle download icon
+- **Change:** Simplified to emoji + title + one-line subtitle (author for marketplace, date for local); moved source badge to small color-coded icon (blue=local, green=marketplace); "Available" shown as subtle download icon next to title
 - **Impact:** LOW-MEDIUM - Cleaner list, easier scanning
 - **Complexity:** 3/10
 - **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/script_list_visual_hierarchy_test.dart` (18 tests)
 
-**22. Settings: Developer Info Unnecessary** :green_circle: **LOW IMPACT**
+**22. Settings: Developer Info Unnecessary** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Settings shows "API Endpoint" and "Environment" in Developer Info section. Irrelevant noise for new users.
-- **Change:** Move Developer Info to hidden Developer Options screen (tap version 7 times to unlock)
-- **Impact:** LOW - Minor cleanup but improves polish
+- **Change:** Hidden Developer Info by default; tap version 7 times to unlock (Android-style); shows tap countdown in snackbar; added "Clear Developer Options" button
+- **Impact:** LOW - Cleaner Settings screen for regular users
 - **Complexity:** 2/10
-- **Files:** `lib/screens/settings_screen.dart`
+- **Files:** `lib/screens/settings_screen.dart`, `lib/services/settings_service.dart`
+- **Tests:** `test/features/settings/settings_screen_test.dart` (7 new tests for developer options)
 
 
 ## MEDIUM Priority

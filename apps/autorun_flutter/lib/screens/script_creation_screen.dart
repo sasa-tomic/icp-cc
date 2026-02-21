@@ -3,6 +3,36 @@ import '../controllers/script_controller.dart';
 import '../models/script_template.dart';
 import '../widgets/script_editor.dart';
 
+/// Blank script template for starting from scratch
+class _BlankScriptTemplate extends ScriptTemplate {
+  _BlankScriptTemplate()
+      : super(
+          id: 'blank',
+          title: 'Blank Script',
+          description:
+              'Start with a clean slate and write your script from scratch.',
+          emoji: '📄',
+          level: 'beginner',
+          tags: ['blank', 'empty'],
+          preloadedLuaSource: '''-- Blank Script
+function init(arg)
+  return {}, {}
+end
+
+function view(state)
+  return {
+    type = "text",
+    props = { text = "Hello World" }
+  }
+end
+
+function update(msg, state)
+  return state, {}
+end
+''',
+        );
+}
+
 class ScriptCreationScreen extends StatefulWidget {
   const ScriptCreationScreen({
     super.key,
@@ -27,26 +57,35 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
   bool _isCreating = false;
   ScriptTemplate? _selectedTemplate;
   late List<ScriptTemplate> _availableTemplates;
+  bool _templatesExpanded = true;
 
   @override
   void initState() {
     super.initState();
 
-    _availableTemplates = List<ScriptTemplate>.from(ScriptTemplates.templates);
+    // Build template list: Blank Script first, then all others
+    _availableTemplates = [
+      _BlankScriptTemplate(),
+      ...ScriptTemplates.templates,
+    ];
 
     if (widget.initialTemplate != null) {
-      final matchingTemplate = ScriptTemplates.templates
-          .where((t) => t.id == widget.initialTemplate!.id);
-      if (matchingTemplate.isNotEmpty) {
-        _selectedTemplate = matchingTemplate.first;
+      // Check if initial template is in our available templates
+      final matchingTemplate = _availableTemplates
+          .where((t) => t.id == widget.initialTemplate!.id)
+          .firstOrNull;
+      if (matchingTemplate != null) {
+        _selectedTemplate = matchingTemplate;
       } else {
         _availableTemplates = [
+          _BlankScriptTemplate(),
           widget.initialTemplate!,
           ...ScriptTemplates.templates
         ];
         _selectedTemplate = widget.initialTemplate!;
       }
     } else {
+      // Default to first template (Hello World, not Blank)
       _selectedTemplate = ScriptTemplates.templates.first;
     }
 
@@ -173,88 +212,191 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
   }
 
   Widget _buildTemplateSelector() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Row(
-        children: [
-          Text(
-            'Template',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header with collapse/expand button
+        GestureDetector(
+          onTap: () => setState(() => _templatesExpanded = !_templatesExpanded),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.dashboard_customize_outlined,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Choose a Template',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const Spacer(),
+                Icon(
+                  _templatesExpanded ? Icons.expand_less : Icons.expand_more,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonFormField<ScriptTemplate>(
-              initialValue: _selectedTemplate,
-              decoration: const InputDecoration(
-                hintText: 'Choose template',
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              ),
-              isExpanded: true,
-              dropdownColor: Theme.of(context).colorScheme.surface,
-              items: _availableTemplates.map((template) {
-                return DropdownMenuItem<ScriptTemplate>(
-                  value: template,
-                  child: Row(
-                    children: [
-                      Text(
-                        template.emoji,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          template.title,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 3, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: _getLevelColor(template.level),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: Text(
-                          template.level.toUpperCase().substring(0, 1),
-                          style: const TextStyle(
-                            fontSize: 7,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (ScriptTemplate? template) {
-                if (template != null) {
-                  _onTemplateSelected(template);
-                }
-              },
+              ],
             ),
           ),
-        ],
+        ),
+        // Template cards grid - use Wrap so all are visible
+        if (_templatesExpanded)
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: _availableTemplates.map((template) {
+              final isSelected = _selectedTemplate?.id == template.id;
+              return _buildTemplateCard(template, isSelected);
+            }).toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTemplateCard(ScriptTemplate template, bool isSelected) {
+    final levelColor = _getLevelColor(template.level);
+    final levelLabel = _getLevelLabel(template.level);
+
+    return GestureDetector(
+      key: Key('template_card_${template.id}'),
+      onTap: () => _onTemplateSelected(template),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 200,
+        height: 170,
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).colorScheme.primaryContainer,
+                    Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.7),
+                  ],
+                )
+              : null,
+          color: isSelected
+              ? null
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Emoji icon
+                  Text(
+                    template.emoji,
+                    style: const TextStyle(fontSize: 32),
+                  ),
+                  const SizedBox(height: 8),
+                  // Title
+                  Text(
+                    template.title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  // Description
+                  Text(
+                    template.description,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(),
+                  // Difficulty badge
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: levelColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: levelColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      levelLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: levelColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Selected indicator
+            if (isSelected)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  key: const Key('template_card_selected'),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  String _getLevelLabel(String level) {
+    switch (level) {
+      case 'beginner':
+        return 'Beginner';
+      case 'intermediate':
+        return 'Intermediate';
+      case 'advanced':
+        return 'Advanced';
+      default:
+        return level[0].toUpperCase() + level.substring(1);
+    }
   }
 
   Widget _buildDetailsForm() {

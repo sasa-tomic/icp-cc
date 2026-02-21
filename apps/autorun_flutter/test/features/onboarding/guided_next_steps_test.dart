@@ -184,6 +184,31 @@ void main() {
         expect(await newService.shouldShowGuide(), isFalse);
       });
     });
+
+    group('firstScriptInteraction', () {
+      test('returns false for new user', () async {
+        expect(await service.hasHadFirstScriptInteraction(), isFalse);
+      });
+
+      test('returns true after recording interaction', () async {
+        await service.recordFirstScriptInteraction();
+        expect(await service.hasHadFirstScriptInteraction(), isTrue);
+      });
+
+      test('persists across service instances', () async {
+        await service.recordFirstScriptInteraction();
+
+        final newService = OnboardingProgressService();
+        expect(await newService.hasHadFirstScriptInteraction(), isTrue);
+      });
+
+      test('is cleared by reset', () async {
+        await service.recordFirstScriptInteraction();
+        await service.reset();
+
+        expect(await service.hasHadFirstScriptInteraction(), isFalse);
+      });
+    });
   });
 
   group('OnboardingItem', () {

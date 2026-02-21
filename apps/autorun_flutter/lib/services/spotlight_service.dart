@@ -26,6 +26,7 @@ class SpotlightService {
   static const String _currentStepKey = 'spotlight_current_step';
   static const String _completedKey = 'spotlight_completed';
   static const String _dismissedKey = 'spotlight_dismissed';
+  static const String _explicitlyStartedKey = 'spotlight_explicitly_started';
   static const int totalSteps = 5;
 
   static const List<SpotlightStep> _steps = [
@@ -66,11 +67,16 @@ class SpotlightService {
     ),
   ];
 
+  /// Returns true ONLY if the user has explicitly started the tour via Settings.
+  /// The tour does NOT auto-start for new users - it's opt-in only.
   Future<bool> shouldShowTour() async {
     final prefs = await SharedPreferences.getInstance();
     final completed = prefs.getBool(_completedKey) ?? false;
     final dismissed = prefs.getBool(_dismissedKey) ?? false;
-    return !completed && !dismissed;
+    final explicitlyStarted = prefs.getBool(_explicitlyStartedKey) ?? false;
+
+    // Only show if user explicitly started AND hasn't completed or dismissed
+    return explicitlyStarted && !completed && !dismissed;
   }
 
   Future<int> currentStep() async {
@@ -123,6 +129,18 @@ class SpotlightService {
     await prefs.remove(_currentStepKey);
     await prefs.remove(_completedKey);
     await prefs.remove(_dismissedKey);
+    await prefs.remove(_explicitlyStartedKey);
+  }
+
+  /// Resets the tour and marks it as explicitly started.
+  /// This should be called when user clicks "Restart Tour" in Settings.
+  /// The tour will then be shown on the next app launch.
+  Future<void> resetAndStart() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_currentStepKey);
+    await prefs.remove(_completedKey);
+    await prefs.remove(_dismissedKey);
+    await prefs.setBool(_explicitlyStartedKey, true);
   }
 
   SpotlightStep getStepInfo(int step) {

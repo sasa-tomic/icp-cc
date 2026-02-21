@@ -14,8 +14,9 @@ void main() {
     });
 
     group('initial state', () {
-      test('shouldShowTour returns true for new user', () async {
-        expect(await service.shouldShowTour(), isTrue);
+      test('shouldShowTour returns false for new user (opt-in only)', () async {
+        // Tour does NOT auto-start for new users - it's opt-in via Settings
+        expect(await service.shouldShowTour(), isFalse);
       });
 
       test('currentStep returns 0 for new user', () async {
@@ -69,6 +70,7 @@ void main() {
 
     group('completion', () {
       test('completeTour marks tour as completed', () async {
+        await service.resetAndStart();
         await service.completeTour();
         expect(await service.isCompleted(), isTrue);
         expect(await service.shouldShowTour(), isFalse);
@@ -83,12 +85,14 @@ void main() {
 
     group('dismissal', () {
       test('dismissTour marks tour as dismissed', () async {
+        await service.resetAndStart();
         await service.dismissTour();
         expect(await service.isDismissed(), isTrue);
         expect(await service.shouldShowTour(), isFalse);
       });
 
       test('dismissTour preserves current step', () async {
+        await service.resetAndStart();
         await service.nextStep();
         await service.nextStep();
         await service.dismissTour();
@@ -98,18 +102,28 @@ void main() {
 
     group('shouldShowTour logic', () {
       test('returns false if completed', () async {
+        await service.resetAndStart();
         await service.completeTour();
         expect(await service.shouldShowTour(), isFalse);
       });
 
       test('returns false if dismissed', () async {
+        await service.resetAndStart();
         await service.dismissTour();
         expect(await service.shouldShowTour(), isFalse);
       });
 
-      test('returns true if neither completed nor dismissed', () async {
+      test('returns true if explicitly started and not completed or dismissed',
+          () async {
+        await service.resetAndStart();
         await service.nextStep();
         expect(await service.shouldShowTour(), isTrue);
+      });
+
+      test('returns false if not explicitly started', () async {
+        await service.nextStep();
+        // Even after navigation, tour won't show if not explicitly started
+        expect(await service.shouldShowTour(), isFalse);
       });
     });
 
@@ -135,12 +149,41 @@ void main() {
       test('reset clears all tour state', () async {
         await service.goToStep(3);
         await service.dismissTour();
+        await service.resetAndStart();
 
+        expect(await service.currentStep(), equals(0));
+        expect(await service.isDismissed(), isFalse);
+        expect(await service.isCompleted(), isFalse);
+        expect(await service.shouldShowTour(), isTrue);
+      });
+
+      test('reset does not auto-start tour (need resetAndStart)', () async {
+        await service.goToStep(3);
+        await service.dismissTour();
         await service.reset();
 
         expect(await service.currentStep(), equals(0));
         expect(await service.isDismissed(), isFalse);
         expect(await service.isCompleted(), isFalse);
+        // After plain reset, tour is NOT shown (opt-in only)
+        expect(await service.shouldShowTour(), isFalse);
+      });
+    });
+
+    group('resetAndStart', () {
+      test('resetAndStart enables tour to show', () async {
+        await service.resetAndStart();
+        expect(await service.shouldShowTour(), isTrue);
+      });
+
+      test('resetAndStart clears previous state and starts fresh', () async {
+        await service.goToStep(3);
+        await service.completeTour();
+        await service.resetAndStart();
+
+        expect(await service.currentStep(), equals(0));
+        expect(await service.isCompleted(), isFalse);
+        expect(await service.isDismissed(), isFalse);
         expect(await service.shouldShowTour(), isTrue);
       });
     });

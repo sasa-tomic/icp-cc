@@ -70,6 +70,7 @@ class OnboardingProgress {
 class OnboardingProgressService {
   static const String _dismissedKey = 'onboarding_guide_dismissed';
   static const String _snoozedUntilKey = 'onboarding_snoozed_until';
+  static const String _firstScriptInteractionKey = 'first_script_interaction';
   static const Duration _snoozeDuration = Duration(hours: 24);
 
   Future<List<OnboardingItem>> getIncompleteItems() async {
@@ -136,9 +137,24 @@ class OnboardingProgressService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_dismissedKey);
     await prefs.remove(_snoozedUntilKey);
+    await prefs.remove(_firstScriptInteractionKey);
     for (final item in OnboardingItem.values) {
       await prefs.remove(item.prefsKey);
     }
+  }
+
+  /// Records that the user has interacted with their first script.
+  /// This enables the GettingStartedCard to be shown.
+  Future<void> recordFirstScriptInteraction() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_firstScriptInteractionKey, true);
+  }
+
+  /// Returns true if the user has interacted with at least one script.
+  /// GettingStartedCard should only be shown after this returns true.
+  Future<bool> hasHadFirstScriptInteraction() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_firstScriptInteractionKey) ?? false;
   }
 
   Future<void> markAction(OnboardingAction action) async {

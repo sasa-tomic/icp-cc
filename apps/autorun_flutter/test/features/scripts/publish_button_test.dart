@@ -46,7 +46,8 @@ void main() {
       expect(canPublishMarketplace, isFalse);
     });
 
-    testWidgets('Share button is visible on local script row', (tester) async {
+    testWidgets('Share is in overflow menu (not inline) on local script row',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -60,12 +61,20 @@ void main() {
 
       await tester.pump();
 
-      expect(find.byIcon(Icons.share), findsOneWidget);
+      // No inline share button
+      expect(find.byIcon(Icons.share), findsNothing);
+      // Play button and overflow menu are visible
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
+
+      // Open overflow menu to find Share
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Share to Marketplace'), findsOneWidget);
     });
 
-    testWidgets('Share button NOT shown on marketplace script row',
+    testWidgets('Share NOT in overflow menu for marketplace script row',
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -80,10 +89,16 @@ void main() {
 
       await tester.pump();
 
-      expect(find.byIcon(Icons.share), findsNothing);
+      // Open overflow menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // No Share to Marketplace option for already-published scripts
+      expect(find.text('Share to Marketplace'), findsNothing);
     });
 
-    testWidgets('Share button triggers publish callback', (tester) async {
+    testWidgets('Share in overflow menu triggers publish callback',
+        (tester) async {
       var publishCalled = false;
 
       await tester.pumpWidget(
@@ -101,7 +116,10 @@ void main() {
 
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.share));
+      // Open overflow menu and tap Share to Marketplace
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share to Marketplace'));
       await tester.pump();
 
       expect(publishCalled, isTrue);
@@ -217,20 +235,38 @@ class LocalScriptRowTest extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // PRIMARY ACTION: Play button only
         IconButton(
           icon: const Icon(Icons.play_arrow),
           onPressed: () {},
           tooltip: 'Run script',
         ),
-        if (canPublish)
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: onPublish,
-            tooltip: 'Share to Marketplace',
-          ),
+        // OVERFLOW MENU: All secondary actions including Share to Marketplace
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            if (value == 'publish') {
+              onPublish();
+            }
+          },
           itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'edit',
+              child: Text('Edit'),
+            ),
+            const PopupMenuItem(
+              value: 'duplicate',
+              child: Text('Duplicate'),
+            ),
+            if (canPublish)
+              const PopupMenuItem(
+                value: 'publish',
+                child: Text('Share to Marketplace'),
+              ),
+            const PopupMenuItem(
+              value: 'export',
+              child: Text('Copy Source'),
+            ),
             const PopupMenuItem(
               value: 'delete',
               child: Text('Delete'),

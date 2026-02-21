@@ -108,7 +108,7 @@ void main() {
       expect(find.text('Title *'), findsOneWidget);
       expect(find.text('Emoji'), findsOneWidget);
       expect(find.text('Image URL'), findsOneWidget);
-      expect(find.text('Template'), findsOneWidget);
+      expect(find.text('Choose a Template'), findsOneWidget);
     });
 
     testWidgets('has sticky Create Script button at bottom',
@@ -151,12 +151,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(
-          find.descendant(
-            of: find.byType(DropdownButtonFormField<ScriptTemplate>),
-            matching: find.textContaining('Hello World'),
-          ),
-          findsOneWidget);
+      // Hello World template should be visible in the template cards
+      expect(find.text('Hello World'), findsWidgets);
     });
 
     testWidgets('create button validates empty title',
@@ -325,8 +321,10 @@ void main() {
 
       await tester.pumpAndSettle();
 
+      // Template cards should be visible (using keys with template_card_ prefix)
       expect(
-          find.byType(DropdownButtonFormField<ScriptTemplate>), findsOneWidget);
+          find.byKey(const Key('template_card_hello_world')), findsOneWidget);
+      expect(find.byKey(const Key('template_card_blank')), findsOneWidget);
     });
   });
 }

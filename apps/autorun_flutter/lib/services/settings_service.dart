@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Uses SharedPreferences for local storage of user preferences.
 class SettingsService {
   static const String _themeModeKey = 'theme_mode';
+  static const String _developerOptionsEnabledKey = 'developer_options_enabled';
 
   /// Gets the stored theme mode preference.
   ///
@@ -27,5 +28,25 @@ class SettingsService {
   Future<void> setThemeMode(ThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_themeModeKey, mode.index);
+  }
+
+  /// Gets whether developer options are enabled.
+  ///
+  /// Returns false by default.
+  Future<bool> isDeveloperOptionsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_developerOptionsEnabledKey) ?? false;
+  }
+
+  /// Sets whether developer options are enabled.
+  Future<void> setDeveloperOptionsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_developerOptionsEnabledKey, enabled);
+  }
+
+  /// Clears developer options (resets to disabled state).
+  Future<void> clearDeveloperOptions() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_developerOptionsEnabledKey);
   }
 }

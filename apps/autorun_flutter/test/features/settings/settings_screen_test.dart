@@ -13,6 +13,11 @@ void main() {
       settingsService = SettingsService();
     });
 
+    tearDown(() async {
+      // Clean up any persisted developer options state
+      await settingsService.clearDeveloperOptions();
+    });
+
     Future<void> pumpSettingsScreen(
       WidgetTester tester, {
       VoidCallback? onThemeChanged,
@@ -151,15 +156,6 @@ void main() {
         expect(find.text('Marketplace Website'), findsOneWidget);
       });
 
-      testWidgets('displays developer info section',
-          (WidgetTester tester) async {
-        await pumpSettingsScreen(tester);
-
-        expect(find.text('DEVELOPER INFO'), findsOneWidget);
-        expect(find.text('API Endpoint'), findsOneWidget);
-        expect(find.text('Environment'), findsOneWidget);
-      });
-
       testWidgets('displays about section with version info',
           (WidgetTester tester) async {
         await pumpSettingsScreen(tester);
@@ -169,8 +165,11 @@ void main() {
         expect(find.textContaining('Version'), findsOneWidget);
       });
 
-      testWidgets('shows copy button for API endpoint',
+      testWidgets(
+          'shows copy button for API endpoint when developer options enabled',
           (WidgetTester tester) async {
+        // Enable developer options first
+        await settingsService.setDeveloperOptionsEnabled(true);
         await pumpSettingsScreen(tester);
 
         // Find the API endpoint row and check it has a copy icon
@@ -209,6 +208,137 @@ void main() {
         await pumpSettingsScreen(tester);
 
         expect(find.text('Always use dark theme'), findsOneWidget);
+      });
+    });
+
+    group('developer options - hidden by default', () {
+      testWidgets('developer info section is hidden by default',
+          (WidgetTester tester) async {
+        await pumpSettingsScreen(tester);
+
+        // Developer info section should NOT be visible
+        expect(find.text('DEVELOPER INFO'), findsNothing);
+        expect(find.text('API Endpoint'), findsNothing);
+        expect(find.text('Environment'), findsNothing);
+      });
+
+      testWidgets('tapping version once shows remaining taps hint',
+          (WidgetTester tester) async {
+        await pumpSettingsScreen(tester);
+
+        // Find version text and ensure it's visible
+        final versionText = find.textContaining('Version');
+        expect(versionText, findsOneWidget);
+        await tester.ensureVisible(versionText);
+        await tester.pumpAndSettle();
+        await tester.tap(versionText);
+        await tester.pumpAndSettle();
+
+        // Should show snackbar with remaining taps
+        expect(find.text('Tap 6 more times to enable developer options'),
+            findsOneWidget);
+      });
+
+      testWidgets('tapping version shows correct countdown in hints',
+          (WidgetTester tester) async {
+        await pumpSettingsScreen(tester);
+
+        final versionText = find.textContaining('Version');
+        await tester.ensureVisible(versionText);
+        await tester.pumpAndSettle();
+
+        // Tap 3 times and check the countdown
+        for (int i = 0; i < 3; i++) {
+          await tester.tap(versionText);
+          await tester.pumpAndSettle();
+        }
+
+        // Should show "4 more times" (7 - 3 = 4)
+        expect(find.text('Tap 4 more times to enable developer options'),
+            findsOneWidget);
+      });
+
+      testWidgets(
+          'tapping version 7 times enables developer options and shows section',
+          (WidgetTester tester) async {
+        await pumpSettingsScreen(tester);
+
+        final versionText = find.textContaining('Version');
+        await tester.ensureVisible(versionText);
+        await tester.pumpAndSettle();
+
+        // Tap 7 times
+        for (int i = 0; i < 7; i++) {
+          await tester.tap(versionText);
+          await tester.pumpAndSettle();
+        }
+
+        // Should show success message
+        expect(find.text('Developer options enabled!'), findsOneWidget);
+
+        // Dismiss the snackbar
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+
+        // Developer info section should now be visible
+        expect(find.text('DEVELOPER INFO'), findsOneWidget);
+        expect(find.text('API Endpoint'), findsOneWidget);
+        expect(find.text('Environment'), findsOneWidget);
+      });
+
+      testWidgets('developer options state persists across app restarts',
+          (WidgetTester tester) async {
+        // First, enable developer options
+        await settingsService.setDeveloperOptionsEnabled(true);
+
+        // Create a new screen instance (simulating app restart)
+        await pumpSettingsScreen(tester);
+
+        // Developer info section should be visible immediately
+        expect(find.text('DEVELOPER INFO'), findsOneWidget);
+        expect(find.text('API Endpoint'), findsOneWidget);
+      });
+
+      testWidgets('clear developer options hides the section',
+          (WidgetTester tester) async {
+        // First, enable developer options
+        await settingsService.setDeveloperOptionsEnabled(true);
+        await pumpSettingsScreen(tester);
+
+        // Verify section is visible
+        expect(find.text('DEVELOPER INFO'), findsOneWidget);
+
+        // Tap the clear button
+        final clearButton = find.text('Clear Developer Options');
+        expect(clearButton, findsOneWidget);
+        await tester.ensureVisible(clearButton);
+        await tester.pumpAndSettle();
+        await tester.tap(clearButton);
+        await tester.pumpAndSettle();
+
+        // Section should be hidden again
+        expect(find.text('DEVELOPER INFO'), findsNothing);
+        expect(find.text('API Endpoint'), findsNothing);
+      });
+
+      testWidgets('tapping other widgets does not affect tap counter',
+          (WidgetTester tester) async {
+        await pumpSettingsScreen(tester);
+
+        // Tap somewhere else first
+        await tester.tap(find.text('Documentation'));
+        await tester.pumpAndSettle();
+
+        // Then tap version - counter should start fresh
+        final versionText = find.textContaining('Version');
+        await tester.ensureVisible(versionText);
+        await tester.pumpAndSettle();
+        await tester.tap(versionText);
+        await tester.pumpAndSettle();
+
+        // Should show 6 remaining (not 5)
+        expect(find.text('Tap 6 more times to enable developer options'),
+            findsOneWidget);
       });
     });
   });

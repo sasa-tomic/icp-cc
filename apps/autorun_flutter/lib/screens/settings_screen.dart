@@ -4,15 +4,17 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
 import '../services/settings_service.dart';
+import '../services/onboarding_progress_service.dart';
+import '../services/spotlight_service.dart';
 import '../theme/app_design_system.dart';
 
 /// Settings screen for configuring app preferences.
 ///
 /// Displays:
 /// - Theme toggle (Light/Dark/System)
-/// - App version and build info
+/// - App version and build info (tap 7 times to unlock developer options)
 /// - External links (Documentation, Report Issue, Marketplace)
-/// - Developer info (API endpoint, environment)
+/// - Developer info (hidden by default, requires 7 taps on version to unlock)
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     required this.settingsService,
@@ -30,10 +32,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   ThemeMode _themeMode = ThemeMode.system;
   bool _isLoading = true;
+  bool _developerOptionsEnabled = false;
+  int _versionTapCount = 0;
 
   // App version info - can be updated via package_info_plus if needed
   static const String _appVersion = '1.0.0';
   static const String _buildNumber = '1';
+  static const int _tapsRequiredToUnlock = 7;
 
   // External links
   static const String _documentationUrl = 'https://github.com/kalaj01/icp-cc';
@@ -49,9 +54,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final themeMode = await widget.settingsService.getThemeMode();
+    final developerOptionsEnabled =
+        await widget.settingsService.isDeveloperOptionsEnabled();
     if (mounted) {
       setState(() {
         _themeMode = themeMode;
+        _developerOptionsEnabled = developerOptionsEnabled;
         _isLoading = false;
       });
     }
@@ -65,6 +73,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
       widget.onThemeChanged?.call();
     }
+  }
+
+  void _handleVersionTap() {
+    if (_developerOptionsEnabled) {
+      // Already enabled, no need to count
+      return;
+    }
+
+    setState(() {
+      _versionTapCount++;
+    });
+
+    final remainingTaps = _tapsRequiredToUnlock - _versionTapCount;
+
+    if (remainingTaps <= 0) {
+      // Developer options unlocked!
+      _enableDeveloperOptions();
+    } else {
+      // Show remaining taps hint
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Tap $remainingTaps more times to enable developer options'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  Future<void> _enableDeveloperOptions() async {
+    await widget.settingsService.setDeveloperOptionsEnabled(true);
+    setState(() {
+      _developerOptionsEnabled = true;
+      _versionTapCount = 0;
+    });
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Developer options enabled!'),
+        backgroundColor: AppDesignSystem.successLight,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _clearDeveloperOptions() async {
+    await widget.settingsService.clearDeveloperOptions();
+    setState(() {
+      _developerOptionsEnabled = false;
+      _versionTapCount = 0;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Developer options cleared'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _launchUrl(String urlString) async {
@@ -114,11 +180,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  _buildOnboardingSection(),
+                  const SizedBox(height: 24),
                   _buildThemeSection(),
                   const SizedBox(height: 24),
                   _buildLinksSection(),
-                  const SizedBox(height: 24),
-                  _buildDeveloperSection(),
+                  if (_developerOptionsEnabled) ...[
+                    const SizedBox(height: 24),
+                    _buildDeveloperSection(),
+                  ],
                   const SizedBox(height: 24),
                   _buildAboutSection(),
                   const SizedBox(height: 32),
@@ -126,6 +196,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
     );
+  }
+
+  Widget _buildOnboardingSection() {
+    return _SettingsCard(
+      title: 'HELP',
+      icon: Icons.help_outline,
+      children: [
+        _SettingsListTile(
+          icon: Icons.rocket_launch_outlined,
+          label: 'Getting Started',
+          subtitle: 'Show the onboarding guide',
+          onTap: _showGettingStartedGuide,
+        ),
+        _SettingsListTile(
+          icon: Icons.tour_outlined,
+          label: 'Restart Tour',
+          subtitle: 'Show the guided tour again',
+          onTap: _restartTour,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showGettingStartedGuide() async {
+    final service = OnboardingProgressService();
+    await service.reset();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Getting Started guide will appear on the home screen'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _restartTour() async {
+    final service = SpotlightService();
+    await service.resetAndStart();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tour will start shortly'),
+        ),
+      );
+    }
   }
 
   Widget _buildThemeSection() {
@@ -277,6 +392,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
           label: 'Environment',
           value: AppConfig.environmentName,
         ),
+        const SizedBox(height: 16),
+        // Clear Developer Options button
+        InkWell(
+          onTap: _clearDeveloperOptions,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: context.colors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.delete_outline,
+                  color: context.colors.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Clear Developer Options',
+                  style: AppDesignSystem.bodyMedium.copyWith(
+                    color: context.colors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -312,10 +458,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'Version $_appVersion ($_buildNumber)',
-                style: AppDesignSystem.bodyMedium.copyWith(
-                  color: context.colors.onSurfaceVariant,
+              // Make version tappable to unlock developer options
+              InkWell(
+                onTap: _handleVersionTap,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(
+                    'Version $_appVersion ($_buildNumber)',
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

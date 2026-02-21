@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,9 +6,7 @@ import '../controllers/account_controller.dart';
 import '../models/profile.dart';
 import '../models/account.dart';
 import '../services/passkey_service.dart';
-import '../services/onboarding_progress_service.dart';
 import '../services/settings_service.dart';
-import '../services/spotlight_service.dart';
 import '../utils/passkey_platform.dart';
 import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
@@ -23,10 +20,7 @@ enum ProfileMenuAction {
   createAccount,
   passkeys,
   settings,
-  switchProfile,
-  createProfile,
-  gettingStarted,
-  restartTour,
+  manageProfiles,
 }
 
 /// Profile menu widget that can be shown as a bottom sheet or menu
@@ -273,40 +267,20 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
                 : null,
             highlight: _passkeyCountLoaded && _passkeyCount == 0,
           ),
-        // Switch Profile (if multiple profiles)
-        if (profileCount > 1)
-          _MenuTile(
-            icon: Icons.swap_horiz,
-            label: 'Switch Profile',
-            subtitle: '$profileCount profiles available',
-            onTap: () => _handleAction(ProfileMenuAction.switchProfile),
-          ),
-        // Create Profile
+        // Manage Profiles (combines switch + create)
         _MenuTile(
-          icon: Icons.add_circle_outline,
-          label: 'Create Profile',
-          subtitle: 'Add a new identity',
-          onTap: () => _handleAction(ProfileMenuAction.createProfile),
-        ),
-        // Getting Started
-        _MenuTile(
-          icon: Icons.rocket_launch_outlined,
-          label: 'Getting Started',
-          subtitle: 'Show the onboarding guide',
-          onTap: () => _handleAction(ProfileMenuAction.gettingStarted),
-        ),
-        // Restart Tour
-        _MenuTile(
-          icon: Icons.tour_outlined,
-          label: 'Restart Tour',
-          subtitle: 'Show the guided tour again',
-          onTap: () => _handleAction(ProfileMenuAction.restartTour),
+          icon: Icons.people_outline,
+          label: 'Manage Profiles',
+          subtitle: profileCount > 1
+              ? '$profileCount profiles'
+              : 'Add or switch identities',
+          onTap: () => _handleAction(ProfileMenuAction.manageProfiles),
         ),
         // Settings
         _MenuTile(
           icon: Icons.settings_outlined,
           label: 'Settings',
-          subtitle: 'Theme, links, and app info',
+          subtitle: 'Theme, help, and app info',
           onTap: () => _handleAction(ProfileMenuAction.settings),
         ),
       ],
@@ -342,48 +316,14 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           await _navigateToPasskeyManagement(_activeAccount!);
         }
         break;
-      case ProfileMenuAction.switchProfile:
-        await _showProfileSwitcher();
-        break;
-      case ProfileMenuAction.createProfile:
-        await _showCreateProfile();
-        break;
       case ProfileMenuAction.viewProfile:
         break;
       case ProfileMenuAction.settings:
         await _navigateToSettings();
         break;
-      case ProfileMenuAction.gettingStarted:
-        await _showGettingStartedGuide();
+      case ProfileMenuAction.manageProfiles:
+        await _showManageProfilesSheet();
         break;
-      case ProfileMenuAction.restartTour:
-        await _restartTour();
-        break;
-    }
-  }
-
-  Future<void> _showGettingStartedGuide() async {
-    final service = OnboardingProgressService();
-    await service.reset();
-    widget.onNavigate?.call();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Getting Started guide will appear on the home screen'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _restartTour() async {
-    final service = SpotlightService();
-    await service.reset();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Restart the app to see the tour'),
-        ),
-      );
     }
   }
 
@@ -457,14 +397,19 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     );
   }
 
-  Future<void> _showProfileSwitcher() async {
+  /// Combined profile management sheet - shows switch + create options
+  Future<void> _showManageProfilesSheet() async {
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      builder: (context) => _ProfileSwitcherSheet(
+      builder: (context) => _ManageProfilesSheet(
         profileController: widget.profileController,
         accountController: widget.accountController,
+        onCreateProfile: () async {
+          Navigator.of(context).pop();
+          await _showCreateProfileDialog();
+        },
       ),
     );
     if (mounted) {
@@ -473,8 +418,7 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     }
   }
 
-  Future<void> _showCreateProfile() async {
-    // Import and use the profile creation dialog
+  Future<void> _showCreateProfileDialog() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => const _CreateProfileDialog(),
@@ -577,6 +521,160 @@ class _MenuTile extends StatelessWidget {
       );
     }
     return listTile;
+  }
+}
+
+/// Combined profile management sheet with switch + create options
+class _ManageProfilesSheet extends StatelessWidget {
+  const _ManageProfilesSheet({
+    required this.profileController,
+    required this.accountController,
+    required this.onCreateProfile,
+  });
+
+  final ProfileController profileController;
+  final AccountController accountController;
+  final VoidCallback onCreateProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final profiles = profileController.profiles;
+    final activeId = profileController.activeProfileId;
+
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Manage Profiles',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: profiles.length,
+              itemBuilder: (context, index) {
+                final profile = profiles[index];
+                final isActive = profile.id == activeId;
+
+                return ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: isActive
+                          ? LinearGradient(
+                              colors: [
+                                theme.colorScheme.primary,
+                                theme.colorScheme.primary
+                                    .withValues(alpha: 0.8),
+                              ],
+                            )
+                          : null,
+                      color: isActive
+                          ? null
+                          : theme.colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        profile.name.isNotEmpty
+                            ? profile.name.substring(0, 1).toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          color: isActive
+                              ? Colors.white
+                              : theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Text(profile.name),
+                  subtitle: profile.username != null
+                      ? Text('@${profile.username}')
+                      : null,
+                  trailing: isActive
+                      ? Icon(Icons.check_circle,
+                          color: theme.colorScheme.primary)
+                      : null,
+                  onTap: isActive
+                      ? null
+                      : () async {
+                          HapticFeedback.lightImpact();
+                          await profileController.setActiveProfile(profile.id);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('${profile.name} is now active'),
+                              ),
+                            );
+                          }
+                        },
+                );
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          // Create new profile option
+          ListTile(
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.add_circle_outline,
+                color: theme.colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              'Create New Profile',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+            subtitle: Text(
+              'Add another identity',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onCreateProfile();
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 }
 
