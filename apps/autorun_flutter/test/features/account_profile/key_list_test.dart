@@ -9,10 +9,23 @@ import 'account_profile_test_helpers.dart';
 import '../../test_helpers/test_keypair_factory.dart';
 
 void main() {
-  // Register fallback values for mocktail
   setUpAll(() {
     AccountProfileScreenTestHelper.registerFallbackValues();
   });
+
+  Future<void> expandPublicKeysSection(WidgetTester tester) async {
+    await tester.dragUntilVisible(
+      find.text('Public Keys'),
+      find.byType(SingleChildScrollView),
+      const Offset(0, -50),
+    );
+    final expansionTile = find.ancestor(
+      of: find.text('Public Keys'),
+      matching: find.byType(ExpansionTile),
+    );
+    await tester.tap(expansionTile);
+    await tester.pumpAndSettle();
+  }
 
   group('AccountProfileScreen - Key List Display', () {
     late MockAccountController accountController;
@@ -59,6 +72,8 @@ void main() {
         profileController: profileController,
       );
 
+      await expandPublicKeysSection(tester);
+
       expect(find.text('Active'), findsOneWidget);
     });
 
@@ -104,6 +119,8 @@ void main() {
         profileController: profileController,
       );
 
+      await expandPublicKeysSection(tester);
+
       expect(find.text('Active'), findsOneWidget);
       expect(find.text('Disabled'), findsOneWidget);
     });
@@ -142,6 +159,8 @@ void main() {
         profileController: profileController,
       );
 
+      await expandPublicKeysSection(tester);
+
       expect(find.text('SIGNING KEY'), findsOneWidget);
     });
 
@@ -168,7 +187,6 @@ void main() {
           ),
         ],
       );
-      // Profile only has keypair1 as its signing key
       final profile = Profile(
         id: 'profile-1',
         name: 'Test',
@@ -188,7 +206,8 @@ void main() {
         profileController: profileController,
       );
 
-      // Only one SIGNING KEY badge (for keypair1)
+      await expandPublicKeysSection(tester);
+
       expect(find.text('SIGNING KEY'), findsOneWidget);
     });
 
@@ -248,7 +267,7 @@ void main() {
       final account = AccountProfileScreenTestHelper.createTestAccount(
         username: 'testuser',
         displayName: 'Test User',
-        publicKeys: [], // No keys
+        publicKeys: [],
       );
       final profile = Profile(
         id: 'profile-1',
@@ -268,6 +287,8 @@ void main() {
         profile: profile,
         profileController: profileController,
       );
+
+      await expandPublicKeysSection(tester);
 
       expect(find.text('No keys found'), findsOneWidget);
     });
@@ -296,11 +317,10 @@ void main() {
           ),
         ],
       );
-      // keypair2 is in profile but not registered as signing key
       final profile = Profile(
         id: 'profile-1',
         name: 'Test',
-        keypairs: [keypair2], // This key is NOT in account's active keys
+        keypairs: [keypair2],
         username: 'testuser',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -316,7 +336,8 @@ void main() {
         profileController: profileController,
       );
 
-      // key-1 is the last active key and is NOT the signing key
+      await expandPublicKeysSection(tester);
+
       expect(find.text('LAST ACTIVE'), findsOneWidget);
     });
 
@@ -353,6 +374,8 @@ void main() {
         profile: profile,
         profileController: profileController,
       );
+
+      await expandPublicKeysSection(tester);
 
       expect(find.text('Public Key'), findsOneWidget);
       expect(find.text('IC Principal'), findsOneWidget);
@@ -400,6 +423,8 @@ void main() {
         profileController: profileController,
       );
 
+      await expandPublicKeysSection(tester);
+
       expect(find.text('DISABLED KEYS'), findsOneWidget);
     });
 
@@ -435,6 +460,8 @@ void main() {
         profile: profile,
         profileController: profileController,
       );
+
+      await expandPublicKeysSection(tester);
 
       expect(find.textContaining('Added'), findsOneWidget);
     });
@@ -481,8 +508,8 @@ void main() {
         profileController: profileController,
       );
 
-      // The disabled key card shows "Disabled" text (as status) and "Disabled today" (as timestamp)
-      // We verify that the "Disabled" status text is present
+      await expandPublicKeysSection(tester);
+
       expect(find.text('Disabled'), findsOneWidget);
     });
 
@@ -518,7 +545,8 @@ void main() {
         profileController: profileController,
       );
 
-      // Find copy icons (there should be at least 2 - one for public key, one for principal)
+      await expandPublicKeysSection(tester);
+
       expect(find.byIcon(Icons.copy), findsWidgets);
     });
 
@@ -560,7 +588,6 @@ void main() {
     testWidgets('hides Add Key FAB when at max keys (10)', (tester) async {
       final keypair = await TestKeypairFactory.getEd25519Keypair();
 
-      // Create 10 keys to hit the max
       final keys = <AccountPublicKey>[];
       for (int i = 0; i < 10; i++) {
         keys.add(AccountProfileScreenTestHelper.createTestAccountPublicKey(

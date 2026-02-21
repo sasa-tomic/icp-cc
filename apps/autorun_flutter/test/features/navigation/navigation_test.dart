@@ -17,14 +17,14 @@ void main() {
               onTap: (_) {},
               items: const [
                 ModernNavigationItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: 'Home',
+                  icon: Icons.code_outlined,
+                  activeIcon: Icons.code_rounded,
+                  label: 'Scripts',
                 ),
                 ModernNavigationItem(
-                  icon: Icons.explore_outlined,
-                  activeIcon: Icons.explore_rounded,
-                  label: 'Explore',
+                  icon: Icons.dns_outlined,
+                  activeIcon: Icons.dns_rounded,
+                  label: 'Canisters',
                 ),
               ],
             ),
@@ -32,13 +32,11 @@ void main() {
         ),
       );
 
-      // Find the navigation bar items
-      final homeTab = find.text('Home');
-      final exploreTab = find.text('Explore');
+      final scriptsTab = find.text('Scripts');
+      final canistersTab = find.text('Canisters');
 
-      // Should have Home and Explore tabs
-      expect(homeTab, findsOneWidget, reason: 'Should have Home tab');
-      expect(exploreTab, findsOneWidget, reason: 'Should have Explore tab');
+      expect(scriptsTab, findsOneWidget, reason: 'Should have Scripts tab');
+      expect(canistersTab, findsOneWidget, reason: 'Should have Canisters tab');
     });
 
     testWidgets('navigation bar has 2 items', (tester) async {
@@ -50,14 +48,14 @@ void main() {
               onTap: (_) {},
               items: const [
                 ModernNavigationItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: 'Home',
+                  icon: Icons.code_outlined,
+                  activeIcon: Icons.code_rounded,
+                  label: 'Scripts',
                 ),
                 ModernNavigationItem(
-                  icon: Icons.explore_outlined,
-                  activeIcon: Icons.explore_rounded,
-                  label: 'Explore',
+                  icon: Icons.dns_outlined,
+                  activeIcon: Icons.dns_rounded,
+                  label: 'Canisters',
                 ),
               ],
             ),
@@ -65,7 +63,6 @@ void main() {
         ),
       );
 
-      // Find the navigation bar
       final navBar = find.byType(ModernNavigationBar);
       expect(navBar, findsOneWidget);
 
@@ -87,14 +84,14 @@ void main() {
               },
               items: const [
                 ModernNavigationItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: 'Home',
+                  icon: Icons.code_outlined,
+                  activeIcon: Icons.code_rounded,
+                  label: 'Scripts',
                 ),
                 ModernNavigationItem(
-                  icon: Icons.explore_outlined,
-                  activeIcon: Icons.explore_rounded,
-                  label: 'Explore',
+                  icon: Icons.dns_outlined,
+                  activeIcon: Icons.dns_rounded,
+                  label: 'Canisters',
                 ),
               ],
             ),
@@ -102,17 +99,16 @@ void main() {
         ),
       );
 
-      // Tap the Explore tab
-      final exploreTab = find.text('Explore');
-      await tester.tap(exploreTab);
+      final canistersTab = find.text('Canisters');
+      await tester.tap(canistersTab);
 
       expect(tappedIndex, equals(1),
-          reason: 'Tapping Explore should trigger callback with index 1');
+          reason: 'Tapping Canisters should trigger callback with index 1');
     });
   });
 
   group('ProfileMenuWidget', () {
-    testWidgets('shows Create Profile option', (tester) async {
+    testWidgets('shows Manage Profiles option', (tester) async {
       final profileController = ProfileController(
         marketplaceService: MarketplaceOpenApiService(),
       );
@@ -134,10 +130,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Should show Create Profile option
-      final createProfileOption = find.text('Create Profile');
-      expect(createProfileOption, findsOneWidget,
-          reason: 'Create Profile option should be visible');
+      // Should show Manage Profiles option (combines switch + create)
+      final manageProfilesOption = find.text('Manage Profiles');
+      expect(manageProfilesOption, findsOneWidget,
+          reason: 'Manage Profiles option should be visible');
     });
 
     testWidgets('shows profile header with display name', (tester) async {

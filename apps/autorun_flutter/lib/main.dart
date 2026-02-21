@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:app_links/app_links.dart';
 
 import 'config/app_config.dart';
 import 'controllers/account_controller.dart';
@@ -8,6 +10,7 @@ import 'controllers/script_controller.dart';
 import 'models/profile_keypair.dart';
 import 'models/script_template.dart';
 import 'rust/native_bridge.dart';
+import 'services/deep_link_service.dart';
 import 'services/marketplace_open_api_service.dart';
 import 'services/onboarding_service.dart';
 import 'services/script_repository.dart';
@@ -25,6 +28,7 @@ import 'widgets/post_setup_guide.dart';
 import 'widgets/profile_scope.dart';
 import 'widgets/profile_menu.dart';
 import 'widgets/spotlight_overlay.dart';
+import 'widgets/script_details_dialog.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +50,9 @@ class _KeypairAppState extends State<KeypairApp> {
   final SettingsService _settingsService = SettingsService();
   final ValueNotifier<ThemeMode> _themeModeNotifier =
       ValueNotifier(ThemeMode.system);
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<DeepLinkData>? _deepLinkSubscription;
+  AppLinks? _appLinks;
 
   @override
   void initState() {
@@ -59,6 +66,92 @@ class _KeypairAppState extends State<KeypairApp> {
     );
     unawaited(_profileController.ensureLoaded());
     _loadThemePreference();
+    _initDeepLinks();
+  }
+
+  Future<void> _initDeepLinks() async {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.linux) {
+      return;
+    }
+
+    _appLinks = AppLinks();
+
+    _deepLinkSubscription = DeepLinkService.instance.linkStream.listen(
+      _handleDeepLink,
+    );
+
+    _appLinks?.uriLinkStream.listen((uri) {
+      DeepLinkService.instance.handleLink(uri);
+    });
+  }
+
+  void _handleDeepLink(DeepLinkData data) {
+    final context = _navigatorKey.currentContext;
+    if (context == null || !mounted) return;
+
+    switch (data.type) {
+      case DeepLinkType.script:
+        if (data.scriptId != null) {
+          _openScriptFromDeepLink(context, data.scriptId!);
+        }
+    }
+  }
+
+  Future<void> _openScriptFromDeepLink(
+      BuildContext context, String scriptId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final script =
+          await MarketplaceOpenApiService().getScriptDetails(scriptId);
+
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
+      final navContext = _navigatorKey.currentContext;
+      if (navContext == null) return;
+      // ignore: use_build_context_synchronously
+      Navigator.of(navContext).pop();
+
+      // ignore: use_build_context_synchronously
+      await showDialog<void>(
+        // ignore: use_build_context_synchronously
+        context: navContext,
+        builder: (ctx) => ScriptDetailsDialog(
+          script: script,
+          onDownload: script.price == 0
+              ? () => _downloadScriptFromDeepLink(navContext, script)
+              : null,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
+      final navContext = _navigatorKey.currentContext;
+      if (navContext == null) return;
+      // ignore: use_build_context_synchronously
+      Navigator.of(navContext).pop();
+
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(navContext).showSnackBar(
+        SnackBar(
+          content: Text('Script not found: $scriptId'),
+          // ignore: use_build_context_synchronously
+          backgroundColor: Theme.of(navContext).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _downloadScriptFromDeepLink(
+      BuildContext context, dynamic script) async {
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Script downloaded')),
+    );
   }
 
   Future<void> _loadThemePreference() async {
@@ -68,6 +161,7 @@ class _KeypairAppState extends State<KeypairApp> {
 
   @override
   void dispose() {
+    _deepLinkSubscription?.cancel();
     _profileController.dispose();
     _accountController.dispose();
     _themeModeNotifier.dispose();
@@ -83,6 +177,7 @@ class _KeypairAppState extends State<KeypairApp> {
           valueListenable: _themeModeNotifier,
           builder: (context, themeMode, child) {
             return MaterialApp(
+              navigatorKey: _navigatorKey,
               title: 'ICP Autorun',
               theme: AppDesignSystem.lightTheme,
               darkTheme: AppDesignSystem.darkTheme,
@@ -417,14 +512,14 @@ class _MainHomePageState extends State<MainHomePage> {
       },
       items: const [
         ModernNavigationItem(
-          icon: Icons.home_outlined,
-          activeIcon: Icons.home_rounded,
-          label: 'Home',
+          icon: Icons.code_outlined,
+          activeIcon: Icons.code_rounded,
+          label: 'Scripts',
         ),
         ModernNavigationItem(
-          icon: Icons.explore_outlined,
-          activeIcon: Icons.explore_rounded,
-          label: 'Explore',
+          icon: Icons.dns_outlined,
+          activeIcon: Icons.dns_rounded,
+          label: 'Canisters',
         ),
       ],
     );

@@ -99,30 +99,42 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   }
 
   void _generateDescriptionFromScript() {
-    // Generate a generic description since script source is not displayed
-    String description =
-        'A Lua script for automation and utility tasks. This script provides a user-friendly interface for managing various operations.';
-    _descriptionController.text = description;
+    if (widget.script != null && widget.script!.luaSource.isNotEmpty) {
+      final lines = widget.script!.luaSource.split('\n');
+      final contentLines = lines
+          .where(
+              (line) => !line.trim().startsWith('--') && line.trim().isNotEmpty)
+          .take(3)
+          .toList();
+      if (contentLines.isNotEmpty) {
+        _descriptionController.text =
+            'A Lua script with ${contentLines.length} main functions: ${widget.script!.title}';
+        return;
+      }
+    }
+    _descriptionController.text =
+        'A Lua script for automation and utility tasks.';
   }
 
   void _detectCategoryFromScript() {
-    // Set default category since script source is not displayed
     _selectedCategory = 'Example';
   }
 
   void _generateTagsFromScript() {
-    // Generate generic tags since script source is not displayed
+    if (widget.script != null) {
+      _tagsController.text = 'lua, script';
+      return;
+    }
     _tagsController.text = 'automation, utility';
   }
 
-  String _generateLuaSource() {
+  String _getLuaSource() {
     if (widget.script != null) {
       return widget.script!.luaSource;
     }
     if (widget.preFilledCode != null) {
       return widget.preFilledCode!;
     }
-    // Generate default Lua script
     final title = _titleController.text.isNotEmpty
         ? _titleController.text
         : 'Untitled Script';
@@ -590,7 +602,7 @@ end''';
   }
 
   Widget _buildCodePreview() {
-    final luaSource = _generateLuaSource();
+    final luaSource = _getLuaSource();
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -606,7 +618,7 @@ end''';
             const SizedBox(height: 16),
           ],
           Text(
-            'Review Generated Code',
+            'Review Script Code',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),

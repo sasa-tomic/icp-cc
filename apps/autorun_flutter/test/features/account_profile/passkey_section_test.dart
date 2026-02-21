@@ -68,7 +68,7 @@ void main() {
         profileController: profileController,
       );
 
-      expect(find.text('PASSKEYS'), findsOneWidget);
+      expect(find.text('Passkeys'), findsOneWidget);
     });
 
     testWidgets('shows Manage Passkeys button on supported platforms',
@@ -106,7 +106,7 @@ void main() {
       );
 
       expect(
-        find.textContaining('Secure passwordless login'),
+        find.textContaining('Biometric'),
         findsOneWidget,
       );
     });
@@ -126,8 +126,7 @@ void main() {
         profileController: profileController,
       );
 
-      // Find the key icon in passkey section
-      expect(find.byIcon(Icons.key), findsWidgets);
+      expect(find.byIcon(Icons.fingerprint), findsOneWidget);
     });
 
     testWidgets('Manage Passkeys button is an OutlinedButton', (tester) async {
@@ -145,7 +144,7 @@ void main() {
         profileController: profileController,
       );
 
-      final button = find.widgetWithText(OutlinedButton, 'Manage Passkeys');
+      final button = find.widgetWithText(OutlinedButton, 'Manage');
       expect(button, findsOneWidget);
     });
   });

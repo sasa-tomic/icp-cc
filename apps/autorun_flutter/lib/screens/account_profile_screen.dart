@@ -225,9 +225,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
               const SizedBox(height: 24),
               _buildProfileSection(),
               const SizedBox(height: 24),
-              _buildPasskeySection(),
-              const SizedBox(height: 24),
-              _buildKeysSection(),
+              _buildSecuritySection(),
             ],
           ),
         ),
@@ -572,11 +570,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
     }
   }
 
-  Widget _buildPasskeySection() {
-    if (PasskeyPlatform.isLinuxDesktop) {
-      return _buildLinuxUnsupportedCard();
-    }
-
+  Widget _buildSecuritySection() {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -588,111 +582,238 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'PASSKEYS',
-                  style: AppDesignSystem.bodySmall.copyWith(
-                    color: context.colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                Icon(
-                  Icons.key,
-                  color: AppDesignSystem.primaryLight,
-                  size: 20,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
             Text(
-              'Secure passwordless login using biometrics or security keys',
+              'SECURITY',
               style: AppDesignSystem.bodySmall.copyWith(
                 color: context.colors.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
               ),
             ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => _navigateToPasskeyManagement(),
-              icon: const Icon(Icons.manage_accounts),
-              label: const Text('Manage Passkeys'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppDesignSystem.primaryLight,
-                side: BorderSide(color: AppDesignSystem.primaryLight),
-              ),
-            ),
+            _buildPasskeysRow(),
+            const Divider(height: 24),
+            _buildPublicKeysRow(),
+            const Divider(height: 24),
+            _buildBackupRow(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLinuxUnsupportedCard() {
-    return Card(
-      elevation: 0,
-      color: AppDesignSystem.warningLight.withValues(alpha: 0.1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppDesignSystem.warningLight),
+  Widget _buildPasskeysRow() {
+    if (PasskeyPlatform.isLinuxDesktop) {
+      return _buildLinuxPasskeyRow();
+    }
+
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppDesignSystem.primaryLight.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.fingerprint,
+          color: AppDesignSystem.primaryLight,
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      title: const Text('Passkeys'),
+      subtitle: const Text('Biometric authentication for secure login'),
+      trailing: OutlinedButton(
+        onPressed: () => _navigateToPasskeyManagement(),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppDesignSystem.primaryLight,
+          side: BorderSide(color: AppDesignSystem.primaryLight),
+        ),
+        child: const Text('Manage'),
+      ),
+      contentPadding: EdgeInsets.zero,
+    );
+  }
+
+  Widget _buildLinuxPasskeyRow() {
+    return ExpansionTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppDesignSystem.warningLight.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.fingerprint,
+          color: AppDesignSystem.warningDark,
+        ),
+      ),
+      title: const Text('Passkeys'),
+      subtitle: Text(
+        'Requires browser on Linux',
+        style: AppDesignSystem.bodySmall.copyWith(
+          color: AppDesignSystem.warningDark,
+        ),
+      ),
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(left: 56, bottom: 8),
+      children: [
+        Text(
+          'Passkeys require a browser on Linux. Run:',
+          style: AppDesignSystem.bodySmall.copyWith(
+            color: context.colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppDesignSystem.neutral100,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            'flutter run -d chrome',
+            style: AppDesignSystem.bodySmall.copyWith(
+              fontFamily: 'monospace',
+              color: AppDesignSystem.neutral700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPublicKeysRow() {
+    final activeKeys = _account.activeKeys;
+    final disabledKeys = _account.disabledKeys;
+
+    return ExpansionTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppDesignSystem.accentLight.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.vpn_key,
+          color: AppDesignSystem.accentDark,
+        ),
+      ),
+      title: const Text('Public Keys'),
+      subtitle: Text(
+        'Cryptographic keys for signing transactions',
+        style: AppDesignSystem.bodySmall.copyWith(
+          color: context.colors.onSurfaceVariant,
+        ),
+      ),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: _account.isAtMaxKeys
+              ? AppDesignSystem.warningLight.withValues(alpha: 0.2)
+              : AppDesignSystem.accentLight.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          '${_account.publicKeys.length}/10',
+          style: AppDesignSystem.bodySmall.copyWith(
+            color: _account.isAtMaxKeys
+                ? AppDesignSystem.warningDark
+                : AppDesignSystem.accentDark,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(top: 8),
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: AppDesignSystem.warningDark,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'PASSKEYS',
-                  style: AppDesignSystem.bodySmall.copyWith(
-                    color: AppDesignSystem.warningDark,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Passkeys are not supported on Linux desktop.',
-              style: AppDesignSystem.bodyMedium.copyWith(
-                color: AppDesignSystem.warningDark,
-                fontWeight: FontWeight.w600,
+            TextButton.icon(
+              onPressed: _showImportKeysDialog,
+              icon: const Icon(Icons.upload, size: 18),
+              label: const Text('Import Keys'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppDesignSystem.primaryLight,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Use Flutter Web (chrome) to set up passkeys:',
-              style: AppDesignSystem.bodySmall.copyWith(
-                color: AppDesignSystem.warningDark,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppDesignSystem.neutral100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'flutter run -d chrome',
-                style: AppDesignSystem.bodySmall.copyWith(
-                  fontFamily: 'monospace',
-                  color: AppDesignSystem.neutral700,
-                ),
+            TextButton.icon(
+              onPressed: _showExportKeysDialog,
+              icon: const Icon(Icons.download, size: 18),
+              label: const Text('Export Keys'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppDesignSystem.primaryLight,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        if (activeKeys.isNotEmpty)
+          for (var key in activeKeys) ...[
+            _buildKeyCard(key, isActive: true),
+            const SizedBox(height: 12),
+          ],
+        if (disabledKeys.isNotEmpty) ...[
+          const Divider(height: 16),
+          Text(
+            'DISABLED KEYS',
+            style: AppDesignSystem.bodySmall.copyWith(
+              color: context.colors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (var key in disabledKeys) ...[
+            _buildKeyCard(key, isActive: false),
+            const SizedBox(height: 12),
+          ],
+        ],
+        if (_account.publicKeys.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'No keys found',
+                style: AppDesignSystem.bodyMedium.copyWith(
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBackupRow() {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppDesignSystem.neutral100,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(
+          Icons.download,
+          color: AppDesignSystem.neutral700,
+        ),
       ),
+      title: const Text('Backup'),
+      subtitle: const Text('Export your keys for secure backup'),
+      trailing: OutlinedButton.icon(
+        onPressed: _showExportKeysDialog,
+        icon: const Icon(Icons.download, size: 18),
+        label: const Text('Export'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppDesignSystem.neutral700,
+          side: const BorderSide(color: AppDesignSystem.neutral400),
+        ),
+      ),
+      contentPadding: EdgeInsets.zero,
     );
   }
 
@@ -703,127 +824,6 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         builder: (context) => PasskeyManagementScreen(
           accountId: _account.id,
           username: _account.username,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKeysSection() {
-    final activeKeys = _account.activeKeys;
-    final disabledKeys = _account.disabledKeys;
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: context.colors.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'PUBLIC KEYS',
-                  style: AppDesignSystem.bodySmall.copyWith(
-                    color: context.colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton.icon(
-                      onPressed: _showImportKeysDialog,
-                      icon: const Icon(Icons.upload, size: 18),
-                      label: const Text('Import Keys'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppDesignSystem.primaryLight,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: _showExportKeysDialog,
-                      icon: const Icon(Icons.download, size: 18),
-                      label: const Text('Export Keys'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppDesignSystem.primaryLight,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _account.isAtMaxKeys
-                            ? AppDesignSystem.warningLight
-                                .withValues(alpha: 0.2)
-                            : AppDesignSystem.accentLight
-                                .withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_account.publicKeys.length}/10',
-                        style: AppDesignSystem.bodySmall.copyWith(
-                          color: _account.isAtMaxKeys
-                              ? AppDesignSystem.warningDark
-                              : AppDesignSystem.accentDark,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Active keys
-            if (activeKeys.isNotEmpty) ...[
-              for (var key in activeKeys) ...[
-                _buildKeyCard(key, isActive: true),
-                const SizedBox(height: 12),
-              ],
-            ],
-
-            // Disabled keys
-            if (disabledKeys.isNotEmpty) ...[
-              const Divider(height: 24),
-              Text(
-                'DISABLED KEYS',
-                style: AppDesignSystem.bodySmall.copyWith(
-                  color: context.colors.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              for (var key in disabledKeys) ...[
-                _buildKeyCard(key, isActive: false),
-                const SizedBox(height: 12),
-              ],
-            ],
-
-            if (_account.publicKeys.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Text(
-                    'No keys found',
-                    style: AppDesignSystem.bodyMedium.copyWith(
-                      color: context.colors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ),
-          ],
         ),
       ),
     );

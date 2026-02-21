@@ -32,7 +32,7 @@ class SpotlightService {
   static const List<SpotlightStep> _steps = [
     SpotlightStep(
       targetKey: 'home_tab',
-      title: 'Welcome to Home',
+      title: 'Your Scripts',
       description:
           'This is your main workspace where you can manage and run your scripts. Your local scripts and marketplace downloads appear here.',
       position: SpotlightPosition.top,
@@ -46,7 +46,7 @@ class SpotlightService {
     ),
     SpotlightStep(
       targetKey: 'discover_tab',
-      title: 'Discover Canisters',
+      title: 'Canisters',
       description:
           'Explore the Internet Computer ecosystem. Browse canisters, interact with services, and discover new dapps.',
       position: SpotlightPosition.top,

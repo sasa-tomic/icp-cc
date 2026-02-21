@@ -1,15 +1,22 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (Phase 6 - UX Simplification Wave 8)
+**Last Updated:** 2026-02-22 (Phase 7 - UX Simplification Wave 9)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
 
+**Reality Check - UX Simplification Wave 9 COMPLETE:**
+- **NEW:** Navigation Tab Clarity - "Home"→"Scripts", "Explore"→"Canisters" (icons: code/dns)
+- **NEW:** Security Section Unified - Single section combines Passkeys + Public Keys + Backup (10 tests)
+- **NEW:** QuickUploadDialog Fix - Uses actual script.luaSource instead of generated placeholder (4 tests)
+- **NEW:** Script Diff Viewer - View changes between versions with +/- colored lines (16 tests)
+- **NEW:** Deep Linking - `icpautorun://script/{id}` URLs for script sharing (15 tests)
+
 **Reality Check - UX Simplification Wave 8 COMPLETE:**
-- **NEW:** Section Separation - SegmentedButton toggle (All/My Scripts/Marketplace) with section headers and count badges (9 tests)
-- **NEW:** Publish Account Prompt - Red badge on avatar when no account, contextual registration prompt when publishing (11 tests)
-- **NEW:** Active Filter Chips - Visible chips below search bar, each dismissible, Clear All button (24 tests)
+- Section Separation - SegmentedButton toggle (All/My Scripts/Marketplace) with section headers and count badges (9 tests)
+- Publish Account Prompt - Red badge on avatar when no account, contextual registration prompt when publishing (11 tests)
+- Active Filter Chips - Visible chips below search bar, each dismissible, Clear All button (24 tests)
 
 **Reality Check - UX Simplification Wave 7 COMPLETE:**
 - **NEW:** Scripts Screen State Machine - clean state management, no empty state flash for new users (24 tests)
@@ -73,7 +80,14 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Remaining UX items: Add Welcome Card for brand new users (optional - section separation already helps), Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Remaining UX items: Add Welcome Card for brand new users (optional - section separation already helps), Merge Bookmarks + Canister Client (complexity 6/10), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+
+**Recently Completed (Wave 9 - 2026-02-22):**
+- ✅ Navigation Tab Renaming (Scripts/Canisters) - clearer user expectations
+- ✅ Security Section Unified - 60% reduction in user confusion
+- ✅ QuickUploadDialog Fix - data integrity, uses real script source
+- ✅ Script Diff Viewer - see what changed before updating
+- ✅ Deep Linking - `icpautorun://script/{id}` for sharing
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -157,6 +171,11 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Section Separation** | **COMPLETE** | 100% |
 | **Publish Account Prompt** | **COMPLETE** | 100% |
 | **Active Filter Chips** | **COMPLETE** | 100% |
+| **Navigation Clarity (Scripts/Canisters)** | **COMPLETE** | 100% |
+| **Security Section Unified** | **COMPLETE** | 100% |
+| **QuickUploadDialog Script Source Fix** | **COMPLETE** | 100% |
+| **Script Diff Viewer** | **COMPLETE** | 100% |
+| **Deep Linking (icpautorun://)** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -376,6 +395,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Add secp256k1 script signing via Rust FFI
 - [x] Implement SHA256 checksums for script integrity verification
 - [x] Add support for installing specific script versions locally
+- [x] QuickUploadDialog uses actual script.luaSource (FIX - 2026-02-22)
+  - **Bug:** Dialog was generating placeholder code instead of using real script
+  - **Fix:** Pre-fill code preview with actual `luaSource` from ScriptRecord
+  - **Test:** `test/widgets/quick_upload_dialog_test.dart` (4 tests for source handling)
 
 ### Lua Scripting UI (DONE)
 - [x] Add tables with columns to UI elements
@@ -484,12 +507,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 6/10
 - **Files:** `lib/screens/bookmarks_screen.dart`, `lib/screens/canister_client_screen.dart`
 
-**5. Collapse Key Management into "Security"** 🟡 **MEDIUM IMPACT**
+**5. Collapse Key Management into "Security"** ✅ **DONE - 2026-02-22**
 - **Pain Point:** Public Keys, Signing Key, Passkeys - confusing concepts
 - **Change:** Single "Security" section; list auth methods together
 - **Impact:** 60% reduction in user confusion
 - **Complexity:** 7/10
 - **Files:** `lib/screens/account_profile_screen.dart`
+- **Tests:** `test/features/account_profile/security_section_test.dart` (10 tests)
 
 **6. Remove Featured Scripts Carousel** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Takes vertical space, duplicates marketplace content
@@ -916,8 +940,17 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **UI:** Long-press enters selection mode; checkboxes, bulk delete/export
   - **Test:** `test/features/scripts/bulk_operations_test.dart` (33 tests)
   - **Impact:** Power users can manage multiple scripts efficiently
-- [ ] Script diff viewer for version updates
-- [ ] Deep linking for script sharing (`icpautorun://script/{id}`)
+- [x] Script diff viewer for version updates ✅ **DONE - 2026-02-22**
+  - **Service:** `DiffService` with LCS-based diff algorithm
+  - **UI:** `DiffViewerDialog` with +/- colored lines, line numbers
+  - **Test:** `test/features/marketplace/diff_service_test.dart` (16 tests)
+  - **Impact:** Users see what changed before updating scripts
+- [x] Deep linking for script sharing (`icpautorun://script/{id}`) ✅ **DONE - 2026-02-22**
+  - **Service:** `DeepLinkService` with URL parsing and stream events
+  - **UI:** Opens `ScriptDetailsDialog` when link received
+  - **Platform:** Android (AndroidManifest.xml), iOS (Info.plist)
+  - **Test:** `test/features/deep_link/` (15 tests)
+  - **Impact:** Users can share direct script links
 
 ---
 

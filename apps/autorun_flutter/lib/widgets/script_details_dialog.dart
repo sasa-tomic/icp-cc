@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 import '../services/marketplace_open_api_service.dart';
+import 'diff_viewer_dialog.dart';
 
 class ScriptDetailsDialog extends StatefulWidget {
   final MarketplaceScript script;
@@ -10,6 +11,7 @@ class ScriptDetailsDialog extends StatefulWidget {
   final bool isDownloading;
   final bool isDownloaded;
   final String? installedVersion;
+  final String? installedScriptSource;
   final void Function(String version)? onInstallVersion;
 
   const ScriptDetailsDialog({
@@ -19,6 +21,7 @@ class ScriptDetailsDialog extends StatefulWidget {
     this.isDownloading = false,
     this.isDownloaded = false,
     this.installedVersion,
+    this.installedScriptSource,
     this.onInstallVersion,
   });
 
@@ -1331,6 +1334,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     final isInstalled = widget.installedVersion == version.version;
     final canInstall =
         widget.onInstallVersion != null && !version.isLatest && !isInstalled;
+    final canViewChanges = !isInstalled;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1454,6 +1458,14 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
               ],
             ),
           ),
+          if (canViewChanges)
+            TextButton(
+              onPressed: () => _showVersionDiff(version),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('View Changes'),
+            ),
           if (canInstall)
             TextButton(
               onPressed: () => widget.onInstallVersion!(version.version),
@@ -1465,5 +1477,42 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
         ],
       ),
     );
+  }
+
+  Future<void> _showVersionDiff(ScriptVersion version) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final newSource = await _marketplaceService.downloadScript(
+        widget.script.id,
+        version: version.version,
+      );
+
+      final oldSource = widget.installedScriptSource ?? '';
+      final oldVersion = widget.installedVersion ?? 'New Install';
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      showDialog(
+        context: context,
+        builder: (context) => DiffViewerDialog(
+          oldCode: oldSource,
+          newCode: newSource,
+          oldVersion: oldVersion,
+          newVersion: version.version,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load version diff: $e')),
+      );
+    }
   }
 }

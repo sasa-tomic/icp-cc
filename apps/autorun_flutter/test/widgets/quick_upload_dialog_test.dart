@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
+import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:icp_autorun/widgets/quick_upload_dialog.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
+import 'package:icp_autorun/widgets/script_editor.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -261,6 +263,219 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(find.byType(QuickUploadDialog), findsNothing);
+    });
+  });
+
+  group('QuickUploadDialog script source handling', () {
+    late ProfileKeypair keypair;
+    late ProfileController profileController;
+    late _MockMarketplaceService marketplaceService;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      keypair = await TestKeypairFactory.getEd25519Keypair();
+      final repository = FakeSecureKeypairRepository(<ProfileKeypair>[keypair]);
+      profileController =
+          ProfileController(profileRepository: repository.profileRepository);
+      await profileController.ensureLoaded();
+      if (profileController.profiles.isNotEmpty) {
+        await profileController
+            .setActiveProfile(profileController.profiles.first.id);
+      }
+      marketplaceService = _MockMarketplaceService();
+    });
+
+    testWidgets(
+        'uses actual script.luaSource in code preview when ScriptRecord is passed',
+        (WidgetTester tester) async {
+      const String actualLuaSource = '''-- My Unique Script
+-- This is custom code that should appear in preview
+function init()
+  return { custom = "data", unique = true }
+end
+
+function view(state)
+  return icp.message("Custom message from actual script!")
+end''';
+
+      final ScriptRecord script = ScriptRecord(
+        id: 'test-script-1',
+        title: 'Test Script',
+        luaSource: actualLuaSource,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProfileScope(
+          controller: profileController,
+          child: MaterialApp(
+            home: Builder(
+              builder: (BuildContext context) {
+                return Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => QuickUploadDialog(
+                            script: script,
+                            profileController: profileController,
+                            marketplaceService: marketplaceService,
+                          ),
+                        );
+                      },
+                      child: const Text('Open'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Description *'),
+          'Test description');
+      await tester.pumpAndSettle();
+
+      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      final ScriptEditor editor = tester.widget(find.byType(ScriptEditor));
+      expect(editor.initialCode, equals(actualLuaSource),
+          reason:
+              'Code preview should show the actual script.luaSource, not generated code');
+    });
+
+    testWidgets('uploads actual script.luaSource not generated code',
+        (WidgetTester tester) async {
+      const String actualLuaSource = '''-- Unique Upload Test Script
+function init()
+  return { uploaded = true }
+end''';
+
+      final ScriptRecord script = ScriptRecord(
+        id: 'test-script-2',
+        title: 'Upload Test Script',
+        luaSource: actualLuaSource,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProfileScope(
+          controller: profileController,
+          child: MaterialApp(
+            home: Builder(
+              builder: (BuildContext context) {
+                return Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => QuickUploadDialog(
+                            script: script,
+                            profileController: profileController,
+                            marketplaceService: marketplaceService,
+                          ),
+                        );
+                      },
+                      child: const Text('Open'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Description *'),
+          'Test description');
+      await tester.pumpAndSettle();
+
+      when(
+        () => marketplaceService.uploadScript(
+          slug: any(named: 'slug'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          category: any(named: 'category'),
+          tags: any(named: 'tags'),
+          luaSource: any(named: 'luaSource'),
+          price: any(named: 'price'),
+          version: any(named: 'version'),
+          canisterIds: any(named: 'canisterIds'),
+          iconUrl: any(named: 'iconUrl'),
+          screenshots: any(named: 'screenshots'),
+          compatibility: any(named: 'compatibility'),
+          authorPrincipal: any(named: 'authorPrincipal'),
+          authorPublicKey: any(named: 'authorPublicKey'),
+          signature: any(named: 'signature'),
+          timestampIso: any(named: 'timestampIso'),
+        ),
+      ).thenAnswer(
+        (_) async => MarketplaceScript(
+          id: 'script-1',
+          title: 'Upload Test Script',
+          description: 'Test description',
+          category: 'Example',
+          tags: const <String>[],
+          authorId: keypair.id,
+          authorPrincipal: PrincipalUtils.textFromRecord(keypair),
+          authorPublicKey: keypair.publicKey,
+          uploadSignature: 'dummy-signature',
+          luaSource: actualLuaSource,
+          price: 0,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pumpAndSettle();
+
+      final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pump();
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+
+      verify(
+        () => marketplaceService.uploadScript(
+          slug: 'upload-test-script',
+          title: 'Upload Test Script',
+          description: 'Test description',
+          category: 'Example',
+          tags: any(named: 'tags'),
+          luaSource: actualLuaSource,
+          price: 0.0,
+          version: '1.0.0',
+          canisterIds: any(named: 'canisterIds'),
+          iconUrl: any(named: 'iconUrl'),
+          screenshots: any(named: 'screenshots'),
+          compatibility: any(named: 'compatibility'),
+          authorPrincipal: any(named: 'authorPrincipal'),
+          authorPublicKey: any(named: 'authorPublicKey'),
+          signature: any(named: 'signature'),
+          timestampIso: any(named: 'timestampIso'),
+        ),
+      ).called(1);
     });
   });
 }

@@ -65,7 +65,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Explore'),
+            Text('Canisters'),
             SizedBox(height: 2),
             Text(
               'Interact with Internet Computer canisters',

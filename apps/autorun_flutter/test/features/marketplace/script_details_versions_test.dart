@@ -385,5 +385,85 @@ void main() {
 
       expect(find.text('Fixed bugs and improved performance'), findsOneWidget);
     });
+
+    group('View Changes button', () {
+      testWidgets('shows View Changes button when installed version differs',
+          (WidgetTester tester) async {
+        final versions = [
+          ScriptVersion(
+            version: '2.0.0',
+            createdAt: DateTime.now(),
+            downloads: 100,
+            isLatest: true,
+          ),
+          ScriptVersion(
+            version: '1.0.0',
+            createdAt: DateTime.now().subtract(const Duration(days: 30)),
+            downloads: 500,
+            isLatest: false,
+          ),
+        ];
+
+        await pumpDialog(
+          tester,
+          versions: versions,
+          installedVersion: '1.0.0',
+        );
+
+        await tester.tap(find.text('Versions'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('View Changes'), findsWidgets);
+      });
+
+      testWidgets('does not show View Changes for currently installed version',
+          (WidgetTester tester) async {
+        final versions = [
+          ScriptVersion(
+            version: '2.0.0',
+            createdAt: DateTime.now(),
+            downloads: 100,
+            isLatest: true,
+          ),
+          ScriptVersion(
+            version: '1.0.0',
+            createdAt: DateTime.now().subtract(const Duration(days: 30)),
+            downloads: 500,
+            isLatest: false,
+          ),
+        ];
+
+        await pumpDialog(
+          tester,
+          versions: versions,
+          installedVersion: '1.0.0',
+        );
+
+        await tester.tap(find.text('Versions'));
+        await tester.pumpAndSettle();
+
+        final viewChangesButtons = find.text('View Changes');
+        expect(viewChangesButtons, findsOneWidget);
+      });
+
+      testWidgets('shows first install message when no version installed',
+          (WidgetTester tester) async {
+        final versions = [
+          ScriptVersion(
+            version: '1.0.0',
+            createdAt: DateTime.now(),
+            downloads: 100,
+            isLatest: true,
+          ),
+        ];
+
+        await pumpDialog(tester, versions: versions);
+
+        await tester.tap(find.text('Versions'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('View Changes'), findsOneWidget);
+      });
+    });
   });
 }
