@@ -7,8 +7,6 @@ import '../models/profile.dart';
 import '../models/account.dart';
 import '../services/passkey_service.dart';
 import '../services/settings_service.dart';
-import '../utils/passkey_platform.dart';
-import '../utils/tech_terms.dart';
 import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
 import '../screens/passkey_management_screen.dart';
@@ -50,8 +48,6 @@ class ProfileMenuWidget extends StatefulWidget {
 class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
   bool _initialized = false;
   Account? _activeAccount;
-  int _passkeyCount = 0;
-  bool _passkeyCountLoaded = false;
 
   @override
   void didChangeDependencies() {
@@ -72,40 +68,11 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           setState(() {
             _activeAccount = account;
           });
-          await _loadPasskeyCount(account.id);
         }
       } catch (e) {
         debugPrint('Error loading account: $e');
       }
     }
-  }
-
-  Future<void> _loadPasskeyCount(String accountId) async {
-    try {
-      final service = widget.passkeyService ?? PasskeyService();
-      final passkeys = await service.listPasskeys(accountId);
-      if (mounted) {
-        setState(() {
-          _passkeyCount = passkeys.length;
-          _passkeyCountLoaded = true;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading passkey count: $e');
-    }
-  }
-
-  String _getPasskeySubtitle() {
-    if (!_passkeyCountLoaded) {
-      if (!PasskeyPlatform.isSupported) {
-        return 'Not supported on this platform';
-      }
-      return 'Manage secure login keys';
-    }
-    if (_passkeyCount == 0) {
-      return 'No passkeys';
-    }
-    return _passkeyCount == 1 ? '1 passkey' : '$_passkeyCount passkeys';
   }
 
   @override
@@ -237,48 +204,29 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       bool hasAccount, int profileCount) {
     return Column(
       children: [
-        // Unified Account item (replaces My Identity + Register Username)
+        // 1. My Account - unified account management (combines account + passkeys)
         if (profile != null)
           _MenuTile(
-            icon: hasAccount ? Icons.person : Icons.cloud,
-            label: hasAccount ? 'Manage Account' : 'Register @username',
+            icon: hasAccount ? Icons.person : Icons.person_outline,
+            label: 'My Account',
             subtitle: hasAccount
                 ? '@${profile.username}'
-                : 'Get a username to publish scripts',
+                : 'Register to publish scripts',
             onTap: () => _handleAction(hasAccount
                 ? ProfileMenuAction.editProfile
                 : ProfileMenuAction.createAccount),
             highlight: !hasAccount,
           ),
-        // My Library
+        // 2. Switch Profile - simple profile switching
         _MenuTile(
-          icon: Icons.folder_special_outlined,
-          label: 'My Library',
-          subtitle: 'Downloads, favorites, and scripts',
-          onTap: () => _handleAction(ProfileMenuAction.myLibrary),
-        ),
-        // Passkeys
-        if (hasAccount && _activeAccount != null)
-          _MenuTile(
-            icon: Icons.key,
-            label: 'Passkeys',
-            subtitle: _getPasskeySubtitle(),
-            tooltip: TechTerm.passkey.fullExplanation,
-            onTap: PasskeyPlatform.isSupported
-                ? () => _handleAction(ProfileMenuAction.passkeys)
-                : null,
-            highlight: _passkeyCountLoaded && _passkeyCount == 0,
-          ),
-        // Manage Profiles (combines switch + create)
-        _MenuTile(
-          icon: Icons.people_outline,
-          label: 'Manage Profiles',
+          icon: Icons.swap_horiz,
+          label: 'Switch Profile',
           subtitle: profileCount > 1
-              ? '$profileCount profiles'
-              : 'Add or switch identities',
+              ? '$profileCount profiles available'
+              : 'Only you',
           onTap: () => _handleAction(ProfileMenuAction.manageProfiles),
         ),
-        // Settings
+        // 3. Settings
         _MenuTile(
           icon: Icons.settings_outlined,
           label: 'Settings',
@@ -468,7 +416,6 @@ class _MenuTile extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.highlight = false,
-    this.tooltip,
   });
 
   final IconData icon;
@@ -476,13 +423,12 @@ class _MenuTile extends StatelessWidget {
   final String subtitle;
   final VoidCallback? onTap;
   final bool highlight;
-  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final listTile = ListTile(
+    return ListTile(
       leading: Container(
         width: 40,
         height: 40,
@@ -527,15 +473,6 @@ class _MenuTile extends StatelessWidget {
       enabled: onTap != null,
       onTap: onTap,
     );
-
-    if (tooltip != null) {
-      return Tooltip(
-        message: tooltip!,
-        preferBelow: true,
-        child: listTile,
-      );
-    }
-    return listTile;
   }
 }
 
@@ -573,7 +510,7 @@ class _ManageProfilesSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Manage Profiles',
+              'Switch Profile',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -862,8 +799,9 @@ class _CreateProfileDialogState extends State<_CreateProfileDialog> {
 
 /// Profile avatar button for use in app bars
 ///
-/// Shows a badge indicator when [hasAccount] is false, indicating
+/// Shows subtle text indicator when [hasAccount] is false, indicating
 /// that the user hasn't registered a cloud username yet.
+/// Red badge removed to reduce notification anxiety.
 class ProfileAvatarButton extends StatelessWidget {
   const ProfileAvatarButton({
     super.key,
@@ -879,7 +817,7 @@ class ProfileAvatarButton extends StatelessWidget {
   final double size;
   final bool showLabel;
 
-  /// Whether the user has a registered account. When false, shows a badge.
+  /// Whether the user has a registered account. When false, shows subtle text.
   final bool hasAccount;
 
   String _getInitials(String? name) {
@@ -926,46 +864,25 @@ class ProfileAvatarButton extends StatelessWidget {
       ),
     );
 
-    // Badge indicator for missing account
-    final avatarWithBadge = hasAccount
-        ? avatar
-        : Stack(
-            clipBehavior: Clip.none,
-            children: [
-              avatar,
-              Positioned(
-                top: -2,
-                right: -2,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.error,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: theme.colorScheme.surface,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-
     if (!showLabel) {
-      return GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        child: avatarWithBadge,
+      return Semantics(
+        label: hasAccount
+            ? 'Profile menu'
+            : 'Profile menu - no account registered',
+        button: true,
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          child: avatar,
+        ),
       );
     }
 
     return Semantics(
-      label: hasAccount
-          ? 'Profile menu'
-          : 'Profile menu - account registration needed',
+      label:
+          hasAccount ? 'Profile menu' : 'Profile menu - no account registered',
       button: true,
       child: GestureDetector(
         onTap: () {
@@ -986,7 +903,7 @@ class ProfileAvatarButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              avatarWithBadge,
+              avatar,
               const SizedBox(width: 8),
               Text(
                 'Profile',
@@ -996,6 +913,18 @@ class ProfileAvatarButton extends StatelessWidget {
                   fontSize: 14,
                 ),
               ),
+              // Subtle "No account" indicator instead of red badge
+              if (!hasAccount) ...[
+                const SizedBox(width: 6),
+                Text(
+                  'No account',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w400,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

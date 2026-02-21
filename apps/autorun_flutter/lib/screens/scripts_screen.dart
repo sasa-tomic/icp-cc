@@ -1032,7 +1032,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             ? () => _runScript(item.localScript!)
             : null,
         onEdit: item.source == ScriptSource.local && item.localScript != null
-            ? () => _handleAllScriptsItemTap(item)
+            ? () => _editScript(item.localScript!)
             : null,
         onDuplicate:
             item.source == ScriptSource.local && item.localScript != null
@@ -1202,7 +1202,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         if (item.localScript != null) _runScript(item.localScript!);
         break;
       case 'edit':
-        _handleAllScriptsItemTap(item);
+        if (item.localScript != null) _editScript(item.localScript!);
         break;
       case 'duplicate':
         if (item.localScript != null) _duplicateScript(item.localScript!);
@@ -1246,11 +1246,10 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         onPressed: () => _runScript(record),
         tooltip: 'Run script',
       ),
-      // Edit action
+      // Edit action (now a secondary action via ONE-TAP change)
       ScriptActionButton(
         icon: Icons.edit,
-        onPressed: () =>
-            _handleAllScriptsItemTap(ScriptListItem.fromLocal(record)),
+        onPressed: () => _editScript(record),
         tooltip: 'Edit script',
       ),
       // Publish action (only for unpublished scripts)
@@ -1363,7 +1362,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         _runScript(record);
         break;
       case 'edit':
-        _handleAllScriptsItemTap(ScriptListItem.fromLocal(record));
+        _editScript(record);
         break;
       case 'publish':
         _publishToMarketplace(record);
@@ -1523,21 +1522,31 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
+  /// ONE-TAP EXECUTION (#34): Single tap on local script runs immediately.
+  /// Edit is accessible via overflow menu or long-press context menu.
   void _handleAllScriptsItemTap(ScriptListItem item) {
     if (item.source == ScriptSource.local && item.localScript != null) {
       // Record first script interaction for GettingStartedCard
       OnboardingProgressService().recordFirstScriptInteraction();
-      showDialog<void>(
-        context: context,
-        builder: (_) => _ScriptEditorDialog(
-          controller: _controller,
-          record: item.localScript!,
-        ),
-      );
+      // ONE-TAP: Run script immediately on tap
+      _runScript(item.localScript!);
     } else if (item.source == ScriptSource.marketplace &&
         item.marketplaceScript != null) {
       _showScriptDetails(context, item.marketplaceScript!);
     }
+  }
+
+  /// Opens the script editor for editing.
+  /// This is now a secondary action, accessible via overflow menu or long-press.
+  void _editScript(ScriptRecord record) {
+    OnboardingProgressService().recordFirstScriptInteraction();
+    showDialog<void>(
+      context: context,
+      builder: (_) => _ScriptEditorDialog(
+        controller: _controller,
+        record: record,
+      ),
+    );
   }
 
   Widget _buildSearchBar() {

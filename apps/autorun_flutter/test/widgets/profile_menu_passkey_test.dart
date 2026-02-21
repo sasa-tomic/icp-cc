@@ -26,7 +26,7 @@ void main() {
     registerFallbackValue(_FakeProfile());
   });
 
-  group('ProfileMenuWidget passkey quick access', () {
+  group('ProfileMenuWidget - Passkeys accessible via My Account', () {
     late ProfileKeypair keypair;
     late ProfileController profileController;
     late _MockPasskeyService mockPasskeyService;
@@ -66,6 +66,11 @@ void main() {
       WidgetTester tester, {
       PasskeyService? passkeyService,
     }) async {
+      when(() => mockAccountController.getAccountForProfile(any()))
+          .thenAnswer((_) async => testAccount);
+      when(() => mockAccountController.refreshAccount(any()))
+          .thenAnswer((_) async => testAccount);
+
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -96,134 +101,38 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('shows passkey count in subtitle when user has passkeys',
+    testWidgets('passkeys are NOT a separate menu item',
         (WidgetTester tester) async {
-      when(() => mockAccountController.getAccountForProfile(any()))
-          .thenAnswer((_) async => testAccount);
-
-      when(() => mockPasskeyService.listPasskeys(any())).thenAnswer(
-        (_) async => [
-          PasskeyInfo(
-            id: 'pk-1',
-            deviceName: 'Device 1',
-            createdAt: DateTime.now().toIso8601String(),
-            lastUsedAt: null,
-          ),
-          PasskeyInfo(
-            id: 'pk-2',
-            deviceName: 'Device 2',
-            createdAt: DateTime.now().toIso8601String(),
-            lastUsedAt: null,
-          ),
-        ],
-      );
-
       await pumpProfileMenu(tester);
 
-      expect(find.text('Passkeys'), findsOneWidget);
-      expect(find.text('2 passkeys'), findsOneWidget);
+      // Passkeys should NOT be visible as a separate menu item
+      expect(find.text('Passkeys'), findsNothing,
+          reason:
+              'Passkeys should be accessible via My Account > AccountProfileScreen, not a separate menu item');
     });
 
-    testWidgets('shows "No passkeys" subtitle when user has no passkeys',
+    testWidgets('menu has exactly 3 items (simplified structure)',
         (WidgetTester tester) async {
-      when(() => mockAccountController.getAccountForProfile(any()))
-          .thenAnswer((_) async => testAccount);
-
-      when(() => mockPasskeyService.listPasskeys(any())).thenAnswer(
-        (_) async => [],
-      );
-
       await pumpProfileMenu(tester);
 
-      expect(find.text('Passkeys'), findsOneWidget);
-      expect(find.text('No passkeys'), findsOneWidget);
+      // Should have exactly 3 menu items
+      expect(find.text('My Account'), findsOneWidget);
+      expect(find.text('Switch Profile'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
     });
 
-    testWidgets('highlights passkey option when user has no passkeys',
+    testWidgets(
+        'tapping "My Account" navigates to AccountProfileScreen where passkeys are accessible',
         (WidgetTester tester) async {
-      when(() => mockAccountController.getAccountForProfile(any()))
-          .thenAnswer((_) async => testAccount);
-
-      when(() => mockPasskeyService.listPasskeys(any())).thenAnswer(
-        (_) async => [],
-      );
-
       await pumpProfileMenu(tester);
 
-      final passkeyTile = find.widgetWithText(ListTile, 'Passkeys');
-      expect(passkeyTile, findsOneWidget);
-
-      final container = find
-          .descendant(
-            of: passkeyTile,
-            matching: find.byType(Container),
-          )
-          .first;
-
-      final containerWidget = tester.widget<Container>(container);
-      final decoration = containerWidget.decoration as BoxDecoration;
-      expect(decoration.color, isNotNull);
-    });
-
-    testWidgets('does not highlight passkey option when user has passkeys',
-        (WidgetTester tester) async {
-      when(() => mockAccountController.getAccountForProfile(any()))
-          .thenAnswer((_) async => testAccount);
-
-      when(() => mockPasskeyService.listPasskeys(any())).thenAnswer(
-        (_) async => [
-          PasskeyInfo(
-            id: 'pk-1',
-            deviceName: 'Device 1',
-            createdAt: DateTime.now().toIso8601String(),
-            lastUsedAt: null,
-          ),
-        ],
-      );
-
-      await pumpProfileMenu(tester);
-
-      final passkeyTile = find.widgetWithText(ListTile, 'Passkeys');
-      expect(passkeyTile, findsOneWidget);
-    });
-
-    testWidgets('shows singular "1 passkey" for single passkey',
-        (WidgetTester tester) async {
-      when(() => mockAccountController.getAccountForProfile(any()))
-          .thenAnswer((_) async => testAccount);
-
-      when(() => mockPasskeyService.listPasskeys(any())).thenAnswer(
-        (_) async => [
-          PasskeyInfo(
-            id: 'pk-1',
-            deviceName: 'Device 1',
-            createdAt: DateTime.now().toIso8601String(),
-            lastUsedAt: null,
-          ),
-        ],
-      );
-
-      await pumpProfileMenu(tester);
-
-      expect(find.text('Passkeys'), findsOneWidget);
-      expect(find.text('1 passkey'), findsOneWidget);
-    });
-
-    testWidgets('clicking passkeys navigates to passkey management',
-        (WidgetTester tester) async {
-      when(() => mockAccountController.getAccountForProfile(any()))
-          .thenAnswer((_) async => testAccount);
-
-      when(() => mockPasskeyService.listPasskeys(any())).thenAnswer(
-        (_) async => [],
-      );
-
-      await pumpProfileMenu(tester);
-
-      await tester.tap(find.text('Passkeys'));
+      await tester.tap(find.text('My Account'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Passkeys'), findsWidgets);
+      // Should navigate to account profile screen (title is "My Identity")
+      expect(find.text('My Identity'), findsOneWidget,
+          reason:
+              'Tapping "My Account" should navigate to AccountProfileScreen where passkeys section is visible');
     });
   });
 }

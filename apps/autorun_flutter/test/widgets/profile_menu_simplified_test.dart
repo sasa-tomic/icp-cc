@@ -105,7 +105,7 @@ void main() {
     }
 
     group('Maximum visible items constraint', () {
-      testWidgets('menu shows at most 5 core items by default (with account)',
+      testWidgets('menu shows exactly 3 core items (with account)',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: true);
 
@@ -117,14 +117,14 @@ void main() {
 
         final tileCount = menuTiles.evaluate().length;
 
-        // Expect at most 5 visible items
-        expect(tileCount, lessThanOrEqualTo(5),
-            reason: 'Profile menu should show at most 5 items to reduce '
-                'cognitive load. Found $tileCount items.');
+        // Expect exactly 3 items
+        expect(tileCount, equals(3),
+            reason:
+                'Profile menu should show exactly 3 items for simplified UX. '
+                'Found $tileCount items.');
       });
 
-      testWidgets(
-          'menu shows at most 5 core items by default (without account)',
+      testWidgets('menu shows exactly 3 core items (without account)',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
@@ -136,8 +136,8 @@ void main() {
 
         final tileCount = menuTiles.evaluate().length;
 
-        expect(tileCount, lessThanOrEqualTo(5),
-            reason: 'Profile menu should show at most 5 items even without '
+        expect(tileCount, equals(3),
+            reason: 'Profile menu should show exactly 3 items even without '
                 'an account. Found $tileCount items.');
       });
     });
@@ -161,51 +161,36 @@ void main() {
     });
 
     group('Profile management combined', () {
-      testWidgets('"Create Profile" is replaced by "Manage Profiles"',
+      testWidgets('"Switch Profile" is now a menu item',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        // Should have "Manage Profiles" instead of individual profile options
-        expect(find.text('Manage Profiles'), findsOneWidget,
-            reason: 'Profile management should be combined into single '
-                '"Manage Profiles" option');
-      });
-
-      testWidgets(
-          '"Switch Profile" is NOT shown separately when multiple profiles exist',
-          (WidgetTester tester) async {
-        // This test will need modification when we support multiple profiles
-        await pumpProfileMenu(tester, hasAccount: true, profileCount: 1);
-
-        // "Switch Profile" should not be a separate visible item
-        expect(find.text('Switch Profile'), findsNothing,
-            reason: 'Switch Profile should be inside "Manage Profiles", '
-                'not a separate menu item');
+        // Should have "Switch Profile" as a menu item
+        expect(find.text('Switch Profile'), findsOneWidget,
+            reason: '"Switch Profile" should be visible as a menu item');
       });
     });
 
     group('Unified Account menu item', () {
       testWidgets(
-          'shows "Manage Account" with @username subtitle for users with account',
+          'shows "My Account" with @username subtitle for users with account',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: true);
 
-        expect(find.text('Manage Account'), findsOneWidget,
-            reason:
-                '"Manage Account" should be visible for users with account');
+        expect(find.text('My Account'), findsOneWidget,
+            reason: '"My Account" should be visible for users with account');
         expect(find.text('@testuser'), findsOneWidget,
             reason: 'Should show @username as subtitle for users with account');
       });
 
       testWidgets(
-          'shows "Register @username" with publish subtitle for users without account',
+          'shows "My Account" with registration prompt subtitle for users without account',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        expect(find.text('Register @username'), findsOneWidget,
-            reason:
-                '"Register @username" should be visible for users without account');
-        expect(find.text('Get a username to publish scripts'), findsOneWidget,
+        expect(find.text('My Account'), findsOneWidget,
+            reason: '"My Account" should be visible for users without account');
+        expect(find.text('Register to publish scripts'), findsOneWidget,
             reason: 'Should explain purpose of registration');
       });
 
@@ -214,7 +199,7 @@ void main() {
         await pumpProfileMenu(tester, hasAccount: true);
 
         expect(find.text('My Identity'), findsNothing,
-            reason: '"My Identity" should be merged into unified Account item');
+            reason: '"My Identity" should be merged into "My Account"');
       });
 
       testWidgets('does NOT show separate "Register Username" item',
@@ -222,16 +207,17 @@ void main() {
         await pumpProfileMenu(tester, hasAccount: false);
 
         expect(find.text('Register Username'), findsNothing,
-            reason:
-                '"Register Username" should be replaced by "Register @username"');
+            reason: '"Register Username" should be replaced by "My Account"');
       });
 
-      testWidgets('shows "Passkeys" for users with account',
+      testWidgets(
+          'does NOT show separate "Passkeys" item (accessible via My Account)',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: true);
 
-        expect(find.text('Passkeys'), findsOneWidget,
-            reason: '"Passkeys" should be visible for users with account');
+        expect(find.text('Passkeys'), findsNothing,
+            reason:
+                '"Passkeys" should be accessible via AccountProfileScreen, not a separate menu item');
       });
 
       testWidgets('shows "Settings"', (WidgetTester tester) async {
@@ -241,31 +227,31 @@ void main() {
             reason: '"Settings" should always be visible');
       });
 
-      testWidgets('shows "Manage Profiles"', (WidgetTester tester) async {
+      testWidgets('shows "Switch Profile"', (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        expect(find.text('Manage Profiles'), findsOneWidget,
-            reason: '"Manage Profiles" should be visible');
+        expect(find.text('Switch Profile'), findsOneWidget,
+            reason: '"Switch Profile" should be visible');
       });
     });
 
-    group('Manage Profiles functionality', () {
-      testWidgets('Manage Profiles opens profile management sheet',
+    group('Switch Profile functionality', () {
+      testWidgets('Switch Profile opens profile switcher sheet',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        // Find and tap "Manage Profiles"
-        final manageProfilesTile =
-            find.widgetWithText(ListTile, 'Manage Profiles');
-        expect(manageProfilesTile, findsOneWidget);
+        // Find and tap "Switch Profile"
+        final switchProfileTile =
+            find.widgetWithText(ListTile, 'Switch Profile');
+        expect(switchProfileTile, findsOneWidget);
 
-        await tester.tap(manageProfilesTile);
+        await tester.tap(switchProfileTile);
         await tester.pumpAndSettle();
 
-        // Should show the Manage Profiles sheet
-        expect(find.text('Manage Profiles'), findsWidgets,
+        // Should show the Switch Profile sheet
+        expect(find.text('Switch Profile'), findsWidgets,
             reason:
-                'Tapping "Manage Profiles" should open a sheet with profile management options');
+                'Tapping "Switch Profile" should open a sheet with profile switching options');
       });
     });
   });

@@ -9,8 +9,7 @@ void main() {
     });
 
     group('shouldShowOnboarding', () {
-      test('returns true when no profiles, no scripts, and not shown before',
-          () async {
+      test('always returns false - no upfront onboarding', () async {
         SharedPreferences.setMockInitialValues({});
         final service = OnboardingService();
 
@@ -19,7 +18,8 @@ void main() {
           hasScripts: false,
         );
 
-        expect(result, isTrue);
+        expect(result, isFalse,
+            reason: 'App now opens directly without upfront onboarding');
       });
 
       test('returns false when profiles exist', () async {
@@ -58,11 +58,8 @@ void main() {
         expect(result, isFalse);
       });
 
-      test('returns false when onboarding was already shown', () async {
-        SharedPreferences.setMockInitialValues({
-          'onboarding_shown': true,
-          'onboarding_version': 1,
-        });
+      test('returns false even when onboarding was never shown', () async {
+        SharedPreferences.setMockInitialValues({});
         final service = OnboardingService();
 
         final result = await service.shouldShowOnboarding(
@@ -70,39 +67,110 @@ void main() {
           hasScripts: false,
         );
 
-        expect(result, isFalse);
+        expect(result, isFalse,
+            reason: 'No upfront onboarding, even for brand new users');
       });
 
-      test('returns true when onboarding shown but version is outdated',
-          () async {
-        SharedPreferences.setMockInitialValues({
-          'onboarding_shown': true,
-          'onboarding_version': 0,
-        });
+      test('auto-marks onboarding as shown when called', () async {
+        SharedPreferences.setMockInitialValues({});
         final service = OnboardingService();
+        final prefs = await SharedPreferences.getInstance();
 
-        final result = await service.shouldShowOnboarding(
+        await service.shouldShowOnboarding(
           hasProfiles: false,
           hasScripts: false,
         );
 
-        expect(result, isTrue);
+        expect(prefs.getBool('onboarding_shown'), isTrue,
+            reason: 'Should auto-mark onboarding as shown for migration');
+        expect(prefs.getInt('onboarding_version'), equals(2),
+            reason: 'Should set version to current (2)');
       });
+    });
 
-      test('returns false when profiles exist even if version is outdated',
-          () async {
-        SharedPreferences.setMockInitialValues({
-          'onboarding_shown': true,
-          'onboarding_version': 0,
-        });
+    group('needsProfileForAction', () {
+      test('browsing marketplace does not require profile', () async {
         final service = OnboardingService();
 
-        final result = await service.shouldShowOnboarding(
-          hasProfiles: true,
-          hasScripts: false,
+        final result = await service.needsProfileForAction(
+          action: AppAction.browseMarketplace,
+          hasProfile: false,
         );
 
-        expect(result, isFalse);
+        expect(result, isFalse,
+            reason: 'Browsing marketplace should work without a profile');
+      });
+
+      test('downloading script does not require profile', () async {
+        final service = OnboardingService();
+
+        final result = await service.needsProfileForAction(
+          action: AppAction.downloadScript,
+          hasProfile: false,
+        );
+
+        expect(result, isFalse,
+            reason: 'Downloading scripts should work without a profile');
+      });
+
+      test('creating script does not require profile', () async {
+        final service = OnboardingService();
+
+        final result = await service.needsProfileForAction(
+          action: AppAction.createScript,
+          hasProfile: false,
+        );
+
+        expect(result, isFalse,
+            reason: 'Creating scripts should work without a profile');
+      });
+
+      test('running script does not require profile', () async {
+        final service = OnboardingService();
+
+        final result = await service.needsProfileForAction(
+          action: AppAction.runScript,
+          hasProfile: false,
+        );
+
+        expect(result, isFalse,
+            reason: 'Running scripts should work without a profile');
+      });
+
+      test('publishing script requires profile', () async {
+        final service = OnboardingService();
+
+        final result = await service.needsProfileForAction(
+          action: AppAction.publishScript,
+          hasProfile: false,
+        );
+
+        expect(result, isTrue,
+            reason: 'Publishing scripts should require a profile');
+      });
+
+      test('saving preferences requires profile', () async {
+        final service = OnboardingService();
+
+        final result = await service.needsProfileForAction(
+          action: AppAction.savePreferences,
+          hasProfile: false,
+        );
+
+        expect(result, isTrue,
+            reason: 'Saving preferences should require a profile');
+      });
+
+      test('no profile prompt needed if profile already exists', () async {
+        final service = OnboardingService();
+
+        final result = await service.needsProfileForAction(
+          action: AppAction.publishScript,
+          hasProfile: true,
+        );
+
+        expect(result, isFalse,
+            reason: 'No profile prompt needed if profile exists');
       });
     });
 
@@ -117,14 +185,14 @@ void main() {
         expect(prefs.getBool('onboarding_shown'), isTrue);
       });
 
-      test('sets onboarding_version to current version', () async {
+      test('sets onboarding_version to current version (2)', () async {
         SharedPreferences.setMockInitialValues({});
         final service = OnboardingService();
         final prefs = await SharedPreferences.getInstance();
 
         await service.markOnboardingShown();
 
-        expect(prefs.getInt('onboarding_version'), equals(1));
+        expect(prefs.getInt('onboarding_version'), equals(2));
       });
     });
 
@@ -132,7 +200,7 @@ void main() {
       test('removes onboarding_shown', () async {
         SharedPreferences.setMockInitialValues({
           'onboarding_shown': true,
-          'onboarding_version': 1,
+          'onboarding_version': 2,
         });
         final service = OnboardingService();
         final prefs = await SharedPreferences.getInstance();
@@ -145,7 +213,7 @@ void main() {
       test('removes onboarding_version', () async {
         SharedPreferences.setMockInitialValues({
           'onboarding_shown': true,
-          'onboarding_version': 1,
+          'onboarding_version': 2,
         });
         final service = OnboardingService();
         final prefs = await SharedPreferences.getInstance();
@@ -155,10 +223,10 @@ void main() {
         expect(prefs.containsKey('onboarding_version'), isFalse);
       });
 
-      test('allows onboarding to be shown again', () async {
+      test('still returns false after reset (no upfront onboarding)', () async {
         SharedPreferences.setMockInitialValues({
           'onboarding_shown': true,
-          'onboarding_version': 1,
+          'onboarding_version': 2,
         });
         final service = OnboardingService();
 
@@ -168,7 +236,8 @@ void main() {
           hasProfiles: false,
           hasScripts: false,
         );
-        expect(result, isTrue);
+        expect(result, isFalse,
+            reason: 'Even after reset, no upfront onboarding');
       });
     });
   });

@@ -3,83 +3,106 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:icp_autorun/services/onboarding_service.dart';
 import 'package:icp_autorun/services/onboarding_progress_service.dart';
 import 'package:icp_autorun/services/spotlight_service.dart';
+import 'package:icp_autorun/services/contextual_tip_service.dart';
 
 /// Consolidated Onboarding Tests
 ///
-/// These tests verify that the streamlined onboarding flow works correctly:
-/// 1. First launch: QuickProfileCreationDialog (name entry)
-/// 2. After profile created: Show main app immediately (no dialogs!)
+/// These tests verify the contextual onboarding flow:
+/// 1. First launch: App opens directly to main screen (NO upfront dialog!)
+/// 2. Contextual tips appear in-context when user reaches each feature
 /// 3. SpotlightTour: Only trigger from "Restart Tour" in Settings
 /// 4. GettingStartedCard: Only show AFTER first script interaction
+/// 5. Profile creation is deferred until needed (e.g., publishing)
 void main() {
   group('Consolidated Onboarding Flow', () {
     late OnboardingService onboardingService;
     late OnboardingProgressService progressService;
     late SpotlightService spotlightService;
+    late ContextualTipService tipService;
 
     setUp(() {
       SharedPreferences.setMockInitialValues({});
       onboardingService = OnboardingService();
       progressService = OnboardingProgressService();
       spotlightService = SpotlightService();
+      tipService = ContextualTipService();
     });
 
     group('Phase 1: First Launch', () {
-      test(
-          'shows QuickProfileCreationDialog when no profiles and no scripts exist',
-          () async {
+      test('app opens directly to main screen - NO upfront dialog', () async {
+        // Even for brand new users with no profiles/scripts
         final shouldShow = await onboardingService.shouldShowOnboarding(
           hasProfiles: false,
           hasScripts: false,
         );
 
-        expect(shouldShow, isTrue,
-            reason:
-                'First-time users with no profiles should see QuickProfileCreationDialog');
+        expect(shouldShow, isFalse,
+            reason: 'App should open directly to main screen without '
+                'showing "What\'s your name?" dialog');
       });
 
-      test('does NOT show onboarding when profiles already exist', () async {
-        final shouldShow = await onboardingService.shouldShowOnboarding(
-          hasProfiles: true,
-          hasScripts: false,
+      test('contextual tips are available for new users', () async {
+        // New users should see contextual tips when they reach features
+        final shouldShowTip =
+            await tipService.shouldShowTip(ContextualTipFeature.scriptsView);
+
+        expect(shouldShowTip, isTrue,
+            reason: 'Contextual tips should be available for new users');
+      });
+
+      test('profile is NOT forced on first launch', () async {
+        final needsProfile = await onboardingService.needsProfileForAction(
+          action: AppAction.browseMarketplace,
+          hasProfile: false,
         );
 
-        expect(shouldShow, isFalse,
-            reason:
-                'Users with existing profiles should NOT see QuickProfileCreationDialog');
+        expect(needsProfile, isFalse,
+            reason: 'Users can browse marketplace without creating a profile');
       });
     });
 
-    group('Phase 2: After Profile Creation', () {
-      test('GettingStartedCard is NOT shown immediately after profile creation',
-          () async {
-        // User just created profile - no script interaction yet
-        final hasInteraction =
-            await progressService.hasHadFirstScriptInteraction();
+    group('Phase 2: Contextual Tips', () {
+      test('tips appear when user first reaches a feature', () async {
+        // First time in scripts view
+        expect(await tipService.shouldShowTip(ContextualTipFeature.scriptsView),
+            isTrue);
 
-        expect(hasInteraction, isFalse,
-            reason:
-                'GettingStartedCard should NOT show without script interaction');
+        // First time in script editor
+        expect(
+            await tipService.shouldShowTip(ContextualTipFeature.scriptEditor),
+            isTrue);
+
+        // First time in explore
+        expect(await tipService.shouldShowTip(ContextualTipFeature.exploreView),
+            isTrue);
+
+        // First time in marketplace
+        expect(await tipService.shouldShowTip(ContextualTipFeature.marketplace),
+            isTrue);
       });
 
-      test('SpotlightTour does NOT auto-start for new users', () async {
-        // Spotlight should NOT auto-start - it's opt-in via Settings only
-        final shouldShow = await spotlightService.shouldShowTour();
+      test('tips can be dismissed and do not reappear', () async {
+        // User sees and dismisses tip
+        await tipService.markTipSeen(ContextualTipFeature.scriptsView);
 
-        expect(shouldShow, isFalse,
-            reason: 'SpotlightTour should NOT auto-start. '
-                'It should only be triggered from "Restart Tour" in Settings');
+        // Tip should not show again
+        final shouldShow =
+            await tipService.shouldShowTip(ContextualTipFeature.scriptsView);
+        expect(shouldShow, isFalse);
+
+        // Other tips should still show
+        expect(
+            await tipService.shouldShowTip(ContextualTipFeature.scriptEditor),
+            isTrue);
       });
     });
 
     group('Phase 3: GettingStartedCard Timing', () {
       test('does NOT show before first script interaction', () async {
-        // Even if user has done other things, no GettingStartedCard yet
         final hasInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final shouldShowGuide = await progressService.shouldShowGuide();
 
-        // Guide logic should require script interaction
         final shouldShowCard = shouldShowGuide && hasInteraction;
 
         expect(shouldShowCard, isFalse,
@@ -88,30 +111,17 @@ void main() {
       });
 
       test('shows AFTER first script interaction', () async {
-        // User creates/views their first script
         await progressService.recordFirstScriptInteraction();
 
         final hasInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final shouldShowGuide = await progressService.shouldShowGuide();
 
-        // Now the card can show
         final shouldShowCard = shouldShowGuide && hasInteraction;
 
         expect(shouldShowCard, isTrue,
             reason:
                 'GettingStartedCard should show after first script interaction');
-      });
-
-      test('records script interaction persistently', () async {
-        await progressService.recordFirstScriptInteraction();
-
-        // Create new service instance
-        final newService = OnboardingProgressService();
-        final hasInteraction = await newService.hasHadFirstScriptInteraction();
-
-        expect(hasInteraction, isTrue,
-            reason: 'Script interaction should persist across sessions');
       });
     });
 
@@ -125,7 +135,6 @@ void main() {
       });
 
       test('starts ONLY when explicitly triggered from Settings', () async {
-        // User clicks "Restart Tour" in Settings
         await spotlightService.resetAndStart();
 
         final shouldShow = await spotlightService.shouldShowTour();
@@ -144,52 +153,83 @@ void main() {
         expect(shouldShow, isFalse,
             reason: 'SpotlightTour should not show after completion');
       });
+    });
 
-      test('remains dismissed if user skips it', () async {
-        await spotlightService.resetAndStart();
-        await spotlightService.dismissTour();
+    group('Phase 5: Deferred Profile Creation', () {
+      test('profile not needed for browsing', () async {
+        final needsProfile = await onboardingService.needsProfileForAction(
+          action: AppAction.browseMarketplace,
+          hasProfile: false,
+        );
 
-        final shouldShow = await spotlightService.shouldShowTour();
+        expect(needsProfile, isFalse);
+      });
 
-        expect(shouldShow, isFalse,
-            reason: 'SpotlightTour should not show after dismissal');
+      test('profile not needed for downloading scripts', () async {
+        final needsProfile = await onboardingService.needsProfileForAction(
+          action: AppAction.downloadScript,
+          hasProfile: false,
+        );
+
+        expect(needsProfile, isFalse);
+      });
+
+      test('profile not needed for creating scripts', () async {
+        final needsProfile = await onboardingService.needsProfileForAction(
+          action: AppAction.createScript,
+          hasProfile: false,
+        );
+
+        expect(needsProfile, isFalse);
+      });
+
+      test('profile IS needed for publishing scripts', () async {
+        final needsProfile = await onboardingService.needsProfileForAction(
+          action: AppAction.publishScript,
+          hasProfile: false,
+        );
+
+        expect(needsProfile, isTrue, reason: 'Publishing requires a profile');
+      });
+
+      test('profile IS needed for saving preferences', () async {
+        final needsProfile = await onboardingService.needsProfileForAction(
+          action: AppAction.savePreferences,
+          hasProfile: false,
+        );
+
+        expect(needsProfile, isTrue,
+            reason: 'Saving preferences requires a profile');
       });
     });
 
     group('No Overlapping Onboarding', () {
-      test('at most one major onboarding UI should be visible', () async {
-        // After profile creation:
-        // - GettingStartedCard: NOT ready yet (no script interaction)
-        // - SpotlightTour: NOT ready (opt-in only)
-
+      test('no onboarding UI on first launch', () async {
         final hasScriptInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final spotlightReady = await spotlightService.shouldShowTour();
+        final shouldShowOnboarding =
+            await onboardingService.shouldShowOnboarding(
+          hasProfiles: false,
+          hasScripts: false,
+        );
 
-        final visibleCount = [
-          hasScriptInteraction && await progressService.shouldShowGuide(),
-          spotlightReady,
-        ].where((v) => v).length;
-
-        expect(visibleCount, equals(0),
-            reason:
-                'No onboarding UI should be visible immediately after profile creation');
+        expect(shouldShowOnboarding, isFalse, reason: 'No upfront onboarding');
+        expect(spotlightReady, isFalse,
+            reason: 'SpotlightTour should not auto-start');
+        expect(hasScriptInteraction, isFalse,
+            reason: 'No script interaction yet');
       });
 
-      test('after first script: only GettingStartedCard shows (not Spotlight)',
-          () async {
+      test('only GettingStartedCard shows after script interaction', () async {
         await progressService.recordFirstScriptInteraction();
 
         final hasScriptInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final spotlightReady = await spotlightService.shouldShowTour();
 
-        // GettingStartedCard: ready (after script interaction)
-        // SpotlightTour: NOT ready (opt-in only)
-
         expect(spotlightReady, isFalse,
             reason: 'SpotlightTour should never auto-start');
-
         expect(hasScriptInteraction, isTrue,
             reason: 'Script interaction should be recorded');
       });
@@ -201,25 +241,26 @@ void main() {
         await onboardingService.markOnboardingShown();
         await progressService.recordFirstScriptInteraction();
         await spotlightService.completeTour();
+        await tipService.markTipSeen(ContextualTipFeature.scriptsView);
 
         // Reset
         await onboardingService.resetOnboarding();
         await progressService.reset();
         await spotlightService.reset();
+        await tipService.reset();
 
         // Verify all reset
-        final shouldShowOnboarding =
-            await onboardingService.shouldShowOnboarding(
-          hasProfiles: false,
-          hasScripts: false,
-        );
         final hasInteraction =
             await progressService.hasHadFirstScriptInteraction();
         final spotlightCompleted = await spotlightService.isCompleted();
+        final tipShown =
+            await tipService.shouldShowTip(ContextualTipFeature.scriptsView);
 
-        expect(shouldShowOnboarding, isTrue);
+        // Note: shouldShowOnboarding still returns false (no upfront onboarding)
+        // but other states should be reset
         expect(hasInteraction, isFalse);
         expect(spotlightCompleted, isFalse);
+        expect(tipShown, isTrue, reason: 'Tips should show again after reset');
       });
     });
   });

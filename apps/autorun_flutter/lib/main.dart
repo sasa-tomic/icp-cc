@@ -19,7 +19,6 @@ import 'services/spotlight_service.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
-import 'screens/quick_profile_creation_dialog.dart';
 import 'screens/scripts_screen.dart';
 import 'widgets/connectivity_scope.dart';
 import 'widgets/keyboard_shortcuts.dart';
@@ -291,31 +290,14 @@ class _MainHomePageState extends State<MainHomePage> {
     final scriptController = ScriptController(ScriptRepository.instance);
     await scriptController.ensureLoaded();
 
-    final shouldShow = await _onboardingService.shouldShowOnboarding(
+    // With contextual onboarding, no upfront dialog is shown.
+    // This call auto-marks the onboarding version for migration purposes.
+    await _onboardingService.shouldShowOnboarding(
       hasProfiles: profileController.profiles.isNotEmpty,
       hasScripts: scriptController.scripts.isNotEmpty,
     );
-
-    if (shouldShow && mounted) {
-      // Show quick profile creation dialog (single action)
-      final result = await showDialog<QuickProfileCreationResult>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const QuickProfileCreationDialog(),
-      );
-
-      await _onboardingService.markOnboardingShown();
-
-      // Create profile if name provided
-      if (result != null && result.hasName && mounted) {
-        await profileController.createProfile(
-          profileName: result.profileName!,
-          algorithm: KeyAlgorithm.ed25519,
-          setAsActive: true,
-        );
-        setState(() {});
-      }
-    }
+    // Contextual tips are shown in-context via ContextualTipService
+    // when user first reaches each feature screen.
   }
 
   void _handleSpotlightComplete() {}

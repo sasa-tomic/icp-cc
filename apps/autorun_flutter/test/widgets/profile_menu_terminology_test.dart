@@ -7,7 +7,6 @@ import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/services/passkey_service.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
-import 'package:icp_autorun/utils/tech_terms.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -27,7 +26,7 @@ void main() {
     registerFallbackValue(_FakeProfile());
   });
 
-  group('Profile Menu Terminology Clarity', () {
+  group('Profile Menu Terminology Clarity - Simplified V2', () {
     late ProfileKeypair keypair;
     late ProfileController profileController;
     late _MockPasskeyService mockPasskeyService;
@@ -105,28 +104,28 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    group('Clear terminology for Account management (unified)', () {
+    group('Clear terminology for Account management', () {
       testWidgets(
-          'shows unified "Manage Account" for users with account with @username subtitle',
+          'shows "My Account" for users with account with @username subtitle',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
-        expect(find.text('Manage Account'), findsOneWidget,
+        expect(find.text('My Account'), findsOneWidget,
             reason:
-                'Unified "Manage Account" item should be visible for users with account');
+                '"My Account" item should be visible for users with account');
 
         expect(find.text('@testuser'), findsOneWidget,
             reason: 'Should show @username as subtitle');
       });
 
       testWidgets(
-          'shows unified "Register @username" for users without account',
+          'shows "My Account" for users without account with registration prompt',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        expect(find.text('Register @username'), findsOneWidget,
+        expect(find.text('My Account'), findsOneWidget,
             reason:
-                'Unified "Register @username" item should be visible for users without account');
+                '"My Account" item should be visible for users without account');
       });
 
       testWidgets(
@@ -134,57 +133,75 @@ void main() {
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        expect(find.text('Get a username to publish scripts'), findsOneWidget,
+        expect(find.text('Register to publish scripts'), findsOneWidget,
             reason:
                 'Subtitle should explain username is for publishing scripts');
       });
     });
 
     group('Legacy terminology removed', () {
+      testWidgets('does NOT show "Manage Account" (replaced by "My Account")',
+          (WidgetTester tester) async {
+        await pumpProfileMenuWithAccount(tester, hasAccount: true);
+
+        expect(find.text('Manage Account'), findsNothing,
+            reason: '"Manage Account" should be replaced by "My Account"');
+      });
+
+      testWidgets(
+          'does NOT show "Register @username" (replaced by "My Account")',
+          (WidgetTester tester) async {
+        await pumpProfileMenuWithAccount(tester, hasAccount: false);
+
+        expect(find.text('Register @username'), findsNothing,
+            reason: '"Register @username" should be replaced by "My Account"');
+      });
+
       testWidgets('does NOT show separate "My Identity" item',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
         expect(find.text('My Identity'), findsNothing,
-            reason: '"My Identity" should be merged into unified Account item');
+            reason: '"My Identity" should be merged into "My Account"');
       });
 
-      testWidgets('does NOT show separate "Register Username" item',
+      testWidgets(
+          'does NOT show "Manage Profiles" (replaced by "Switch Profile")',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        expect(find.text('Register Username'), findsNothing,
-            reason:
-                '"Register Username" should be replaced by "Register @username"');
+        expect(find.text('Manage Profiles'), findsNothing,
+            reason: '"Manage Profiles" should be replaced by "Switch Profile"');
       });
     });
 
-    group('Other menu items remain unchanged', () {
-      testWidgets('Passkeys label remains the same',
-          (WidgetTester tester) async {
+    group('Simplified 3-item menu structure', () {
+      testWidgets('has exactly 3 menu items', (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
-        expect(find.text('Passkeys'), findsOneWidget);
+        expect(find.text('My Account'), findsOneWidget);
+        expect(find.text('Switch Profile'), findsOneWidget);
+        expect(find.text('Settings'), findsOneWidget);
       });
 
-      testWidgets('Passkeys menu item has explanatory tooltip',
+      testWidgets(
+          'Passkeys are NOT a separate menu item (accessible via My Account)',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
-        final passkeysTile = find.widgetWithText(ListTile, 'Passkeys');
-        expect(passkeysTile, findsOneWidget);
-
-        final tooltip = tester.widget<Tooltip>(
-          find
-              .ancestor(
-                of: passkeysTile,
-                matching: find.byType(Tooltip),
-              )
-              .first,
-        );
-        expect(tooltip.message, TechTerm.passkey.fullExplanation,
+        expect(find.text('Passkeys'), findsNothing,
             reason:
-                'Passkeys menu item should have tooltip explaining what passkeys are');
+                'Passkeys should be accessible via AccountProfileScreen, not a separate menu item');
+      });
+
+      testWidgets(
+          'My Library is NOT a separate menu item (accessible via My Account)',
+          (WidgetTester tester) async {
+        await pumpProfileMenuWithAccount(tester, hasAccount: true);
+
+        expect(find.text('My Library'), findsNothing,
+            reason:
+                'My Library should be accessible via other means, not a separate menu item');
       });
 
       testWidgets('Settings label remains the same',
@@ -194,12 +211,11 @@ void main() {
         expect(find.text('Settings'), findsOneWidget);
       });
 
-      testWidgets('Manage Profiles replaces individual profile options',
+      testWidgets('Switch Profile replaces Manage Profiles',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        // "Manage Profiles" combines switch + create profile functionality
-        expect(find.text('Manage Profiles'), findsOneWidget);
+        expect(find.text('Switch Profile'), findsOneWidget);
       });
     });
   });
