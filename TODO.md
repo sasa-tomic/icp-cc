@@ -14,6 +14,9 @@
 - **NEW:** Passkey Quick Access - shows count in profile menu, highlights when no passkeys
 - **NEW:** Featured Scripts Section - horizontal scroll section at top of scripts screen
 - **NEW:** Script Reviews Tab - read-only reviews with rating distribution in ScriptDetailsDialog
+- **NEW:** Script Versions Tab - version history with install capability in ScriptDetailsDialog
+- **NEW:** Canister Interaction History - save/replay recent canister calls
+- **NEW:** Long-press Context Menu - quick actions on script cards (mobile + desktop)
 - **NEW:** Downloaded Filter - filter scripts by download status
 - **NEW:** Enhanced Quick Actions - gradient backgrounds, "See All" button, hover effects
 - **NEW:** Single-Page Script Creation - tabs removed, sticky create button
@@ -77,6 +80,9 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Canister Client Full Screen** | **COMPLETE** | 100% |
 | **Response Format Toggle** | **COMPLETE** | 100% |
 | **Search History** | **COMPLETE** | 100% |
+| **Canister Interaction History** | **COMPLETE** | 100% |
+| **Script Versions Tab** | **COMPLETE** | 100% |
+| **Long-Press Context Menu** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -332,6 +338,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Canister Client Full Screen tests (DONE - 11 tests - 2026-02-22)
 - [x] Response Format Toggle tests (DONE - 10 tests - 2026-02-22)
 - [x] Search History tests (DONE - 24 tests - 2026-02-22)
+- [x] Canister History tests (DONE - 23 tests - 2026-02-22)
+- [x] Script Versions tests (DONE - 11 tests - 2026-02-22)
+- [x] Long-Press Context Menu tests (DONE - 19 tests - 2026-02-22)
+- [x] didChangeDependencies tests (DONE - 3 tests - 2026-02-22)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
@@ -364,10 +374,12 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Call `getFeaturedScripts()` from service
 - **Impact:** Improves script discovery
 
-**3. Script Version History** ⭐ LOW IMPACT, MEDIUM EFFORT
-- [ ] Add "Versions" tab to ScriptDetailsDialog
-- [ ] Allow installing specific versions
+**3. Script Version History** ✅ **DONE - 2026-02-22**
+- [x] Add "Versions" tab to ScriptDetailsDialog
+- [x] Allow installing specific versions (callback-based)
+- [x] Latest/Installed badges
 - **Service:** `MarketplaceOpenApiService.getScriptVersions()`
+- **Test:** `test/features/marketplace/script_details_versions_test.dart` (11 tests)
 - **Impact:** Users can rollback to previous versions
 
 ### UX Improvements - Phase 2
@@ -442,9 +454,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **Service:** `DisplayFormat` enum in `result_display.dart`
   - **Test:** `test/result_display_format_test.dart` (10 tests)
   - **Impact:** Users choose how to view canister call results
+- [x] Interaction history with replay capability ✅ **DONE - 2026-02-22**
+  - **Service:** `CanisterHistoryService` with SharedPreferences persistence
+  - **UI:** Recent calls section in CanisterClientScreen, tap to replay
+  - **Test:** `test/services/canister_history_service_test.dart` (17 tests), `test/features/canister_client/history_test.dart` (6 tests)
+  - **Impact:** Power users can quickly repeat common canister calls
 - [ ] Canister autocomplete/search by ID or name
 - [ ] Smart input forms based on Candid interface
-- [ ] Interaction history with replay capability
 
 ### Script Automation
 - [ ] Script scheduler UI (cron-like but user-friendly)
@@ -462,7 +478,11 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **UI:** Recent searches dropdown on search field focus, max 10 items
   - **Test:** `test/services/search_history_service_test.dart` (17 tests), `test/features/scripts/search_history_test.dart` (7 tests)
   - **Impact:** Quick access to previous searches
-- [ ] Quick actions menu (long-press on script cards)
+- [x] Quick actions menu (long-press on script cards) ✅ **DONE - 2026-02-22**
+  - **UI:** Bottom sheet context menu on long-press (mobile), right-click (desktop)
+  - **Actions:** Run, Edit, Duplicate, Delete, Share (local); View Details, Download (marketplace)
+  - **Test:** `test/features/scripts/long_press_test.dart` (19 tests)
+  - **Impact:** Power user efficiency with quick access to common actions
 
 ---
 
@@ -498,7 +518,6 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
 | Key label editing blocked by missing API endpoint | `AccountController` | MEDIUM |
 | Pre-existing test failures (passkey, script execution tests reference missing files) | `test/features/passkey/`, `test/features/scripts/` | LOW |
-| ProfileController.ensureLoaded() called during didChangeDependencies causes setState during build errors in tests | `lib/main.dart:134-138` | LOW |
 
 ---
 

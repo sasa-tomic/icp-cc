@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
+import '../services/canister_history_service.dart';
 import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
@@ -50,6 +51,7 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
   List<String> _validationErrors = const <String>[];
   Map<String, dynamic>? _selectedMethod;
   String? _errorMessage;
+  List<CanisterCallRecord> _callHistory = [];
 
   void _onArgsChanged() {
     if (_resolvedArgs.isEmpty) return;
@@ -88,6 +90,14 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
     }
     if (_canisterController.text.trim().isNotEmpty) {
       scheduleMicrotask(_fetchAndParse);
+    }
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final history = await CanisterHistoryService().getHistory();
+    if (mounted) {
+      setState(() => _callHistory = history);
     }
   }
 
@@ -218,7 +228,7 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
     }
   }
 
-  void _callMethod() {
+  void _callMethod() async {
     final String cid = _canisterController.text.trim();
     final String method = _methodController.text.trim();
     if (cid.isEmpty || method.isEmpty) {
@@ -249,28 +259,50 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
         : _hostController.text.trim();
     final String key = _keypairKeyController.text.trim();
     String? out;
-    if (key.isEmpty) {
-      out = widget.bridge.callAnonymous(
+    CallType callType = _selectedKind == 1
+        ? CallType.update
+        : (_selectedKind == 2 ? CallType.compositeQuery : CallType.query);
+    try {
+      if (key.isEmpty) {
+        out = widget.bridge.callAnonymous(
+          canisterId: cid,
+          method: method,
+          kind: _selectedKind,
+          args: args,
+          host: host,
+        );
+      } else {
+        out = widget.bridge.callAuthenticated(
+          canisterId: cid,
+          method: method,
+          kind: _selectedKind,
+          privateKeyB64: key,
+          args: args,
+          host: host,
+        );
+      }
+      setState(() {
+        final raw = out ?? '';
+        _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
+      });
+      await CanisterHistoryService().addCall(
         canisterId: cid,
-        method: method,
-        kind: _selectedKind,
-        args: args,
-        host: host,
+        methodName: method,
+        arguments: args,
+        callType: callType,
+        resultSummary: 'success',
       );
-    } else {
-      out = widget.bridge.callAuthenticated(
+    } catch (e) {
+      await CanisterHistoryService().addCall(
         canisterId: cid,
-        method: method,
-        kind: _selectedKind,
-        privateKeyB64: key,
-        args: args,
-        host: host,
+        methodName: method,
+        arguments: args,
+        callType: callType,
+        resultSummary: 'error: ${e.toString()}',
       );
+      rethrow;
     }
-    setState(() {
-      final raw = out ?? '';
-      _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
-    });
+    await _loadHistory();
   }
 
   void _goToStep(_ClientStep step) {
@@ -489,8 +521,81 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
         ),
         const SizedBox(height: 16),
         _buildQuickStartSection(theme),
+        const SizedBox(height: 24),
+        _buildHistorySection(theme),
       ],
     );
+  }
+
+  Widget _buildHistorySection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Recent Calls', style: theme.textTheme.titleMedium),
+            if (_callHistory.isNotEmpty)
+              TextButton.icon(
+                key: const Key('clearHistoryButton'),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Clear'),
+                onPressed: () async {
+                  await CanisterHistoryService().clearHistory();
+                  await _loadHistory();
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_callHistory.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: theme.dividerColor),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.history,
+                    size: 20, color: theme.colorScheme.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No recent calls. Your call history will appear here.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.builder(
+            key: const Key('callHistoryList'),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _callHistory.length > 10 ? 10 : _callHistory.length,
+            itemBuilder: (context, index) {
+              final record = _callHistory[index];
+              return _HistoryListItem(
+                record: record,
+                onTap: () => _replayFromHistory(record),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  void _replayFromHistory(CanisterCallRecord record) {
+    _canisterController.text = record.canisterId;
+    _methodController.text = record.methodName;
+    _jsonArgsController.text = record.arguments;
+    _fetchAndParse();
   }
 
   Widget _buildQuickStartSection(ThemeData theme) {
@@ -1118,5 +1223,102 @@ class _ArgsEditorState extends State<_ArgsEditor> {
         );
       },
     );
+  }
+}
+
+class _HistoryListItem extends StatelessWidget {
+  const _HistoryListItem({
+    required this.record,
+    required this.onTap,
+  });
+
+  final CanisterCallRecord record;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isSuccess = record.resultSummary == 'success';
+    final isUpdate = record.callType == CallType.update;
+    final isComposite = record.callType == CallType.compositeQuery;
+
+    final icon = isUpdate
+        ? Icons.sync_alt
+        : (isComposite ? Icons.merge_type : Icons.search);
+    final iconColor = isUpdate
+        ? Colors.orange
+        : (isComposite ? Colors.purple : theme.colorScheme.primary);
+
+    final timeAgo = _formatTimeAgo(record.timestamp);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        key: Key('historyItem_${record.canisterId}_${record.methodName}'),
+        leading: Icon(icon, color: iconColor, size: 20),
+        title: Text(
+          record.methodName,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              record.canisterId.length > 16
+                  ? '${record.canisterId.substring(0, 8)}...${record.canisterId.substring(record.canisterId.length - 4)}'
+                  : record.canisterId,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Row(
+              children: [
+                Icon(
+                  isSuccess ? Icons.check_circle : Icons.error,
+                  size: 12,
+                  color: isSuccess ? Colors.green : theme.colorScheme.error,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  isSuccess ? 'Success' : record.resultSummary,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isSuccess ? Colors.green : theme.colorScheme.error,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  timeAgo,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.replay, size: 18),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+
+    if (diff.inMinutes < 1) {
+      return 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}m ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours}h ago';
+    } else {
+      return '${diff.inDays}d ago';
+    }
   }
 }

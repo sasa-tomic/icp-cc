@@ -135,7 +135,9 @@ class _MainHomePageState extends State<MainHomePage> {
     super.didChangeDependencies();
     if (!_onboardingChecked) {
       _onboardingChecked = true;
-      _checkAndShowOnboarding();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndShowOnboarding();
+      });
     }
   }
 

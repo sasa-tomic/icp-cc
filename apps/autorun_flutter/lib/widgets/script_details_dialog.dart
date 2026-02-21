@@ -9,6 +9,8 @@ class ScriptDetailsDialog extends StatefulWidget {
   final VoidCallback? onDownload;
   final bool isDownloading;
   final bool isDownloaded;
+  final String? installedVersion;
+  final void Function(String version)? onInstallVersion;
 
   const ScriptDetailsDialog({
     super.key,
@@ -16,6 +18,8 @@ class ScriptDetailsDialog extends StatefulWidget {
     this.onDownload,
     this.isDownloading = false,
     this.isDownloaded = false,
+    this.installedVersion,
+    this.onInstallVersion,
   });
 
   @override
@@ -32,6 +36,10 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   bool _isLoadingReviews = false;
   List<ScriptReview> _reviews = [];
   String? _reviewsError;
+
+  bool _isLoadingVersions = false;
+  List<ScriptVersion> _versions = [];
+  String? _versionsError;
   int _selectedTabIndex = 0;
 
   @override
@@ -39,6 +47,28 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     super.initState();
     _loadScriptPreview();
     _loadReviews();
+    _loadVersions();
+  }
+
+  Future<void> _loadVersions() async {
+    setState(() {
+      _isLoadingVersions = true;
+      _versionsError = null;
+    });
+
+    try {
+      final versions =
+          await _marketplaceService.getScriptVersions(widget.script.id);
+      setState(() {
+        _versions = versions;
+        _isLoadingVersions = false;
+      });
+    } catch (e) {
+      setState(() {
+        _versionsError = 'Failed to load versions: $e';
+        _isLoadingVersions = false;
+      });
+    }
   }
 
   Future<void> _loadReviews() async {
@@ -272,7 +302,9 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                             ? (isNarrow
                                 ? _buildNarrowLayout()
                                 : _buildWideLayout())
-                            : _buildReviewsTab(),
+                            : _selectedTabIndex == 1
+                                ? _buildReviewsTab()
+                                : _buildVersionsTab(),
                       ),
                     ],
                   ),
@@ -925,6 +957,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
         children: [
           _buildTab('Details', 0),
           _buildTab('Reviews', 1),
+          _buildTab('Versions', 2),
         ],
       ),
     );
@@ -1204,6 +1237,231 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVersionsTab() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Version History',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'All available versions of this script',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: _buildVersionsList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVersionsList() {
+    if (_isLoadingVersions) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_versionsError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            _versionsError!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    if (_versions.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.history,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No version history',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Only one version available',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: _versions.length,
+      separatorBuilder: (context, index) => const Divider(),
+      itemBuilder: (context, index) {
+        final version = _versions[index];
+        return _buildVersionItem(version);
+      },
+    );
+  }
+
+  Widget _buildVersionItem(ScriptVersion version) {
+    final isInstalled = widget.installedVersion == version.version;
+    final canInstall =
+        widget.onInstallVersion != null && !version.isLatest && !isInstalled;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isInstalled
+                  ? Colors.green.withValues(alpha: 0.1)
+                  : Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isInstalled
+                  ? Icons.check_circle
+                  : version.isLatest
+                      ? Icons.new_releases
+                      : Icons.code,
+              color: isInstalled
+                  ? Colors.green
+                  : Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'v${version.version}',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    if (version.isLatest) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Latest',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (isInstalled) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.green),
+                        ),
+                        child: Text(
+                          'Installed',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.download,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${version.downloads}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(
+                      Icons.calendar_today,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatDate(version.createdAt),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+                if (version.changelog != null &&
+                    version.changelog!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    version.changelog!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (canInstall)
+            TextButton(
+              onPressed: () => widget.onInstallVersion!(version.version),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('Install'),
+            ),
         ],
       ),
     );
