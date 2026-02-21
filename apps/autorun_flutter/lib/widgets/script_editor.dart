@@ -33,16 +33,28 @@ class ScriptEditor extends StatefulWidget {
   final int? maxLines;
 
   @override
-  State<ScriptEditor> createState() => _ScriptEditorState();
+  State<ScriptEditor> createState() => ScriptEditorState();
 }
 
-class _ScriptEditorState extends State<ScriptEditor> {
+/// Public state class for ScriptEditor to enable external access to dirty state
+class ScriptEditorState extends State<ScriptEditor> {
   late final CodeController _controller;
   String? _lintError;
   Timer? _lintDebouncer;
   int _currentLineCount = 1;
   String _selectedTheme = 'vs2015';
   bool _showLineNumbers = false;
+
+  /// The initial code that was passed to the widget
+  late String _initialCode;
+
+  /// Returns true if the current code differs from the initial code
+  bool get isDirty => _controller.text != _initialCode;
+
+  /// Updates the code programmatically (used for testing and external control)
+  void updateCode(String code) {
+    _controller.text = code;
+  }
 
   // Available themes
   static const Map<String, Map<String, TextStyle>> _themes = {
@@ -71,6 +83,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
     if (oldWidget.initialCode != widget.initialCode &&
         _controller.text != widget.initialCode) {
       _controller.text = widget.initialCode;
+      _initialCode = widget.initialCode;
       _scheduleLint();
     }
   }
@@ -78,6 +91,7 @@ class _ScriptEditorState extends State<ScriptEditor> {
   @override
   void initState() {
     super.initState();
+    _initialCode = widget.initialCode;
     _controller = CodeController(
       text: widget.initialCode,
       language: lua,
@@ -499,4 +513,48 @@ class _ScriptEditorState extends State<ScriptEditor> {
         return Theme.of(context).colorScheme.surface;
     }
   }
+}
+
+/// Dialog shown when user attempts to close editor with unsaved changes
+class UnsavedChangesDialog extends StatelessWidget {
+  const UnsavedChangesDialog({
+    super.key,
+    required this.onDiscard,
+    required this.onKeepEditing,
+  });
+
+  final VoidCallback onDiscard;
+  final VoidCallback onKeepEditing;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Unsaved Changes'),
+      content: const Text(
+        'You have unsaved changes. Are you sure you want to discard them?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: onKeepEditing,
+          child: const Text('Cancel'),
+        ),
+        FilledButton.tonal(
+          onPressed: onDiscard,
+          child: const Text('Discard'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Shows an unsaved changes confirmation dialog and returns true if user confirms discard
+Future<bool> showUnsavedChangesDialog(BuildContext context) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (context) => UnsavedChangesDialog(
+      onDiscard: () => Navigator.of(context).pop(true),
+      onKeepEditing: () => Navigator.of(context).pop(false),
+    ),
+  );
+  return result ?? false;
 }

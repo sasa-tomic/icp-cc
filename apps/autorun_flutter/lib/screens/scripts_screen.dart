@@ -26,6 +26,7 @@ import '../widgets/script_details_dialog.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
 import '../widgets/getting_started_card.dart';
+import '../widgets/marketplace_stats_banner.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 
@@ -79,6 +80,11 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       OnboardingProgressService();
   bool _showGettingStarted = false;
 
+  // Marketplace stats
+  MarketplaceStats? _marketplaceStats;
+  bool _isLoadingStats = false;
+  bool _statsLoadError = false;
+
   @override
   void initState() {
     super.initState();
@@ -92,7 +98,35 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _loadShareBannerState();
     _loadRecentSearches();
     _loadGettingStartedState();
+    _loadMarketplaceStats(); // Load stats in background
     _searchFocusNode.addListener(_onSearchFocusChanged);
+  }
+
+  Future<void> _loadMarketplaceStats() async {
+    if (_isLoadingStats) return;
+
+    setState(() {
+      _isLoadingStats = true;
+      _statsLoadError = false;
+    });
+
+    try {
+      final stats = await _marketplaceService.getMarketplaceStats();
+      if (mounted) {
+        setState(() {
+          _marketplaceStats = stats;
+          _isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load marketplace stats: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+          _statsLoadError = true;
+        });
+      }
+    }
   }
 
   Future<void> _loadGettingStartedState() async {
@@ -847,6 +881,11 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         children: [
           Column(
             children: [
+              MarketplaceStatsBanner(
+                stats: _marketplaceStats,
+                isLoading: _isLoadingStats,
+                hasError: _statsLoadError,
+              ),
               _buildSearchBar(),
               Expanded(
                 child: _buildUnifiedListView(scripts),
@@ -916,6 +955,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         }
 
         if (sortedItems.isEmpty && !_controller.isBusy && !showFeatured) {
+          // Show specific empty state when Downloaded filter is active with no downloads
+          if (_showDownloadedOnly) {
+            return ModernEmptyState(
+              icon: Icons.download_outlined,
+              title: "You haven't downloaded any scripts yet",
+              subtitle: 'Browse the marketplace to find scripts to download',
+              action: _clearDownloadedFilter,
+              actionLabel: 'Browse Marketplace',
+            );
+          }
+          // Generic empty state for empty library
           return ModernEmptyState(
             icon: Icons.code_rounded,
             title: 'Your Script Library is Empty',
@@ -1967,6 +2017,13 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     );
   }
 
+  /// Clears the "Downloaded" filter to show all scripts.
+  void _clearDownloadedFilter() {
+    setState(() {
+      _showDownloadedOnly = false;
+    });
+  }
+
   /// Returns the number of active (non-default) filters.
   int _getActiveFilterCount() {
     int count = 0;
@@ -2054,6 +2111,8 @@ class _ScriptEditorDialog extends StatefulWidget {
 class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
   bool _saving = false;
   late final ValueNotifier<String> _codeNotifier;
+  final GlobalKey<ScriptEditorState> _editorKey =
+      GlobalKey<ScriptEditorState>();
 
   @override
   void initState() {
@@ -2101,104 +2160,127 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
     }
   }
 
+  /// Handle cancel/close with unsaved changes check
+  Future<void> _handleCancel() async {
+    final isDirty = _editorKey.currentState?.isDirty ?? false;
+    if (!isDirty) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    final shouldDiscard = await showUnsavedChangesDialog(context);
+    if (shouldDiscard && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final isCompactScreen = screenSize.width < 400;
 
-    return Dialog(
-      insetPadding: EdgeInsets.zero,
-      child: Container(
-        width: screenSize.width,
-        height: screenSize.height,
-        color: Theme.of(context).colorScheme.surface,
-        child: Column(
-          children: [
-            // Compact Header
-            Container(
-              padding: EdgeInsets.symmetric(
-                  horizontal: isCompactScreen ? 12 : 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.5),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.2),
+    return PopScope(
+      canPop: !(_editorKey.currentState?.isDirty ?? false),
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _handleCancel();
+      },
+      child: Dialog(
+        insetPadding: EdgeInsets.zero,
+        child: Container(
+          width: screenSize.width,
+          height: screenSize.height,
+          color: Theme.of(context).colorScheme.surface,
+          child: Column(
+            children: [
+              // Compact Header
+              Container(
+                padding: EdgeInsets.symmetric(
+                    horizontal: isCompactScreen ? 12 : 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outline
+                          .withValues(alpha: 0.2),
+                    ),
                   ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.edit,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: isCompactScreen ? 18 : 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.record.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            fontSize: isCompactScreen ? 14 : 16,
-                          ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.edit,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: isCompactScreen ? 18 : 20,
                     ),
-                  ),
-                  if (!isCompactScreen) ...[
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                  ],
-                  FilledButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: _saving
-                        ? SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save, size: 16),
-                    label: const Text('Save'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                    ),
-                  ),
-                  if (isCompactScreen) ...[
                     const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close),
-                      iconSize: 18,
-                      visualDensity: VisualDensity.compact,
+                    Expanded(
+                      child: Text(
+                        widget.record.title,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: isCompactScreen ? 14 : 16,
+                                ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
+                    if (!isCompactScreen) ...[
+                      TextButton(
+                        onPressed: _handleCancel,
+                        child: const Text('Cancel'),
+                      ),
+                    ],
+                    FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save, size: 16),
+                      label: const Text('Save'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                    if (isCompactScreen) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _handleCancel,
+                        icon: const Icon(Icons.close),
+                        iconSize: 18,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ),
-
-            // Maximized Editor
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(isCompactScreen ? 4 : 8),
-                child: ScriptEditor(
-                  initialCode: widget.record.luaSource,
-                  onCodeChanged: _onCodeChanged,
-                  language: 'lua',
-                  showIntegrations: !isCompactScreen,
-                  minLines: isCompactScreen ? 20 : 30,
                 ),
               ),
-            ),
-          ],
+
+              // Maximized Editor
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.all(isCompactScreen ? 4 : 8),
+                  child: ScriptEditor(
+                    key: _editorKey,
+                    initialCode: widget.record.luaSource,
+                    onCodeChanged: _onCodeChanged,
+                    language: 'lua',
+                    showIntegrations: !isCompactScreen,
+                    minLines: isCompactScreen ? 20 : 30,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

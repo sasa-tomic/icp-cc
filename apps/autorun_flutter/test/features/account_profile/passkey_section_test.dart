@@ -198,8 +198,11 @@ void main() {
         profileController: profileController,
       );
 
-      // Should NOT show unsupported message
-      expect(find.textContaining('not supported on Linux'), findsNothing);
+      // Should NOT show unsupported message (this test runs on non-Linux platforms)
+      expect(
+        find.text('Passkeys require a browser on Linux'),
+        findsNothing,
+      );
     });
   });
 }

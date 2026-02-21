@@ -32,8 +32,9 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
   Future<void> _loadPasskeys() async {
     if (!PasskeyPlatform.isSupported) {
       setState(() {
-        _errorMessage =
-            'Passkeys are not supported on Linux desktop. Use Flutter Web (chrome) for passkey authentication.';
+        _errorMessage = 'Passkeys require a browser on Linux.\n\n'
+            'Run this command to use passkeys with KeePassXC, your phone, or a hardware key:\n\n'
+            'flutter run -d chrome';
         _isLoading = false;
       });
       return;
@@ -176,20 +177,7 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
     }
 
     if (_errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline,
-                size: 48, color: AppDesignSystem.errorDark),
-            const SizedBox(height: 16),
-            Text(_errorMessage!, style: AppDesignSystem.bodyMedium),
-            const SizedBox(height: 16),
-            ElevatedButton(
-                onPressed: _loadPasskeys, child: const Text('Retry')),
-          ],
-        ),
-      );
+      return _buildUnsupportedPlatformError();
     }
 
     if (_passkeys.isEmpty) {
@@ -232,6 +220,81 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUnsupportedPlatformError() {
+    const command = 'flutter run -d chrome';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.terminal,
+              size: 48,
+              color: AppDesignSystem.neutral400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Passkeys require a browser on Linux',
+              style: AppDesignSystem.heading4.copyWith(
+                color: AppDesignSystem.neutral700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Run the command below to use passkeys with:',
+              style: AppDesignSystem.bodyMedium.copyWith(
+                color: AppDesignSystem.neutral600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '• KeePassXC\n• Your phone (hybrid)\n• Hardware key (YubiKey, Titan)',
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: AppDesignSystem.neutral500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppDesignSystem.neutral900,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    command,
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      color: Colors.greenAccent,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () {
+                      // Copy to clipboard functionality would go here
+                      // For now, just a visual hint
+                    },
+                    child: Icon(
+                      Icons.copy,
+                      size: 18,
+                      color: AppDesignSystem.neutral400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

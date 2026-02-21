@@ -7,6 +7,10 @@
 **Goal:** Polish UX and complete test coverage. Core marketplace is now user-friendly.
 
 **Reality Check:** Major UX overhaul complete:
+- **NEW:** Marketplace Stats Banner - shows community stats (scripts, downloads) in ScriptsScreen
+- **NEW:** Unsaved Changes Warning - prevents data loss when closing script editor
+- **NEW:** Downloaded Filter Empty State - helpful guidance when no downloads exist
+- **NEW:** Passkey Linux Error Message - clear instructions for browser-based passkeys
 - **NEW:** 2-Tab navigation (Home, Discover) with Profile menu in app bar
 - **NEW:** Simplified first-run experience (just "What's your name?")
 - **NEW:** Services renamed to "Explore" with subtitle
@@ -41,7 +45,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Write reviews API (backend needed), smart Candid forms (research complete, complexity 6/10), script automation/scheduler.
+**Next Wave:** Write reviews API (backend needed), smart Candid forms (research complete, complexity 6/10), script automation/scheduler, script favorites system, offline mode indication.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -93,6 +97,10 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Getting Started Guide** | **COMPLETE** | 100% |
 | **Settings Screen** | **COMPLETE** | 100% |
 | **Account Profile Screen Tests** | **COMPLETE** | 100% |
+| **Marketplace Stats Banner** | **COMPLETE** | 100% |
+| **Unsaved Changes Warning** | **COMPLETE** | 100% |
+| **Downloaded Filter Empty State** | **COMPLETE** | 100% |
+| **Passkey Linux Guidance** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -357,6 +365,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Guided Next Steps tests (DONE - 21 tests - 2026-02-22)
 - [x] Account Profile Screen tests (DONE - 46 tests - 2026-02-22)
 - [x] Settings Screen tests (DONE - 26 tests - 2026-02-22)
+- [x] Marketplace Stats Banner tests (DONE - 10 tests - 2026-02-22)
+- [x] Unsaved Changes Warning tests (DONE - 10 tests - 2026-02-22)
+- [x] Downloaded Filter Empty State tests (DONE - 5 tests - 2026-02-22)
+- [x] Passkey Linux Message tests (DONE - 5 tests - 2026-02-22)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
@@ -459,6 +471,41 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Impact:** Users can now configure app preferences, was completely missing
 - **Files:** `lib/screens/settings_screen.dart`, `lib/services/settings_service.dart`, `lib/widgets/profile_menu.dart`, `lib/main.dart`
 
+**11. Marketplace Stats Banner** ✅ **DONE - 2026-02-22**
+- [x] Fetch marketplace stats on ScriptsScreen load
+- [x] Display scripts count, authors count, downloads
+- [x] Loading state with shimmer placeholder
+- [x] Graceful error handling (banner hidden on error)
+- [x] Large number formatting (1.2K, 10K, 1.5M)
+- **Test:** `test/features/marketplace/stats_banner_test.dart` (10 tests)
+- **Impact:** Users see community activity, builds trust in marketplace
+- **Files:** `lib/widgets/marketplace_stats_banner.dart`, `lib/screens/scripts_screen.dart`
+
+**12. Unsaved Changes Warning** ✅ **DONE - 2026-02-22**
+- [x] Track dirty state in ScriptEditor (initial vs current code)
+- [x] Confirmation dialog when closing with unsaved changes
+- [x] "Discard" and "Cancel" options
+- [x] PopScope to handle back button/gesture
+- **Test:** `test/widgets/script_editor_unsaved_test.dart` (10 tests)
+- **Impact:** Prevents data loss - users warned before losing work
+- **Files:** `lib/widgets/script_editor.dart`, `lib/screens/scripts_screen.dart`
+
+**13. Downloaded Filter Empty State** ✅ **DONE - 2026-02-22**
+- [x] Specific empty state when "Downloaded" filter active with no downloads
+- [x] Clear message: "You haven't downloaded any scripts yet"
+- [x] "Browse Marketplace" action button clears filter
+- **Test:** `test/features/scripts/downloaded_filter_test.dart` (5 tests)
+- **Impact:** Users understand what's happening, guided to solution
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**14. Passkey Linux Error Message** ✅ **DONE - 2026-02-22**
+- [x] Clear headline: "Passkeys require a browser on Linux"
+- [x] Terminal-style code block with `flutter run -d chrome`
+- [x] List supported authenticators (KeePassXC, phone, hardware keys)
+- **Test:** `test/features/passkey/passkey_management_screen_test.dart`
+- **Impact:** Linux users know exactly how to use passkeys
+- **Files:** `lib/screens/passkey_management_screen.dart`
+
 ### Content Moderation
 - [ ] API key authentication for admin endpoints
 - [ ] Basic content moderation system
@@ -522,6 +569,12 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **UI:** `GettingStartedCard` widget with 5 checklist items and progress tracking
   - **Test:** `test/features/onboarding/guided_next_steps_test.dart` (21 tests)
   - **Impact:** New users have clear path to learn the app
+- [ ] Interactive onboarding tour (spotlight overlays highlighting key UI elements)
+- [ ] Script favorites/bookmarks system with dedicated filter
+- [ ] Offline mode indication banner
+- [ ] Script diff viewer for version updates
+- [ ] Bulk script management (multi-select, bulk delete/export)
+- [ ] Deep linking for script sharing (`icpautorun://script/{id}`)
 
 ---
 
@@ -557,6 +610,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 | Key sharing across profiles allowed (architecture violation) | `lib/models/account.dart:18-21` | MEDIUM |
 | Key label editing blocked by missing API endpoint | `AccountController` | MEDIUM |
 | Pre-existing test failures (passkey, script execution tests reference missing files) | `test/features/passkey/`, `test/features/scripts/` | LOW |
+
+**Fixed This Session:**
+- ~~Passkey Linux error message unclear~~ - Now shows clear instructions with `flutter run -d chrome` command
 
 ---
 
