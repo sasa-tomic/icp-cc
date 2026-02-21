@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:icp_autorun/screens/bookmarks_screen.dart';
+import 'package:icp_autorun/widgets/connectivity_scope.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
 
 class _FakeRustBridgeLoader extends RustBridgeLoader {
@@ -37,82 +38,55 @@ class _FakeRustBridgeLoader extends RustBridgeLoader {
 
 void main() {
   group('Quick Actions', () {
-    testWidgets('shows Quick Actions section header', (tester) async {
+    /// Helper to pump BookmarksScreen with required ConnectivityScope wrapper
+    Future<void> pumpBookmarksScreen(
+      WidgetTester tester, {
+      Future<void> Function(
+              {String? initialCanisterId, String? initialMethodName})?
+          onOpenClient,
+    }) async {
       await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
+        home: ConnectivityScope(
+          child: Scaffold(
+            body: BookmarksScreen(
+              bridge: _FakeRustBridgeLoader(),
+              onOpenClient: onOpenClient ??
+                  (
+                      {String? initialCanisterId,
+                      String? initialMethodName}) async {},
+            ),
           ),
         ),
       ));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+    }
+
+    testWidgets('shows Quick Actions section header', (tester) async {
+      await pumpBookmarksScreen(tester);
 
       expect(find.text('Quick Actions'), findsOneWidget);
     });
 
     testWidgets('shows Check ICP Balance quick action', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       expect(find.text('Check ICP Balance'), findsOneWidget);
     });
 
     testWidgets('shows View Neurons quick action', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       expect(find.text('View Neurons'), findsOneWidget);
     });
 
     testWidgets('shows Search Dapps quick action', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       expect(find.text('Search Dapps'), findsOneWidget);
     });
 
     testWidgets('shows Advanced section header', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       expect(find.text('Advanced'), findsOneWidget);
     });
@@ -122,19 +96,14 @@ void main() {
       String? capturedCanisterId;
       String? capturedMethodName;
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId, String? initialMethodName}) async {
-              capturedCanisterId = initialCanisterId;
-              capturedMethodName = initialMethodName;
-            },
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(
+        tester,
+        onOpenClient: (
+            {String? initialCanisterId, String? initialMethodName}) async {
+          capturedCanisterId = initialCanisterId;
+          capturedMethodName = initialMethodName;
+        },
+      );
 
       await tester.tap(find.text('Check ICP Balance'));
       await tester.pumpAndSettle();
@@ -148,19 +117,14 @@ void main() {
       String? capturedCanisterId;
       String? capturedMethodName;
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId, String? initialMethodName}) async {
-              capturedCanisterId = initialCanisterId;
-              capturedMethodName = initialMethodName;
-            },
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(
+        tester,
+        onOpenClient: (
+            {String? initialCanisterId, String? initialMethodName}) async {
+          capturedCanisterId = initialCanisterId;
+          capturedMethodName = initialMethodName;
+        },
+      );
 
       await tester.tap(find.text('View Neurons'));
       await tester.pumpAndSettle();
@@ -170,17 +134,7 @@ void main() {
     });
 
     testWidgets('Search Dapps card has external link icon', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       // Find the Search Dapps card by its key and check for external link icon
       final searchDappsCard = find.byKey(const Key('quickAction_searchDapps'));
@@ -196,17 +150,7 @@ void main() {
 
     testWidgets('Quick Actions appear before Popular Canisters section',
         (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       // Quick Actions text should appear before Popular Canisters
       final quickActionsText = find.text('Quick Actions');
@@ -223,17 +167,7 @@ void main() {
     });
 
     testWidgets('Quick action cards have correct icons', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       // Check for balance icon on Check ICP Balance
       final balanceCard = find.byKey(const Key('quickAction_checkBalance'));
@@ -264,17 +198,7 @@ void main() {
     });
 
     testWidgets('Quick action cards have gradient backgrounds', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       final balanceCard = find.byKey(const Key('quickAction_checkBalance'));
       expect(balanceCard, findsOneWidget);
@@ -301,17 +225,7 @@ void main() {
 
     testWidgets('Quick action cards meet minimum height of 120px',
         (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       final balanceCard = find.byKey(const Key('quickAction_checkBalance'));
       expect(balanceCard, findsOneWidget);
@@ -321,17 +235,7 @@ void main() {
     });
 
     testWidgets('See All button is present and tappable', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       final seeAllButton = find.byKey(const Key('quickActions_seeAll'));
       expect(seeAllButton, findsOneWidget);
@@ -341,17 +245,7 @@ void main() {
     });
 
     testWidgets('See All button shows snackbar when tapped', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       await tester.tap(find.byKey(const Key('quickActions_seeAll')));
       await tester.pumpAndSettle();
@@ -361,17 +255,7 @@ void main() {
 
     testWidgets('Quick action cards have divider between title and description',
         (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookmarksScreen(
-            bridge: _FakeRustBridgeLoader(),
-            onOpenClient: (
-                {String? initialCanisterId,
-                String? initialMethodName}) async {},
-          ),
-        ),
-      ));
-      await tester.pumpAndSettle();
+      await pumpBookmarksScreen(tester);
 
       final balanceCard = find.byKey(const Key('quickAction_checkBalance'));
       expect(balanceCard, findsOneWidget);
@@ -381,6 +265,33 @@ void main() {
         matching: find.byType(Divider),
       );
       expect(divider, findsOneWidget);
+    });
+
+    group('Plain-language descriptions (no jargon)', () {
+      testWidgets('Check ICP Balance has plain-language description',
+          (tester) async {
+        await pumpBookmarksScreen(tester);
+
+        // Should show plain-language description, not technical jargon like "ledger"
+        expect(find.text('Check your token balance'), findsOneWidget);
+      });
+
+      testWidgets('View Neurons has plain-language description',
+          (tester) async {
+        await pumpBookmarksScreen(tester);
+
+        // Should explain what neurons are in plain language
+        expect(
+            find.text('See your voting power in governance'), findsOneWidget);
+      });
+
+      testWidgets('Search Dapps has plain-language description',
+          (tester) async {
+        await pumpBookmarksScreen(tester);
+
+        // Should explain in plain language what this does
+        expect(find.text('Find apps on the Internet Computer'), findsOneWidget);
+      });
     });
   });
 }

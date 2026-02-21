@@ -221,14 +221,33 @@ class _MainHomePageState extends State<MainHomePage> {
           setAsActive: true,
         );
         setState(() {});
-        _showPostSetupGuideIfNeeded();
+        // Mark app as usable - PostSetupGuide will be delayed until
+        // user has seen the app (either by action or 5 second delay)
+        await _onboardingService.markAppUsable();
+        _schedulePostSetupGuide();
       }
     }
   }
 
-  Future<void> _showPostSetupGuideIfNeeded() async {
-    final shouldShow = await _onboardingService.shouldShowPostSetupGuide();
-    if (!shouldShow || !mounted) return;
+  /// Schedules the PostSetupGuide to show after delay or first meaningful action
+  void _schedulePostSetupGuide() {
+    // Check immediately in case conditions are already met
+    _tryShowPostSetupGuide();
+
+    // Also check after the delay period
+    Future.delayed(OnboardingService.postSetupGuideDelay, () {
+      if (mounted) _tryShowPostSetupGuide();
+    });
+  }
+
+  Future<void> _tryShowPostSetupGuide() async {
+    // Check if guide was already shown
+    final alreadyShown = !await _onboardingService.shouldShowPostSetupGuide();
+    if (alreadyShown || !mounted) return;
+
+    // Check if conditions are met (action OR delay)
+    final isReady = await _onboardingService.isPostSetupGuideReady();
+    if (!isReady || !mounted) return;
 
     await showDialog<void>(
       context: context,
@@ -270,6 +289,9 @@ class _MainHomePageState extends State<MainHomePage> {
 
   Future<void> _openCanisterClient(
       {String? initialCanisterId, String? initialMethodName}) async {
+    // Record that user performed a meaningful action (exploring canisters)
+    _onboardingService.recordFirstMeaningfulAction();
+
     await Navigator.push<void>(
       context,
       MaterialPageRoute(

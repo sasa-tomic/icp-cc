@@ -17,6 +17,7 @@ import '../services/download_history_service.dart';
 import '../services/favorites_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
+import '../services/onboarding_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
@@ -412,6 +413,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   void _showScriptDetails(BuildContext context, MarketplaceScript script) {
+    // Record that user performed a meaningful action
+    OnboardingService().recordFirstMeaningfulAction();
+
     showDialog(
       context: context,
       builder: (context) => ScriptDetailsDialog(
@@ -951,6 +955,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             subtitle: 'Create your first script or browse the marketplace',
             action: _showCreateSheet,
             actionLabel: 'Create Script',
+            secondaryAction: _browseMarketplaceFromEmptyState,
+            secondaryActionLabel: 'Browse Marketplace',
           );
         }
 
@@ -1781,6 +1787,28 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     setState(() {
       _showFavoritesOnly = false;
     });
+  }
+
+  /// Clears all filters and refreshes marketplace scripts.
+  /// Used as secondary action in empty state to help users discover marketplace.
+  void _browseMarketplaceFromEmptyState() {
+    setState(() {
+      _showDownloadedOnly = false;
+      _showFavoritesOnly = false;
+      _selectedCategory = 'All';
+      _searchQuery = '';
+      _searchController.clear();
+    });
+    _loadMarketplaceScripts();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Refreshing marketplace scripts...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   /// Returns the number of active (non-default) filters.

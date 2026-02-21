@@ -1250,7 +1250,7 @@ class _QuickActionsList extends StatelessWidget {
     QuickAction(
       key: 'checkBalance',
       label: 'Check ICP Balance',
-      description: 'Query your ICP balance on the ledger',
+      description: 'Check your token balance',
       icon: Icons.account_balance_wallet_rounded,
       type: QuickActionType.openCanister,
       canisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
@@ -1259,7 +1259,7 @@ class _QuickActionsList extends StatelessWidget {
     QuickAction(
       key: 'viewNeurons',
       label: 'View Neurons',
-      description: 'See your neurons in NNS Governance',
+      description: 'See your voting power in governance',
       icon: Icons.how_to_vote_rounded,
       type: QuickActionType.openCanister,
       canisterId: 'rrkah-fqaaa-aaaaa-aaaaq-cai',
@@ -1268,7 +1268,7 @@ class _QuickActionsList extends StatelessWidget {
     QuickAction(
       key: 'searchDapps',
       label: 'Search Dapps',
-      description: 'Find IC dapps on Kinic search engine',
+      description: 'Find apps on the Internet Computer',
       icon: Icons.search_rounded,
       type: QuickActionType.externalLink,
       url: 'https://kinic.io',

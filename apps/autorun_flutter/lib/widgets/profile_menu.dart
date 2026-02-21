@@ -240,20 +240,25 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       bool hasAccount, int profileCount) {
     return Column(
       children: [
-        // View/Edit Profile
+        // My Identity (local profile editing)
         if (hasAccount && _activeAccount != null && profile != null)
           _MenuTile(
             icon: Icons.person,
-            label: 'Edit Profile',
-            subtitle: 'Update your profile information',
+            label: 'My Identity',
+            subtitle: 'Your local profile (stored on device)',
+            tooltip: 'Your identity is stored locally on this device. '
+                'To share scripts publicly, register a cloud username.',
             onTap: () => _handleAction(ProfileMenuAction.editProfile),
           ),
-        // Create Account (if no account)
+        // Register Username (cloud account creation)
         if (!hasAccount && profile != null)
           _MenuTile(
-            icon: Icons.person_add,
-            label: 'Create Account',
-            subtitle: 'Register your @username',
+            icon: Icons.cloud_upload_outlined,
+            label: 'Register Username',
+            subtitle: 'Get @username to publish to marketplace',
+            tooltip:
+                'A cloud username lets you share scripts publicly on the marketplace. '
+                'Your local identity remains on this device.',
             onTap: () => _handleAction(ProfileMenuAction.createAccount),
             highlight: true,
           ),
@@ -504,6 +509,7 @@ class _MenuTile extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.highlight = false,
+    this.tooltip,
   });
 
   final IconData icon;
@@ -511,12 +517,13 @@ class _MenuTile extends StatelessWidget {
   final String subtitle;
   final VoidCallback? onTap;
   final bool highlight;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return ListTile(
+    final listTile = ListTile(
       leading: Container(
         width: 40,
         height: 40,
@@ -561,6 +568,15 @@ class _MenuTile extends StatelessWidget {
       enabled: onTap != null,
       onTap: onTap,
     );
+
+    if (tooltip != null) {
+      return Tooltip(
+        message: tooltip!,
+        preferBelow: true,
+        child: listTile,
+      );
+    }
+    return listTile;
   }
 }
 

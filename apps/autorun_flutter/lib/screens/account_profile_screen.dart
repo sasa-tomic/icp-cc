@@ -192,7 +192,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         title: Text(
-          'Account Profile',
+          'My Identity',
           style: AppDesignSystem.heading3.copyWith(
             color: context.colors.onSurface,
           ),

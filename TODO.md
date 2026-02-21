@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (Phase 3 Analysis)
+**Last Updated:** 2026-02-21 (Phase 4 Analysis)
 
 ## Current Focus
 
@@ -10,6 +10,11 @@
 - **NEW:** Scripts Screen Cleanup - removed stats banner, share banner, getting started card (7 tests)
 - **NEW:** Profile Menu Discoverability - "Profile" label next to avatar for discoverability (5 tests)
 - **NEW:** Featured Scripts Carousel Removed - cleaner UI, more vertical space (2 tests)
+- **NEW:** Profile vs Account Terminology - "My Identity" (local) vs "Register Username" (cloud) with tooltips (9 tests)
+- **NEW:** First Run Dialog Fatigue Fixed - PostSetupGuide delayed until meaningful action or 5s (10 tests)
+- **NEW:** Empty State Guidance - "Browse Marketplace" secondary action on empty state (4 tests)
+- **NEW:** Canister Quick Actions Clarity - plain-language descriptions replacing jargon (3 tests)
+- **NEW:** Phase 4 UX Analysis - 8 additional improvements identified from comprehensive codebase review
 
 **Previously Shipped (This Week):**
 - **NEW:** Script Favorites System - star/favorite scripts with filter (38 tests)
@@ -53,7 +58,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Phase 3 UX Improvements (8 new issues identified from new user perspective analysis), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Phase 4 UX Improvements (8 new issues - navigation, script actions overload, profile menu, canister complexity), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -116,6 +121,10 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Profile Menu Discoverability** | **COMPLETE** | 100% |
 | **Interactive Spotlight Tour** | **COMPLETE** | 100% |
 | **Plain Language UX** | **COMPLETE** | 100% |
+| **Empty State Secondary Action** | **COMPLETE** | 100% |
+| **Profile/Account Terminology** | **COMPLETE** | 100% |
+| **First Run Dialog Timing** | **COMPLETE** | 100% |
+| **Quick Actions Plain Language** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -387,6 +396,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Script Favorites tests (DONE - 38 tests - 2026-02-23)
 - [x] Offline Mode Banner tests (DONE - 25 tests - 2026-02-23)
 - [x] Bulk Script Management tests (DONE - 33 tests - 2026-02-23)
+- [x] Empty State Secondary Action tests (DONE - 4 tests - 2026-02-21)
+- [x] First Run Dialog Timing tests (DONE - 10 tests - 2026-02-21)
+- [x] Profile Terminology tests (DONE - 9 tests - 2026-02-21)
+- [x] Quick Actions Plain Language tests (DONE - 3 tests - 2026-02-21)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
@@ -450,12 +463,14 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 > **Analysis completed by reviewing app from NEW USER perspective.**
 > Goal: Identify confusing, missing, or hard-to-use elements that would frustrate first-time users.
 
-**7. First Run: Dialog Fatigue** :red_circle: **HIGH IMPACT**
+**7. First Run: Dialog Fatigue** ✅ **DONE - 2026-02-21**
 - **Pain Point:** User enters name in QuickProfileCreationDialog → immediately sees PostSetupGuide with 3 choices → has not even SEEN the app yet!
 - **Change:** Delay PostSetupGuide by 5 seconds OR show only after first meaningful action (viewing a script, exploring a canister)
+- **Implementation:** Added `markAppUsable()`, `recordFirstMeaningfulAction()`, and `isPostSetupGuideReady()` to `OnboardingService`. PostSetupGuide now shows after either: (1) 5 second delay since app became usable, OR (2) user performs first meaningful action (view script, explore canister).
 - **Impact:** 50% less first-run abandonment, users feel guided not pressured
 - **Complexity:** 3/10
-- **Files:** `lib/main.dart` (modify `_showPostSetupGuideIfNeeded` timing)
+- **Files:** `lib/main.dart`, `lib/services/onboarding_service.dart`, `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/onboarding/first_run_timing_test.dart` (10 tests)
 
 **8. Scripts Screen: State Explosion** :red_circle: **HIGH IMPACT**
 - **Pain Point:** 2000+ line screen handles 8+ states (loading, empty, empty downloaded, empty favorites, selection mode, search mode, searching, offline). Users encounter "Your Script Library is Empty" before seeing marketplace.
@@ -485,26 +500,92 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 4/10
 - **Files:** `lib/screens/account_profile_screen.dart`
 
-**12. "Profile" vs "Account" Confusion** :yellow_circle: **MEDIUM IMPACT**
+**12. "Profile" vs "Account" Confusion** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Menu says "Edit Profile" and "Create Account" - what is the difference? Users do not understand the local profile vs backend account distinction.
-- **Change:** Rename to "My Identity" (local) and "Register Username" (cloud); add explainer tooltip
-- **Impact:** 40% reduction in support questions about account setup
+- **Change:** Renamed "Edit Profile" → "My Identity" (local), "Create Account" → "Register Username" (cloud); added explainer tooltips
+- **Impact:** 40% reduction in support questions about account setup expected
 - **Complexity:** 3/10
-- **Files:** `lib/widgets/profile_menu.dart`
+- **Files:** `lib/widgets/profile_menu.dart`, `lib/screens/account_profile_screen.dart`, `lib/screens/account_registration_wizard.dart`
+- **Tests:** `test/widgets/profile_menu_terminology_test.dart` (9 tests)
 
-**13. Empty State Guidance** :yellow_circle: **MEDIUM IMPACT**
+**13. Empty State Guidance** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Empty states exist but do not guide users to the NEXT action. "Your Script Library is Empty" → "Create Script" button. What if user wants to browse first?
 - **Change:** Add secondary action "Browse Marketplace" to empty state; context-aware suggestions
 - **Impact:** 30% better first-session engagement
 - **Complexity:** 3/10
 - **Files:** `lib/screens/scripts_screen.dart` (ModernEmptyState widget)
+- **Test:** `test/features/scripts/empty_state_secondary_action_test.dart` (4 tests)
 
-**14. Canister Jargon in Quick Actions** :yellow_circle: **MEDIUM IMPACT**
+**14. Canister Jargon in Quick Actions** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Quick Actions use "ICP Balance", "View Neurons", "NNS Governance" - crypto-native users understand, but regular users do not
-- **Change:** Add plain-language descriptions; "Check your token balance (ICP)", "See your voting power in Internet Computer governance"
+- **Change:** Replaced jargon with plain-language descriptions: "Check your token balance", "See your voting power in governance", "Find apps on the Internet Computer"
 - **Impact:** 25% broader appeal to non-crypto users
 - **Complexity:** 2/10
 - **Files:** `lib/screens/bookmarks_screen.dart`
+- **Tests:** `test/features/services/quick_actions_test.dart` (3 new tests)
+
+---
+
+### Radical UX Improvements - Phase 4 (NEW - 2026-02-21)
+
+> **Analysis completed by comprehensive codebase exploration from NEW USER perspective.**
+> Goal: Identify remaining UX issues that would RADICALLY improve intuitiveness.
+
+**15. Navigation: "Discover" Tab Misleads Users** :red_circle: **HIGH IMPACT**
+- **Pain Point:** Second tab labeled "Discover" but it's actually Bookmarks/Canister Explorer. Users expect "Discover" to find marketplace scripts, not bookmarks.
+- **Change:** Either remove 2-tab navigation entirely and merge content, OR rename tabs to "Scripts" and "Explore" for clarity
+- **Impact:** HIGH - First-time users are confused about where to find scripts vs canister tools
+- **Complexity:** 6/10
+- **Files:** `lib/main.dart`, `lib/screens/scripts_screen.dart`, `lib/screens/bookmarks_screen.dart`
+
+**16. Scripts Screen: Too Many Actions Per Script** :red_circle: **HIGH IMPACT**
+- **Pain Point:** Each script has play button, share button, overflow menu with 5+ options, plus 4 filter toggles, category chips, sort options, search history, selection mode. Overwhelming!
+- **Change:** Reduce visible actions to ONE primary action (Run/View); move all secondary actions to single "..." menu; remove inline share button; collapse filters by default
+- **Impact:** HIGH - Main screen feels cluttered and intimidating
+- **Complexity:** 4/10
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**17. Profile Menu: Too Many Options** :yellow_circle: **MEDIUM-HIGH IMPACT**
+- **Pain Point:** Profile menu shows 8 options including "Restart Tour", "Getting Started", "Switch Profile", "Create Profile" etc. New users see irrelevant options.
+- **Change:** Show only relevant options based on user state; move "Getting Started"/"Restart Tour" to Settings > Help; combine profile management into single "Manage Profiles" option
+- **Impact:** MEDIUM-HIGH - Profile menu is the first thing users tap
+- **Complexity:** 5/10
+- **Files:** `lib/widgets/profile_menu.dart`
+
+**18. Canister Client Sheet: Too Complex** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** CanisterClientSheet has 4 flow states, multiple inputs, advanced options, JSON editor toggle, quick start section. Overwhelming for simple queries.
+- **Change:** Create simplified "Quick Query" mode by default (one input: Canister ID, auto-fetch methods, tap→result); move advanced options to separate screen
+- **Impact:** MEDIUM - Advanced feature but intimidates beginners
+- **Complexity:** 7/10
+- **Files:** `lib/screens/bookmarks_screen.dart`
+
+**19. Template Selector: Buried in Form** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Template selector is a dropdown that looks like form metadata. Users might miss templates exist.
+- **Change:** Replace dropdown with visual template picker as first step; show template cards with emoji, title, difficulty badge
+- **Impact:** MEDIUM - Templates help beginners get started
+- **Complexity:** 5/10
+- **Files:** `lib/screens/script_creation_screen.dart`
+
+**20. Too Many Onboarding Overlays** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Multiple onboarding mechanisms: QuickProfileCreationDialog, GettingStartedCard, PostSetupGuide, SpotlightTour. Can overlap and overwhelm.
+- **Change:** Consolidate into ONE onboarding flow; show GettingStartedCard only after first script; make spotlight tour optional via Settings
+- **Impact:** MEDIUM - Reduces cognitive load
+- **Complexity:** 6/10
+- **Files:** `lib/main.dart`, `lib/widgets/getting_started_card.dart`, `lib/widgets/post_setup_guide.dart`
+
+**21. Script List: Weak Visual Hierarchy** :green_circle: **LOW-MEDIUM IMPACT**
+- **Pain Point:** Each script item shows emoji, title, source badge, subtitle with author/version/run count, action buttons, "Available" badge. Visual noise.
+- **Change:** Simplify to emoji + title + one-line subtitle; move source badge to small icon; show "Available" as subtle download icon
+- **Impact:** LOW-MEDIUM - Cleaner list, easier scanning
+- **Complexity:** 3/10
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**22. Settings: Developer Info Unnecessary** :green_circle: **LOW IMPACT**
+- **Pain Point:** Settings shows "API Endpoint" and "Environment" in Developer Info section. Irrelevant noise for new users.
+- **Change:** Move Developer Info to hidden Developer Options screen (tap version 7 times to unlock)
+- **Impact:** LOW - Minor cleanup but improves polish
+- **Complexity:** 2/10
+- **Files:** `lib/screens/settings_screen.dart`
 
 
 ## MEDIUM Priority

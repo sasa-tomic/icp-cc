@@ -86,7 +86,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
           onPressed: _isRegistering ? null : () => Navigator.pop(context),
         ),
         title: Text(
-          'Create Account',
+          'Register Username',
           style: AppDesignSystem.heading3.copyWith(
             color: AppDesignSystem.neutral900,
           ),
