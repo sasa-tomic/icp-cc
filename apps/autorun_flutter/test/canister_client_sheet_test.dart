@@ -16,6 +16,14 @@ service: {
 }
 ''';
     }
+    if (canisterId == 'with-args-canister') {
+      return '''
+service: {
+  greet: (text) -> (text);
+  add: (int, int) -> (int);
+}
+''';
+    }
     if (canisterId == 'invalid') {
       return null;
     }
@@ -24,8 +32,11 @@ service: {
 
   @override
   String? parseCandid({required String candidText}) {
-    if (candidText.contains('service:')) {
+    if (candidText.contains('account_balance_dfx')) {
       return '{"methods":[{"name":"account_balance_dfx","kind":"query","args":[],"rets":[]},{"name":"transfer","kind":"update","args":[],"rets":[]}]}';
+    }
+    if (candidText.contains('greet')) {
+      return '{"methods":[{"name":"greet","kind":"query","args":["text"],"rets":["text"]},{"name":"add","kind":"update","args":["int","int"],"rets":["int"]}]}';
     }
     return null;
   }
@@ -250,6 +261,121 @@ void main() {
         tooltipWidget.message,
         contains('smart contract'),
       );
+    });
+
+    testWidgets(
+        'input section has single header without redundant Arguments label',
+        (tester) async {
+      await pumpSheet(tester);
+
+      await tester.enterText(
+        find.byKey(const Key('canisterField')),
+        'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('methodChip_account_balance_dfx')));
+      await tester.pumpAndSettle();
+
+      // Should have "Input" header but NOT "Arguments" header
+      // (which would indicate redundant UI from _ArgsEditor)
+      expect(
+          find.text('Input'), findsNothing); // No input required for zero-arg
+      expect(find.text('Arguments'), findsNothing); // No redundant header
+
+      // Should NOT have "Auto" switch
+      expect(find.text('Auto'), findsNothing);
+    });
+
+    testWidgets('quick query flow: enter ID, see methods, tap, get result',
+        (tester) async {
+      // This test verifies the complete simplified flow
+      await pumpSheet(tester);
+
+      // Step 1: Enter canister ID
+      await tester.enterText(
+        find.byKey(const Key('canisterField')),
+        'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Step 2: Methods appear automatically
+      expect(find.byKey(const Key('methodChip_account_balance_dfx')),
+          findsOneWidget);
+      expect(find.byKey(const Key('methodChip_transfer')), findsOneWidget);
+
+      // Step 3: Select a method
+      await tester.tap(find.byKey(const Key('methodChip_account_balance_dfx')));
+      await tester.pumpAndSettle();
+
+      // Step 4: Call button appears
+      expect(find.byKey(const Key('callButton')), findsOneWidget);
+
+      // Step 5: Tap to call
+      await tester.tap(find.byKey(const Key('callButton')));
+      await tester.pump();
+
+      // Step 6: Result appears
+      expect(find.text('Result'), findsOneWidget);
+    });
+
+    testWidgets('quick start section shows popular canisters', (tester) async {
+      await pumpSheet(tester);
+
+      // Should show Quick Start section with well-known canisters
+      expect(find.text('Quick Start'), findsOneWidget);
+      expect(find.text('Your Bookmarks'), findsOneWidget);
+    });
+
+    testWidgets(
+        'method with arguments shows Input section without redundant Arguments label',
+        (tester) async {
+      await pumpSheet(tester);
+
+      // Use canister with methods that have arguments
+      await tester.enterText(
+        find.byKey(const Key('canisterField')),
+        'with-args-canister',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Select a method with arguments
+      await tester.tap(find.byKey(const Key('methodChip_greet')));
+      await tester.pumpAndSettle();
+
+      // Should have "Input" header (from parent)
+      expect(find.text('Input'), findsOneWidget);
+
+      // Should have JSON/Form toggle button (from parent)
+      expect(find.text('JSON'), findsOneWidget);
+
+      // Should NOT have redundant "Arguments" header
+      expect(find.text('Arguments'), findsNothing);
+
+      // Should NOT have "Auto" switch
+      expect(find.text('Auto'), findsNothing);
+    });
+
+    testWidgets(
+        'method with arguments shows form fields by default for simple types',
+        (tester) async {
+      await pumpSheet(tester);
+
+      await tester.enterText(
+        find.byKey(const Key('canisterField')),
+        'with-args-canister',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('methodChip_greet')));
+      await tester.pumpAndSettle();
+
+      // Should show form field for text argument
+      expect(find.widgetWithText(TextField, 'Arg 1 (text)'), findsOneWidget);
     });
   });
 }

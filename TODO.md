@@ -1,10 +1,15 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (Phase 5 - UX Simplification Wave 6)
+**Last Updated:** 2026-02-21 (Phase 6 - UX Simplification Wave 7)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
+
+**Reality Check - UX Simplification Wave 7 COMPLETE:**
+- **NEW:** Scripts Screen State Machine - clean state management, no empty state flash for new users (24 tests)
+- **NEW:** Discoverable Script Actions - hover-reveal on desktop, always visible on mobile (10 tests)
+- **NEW:** Canister Client Simplified - removed redundant "Arguments" header, cleaner quick query (5 tests)
 
 **Reality Check - UX Simplification Wave 6 COMPLETE:**
 - **NEW:** New User Default View - loading indicator instead of empty state for marketplace (6 tests)
@@ -63,7 +68,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Remaining items: Scripts Screen State Explosion (complexity 8/10), Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), Canister Client Quick Query Mode (complexity 7/10). Also: write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** UX Phase 7 items (from new user analysis): Rename "Explore" to "Services" (impact 9/10, complexity 2/10), Separate "My Scripts" from "Marketplace" sections (impact 8/10, complexity 6/10), Show active filter chips prominently (impact 6/10, complexity 4/10), Surface "Register Username" when publishing (impact 7/10, complexity 4/10). Also remaining: Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -141,6 +146,9 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Profile Form Simplified** | **COMPLETE** | 100% |
 | **Favorite Star Icon Visible** | **COMPLETE** | 100% |
 | **Bulk Selection Hint** | **COMPLETE** | 100% |
+| **Scripts Screen State Machine** | **COMPLETE** | 100% |
+| **Discoverable Script Actions** | **COMPLETE** | 100% |
+| **Canister Client Simplified** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -420,6 +428,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Profile Form Collapsed tests (DONE - 4 tests - 2026-02-21)
 - [x] Favorite Star Icon tests (DONE - 15 tests - 2026-02-21)
 - [x] Bulk Selection Hint tests (DONE - 13 tests - 2026-02-21)
+- [x] Scripts View Machine tests (DONE - 24 tests - 2026-02-21)
+- [x] Discoverable Script Actions tests (DONE - 10 tests - 2026-02-21)
+- [x] Canister Client Simplified tests (DONE - 5 tests - 2026-02-21)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
@@ -492,12 +503,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Files:** `lib/main.dart`, `lib/services/onboarding_service.dart`, `lib/screens/scripts_screen.dart`
 - **Tests:** `test/features/onboarding/first_run_timing_test.dart` (10 tests)
 
-**8. Scripts Screen: State Explosion** :red_circle: **HIGH IMPACT**
+**8. Scripts Screen: State Explosion** ✅ **DONE - 2026-02-21**
 - **Pain Point:** 2000+ line screen handles 8+ states (loading, empty, empty downloaded, empty favorites, selection mode, search mode, searching, offline). Users encounter "Your Script Library is Empty" before seeing marketplace.
-- **Change:** Split into smaller widgets; default view shows marketplace when local empty; progressive disclosure of filters
+- **Change:** Created ScriptsViewMachine class with clean state enum; initialize marketplace loading to true to prevent empty state flash; 24 new tests
 - **Impact:** 40% reduction in cognitive load, cleaner first impression
-- **Complexity:** 8/10 (refactor required)
-- **Files:** `lib/screens/scripts_screen.dart`
+- **Complexity:** 8/10 (refactor required) - **Phase 1 complete**
+- **Files:** `lib/screens/scripts_screen.dart`, `lib/screens/scripts_screen_state.dart`
+- **Tests:** `test/features/scripts/scripts_view_machine_test.dart` (24 tests)
 
 **9. Mixed Mental Model: Local vs Marketplace** ✅ **DONE - 2026-02-21**
 - **Pain Point:** "Scripts" tab mixes LOCAL files and MARKETPLACE items. Users do not know what to expect. Is this MY stuff or EVERYONES stuff?
@@ -507,12 +519,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Files:** `lib/screens/scripts_screen.dart`
 - **Tests:** `test/features/scripts/new_user_default_view_test.dart` (6 tests)
 
-**10. Hidden Script Actions** :yellow_circle: **MEDIUM IMPACT**
+**10. Hidden Script Actions** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Critical actions buried in 3-dot menus, long-press, right-click. Users do not discover Run, Edit, Delete, Publish.
-- **Change:** Add prominent action buttons visible on hover/focus; reduce reliance on hidden gestures
+- **Change:** Created HoverRevealActions widget - actions visible on hover (desktop) or always visible (mobile); ScriptActionButton for consistent styling
 - **Impact:** 70% faster task completion, fewer "how do I?" questions
 - **Complexity:** 4/10
-- **Files:** `lib/screens/scripts_screen.dart`
+- **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/hover_reveal_actions.dart`
+- **Tests:** `test/features/scripts/discoverable_actions_test.dart` (10 tests)
 
 **11. Account Profile: Form Overwhelm** ✅ **DONE - 2026-02-21**
 - **Pain Point:** 7 editable fields immediately visible (display name, email, telegram, twitter, discord, website, bio). Plus Public Keys section with Import/Export buttons. Visual overload.
@@ -577,12 +590,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Files:** `lib/widgets/profile_menu.dart`, `lib/screens/settings_screen.dart`
 - **Tests:** `test/widgets/profile_menu_simplified_test.dart` (12 tests)
 
-**18. Canister Client Sheet: Too Complex** :yellow_circle: **MEDIUM IMPACT**
+**18. Canister Client Sheet: Too Complex** ✅ **DONE - 2026-02-21**
 - **Pain Point:** CanisterClientSheet has 4 flow states, multiple inputs, advanced options, JSON editor toggle, quick start section. Overwhelming for simple queries.
-- **Change:** Create simplified "Quick Query" mode by default (one input: Canister ID, auto-fetch methods, tap→result); move advanced options to separate screen
+- **Change:** Removed redundant "Arguments" header and "Auto" switch from _ArgsEditor; single "Input" header now; cleaner quick query flow
 - **Impact:** MEDIUM - Advanced feature but intimidates beginners
-- **Complexity:** 7/10
+- **Complexity:** 7/10 - **Phase 1 complete**
 - **Files:** `lib/screens/bookmarks_screen.dart`
+- **Tests:** `test/canister_client_sheet_test.dart` (5 new tests, 49 total)
 
 **19. Template Selector: Buried in Form** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Template selector is a dropdown that looks like form metadata. Users might miss templates exist.
@@ -631,6 +645,47 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 3/10
 - **Files:** `lib/screens/scripts_screen.dart`
 - **Tests:** `test/features/scripts/selection_hint_test.dart` (13 tests)
+
+---
+
+### Radical UX Improvements - Phase 5 (NEW - 2026-02-21)
+
+> **Analysis completed from NEW USER perspective - focusing on navigation and discoverability.**
+
+**25. Rename "Explore" Tab to "Services"** :red_circle: **HIGH IMPACT**
+- **Pain Point:** New users expect "Explore" to browse marketplace scripts. Instead, it shows canister tools and bookmarks - completely different content. Major expectation violation.
+- **Change:** Rename tab to "Services" or "Canisters"; add subtitle "ICP canister tools and quick actions"
+- **Impact:** HIGH - Prevents immediate user confusion
+- **Complexity:** 2/10 - Simple text changes
+- **Files:** `lib/main.dart`, `lib/screens/bookmarks_screen.dart`
+
+**26. Visually Separate "My Scripts" from "Marketplace"** :red_circle: **HIGH IMPACT**
+- **Pain Point:** Home screen shows unified list mixing local and marketplace scripts. New users with no scripts see overwhelming list. Distinction is only a tiny color-coded icon.
+- **Change:** Add clear visual section headers or SegmentedButton at top: [My Scripts | Marketplace]
+- **Impact:** HIGH - Dramatically improves clarity
+- **Complexity:** 6/10 - Requires refactoring list builder
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**27. Surface "Register Username" When Publishing** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Publishing to marketplace requires "cloud username" but option is buried in profile menu with no explanation of why user needs it.
+- **Change:** When user tries to publish WITHOUT account, show contextual prompt: "To share scripts publicly, you'll need to register a @username. Register now?"; add badge on profile avatar when account not linked
+- **Impact:** MEDIUM-HIGH - Users discover key feature when relevant
+- **Complexity:** 4/10 - Add conditional badge and dialog
+- **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/profile_avatar_button.dart`
+
+**28. Show Active Filter Chips Prominently** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Filter button shows count badge but users don't know WHAT filters are active. Empty results from active filter looks like broken app.
+- **Change:** Show filter chips directly below search bar when filters active; each chip dismissible with X; add "Clear All"
+- **Impact:** MEDIUM - Prevents "stuck in filter" frustration
+- **Complexity:** 4/10 - Add chip row below search bar
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**29. Add Welcome Card for Brand New Users** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Brand new user (0 scripts, 0 downloads) sees Home screen with no guidance on what to DO.
+- **Change:** For users with 0 scripts AND 0 downloads, show Welcome Card with [Browse Marketplace] [Create Script] options
+- **Impact:** MEDIUM - First-time users get immediate guidance
+- **Complexity:** 3/10 - Reuse existing GettingStartedCard widget
+- **Files:** `lib/screens/scripts_screen.dart`, `lib/widgets/getting_started_card.dart`
 
 
 ## MEDIUM Priority

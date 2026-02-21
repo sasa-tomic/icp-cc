@@ -22,6 +22,7 @@ import '../services/onboarding_progress_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
+import '../widgets/hover_reveal_actions.dart';
 import '../widgets/keyboard_shortcuts.dart';
 import '../widgets/modern_empty_state.dart';
 import '../widgets/offline_banner.dart';
@@ -59,7 +60,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   final Set<String> _downloadingScriptIds = <String>{};
   final Map<String, double> _downloadProgress = <String, double>{};
   Set<String> _downloadedScriptIds = {};
-  bool _isMarketplaceLoading = false;
+  // KEY FIX: Initialize marketplace loading to true to prevent showing
+  // empty state before marketplace data arrives for new users
+  bool _isMarketplaceLoading = true;
   bool _isLoadingMore = false;
   bool _isSearching = false;
   int _offset = 0;
@@ -1415,18 +1418,52 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   Widget _buildLocalScriptMenu(ScriptRecord record) {
     final canPublish = !_isPublishedToMarketplace(record);
+
+    // Build hover-reveal actions for desktop discoverability
+    final hoverRevealActions = <Widget>[
+      // Run action (visible on hover for desktop, always visible on mobile)
+      ScriptActionButton(
+        icon: Icons.play_arrow,
+        onPressed: () => _runScript(record),
+        tooltip: 'Run script',
+      ),
+      // Edit action
+      ScriptActionButton(
+        icon: Icons.edit,
+        onPressed: () =>
+            _handleAllScriptsItemTap(ScriptListItem.fromLocal(record)),
+        tooltip: 'Edit script',
+      ),
+      // Publish action (only for unpublished scripts)
+      if (canPublish)
+        ScriptActionButton(
+          icon: Icons.share,
+          onPressed: () => _publishToMarketplace(record),
+          tooltip: 'Share to Marketplace',
+        ),
+      // Delete action (destructive)
+      ScriptActionButton(
+        icon: Icons.delete_outline,
+        onPressed: () => _confirmAndDeleteScript(record),
+        tooltip: 'Delete script',
+        isDestructive: true,
+      ),
+    ];
+
+    // Always visible: favorite star
+    final alwaysVisibleActions = <Widget>[
+      _buildFavoriteStarButton(record.id),
+    ];
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // FAVORITE: Star icon for quick toggle
-        _buildFavoriteStarButton(record.id),
-        // PRIMARY ACTION: Play button visible directly
-        IconButton(
-          icon: const Icon(Icons.play_arrow),
-          onPressed: () => _runScript(record),
-          tooltip: 'Run script',
+        // Hover-reveal actions (Run, Edit, Publish, Delete)
+        HoverRevealActions(
+          actions: hoverRevealActions,
+          alwaysVisibleActions: alwaysVisibleActions,
         ),
-        // OVERFLOW MENU: All secondary actions
+        // OVERFLOW MENU: Secondary location for all actions
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) => _handleLocalScriptMenuAction(value, record),
@@ -1529,22 +1566,35 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   Widget _buildMarketplaceScriptMenu(MarketplaceScript script) {
     final isDownloaded = _downloadedScriptIds.contains(script.id);
+    final isDownloading = _downloadingScriptIds.contains(script.id);
+
+    // Build hover-reveal actions for desktop discoverability
+    final hoverRevealActions = <Widget>[
+      // Primary action: Download or View Details
+      ScriptActionButton(
+        icon: isDownloaded ? Icons.info_outline : Icons.download,
+        onPressed: isDownloaded
+            ? () => _showScriptDetails(context, script)
+            : () => _downloadScript(script),
+        tooltip: isDownloaded ? 'View details' : 'Download',
+        isLoading: isDownloading,
+      ),
+    ];
+
+    // Always visible: favorite star
+    final alwaysVisibleActions = <Widget>[
+      _buildFavoriteStarButton(script.id),
+    ];
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // FAVORITE: Star icon for quick toggle
-        _buildFavoriteStarButton(script.id),
-        // PRIMARY ACTION: Download (if not downloaded) or View Details (if downloaded)
-        IconButton(
-          icon: Icon(
-            isDownloaded ? Icons.info_outline : Icons.download,
-          ),
-          onPressed: isDownloaded
-              ? () => _showScriptDetails(context, script)
-              : () => _downloadScript(script),
-          tooltip: isDownloaded ? 'View details' : 'Download',
+        // Hover-reveal actions (Download/View Details)
+        HoverRevealActions(
+          actions: hoverRevealActions,
+          alwaysVisibleActions: alwaysVisibleActions,
         ),
-        // OVERFLOW MENU: All secondary actions
+        // OVERFLOW MENU: Secondary location for all actions
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) =>

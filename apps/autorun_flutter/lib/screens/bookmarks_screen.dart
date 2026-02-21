@@ -1117,17 +1117,8 @@ class _ArgsEditorState extends State<_ArgsEditor> {
   Widget build(BuildContext context) {
     final model = CandidFormModel(widget.argTypes);
 
-    // Header with toggle
-    final header = Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: <Widget>[
-        Text('Arguments', style: Theme.of(context).textTheme.titleMedium),
-        Row(children: <Widget>[
-          const Text('Auto'),
-          Switch(value: widget.useAuto, onChanged: widget.onToggle),
-        ]),
-      ],
-    );
+    // No header here - parent already shows "Input" with JSON/Form toggle
+    // This simplifies the UX by avoiding redundant "Arguments" label
 
     if (!widget.useAuto ||
         widget.argTypes.isEmpty ||
@@ -1135,80 +1126,74 @@ class _ArgsEditorState extends State<_ArgsEditor> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          header,
-          const SizedBox(height: 8),
-          if (!widget.useAuto && widget.argTypes.isNotEmpty)
-            const SizedBox.shrink()
-          else if (!model.isSupportedByForm)
-            const Text(
-                'Some argument types are not supported by auto form. Use raw JSON below.'),
-          if (widget.argTypes.isEmpty)
-            const Text('No input required for this method')
-          else
-            TextField(
-              controller: widget.controller,
-              decoration: const InputDecoration(
-                labelText: 'Args JSON',
-                hintText:
-                    '[] for multiple args; object/array/scalar for single arg',
-                border: OutlineInputBorder(),
-              ),
-              minLines: 1,
-              maxLines: 8,
+          if (!model.isSupportedByForm)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                  'Some argument types are not supported by form. Use raw JSON.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      )),
             ),
+          TextField(
+            key: const Key('argsJsonField'),
+            controller: widget.controller,
+            decoration: const InputDecoration(
+              labelText: 'Args JSON',
+              hintText:
+                  '[] for multiple args; object/array/scalar for single arg',
+              border: OutlineInputBorder(),
+            ),
+            minLines: 1,
+            maxLines: 8,
+          ),
         ],
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        header,
-        const SizedBox(height: 8),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: widget.argTypes.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final String t = widget.argTypes[index];
-            final String label = 'Arg ${index + 1} ($t)';
-            final String lower = t.toLowerCase();
-            final TextInputType inputType = (lower.contains('int') ||
-                    lower.contains('float') ||
-                    lower.contains('nat'))
-                ? TextInputType.number
-                : TextInputType.text;
-            final String? hint = lower.startsWith('record')
-                ? 'JSON object or array matching record fields'
-                : (lower.startsWith('vec')
-                    ? 'JSON array for vector values'
-                    : (lower.startsWith('opt') ? 'Value or null' : null));
-            return TextField(
-              controller: _controllers[index],
-              decoration: InputDecoration(
-                labelText: label,
-                hintText: hint,
-                border: const OutlineInputBorder(),
-              ),
-              keyboardType: inputType,
-              onChanged: (_) {
-                _rebuildJson();
-                // Best-effort live validation comparing built JSON vs expected types
-                try {
-                  final model = CandidFormModel(widget.argTypes);
-                  final List<dynamic> values =
-                      _controllers.map((c) => c.text.trim()).toList();
-                  final jsonStr = model.buildJson(values);
-                  validateJsonArgs(
-                      resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
-                  // Bubble up? The parent shows errors from main controller text; skip here.
-                } catch (_) {}
-              },
-            );
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: widget.argTypes.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final String t = widget.argTypes[index];
+        final String label = 'Arg ${index + 1} ($t)';
+        final String lower = t.toLowerCase();
+        final TextInputType inputType = (lower.contains('int') ||
+                lower.contains('float') ||
+                lower.contains('nat'))
+            ? TextInputType.number
+            : TextInputType.text;
+        final String? hint = lower.startsWith('record')
+            ? 'JSON object or array matching record fields'
+            : (lower.startsWith('vec')
+                ? 'JSON array for vector values'
+                : (lower.startsWith('opt') ? 'Value or null' : null));
+        return TextField(
+          key: Key('argField_$index'),
+          controller: _controllers[index],
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: inputType,
+          onChanged: (_) {
+            _rebuildJson();
+            // Best-effort live validation comparing built JSON vs expected types
+            try {
+              final model = CandidFormModel(widget.argTypes);
+              final List<dynamic> values =
+                  _controllers.map((c) => c.text.trim()).toList();
+              final jsonStr = model.buildJson(values);
+              validateJsonArgs(
+                  resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
+              // Bubble up? The parent shows errors from main controller text; skip here.
+            } catch (_) {}
           },
-        ),
-      ],
+        );
+      },
     );
   }
 }
