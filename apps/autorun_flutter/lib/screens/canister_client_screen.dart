@@ -14,6 +14,7 @@ import '../utils/candid_json_validate.dart';
 import '../utils/candid_type_resolver.dart';
 import '../utils/json_format.dart';
 import '../utils/tech_terms.dart';
+import '../widgets/candid_smart_form.dart';
 
 enum _ClientStep { canister, function, call }
 
@@ -1270,53 +1271,7 @@ class _ArgsEditor extends StatefulWidget {
 }
 
 class _ArgsEditorState extends State<_ArgsEditor> {
-  late List<TextEditingController> _controllers;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List<TextEditingController>.generate(
-      widget.argTypes.length,
-      (_) => TextEditingController(),
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant _ArgsEditor oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.argTypes.length != widget.argTypes.length) {
-      for (final c in _controllers) {
-        c.dispose();
-      }
-      _controllers = List<TextEditingController>.generate(
-        widget.argTypes.length,
-        (_) => TextEditingController(),
-      );
-      _rebuildJson();
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  void _rebuildJson() {
-    try {
-      final model = CandidFormModel(widget.argTypes);
-      if (!model.isSupportedByForm || !widget.useAuto) {
-        return;
-      }
-      final List<dynamic> values = <dynamic>[];
-      for (int i = 0; i < widget.argTypes.length; i += 1) {
-        values.add(_controllers[i].text.trim());
-      }
-      widget.controller.text = model.buildJson(values);
-    } catch (_) {}
-  }
+  final _formKey = GlobalKey<CandidSmartFormState>();
 
   @override
   Widget build(BuildContext context) {
@@ -1351,37 +1306,12 @@ class _ArgsEditorState extends State<_ArgsEditor> {
       );
     }
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: widget.argTypes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final String t = widget.argTypes[index];
-        final String label = 'Arg ${index + 1} ($t)';
-        final String lower = t.toLowerCase();
-        final TextInputType inputType = (lower.contains('int') ||
-                lower.contains('float') ||
-                lower.contains('nat'))
-            ? TextInputType.number
-            : TextInputType.text;
-        final String? hint = lower.startsWith('record')
-            ? 'JSON object or array matching record fields'
-            : (lower.startsWith('vec')
-                ? 'JSON array for vector values'
-                : (lower.startsWith('opt') ? 'Value or null' : null));
-        return TextField(
-          controller: _controllers[index],
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            border: const OutlineInputBorder(),
-          ),
-          keyboardType: inputType,
-          onChanged: (_) {
-            _rebuildJson();
-          },
-        );
+    return CandidSmartForm(
+      key: _formKey,
+      argTypes: widget.argTypes,
+      initialJson: widget.controller.text,
+      onJsonChanged: (json) {
+        widget.controller.text = json;
       },
     );
   }

@@ -6,8 +6,8 @@ import 'package:icp_autorun/widgets/connectivity_scope.dart';
 
 void main() {
   group('Navigation UX Improvements', () {
-    group('Canisters tab', () {
-      testWidgets('BookmarksScreen AppBar shows Canisters title',
+    group('Explore tab (formerly Canisters)', () {
+      testWidgets('BookmarksScreen AppBar shows Explore ICP Services title',
           (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -23,7 +23,7 @@ void main() {
         await tester.pump(const Duration(seconds: 1));
         await tester.pump(const Duration(seconds: 1));
 
-        expect(find.text('Canisters'), findsWidgets);
+        expect(find.text('Explore ICP Services'), findsWidgets);
       });
 
       testWidgets('BookmarksScreen AppBar has subtitle about ICP canisters',
@@ -46,7 +46,7 @@ void main() {
             findsOneWidget);
       });
 
-      testWidgets('AppBar title is Canisters not Explore', (tester) async {
+      testWidgets('AppBar title is Explore ICP Services', (tester) async {
         await tester.pumpWidget(
           MaterialApp(
             home: ConnectivityScope(
@@ -64,11 +64,11 @@ void main() {
         final appBarFinder = find.byType(AppBar);
         expect(appBarFinder, findsOneWidget);
 
-        final canistersText = find.descendant(
+        final exploreText = find.descendant(
           of: appBarFinder,
-          matching: find.text('Canisters'),
+          matching: find.text('Explore ICP Services'),
         );
-        expect(canistersText, findsOneWidget);
+        expect(exploreText, findsOneWidget);
       });
     });
 

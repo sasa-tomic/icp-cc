@@ -99,16 +99,6 @@ class ScriptsViewMachine extends ChangeNotifier {
   }
 
   // ============================================
-  // Selection Mode State
-  // ============================================
-
-  bool _isSelectionMode = false;
-  final Set<String> _selectedScriptIds = {};
-
-  bool get isSelectionMode => _isSelectionMode;
-  Set<String> get selectedScriptIds => Set.unmodifiable(_selectedScriptIds);
-
-  // ============================================
   // Computed View State
   // ============================================
 
@@ -240,41 +230,6 @@ class ScriptsViewMachine extends ChangeNotifier {
       _searchQuery = query;
       notifyListeners();
     }
-  }
-
-  void setSelectionMode(bool value) {
-    if (_isSelectionMode != value) {
-      _isSelectionMode = value;
-      if (!value) {
-        _selectedScriptIds.clear();
-      }
-      notifyListeners();
-    }
-  }
-
-  void toggleScriptSelection(String scriptId) {
-    if (_selectedScriptIds.contains(scriptId)) {
-      _selectedScriptIds.remove(scriptId);
-      // Exit selection mode if no scripts selected
-      if (_selectedScriptIds.isEmpty) {
-        _isSelectionMode = false;
-      }
-    } else {
-      _selectedScriptIds.add(scriptId);
-    }
-    notifyListeners();
-  }
-
-  void selectAllLocalScripts() {
-    _selectedScriptIds.clear();
-    _selectedScriptIds.addAll(_localScripts.map((s) => s.id));
-    notifyListeners();
-  }
-
-  void exitSelectionMode() {
-    _isSelectionMode = false;
-    _selectedScriptIds.clear();
-    notifyListeners();
   }
 
   void clearAllFilters() {

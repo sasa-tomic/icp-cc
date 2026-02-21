@@ -24,7 +24,7 @@ void main() {
                 ModernNavigationItem(
                   icon: Icons.dns_outlined,
                   activeIcon: Icons.dns_rounded,
-                  label: 'Canisters',
+                  label: 'Explore',
                 ),
               ],
             ),
@@ -33,10 +33,10 @@ void main() {
       );
 
       final scriptsTab = find.text('Scripts');
-      final canistersTab = find.text('Canisters');
+      final exploreTab = find.text('Explore');
 
       expect(scriptsTab, findsOneWidget, reason: 'Should have Scripts tab');
-      expect(canistersTab, findsOneWidget, reason: 'Should have Canisters tab');
+      expect(exploreTab, findsOneWidget, reason: 'Should have Explore tab');
     });
 
     testWidgets('navigation bar has 2 items', (tester) async {
@@ -55,7 +55,7 @@ void main() {
                 ModernNavigationItem(
                   icon: Icons.dns_outlined,
                   activeIcon: Icons.dns_rounded,
-                  label: 'Canisters',
+                  label: 'Explore',
                 ),
               ],
             ),
@@ -91,7 +91,7 @@ void main() {
                 ModernNavigationItem(
                   icon: Icons.dns_outlined,
                   activeIcon: Icons.dns_rounded,
-                  label: 'Canisters',
+                  label: 'Explore',
                 ),
               ],
             ),
@@ -99,11 +99,11 @@ void main() {
         ),
       );
 
-      final canistersTab = find.text('Canisters');
-      await tester.tap(canistersTab);
+      final exploreTab = find.text('Explore');
+      await tester.tap(exploreTab);
 
       expect(tappedIndex, equals(1),
-          reason: 'Tapping Canisters should trigger callback with index 1');
+          reason: 'Tapping Explore should trigger callback with index 1');
     });
   });
 

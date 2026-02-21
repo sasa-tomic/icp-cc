@@ -39,8 +39,6 @@ import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
 
-/// View filter for sectioned script display
-enum ScriptsViewFilter { all, myScripts, marketplace }
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -88,15 +86,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   List<String> _recentSearches = [];
   bool _showRecentSearches = false;
 
-  // Selection mode for bulk operations
-  bool _isSelectionMode = false;
-  final Set<String> _selectedScriptIds = {};
-
-  // Selection hint for discoverability
-  bool _selectionHintDismissed = false;
-
-  // View filter for sectioned display
-  ScriptsViewFilter _viewFilter = ScriptsViewFilter.all;
 
   @override
   void initState() {
@@ -110,7 +99,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _initializeMarketplaceData();
     _loadRecentSearches();
     _loadFavorites();
-    _loadSelectionHintPreference();
     _searchFocusNode.addListener(_onSearchFocusChanged);
   }
 
@@ -131,25 +119,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     });
   }
 
-  Future<void> _loadSelectionHintPreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _selectionHintDismissed =
-            prefs.getBool('selection_hint_dismissed') ?? false;
-      });
-    }
-  }
 
-  Future<void> _dismissSelectionHint() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('selection_hint_dismissed', true);
-    if (mounted) {
-      setState(() {
-        _selectionHintDismissed = true;
-      });
-    }
-  }
 
   Future<void> _loadRecentSearches() async {
     final searches = await _searchHistoryService.getRecentSearches();
@@ -713,137 +683,13 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
-  // =========================================================================
-  // Bulk Selection Mode Methods
-  // =========================================================================
-
-  void _enterSelectionMode(String scriptId) {
-    setState(() {
-      _isSelectionMode = true;
-      _selectedScriptIds.clear();
-      _selectedScriptIds.add(scriptId);
-    });
-  }
-
-  void _exitSelectionMode() {
-    setState(() {
-      _isSelectionMode = false;
-      _selectedScriptIds.clear();
-    });
-  }
-
-  void _toggleScriptSelection(String scriptId) {
-    setState(() {
-      if (_selectedScriptIds.contains(scriptId)) {
-        _selectedScriptIds.remove(scriptId);
-        // Exit selection mode if no scripts selected
-        if (_selectedScriptIds.isEmpty) {
-          _isSelectionMode = false;
-        }
-      } else {
-        _selectedScriptIds.add(scriptId);
-      }
-    });
-  }
-
-  void _selectAllLocalScripts() {
-    final localScripts = _controller.scripts;
-    setState(() {
-      _selectedScriptIds.clear();
-      _selectedScriptIds.addAll(localScripts.map((s) => s.id));
-    });
-  }
-
-  void _deselectAllScripts() {
-    setState(() {
-      _selectedScriptIds.clear();
-    });
-  }
-
-  Future<void> _confirmAndBulkDeleteScripts() async {
-    if (_selectedScriptIds.isEmpty) return;
-
-    final count = _selectedScriptIds.length;
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Delete scripts'),
-          content: Text(
-              'Delete $count ${count == 1 ? 'script' : 'scripts'}? This cannot be undone.'),
-          actions: <Widget>[
-            TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel')),
-            FilledButton.tonal(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Delete')),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      final selectedIds = Set<String>.from(_selectedScriptIds);
-      final deletedCount = selectedIds.length;
-
-      // Delete each selected script
-      for (final id in selectedIds) {
-        await _controller.deleteScript(id);
-      }
-
-      _exitSelectionMode();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '$deletedCount ${deletedCount == 1 ? 'script' : 'scripts'} deleted'),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _bulkExportScripts() async {
-    if (_selectedScriptIds.isEmpty) return;
-
-    final selectedScripts = _controller.scripts
-        .where((s) => _selectedScriptIds.contains(s.id))
-        .toList();
-
-    final exportData = {
-      'version': 1,
-      'exportedAt': DateTime.now().toUtc().toIso8601String(),
-      'scripts': selectedScripts.map((s) => s.toJson()).toList(),
-    };
-
-    final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
-
-    await Clipboard.setData(ClipboardData(text: jsonString));
-
-    final count = selectedScripts.length;
-    _exitSelectionMode();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '$count ${count == 1 ? 'script' : 'scripts'} exported to clipboard as JSON'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final scripts = _controller.scripts;
 
     return Scaffold(
-      appBar: _isSelectionMode
-          ? _buildSelectionModeAppBar()
-          : AppBar(
+      appBar: AppBar(
               title: const Text('Scripts'),
               actions: [
                 PopupMenuButton<String>(
@@ -902,19 +748,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         children: [
           Column(
             children: [
-              if (!_isSelectionMode)
-                OfflineBanner(
+              OfflineBanner(
                   isOnline: ConnectivityScope.of(context).isOnline,
                   onDismiss: () => ConnectivityScope.of(context, listen: false)
                       .dismissBanner(),
                 ),
-              if (!_isSelectionMode) _buildSearchBar(),
+              _buildSearchBar(),
               Expanded(
                 child: _buildUnifiedListView(scripts),
               ),
             ],
           ),
-          if (!_isSelectionMode)
             Positioned(
               right: 16,
               bottom: MediaQuery.of(context).padding.bottom + 90,
@@ -931,42 +775,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             ),
         ],
       ),
-    );
-  }
-
-  PreferredSizeWidget _buildSelectionModeAppBar() {
-    final selectedCount = _selectedScriptIds.length;
-    final localScriptCount = _controller.scripts.length;
-    final allSelected =
-        selectedCount == localScriptCount && localScriptCount > 0;
-
-    return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.close),
-        onPressed: _exitSelectionMode,
-        tooltip: 'Cancel selection',
-      ),
-      title: Text('$selectedCount selected'),
-      actions: [
-        // Select All / Deselect All
-        IconButton(
-          icon: Icon(allSelected ? Icons.deselect : Icons.select_all),
-          onPressed: allSelected ? _deselectAllScripts : _selectAllLocalScripts,
-          tooltip: allSelected ? 'Deselect all' : 'Select all',
-        ),
-        // Export
-        IconButton(
-          icon: const Icon(Icons.file_download_outlined),
-          onPressed: selectedCount > 0 ? _bulkExportScripts : null,
-          tooltip: 'Export selected',
-        ),
-        // Delete
-        IconButton(
-          icon: const Icon(Icons.delete_outline),
-          onPressed: selectedCount > 0 ? _confirmAndBulkDeleteScripts : null,
-          tooltip: 'Delete selected',
-        ),
-      ],
     );
   }
 
@@ -1003,11 +811,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
     if (_showFavoritesOnly) {
       sortedItems = sortedItems.where((item) {
-        // For local scripts, use their local ID
         if (item.source == ScriptSource.local && item.localScript != null) {
           return _favoriteScriptIds.contains(item.localScript!.id);
         }
-        // For marketplace scripts, use marketplace ID
         if (item.source == ScriptSource.marketplace &&
             item.marketplaceScript != null) {
           return _favoriteScriptIds.contains(item.marketplaceScript!.id);
@@ -1016,39 +822,18 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       }).toList();
     }
 
-    // Separate items by source for sectioned display
-    final localItems =
-        sortedItems.where((i) => i.source == ScriptSource.local).toList();
-    final marketplaceItems =
-        sortedItems.where((i) => i.source == ScriptSource.marketplace).toList();
+    final displayedItems = sortedItems;
 
-    // Filter by view selection
-    List<ScriptListItem> displayedItems;
-    switch (_viewFilter) {
-      case ScriptsViewFilter.myScripts:
-        displayedItems = localItems;
-        break;
-      case ScriptsViewFilter.marketplace:
-        displayedItems = marketplaceItems;
-        break;
-      case ScriptsViewFilter.all:
-        displayedItems = sortedItems;
-    }
-
-    // Check if we're still loading data that the user should see
     final isLoadingAnything = _controller.isBusy || _isMarketplaceLoading;
     final hasNoContent = localScripts.isEmpty && displayedItems.isEmpty;
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        // Show loading indicator if we're loading AND have nothing to show yet
-        // This prevents showing empty state while marketplace is loading for new users
         if (isLoadingAnything && hasNoContent) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Only show empty state if we're done loading AND have no content
         if (displayedItems.isEmpty && !isLoadingAnything) {
           if (_showDownloadedOnly) {
             return ModernEmptyState(
@@ -1066,25 +851,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
               subtitle: 'Tap the star icon on scripts to add them to favorites',
               action: _clearFavoritesFilter,
               actionLabel: 'Browse Scripts',
-            );
-          }
-          // Show contextual empty states based on view filter
-          if (_viewFilter == ScriptsViewFilter.myScripts) {
-            return ModernEmptyState(
-              icon: Icons.folder_outlined,
-              title: 'No Scripts Yet',
-              subtitle: 'Create your first script to get started',
-              action: _showCreateSheet,
-              actionLabel: 'Create Script',
-            );
-          }
-          if (_viewFilter == ScriptsViewFilter.marketplace) {
-            return ModernEmptyState(
-              icon: Icons.cloud_outlined,
-              title: 'No Marketplace Scripts',
-              subtitle: 'Check your connection or try a different search',
-              action: _browseMarketplaceFromEmptyState,
-              actionLabel: 'Refresh',
             );
           }
           return ModernEmptyState(
@@ -1105,22 +871,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           },
           child: CustomScrollView(
             slivers: [
-              // View filter segmented button
-              SliverToBoxAdapter(
-                child: _buildViewFilterSegmentedButton(),
-              ),
-              // Selection hint banner for discoverability
-              if (_shouldShowSelectionHint(localScripts))
-                SliverToBoxAdapter(
-                  child: _SelectionHintBanner(
-                    onDismiss: _dismissSelectionHint,
-                  ),
-                ),
-              // Sectioned content based on view filter
-              ..._buildSectionedContent(
+              ..._buildUnifiedListContent(
                 displayedItems: displayedItems,
-                localItems: localItems,
-                marketplaceItems: marketplaceItems,
                 isLoadingAnything: isLoadingAnything,
               ),
               const SliverToBoxAdapter(
@@ -1133,306 +885,31 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     );
   }
 
-  /// Builds the view filter segmented button for switching between All/My Scripts/Marketplace
-  Widget _buildViewFilterSegmentedButton() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Center(
-        child: SegmentedButton<ScriptsViewFilter>(
-          segments: const [
-            ButtonSegment<ScriptsViewFilter>(
-              value: ScriptsViewFilter.all,
-              label: Text('All'),
-              icon: Icon(Icons.list),
-            ),
-            ButtonSegment<ScriptsViewFilter>(
-              value: ScriptsViewFilter.myScripts,
-              label: Text('My Scripts'),
-              icon: Icon(Icons.folder_outlined),
-            ),
-            ButtonSegment<ScriptsViewFilter>(
-              value: ScriptsViewFilter.marketplace,
-              label: Text('Marketplace'),
-              icon: Icon(Icons.cloud_outlined),
-            ),
-          ],
-          selected: {_viewFilter},
-          onSelectionChanged: (Set<ScriptsViewFilter> selection) {
-            setState(() {
-              _viewFilter = selection.first;
-            });
-          },
-          style: ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Builds sectioned content with headers when showing "All" view
-  List<Widget> _buildSectionedContent({
+  List<Widget> _buildUnifiedListContent({
     required List<ScriptListItem> displayedItems,
-    required List<ScriptListItem> localItems,
-    required List<ScriptListItem> marketplaceItems,
     required bool isLoadingAnything,
   }) {
-    // When filtered to a specific section, show items directly with section header
-    if (_viewFilter == ScriptsViewFilter.myScripts) {
-      return [
-        if (localItems.isEmpty && !isLoadingAnything)
-          SliverToBoxAdapter(
-            child: _buildEmptySectionPlaceholder(
-              message: 'No scripts yet. Create your first script!',
-              icon: Icons.add_circle_outline,
-            ),
-          )
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildAllScriptsListItem(localItems[index]),
-              childCount: localItems.length,
-            ),
-          ),
-      ];
+    if (displayedItems.isEmpty && !isLoadingAnything) {
+      return [];
     }
 
-    if (_viewFilter == ScriptsViewFilter.marketplace) {
-      return [
-        if (marketplaceItems.isEmpty && _isMarketplaceLoading)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          )
-        else if (marketplaceItems.isEmpty)
-          SliverToBoxAdapter(
-            child: _buildEmptySectionPlaceholder(
-              message: 'No marketplace scripts available',
-              icon: Icons.cloud_off_outlined,
-            ),
-          )
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) =>
-                  _buildAllScriptsListItem(marketplaceItems[index]),
-              childCount: marketplaceItems.length,
-            ),
-          ),
-      ];
-    }
-
-    // When showing "All", use section headers
-    final slivers = <Widget>[];
-
-    // My Scripts section with header
-    if (localItems.isNotEmpty) {
-      slivers.add(
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            title: 'My Scripts',
-            icon: Icons.folder_outlined,
-            count: localItems.length,
-            color: Colors.blue,
-          ),
-        ),
-      );
-      slivers.add(
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) => _buildAllScriptsListItem(localItems[index]),
-            childCount: localItems.length,
-          ),
-        ),
-      );
-    } else {
-      // Show mini empty state for local section when marketplace has items
-      slivers.add(
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            title: 'My Scripts',
-            icon: Icons.folder_outlined,
-            count: 0,
-            color: Colors.blue,
-          ),
-        ),
-      );
-      slivers.add(
-        SliverToBoxAdapter(
-          child: _buildMiniEmptyState(
-            message: 'No scripts yet',
-            actionLabel: 'Create',
-            onAction: _showCreateSheet,
-          ),
-        ),
-      );
-    }
-
-    // Divider between sections
-    slivers.add(
-      const SliverToBoxAdapter(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Divider(height: 1),
+    return [
+      SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => _buildAllScriptsListItem(displayedItems[index]),
+          childCount: displayedItems.length,
         ),
       ),
-    );
-
-    // Marketplace section with header
-    if (_isMarketplaceLoading && marketplaceItems.isEmpty) {
-      slivers.add(
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            title: 'Marketplace',
-            icon: Icons.cloud_outlined,
-            count: 0,
-            color: Colors.green,
-            isLoading: true,
-          ),
-        ),
-      );
-      slivers.add(
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        ),
-      );
-    } else if (marketplaceItems.isNotEmpty) {
-      slivers.add(
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            title: 'Marketplace',
-            icon: Icons.cloud_outlined,
-            count: marketplaceItems.length,
-            color: Colors.green,
-          ),
-        ),
-      );
-      slivers.add(
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) =>
-                _buildAllScriptsListItem(marketplaceItems[index]),
-            childCount: marketplaceItems.length,
-          ),
-        ),
-      );
-    } else {
-      // Show mini empty state for marketplace section
-      slivers.add(
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            title: 'Marketplace',
-            icon: Icons.cloud_outlined,
-            count: 0,
-            color: Colors.green,
-          ),
-        ),
-      );
-      slivers.add(
-        SliverToBoxAdapter(
-          child: _buildMiniEmptyState(
-            message: 'No scripts available',
-          ),
-        ),
-      );
-    }
-
-    return slivers;
+    ];
   }
-
-  /// Builds a mini empty state placeholder for sections within "All" view
-  Widget _buildMiniEmptyState({
-    required String message,
-    String? actionLabel,
-    VoidCallback? onAction,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: onAction,
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(actionLabel),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds an empty section placeholder for filtered views
-  Widget _buildEmptySectionPlaceholder({
-    required String message,
-    required IconData icon,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 48,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildAllScriptsListItem(ScriptListItem item) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompactScreen = screenWidth < 380;
     final isLocalScript =
         item.source == ScriptSource.local && item.localScript != null;
-    final isSelected =
-        isLocalScript && _selectedScriptIds.contains(item.localScript!.id);
-
-    // In selection mode, only local scripts are tappable for selection
-    if (_isSelectionMode && isLocalScript) {
-      return _buildSelectableListItem(item, isCompactScreen, isSelected);
-    }
-
     // Normal mode with selection mode entry via long-press
     return GestureDetector(
-      onLongPress: isLocalScript
-          ? () => _enterSelectionMode(item.localScript!.id)
-          : () => _showScriptContextMenu(item),
+      onLongPress: () => _showScriptContextMenu(item),
       onSecondaryTapUp: (details) => _showScriptContextMenuAt(
         item,
         details.globalPosition,
@@ -1501,85 +978,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 ? _buildMarketplaceScriptMenu(item.marketplaceScript!)
                 : null,
         onTap: () => _handleAllScriptsItemTap(item),
-      ),
-    );
-  }
-
-  Widget _buildSelectableListItem(
-    ScriptListItem item,
-    bool isCompactScreen,
-    bool isSelected,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return InkWell(
-      onTap: () => _toggleScriptSelection(item.localScript!.id),
-      child: Container(
-        color: isSelected
-            ? colorScheme.primaryContainer.withValues(alpha: 0.3)
-            : null,
-        child: Row(
-          children: [
-            // Checkbox
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isCompactScreen ? 8 : 12,
-              ),
-              child: Checkbox(
-                value: isSelected,
-                onChanged: (_) => _toggleScriptSelection(item.localScript!.id),
-              ),
-            ),
-            // Script info
-            Expanded(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: isCompactScreen ? 20 : 24,
-                  child: Text(
-                    (item.emoji ?? '📜').isNotEmpty
-                        ? (item.emoji ?? '📜')[0]
-                        : '📜',
-                    style: TextStyle(
-                      fontSize: isCompactScreen ? 16 : 20,
-                    ),
-                  ),
-                ),
-                title: Row(
-                  children: [
-                    // Source indicator as small color-coded icon
-                    _buildSourceIcon(item, isCompactScreen),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        item.title,
-                        style: TextStyle(
-                          fontSize: isCompactScreen ? 14 : 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ),
-                  ],
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: isCompactScreen ? 2 : 4),
-                    Text(
-                      _buildItemSubtitle(item),
-                      style: TextStyle(
-                        fontSize: isCompactScreen ? 11 : 12,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2516,17 +1914,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         ),
       );
     }
-  }
-
-  /// Determines if the selection hint banner should be shown.
-  /// Shows the hint when:
-  /// - User has local scripts (at least 1)
-  /// - Hint has not been dismissed
-  /// - Not in selection mode
-  bool _shouldShowSelectionHint(List<ScriptRecord> localScripts) {
-    return localScripts.isNotEmpty &&
-        !_selectionHintDismissed &&
-        !_isSelectionMode;
   }
 }
 
@@ -3770,60 +3157,6 @@ class _ContextMenuAction extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// A subtle hint banner that informs users about the long-press bulk selection feature.
-/// Dismissed state is persisted via SharedPreferences.
-class _SelectionHintBanner extends StatelessWidget {
-  const _SelectionHintBanner({
-    required this.onDismiss,
-  });
-
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.checklist,
-            size: 18,
-            color: colorScheme.primary,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Tip: Long-press to select multiple scripts',
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: onDismiss,
-            child: Icon(
-              Icons.close,
-              size: 18,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
     );
   }

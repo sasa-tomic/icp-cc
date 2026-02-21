@@ -195,43 +195,6 @@ void main() {
       });
     });
 
-    group('selection mode', () {
-      test('selection mode does not affect view determination', () {
-        stateMachine
-          ..setLocalLoading(false)
-          ..setMarketplaceLoading(false)
-          ..setLocalScripts([_createLocalScript()])
-          ..setMarketplaceScripts([])
-          ..setSelectionMode(true);
-
-        expect(stateMachine.currentView, equals(ScriptsView.content));
-        expect(stateMachine.isSelectionMode, isTrue);
-      });
-
-      test('can track selected script IDs', () {
-        stateMachine
-          ..toggleScriptSelection('script-1')
-          ..toggleScriptSelection('script-2');
-
-        expect(stateMachine.selectedScriptIds,
-            containsAll({'script-1', 'script-2'}));
-
-        stateMachine.toggleScriptSelection('script-1');
-        expect(stateMachine.selectedScriptIds, contains('script-2'));
-        expect(stateMachine.selectedScriptIds, isNot(contains('script-1')));
-      });
-
-      test('exitSelectionMode clears all selections', () {
-        stateMachine
-          ..toggleScriptSelection('script-1')
-          ..toggleScriptSelection('script-2')
-          ..exitSelectionMode();
-
-        expect(stateMachine.selectedScriptIds, isEmpty);
-        expect(stateMachine.isSelectionMode, isFalse);
-      });
-    });
-
     group('progressive loading', () {
       test('shows loading spinner while marketplace loads for new user', () {
         // Simulate new user: local scripts load fast, marketplace takes time

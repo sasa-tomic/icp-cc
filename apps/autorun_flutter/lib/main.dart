@@ -519,7 +519,7 @@ class _MainHomePageState extends State<MainHomePage> {
         ModernNavigationItem(
           icon: Icons.dns_outlined,
           activeIcon: Icons.dns_rounded,
-          label: 'Canisters',
+          label: 'Explore',
         ),
       ],
     );

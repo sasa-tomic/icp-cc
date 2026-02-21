@@ -1,22 +1,28 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-22 (Phase 7 - UX Simplification Wave 9)
+**Last Updated:** 2026-02-23 (Phase 8 - UX Simplification Wave 10)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
 
+**Reality Check - UX Simplification Wave 10 COMPLETE:**
+- **NEW:** Smart Candid Forms - Auto-generate form fields from Candid types (19 tests) - `lib/widgets/candid_smart_form.dart`
+- **NEW:** Unified Scripts View - Removed SegmentedButton, marketplace shown by default (7 tests, -332 lines)
+- **NEW:** Selection Mode Removed - Eliminated undiscoverable long-press bulk selection (24 tests, -764 lines)
+- **NEW:** Tab Rename - "Canisters" → "Explore ICP Services" for clarity (6 tests)
+
 **Reality Check - UX Simplification Wave 9 COMPLETE:**
-- **NEW:** Navigation Tab Clarity - "Home"→"Scripts", "Explore"→"Canisters" (icons: code/dns)
-- **NEW:** Security Section Unified - Single section combines Passkeys + Public Keys + Backup (10 tests)
-- **NEW:** QuickUploadDialog Fix - Uses actual script.luaSource instead of generated placeholder (4 tests)
-- **NEW:** Script Diff Viewer - View changes between versions with +/- colored lines (16 tests)
-- **NEW:** Deep Linking - `icpautorun://script/{id}` URLs for script sharing (15 tests)
+- Navigation Tab Clarity - "Home"→"Scripts", "Explore"→"Canisters" (icons: code/dns)
+- Security Section Unified - Single section combines Passkeys + Public Keys + Backup (10 tests)
+- QuickUploadDialog Fix - Uses actual script.luaSource instead of generated placeholder (4 tests)
+- Script Diff Viewer - View changes between versions with +/- colored lines (16 tests)
+- Deep Linking - `icpautorun://script/{id}` URLs for script sharing (15 tests)
 
 **Reality Check - UX Simplification Wave 8 COMPLETE:**
-- Section Separation - SegmentedButton toggle (All/My Scripts/Marketplace) with section headers and count badges (9 tests)
 - Publish Account Prompt - Red badge on avatar when no account, contextual registration prompt when publishing (11 tests)
 - Active Filter Chips - Visible chips below search bar, each dismissible, Clear All button (24 tests)
+- ~~Section Separation~~ - **REMOVED in Wave 10** (simplified to unified view)
 
 **Reality Check - UX Simplification Wave 7 COMPLETE:**
 - **NEW:** Scripts Screen State Machine - clean state management, no empty state flash for new users (24 tests)
@@ -28,7 +34,7 @@
 - **NEW:** Navigation Tab Labels - "Discover" renamed to "Explore" for consistency (3 tests)
 - **NEW:** Profile Form Simplified - social fields collapsed into expandable section (4 tests)
 - **NEW:** Favorite Star Icon Visible - star on every script item for quick favoriting (15 tests)
-- **NEW:** Bulk Selection Hint - tip banner shows long-press capability (13 tests)
+- ~~**NEW:** Bulk Selection Hint~~ - **REMOVED in Wave 10** (feature removed)
 
 **Reality Check - UX Simplification Wave 5 COMPLETE:**
 - **NEW:** Scripts Screen Action Simplification - ONE primary action per row (14 tests)
@@ -41,7 +47,7 @@
 **Previously Shipped (This Week):**
 - **NEW:** Script Favorites System - star/favorite scripts with filter (38 tests)
 - **NEW:** Offline Mode Banner - clear indication when network unavailable (25 tests)
-- **NEW:** Bulk Script Management - multi-select, bulk delete/export (33 tests)
+- ~~**NEW:** Bulk Script Management~~ - **REMOVED in Wave 10** (undiscoverable, power-user only)
 - **NEW:** UX Analysis Complete - 10 radical improvements identified
 - **NEW:** UX Analysis Phase 3 - 8 new issues from new user perspective (see Phase 3 section)
 - **NEW:** Unsaved Changes Warning - prevents data loss when closing script editor
@@ -80,14 +86,24 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Remaining UX items: Add Welcome Card for brand new users (optional - section separation already helps), Merge Bookmarks + Canister Client (complexity 6/10), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Remaining UX items: Merge Bookmarks + Canister Client (POC complete, 6-8hr estimate), write reviews API (backend needed), script automation/scheduler, and see Wave 11 candidates below.
 
-**Recently Completed (Wave 9 - 2026-02-22):**
-- ✅ Navigation Tab Renaming (Scripts/Canisters) - clearer user expectations
-- ✅ Security Section Unified - 60% reduction in user confusion
-- ✅ QuickUploadDialog Fix - data integrity, uses real script source
-- ✅ Script Diff Viewer - see what changed before updating
-- ✅ Deep Linking - `icpautorun://script/{id}` for sharing
+**Recently Completed (Wave 10 - 2026-02-23):**
+- ✅ Smart Candid Forms - Auto-generated form fields from Candid types (19 tests)
+- ✅ Unified Scripts View - Removed SegmentedButton, marketplace default (7 tests, -332 lines)
+- ✅ Selection Mode Removed - Eliminated undiscoverable bulk selection (24 tests, -764 lines)
+- ✅ Tab Rename - "Canisters" → "Explore ICP Services" (6 tests)
+
+**Wave 11 Candidates (from UX Analysis):**
+| # | Improvement | Impact | Effort | ROI |
+|---|-------------|--------|--------|-----|
+| 1 | Collapse 3-step Canister wizard to single screen | 7 | 6 | 7 |
+| 2 | Simplify profile menu (merge "My Identity" + "Register Username") | 7 | 3 | 7 |
+| 3 | Collapse account security section (merge Passkeys + Keys) | 7 | 4 | 5 |
+| 4 | Remove Quick Actions section from Explore screen | 6 | 2 | 3 |
+| 5 | Remove Advanced Options expansion from Canister Client | 6 | 1 | 3 |
+| 6 | Remove filter chip badges | 5 | 2 | 2.5 |
+| 7 | Remove recent searches dropdown | 4 | 1 | 2 |
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -145,7 +161,7 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Passkey Linux Guidance** | **COMPLETE** | 100% |
 | **Script Favorites System** | **COMPLETE** | 100% |
 | **Offline Mode Banner** | **COMPLETE** | 100% |
-| **Bulk Script Management** | **COMPLETE** | 100% |
+| ~~Bulk Script Management~~ | **REMOVED** | N/A |
 | **Scripts Screen Cleanup** | **COMPLETE** | 100% |
 | **Profile Menu Discoverability** | **COMPLETE** | 100% |
 | **Interactive Spotlight Tour** | **COMPLETE** | 100% |
@@ -164,11 +180,11 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Navigation Tab Labels** | **COMPLETE** | 100% |
 | **Profile Form Simplified** | **COMPLETE** | 100% |
 | **Favorite Star Icon Visible** | **COMPLETE** | 100% |
-| **Bulk Selection Hint** | **COMPLETE** | 100% |
+| ~~Bulk Selection Hint~~ | **SUPERSEDED** | N/A |
 | **Scripts Screen State Machine** | **COMPLETE** | 100% |
 | **Discoverable Script Actions** | **COMPLETE** | 100% |
 | **Canister Client Simplified** | **COMPLETE** | 100% |
-| **Section Separation** | **COMPLETE** | 100% |
+| ~~Section Separation~~ | **SUPERSEDED** | N/A |
 | **Publish Account Prompt** | **COMPLETE** | 100% |
 | **Active Filter Chips** | **COMPLETE** | 100% |
 | **Navigation Clarity (Scripts/Canisters)** | **COMPLETE** | 100% |
@@ -176,6 +192,10 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **QuickUploadDialog Script Source Fix** | **COMPLETE** | 100% |
 | **Script Diff Viewer** | **COMPLETE** | 100% |
 | **Deep Linking (icpautorun://)** | **COMPLETE** | 100% |
+| **Smart Candid Forms** | **COMPLETE** | 100% |
+| **Unified Scripts View** | **COMPLETE** | 100% |
+| ~~Selection Mode~~ | **REMOVED** | N/A |
+| ~~Section Separation~~ | **REMOVED** | N/A |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -450,7 +470,7 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Passkey Linux Message tests (DONE - 5 tests - 2026-02-22)
 - [x] Script Favorites tests (DONE - 38 tests - 2026-02-23)
 - [x] Offline Mode Banner tests (DONE - 25 tests - 2026-02-23)
-- [x] Bulk Script Management tests (DONE - 33 tests - 2026-02-23)
+- ~~[x] Bulk Script Management tests~~ - **REMOVED in Wave 10** (feature removed)
 - [x] Empty State Secondary Action tests (DONE - 4 tests - 2026-02-21)
 - [x] First Run Dialog Timing tests (DONE - 10 tests - 2026-02-21)
 - [x] Profile Terminology tests (DONE - 9 tests - 2026-02-21)
@@ -458,11 +478,11 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] New User Default View tests (DONE - 6 tests - 2026-02-21)
 - [x] Profile Form Collapsed tests (DONE - 4 tests - 2026-02-21)
 - [x] Favorite Star Icon tests (DONE - 15 tests - 2026-02-21)
-- [x] Bulk Selection Hint tests (DONE - 13 tests - 2026-02-21)
+- ~~[x] Bulk Selection Hint tests~~ - **REMOVED in Wave 10** (feature removed)
 - [x] Scripts View Machine tests (DONE - 24 tests - 2026-02-21)
 - [x] Discoverable Script Actions tests (DONE - 10 tests - 2026-02-21)
 - [x] Canister Client Simplified tests (DONE - 5 tests - 2026-02-21)
-- [x] Section Separation tests (DONE - 9 tests - 2026-02-21)
+- ~~[x] Section Separation tests~~ - **SUPERSEDED in Wave 10** (unified view)
 - [x] Profile Avatar Badge tests (DONE - 6 tests - 2026-02-21)
 - [x] Publish Account Prompt tests (DONE - 5 tests - 2026-02-21)
 - [x] Active Filter Chips tests (DONE - 24 tests - 2026-02-21)
@@ -500,11 +520,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Files:** `lib/utils/tech_terms.dart`, `lib/screens/canister_client_screen.dart`, `lib/screens/bookmarks_screen.dart`, `lib/widgets/canister_call_builder.dart`
 - **Tests:** `test/features/ux/plain_language_test.dart` (12 tests)
 
-**4. Merge Bookmarks + Canister Client** 🟡 **MEDIUM IMPACT**
-- **Pain Point:** 60% overlapping functionality; users don't know which to use
+**4. Merge Bookmarks + Canister Client** 🟡 **MEDIUM IMPACT** (POC COMPLETE)
+- **Pain Point:** 65% overlapping functionality; users don't know which to use
 - **Change:** Eliminate CanisterClientScreen; enhance BookmarksScreen with inline calling
-- **Impact:** 40% code reduction, clearer mental model
-- **Complexity:** 6/10
+- **Impact:** ~900 lines eliminated, clearer mental model
+- **Complexity:** 6/10 (6-8 hour estimate)
+- **POC:** `test/features/canister_client/merged_screen_poc_test.dart` (17 tests)
+- **Overlapping code:** `_fetchAndParse()`, `_selectMethod()`, `_callMethod()`, `_ArgsEditor`, `_buildAdvancedOptions()`, `_buildResultSection()`
 - **Files:** `lib/screens/bookmarks_screen.dart`, `lib/screens/canister_client_screen.dart`
 
 **5. Collapse Key Management into "Security"** ✅ **DONE - 2026-02-22**
@@ -887,7 +909,11 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **UI:** RawAutocomplete widget in CanisterClientScreen with suggestions
   - **Test:** `test/features/canister_client/autocomplete_test.dart` (13 tests)
   - **Impact:** Users can quickly find and select canisters without memorizing IDs
-- [ ] Smart input forms based on Candid interface
+- [x] Smart input forms based on Candid interface ✅ **DONE - 2026-02-23**
+  - **Widget:** `CandidSmartForm` with type-aware controllers for text, nat/int, bool, variant, record, vec, opt
+  - **UI:** Auto-generated form fields in CanisterClientScreen instead of raw JSON editor
+  - **Test:** `test/widgets/candid_smart_form_test.dart` (19 tests)
+  - **Impact:** Users see friendly form fields instead of intimidating JSON
 
 ### Script Automation
 - [ ] Script scheduler UI (cron-like but user-friendly)
