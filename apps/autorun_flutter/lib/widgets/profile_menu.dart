@@ -8,10 +8,12 @@ import '../models/profile.dart';
 import '../models/account.dart';
 import '../services/passkey_service.dart';
 import '../services/onboarding_progress_service.dart';
+import '../services/settings_service.dart';
 import '../utils/passkey_platform.dart';
 import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
 import '../screens/passkey_management_screen.dart';
+import '../screens/settings_screen.dart';
 
 /// Profile menu action types
 enum ProfileMenuAction {
@@ -33,12 +35,14 @@ class ProfileMenuWidget extends StatefulWidget {
     required this.accountController,
     this.passkeyService,
     this.onNavigate,
+    this.onThemeChanged,
   });
 
   final ProfileController profileController;
   final AccountController accountController;
   final PasskeyService? passkeyService;
   final VoidCallback? onNavigate;
+  final VoidCallback? onThemeChanged;
 
   @override
   State<ProfileMenuWidget> createState() => _ProfileMenuWidgetState();
@@ -284,6 +288,13 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           subtitle: 'Show the onboarding guide',
           onTap: () => _handleAction(ProfileMenuAction.gettingStarted),
         ),
+        // Settings
+        _MenuTile(
+          icon: Icons.settings_outlined,
+          label: 'Settings',
+          subtitle: 'Theme, links, and app info',
+          onTap: () => _handleAction(ProfileMenuAction.settings),
+        ),
       ],
     );
   }
@@ -324,8 +335,9 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
         await _showCreateProfile();
         break;
       case ProfileMenuAction.viewProfile:
+        break;
       case ProfileMenuAction.settings:
-        // Not implemented yet
+        await _navigateToSettings();
         break;
       case ProfileMenuAction.gettingStarted:
         await _showGettingStartedGuide();
@@ -398,6 +410,19 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
         builder: (context) => PasskeyManagementScreen(
           accountId: account.id,
           username: account.username,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _navigateToSettings() async {
+    widget.onNavigate?.call();
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettingsScreen(
+          settingsService: SettingsService(),
+          onThemeChanged: widget.onThemeChanged,
         ),
       ),
     );

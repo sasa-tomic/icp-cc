@@ -26,6 +26,8 @@
 - **NEW:** Canister Autocomplete - search canisters by ID or name
 - **NEW:** Actionable Error Handling - clear guidance on what to do when errors occur
 - **NEW:** Getting Started Guide - checklist for new users with progress tracking
+- **NEW:** Settings Screen - theme toggle (Light/Dark/System), app info, external links
+- **NEW:** Account Profile Screen Tests - comprehensive test coverage (46 tests)
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
@@ -39,7 +41,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Write reviews API (backend needed), smart Candid forms (research complete, complexity 6/10), script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -89,12 +91,14 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Canister Autocomplete** | **COMPLETE** | 100% |
 | **Actionable Error Handling** | **COMPLETE** | 100% |
 | **Getting Started Guide** | **COMPLETE** | 100% |
+| **Settings Screen** | **COMPLETE** | 100% |
+| **Account Profile Screen Tests** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
 | Marketplace Upload | Needs Testing | 95% |
 | Script Execution (Lua) | Partial | 85% |
-| Testing Coverage | Improved | ~92% |
+| Testing Coverage | Improved | ~95% |
 
 **Detailed Specs:**
 - [Implementation Status](docs/specs/IMPLEMENTATION_STATUS.md) - Feature-by-feature breakdown
@@ -301,8 +305,8 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Full AccountController test coverage (21 tests - 2026-02-21)
 - [x] Integration: redirect to passkey setup after registration
 
-**Missing:**
-- [ ] AccountProfileScreen widget tests
+**Done:**
+- [x] AccountProfileScreen widget tests (DONE - 46 tests - 2026-02-22)
 
 ### Script Management
 - [x] Add secp256k1 script signing via Rust FFI
@@ -351,8 +355,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Canister Autocomplete tests (DONE - 13 tests - 2026-02-22)
 - [x] Actionable Error Display tests (DONE - 36 tests - 2026-02-22)
 - [x] Guided Next Steps tests (DONE - 21 tests - 2026-02-22)
+- [x] Account Profile Screen tests (DONE - 46 tests - 2026-02-22)
+- [x] Settings Screen tests (DONE - 26 tests - 2026-02-22)
 - [ ] Lua Engine tests in Rust crate (MISSING)
-- [ ] Account Profile Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
 
 **Cannot Test (requires hardware):**
@@ -442,6 +447,17 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Test:** `test/features/canister_client/full_screen_test.dart` (11 tests)
 - **Impact:** Reduces cognitive load for ICP interaction
 - **Files:** `lib/screens/canister_client_screen.dart`, `lib/main.dart`
+
+**10. Settings Screen** ✅ **DONE - 2026-02-22**
+- [x] Theme toggle with Light/Dark/System options
+- [x] App version and build number display
+- [x] External links (Documentation, Report Issue, Marketplace Website)
+- [x] Developer info section (API endpoint, environment)
+- [x] Dynamic theme updates via ValueNotifier
+- [x] Settings menu item in Profile Menu
+- **Test:** `test/services/settings_service_test.dart` (11 tests), `test/features/settings/settings_screen_test.dart` (15 tests)
+- **Impact:** Users can now configure app preferences, was completely missing
+- **Files:** `lib/screens/settings_screen.dart`, `lib/services/settings_service.dart`, `lib/widgets/profile_menu.dart`, `lib/main.dart`
 
 ### Content Moderation
 - [ ] API key authentication for admin endpoints

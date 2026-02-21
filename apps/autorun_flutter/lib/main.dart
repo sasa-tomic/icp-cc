@@ -11,6 +11,7 @@ import 'rust/native_bridge.dart';
 import 'services/marketplace_open_api_service.dart';
 import 'services/onboarding_service.dart';
 import 'services/script_repository.dart';
+import 'services/settings_service.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
@@ -39,6 +40,9 @@ class KeypairApp extends StatefulWidget {
 class _KeypairAppState extends State<KeypairApp> {
   late final ProfileController _profileController;
   late final AccountController _accountController;
+  final SettingsService _settingsService = SettingsService();
+  final ValueNotifier<ThemeMode> _themeModeNotifier =
+      ValueNotifier(ThemeMode.system);
 
   @override
   void initState() {
@@ -51,12 +55,19 @@ class _KeypairAppState extends State<KeypairApp> {
       profileController: _profileController,
     );
     unawaited(_profileController.ensureLoaded());
+    _loadThemePreference();
+  }
+
+  Future<void> _loadThemePreference() async {
+    final themeMode = await _settingsService.getThemeMode();
+    _themeModeNotifier.value = themeMode;
   }
 
   @override
   void dispose() {
     _profileController.dispose();
     _accountController.dispose();
+    _themeModeNotifier.dispose();
     super.dispose();
   }
 
@@ -64,19 +75,34 @@ class _KeypairAppState extends State<KeypairApp> {
   Widget build(BuildContext context) {
     return ProfileScope(
       controller: _profileController,
-      child: MaterialApp(
-        title: 'ICP Autorun',
-        theme: AppDesignSystem.lightTheme,
-        darkTheme: AppDesignSystem.darkTheme,
-        themeMode: ThemeMode.system,
-        home: const MainHomePage(),
+      child: ValueListenableBuilder<ThemeMode>(
+        valueListenable: _themeModeNotifier,
+        builder: (context, themeMode, child) {
+          return MaterialApp(
+            title: 'ICP Autorun',
+            theme: AppDesignSystem.lightTheme,
+            darkTheme: AppDesignSystem.darkTheme,
+            themeMode: themeMode,
+            home: MainHomePage(
+              settingsService: _settingsService,
+              themeModeNotifier: _themeModeNotifier,
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 class MainHomePage extends StatefulWidget {
-  const MainHomePage({super.key});
+  const MainHomePage({
+    required this.settingsService,
+    required this.themeModeNotifier,
+    super.key,
+  });
+
+  final SettingsService settingsService;
+  final ValueNotifier<ThemeMode> themeModeNotifier;
 
   @override
   State<MainHomePage> createState() => _MainHomePageState();
@@ -239,11 +265,17 @@ class _MainHomePageState extends State<MainHomePage> {
       builder: (context) => ProfileMenuWidget(
         profileController: ProfileScope.of(context, listen: false),
         accountController: _getAccountController(),
+        onThemeChanged: _reloadTheme,
       ),
     ).then((_) {
       // Refresh state when menu closes
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _reloadTheme() async {
+    final themeMode = await widget.settingsService.getThemeMode();
+    widget.themeModeNotifier.value = themeMode;
   }
 
   @override
