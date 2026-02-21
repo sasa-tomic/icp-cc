@@ -393,13 +393,37 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
                           ),
-                          items: const [
+                          items: [
                             DropdownMenuItem<int>(
-                                value: 0, child: Text('Query')),
+                              value: 0,
+                              child: Row(
+                                children: [
+                                  const Text('Read'),
+                                  const SizedBox(width: 4),
+                                  Tooltip(
+                                    message: TechTerm.query.plainExplanation,
+                                    child: Icon(Icons.info_outline,
+                                        size: 14, color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ),
+                            ),
                             DropdownMenuItem<int>(
-                                value: 1, child: Text('Update')),
-                            DropdownMenuItem<int>(
-                                value: 2, child: Text('Composite')),
+                              value: 1,
+                              child: Row(
+                                children: [
+                                  const Text('Write'),
+                                  const SizedBox(width: 4),
+                                  Tooltip(
+                                    message: TechTerm.update.plainExplanation,
+                                    child: Icon(Icons.info_outline,
+                                        size: 14, color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const DropdownMenuItem<int>(
+                                value: 2, child: Text('Complex Read')),
                           ],
                           onChanged: (value) =>
                               setState(() => _callKind = value ?? 0),

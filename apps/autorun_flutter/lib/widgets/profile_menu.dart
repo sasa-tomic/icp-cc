@@ -9,6 +9,7 @@ import '../models/account.dart';
 import '../services/passkey_service.dart';
 import '../services/onboarding_progress_service.dart';
 import '../services/settings_service.dart';
+import '../services/spotlight_service.dart';
 import '../utils/passkey_platform.dart';
 import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
@@ -25,6 +26,7 @@ enum ProfileMenuAction {
   switchProfile,
   createProfile,
   gettingStarted,
+  restartTour,
 }
 
 /// Profile menu widget that can be shown as a bottom sheet or menu
@@ -288,6 +290,13 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           subtitle: 'Show the onboarding guide',
           onTap: () => _handleAction(ProfileMenuAction.gettingStarted),
         ),
+        // Restart Tour
+        _MenuTile(
+          icon: Icons.tour_outlined,
+          label: 'Restart Tour',
+          subtitle: 'Show the guided tour again',
+          onTap: () => _handleAction(ProfileMenuAction.restartTour),
+        ),
         // Settings
         _MenuTile(
           icon: Icons.settings_outlined,
@@ -342,6 +351,9 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       case ProfileMenuAction.gettingStarted:
         await _showGettingStartedGuide();
         break;
+      case ProfileMenuAction.restartTour:
+        await _restartTour();
+        break;
     }
   }
 
@@ -353,6 +365,18 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Getting Started guide will appear on the home screen'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _restartTour() async {
+    final service = SpotlightService();
+    await service.reset();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Restart the app to see the tour'),
         ),
       );
     }

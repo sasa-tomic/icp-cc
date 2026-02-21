@@ -12,6 +12,7 @@ import 'services/marketplace_open_api_service.dart';
 import 'services/onboarding_service.dart';
 import 'services/script_repository.dart';
 import 'services/settings_service.dart';
+import 'services/spotlight_service.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
@@ -23,6 +24,7 @@ import 'widgets/keyboard_shortcuts.dart';
 import 'widgets/post_setup_guide.dart';
 import 'widgets/profile_scope.dart';
 import 'widgets/profile_menu.dart';
+import 'widgets/spotlight_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -115,14 +117,33 @@ class _MainHomePageState extends State<MainHomePage> {
   int _currentIndex = 0;
   final RustBridgeLoader _bridge = const RustBridgeLoader();
   final OnboardingService _onboardingService = OnboardingService();
+  final SpotlightService _spotlightService = SpotlightService();
   bool _onboardingChecked = false;
 
   final GlobalKey<State<ScriptsScreen>> _scriptsScreenKey = GlobalKey();
+  final GlobalKey _homeTabKey = GlobalKey();
+  final GlobalKey _discoverTabKey = GlobalKey();
+  final GlobalKey _profileMenuKey = GlobalKey();
+  final GlobalKey _scriptsSectionKey = GlobalKey();
+
+  late final Map<String, GlobalKey> _spotlightTargetKeys;
 
   @override
   void dispose() {
     _scriptsScreenKey.currentState?.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _spotlightTargetKeys = {
+      'home_tab': _homeTabKey,
+      'discover_tab': _discoverTabKey,
+      'profile_menu': _profileMenuKey,
+      'scripts_section': _scriptsSectionKey,
+      'final_step': GlobalKey(),
+    };
   }
 
   void _handleCreateScript() {
@@ -225,6 +246,10 @@ class _MainHomePageState extends State<MainHomePage> {
     );
   }
 
+  void _handleSpotlightComplete() {}
+
+  void _handleSpotlightDismiss() {}
+
   void _handlePostSetupAction(PostSetupAction action) async {
     await _onboardingService.markPostSetupGuideShown();
 
@@ -294,60 +319,67 @@ class _MainHomePageState extends State<MainHomePage> {
       onNavigateToTab: _handleNavigateToTab,
       child: EscapeHandler(
         onEscape: _handleEscape,
-        child: Scaffold(
-          body: SafeArea(
-            top: true,
-            bottom: true,
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Theme.of(context).colorScheme.surface,
-                              Theme.of(context)
-                                  .colorScheme
-                                  .surface
-                                  .withValues(alpha: 0.95),
-                              Theme.of(context)
-                                  .colorScheme
-                                  .primaryContainer
-                                  .withValues(alpha: 0.05),
+        child: SpotlightTour(
+          service: _spotlightService,
+          targetKeys: _spotlightTargetKeys,
+          onComplete: _handleSpotlightComplete,
+          onDismiss: _handleSpotlightDismiss,
+          child: Scaffold(
+            body: SafeArea(
+              top: true,
+              bottom: true,
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          key: _scriptsSectionKey,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Theme.of(context).colorScheme.surface,
+                                Theme.of(context)
+                                    .colorScheme
+                                    .surface
+                                    .withValues(alpha: 0.95),
+                                Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer
+                                    .withValues(alpha: 0.05),
+                              ],
+                            ),
+                          ),
+                          child: IndexedStack(
+                            index: _currentIndex,
+                            children: <Widget>[
+                              ScriptsScreen(key: _scriptsScreenKey),
+                              BookmarksScreen(
+                                  bridge: _bridge,
+                                  onOpenClient: _openCanisterClient),
                             ],
                           ),
                         ),
-                        child: IndexedStack(
-                          index: _currentIndex,
-                          children: <Widget>[
-                            ScriptsScreen(key: _scriptsScreenKey),
-                            BookmarksScreen(
-                                bridge: _bridge,
-                                onOpenClient: _openCanisterClient),
-                          ],
-                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-                // Profile avatar button in top-right corner
-                Positioned(
-                  top: 8,
-                  right: 16,
-                  child: ProfileAvatarButton(
-                    displayName: displayName,
-                    onTap: _showProfileMenu,
+                      const SizedBox(height: 8),
+                    ],
                   ),
-                ),
-              ],
+                  Positioned(
+                    top: 8,
+                    right: 16,
+                    child: ProfileAvatarButton(
+                      key: _profileMenuKey,
+                      displayName: displayName,
+                      onTap: _showProfileMenu,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            bottomNavigationBar: _buildModernNavigationBar(),
           ),
-          bottomNavigationBar: _buildModernNavigationBar(),
         ),
       ),
     );
@@ -355,6 +387,7 @@ class _MainHomePageState extends State<MainHomePage> {
 
   Widget _buildModernNavigationBar() {
     return ModernNavigationBar(
+      key: _currentIndex == 0 ? _homeTabKey : _discoverTabKey,
       currentIndex: _currentIndex,
       onTap: (index) {
         setState(() => _currentIndex = index);

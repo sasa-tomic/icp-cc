@@ -70,7 +70,7 @@ void main() {
       await pumpScreen(tester);
 
       expect(find.textContaining('Step 1'), findsOneWidget);
-      expect(find.textContaining('Canister'), findsWidgets);
+      expect(find.textContaining('Service'), findsWidgets);
     });
 
     testWidgets('step 1 shows canister input field', (tester) async {

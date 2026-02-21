@@ -8,11 +8,12 @@ import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
 import '../services/canister_history_service.dart';
 import '../services/canister_registry_service.dart';
-import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
-import '../utils/candid_type_resolver.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
+import '../utils/candid_type_resolver.dart';
+import '../utils/json_format.dart';
+import '../utils/tech_terms.dart';
 
 enum _ClientStep { canister, function, call }
 
@@ -320,7 +321,7 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
   String _stepTitle(_ClientStep step) {
     switch (step) {
       case _ClientStep.canister:
-        return 'Canister';
+        return TechTerm.canister.plainLabel;
       case _ClientStep.function:
         return 'Function';
       case _ClientStep.call:
@@ -482,13 +483,28 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
       key: const ValueKey('step1'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Enter Canister ID',
-          style: theme.textTheme.titleLarge,
+        Row(
+          children: [
+            Text(
+              'Select ${TechTerm.canister.plainLabel}',
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(width: 8),
+            Tooltip(
+              message: TechTerm.canister.plainExplanation,
+              preferBelow: true,
+              showDuration: const Duration(seconds: 5),
+              child: Icon(
+                Icons.info_outline,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Text(
-          'A canister is a smart contract running on the Internet Computer.',
+          TechTerm.canister.plainExplanation,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -521,7 +537,7 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
                     controller: textEditingController,
                     focusNode: focusNode,
                     decoration: InputDecoration(
-                      labelText: 'Canister',
+                      labelText: TechTerm.canister.plainLabel,
                       hintText: 'Enter canister ID or name',
                       border: const OutlineInputBorder(),
                       suffixIcon: _isFetching
@@ -1022,8 +1038,8 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
 
   Widget _buildCallInfo(ThemeData theme) {
     final kindLabel = _selectedKind == 1
-        ? 'Update'
-        : (_selectedKind == 2 ? 'Composite Query' : 'Query');
+        ? TechTerm.update.plainLabel
+        : (_selectedKind == 2 ? 'Complex Read' : TechTerm.query.plainLabel);
     final kindColor = _selectedKind == 1
         ? Colors.orange
         : (_selectedKind == 2 ? Colors.purple : theme.colorScheme.primary);
@@ -1047,16 +1063,33 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  kindLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: kindColor,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      kindLabel,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: kindColor,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: _selectedKind == 1
+                          ? TechTerm.update.fullExplanation
+                          : TechTerm.query.fullExplanation,
+                      preferBelow: true,
+                      showDuration: const Duration(seconds: 5),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: kindColor.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
                   _selectedKind == 1
-                      ? 'Will modify canister state'
+                      ? 'Will modify service state'
                       : 'Read-only operation',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,

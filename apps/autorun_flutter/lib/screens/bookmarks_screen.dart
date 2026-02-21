@@ -7,11 +7,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
-import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
-import '../utils/candid_type_resolver.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
+import '../utils/candid_type_resolver.dart';
+import '../utils/json_format.dart';
+import '../utils/tech_terms.dart';
 import '../widgets/bookmark_composer.dart';
 import '../widgets/connectivity_scope.dart';
 import '../widgets/modern_empty_state.dart';
@@ -697,8 +698,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Tooltip(
-          message: 'Choose a function to call on this canister.\n'
-              'Query = fast read, Update = state change.',
+          message:
+              'Choose a function to call.\n${TechTerm.query.plainLabel} = read data (fast), ${TechTerm.update.plainLabel} = change data (slower).',
           child: Text('Select Function', style: theme.textTheme.titleMedium),
         ),
         const SizedBox(height: 8),
@@ -876,8 +877,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
 
   Widget _buildCallButton(ThemeData theme, bool isCompact) {
     final kindLabel = _selectedKind == 1
-        ? 'Update'
-        : (_selectedKind == 2 ? 'Composite Query' : 'Query');
+        ? TechTerm.update.plainLabel
+        : (_selectedKind == 2 ? 'Complex Read' : TechTerm.query.plainLabel);
     final kindColor = _selectedKind == 1
         ? Colors.orange
         : (_selectedKind == 2 ? Colors.purple : theme.colorScheme.primary);
@@ -911,6 +912,19 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                       color: kindColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message: _selectedKind == 1
+                        ? TechTerm.update.plainExplanation
+                        : TechTerm.query.plainExplanation,
+                    preferBelow: true,
+                    showDuration: const Duration(seconds: 4),
+                    child: Icon(
+                      Icons.info_outline,
+                      size: 12,
+                      color: kindColor.withValues(alpha: 0.7),
                     ),
                   ),
                 ],

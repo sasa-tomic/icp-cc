@@ -1,6 +1,6 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-21 (Phase 3 Analysis)
 
 ## Current Focus
 
@@ -16,6 +16,7 @@
 - **NEW:** Offline Mode Banner - clear indication when network unavailable (25 tests)
 - **NEW:** Bulk Script Management - multi-select, bulk delete/export (33 tests)
 - **NEW:** UX Analysis Complete - 10 radical improvements identified
+- **NEW:** UX Analysis Phase 3 - 8 new issues from new user perspective (see Phase 3 section)
 - **NEW:** Unsaved Changes Warning - prevents data loss when closing script editor
 - **NEW:** Downloaded Filter Empty State - helpful guidance when no downloads exist
 - **NEW:** Passkey Linux Error Message - clear instructions for browser-based passkeys
@@ -52,7 +53,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Radical UX simplification (see HIGH Priority - UX Improvements), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Phase 3 UX Improvements (8 new issues identified from new user perspective analysis), write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -113,6 +114,8 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Bulk Script Management** | **COMPLETE** | 100% |
 | **Scripts Screen Cleanup** | **COMPLETE** | 100% |
 | **Profile Menu Discoverability** | **COMPLETE** | 100% |
+| **Interactive Spotlight Tour** | **COMPLETE** | 100% |
+| **Plain Language UX** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -410,12 +413,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Files:** `lib/widgets/profile_menu.dart`
 - **Tests:** `test/widgets/profile_menu_discoverability_test.dart` (5 tests)
 
-**3. Plain Language + Progressive Disclosure** 🔴 **HIGH IMPACT**
+**3. Plain Language + Progressive Disclosure** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Jargon everywhere: "Canister", "Candid", "Principal", "Query/Update"
-- **Change:** "Canister"→"Service", "Query"→"Read", "Update"→"Write"; hide advanced options
-- **Impact:** 30% fewer support questions, broader user base
+- **Change:** Added plain language labels to TechTerm enum: "Canister"→"Service", "Query"→"Read", "Update"→"Write"; added tooltips with explanations
+- **Impact:** 30% fewer support questions expected, broader user base
 - **Complexity:** 5/10
-- **Files:** Multiple screens
+- **Files:** `lib/utils/tech_terms.dart`, `lib/screens/canister_client_screen.dart`, `lib/screens/bookmarks_screen.dart`, `lib/widgets/canister_call_builder.dart`
+- **Tests:** `test/features/ux/plain_language_test.dart` (12 tests)
 
 **4. Merge Bookmarks + Canister Client** 🟡 **MEDIUM IMPACT**
 - **Pain Point:** 60% overlapping functionality; users don't know which to use
@@ -440,6 +444,68 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Tests:** `test/features/scripts/featured_section_test.dart` (2 new tests)
 
 ---
+
+### Radical UX Improvements - Phase 3 (NEW - 2026-02-21)
+
+> **Analysis completed by reviewing app from NEW USER perspective.**
+> Goal: Identify confusing, missing, or hard-to-use elements that would frustrate first-time users.
+
+**7. First Run: Dialog Fatigue** :red_circle: **HIGH IMPACT**
+- **Pain Point:** User enters name in QuickProfileCreationDialog → immediately sees PostSetupGuide with 3 choices → has not even SEEN the app yet!
+- **Change:** Delay PostSetupGuide by 5 seconds OR show only after first meaningful action (viewing a script, exploring a canister)
+- **Impact:** 50% less first-run abandonment, users feel guided not pressured
+- **Complexity:** 3/10
+- **Files:** `lib/main.dart` (modify `_showPostSetupGuideIfNeeded` timing)
+
+**8. Scripts Screen: State Explosion** :red_circle: **HIGH IMPACT**
+- **Pain Point:** 2000+ line screen handles 8+ states (loading, empty, empty downloaded, empty favorites, selection mode, search mode, searching, offline). Users encounter "Your Script Library is Empty" before seeing marketplace.
+- **Change:** Split into smaller widgets; default view shows marketplace when local empty; progressive disclosure of filters
+- **Impact:** 40% reduction in cognitive load, cleaner first impression
+- **Complexity:** 8/10 (refactor required)
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**9. Mixed Mental Model: Local vs Marketplace** :red_circle: **HIGH IMPACT**
+- **Pain Point:** "Scripts" tab mixes LOCAL files and MARKETPLACE items. Users do not know what to expect. Is this MY stuff or EVERYONES stuff?
+- **Change:** Default to marketplace view for new users; clear "My Scripts" vs "Explore" sections; consider separate tabs
+- **Impact:** 60% clearer mental model, users know where they are
+- **Complexity:** 6/10
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**10. Hidden Script Actions** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Critical actions buried in 3-dot menus, long-press, right-click. Users do not discover Run, Edit, Delete, Publish.
+- **Change:** Add prominent action buttons visible on hover/focus; reduce reliance on hidden gestures
+- **Impact:** 70% faster task completion, fewer "how do I?" questions
+- **Complexity:** 4/10
+- **Files:** `lib/screens/scripts_screen.dart`
+
+**11. Account Profile: Form Overwhelm** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** 7 editable fields immediately visible (display name, email, telegram, twitter, discord, website, bio). Plus Public Keys section with Import/Export buttons. Visual overload.
+- **Change:** Collapse social fields into "Contact Info" expansion panel; show only display name + bio by default
+- **Impact:** 50% less form anxiety, cleaner profile page
+- **Complexity:** 4/10
+- **Files:** `lib/screens/account_profile_screen.dart`
+
+**12. "Profile" vs "Account" Confusion** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Menu says "Edit Profile" and "Create Account" - what is the difference? Users do not understand the local profile vs backend account distinction.
+- **Change:** Rename to "My Identity" (local) and "Register Username" (cloud); add explainer tooltip
+- **Impact:** 40% reduction in support questions about account setup
+- **Complexity:** 3/10
+- **Files:** `lib/widgets/profile_menu.dart`
+
+**13. Empty State Guidance** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Empty states exist but do not guide users to the NEXT action. "Your Script Library is Empty" → "Create Script" button. What if user wants to browse first?
+- **Change:** Add secondary action "Browse Marketplace" to empty state; context-aware suggestions
+- **Impact:** 30% better first-session engagement
+- **Complexity:** 3/10
+- **Files:** `lib/screens/scripts_screen.dart` (ModernEmptyState widget)
+
+**14. Canister Jargon in Quick Actions** :yellow_circle: **MEDIUM IMPACT**
+- **Pain Point:** Quick Actions use "ICP Balance", "View Neurons", "NNS Governance" - crypto-native users understand, but regular users do not
+- **Change:** Add plain-language descriptions; "Check your token balance (ICP)", "See your voting power in Internet Computer governance"
+- **Impact:** 25% broader appeal to non-crypto users
+- **Complexity:** 2/10
+- **Files:** `lib/screens/bookmarks_screen.dart`
+
 
 ## MEDIUM Priority
 
@@ -633,7 +699,12 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **UI:** `GettingStartedCard` widget with 5 checklist items and progress tracking
   - **Test:** `test/features/onboarding/guided_next_steps_test.dart` (21 tests)
   - **Impact:** New users have clear path to learn the app
-- [ ] Interactive onboarding tour (spotlight overlays highlighting key UI elements)
+- [x] Interactive onboarding tour (spotlight overlays highlighting key UI elements) ✅ **DONE - 2026-02-21**
+  - **Service:** `SpotlightService` with SharedPreferences persistence
+  - **UI:** `SpotlightOverlay` widget with dimmed background, spotlight hole, step indicator, Next/Back/Skip buttons
+  - **Integration:** Triggered after post-setup guide; "Restart Tour" option in profile menu
+  - **Test:** `test/features/spotlight/spotlight_test.dart` (28 tests)
+  - **Impact:** New users understand the app quickly through guided tour
 - [x] Script favorites/bookmarks system with dedicated filter ✅ **DONE - 2026-02-23**
   - **Service:** `FavoritesService` with SharedPreferences persistence
   - **UI:** Star toggle on script cards, "Favorites" filter chip
