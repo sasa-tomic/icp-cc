@@ -86,7 +86,8 @@ void main() {
       expect(find.text('Display Name *'), findsOneWidget);
     });
 
-    testWidgets('displays all contact fields', (tester) async {
+    testWidgets('shows primary fields (display name and bio) by default',
+        (tester) async {
       await AccountProfileScreenTestHelper.pumpAccountProfileScreen(
         tester,
         account: account,
@@ -95,12 +96,79 @@ void main() {
         profileController: profileController,
       );
 
+      // Primary fields should be visible by default
+      expect(find.text('Display Name *'), findsOneWidget);
+      expect(find.text('Bio'), findsOneWidget);
+    });
+
+    testWidgets('contact info fields are hidden in collapsed section',
+        (tester) async {
+      await AccountProfileScreenTestHelper.pumpAccountProfileScreen(
+        tester,
+        account: account,
+        accountController: accountController,
+        profile: profile,
+        profileController: profileController,
+      );
+
+      // Contact fields should NOT be visible when collapsed
+      expect(find.text('Email'), findsNothing);
+      expect(find.text('Telegram'), findsNothing);
+      expect(find.text('Twitter/X'), findsNothing);
+      expect(find.text('Discord'), findsNothing);
+      expect(find.text('Website'), findsNothing);
+    });
+
+    testWidgets('contact info section is expandable', (tester) async {
+      await AccountProfileScreenTestHelper.pumpAccountProfileScreen(
+        tester,
+        account: account,
+        accountController: accountController,
+        profile: profile,
+        profileController: profileController,
+      );
+
+      // Find and tap the "Contact Info" expansion tile
+      expect(find.text('Contact Info'), findsOneWidget);
+
+      // Tap to expand
+      await tester.tap(find.text('Contact Info'));
+      await tester.pumpAndSettle();
+
+      // Now contact fields should be visible
       expect(find.text('Email'), findsOneWidget);
       expect(find.text('Telegram'), findsOneWidget);
       expect(find.text('Twitter/X'), findsOneWidget);
       expect(find.text('Discord'), findsOneWidget);
       expect(find.text('Website'), findsOneWidget);
-      expect(find.text('Bio'), findsOneWidget);
+    });
+
+    testWidgets('contact fields show pre-filled values when expanded',
+        (tester) async {
+      await AccountProfileScreenTestHelper.pumpAccountProfileScreen(
+        tester,
+        account: account,
+        accountController: accountController,
+        profile: profile,
+        profileController: profileController,
+      );
+
+      // Expand contact info section
+      await tester.tap(find.text('Contact Info'));
+      await tester.pumpAndSettle();
+
+      // Find the email field and verify its value
+      final textFields = tester.widgetList<TextField>(find.byType(TextField));
+      TextField? emailField;
+      for (final tf in textFields) {
+        if (tf.decoration?.labelText == 'Email') {
+          emailField = tf;
+          break;
+        }
+      }
+
+      expect(emailField, isNotNull);
+      expect(emailField!.controller?.text, equals('test@example.com'));
     });
 
     testWidgets('shows pre-filled display name from account', (tester) async {

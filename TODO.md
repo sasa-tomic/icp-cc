@@ -1,10 +1,17 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-21 (Phase 4 Analysis)
+**Last Updated:** 2026-02-21 (Phase 5 - UX Simplification Wave 6)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
+
+**Reality Check - UX Simplification Wave 6 COMPLETE:**
+- **NEW:** New User Default View - loading indicator instead of empty state for marketplace (6 tests)
+- **NEW:** Navigation Tab Labels - "Discover" renamed to "Explore" for consistency (3 tests)
+- **NEW:** Profile Form Simplified - social fields collapsed into expandable section (4 tests)
+- **NEW:** Favorite Star Icon Visible - star on every script item for quick favoriting (15 tests)
+- **NEW:** Bulk Selection Hint - tip banner shows long-press capability (13 tests)
 
 **Reality Check - UX Simplification Wave 5 COMPLETE:**
 - **NEW:** Scripts Screen Action Simplification - ONE primary action per row (14 tests)
@@ -56,7 +63,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Remaining items: Scripts Screen State Explosion (complexity 8/10), Mixed Local vs Marketplace Mental Model (complexity 6/10), Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), Canister Client Quick Query Mode (complexity 7/10). Also: write reviews API (backend needed), smart Candid forms, script automation/scheduler.
+**Next Wave:** Remaining items: Scripts Screen State Explosion (complexity 8/10), Merge Bookmarks + Canister Client (complexity 6/10), Collapse Key Management into Security (complexity 7/10), Canister Client Quick Query Mode (complexity 7/10). Also: write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -129,6 +136,11 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Script List Visual Hierarchy** | **COMPLETE** | 100% |
 | **Hidden Developer Options** | **COMPLETE** | 100% |
 | **Consolidated Onboarding** | **COMPLETE** | 100% |
+| **New User Default View** | **COMPLETE** | 100% |
+| **Navigation Tab Labels** | **COMPLETE** | 100% |
+| **Profile Form Simplified** | **COMPLETE** | 100% |
+| **Favorite Star Icon Visible** | **COMPLETE** | 100% |
+| **Bulk Selection Hint** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -404,6 +416,10 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] First Run Dialog Timing tests (DONE - 10 tests - 2026-02-21)
 - [x] Profile Terminology tests (DONE - 9 tests - 2026-02-21)
 - [x] Quick Actions Plain Language tests (DONE - 3 tests - 2026-02-21)
+- [x] New User Default View tests (DONE - 6 tests - 2026-02-21)
+- [x] Profile Form Collapsed tests (DONE - 4 tests - 2026-02-21)
+- [x] Favorite Star Icon tests (DONE - 15 tests - 2026-02-21)
+- [x] Bulk Selection Hint tests (DONE - 13 tests - 2026-02-21)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Integration tests for complete user flows
 
@@ -483,12 +499,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 8/10 (refactor required)
 - **Files:** `lib/screens/scripts_screen.dart`
 
-**9. Mixed Mental Model: Local vs Marketplace** :red_circle: **HIGH IMPACT**
+**9. Mixed Mental Model: Local vs Marketplace** ✅ **DONE - 2026-02-21**
 - **Pain Point:** "Scripts" tab mixes LOCAL files and MARKETPLACE items. Users do not know what to expect. Is this MY stuff or EVERYONES stuff?
-- **Change:** Default to marketplace view for new users; clear "My Scripts" vs "Explore" sections; consider separate tabs
-- **Impact:** 60% clearer mental model, users know where they are
-- **Complexity:** 6/10
+- **Change:** Fixed timing - new users now see loading indicator while marketplace loads instead of "Your Script Library is Empty"; marketplace scripts appear immediately after load
+- **Impact:** 60% clearer mental model, users see content immediately
+- **Complexity:** 3/10 (fixed with loading state check)
 - **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/new_user_default_view_test.dart` (6 tests)
 
 **10. Hidden Script Actions** :yellow_circle: **MEDIUM IMPACT**
 - **Pain Point:** Critical actions buried in 3-dot menus, long-press, right-click. Users do not discover Run, Edit, Delete, Publish.
@@ -497,12 +514,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 4/10
 - **Files:** `lib/screens/scripts_screen.dart`
 
-**11. Account Profile: Form Overwhelm** :yellow_circle: **MEDIUM IMPACT**
+**11. Account Profile: Form Overwhelm** ✅ **DONE - 2026-02-21**
 - **Pain Point:** 7 editable fields immediately visible (display name, email, telegram, twitter, discord, website, bio). Plus Public Keys section with Import/Export buttons. Visual overload.
-- **Change:** Collapse social fields into "Contact Info" expansion panel; show only display name + bio by default
+- **Change:** Collapsed social fields (email, telegram, twitter, discord, website) into "Contact Info" ExpansionTile; show only display name + bio by default
 - **Impact:** 50% less form anxiety, cleaner profile page
 - **Complexity:** 4/10
 - **Files:** `lib/screens/account_profile_screen.dart`
+- **Tests:** `test/features/account_profile/profile_editing_test.dart` (4 new tests for collapsed/expanded)
 
 **12. "Profile" vs "Account" Confusion** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Menu says "Edit Profile" and "Create Account" - what is the difference? Users do not understand the local profile vs backend account distinction.
@@ -535,12 +553,13 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 > **Analysis completed by comprehensive codebase exploration from NEW USER perspective.**
 > Goal: Identify remaining UX issues that would RADICALLY improve intuitiveness.
 
-**15. Navigation: "Discover" Tab Misleads Users** :red_circle: **HIGH IMPACT**
+**15. Navigation: "Discover" Tab Misleads Users** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Second tab labeled "Discover" but it's actually Bookmarks/Canister Explorer. Users expect "Discover" to find marketplace scripts, not bookmarks.
-- **Change:** Either remove 2-tab navigation entirely and merge content, OR rename tabs to "Scripts" and "Explore" for clarity
-- **Impact:** HIGH - First-time users are confused about where to find scripts vs canister tools
-- **Complexity:** 6/10
-- **Files:** `lib/main.dart`, `lib/screens/scripts_screen.dart`, `lib/screens/bookmarks_screen.dart`
+- **Change:** Renamed tab from "Discover" to "Explore" to match the AppBar title in BookmarksScreen
+- **Impact:** HIGH - Consistent naming eliminates user confusion
+- **Complexity:** 1/10 (simple label change)
+- **Files:** `lib/main.dart`
+- **Tests:** `test/features/navigation/navigation_test.dart` (3 tests updated)
 
 **16. Scripts Screen: Too Many Actions Per Script** ✅ **DONE - 2026-02-21**
 - **Pain Point:** Each script has play button, share button, overflow menu with 5+ options, plus 4 filter toggles, category chips, sort options, search history, selection mode. Overwhelming!
@@ -596,6 +615,22 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - **Complexity:** 2/10
 - **Files:** `lib/screens/settings_screen.dart`, `lib/services/settings_service.dart`
 - **Tests:** `test/features/settings/settings_screen_test.dart` (7 new tests for developer options)
+
+**23. Favorites Feature Not Discoverable** ✅ **DONE - 2026-02-21**
+- **Pain Point:** Favorites system exists but star icon buried in overflow menu. Users can't discover this feature.
+- **Change:** Added visible star icon to every script list item; tapping toggles favorite status; filled amber star for favorites, outlined for non-favorites
+- **Impact:** MEDIUM-HIGH - Users can now easily favorite scripts for quick access
+- **Complexity:** 3/10
+- **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/favorite_star_icon_test.dart` (15 tests)
+
+**24. Bulk Selection Hidden** ✅ **DONE - 2026-02-21**
+- **Pain Point:** Bulk script management (multi-select, bulk delete/export) requires long-press but zero indication this feature exists.
+- **Change:** Added dismissible tip banner "Tip: Long-press to select multiple scripts" that appears once for users with scripts; preference persisted
+- **Impact:** MEDIUM - Users discover bulk management feature
+- **Complexity:** 3/10
+- **Files:** `lib/screens/scripts_screen.dart`
+- **Tests:** `test/features/scripts/selection_hint_test.dart` (13 tests)
 
 
 ## MEDIUM Priority

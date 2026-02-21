@@ -82,6 +82,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedScriptIds = {};
 
+  // Selection hint for discoverability
+  bool _selectionHintDismissed = false;
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +97,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _initializeMarketplaceData();
     _loadRecentSearches();
     _loadFavorites();
+    _loadSelectionHintPreference();
     _searchFocusNode.addListener(_onSearchFocusChanged);
   }
 
@@ -112,6 +116,26 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         });
       }
     });
+  }
+
+  Future<void> _loadSelectionHintPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _selectionHintDismissed =
+            prefs.getBool('selection_hint_dismissed') ?? false;
+      });
+    }
+  }
+
+  Future<void> _dismissSelectionHint() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('selection_hint_dismissed', true);
+    if (mounted) {
+      setState(() {
+        _selectionHintDismissed = true;
+      });
+    }
   }
 
   Future<void> _loadRecentSearches() async {
@@ -930,14 +954,21 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       }).toList();
     }
 
+    // Check if we're still loading data that the user should see
+    final isLoadingAnything = _controller.isBusy || _isMarketplaceLoading;
+    final hasNoContent = localScripts.isEmpty && sortedItems.isEmpty;
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        if (_controller.isBusy && localScripts.isEmpty) {
+        // Show loading indicator if we're loading AND have nothing to show yet
+        // This prevents showing empty state while marketplace is loading for new users
+        if (isLoadingAnything && hasNoContent) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (sortedItems.isEmpty && !_controller.isBusy) {
+        // Only show empty state if we're done loading AND have no content
+        if (sortedItems.isEmpty && !isLoadingAnything) {
           if (_showDownloadedOnly) {
             return ModernEmptyState(
               icon: Icons.download_outlined,
@@ -974,6 +1005,13 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           },
           child: CustomScrollView(
             slivers: [
+              // Selection hint banner for discoverability
+              if (_shouldShowSelectionHint(localScripts))
+                SliverToBoxAdapter(
+                  child: _SelectionHintBanner(
+                    onDismiss: _dismissSelectionHint,
+                  ),
+                ),
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) =>
@@ -1380,6 +1418,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // FAVORITE: Star icon for quick toggle
+        _buildFavoriteStarButton(record.id),
         // PRIMARY ACTION: Play button visible directly
         IconButton(
           icon: const Icon(Icons.play_arrow),
@@ -1492,6 +1532,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // FAVORITE: Star icon for quick toggle
+        _buildFavoriteStarButton(script.id),
         // PRIMARY ACTION: Download (if not downloaded) or View Details (if downloaded)
         IconButton(
           icon: Icon(
@@ -1819,6 +1861,26 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     });
   }
 
+  /// Toggles the favorite status of a script.
+  Future<void> _toggleFavorite(String scriptId) async {
+    await _favoritesService.toggleFavorite(scriptId);
+    // The _favoriteScriptIds set will be updated via the favoritesStream
+    // listener in _loadFavorites(), which triggers setState.
+  }
+
+  /// Builds a star icon button for toggling favorite status.
+  Widget _buildFavoriteStarButton(String scriptId) {
+    final isFavorite = _favoriteScriptIds.contains(scriptId);
+    return IconButton(
+      icon: Icon(
+        isFavorite ? Icons.star : Icons.star_outline,
+        color: isFavorite ? Colors.amber : null,
+      ),
+      onPressed: () => _toggleFavorite(scriptId),
+      tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
+    );
+  }
+
   /// Clears all filters and refreshes marketplace scripts.
   /// Used as secondary action in empty state to help users discover marketplace.
   void _browseMarketplaceFromEmptyState() {
@@ -1918,6 +1980,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         ),
       );
     }
+  }
+
+  /// Determines if the selection hint banner should be shown.
+  /// Shows the hint when:
+  /// - User has local scripts (at least 1)
+  /// - Hint has not been dismissed
+  /// - Not in selection mode
+  bool _shouldShowSelectionHint(List<ScriptRecord> localScripts) {
+    return localScripts.isNotEmpty &&
+        !_selectionHintDismissed &&
+        !_isSelectionMode;
   }
 }
 
@@ -3103,6 +3176,60 @@ class _ContextMenuAction extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A subtle hint banner that informs users about the long-press bulk selection feature.
+/// Dismissed state is persisted via SharedPreferences.
+class _SelectionHintBanner extends StatelessWidget {
+  const _SelectionHintBanner({
+    required this.onDismiss,
+  });
+
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.checklist,
+            size: 18,
+            color: colorScheme.primary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Tip: Long-press to select multiple scripts',
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onDismiss,
+            child: Icon(
+              Icons.close,
+              size: 18,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

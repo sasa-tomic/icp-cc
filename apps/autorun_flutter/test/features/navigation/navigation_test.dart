@@ -24,7 +24,7 @@ void main() {
                 ModernNavigationItem(
                   icon: Icons.explore_outlined,
                   activeIcon: Icons.explore_rounded,
-                  label: 'Discover',
+                  label: 'Explore',
                 ),
               ],
             ),
@@ -34,11 +34,11 @@ void main() {
 
       // Find the navigation bar items
       final homeTab = find.text('Home');
-      final discoverTab = find.text('Discover');
+      final exploreTab = find.text('Explore');
 
-      // Should have Home and Discover tabs
+      // Should have Home and Explore tabs
       expect(homeTab, findsOneWidget, reason: 'Should have Home tab');
-      expect(discoverTab, findsOneWidget, reason: 'Should have Discover tab');
+      expect(exploreTab, findsOneWidget, reason: 'Should have Explore tab');
     });
 
     testWidgets('navigation bar has 2 items', (tester) async {
@@ -57,7 +57,7 @@ void main() {
                 ModernNavigationItem(
                   icon: Icons.explore_outlined,
                   activeIcon: Icons.explore_rounded,
-                  label: 'Discover',
+                  label: 'Explore',
                 ),
               ],
             ),
@@ -94,7 +94,7 @@ void main() {
                 ModernNavigationItem(
                   icon: Icons.explore_outlined,
                   activeIcon: Icons.explore_rounded,
-                  label: 'Discover',
+                  label: 'Explore',
                 ),
               ],
             ),
@@ -102,12 +102,12 @@ void main() {
         ),
       );
 
-      // Tap the Discover tab
-      final discoverTab = find.text('Discover');
-      await tester.tap(discoverTab);
+      // Tap the Explore tab
+      final exploreTab = find.text('Explore');
+      await tester.tap(exploreTab);
 
       expect(tappedIndex, equals(1),
-          reason: 'Tapping Discover should trigger callback with index 1');
+          reason: 'Tapping Explore should trigger callback with index 1');
     });
   });
 

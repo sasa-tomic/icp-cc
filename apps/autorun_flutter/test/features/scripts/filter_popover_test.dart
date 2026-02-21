@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/models/script_list_item.dart';
+import 'package:icp_autorun/widgets/connectivity_scope.dart';
 
 void main() {
   group('ScriptsScreen filter popover', () {
     testWidgets('filter button opens filter bottom sheet', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -28,7 +31,9 @@ void main() {
     testWidgets('filter bottom sheet has reset button', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -45,7 +50,9 @@ void main() {
     testWidgets('filter bottom sheet shows category chips', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -63,7 +70,9 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 

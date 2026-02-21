@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
+import 'package:icp_autorun/widgets/connectivity_scope.dart';
 
 void main() {
   group('ScriptsScreen unified view', () {
     testWidgets('has no tab bar', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -20,7 +23,9 @@ void main() {
     testWidgets('shows search bar', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -32,7 +37,9 @@ void main() {
     testWidgets('shows filter button', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -45,7 +52,9 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -60,7 +69,9 @@ void main() {
     testWidgets('does not show sort dropdown on main screen', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -74,7 +85,9 @@ void main() {
     testWidgets('has create script FAB', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -86,7 +99,9 @@ void main() {
     testWidgets('shows overflow menu with download history', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -98,7 +113,9 @@ void main() {
     testWidgets('search bar and filter button are in same row', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 

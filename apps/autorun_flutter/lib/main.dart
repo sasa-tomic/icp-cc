@@ -423,7 +423,7 @@ class _MainHomePageState extends State<MainHomePage> {
         ModernNavigationItem(
           icon: Icons.explore_outlined,
           activeIcon: Icons.explore_rounded,
-          label: 'Discover',
+          label: 'Explore',
         ),
       ],
     );

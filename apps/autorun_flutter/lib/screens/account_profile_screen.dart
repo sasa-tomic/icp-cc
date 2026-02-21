@@ -413,43 +413,11 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Always show edit fields
+            // Primary fields always visible
             _buildEditField(
               controller: _displayNameController,
               label: 'Display Name *',
               icon: Icons.person,
-            ),
-            const SizedBox(height: 12),
-            _buildEditField(
-              controller: _contactEmailController,
-              label: 'Email',
-              icon: Icons.email_outlined,
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 12),
-            _buildEditField(
-              controller: _contactTelegramController,
-              label: 'Telegram',
-              icon: Icons.send_outlined,
-            ),
-            const SizedBox(height: 12),
-            _buildEditField(
-              controller: _contactTwitterController,
-              label: 'Twitter/X',
-              icon: Icons.tag,
-            ),
-            const SizedBox(height: 12),
-            _buildEditField(
-              controller: _contactDiscordController,
-              label: 'Discord',
-              icon: Icons.forum_outlined,
-            ),
-            const SizedBox(height: 12),
-            _buildEditField(
-              controller: _websiteUrlController,
-              label: 'Website',
-              icon: Icons.language,
-              keyboardType: TextInputType.url,
             ),
             const SizedBox(height: 12),
             _buildEditField(
@@ -458,6 +426,63 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
               icon: Icons.notes,
               maxLines: 3,
             ),
+
+            // Collapsible contact info section
+            const SizedBox(height: 8),
+            ExpansionTile(
+              title: Text(
+                'Contact Info',
+                style: AppDesignSystem.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                'Email, social links, and website',
+                style: AppDesignSystem.bodySmall.copyWith(
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+              leading: Icon(
+                Icons.contact_mail_outlined,
+                color: AppDesignSystem.primaryLight,
+              ),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(top: 8),
+              children: [
+                _buildEditField(
+                  controller: _contactEmailController,
+                  label: 'Email',
+                  icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 12),
+                _buildEditField(
+                  controller: _contactTelegramController,
+                  label: 'Telegram',
+                  icon: Icons.send_outlined,
+                ),
+                const SizedBox(height: 12),
+                _buildEditField(
+                  controller: _contactTwitterController,
+                  label: 'Twitter/X',
+                  icon: Icons.tag,
+                ),
+                const SizedBox(height: 12),
+                _buildEditField(
+                  controller: _contactDiscordController,
+                  label: 'Discord',
+                  icon: Icons.forum_outlined,
+                ),
+                const SizedBox(height: 12),
+                _buildEditField(
+                  controller: _websiteUrlController,
+                  label: 'Website',
+                  icon: Icons.language,
+                  keyboardType: TextInputType.url,
+                ),
+              ],
+            ),
+
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _saveProfile,
