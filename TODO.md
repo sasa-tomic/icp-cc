@@ -23,6 +23,9 @@
 - **NEW:** Canister Client Full Screen - 3-step flow (Canister → Function → Call)
 - **NEW:** Response Format Toggle - JSON/Table/Raw view selector for results
 - **NEW:** Search History - recent searches dropdown in marketplace
+- **NEW:** Canister Autocomplete - search canisters by ID or name
+- **NEW:** Actionable Error Handling - clear guidance on what to do when errors occur
+- **NEW:** Getting Started Guide - checklist for new users with progress tracking
 - Flattened Scripts screen (no nested tabs, Marketplace prominent)
 - Script execution progress indicator
 - Pull-to-refresh on all lists
@@ -36,7 +39,7 @@
 - Single-tap script execution (Play button on script rows)
 - Editor toolbar cleanup (collapsed into overflow menu)
 
-**Next Wave:** Write reviews API (backend needed), smart Candid forms, canister bookmarks.
+**Next Wave:** Write reviews API (backend needed), smart Candid forms, script automation/scheduler.
 
 Payments and messaging are explicitly out of scope until the foundation is solid.
 
@@ -83,6 +86,9 @@ Payments and messaging are explicitly out of scope until the foundation is solid
 | **Canister Interaction History** | **COMPLETE** | 100% |
 | **Script Versions Tab** | **COMPLETE** | 100% |
 | **Long-Press Context Menu** | **COMPLETE** | 100% |
+| **Canister Autocomplete** | **COMPLETE** | 100% |
+| **Actionable Error Handling** | **COMPLETE** | 100% |
+| **Getting Started Guide** | **COMPLETE** | 100% |
 | Account Registration | Complete | 100% |
 | Passkey Auth (backend) | Complete | 95% |
 | Marketplace Browse/Search | Needs Testing | 90% |
@@ -342,6 +348,9 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
 - [x] Script Versions tests (DONE - 11 tests - 2026-02-22)
 - [x] Long-Press Context Menu tests (DONE - 19 tests - 2026-02-22)
 - [x] didChangeDependencies tests (DONE - 3 tests - 2026-02-22)
+- [x] Canister Autocomplete tests (DONE - 13 tests - 2026-02-22)
+- [x] Actionable Error Display tests (DONE - 36 tests - 2026-02-22)
+- [x] Guided Next Steps tests (DONE - 21 tests - 2026-02-22)
 - [ ] Lua Engine tests in Rust crate (MISSING)
 - [ ] Account Profile Screen tests (MISSING)
 - [ ] Integration tests for complete user flows
@@ -459,7 +468,11 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **UI:** Recent calls section in CanisterClientScreen, tap to replay
   - **Test:** `test/services/canister_history_service_test.dart` (17 tests), `test/features/canister_client/history_test.dart` (6 tests)
   - **Impact:** Power users can quickly repeat common canister calls
-- [ ] Canister autocomplete/search by ID or name
+- [x] Canister autocomplete/search by ID or name ✅ **DONE - 2026-02-22**
+  - **Service:** `CanisterRegistryService` with hardcoded registry of 8 well-known ICP canisters
+  - **UI:** RawAutocomplete widget in CanisterClientScreen with suggestions
+  - **Test:** `test/features/canister_client/autocomplete_test.dart` (13 tests)
+  - **Impact:** Users can quickly find and select canisters without memorizing IDs
 - [ ] Smart input forms based on Candid interface
 
 ### Script Automation
@@ -483,6 +496,16 @@ See [PASSKEY_IMPLEMENTATION_PLAN.md](PASSKEY_IMPLEMENTATION_PLAN.md) for archite
   - **Actions:** Run, Edit, Duplicate, Delete, Share (local); View Details, Download (marketplace)
   - **Test:** `test/features/scripts/long_press_test.dart` (19 tests)
   - **Impact:** Power user efficiency with quick access to common actions
+- [x] Actionable error handling ✅ **DONE - 2026-02-22**
+  - **Service:** `ErrorCategories` utility with 7 error types (Network, Auth, Validation, NotFound, Server, RateLimit, Unknown)
+  - **UI:** Enhanced `ErrorDisplay` widget with smart categorization, suggested actions, and help button
+  - **Test:** `test/widgets/actionable_error_display_test.dart` (36 tests)
+  - **Impact:** Users know exactly what to do when errors occur
+- [x] Getting Started guide for new users ✅ **DONE - 2026-02-22**
+  - **Service:** `OnboardingProgressService` with checklist tracking
+  - **UI:** `GettingStartedCard` widget with 5 checklist items and progress tracking
+  - **Test:** `test/features/onboarding/guided_next_steps_test.dart` (21 tests)
+  - **Impact:** New users have clear path to learn the app
 
 ---
 

@@ -7,6 +7,7 @@ import '../controllers/account_controller.dart';
 import '../models/profile.dart';
 import '../models/account.dart';
 import '../services/passkey_service.dart';
+import '../services/onboarding_progress_service.dart';
 import '../utils/passkey_platform.dart';
 import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
@@ -21,6 +22,7 @@ enum ProfileMenuAction {
   settings,
   switchProfile,
   createProfile,
+  gettingStarted,
 }
 
 /// Profile menu widget that can be shown as a bottom sheet or menu
@@ -275,6 +277,13 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           subtitle: 'Add a new identity',
           onTap: () => _handleAction(ProfileMenuAction.createProfile),
         ),
+        // Getting Started
+        _MenuTile(
+          icon: Icons.rocket_launch_outlined,
+          label: 'Getting Started',
+          subtitle: 'Show the onboarding guide',
+          onTap: () => _handleAction(ProfileMenuAction.gettingStarted),
+        ),
       ],
     );
   }
@@ -318,6 +327,22 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       case ProfileMenuAction.settings:
         // Not implemented yet
         break;
+      case ProfileMenuAction.gettingStarted:
+        await _showGettingStartedGuide();
+        break;
+    }
+  }
+
+  Future<void> _showGettingStartedGuide() async {
+    final service = OnboardingProgressService();
+    await service.reset();
+    widget.onNavigate?.call();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Getting Started guide will appear on the home screen'),
+        ),
+      );
     }
   }
 

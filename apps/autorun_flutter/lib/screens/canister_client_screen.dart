@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
 import '../services/canister_history_service.dart';
+import '../services/canister_registry_service.dart';
 import '../utils/json_format.dart';
 import '../utils/candid_form_model.dart';
 import '../utils/candid_type_resolver.dart';
@@ -34,6 +35,7 @@ class CanisterClientScreen extends StatefulWidget {
 class _CanisterClientScreenState extends State<CanisterClientScreen> {
   _ClientStep _currentStep = _ClientStep.canister;
   final TextEditingController _canisterController = TextEditingController();
+  final FocusNode _canisterFocusNode = FocusNode();
   final TextEditingController _hostController =
       TextEditingController(text: 'https://ic0.app');
   final TextEditingController _methodController = TextEditingController();
@@ -70,6 +72,7 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
   @override
   void dispose() {
     _canisterController.dispose();
+    _canisterFocusNode.dispose();
     _hostController.dispose();
     _methodController.dispose();
     _keypairKeyController.dispose();
@@ -494,29 +497,154 @@ class _CanisterClientScreenState extends State<CanisterClientScreen> {
         Tooltip(
           message:
               'Enter the canister ID (e.g., ryjl3-tyaaa-aaaaa-aaaba-cai) or name.',
-          child: TextField(
-            key: const Key('canisterField'),
-            controller: _canisterController,
-            decoration: InputDecoration(
-              labelText: 'Canister',
-              hintText: 'Enter canister ID or name',
-              border: const OutlineInputBorder(),
-              suffixIcon: _isFetching
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return RawAutocomplete<CanisterRegistryEntry>(
+                key: const Key('canisterAutocomplete'),
+                textEditingController: _canisterController,
+                focusNode: _canisterFocusNode,
+                optionsBuilder: (textEditingValue) {
+                  if (textEditingValue.text.isEmpty) {
+                    return const Iterable<CanisterRegistryEntry>.empty();
+                  }
+                  return CanisterRegistryEntry.search(textEditingValue.text);
+                },
+                displayStringForOption: (option) => option.canisterId,
+                fieldViewBuilder: (
+                  context,
+                  textEditingController,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  return TextField(
+                    key: const Key('canisterField'),
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    decoration: InputDecoration(
+                      labelText: 'Canister',
+                      hintText: 'Enter canister ID or name',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _isFetching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : _methods.isNotEmpty
+                              ? Icon(Icons.check_circle,
+                                  color: theme.colorScheme.primary)
+                              : null,
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _fetchAndParse(),
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(8),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth,
+                          maxHeight: 280,
+                        ),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final option = options.elementAt(index);
+                            return InkWell(
+                              key: Key(
+                                  'autocompleteOption_${option.canisterId}'),
+                              onTap: () => onSelected(option),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.storage,
+                                          size: 16,
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            option.name,
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: theme
+                                                .colorScheme.primaryContainer
+                                                .withValues(alpha: 0.5),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            option.category,
+                                            style: theme.textTheme.labelSmall,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      option.canisterId,
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        fontFamily: 'monospace',
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      option.description,
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    )
-                  : _methods.isNotEmpty
-                      ? Icon(Icons.check_circle,
-                          color: theme.colorScheme.primary)
-                      : null,
-            ),
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _fetchAndParse(),
+                    ),
+                  );
+                },
+                onSelected: (option) {
+                  _canisterController.text = option.canisterId;
+                  _fetchAndParse();
+                },
+              );
+            },
           ),
         ),
         const SizedBox(height: 16),

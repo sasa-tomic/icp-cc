@@ -14,6 +14,7 @@ import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
+import '../services/onboarding_progress_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/keyboard_shortcuts.dart';
@@ -24,6 +25,7 @@ import '../widgets/quick_upload_dialog.dart';
 import '../widgets/script_details_dialog.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
+import '../widgets/getting_started_card.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 
@@ -73,6 +75,10 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   List<String> _recentSearches = [];
   bool _showRecentSearches = false;
 
+  final OnboardingProgressService _onboardingProgressService =
+      OnboardingProgressService();
+  bool _showGettingStarted = false;
+
   @override
   void initState() {
     super.initState();
@@ -85,7 +91,50 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     _initializeMarketplaceData();
     _loadShareBannerState();
     _loadRecentSearches();
+    _loadGettingStartedState();
     _searchFocusNode.addListener(_onSearchFocusChanged);
+  }
+
+  Future<void> _loadGettingStartedState() async {
+    final shouldShow = await _onboardingProgressService.shouldShowGuide();
+    if (mounted) {
+      setState(() {
+        _showGettingStarted = shouldShow;
+      });
+    }
+  }
+
+  void _handleGettingStartedItemTap(OnboardingItem item) {
+    _onboardingProgressService.markComplete(item);
+    switch (item) {
+      case OnboardingItem.browseMarketplace:
+      case OnboardingItem.downloadScript:
+        break;
+      case OnboardingItem.createScript:
+        _showCreateSheet();
+      case OnboardingItem.tryCanisterClient:
+      case OnboardingItem.setUpPasskey:
+        break;
+    }
+    _loadGettingStartedState();
+  }
+
+  Future<void> _dismissGettingStarted() async {
+    await _onboardingProgressService.dismissPermanently();
+    if (mounted) {
+      setState(() {
+        _showGettingStarted = false;
+      });
+    }
+  }
+
+  Future<void> _snoozeGettingStarted() async {
+    await _onboardingProgressService.snooze();
+    if (mounted) {
+      setState(() {
+        _showGettingStarted = false;
+      });
+    }
   }
 
   Future<void> _loadRecentSearches() async {
@@ -260,6 +309,11 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         _hasMore = result.hasMore;
         _offset += result.scripts.length;
       });
+
+      if (result.scripts.isNotEmpty) {
+        _onboardingProgressService
+            .markComplete(OnboardingItem.browseMarketplace);
+      }
     } catch (e) {
       setState(() {
         _marketplaceError = _formatErrorMessage(e.toString());
@@ -418,6 +472,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         _downloadedScriptIds.add(script.id);
       });
 
+      _onboardingProgressService.markComplete(OnboardingItem.downloadScript);
+
       if (mounted) {
         final versionText = version != null ? ' v$version' : '';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -539,6 +595,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       ),
     );
     if (mounted && rec != null) {
+      _onboardingProgressService.markComplete(OnboardingItem.createScript);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -875,6 +932,14 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           },
           child: CustomScrollView(
             slivers: [
+              if (_showGettingStarted)
+                SliverToBoxAdapter(
+                  child: GettingStartedCard(
+                    onItemTap: _handleGettingStartedItemTap,
+                    onDismiss: _dismissGettingStarted,
+                    onSnooze: _snoozeGettingStarted,
+                  ),
+                ),
               if (showFeatured)
                 SliverToBoxAdapter(
                   child: _buildFeaturedSection(),
