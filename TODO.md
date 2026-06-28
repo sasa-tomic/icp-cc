@@ -1,10 +1,19 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-02-23 (Phase 9 - UX Simplification Wave 13)
+**Last Updated:** 2026-06-28 (Scripting Runtime Migration Phase 0+1)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
+
+**Reality Check - Scripting Runtime Migration Phase 0+1 COMPLETE (Lua → TypeScript/QuickJS):**
+Implements `docs/specs/SCRIPTING_RUNTIME_MIGRATION.md` P0 (Foundations) + P1 (SDK & Tooling). Dual-runtime: new JS engine alongside untouched `lua_engine.rs`.
+- **P0 Rust host (DONE, verified):** `crates/icp_core/src/js_engine.rs` + `js_engine/runtime.rs` embed QuickJS via rquickjs 0.12 (target-gated out of wasm). `create_sandboxed_js` enforces memory (64 MiB) + stack (512 KiB) + interrupt-handler time budget. 6 public fns mirroring `lua_engine`: `execute_js_json`, `lint_js`, `validate_js_comprehensive` (9 stages), `js_app_init`/`js_app_view`/`js_app_update`. 16 `icp_*` helpers + `icp_log` (fixes Lua's dead `__icp_messages`). 6 `icp_js_*` FFI symbols (reusing `icp_free_string`). wasm: `validate_js_script_wasm`/`check_js_syntax_wasm` = pure-Rust static analysis (rquickjs can't target wasm32, same as mlua). GATES: `cargo nextest run -p icp_core` = 98 pass/0 fail; `cargo clippy -p icp_core --all-targets --all-features -- -D warnings` = 0 issues; `nm -D libicp_core.so` shows all 6 symbols.
+- **P1 Node tooling (DONE, verified):** npm workspace `packages/*`. `@icp-cc/marketplace-sdk` (typed contract: State/Msg/Effect/UI nodes + `SDK_CONTRACT_VERSION="0.1.0"` + 16 reference helpers + local mock host). `create-marketplace-script` CLI scaffold → esbuild IIFE bundle, no-Node plugin (forbids fs/path/crypto/process + global fetch/setTimeout/URL/TextEncoder), Vitest harness running scripts in REAL QuickJS (`@jitl/quickjs-singlefile-browser-release-sync`). GATES: `npm test` = 52 pass/0 fail; sample bundles to single IIFE, runs in QuickJS.
+- **Contract divergence (intentional):** JS `init`/`update` return single `{state, effects}` object (not Lua multireturn); `icp_format_icp` whole floats → `"1"` (JS) not `"1.0"` (legacy Lua); `execute_js_json` fail-fast Err (not Lua's silent swallow).
+- **NOT verified in-env:** Flutter wiring (needs Flutter SDK), Android cross-compile (NDK absent), `just flutter-tests` (needs GUI+API server).
+- **GAPS (Phase 2-4, NOT in P0+1):** G1 Flutter wiring of `icp_js_*` (`native_bridge.dart` `_Symbols` + Dart typedefs + `script_runner.dart` runtime switch). G2 Android NDK cross-compile (rquickjs bindgen may need `BINDGEN_EXTRA_CLANG_ARGS`). G3 Lua corpus migration (no inventory of stored scripts). G4 AI Lua→TS rewrites (prompt/tooling + eval harness). G5 Lua deprecation timeline (product decision). G6 Cold-start/throughput benchmark vs LuaJIT (`criterion` p50/p99). G7 Intl/locale (QuickJS limited ICU; full ICU OR forbid `Intl.*` + expose via SDK). G8 `qjsc` bytecode precompilation (optional). G9 Third-party npm dep allowlist CI scan. G10 Parity CI gate (local QuickJS==prod; fail on `SDK_CONTRACT_VERSION` drift). G11 Backport `icp_log` to Lua if Lua stays long-term. G12 Resource-limit tuning (load-test real pilot scripts). G13 `require`/module-loader fuzz/adversarial hardening. G14 Pin bundler to IIFE+globalThis (reject ESM-format bundles in validate).
+- **FOLLOW-UPS (Phase 2 parity hardening, non-blocking):** N1 pedantic not enforced project-wide (literal `--deny warnings` passes). N2-N3 document `format_icp`/`icp_section` edge semantics in migration notes. N4 shared golden-vector parity CI (Rust-host==Node-SDK==Lua for identical inputs). N5 npm audit vulns (esbuild/vite/vitest dev-only). Pre-existing `cargo fmt` failures (`backend/src/vault.rs:221`, `crates/icp_core/src/lib.rs:22`) — not introduced by this work. Pre-existing wasm build break on mlua/lua-src (mlua unconditional) — resolves once mlua made wasm-optional (future phase).
 
 **Reality Check - UX Simplification Wave 13 COMPLETE:**
 - **NEW:** My Library Screen - Consolidated view of downloads, favorites, scripts, activity (24 tests)

@@ -1,0 +1,47 @@
+{
+  "name": "@icp-cc/create-marketplace-script",
+  "version": "0.1.0",
+  "description": "Scaffold a new ICP marketplace script project (TypeScript on QuickJS)",
+  "type": "module",
+  "bin": {
+    "create-marketplace-script": "./dist/index.js"
+  },
+  "main": "./dist/scaffold.js",
+  "module": "./dist/scaffold.js",
+  "types": "./dist/scaffold.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/scaffold.d.ts",
+      "import": "./dist/scaffold.js"
+    },
+    "./esbuild-no-node": {
+      "types": "./dist/esbuild-no-node.d.ts",
+      "import": "./dist/esbuild-no-node.js"
+    },
+    "./quickjs-harness": {
+      "types": "./dist/quickjs-harness.d.ts",
+      "import": "./dist/quickjs-harness.js"
+    }
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup",
+    "scaffold": "node dist/index.js"
+  },
+  "devDependencies": {
+    "@icp-cc/marketplace-sdk": "^0.1.0",
+    "@jitl/quickjs-singlefile-browser-release-sync": "^0.32.0",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "quickjs-emscripten": "^0.32.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

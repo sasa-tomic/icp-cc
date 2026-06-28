@@ -1,6 +1,7 @@
 pub mod canister_client;
 
 pub mod ffi;
+pub mod js_engine;
 pub mod keypair;
 pub mod lua_engine;
 pub mod principal;
@@ -11,6 +12,11 @@ pub mod vault;
 pub mod wasm_exports;
 
 pub use canister_client::{MethodInfo, MethodKind, ParsedInterface};
+#[cfg(not(target_arch = "wasm32"))]
+pub use js_engine::{
+    execute_js_json, js_app_init, js_app_update, js_app_view, lint_js, validate_js_comprehensive,
+};
+pub use js_engine::{JsExecError, JsValidationContext, JsValidationResult};
 pub use keypair::{
     generate_ed25519_keypair, generate_secp256k1_keypair, sign_ed25519, sign_secp256k1, KeypairData,
 };

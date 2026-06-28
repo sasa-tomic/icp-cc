@@ -1,6 +1,7 @@
 //! Wasm-compatible exports for use in Cloudflare Workers and other JavaScript environments
 #![cfg(target_arch = "wasm32")]
 
+use crate::{js_engine::static_analysis, JsValidationContext};
 use crate::{validate_lua_comprehensive, ValidationContext, ValidationResult};
 use serde_json::{json, Value};
 use wasm_bindgen::prelude::*;
@@ -42,6 +43,53 @@ pub fn check_lua_syntax_wasm(script: &str) -> String {
     // Parse the existing JSON result and return it
     // The lint_lua function already returns JSON string
     result
+}
+
+/// Wasm-compatible JavaScript/TypeScript validation using PURE-RUST static
+/// analysis only. rquickjs cannot compile to wasm32-unknown-unknown, so the
+/// JS engine is not available in the wasm build; this function runs every
+/// static validation stage (security, ICP integration, UI nodes, etc.) but
+/// cannot perform a runtime parse or runtime export detection.
+#[wasm_bindgen]
+pub fn validate_js_script_wasm(
+    script: &str,
+    is_example: bool,
+    is_test: bool,
+    is_production: bool,
+) -> String {
+    let context = JsValidationContext {
+        is_example,
+        is_test,
+        is_production,
+    };
+    let result = static_analysis::run_static_stages(script, Some(context));
+    json!({
+        "is_valid": result.is_valid,
+        "syntax_errors": result.syntax_errors,
+        "warnings": result.warnings,
+        "line_count": result.line_count,
+        "character_count": result.character_count
+    })
+    .to_string()
+}
+
+/// Wasm-compatible JavaScript/TypeScript lint via PURE-RUST static analysis.
+/// Returns `{ ok, errors, warnings, line_count, character_count }`.
+#[wasm_bindgen]
+pub fn check_js_syntax_wasm(script: &str) -> String {
+    let result = static_analysis::run_static_stages(script, None);
+    json!({
+        "ok": result.is_valid,
+        "errors": result
+            .syntax_errors
+            .iter()
+            .map(|e| json!({ "message": e }))
+            .collect::<Vec<_>>(),
+        "warnings": result.warnings,
+        "line_count": result.line_count,
+        "character_count": result.character_count
+    })
+    .to_string()
 }
 
 /// Initialize the Wasm module (called once when loading)
