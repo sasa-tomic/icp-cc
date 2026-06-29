@@ -22,9 +22,14 @@
   },
   "scripts": {
     "build": "tsup",
+    "build:samples": "node scripts/build-samples.mjs",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
+    "@jitl/quickjs-singlefile-browser-release-sync": "^0.32.0",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "quickjs-emscripten": "^0.32.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

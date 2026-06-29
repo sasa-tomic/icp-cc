@@ -991,7 +991,9 @@ async fn vault_create(
 ) -> Response {
     let data = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &req.data) {
         Ok(d) => d,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &format!("Invalid base64: {}", e)),
+        Err(e) => {
+            return error_response(StatusCode::BAD_REQUEST, &format!("Invalid base64: {}", e))
+        }
     };
 
     match state
@@ -1043,7 +1045,9 @@ async fn vault_update(
 ) -> Response {
     let data = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &req.data) {
         Ok(d) => d,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &format!("Invalid base64: {}", e)),
+        Err(e) => {
+            return error_response(StatusCode::BAD_REQUEST, &format!("Invalid base64: {}", e))
+        }
     };
 
     match state
@@ -1607,7 +1611,8 @@ async fn main() -> Result<(), std::io::Error> {
 
     // WebAuthn configuration
     let rp_id = env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".to_string());
-    let rp_origin = env::var("WEBAUTHN_RP_ORIGIN").unwrap_or_else(|_| "http://localhost:58000".to_string());
+    let rp_origin =
+        env::var("WEBAUTHN_RP_ORIGIN").unwrap_or_else(|_| "http://localhost:58000".to_string());
     let passkey_service = PasskeyService::new(pool.clone(), &rp_id, &rp_origin)
         .expect("Failed to create PasskeyService");
 
@@ -1675,17 +1680,14 @@ async fn main() -> Result<(), std::io::Error> {
             post(passkey_authenticate_finish),
         )
         .at("/api/v1/passkey/list/:account_id", get(passkey_list))
-        .at(
-            "/api/v1/passkey/:passkey_id",
-            delete(passkey_delete),
-        )
+        .at("/api/v1/passkey/:passkey_id", delete(passkey_delete))
         // Vault endpoints
-        .at("/api/v1/vault", post(vault_create).get(vault_get).put(vault_update))
-        // Recovery code endpoints
         .at(
-            "/api/v1/recovery/generate",
-            post(recovery_generate),
+            "/api/v1/vault",
+            post(vault_create).get(vault_get).put(vault_update),
         )
+        // Recovery code endpoints
+        .at("/api/v1/recovery/generate", post(recovery_generate))
         .at("/api/v1/recovery/verify", post(recovery_verify))
         .at("/api/v1/recovery/status/:account_id", get(recovery_status))
         // Admin Account endpoints (require admin authentication)
@@ -1866,8 +1868,9 @@ mod tests {
         )
         .await;
 
-        let passkey_service = PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
-            .expect("Failed to create PasskeyService");
+        let passkey_service =
+            PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
+                .expect("Failed to create PasskeyService");
 
         Arc::new(AppState {
             account_service: AccountService::new(pool.clone()),

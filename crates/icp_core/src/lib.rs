@@ -1,4 +1,5 @@
 pub mod canister_client;
+pub mod contract;
 
 pub mod ffi;
 pub mod js_engine;
@@ -12,6 +13,7 @@ pub mod vault;
 pub mod wasm_exports;
 
 pub use canister_client::{MethodInfo, MethodKind, ParsedInterface};
+pub use contract::SDK_CONTRACT_VERSION;
 #[cfg(not(target_arch = "wasm32"))]
 pub use js_engine::{
     execute_js_json, js_app_init, js_app_update, js_app_view, lint_js, validate_js_comprehensive,
@@ -25,4 +27,6 @@ pub use lua_engine::{
     ValidationResult,
 };
 pub use principal::{der_encode_public_key, principal_from_der, principal_from_public_key};
-pub use vault::{decrypt_vault, encrypt_vault, derive_key, generate_salt, generate_nonce, EncryptedVault};
+pub use vault::{
+    decrypt_vault, derive_key, encrypt_vault, generate_nonce, generate_salt, EncryptedVault,
+};

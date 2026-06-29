@@ -30,13 +30,19 @@ pub struct EncryptedVault {
 
 /// Derives a 256-bit key from password using Argon2id
 pub fn derive_key(password: &str, salt: &[u8]) -> Result<[u8; 32], String> {
-    let params = Params::new(ARGON2_MEMORY_COST, ARGON2_TIME_COST, ARGON2_PARALLELISM, Some(ARGON2_OUTPUT_LEN))
-        .map_err(|e| format!("Invalid Argon2 params: {}", e))?;
+    let params = Params::new(
+        ARGON2_MEMORY_COST,
+        ARGON2_TIME_COST,
+        ARGON2_PARALLELISM,
+        Some(ARGON2_OUTPUT_LEN),
+    )
+    .map_err(|e| format!("Invalid Argon2 params: {}", e))?;
 
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, Version::V0x13, params);
 
     let mut key = [0u8; 32];
-    argon2.hash_password_into(password.as_bytes(), salt, &mut key)
+    argon2
+        .hash_password_into(password.as_bytes(), salt, &mut key)
         .map_err(|e| format!("Key derivation failed: {}", e))?;
 
     Ok(key)
@@ -62,11 +68,12 @@ pub fn encrypt_vault(password: &str, plaintext: &[u8]) -> Result<EncryptedVault,
     let nonce_bytes = generate_nonce();
 
     let key = derive_key(password, &salt)?;
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| format!("Cipher init failed: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key).map_err(|e| format!("Cipher init failed: {}", e))?;
 
     let nonce = Nonce::from_slice(&nonce_bytes);
-    let encrypted_data = cipher.encrypt(nonce, plaintext)
+    let encrypted_data = cipher
+        .encrypt(nonce, plaintext)
         .map_err(|e| format!("Encryption failed: {}", e))?;
 
     Ok(EncryptedVault {
@@ -79,11 +86,12 @@ pub fn encrypt_vault(password: &str, plaintext: &[u8]) -> Result<EncryptedVault,
 /// Decrypts AES-256-GCM encrypted data using a password-derived key
 pub fn decrypt_vault(password: &str, vault: &EncryptedVault) -> Result<Vec<u8>, String> {
     let key = derive_key(password, &vault.salt)?;
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| format!("Cipher init failed: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key).map_err(|e| format!("Cipher init failed: {}", e))?;
 
     let nonce = Nonce::from_slice(&vault.nonce);
-    cipher.decrypt(nonce, vault.encrypted_data.as_ref())
+    cipher
+        .decrypt(nonce, vault.encrypted_data.as_ref())
         .map_err(|_| "Decryption failed: invalid password or corrupted data".to_string())
 }
 
@@ -126,8 +134,12 @@ pub fn verify_recovery_code(code: &str, hash: &str) -> Result<bool, String> {
         return Err("Invalid hash format".to_string());
     }
 
-    let salt = B64.decode(parts[0]).map_err(|e| format!("Invalid salt: {}", e))?;
-    let stored_key = B64.decode(parts[1]).map_err(|e| format!("Invalid key: {}", e))?;
+    let salt = B64
+        .decode(parts[0])
+        .map_err(|e| format!("Invalid salt: {}", e))?;
+    let stored_key = B64
+        .decode(parts[1])
+        .map_err(|e| format!("Invalid key: {}", e))?;
     let derived_key = derive_key(&normalized, &salt)?;
 
     Ok(derived_key[..] == stored_key[..])
@@ -183,7 +195,10 @@ mod tests {
 
         assert_ne!(vault1.salt, vault2.salt, "salts should be unique");
         assert_ne!(vault1.nonce, vault2.nonce, "nonces should be unique");
-        assert_ne!(vault1.encrypted_data, vault2.encrypted_data, "ciphertexts should differ");
+        assert_ne!(
+            vault1.encrypted_data, vault2.encrypted_data,
+            "ciphertexts should differ"
+        );
     }
 
     #[test]
@@ -221,7 +236,9 @@ mod tests {
         let codes = generate_recovery_codes();
         for code in &codes {
             assert_eq!(code.len(), 8, "each code should be 8 chars");
-            assert!(code.chars().all(|c| RECOVERY_CODE_ALPHABET.contains(&(c as u8))));
+            assert!(code
+                .chars()
+                .all(|c| RECOVERY_CODE_ALPHABET.contains(&(c as u8))));
         }
     }
 

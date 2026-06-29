@@ -435,6 +435,38 @@ pub mod static_analysis {
         }
     }
 
+    pub fn validate_esm_format(script: &str, result: &mut JsValidationResult) {
+        for line in script.lines() {
+            let trimmed = line.trim_start();
+            for kw in ["import", "export"] {
+                if let Some(rest) = trimmed.strip_prefix(kw) {
+                    let boundary = rest
+                        .chars()
+                        .next()
+                        .map(|c| !(c.is_alphanumeric() || c == '_'))
+                        .unwrap_or(true);
+                    if boundary {
+                        result.syntax_errors.push(
+                            "ESM top-level import/export is not allowed - scripts must use function init/view/update"
+                                .to_string(),
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn validate_intl(script: &str, result: &mut JsValidationResult) {
+        let intl_re = regex::Regex::new(r"\bIntl\s*\.").expect("valid regex");
+        if intl_re.is_match(script) {
+            result.syntax_errors.push(
+                "Intl.* is not allowed - the runtime ships without ICU; use the locale-free icp_format_* helpers"
+                    .to_string(),
+            );
+        }
+    }
+
     pub fn validate_ui_nodes(script: &str, result: &mut JsValidationResult) {
         for line in script.lines() {
             if (line.contains("&& {") || line.contains("||{")) && !line.contains("type") {
@@ -461,7 +493,17 @@ pub mod static_analysis {
         }
 
         let valid_types = [
-            "column", "row", "section", "text", "button", "toggle", "input",
+            "column",
+            "row",
+            "section",
+            "text",
+            "button",
+            "toggle",
+            "input",
+            "text_field",
+            "select",
+            "image",
+            "list",
         ];
         for line in script.lines() {
             if let Some(idx) = line.find("type:") {
@@ -526,6 +568,8 @@ pub mod static_analysis {
         validate_basic(script, &mut result);
         validate_event_handlers(script, &mut result);
         validate_security_patterns(script, &ctx, &mut result);
+        validate_esm_format(script, &mut result);
+        validate_intl(script, &mut result);
         validate_icp_integration(script, &ctx, &mut result);
         validate_performance_patterns(script, &ctx, &mut result);
         validate_data_structures(script, &ctx, &mut result);
@@ -1112,6 +1156,92 @@ mod tests {
         let result = validate_js_comprehensive(script, Some(prod_ctx()));
         assert!(result.syntax_errors.iter().any(|e| e.contains("Function")));
         assert!(result.syntax_errors.iter().any(|e| e.contains("require")));
+    }
+
+    #[test]
+    fn validate_blocks_top_level_export() {
+        let script = r#"
+            export function init(arg) { return { state: {}, effects: [] }; }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(!result.is_valid, "errors: {:?}", result.syntax_errors);
+        assert!(
+            result
+                .syntax_errors
+                .iter()
+                .any(|e| e.to_lowercase().contains("esm")
+                    || e.to_lowercase().contains("import")
+                    || e.to_lowercase().contains("export")),
+            "expected an ESM/import/export error, got: {:?}",
+            result.syntax_errors
+        );
+    }
+
+    #[test]
+    fn validate_blocks_top_level_import() {
+        let script = r#"
+            import x from "y";
+            function init(arg) { return { state: {}, effects: [] }; }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(!result.is_valid, "errors: {:?}", result.syntax_errors);
+        assert!(
+            result
+                .syntax_errors
+                .iter()
+                .any(|e| e.to_lowercase().contains("esm")
+                    || e.to_lowercase().contains("import")
+                    || e.to_lowercase().contains("export")),
+            "expected an ESM/import/export error, got: {:?}",
+            result.syntax_errors
+        );
+    }
+
+    #[test]
+    fn validate_ui_node_extended_types_no_warning() {
+        for node_type in ["text_field", "select", "image", "list"] {
+            let script = format!(
+                r#"
+                    function init(arg) {{ return {{ state: {{}}, effects: [] }}; }}
+                    function view(state) {{ return {{ type: "{t}", props: {{}} }}; }}
+                    function update(msg, state) {{ return {{ state: state, effects: [] }}; }}
+                "#,
+                t = node_type
+            );
+            let result = validate_js_comprehensive(&script, Some(prod_ctx()));
+            assert!(
+                !result
+                    .warnings
+                    .iter()
+                    .any(|w| w.contains("Unknown UI node type")),
+                "type `{}` should be in the allowlist but warned: {:?}",
+                node_type,
+                result.warnings
+            );
+        }
+    }
+
+    #[test]
+    fn validate_blocks_intl() {
+        let script = r#"
+            function init(arg) {
+                var s = new Intl.NumberFormat('de-DE').format(1234.5);
+                return { state: { s: s }, effects: [] };
+            }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(!result.is_valid, "errors: {:?}", result.syntax_errors);
+        assert!(
+            result.syntax_errors.iter().any(|e| e.contains("Intl")),
+            "expected an Intl error, got: {:?}",
+            result.syntax_errors
+        );
     }
 
     #[test]

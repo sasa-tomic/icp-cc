@@ -12,7 +12,8 @@
   "scripts": {
     "build": "npm run -w @icp-cc/marketplace-sdk build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:deps": "node scripts/check-deps-allowlist.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",

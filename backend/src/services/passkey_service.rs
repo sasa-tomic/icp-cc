@@ -84,7 +84,11 @@ impl PasskeyService {
             .map_err(|e| format!("WebAuthn builder error: {}", e))?
             .rp_name("ICP Script Marketplace");
 
-        let webauthn = Arc::new(builder.build().map_err(|e| format!("WebAuthn build error: {}", e))?);
+        let webauthn = Arc::new(
+            builder
+                .build()
+                .map_err(|e| format!("WebAuthn build error: {}", e))?,
+        );
 
         Ok(Self {
             repo: PasskeyRepository::new(pool.clone()),
@@ -169,7 +173,9 @@ impl PasskeyService {
             return Err("Invalid challenge type".to_string());
         }
 
-        let account_id = challenge.account_id.ok_or("Missing account_id in challenge")?;
+        let account_id = challenge
+            .account_id
+            .ok_or("Missing account_id in challenge")?;
 
         // Check expiry
         let expires_at = chrono::DateTime::parse_from_rfc3339(&challenge.expires_at)
@@ -180,8 +186,8 @@ impl PasskeyService {
         }
 
         // Deserialize registration state
-        let reg_state: PasskeyRegistration =
-            serde_json::from_slice(&challenge.challenge).map_err(|e| format!("Deserialize error: {}", e))?;
+        let reg_state: PasskeyRegistration = serde_json::from_slice(&challenge.challenge)
+            .map_err(|e| format!("Deserialize error: {}", e))?;
 
         // Verify the credential
         let passkey = self
@@ -193,7 +199,8 @@ impl PasskeyService {
         let passkey_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let cred_id = passkey.cred_id().to_vec();
-        let public_key = serde_json::to_vec(&passkey).map_err(|e| format!("Serialize error: {}", e))?;
+        let public_key =
+            serde_json::to_vec(&passkey).map_err(|e| format!("Serialize error: {}", e))?;
 
         self.repo
             .create_passkey(
@@ -298,7 +305,9 @@ impl PasskeyService {
             return Err("Invalid challenge type".to_string());
         }
 
-        let account_id = challenge.account_id.ok_or("Missing account_id in challenge")?;
+        let account_id = challenge
+            .account_id
+            .ok_or("Missing account_id in challenge")?;
 
         // Check expiry
         let expires_at = chrono::DateTime::parse_from_rfc3339(&challenge.expires_at)
@@ -309,8 +318,8 @@ impl PasskeyService {
         }
 
         // Deserialize auth state
-        let auth_state: PasskeyAuthentication =
-            serde_json::from_slice(&challenge.challenge).map_err(|e| format!("Deserialize error: {}", e))?;
+        let auth_state: PasskeyAuthentication = serde_json::from_slice(&challenge.challenge)
+            .map_err(|e| format!("Deserialize error: {}", e))?;
 
         // Verify the credential
         let auth_result = self
@@ -514,7 +523,10 @@ impl PasskeyService {
             .map_err(|e| format!("DB error: {}", e))?;
 
         Ok(vault.map(|v| VaultData {
-            encrypted_data: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &v.encrypted_data),
+            encrypted_data: base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                &v.encrypted_data,
+            ),
             salt: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &v.salt),
             nonce: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &v.nonce),
         }))

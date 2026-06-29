@@ -85,21 +85,34 @@ impl PasskeyRepository {
         Ok(())
     }
 
-    pub async fn find_passkey_by_credential_id(&self, credential_id: &[u8]) -> Result<Option<PasskeyRow>, sqlx::Error> {
+    pub async fn find_passkey_by_credential_id(
+        &self,
+        credential_id: &[u8],
+    ) -> Result<Option<PasskeyRow>, sqlx::Error> {
         sqlx::query_as::<_, PasskeyRow>("SELECT * FROM passkeys WHERE credential_id = ?")
             .bind(credential_id)
             .fetch_optional(&self.pool)
             .await
     }
 
-    pub async fn list_passkeys_by_account(&self, account_id: &str) -> Result<Vec<PasskeyRow>, sqlx::Error> {
-        sqlx::query_as::<_, PasskeyRow>("SELECT * FROM passkeys WHERE account_id = ? ORDER BY created_at DESC")
-            .bind(account_id)
-            .fetch_all(&self.pool)
-            .await
+    pub async fn list_passkeys_by_account(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<PasskeyRow>, sqlx::Error> {
+        sqlx::query_as::<_, PasskeyRow>(
+            "SELECT * FROM passkeys WHERE account_id = ? ORDER BY created_at DESC",
+        )
+        .bind(account_id)
+        .fetch_all(&self.pool)
+        .await
     }
 
-    pub async fn update_passkey_counter(&self, id: &str, counter: i64, now: &str) -> Result<(), sqlx::Error> {
+    pub async fn update_passkey_counter(
+        &self,
+        id: &str,
+        counter: i64,
+        now: &str,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE passkeys SET counter = ?, last_used_at = ? WHERE id = ?")
             .bind(counter)
             .bind(now)
@@ -162,9 +175,11 @@ impl PasskeyRepository {
     }
 
     pub async fn cleanup_expired_challenges(&self) -> Result<u64, sqlx::Error> {
-        let result = sqlx::query("DELETE FROM webauthn_challenges WHERE datetime(expires_at) < datetime('now')")
-            .execute(&self.pool)
-            .await?;
+        let result = sqlx::query(
+            "DELETE FROM webauthn_challenges WHERE datetime(expires_at) < datetime('now')",
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(result.rows_affected())
     }
 
@@ -172,7 +187,12 @@ impl PasskeyRepository {
     // Recovery Codes
     // ========================================================================
 
-    pub async fn create_recovery_codes(&self, account_id: &str, code_hashes: &[(String, String)], now: &str) -> Result<(), sqlx::Error> {
+    pub async fn create_recovery_codes(
+        &self,
+        account_id: &str,
+        code_hashes: &[(String, String)],
+        now: &str,
+    ) -> Result<(), sqlx::Error> {
         for (id, hash) in code_hashes {
             sqlx::query(
                 r#"INSERT INTO recovery_codes (id, account_id, code_hash, used, created_at)
@@ -188,11 +208,16 @@ impl PasskeyRepository {
         Ok(())
     }
 
-    pub async fn list_recovery_codes(&self, account_id: &str) -> Result<Vec<RecoveryCodeRow>, sqlx::Error> {
-        sqlx::query_as::<_, RecoveryCodeRow>("SELECT * FROM recovery_codes WHERE account_id = ? ORDER BY created_at")
-            .bind(account_id)
-            .fetch_all(&self.pool)
-            .await
+    pub async fn list_recovery_codes(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<RecoveryCodeRow>, sqlx::Error> {
+        sqlx::query_as::<_, RecoveryCodeRow>(
+            "SELECT * FROM recovery_codes WHERE account_id = ? ORDER BY created_at",
+        )
+        .bind(account_id)
+        .fetch_all(&self.pool)
+        .await
     }
 
     pub async fn mark_recovery_code_used(&self, id: &str, now: &str) -> Result<(), sqlx::Error> {

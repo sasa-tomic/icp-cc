@@ -1,10 +1,24 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-06-28 (Scripting Runtime Migration Phase 0+1)
+**Last Updated:** 2026-06-29 (Scripting Runtime Migration Phase 2+3)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
+
+**Reality Check - Scripting Runtime Migration Phase 2+3 COMPLETE (Parity Hardening + Pilot):**
+Closes G6/G7/G9/G10/G11/G13/G14 + N1/N4 + pilot (G3/G4 PoC) + spec §12 decisions. Verified independently (118 Rust tests, 90 Node tests, all gates green). End-to-end PoC PROVEN: TS source → esbuild IIFE bundle → Rust QuickJS host executes init/view/update (and Node QuickJS).
+- **G10 Parity CI gate (DONE):** `parity/vectors.json` = single shared golden vector (24 cases) consumed by BOTH Rust (`tests/parity_vectors.rs`, runs JS+Lua) AND Node (`parity.vectors.test.ts`). All 24 cases agree across Rust-host == Node-SDK. `SDK_CONTRACT_VERSION="0.1.0"` triple-locked: `crates/icp_core/src/contract.rs` + `packages/marketplace-sdk/src/version.ts` + `vectors.json::sdkContractVersion`.
+- **G3/G4 Pilot (DONE — PoC):** `kDefaultSampleLua` migrated to TS (`packages/marketplace-sdk/samples/pilot-sample.ts`), bundled to 6175-byte IIFE (`crates/icp_core/tests/fixtures/pilot_sample.bundle.js`), runs on BOTH Rust `js_app_init/view/update` (`tests/pilot_e2e.rs`) AND Node real-QuickJS (`pilot.e2e.test.ts`). Byte-stable drift guard (`pilot.bundle-sync.test.ts`).
+- **G6 Benchmark (DONE):** `crates/icp_core/benches/runtime.rs` criterion. **Lua is ~2.4-2.6× faster than QuickJS** (app_init 2.48×, helpers 2.61×, lifecycle 2.42×). Answers spec §10/§11 open Q: QuickJS cold-start/throughput is slower; accept for typing/testability/AI-friendliness benefits.
+- **G7 Intl (DONE):** probe confirms QuickJS has NO Intl (`typeof Intl==="undefined"`). Decision: FORBID `Intl.*` via `validate_intl`; rely on locale-free `icp_format_*` helpers. Documented in spec §12.
+- **G9 Dep allowlist (DONE):** `scripts/check-deps-allowlist.mjs` + `deps-allowlist.json` → `npm run check:deps`. Zero runtime deps enforced (scripts = self-contained IIFEs); devDeps allowlisted.
+- **G11 Lua icp_log (DONE):** backported `icp_log` to `lua_engine.rs` + wired into `execute_lua_json`/`app_init` (parity with JS). lua_engine.rs change is G11-only.
+- **G13 Sandbox hardening (DONE):** `tests/sandbox_adversarial.rs` (6 tests): prototype-pollution isolated per fresh-runtime call; `__proto__` contained; static `import` throws; `require`/`process` undefined; `eval`/`Function`/dynamic-import blocked statically by `validate_js_comprehensive`. NOTE: eval/Function still available at QuickJS RUNTIME (defense-in-depth strip deferred — validate-gate is the security boundary in the prod validate→execute flow).
+- **G14 IIFE pin (DONE):** `validate_esm_format` rejects top-level `import`/`export`; UI node allowlist extended (`text_field`,`select`,`image`,`list`); `register()` throws on non-functions.
+- **N1 Pedantic (DECIDED):** gate stays `clippy::all` + `-D warnings`; pedantic NOT enforced (would surface 200-500 lints across unrelated backend). Documented spec §12.
+- **N4 Shared golden vector (DONE — see G10).** Pre-existing `cargo fmt` debt FIXED (S0 workspace fmt: backend/* + lib.rs).
+- **REMAINING GAPS:** G1 Flutter wiring (needs Flutter SDK), G2 Android NDK (NDK absent), G8 qjsc bytecode (optional/deferred), G12 resource-limit tuning (needs real pilot scripts/load-test), G3-full (actual marketplace Lua corpus in DB), runtime eval/Function strip (defense-in-depth), pre-existing `execute_lua_json` silent-swallow bug (legacy, sunset phase), pre-existing wasm build break (mlua unconditional + tokio — resolves when mlua made wasm-optional), 5 npm audit vulns (dev-only).
 
 **Reality Check - Scripting Runtime Migration Phase 0+1 COMPLETE (Lua → TypeScript/QuickJS):**
 Implements `docs/specs/SCRIPTING_RUNTIME_MIGRATION.md` P0 (Foundations) + P1 (SDK & Tooling). Dual-runtime: new JS engine alongside untouched `lua_engine.rs`.

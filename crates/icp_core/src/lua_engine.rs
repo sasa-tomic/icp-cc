@@ -51,6 +51,8 @@ fn install_json_stdlib(lua: &Lua) -> Result<(), LuaError> {
 fn install_helper_functions(lua: &Lua) -> Result<(), LuaError> {
     // Install helper functions that match the Flutter side
     let helpers = r#"
+__icp_messages = __icp_messages or {}
+function icp_log(msg) table.insert(__icp_messages, tostring(msg or "")) end
 function icp_call(spec) spec = spec or {}; spec.action = "call"; return spec end
 function icp_batch(calls) calls = calls or {}; return { action = "batch", calls = calls } end
 function icp_message(spec) spec = spec or {}; return { action = "message", text = tostring(spec.text or ""), type = tostring(spec.type or "info") } end
@@ -106,15 +108,8 @@ pub fn execute_lua_json(script: &str, json_arg: Option<&str>) -> Result<String, 
     // Install json helpers
     install_json_stdlib(&lua).map_err(|e| LuaExecError::Lua(e.to_string()))?;
 
-    // Provide a messages accumulator for icp_emit_message helper
-    {
-        let msgs = lua
-            .create_sequence_from::<Vec<String>>(vec![])
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-        lua.globals()
-            .set("__icp_messages", msgs)
-            .map_err(|e| LuaExecError::Lua(e.to_string()))?;
-    }
+    // Install icp_* helpers (including icp_log + __icp_messages accumulator)
+    install_helper_functions(&lua).map_err(|e| LuaExecError::Lua(e.to_string()))?;
 
     // Execute the script; capture a returned value or use nil
     let chunk = lua.load(script);
@@ -863,6 +858,9 @@ pub fn app_init(script: &str, json_arg: Option<&str>, budget_ms: u64) -> String 
     if let Err(e) = install_json_stdlib(&lua) {
         return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
     }
+    if let Err(e) = install_helper_functions(&lua) {
+        return serde_json::json!({"ok": false, "error": e.to_string()}).to_string();
+    }
     let _ = install_time_hook(&lua, Duration::from_millis(budget_ms));
     let chunk = lua.load(script);
     if let Err(e) = chunk.exec() {
@@ -1134,6 +1132,32 @@ end
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert!(v.get("ok").and_then(|b| b.as_bool()).unwrap());
         assert_eq!(v.get("result").and_then(|x| x.as_i64()).unwrap(), 3);
+    }
+
+    #[test]
+    fn icp_log_populates_messages() {
+        let out = execute_lua_json("icp_log('a'); icp_log('b')", None).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["messages"], serde_json::json!(["a", "b"]));
+    }
+
+    #[test]
+    fn icp_log_works_in_app_entry_points() {
+        let script = r#"
+            function init(arg) icp_log("init"); return { count = 0 }, {} end
+            function view(state) icp_log("view"); return { type = "text", props = { text = "x" } } end
+            function update(msg, state) icp_log("update"); return state, {} end
+        "#;
+        let i = app_init(script, None, 200);
+        let iv: serde_json::Value = serde_json::from_str(&i).unwrap();
+        assert!(iv["ok"].as_bool().unwrap(), "init: {i}");
+        let st = iv["state"].to_string();
+        let vo = app_view(script, &st, 200);
+        let vv: serde_json::Value = serde_json::from_str(&vo).unwrap();
+        assert!(vv["ok"].as_bool().unwrap(), "view: {vo}");
+        let up = app_update(script, "{\"type\":\"inc\"}", &st, 200);
+        let uv: serde_json::Value = serde_json::from_str(&up).unwrap();
+        assert!(uv["ok"].as_bool().unwrap(), "update: {up}");
     }
 
     #[test]

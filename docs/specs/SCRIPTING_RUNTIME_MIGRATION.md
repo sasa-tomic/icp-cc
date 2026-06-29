@@ -98,3 +98,49 @@ The bundle artifact is host-language-agnostic: loads in Go (`quickjs-go`), Rust 
 - Resource-limit / sandboxing model specifics (CPU, memory, time, network).
 - Size of the existing Lua corpus → migration effort.
 - Intl requirements (currency/date) for target locales.
+
+## §12 Phase 2 Decisions (2026-06)
+
+Recorded during Phase 2 (Parity Hardening) + Phase 3 (Migration Pilot) kickoff. These close out the open questions in §11 and lock in policy for the parity gate.
+
+### Intl — FORBID `Intl.*` in scripts (G7)
+
+Marketplace scripts MUST NOT call `Intl.*` (`Intl.DateTimeFormat`, `Intl.NumberFormat`, `Intl.Collator`, etc.).
+
+- **Rationale:** The default QuickJS build ships without a full ICU data set. Bundling a full-ICU QuickJS bloats the binary (multi-MB locale tables), complicates the Android NDK and WASM toolchains, and is disproportionate to marketplace formatting needs.
+- **Enforcement (host side):** the Rust host runs a `validate_intl` AST/static check that rejects any `Intl.*` reference at script-load time. Bundle-time `assertNoNodeBuiltinsInBundle` guards the dev path. Locale-sensitive formatting is delivered instead by the locale-free SDK helpers: `icp_format_number`, `icp_format_icp`, `icp_format_timestamp`, `icp_format_bytes`.
+- **Author contract:** scripts that need humanized currency/date must go through those helpers (which the host can localize centrally); they may not reach for `Intl` directly.
+
+### Pedantic lint — `clippy::all` only, NOT `clippy::pedantic` (N1)
+
+- **Clippy gate:** `cargo clippy --workspace --all-targets -- -D warnings` (i.e. `clippy::all` at deny-on-warning). This is the required-green gate.
+- **Pedantic is intentionally NOT enforced.** Adding `#![warn(clippy::pedantic)]` would surface an estimated 200–500 lints across unrelated pre-existing backend crates (`crates/**`), which is out of scope for the scripting migration and would derail the gate. Pedantic will be considered only as part of a dedicated, workspace-wide cleanup phase. Do NOT add the pedantic lint as a drive-by.
+
+### Lua deprecation timeline (G5) — PROPOSED, pending product sign-off
+
+A dual-runtime deprecation path, proposed (not yet committed) pending product/PM sign-off:
+
+- **Release N (current):** TS is the primary authoring path; Lua still fully supported (create/edit/run).
+- **Release N+2:** Lua becomes **write-disabled** — existing Lua scripts run, but creating/editing Lua scripts is blocked in the UI; TS is the only authoring path for new/changed scripts.
+- **Release N+3:** Lua becomes **read-only** — existing Lua scripts continue to run, but no new Lua scripts can be registered at all.
+- **Release N+4:** **Lua sunset** — the Lua runtime is removed from the host; only TS/QuickJS bundles execute.
+
+> Status: PROPOSED. Concrete release numbers to be assigned once product confirms the migration telemetry from the Phase 3 pilot.
+
+### `cargo fmt` gate scope
+
+`cargo fmt --all --check` is now **workspace-green**. Phase 2 paid down the pre-existing formatting debt across the backend so the formatting gate could be enforced on the whole workspace without churning unrelated PRs. New code must keep it green.
+
+### Documented runtime divergences (N2/N3)
+
+These are intentional, contract-level differences between the legacy Lua runtime and the TS/QuickJS runtime. Scripts must not rely on the legacy Lua behavior:
+
+- **`icp_format_icp` whole floats (N2):** for whole e8s values, the TS helper formats as `"1"` where legacy Lua produced `"1.0"`. The TS output is the canonical form. Scripts/hosts must not depend on the trailing `.0` string.
+- **`icp_section` nullish-coalesce semantics (N3):** the TS helper coerces missing `title`/`content` to `""` via `??` (JS nullish), where the legacy Lua `or` would also fall back on `false`. The TS behavior is nullish-only, matching the typed contract; callers should pass explicit strings rather than relying on falsy-coalescing.
+
+These divergences are encoded in the SDK (`packages/marketplace-sdk/src`) and validated by the parity vectors; the Lua corpus migration (Phase 3) will rewrite any scripts that depended on the legacy forms.
+
+### Phase 2 artifacts (this phase)
+
+- Dependency allowlist CI scan: `scripts/check-deps-allowlist.mjs` + `scripts/deps-allowlist.json` (zero-dep-at-runtime for packages; dev deps on an explicit allowlist). Wired as `npm run check:deps`.
+- Pilot migration: `packages/marketplace-sdk/samples/pilot-sample.ts` (the `kDefaultSampleLua` Flutter sample ported to TS), bundled to a self-contained IIFE fixture at `crates/icp_core/tests/fixtures/pilot_sample.bundle.js` via `npm run -w @icp-cc/marketplace-sdk build:samples`, with a byte-equality drift guard (`pilot.bundle-sync.test.ts`) and a real-QuickJS e2e (`pilot.e2e.test.ts`).

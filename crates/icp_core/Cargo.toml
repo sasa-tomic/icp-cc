@@ -77,6 +77,13 @@ rquickjs = { version = "0.12", features = [
 clap = { version = "4", features = ["derive"] }
 once_cell = "1"
 tempfile = "3"
+criterion = { version = "0.5", default-features = false, features = [
+  "cargo_bench_support",
+] }
+
+[[bench]]
+name = "runtime"
+harness = false
 
 # For WebAssembly compilation
 [target.'cfg(target_arch = "wasm32")'.dependencies]

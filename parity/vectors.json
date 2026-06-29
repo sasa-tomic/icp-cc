@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "sdkContractVersion": "0.1.0",
+  "notes": "expectedJs is authoritative; expectedLua null means identical to expectedJs. This file is the single source of truth consumed by the Rust parity test (crates/icp_core/tests/parity_vectors.rs) and the Node-side harness. Helpers are the runtime snake_case names installed in BOTH engines. Args are positional JSON; each element becomes one positional argument.",
+  "cases": [
+    {
+      "id": "icp_call_canonical",
+      "helper": "icp_call",
+      "args": [
+        { "canister": "rrkah-fqaaa-aaaaa-aaaaq-cai", "method": "get_balance", "args": {} }
+      ],
+      "expectedJs": {
+        "action": "call",
+        "canister": "rrkah-fqaaa-aaaaa-aaaaq-cai",
+        "method": "get_balance",
+        "args": {}
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_call_no_arg",
+      "helper": "icp_call",
+      "args": [],
+      "expectedJs": { "action": "call" },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_batch_canonical",
+      "helper": "icp_batch",
+      "args": [
+        { "calls": [ { "canister": "a" }, { "canister": "b" } ] }
+      ],
+      "expectedJs": {
+        "action": "batch",
+        "calls": { "calls": [ { "canister": "a" }, { "canister": "b" } ] }
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_message_canonical",
+      "helper": "icp_message",
+      "args": [ { "text": "Hello", "type": "info" } ],
+      "expectedJs": { "action": "message", "text": "Hello", "type": "info" },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_message_defaults",
+      "helper": "icp_message",
+      "args": [],
+      "expectedJs": { "action": "message", "text": "", "type": "info" },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_ui_list_canonical",
+      "helper": "icp_ui_list",
+      "args": [ { "items": [ "a", "b", "c" ], "buttons": [ "click" ] } ],
+      "expectedJs": {
+        "action": "ui",
+        "ui": { "type": "list", "items": [ "a", "b", "c" ], "buttons": [ "click" ] }
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_result_display_canonical",
+      "helper": "icp_result_display",
+      "args": [ { "result": "ok", "type": "success" } ],
+      "expectedJs": {
+        "action": "ui",
+        "ui": { "type": "result_display", "props": { "result": "ok", "type": "success" } }
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_searchable_list_canonical",
+      "helper": "icp_searchable_list",
+      "args": [ { "items": [ 1, 2 ], "title": "Recent", "searchable": true } ],
+      "expectedJs": {
+        "action": "ui",
+        "ui": {
+          "type": "list",
+          "props": { "searchable": true, "items": [ 1, 2 ], "title": "Recent" }
+        }
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_searchable_list_default_true",
+      "helper": "icp_searchable_list",
+      "args": [ { "items": [ 1 ] } ],
+      "expectedJs": {
+        "action": "ui",
+        "ui": {
+          "type": "list",
+          "props": { "searchable": true, "items": [ 1 ], "title": "Results" }
+        }
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_section_canonical",
+      "helper": "icp_section",
+      "args": [ { "title": "T", "content": "C" } ],
+      "expectedJs": {
+        "action": "ui",
+        "ui": { "type": "section", "props": { "title": "T", "content": "C" } }
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_table_canonical",
+      "helper": "icp_table",
+      "args": [ { "data": [ { "a": 1 } ], "headers": [ "a" ] } ],
+      "expectedJs": {
+        "action": "ui",
+        "ui": {
+          "type": "table",
+          "props": { "data": [ { "a": 1 } ], "headers": [ "a" ] }
+        }
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_format_number_canonical",
+      "helper": "icp_format_number",
+      "args": [ 123.456, 2 ],
+      "expectedJs": "123.456",
+      "expectedLua": null
+    },
+    {
+      "id": "icp_format_number_invalid",
+      "helper": "icp_format_number",
+      "args": [ "abc" ],
+      "expectedJs": "0",
+      "expectedLua": null
+    },
+    {
+      "id": "icp_format_icp_canonical",
+      "helper": "icp_format_icp",
+      "args": [ 123456789, 8 ],
+      "expectedJs": "1.23456789",
+      "expectedLua": null
+    },
+    {
+      "id": "icp_format_icp_whole_divergence",
+      "helper": "icp_format_icp",
+      "args": [ 100000000, 8 ],
+      "expectedJs": "1",
+      "expectedLua": "1.0",
+      "notes": "Documented divergence: JS String(1.0) drops the trailing zero ('1') while Lua tostring(1.0) keeps it ('1.0'). Non-whole results agree."
+    },
+    {
+      "id": "icp_format_timestamp_canonical",
+      "helper": "icp_format_timestamp",
+      "args": [ 1634567890 ],
+      "expectedJs": "1634567890",
+      "expectedLua": null
+    },
+    {
+      "id": "icp_format_bytes_canonical",
+      "helper": "icp_format_bytes",
+      "args": [ 1024 ],
+      "expectedJs": "1024",
+      "expectedLua": null
+    },
+    {
+      "id": "icp_truncate_canonical",
+      "helper": "icp_truncate",
+      "args": [ "text", 5 ],
+      "expectedJs": "text",
+      "expectedLua": null
+    },
+    {
+      "id": "icp_filter_items_canonical",
+      "helper": "icp_filter_items",
+      "args": [ [ { "c": "NY" }, { "c": "LA" } ], "c", "NY" ],
+      "expectedJs": [ { "c": "NY" } ],
+      "expectedLua": null
+    },
+    {
+      "id": "icp_filter_items_multi",
+      "helper": "icp_filter_items",
+      "args": [ [ { "c": "NY" }, { "c": "LA" }, { "c": "NY" } ], "c", "NY" ],
+      "expectedJs": [ { "c": "NY" }, { "c": "NY" } ],
+      "expectedLua": null
+    },
+    {
+      "id": "icp_sort_items_ascending",
+      "helper": "icp_sort_items",
+      "args": [ [ { "n": "C" }, { "n": "A" }, { "n": "B" } ], "n", true ],
+      "expectedJs": [ { "n": "A" }, { "n": "B" }, { "n": "C" } ],
+      "expectedLua": null
+    },
+    {
+      "id": "icp_sort_items_descending",
+      "helper": "icp_sort_items",
+      "args": [ [ { "n": "A" }, { "n": "C" }, { "n": "B" } ], "n", false ],
+      "expectedJs": [ { "n": "C" }, { "n": "B" }, { "n": "A" } ],
+      "expectedLua": null
+    },
+    {
+      "id": "icp_group_by_canonical",
+      "helper": "icp_group_by",
+      "args": [ [ { "c": "NY" }, { "c": "LA" }, { "c": "NY" } ], "c" ],
+      "expectedJs": {
+        "NY": [ { "c": "NY" }, { "c": "NY" } ],
+        "LA": [ { "c": "LA" } ]
+      },
+      "expectedLua": null
+    },
+    {
+      "id": "icp_group_by_two_bucket",
+      "helper": "icp_group_by",
+      "args": [
+        [ { "c": "NY", "n": "A" }, { "c": "LA", "n": "B" }, { "c": "NY", "n": "C" } ],
+        "c"
+      ],
+      "expectedJs": {
+        "NY": [ { "c": "NY", "n": "A" }, { "c": "NY", "n": "C" } ],
+        "LA": [ { "c": "LA", "n": "B" } ]
+      },
+      "expectedLua": null
+    }
+  ]
+}

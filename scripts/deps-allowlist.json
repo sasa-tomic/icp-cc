@@ -1,0 +1,5 @@
+{
+  "packageGlobs": ["packages/*"],
+  "devAllowlist": "^(esbuild|vitest|typescript|tsup|@types/node|@icp-cc/.*|@jitl/quickjs-.*|quickjs-emscripten)$",
+  "runtimeAllowlist": []
+}
