@@ -11,13 +11,14 @@ void main() {
   });
   group('ScriptTemplate Tests', () {
     test('Should have all required templates available', () {
-      expect(ScriptTemplates.templates.length, 4, reason: 'Should have exactly 4 built-in templates');
+      expect(ScriptTemplates.templates.length, 5, reason: 'Should have exactly 5 built-in templates');
 
       final templateIds = ScriptTemplates.templates.map((t) => t.id).toList();
       expect(templateIds, contains('hello_world'));
       expect(templateIds, contains('data_management'));
       expect(templateIds, contains('icp_demo'));
       expect(templateIds, contains('advanced_ui'));
+      expect(templateIds, contains('typescript_counter'));
     });
 
     test('Should find template by ID', () {
@@ -36,7 +37,7 @@ void main() {
 
     test('Should filter templates by level', () {
       final beginnerTemplates = ScriptTemplates.getByLevel('beginner');
-      expect(beginnerTemplates.length, 2);
+      expect(beginnerTemplates.length, 3);
       expect(beginnerTemplates.every((t) => t.level == 'beginner'), true);
 
       final intermediateTemplates = ScriptTemplates.getByLevel('intermediate');
@@ -50,7 +51,7 @@ void main() {
 
     test('Should get recommended templates', () {
       final recommendedTemplates = ScriptTemplates.getRecommended();
-      expect(recommendedTemplates.length, 1);
+      expect(recommendedTemplates.length, 2);
       expect(recommendedTemplates.first.isRecommended, true);
       expect(recommendedTemplates.first.id, 'hello_world');
     });
