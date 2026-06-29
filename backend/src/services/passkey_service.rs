@@ -1,4 +1,6 @@
 //! Passkey authentication service (WebAuthn + vault + recovery)
+//! Passkey backend is scaffolded but not yet wired into API routes.
+#![allow(dead_code)]
 
 use crate::repositories::PasskeyRepository;
 use crate::vault::{

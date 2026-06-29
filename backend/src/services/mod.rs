@@ -4,6 +4,7 @@ mod review_service;
 mod script_service;
 
 pub use account_service::AccountService;
+#[allow(unused_imports)]
 pub use passkey_service::{
     PasskeyAuthenticationFinish, PasskeyAuthenticationStart, PasskeyInfo,
     PasskeyRegistrationFinish, PasskeyRegistrationStart, PasskeyService, RecoveryCodesResponse,

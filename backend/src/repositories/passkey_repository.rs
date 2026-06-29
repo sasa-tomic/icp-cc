@@ -1,4 +1,6 @@
 //! Repository for passkey-related database operations
+//! Passkey backend is scaffolded but not yet wired into API routes.
+#![allow(dead_code)]
 
 use sqlx::SqlitePool;
 
@@ -59,6 +61,7 @@ impl PasskeyRepository {
     // Passkey CRUD
     // ========================================================================
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_passkey(
         &self,
         id: &str,
