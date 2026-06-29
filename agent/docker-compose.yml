@@ -15,12 +15,18 @@ services:
       - RUST_BACKTRACE=1
       - HOME=/home/ubuntu
       - VIRTUAL_ENV=/home/ubuntu/.venv
+      # Android SDK/NDK — NDK auto-detected by scripts/common.sh::setup_android_ndk_env
+      - ANDROID_HOME=/home/ubuntu/Android/Sdk
+      - ANDROID_SDK_ROOT=/home/ubuntu/Android/Sdk
     volumes:
       # Mount the entire repository directory to /code
       - ..:/code/icp-cc
       # Use container-local target/ dir to avoid conflicts between concurrent agents
       # Volume name includes project name (-p flag) so each agent gets its own
       - target-cache:/code/icp-cc/target
+      # Android SDK + NDK from host (read-only). scripts/common.sh auto-detects
+      # ${ANDROID_HOME}/ndk/* and sets CC_*/AR_* for cross-compile (incl. rquickjs bindgen).
+      - ${HOME}/Android:/home/ubuntu/Android:ro
       # Mount some other configuration from home directory
       - ${HOME}/.claude.json:/home/ubuntu/.claude.json
       - ${HOME}/.claude:/home/ubuntu/.claude
