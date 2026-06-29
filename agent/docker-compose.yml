@@ -7,7 +7,9 @@ services:
     # Run with docker group to access the socket
     group_add:
       - ${DOCKER_GID:-999}
-    user: "0:0" # Start as root to fix volume permissions
+    # Run as host user (UID 1000 = ubuntu): files created on bind mounts are
+    # never root-owned (root-owned target/ was the bug). No gosu/chown needed.
+    user: "1000:1000"
     entrypoint: ["/tini", "--", "/home/ubuntu/entrypoint.sh"]
     environment:
       # Development environment variables

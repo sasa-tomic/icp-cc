@@ -1,5 +1,4 @@
 # Dockerfile for ICP-CC (ICP Autorun/Script Marketplace) + Containerized development environment
-# Based on decent-cloud agent with ICP-CC specific additions
 
 FROM rust:1.91
 
@@ -111,6 +110,11 @@ RUN chmod +x $HOME/.git-hooks/commit-msg \
 
 # Copy entrypoint script (runs as root, fixes perms, drops to ubuntu)
 USER root
+# Pre-create target/ (1000-owned) so the target-cache named volume initializes
+# with correct ownership when running as the host user (UID 1000).
+# Docker's volume-init copies this image-baked path (bind mounts are masked),
+# so a fresh volume inherits ubuntu ownership.
+RUN mkdir -p /code/icp-cc/target && chown ubuntu:ubuntu /code/icp-cc/target
 COPY agent/entrypoint.sh $HOME/entrypoint.sh
 RUN chmod +x $HOME/entrypoint.sh
 

@@ -1,42 +1,43 @@
 #!/bin/bash
-# Entrypoint script: fix volume permissions then drop to ubuntu user
-set -e
+# Entrypoint: runs AS the host user (UID 1000 = ubuntu), so files created on
+# bind mounts are never root-owned. No privilege escalation/drop (no gosu).
+# Docker socket access is granted by the supplementary group (group_add in compose).
+set -euo pipefail
 
-# Fix target directory ownership (volume may be created as root)
-chown ubuntu:ubuntu /code/icp-cc/target 2>/dev/null || mkdir -p /code/icp-cc/target && chown ubuntu:ubuntu /code/icp-cc/target
-
-# Fix docker socket permissions for ubuntu user
-if [ -S /var/run/docker.sock ]; then
-	chown root:ubuntu /var/run/docker.sock
-	chmod g+rw /var/run/docker.sock
+# Guard: target/ volume must be writable by the host user. Fail loud with the
+# remediation command instead of a confusing later write failure.
+mkdir -p /code/icp-cc/target
+if ! touch /code/icp-cc/target/.write-test 2>/dev/null; then
+	echo "ERROR: /code/icp-cc/target is not writable (owned by $(stat -c '%U:%G' /code/icp-cc/target))" >&2
+	echo "Fix: docker volume rm \$(docker volume ls -q | grep target-cache) then restart" >&2
+	exit 1
 fi
+rm -f /code/icp-cc/target/.write-test
 
 # Set up SSH key for remote node access
 if [ -f /tmp/claude-ssh/claude-code ]; then
-	mkdir -p /home/ubuntu/.ssh
-	cp /tmp/claude-ssh/claude-code /home/ubuntu/.ssh/claude-code
-	cp /tmp/claude-ssh/claude-code.pub /home/ubuntu/.ssh/claude-code.pub
-	chmod 700 /home/ubuntu/.ssh
-	chmod 600 /home/ubuntu/.ssh/claude-code
-	chmod 644 /home/ubuntu/.ssh/claude-code.pub
-	chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+	mkdir -p "$HOME/.ssh"
+	cp /tmp/claude-ssh/claude-code "$HOME/.ssh/claude-code"
+	cp /tmp/claude-ssh/claude-code.pub "$HOME/.ssh/claude-code.pub"
+	chmod 700 "$HOME/.ssh"
+	chmod 600 "$HOME/.ssh/claude-code"
+	chmod 644 "$HOME/.ssh/claude-code.pub"
 	# Configure SSH to use this key by default and auto-accept new host keys
-	cat >/home/ubuntu/.ssh/config <<'SSHEOF'
+	cat >"$HOME/.ssh/config" <<'SSHEOF'
 Host *
     IdentityFile ~/.ssh/claude-code
     StrictHostKeyChecking accept-new
 SSHEOF
-	chmod 600 /home/ubuntu/.ssh/config
-	chown ubuntu:ubuntu /home/ubuntu/.ssh/config
+	chmod 600 "$HOME/.ssh/config"
 fi
 
 # Clean old build artifacts (files not accessed in 1 day)
-gosu ubuntu cargo sweep --time 1 --installed /code/icp-cc/target 2>/dev/null || true
+cargo sweep --time 1 --installed /code/icp-cc/target 2>/dev/null || true
 
 # Sync Python dependencies from project if pyproject.toml exists
 if [ -f /code/icp-cc/pyproject.toml ]; then
-	gosu ubuntu uv sync --project /code/icp-cc 2>/dev/null || true
+	uv sync --project /code/icp-cc 2>/dev/null || true
 fi
 
-# Execute command as ubuntu user
-exec gosu ubuntu "$@"
+# Execute command as the host user (we already are ubuntu)
+exec "$@"
