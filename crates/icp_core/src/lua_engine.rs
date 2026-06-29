@@ -113,10 +113,7 @@ pub fn execute_lua_json(script: &str, json_arg: Option<&str>) -> Result<String, 
 
     // Execute the script; capture a returned value or use nil
     let chunk = lua.load(script);
-    let result: LuaValue = chunk
-        .eval()
-        .map_err(|e| LuaExecError::Lua(e.to_string()))
-        .unwrap_or(LuaValue::Nil);
+    let result: LuaValue = chunk.eval().map_err(|e| LuaExecError::Lua(e.to_string()))?;
 
     // Convert result to serde_json::Value
     let json_value = if let LuaValue::Nil = result {
@@ -1132,6 +1129,13 @@ end
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert!(v.get("ok").and_then(|b| b.as_bool()).unwrap());
         assert_eq!(v.get("result").and_then(|x| x.as_i64()).unwrap(), 3);
+    }
+
+    #[test]
+    fn execute_lua_json_fails_fast_on_runtime_error() {
+        let err = execute_lua_json("error('boom')", None).expect_err("must propagate");
+        assert!(matches!(err, LuaExecError::Lua(_)));
+        assert!(err.to_string().contains("boom"));
     }
 
     #[test]

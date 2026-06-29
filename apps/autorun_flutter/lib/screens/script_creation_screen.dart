@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../controllers/script_controller.dart';
 import '../models/script_template.dart';
+import '../services/script_runner.dart';
 import '../widgets/script_editor.dart';
 
 /// Blank script template for starting from scratch
@@ -56,6 +57,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
   String _currentCode = '';
   bool _isCreating = false;
   ScriptTemplate? _selectedTemplate;
+  ScriptLanguage _selectedLanguage = ScriptLanguage.lua;
   late List<ScriptTemplate> _availableTemplates;
   bool _templatesExpanded = true;
 
@@ -109,6 +111,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
     setState(() {
       _selectedTemplate = template;
       _currentCode = template.luaSource;
+      _selectedLanguage = template.language;
 
       _titleController.text = template.title;
       _emojiController.text = template.emoji;
@@ -144,6 +147,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
             ? null
             : _imageUrlController.text.trim(),
         luaSourceOverride: _currentCode,
+        language: _selectedLanguage,
       );
 
       if (!mounted) return;
@@ -419,6 +423,31 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
                   (v ?? '').trim().isEmpty ? 'Title is required' : null,
             ),
             const SizedBox(height: 12),
+            DropdownButtonFormField<ScriptLanguage>(
+              key: const Key('language_selector'),
+              initialValue: _selectedLanguage,
+              decoration: const InputDecoration(
+                labelText: 'Language',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.code),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: ScriptLanguage.lua,
+                  child: Text('Lua'),
+                ),
+                DropdownMenuItem(
+                  value: ScriptLanguage.typescript,
+                  child: Text('TypeScript'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedLanguage = value);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -468,7 +497,9 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
                 Icon(Icons.code, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'Lua Source',
+                  _selectedLanguage == ScriptLanguage.typescript
+                      ? 'TypeScript Source'
+                      : 'Lua Source',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -482,7 +513,9 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
                 key: ValueKey(_selectedTemplate?.id ?? 'default'),
                 initialCode: _currentCode,
                 onCodeChanged: _onCodeChanged,
-                language: 'lua',
+                language: _selectedLanguage == ScriptLanguage.typescript
+                    ? 'typescript'
+                    : 'lua',
                 showIntegrations: true,
                 minLines: 20,
               ),

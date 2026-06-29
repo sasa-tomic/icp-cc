@@ -2,6 +2,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../services/script_runner.dart';
+
 /// Model for a script template that users can select when creating new scripts
 class ScriptTemplate {
   final String id;
@@ -12,6 +14,7 @@ class ScriptTemplate {
   final String? _filePath; // Path to the actual Lua file
   final List<String> tags;
   final bool isRecommended;
+  final ScriptLanguage language;
   final String? _initialLuaSource;
   String? _cachedLuaSource;
 
@@ -25,6 +28,7 @@ class ScriptTemplate {
     String? filePath,
     String? preloadedLuaSource,
     this.isRecommended = false,
+    this.language = ScriptLanguage.lua,
   })  : _filePath = filePath,
         _initialLuaSource = preloadedLuaSource,
         assert(
@@ -88,7 +92,8 @@ class ScriptTemplate {
           _filePath == other._filePath &&
           tags == other.tags &&
           _initialLuaSource == other._initialLuaSource &&
-          isRecommended == other.isRecommended;
+          isRecommended == other.isRecommended &&
+          language == other.language;
 
   @override
   int get hashCode =>
@@ -100,7 +105,8 @@ class ScriptTemplate {
       _filePath.hashCode ^
       _initialLuaSource.hashCode ^
       tags.hashCode ^
-      isRecommended.hashCode;
+      isRecommended.hashCode ^
+      language.hashCode;
 }
 
 /// Built-in script templates available to users

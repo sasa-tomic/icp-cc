@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import '../services/language_detector.dart';
+import '../services/script_runner.dart';
+
 class ScriptRecord {
   ScriptRecord({
     required this.id,
@@ -12,6 +15,7 @@ class ScriptRecord {
     this.metadata = const {},
     this.runCount = 0,
     this.lastRunAt,
+    this.language = ScriptLanguage.lua,
   })  : assert(emoji == null || emoji.isNotEmpty),
         assert(imageUrl == null || imageUrl.isNotEmpty);
 
@@ -25,6 +29,7 @@ class ScriptRecord {
   final Map<String, dynamic> metadata;
   final int runCount;
   final DateTime? lastRunAt;
+  final ScriptLanguage language;
 
   String? get marketplaceId => metadata['marketplace_id'] as String?;
   String? get marketplaceVersion => metadata['marketplace_version'] as String?;
@@ -50,6 +55,7 @@ class ScriptRecord {
         'metadata': metadata,
         'runCount': runCount,
         'lastRunAt': lastRunAt?.toIso8601String(),
+        'language': scriptLanguageToJson(language),
       };
 
   factory ScriptRecord.fromJson(Map<String, dynamic> json) {
@@ -75,6 +81,7 @@ class ScriptRecord {
       metadata: Map<String, dynamic>.from(json['metadata'] as Map? ?? {}),
       runCount: json['runCount'] as int? ?? 0,
       lastRunAt: lastRunAtStr != null ? DateTime.parse(lastRunAtStr) : null,
+      language: scriptLanguageFromJson(json['language']),
     );
   }
 
@@ -87,6 +94,7 @@ class ScriptRecord {
     Map<String, dynamic>? metadata,
     int? runCount,
     DateTime? lastRunAt,
+    ScriptLanguage? language,
   }) {
     return ScriptRecord(
       id: id,
@@ -99,6 +107,7 @@ class ScriptRecord {
       metadata: metadata ?? this.metadata,
       runCount: runCount ?? this.runCount,
       lastRunAt: lastRunAt ?? this.lastRunAt,
+      language: language ?? this.language,
     );
   }
 

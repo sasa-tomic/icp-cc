@@ -69,6 +69,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -92,6 +93,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -118,6 +120,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -139,6 +142,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -162,6 +166,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -188,6 +193,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       ));
     });
 
@@ -198,6 +204,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => mockRecord);
 
       await tester.pumpWidget(
@@ -218,6 +225,7 @@ void main() {
         emoji: testTemplate.emoji,
         imageUrl: null,
         luaSourceOverride: testTemplate.luaSource,
+        language: anyNamed('language'),
       )).called(1);
     });
 
@@ -229,6 +237,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) => completer.future);
 
       await tester.pumpWidget(
@@ -257,6 +266,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenThrow(Exception('Creation failed'));
 
       await tester.pumpWidget(
@@ -284,6 +294,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => mockRecord);
 
       await tester.pumpWidget(
@@ -309,6 +320,7 @@ void main() {
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
         luaSourceOverride: anyNamed('luaSourceOverride'),
+        language: anyNamed('language'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(

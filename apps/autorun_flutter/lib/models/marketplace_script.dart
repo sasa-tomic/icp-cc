@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import '../services/language_detector.dart';
+import '../services/script_runner.dart';
+
 class MarketplaceScript {
   final String id;
   final String title;
@@ -27,6 +30,7 @@ class MarketplaceScript {
   final DateTime createdAt;
   final DateTime updatedAt;
   final MarketplaceAuthor? author;
+  final ScriptLanguage language;
 
   const MarketplaceScript({
     required this.id,
@@ -55,6 +59,7 @@ class MarketplaceScript {
     required this.createdAt,
     required this.updatedAt,
     this.author,
+    this.language = ScriptLanguage.lua,
   });
 
   static bool _parseBool(dynamic value) {
@@ -148,6 +153,7 @@ class MarketplaceScript {
       author: json['author'] is Map<String, dynamic>
           ? MarketplaceAuthor.fromJson(json['author'] as Map<String, dynamic>)
           : null,
+      language: scriptLanguageFromJson(json['language']),
     );
   }
 
@@ -176,6 +182,7 @@ class MarketplaceScript {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'author': author?.toJson(),
+      'language': scriptLanguageToJson(language),
     };
   }
 
@@ -203,6 +210,7 @@ class MarketplaceScript {
     DateTime? createdAt,
     DateTime? updatedAt,
     MarketplaceAuthor? author,
+    ScriptLanguage? language,
   }) {
     return MarketplaceScript(
       id: id ?? this.id,
@@ -228,6 +236,7 @@ class MarketplaceScript {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       author: author ?? this.author,
+      language: language ?? this.language,
     );
   }
 

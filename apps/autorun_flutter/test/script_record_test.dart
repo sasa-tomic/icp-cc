@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
+import 'package:icp_autorun/services/script_runner.dart';
 
 void main() {
   test('serializes and deserializes ScriptRecord', () {
@@ -54,5 +55,74 @@ void main() {
       }),
       throwsFormatException,
     );
+  });
+
+  group('language discriminator', () {
+    test('defaults to lua', () {
+      final now = DateTime.now().toUtc();
+      final rec = ScriptRecord(
+        id: '1',
+        title: 't',
+        luaSource: 'print(1)',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(rec.language, ScriptLanguage.lua);
+    });
+
+    test('round-trips language through toJson/fromJson', () {
+      final now = DateTime.now().toUtc();
+      for (final lang in ScriptLanguage.values) {
+        final rec = ScriptRecord(
+          id: '1',
+          title: 't',
+          luaSource: 'print(1)',
+          language: lang,
+          createdAt: now,
+          updatedAt: now,
+        );
+        final round = ScriptRecord.fromJson(rec.toJson());
+        expect(round.language, lang);
+      }
+    });
+
+    test('fromJson without language key migrates to lua', () {
+      final now = DateTime.now().toUtc();
+      final round = ScriptRecord.fromJson({
+        'id': '1',
+        'title': 't',
+        'luaSource': 'print(1)',
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+      });
+      expect(round.language, ScriptLanguage.lua);
+    });
+
+    test('fromJson with unknown language value falls back to lua', () {
+      final now = DateTime.now().toUtc();
+      final round = ScriptRecord.fromJson({
+        'id': '1',
+        'title': 't',
+        'luaSource': 'print(1)',
+        'language': 'rust',
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+      });
+      expect(round.language, ScriptLanguage.lua);
+    });
+
+    test('copyWith updates language', () {
+      final now = DateTime.now().toUtc();
+      final rec = ScriptRecord(
+        id: '1',
+        title: 't',
+        luaSource: 'print(1)',
+        createdAt: now,
+        updatedAt: now,
+      );
+      expect(rec.copyWith(language: ScriptLanguage.typescript).language,
+          ScriptLanguage.typescript);
+      expect(rec.copyWith().language, ScriptLanguage.lua);
+    });
   });
 }

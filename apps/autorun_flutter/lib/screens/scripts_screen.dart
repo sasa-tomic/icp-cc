@@ -14,6 +14,7 @@ import '../models/marketplace_script.dart';
 import '../models/script_list_item.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
+import '../services/language_detector.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
 import '../services/favorites_service.dart';
@@ -49,8 +50,11 @@ class ScriptsScreen extends StatefulWidget {
 
 class ScriptsScreenState extends State<ScriptsScreen> {
   late final ScriptController _controller;
-  final ScriptAppRuntime _appRuntime =
-      ScriptAppRuntime(RustScriptBridge(const RustBridgeLoader()));
+  final RustScriptBridge _bridge =
+      RustScriptBridge(const RustBridgeLoader());
+
+  ScriptAppRuntime _runtimeFor(ScriptRecord r) =>
+      ScriptAppRuntime(_bridge, language: r.language);
 
   final MarketplaceOpenApiService _marketplaceService =
       MarketplaceOpenApiService();
@@ -387,6 +391,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         title: '${script.title}$titleSuffix',
         emoji: '📦',
         luaSourceOverride: luaSource,
+        language: script.language == ScriptLanguage.typescript
+            ? ScriptLanguage.typescript
+            : detectLanguage(luaSource),
         metadata: {
           'marketplace_id': script.id,
           'marketplace_title': script.title,
@@ -493,7 +500,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     await showScriptExecutionBottomSheet(
       context: context,
       script: record,
-      runtime: _appRuntime,
+      runtime: _runtimeFor(record),
       onExpand: () => _expandScriptToFullScreen(record),
     );
   }
@@ -504,7 +511,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       builder: (_) => Scaffold(
         appBar: AppBar(title: Text(record.title)),
         body: ScriptAppHost(
-            runtime: _appRuntime,
+            runtime: _runtimeFor(record),
             script: record.luaSource,
             initialArg: const <String, dynamic>{}),
       ),

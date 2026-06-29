@@ -9,10 +9,11 @@
 //! - Static `import "fs"` throws at runtime (no module loader). Dynamic
 //!   `import('fs')` returns an inert pending-object (it never resolves to a real
 //!   fs module) and is additionally blocked by static analysis.
-//! - `eval` / `Function` are present on the standard global object in
-//!   `Context::full`; the security gate for them is `validate_js_comprehensive`
-//!   (static rejection), so the production flow validate -> execute rejects them
-//!   before any code runs.
+//! - `eval` / `Function` are defense-in-depth neutralized: the primary gate is
+//!   `validate_js_comprehensive` (static rejection in the validate -> execute
+//!   flow), and as a secondary layer the host bootstrap REPLACES the JS globals
+//!   with throwing functions so any direct runtime call to `eval`/`Function`
+//!   raises a JS exception mapped to `JsExecError::Js`.
 //! - `require` and `process` are absent (undefined).
 
 use icp_core::{execute_js_json, js_engine::JsValidationContext, validate_js_comprehensive};
@@ -111,6 +112,19 @@ fn eval_and_function_blocked_by_validation() {
     let result = validate_js_comprehensive(func_script, Some(prod_ctx()));
     assert!(!result.is_valid);
     assert!(result.syntax_errors.iter().any(|e| e.contains("Function")));
+}
+
+#[test]
+fn eval_is_disabled_at_runtime() {
+    let err = execute_js_json("eval('1')", None).expect_err("eval must throw at runtime");
+    assert!(matches!(err, icp_core::JsExecError::Js(_)));
+}
+
+#[test]
+fn function_constructor_is_disabled_at_runtime() {
+    let err = execute_js_json("Function('return 2')()", None)
+        .expect_err("Function constructor must throw at runtime");
+    assert!(matches!(err, icp_core::JsExecError::Js(_)));
 }
 
 #[test]

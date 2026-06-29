@@ -84,12 +84,19 @@ function icp_sort_items(items, field, ascending){ return (items || []).slice().s
 function icp_group_by(items, field){ return (items || []).reduce(function(g, it){ var k = String((it && it[field] != null) ? it[field] : "unknown"); if (!g[k]) { g[k] = []; } g[k].push(it); return g; }, {}); }
 "#;
 
+const NEUTRALIZE_EVAL_JS: &str = r#"
+globalThis.eval = function(){ throw new Error('eval is disabled in sandbox'); };
+globalThis.Function = function(){ throw new Error('Function constructor is disabled in sandbox'); };
+"#;
+
 pub(super) fn install_host_globals<'js>(
     ctx: &Ctx<'js>,
     json_arg: Option<&str>,
 ) -> std::result::Result<(), JsExecError> {
     set_arg_global(ctx, json_arg)?;
     ctx.eval::<(), _>(HOST_BOOTSTRAP_JS)
+        .map_err(|e| JsExecError::Js(js_error_string(e)))?;
+    ctx.eval::<(), _>(NEUTRALIZE_EVAL_JS)
         .map_err(|e| JsExecError::Js(js_error_string(e)))?;
     Ok(())
 }

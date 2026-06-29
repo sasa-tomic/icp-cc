@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
+import 'package:icp_autorun/services/script_runner.dart';
 
 void main() {
   group('MarketplaceScript fromJson', () {
@@ -178,6 +179,52 @@ void main() {
       final script = MarketplaceScript.fromJson(json);
 
       expect(script.tags, equals(<String>['alpha', 'beta', 'gamma']));
+    });
+  });
+
+  group('language discriminator', () {
+    Map<String, dynamic> baseJson() => <String, dynamic>{
+          'id': 'test-id',
+          'title': 'Test Script',
+          'description': 'desc',
+          'category': 'Test',
+          'luaSource': 'print("hi")',
+          'createdAt': '2024-01-01T00:00:00.000Z',
+          'updatedAt': '2024-01-01T00:00:00.000Z',
+        };
+
+    test('defaults to lua when language is absent', () {
+      final script = MarketplaceScript.fromJson(baseJson());
+      expect(script.language, ScriptLanguage.lua);
+    });
+
+    test('parses typescript language', () {
+      final json = baseJson()..['language'] = 'typescript';
+      final script = MarketplaceScript.fromJson(json);
+      expect(script.language, ScriptLanguage.typescript);
+    });
+
+    test('unknown language value falls back to lua', () {
+      final json = baseJson()..['language'] = 'rust';
+      final script = MarketplaceScript.fromJson(json);
+      expect(script.language, ScriptLanguage.lua);
+    });
+
+    test('round-trips language through toJson/fromJson', () {
+      for (final lang in ScriptLanguage.values) {
+        final script = MarketplaceScript(
+          id: '1',
+          title: 't',
+          description: 'd',
+          category: 'c',
+          luaSource: 's',
+          language: lang,
+          createdAt: DateTime.utc(2024, 1, 1),
+          updatedAt: DateTime.utc(2024, 1, 1),
+        );
+        final round = MarketplaceScript.fromJson(script.toJson());
+        expect(round.language, lang);
+      }
     });
   });
 }
