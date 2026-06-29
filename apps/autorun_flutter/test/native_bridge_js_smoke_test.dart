@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
+import 'package:icp_autorun/services/script_runner.dart';
 
 /// Real-FFI smoke test: proves the Flutter→FFI→QuickJS wiring works end-to-end
 /// against the actual `libicp_core.so`. Skips gracefully if the native library
@@ -51,6 +52,49 @@ void main() {
       expect(state['count'], 0);
     });
   });
+
+  group('ScriptAppRuntime TS integration (real lib)', () {
+    test('init→view→update runs TS counter through full abstraction stack',
+        () async {
+      final String? probe = loader.jsExec(script: '1', jsonArg: null);
+      if (probe == null) {
+        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
+        return;
+      }
+      final String counterPath = _resolveCounterPath();
+      final File counterFile = File(counterPath);
+      if (!counterFile.existsSync()) {
+        stdout.writeln('SKIP: counter example not found at $counterPath');
+        return;
+      }
+      final String bundle = counterFile.readAsStringSync();
+
+      final runtime = ScriptAppRuntime(
+        RustScriptBridge(loader),
+        language: ScriptLanguage.typescript,
+      );
+
+      final Map<String, dynamic> initObj =
+          await runtime.init(script: bundle, budgetMs: 1000);
+      expect(initObj['ok'], true);
+      expect((initObj['state'] as Map<String, dynamic>)['count'], 0);
+
+      final Map<String, dynamic> viewObj = await runtime.view(
+        script: bundle,
+        state: Map<String, dynamic>.from(initObj['state'] as Map),
+        budgetMs: 1000,
+      );
+      expect((viewObj['ui'] as Map<String, dynamic>)['type'], 'column');
+
+      final Map<String, dynamic> updateObj = await runtime.update(
+        script: bundle,
+        msg: {'type': 'inc'},
+        state: Map<String, dynamic>.from(initObj['state'] as Map),
+        budgetMs: 1000,
+      );
+      expect((updateObj['state'] as Map<String, dynamic>)['count'], 1);
+    });
+  });
 }
 
 String _resolveBundlePath() {
@@ -66,4 +110,19 @@ String _resolveBundlePath() {
     }
   }
   return '../../$rel';
+}
+
+String _resolveCounterPath() {
+  const String rel = 'lib/examples/05_typescript_counter.js';
+  final List<String> candidates = <String>[
+    rel,
+    'apps/autorun_flutter/$rel',
+    '/code/icp-cc/apps/autorun_flutter/$rel',
+  ];
+  for (final String c in candidates) {
+    if (File(c).existsSync()) {
+      return c;
+    }
+  }
+  return rel;
 }
