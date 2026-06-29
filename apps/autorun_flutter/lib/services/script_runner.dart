@@ -852,11 +852,11 @@ class ScriptAppRuntime implements IScriptAppRuntime {
             jsonArg: initialArg == null ? null : json.encode(initialArg),
             budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
-      throw StateError('luaAppInit returned empty');
+      throw StateError('app init returned empty');
     }
     final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
     if ((obj['ok'] as bool?) != true) {
-      throw StateError('luaAppInit error: ${obj['error']}');
+      throw StateError('app init error: ${obj['error']}');
     }
     return obj;
   }
@@ -872,11 +872,11 @@ class ScriptAppRuntime implements IScriptAppRuntime {
         : _bridge.luaAppView(
             script: script, stateJson: json.encode(state), budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
-      throw StateError('luaAppView returned empty');
+      throw StateError('app view returned empty');
     }
     final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
     if ((obj['ok'] as bool?) != true) {
-      throw StateError('luaAppView error: ${obj['error']}');
+      throw StateError('app view error: ${obj['error']}');
     }
     return obj;
   }
@@ -899,11 +899,11 @@ class ScriptAppRuntime implements IScriptAppRuntime {
             stateJson: json.encode(state),
             budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
-      throw StateError('luaAppUpdate returned empty');
+      throw StateError('app update returned empty');
     }
     final Map<String, dynamic> obj = json.decode(out) as Map<String, dynamic>;
     if ((obj['ok'] as bool?) != true) {
-      throw StateError('luaAppUpdate error: ${obj['error']}');
+      throw StateError('app update error: ${obj['error']}');
     }
     return obj;
   }

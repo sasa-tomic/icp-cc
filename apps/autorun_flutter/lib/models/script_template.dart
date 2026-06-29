@@ -175,6 +175,18 @@ class ScriptTemplates {
         tags: ['ui', 'advanced', 'filtering', 'sorting', 'statistics'],
         isRecommended: false,
       ),
+
+      ScriptTemplate(
+        id: 'typescript_counter',
+        title: 'TypeScript Counter',
+        description: 'Get started with TypeScript scripting — a simple counter with init/view/update.',
+        emoji: '🟦',
+        level: 'beginner',
+        filePath: 'lib/examples/05_typescript_counter.js',
+        tags: ['typescript', 'basic', 'counter'],
+        isRecommended: true,
+        language: ScriptLanguage.typescript,
+      ),
     ];
     for (final ScriptTemplate template in templates) {
       await template.load(bundle);
