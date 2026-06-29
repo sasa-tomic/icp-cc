@@ -2148,7 +2148,9 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
                     key: _editorKey,
                     initialCode: widget.record.luaSource,
                     onCodeChanged: _onCodeChanged,
-                    language: 'lua',
+                    language: widget.record.language == ScriptLanguage.typescript
+                        ? 'typescript'
+                        : 'lua',
                     showIntegrations: !isCompactScreen,
                     minLines: isCompactScreen ? 20 : 30,
                   ),

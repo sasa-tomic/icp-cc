@@ -7,6 +7,7 @@ import 'package:flutter_highlight/themes/vs2015.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:highlight/languages/lua.dart';
+import 'package:highlight/languages/javascript.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/integrations_help.dart';
 import '../widgets/ui_component_palette.dart';
@@ -94,7 +95,7 @@ class ScriptEditorState extends State<ScriptEditor> {
     _initialCode = widget.initialCode;
     _controller = CodeController(
       text: widget.initialCode,
-      language: lua,
+      language: widget.language == 'typescript' ? javascript : lua,
     );
     _controller.addListener(_onTextChanged);
     _updateLineCount();
