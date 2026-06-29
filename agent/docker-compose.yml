@@ -40,6 +40,12 @@ services:
       - rustup-cache:/usr/local/rustup
       - cargo-cache:/home/ubuntu/.cargo
       - home-cache:/home/ubuntu/.cache
+      # Persist pub cache so pub deps (vector_math, etc.) survive across --rm runs.
+      # Without this each run re-resolves and vector_math drops out intermittently.
+      - pub-cache:/home/ubuntu/.pub-cache
+      # Persist Flutter engine cache (Dart SDK + artifacts, ~200MB) so it isn't
+      # re-downloaded on every --rm run; also stabilizes framework pkg resolution.
+      - flutter-engine-cache:/home/ubuntu/flutter/bin/cache
       # SSH key for agent access to remote nodes
       - ${HOME}/.ssh/claude-code:/tmp/claude-ssh/claude-code:ro
       - ${HOME}/.ssh/claude-code.pub:/tmp/claude-ssh/claude-code.pub:ro
@@ -59,6 +65,10 @@ volumes:
   cargo-cache:
     driver: local
   home-cache:
+    driver: local
+  pub-cache:
+    driver: local
+  flutter-engine-cache:
     driver: local
   target-cache:
     driver: local

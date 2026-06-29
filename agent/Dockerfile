@@ -99,6 +99,12 @@ RUN curl -fsSL https://opencode.ai/install | bash
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \
     && /home/ubuntu/flutter/bin/flutter config --enable-web
 
+# Pin Flutter to the stable release the app is verified against (host runs 3.38.3).
+# Cloning default branch (master) leaves the container on an unstable SDK whose own
+# framework fails to compile (vector_math Matrix4/Vector3 unresolvable in semantics.dart).
+# Checked out as a separate layer so the expensive clone above stays cached.
+RUN cd /home/ubuntu/flutter && git checkout 3.38.3
+
 # Add Flutter to PATH
 ENV PATH="/home/ubuntu/flutter/bin:${PATH}"
 
@@ -110,11 +116,23 @@ RUN chmod +x $HOME/.git-hooks/commit-msg \
 
 # Copy entrypoint script (runs as root, fixes perms, drops to ubuntu)
 USER root
+
+# Flutter Linux desktop build deps (flutter build linux drives CMake + Ninja + GTK).
+# Installed here (late) so the heavy Rust/Flutter/Playwright layers above stay cached.
+RUN apt-get update && apt-get install -y \
+        cmake ninja-build libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev \
+    && rm -rf /var/lib/apt/lists/*
 # Pre-create target/ (1000-owned) so the target-cache named volume initializes
 # with correct ownership when running as the host user (UID 1000).
 # Docker's volume-init copies this image-baked path (bind mounts are masked),
 # so a fresh volume inherits ubuntu ownership.
 RUN mkdir -p /code/icp-cc/target && chown ubuntu:ubuntu /code/icp-cc/target
+# Same treatment for the pub cache and Flutter engine cache volumes (see
+# docker-compose.yml). Fresh named volumes are otherwise root-owned and the
+# non-root container can't write to them.
+RUN mkdir -p /home/ubuntu/.pub-cache \
+        /home/ubuntu/flutter/bin/cache \
+    && chown -R ubuntu:ubuntu /home/ubuntu/.pub-cache /home/ubuntu/flutter/bin/cache
 COPY agent/entrypoint.sh $HOME/entrypoint.sh
 RUN chmod +x $HOME/entrypoint.sh
 
