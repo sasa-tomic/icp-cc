@@ -1,10 +1,18 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-06-29 (Scripting Runtime Migration G1-data-model + Rust hardening)
+**Last Updated:** 2026-06-29 (Scripting Runtime Migration: wasm fix + TS UX polish + integration test)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
+
+**Reality Check - Scripting Runtime Migration: wasm build fix + TS UX polish + integration test COMPLETE:**
+Closes the wasm32 build break + adds TS example template, syntax highlighting, ScriptAppRuntime integration test. `cargo build --target wasm32-unknown-unknown --lib` now SUCCEEDS (was broken by unconditional mlua). 10 commits on local main (NOT pushed): `d84980e`(spec) → `d5bd178`(P0+1) → `088c047`(P2+3) → `81e0f4f`(G1 FFI) → `cc71ec5`(G1-data-model+hardening) → `31368d8`(wasm fix) → `080efc4`(TS example+errors) → `5b25f6c`(TS highlight) → `7c6703a`(dep bumps) → `f14cdad`(integration test).
+- **wasm build fix (DONE, 31368d8):** mlua/reqwest/ic-agent/tokio moved to `[target.'cfg(not(wasm32))']`. lib.rs gates canister_client/ffi/lua_engine under not(wasm32); unconditional: contract/js_engine/keypair/principal/vault (all wasm-safe). wasm_exports.rs: removed dead Lua validators (never compiled), kept JS pure-Rust validators. Added `alloc` to ed25519-dalek + `arithmetic` to k256 (were transitively supplied by native-only deps). Gates: wasm build succeeds, 121 native tests, clippy clean both targets.
+- **TS counter example (DONE, 080efc4):** `lib/examples/05_typescript_counter.js` (minimal IIFE: init/view/update counter) + ScriptTemplate registration with `language: typescript`. Fixed 6 stale error strings in ScriptAppRuntime. Gates: analyze 82→82, 36 tests.
+- **TS syntax highlighting (DONE, 5b25f6c):** script_editor.dart now selects `javascript` highlight mode for TS (was hardcoded `lua`). scripts_screen + quick_upload_dialog pass language through. Gates: analyze 82→82, 29 tests.
+- **npm dep bumps (DONE, 7c6703a):** esbuild ^0.25.2 + vitest ^3.2.4 (addresses dev-server-only vulns). 5 nested transitive vulns remain (tsup/vitest internal esbuild copies — can't fix without breaking changes, zero risk).
+- **ScriptAppRuntime integration test (DONE, f14cdad):** `native_bridge_js_smoke_test.dart` now runs `ScriptAppRuntime(language: typescript)` through init→view→update with REAL FFI→QuickJS. Proves full Dart abstraction stack. 3/3 pass, analyze 82→82.
 
 **Reality Check - Scripting Runtime Migration G1-data-model + Rust hardening COMPLETE:**
 Closes G1-data-model + G13-defense-in-depth (eval/Function runtime strip) + execute_lua_json fail-fast. Verified independently (17/17 checks: 121 Rust tests, flutter analyze 82→82, 0 regressions proven vs clean HEAD). The runtime switch is now USABLE end-to-end: data models carry `language`, persisted scripts migrate gracefully (absent key → lua), the editor offers a Lua/TypeScript toggle, and downloads auto-detect language.
