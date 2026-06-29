@@ -91,6 +91,38 @@ class _FakeScriptBridge implements ScriptBridge {
   }) {
     return null;
   }
+
+  @override
+  String? jsExec({required String script, String? jsonArg}) {
+    return null;
+  }
+
+  @override
+  String? jsLint({required String script}) {
+    return null;
+  }
+
+  @override
+  String? jsAppInit(
+      {required String script, String? jsonArg, int budgetMs = 50}) {
+    return null;
+  }
+
+  @override
+  String? jsAppView(
+      {required String script, required String stateJson, int budgetMs = 50}) {
+    return null;
+  }
+
+  @override
+  String? jsAppUpdate({
+    required String script,
+    required String msgJson,
+    required String stateJson,
+    int budgetMs = 50,
+  }) {
+    return null;
+  }
 }
 
 void main() {

@@ -386,6 +386,30 @@ class MockBridge implements ScriptBridge {
           required String stateJson,
           int budgetMs = 50}) =>
       null;
+
+  @override
+  String? jsExec({required String script, String? jsonArg}) => null;
+
+  @override
+  String? jsLint({required String script}) => null;
+
+  @override
+  String? jsAppInit(
+          {required String script, String? jsonArg, int budgetMs = 50}) =>
+      null;
+
+  @override
+  String? jsAppView(
+          {required String script, required String stateJson, int budgetMs = 50}) =>
+      null;
+
+  @override
+  String? jsAppUpdate(
+          {required String script,
+          required String msgJson,
+          required String stateJson,
+          int budgetMs = 50}) =>
+      null;
 }
 
 void main() {

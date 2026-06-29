@@ -266,6 +266,29 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
+  String? jsExec({required String script, String? jsonArg}) => null;
+
+  @override
+  String? jsLint({required String script}) => null;
+
+  @override
+  String? jsAppInit(
+      {required String script, String? jsonArg, int budgetMs = 50}) => null;
+
+  @override
+  String? jsAppView(
+      {required String script, required String stateJson, int budgetMs = 50}) =>
+      null;
+
+  @override
+  String? jsAppUpdate(
+          {required String script,
+          required String msgJson,
+          required String stateJson,
+          int budgetMs = 50}) =>
+      null;
+
+  @override
   String? luaAppInit(
       {required String script, String? jsonArg, int budgetMs = 50}) {
     // Provide immediate initial UI so the host can render the first frame before calling view().

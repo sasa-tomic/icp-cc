@@ -19,6 +19,12 @@ class _Symbols {
   static const String luaAppInit = 'icp_lua_app_init';
   static const String luaAppView = 'icp_lua_app_view';
   static const String luaAppUpdate = 'icp_lua_app_update';
+  static const String jsExec = 'icp_js_exec';
+  static const String jsLint = 'icp_js_lint';
+  static const String jsValidateComprehensive = 'icp_js_validate_comprehensive';
+  static const String jsAppInit = 'icp_js_app_init';
+  static const String jsAppView = 'icp_js_app_view';
+  static const String jsAppUpdate = 'icp_js_app_update';
   static const String encryptVault = 'icp_encrypt_vault';
   static const String decryptVault = 'icp_decrypt_vault';
 }
@@ -434,6 +440,152 @@ class RustBridgeLoader {
     }
   }
 
+  // ---- QuickJS (TypeScript) app ----
+  String? jsExec({required String script, String? jsonArg}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    final a =
+        jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8().cast<ffi.Int8>();
+    try {
+      final fn =
+          lib.lookupFunction<_Str2StrNative, _Str2StrDart>(_Symbols.jsExec);
+      final res = fn(s.cast(), a.cast());
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      // Memory managed by toNativeUtf8() - no manual free needed
+    }
+  }
+
+  String? jsLint({required String script}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    try {
+      final fn =
+          lib.lookupFunction<_Str1StrNative, _Str1StrDart>(_Symbols.jsLint);
+      final res = fn(s.cast());
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      // Memory managed by toNativeUtf8() - no manual free needed
+    }
+  }
+
+  String? validateJsComprehensive({
+    required String script,
+    bool isExample = false,
+    bool isTest = false,
+    bool isProduction = false,
+  }) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    try {
+      final fn = lib.lookupFunction<_LuaValidateComprehensiveNative,
+          _LuaValidateComprehensiveDart>(
+        _Symbols.jsValidateComprehensive,
+      );
+      final res = fn(
+        s.cast(),
+        isExample ? 1 : 0,
+        isTest ? 1 : 0,
+        isProduction ? 1 : 0,
+      );
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      // Memory managed by toNativeUtf8() - no manual free needed
+    }
+  }
+
+  String? jsAppInit(
+      {required String script, String? jsonArg, int budgetMs = 50}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    final a =
+        jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8().cast<ffi.Int8>();
+    try {
+      final fn = lib.lookupFunction<_LuaAppInitNative, _LuaAppInitDart>(
+          _Symbols.jsAppInit);
+      final res = fn(s.cast(), a.cast(), budgetMs);
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      // Memory managed by toNativeUtf8() - no manual free needed
+    }
+  }
+
+  String? jsAppView(
+      {required String script, required String stateJson, int budgetMs = 50}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
+    try {
+      final fn = lib.lookupFunction<_LuaAppViewNative, _LuaAppViewDart>(
+          _Symbols.jsAppView);
+      final res = fn(s.cast(), st.cast(), budgetMs);
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      // Memory managed by toNativeUtf8() - no manual free needed
+    }
+  }
+
+  String? jsAppUpdate(
+      {required String script,
+      required String msgJson,
+      required String stateJson,
+      int budgetMs = 50}) {
+    final lib = _open();
+    if (lib == null) return null;
+    final s = script.toNativeUtf8().cast<ffi.Int8>();
+    final m = msgJson.toNativeUtf8().cast<ffi.Int8>();
+    final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
+    try {
+      final fn = lib.lookupFunction<_LuaAppUpdateNative, _LuaAppUpdateDart>(
+          _Symbols.jsAppUpdate);
+      final res = fn(s.cast(), m.cast(), st.cast(), budgetMs);
+      if (res == ffi.nullptr) return null;
+      try {
+        return res.cast<pkg_ffi.Utf8>().toDartString();
+      } finally {
+        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        free(res);
+      }
+    } finally {
+      // Memory managed by toNativeUtf8() - no manual free needed
+    }
+  }
+
   // ---- Vault encryption (Argon2id + AES-256-GCM) ----
 
   /// Encrypts plaintext using password-derived key.
@@ -533,6 +685,29 @@ class NativeBridge {
 
   String? luaLint({required String script}) {
     return _loader.luaLint(script: script);
+  }
+
+  String validateJsComprehensive({
+    required String script,
+    bool isExample = false,
+    bool isTest = false,
+    bool isProduction = false,
+  }) {
+    return _loader.validateJsComprehensive(
+          script: script,
+          isExample: isExample,
+          isTest: isTest,
+          isProduction: isProduction,
+        ) ??
+        '';
+  }
+
+  String? jsExec({required String script, String? jsonArg}) {
+    return _loader.jsExec(script: script, jsonArg: jsonArg);
+  }
+
+  String? jsLint({required String script}) {
+    return _loader.jsLint(script: script);
   }
 }
 

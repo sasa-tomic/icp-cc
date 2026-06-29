@@ -4,6 +4,10 @@ import '../rust/native_bridge.dart';
 import '../models/profile_keypair.dart';
 import 'secure_keypair_repository.dart';
 
+/// Scripting language for a [ScriptRunPlan]/[ScriptAppRuntime].
+/// Defaults to [lua] so all existing callers behave unchanged.
+enum ScriptLanguage { lua, typescript }
+
 class IntegrationInfo {
   const IntegrationInfo({
     required this.id,
@@ -59,6 +63,7 @@ class ScriptRunPlan {
     required this.luaSource,
     this.calls = const <CanisterCallSpec>[],
     this.initialArg,
+    this.language = ScriptLanguage.lua,
   });
 
   final String luaSource;
@@ -66,6 +71,9 @@ class ScriptRunPlan {
 
   /// Optional initial JSON to pass under arg.input
   final Map<String, dynamic>? initialArg;
+
+  /// Language of [luaSource]. For [ScriptLanguage.typescript] it holds the bundle.
+  final ScriptLanguage language;
 }
 
 class ScriptRunResult {
@@ -102,6 +110,18 @@ abstract class ScriptBridge {
   String? luaAppView(
       {required String script, required String stateJson, int budgetMs});
   String? luaAppUpdate(
+      {required String script,
+      required String msgJson,
+      required String stateJson,
+      int budgetMs});
+
+  // QuickJS (TypeScript) equivalents — self-contained bundles (no helper injection).
+  String? jsExec({required String script, String? jsonArg});
+  String? jsLint({required String script});
+  String? jsAppInit({required String script, String? jsonArg, int budgetMs});
+  String? jsAppView(
+      {required String script, required String stateJson, int budgetMs});
+  String? jsAppUpdate(
       {required String script,
       required String msgJson,
       required String stateJson,
@@ -176,6 +196,43 @@ class RustScriptBridge implements ScriptBridge {
       required String stateJson,
       int budgetMs = 50}) {
     return _bridge.luaAppUpdate(
+        script: script,
+        msgJson: msgJson,
+        stateJson: stateJson,
+        budgetMs: budgetMs);
+  }
+
+  @override
+  String? jsExec({required String script, String? jsonArg}) {
+    return _bridge.jsExec(script: script, jsonArg: jsonArg);
+  }
+
+  @override
+  String? jsLint({required String script}) {
+    return _bridge.jsLint(script: script);
+  }
+
+  @override
+  String? jsAppInit(
+      {required String script, String? jsonArg, int budgetMs = 50}) {
+    return _bridge.jsAppInit(
+        script: script, jsonArg: jsonArg, budgetMs: budgetMs);
+  }
+
+  @override
+  String? jsAppView(
+      {required String script, required String stateJson, int budgetMs = 50}) {
+    return _bridge.jsAppView(
+        script: script, stateJson: stateJson, budgetMs: budgetMs);
+  }
+
+  @override
+  String? jsAppUpdate(
+      {required String script,
+      required String msgJson,
+      required String stateJson,
+      int budgetMs = 50}) {
+    return _bridge.jsAppUpdate(
         script: script,
         msgJson: msgJson,
         stateJson: stateJson,
@@ -374,11 +431,20 @@ class ScriptRunner {
     };
     final String jsonArg = json.encode(arg);
 
-    final String luaSourceWithHelper = _injectHelpers(plan.luaSource);
-    final String? luaOut =
-        _bridge.luaExec(script: luaSourceWithHelper, jsonArg: jsonArg);
+    // Route to the appropriate engine. Lua gets helpers injected; TS bundles
+    // are self-contained and must NOT receive the Lua helper preamble.
+    final bool isTypescript = plan.language == ScriptLanguage.typescript;
+    final String scriptText =
+        isTypescript ? plan.luaSource : _injectHelpers(plan.luaSource);
+    final String? luaOut = isTypescript
+        ? _bridge.jsExec(script: scriptText, jsonArg: jsonArg)
+        : _bridge.luaExec(script: scriptText, jsonArg: jsonArg);
     if (luaOut == null || luaOut.trim().isEmpty) {
-      return ScriptRunResult(ok: false, error: 'Lua execution returned empty');
+      return ScriptRunResult(
+          ok: false,
+          error: isTypescript
+              ? 'JS execution returned empty'
+              : 'Lua execution returned empty');
     }
 
     try {
@@ -767,18 +833,24 @@ abstract class IScriptAppRuntime {
 
 /// Runtime host for TEA-style Lua app: init/view/update + effects execution.
 class ScriptAppRuntime implements IScriptAppRuntime {
-  ScriptAppRuntime(this._bridge);
+  ScriptAppRuntime(this._bridge, {this.language = ScriptLanguage.lua});
   final ScriptBridge _bridge;
+  final ScriptLanguage language;
 
   @override
   Future<Map<String, dynamic>> init(
       {required String script,
       Map<String, dynamic>? initialArg,
       int budgetMs = 50}) async {
-    final String? out = _bridge.luaAppInit(
-        script: script,
-        jsonArg: initialArg == null ? null : json.encode(initialArg),
-        budgetMs: budgetMs);
+    final String? out = language == ScriptLanguage.typescript
+        ? _bridge.jsAppInit(
+            script: script,
+            jsonArg: initialArg == null ? null : json.encode(initialArg),
+            budgetMs: budgetMs)
+        : _bridge.luaAppInit(
+            script: script,
+            jsonArg: initialArg == null ? null : json.encode(initialArg),
+            budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('luaAppInit returned empty');
     }
@@ -794,8 +866,11 @@ class ScriptAppRuntime implements IScriptAppRuntime {
       {required String script,
       required Map<String, dynamic> state,
       int budgetMs = 50}) async {
-    final String? out = _bridge.luaAppView(
-        script: script, stateJson: json.encode(state), budgetMs: budgetMs);
+    final String? out = language == ScriptLanguage.typescript
+        ? _bridge.jsAppView(
+            script: script, stateJson: json.encode(state), budgetMs: budgetMs)
+        : _bridge.luaAppView(
+            script: script, stateJson: json.encode(state), budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('luaAppView returned empty');
     }
@@ -812,11 +887,17 @@ class ScriptAppRuntime implements IScriptAppRuntime {
       required Map<String, dynamic> msg,
       required Map<String, dynamic> state,
       int budgetMs = 50}) async {
-    final String? out = _bridge.luaAppUpdate(
-        script: script,
-        msgJson: json.encode(msg),
-        stateJson: json.encode(state),
-        budgetMs: budgetMs);
+    final String? out = language == ScriptLanguage.typescript
+        ? _bridge.jsAppUpdate(
+            script: script,
+            msgJson: json.encode(msg),
+            stateJson: json.encode(state),
+            budgetMs: budgetMs)
+        : _bridge.luaAppUpdate(
+            script: script,
+            msgJson: json.encode(msg),
+            stateJson: json.encode(state),
+            budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('luaAppUpdate returned empty');
     }

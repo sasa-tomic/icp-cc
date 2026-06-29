@@ -1,10 +1,17 @@
 # ICP Script Marketplace - TODO
 
-**Last Updated:** 2026-06-29 (Scripting Runtime Migration Phase 2+3)
+**Last Updated:** 2026-06-29 (Scripting Runtime Migration G1 — Flutter wiring)
 
 ## Current Focus
 
 **Goal:** Radical UI/UX simplification. Remove clutter, improve discoverability.
+
+**Reality Check - Scripting Runtime Migration G1 COMPLETE (Flutter wiring of `icp_js_*`):**
+Flutter SDK confirmed present (3.46.0). Wires the 6 Rust `icp_js_*` FFI symbols into the Flutter app so TypeScript bundles run alongside Lua. Verified independently (15/15 checks, zero blocking defects). Real Flutter→FFI→QuickJS end-to-end proof: `jsExec('1+2')→{ok:true,result:3}` and `jsAppInit(pilot_bundle)→{ok:true,state.count:0}` against the live `.so`.
+- **FFI layer (DONE):** `lib/rust/native_bridge.dart` — 6 `_Symbols` JS consts (`icp_js_exec/lint/validate_comprehensive/app_init/app_view/app_update`) + 6 `RustBridgeLoader` js* methods (reusing existing lua typedefs — DRY, no new typedefs) + 3 `NativeBridge` passthroughs (jsExec/jsLint/validateJsComprehensive). lua methods byte-unchanged.
+- **Runtime switch (DONE):** `lib/services/script_runner.dart` — `enum ScriptLanguage { lua, typescript }`; `ScriptRunPlan.language` (default `lua` = back-compat for all existing callers); `ScriptBridge` + 5 abstract js* methods (exec/lint/appInit/appView/appUpdate) + `RustScriptBridge` impls; `ScriptRunner.run` routes TS→`jsExec` (SKIP `_injectHelpers` — JS bundles self-contained via `register()`) and lua→unchanged path; `ScriptAppRuntime({language})` routes init/view/update. `IScriptAppRuntime` abstract unchanged.
+- **Tests (DONE):** 6 fake bridges (`implements ScriptBridge`) updated with js* stubs; NEW `test/script_runner_js_path_test.dart` (4 routing tests: TS→js* / lua→lua* / helper-injection skipped / defaults); NEW `test/native_bridge_js_smoke_test.dart` (real-FFI QuickJS, 2/2 pass). `flutter analyze` 82→82 (zero new issues). GATES: 79 tests pass (4 routing + 58 fakes + 15 canister + 2 real-FFI).
+- **DEFERRED (P3/P4 — data-model/persistence/UI/API):** `ScriptRecord`/`MarketplaceScript` `language` field + persistence (scripts.json) + marketplace API + production detection-on-import + UI editor language toggle. The runtime switch lives ONLY on the seam (`ScriptRunPlan`/`ScriptAppRuntime`); `luaSource` field name kept (holds bundle text for TS). Minor: smoke-test skip uses `return`+stdout not `SkipException` (cosmetic CI-accounting); stale `'luaAppInit returned empty'` error string on TS path (cosmetic).
 
 **Reality Check - Scripting Runtime Migration Phase 2+3 COMPLETE (Parity Hardening + Pilot):**
 Closes G6/G7/G9/G10/G11/G13/G14 + N1/N4 + pilot (G3/G4 PoC) + spec §12 decisions. Verified independently (118 Rust tests, 90 Node tests, all gates green). End-to-end PoC PROVEN: TS source → esbuild IIFE bundle → Rust QuickJS host executes init/view/update (and Node QuickJS).
@@ -18,7 +25,7 @@ Closes G6/G7/G9/G10/G11/G13/G14 + N1/N4 + pilot (G3/G4 PoC) + spec §12 decision
 - **G14 IIFE pin (DONE):** `validate_esm_format` rejects top-level `import`/`export`; UI node allowlist extended (`text_field`,`select`,`image`,`list`); `register()` throws on non-functions.
 - **N1 Pedantic (DECIDED):** gate stays `clippy::all` + `-D warnings`; pedantic NOT enforced (would surface 200-500 lints across unrelated backend). Documented spec §12.
 - **N4 Shared golden vector (DONE — see G10).** Pre-existing `cargo fmt` debt FIXED (S0 workspace fmt: backend/* + lib.rs).
-- **REMAINING GAPS:** G1 Flutter wiring (needs Flutter SDK), G2 Android NDK (NDK absent), G8 qjsc bytecode (optional/deferred), G12 resource-limit tuning (needs real pilot scripts/load-test), G3-full (actual marketplace Lua corpus in DB), runtime eval/Function strip (defense-in-depth), pre-existing `execute_lua_json` silent-swallow bug (legacy, sunset phase), pre-existing wasm build break (mlua unconditional + tokio — resolves when mlua made wasm-optional), 5 npm audit vulns (dev-only).
+- **REMAINING GAPS:** G2 Android NDK (NDK absent), G8 qjsc bytecode (optional/deferred), G12 resource-limit tuning (needs real pilot scripts/load-test), G3-full (actual marketplace Lua corpus in DB), G1-data-model (ScriptRecord/MarketplaceScript language field + persistence + marketplace API + UI toggle — P3/P4), runtime eval/Function strip (defense-in-depth), pre-existing `execute_lua_json` silent-swallow bug (legacy, sunset phase), pre-existing wasm build break (mlua unconditional + tokio — resolves when mlua made wasm-optional), 5 npm audit vulns (dev-only).
 
 **Reality Check - Scripting Runtime Migration Phase 0+1 COMPLETE (Lua → TypeScript/QuickJS):**
 Implements `docs/specs/SCRIPTING_RUNTIME_MIGRATION.md` P0 (Foundations) + P1 (SDK & Tooling). Dual-runtime: new JS engine alongside untouched `lua_engine.rs`.
