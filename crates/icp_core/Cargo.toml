@@ -16,11 +16,13 @@ bitcoin = { version = "0.32", default-features = true, features = ["std"] }
 # Ed25519 key handling (pkcs8 for DER encoding per RFC 8410)
 ed25519-dalek = { version = "2", default-features = false, features = [
   "pkcs8",
+  "alloc",
 ] }
 # secp256k1 with DER encoding per RFC 5480
 k256 = { version = "0.13", default-features = false, features = [
   "pkcs8",
   "std",
+  "arithmetic",
 ] }
 # Hashing for SHA-224 and SHA-256 (secp256k1 signing)
 sha2 = "0.10"
@@ -40,6 +42,12 @@ argon2 = "0.5"
 aes-gcm = "0.10"
 rand = "0.8"
 
+# Native-only dependencies (excluded from wasm32-unknown-unknown builds):
+# - mlua: vendored Lua 5.4 C source cannot be compiled to wasm32
+# - reqwest/ic-agent/tokio: native networking + multi-thread runtime
+# - rquickjs: vendored QuickJS C source cannot be compiled to wasm32
+# The wasm path uses pure-Rust static analysis (see js_engine::static_analysis).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Embedded Lua interpreter for user scripting
 # - lua54: use Lua 5.4
 # - vendored: build Lua from source for reproducible mobile builds
@@ -56,13 +64,8 @@ ic-agent = { version = "0.44.2" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
 # Embedded QuickJS engine for TypeScript/JavaScript user scripting (dual-runtime).
-# Target-gated: rquickjs (like mlua's vendored lua54) cannot compile to
-# wasm32-unknown-unknown, so it is excluded entirely from the wasm dependency
-# graph. JS execution is native-only; the wasm path uses pure-Rust static
-# analysis (see js_engine::static_analysis).
 # - bindgen: build QuickJS from vendored C source (mirrors mlua "vendored")
 # - parallel: Runtime/Context are Send (interrupt handler closure must be Send)
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rquickjs = { version = "0.12", features = [
   "bindgen",
   "loader",

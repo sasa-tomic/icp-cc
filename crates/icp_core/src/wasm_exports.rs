@@ -2,48 +2,13 @@
 #![cfg(target_arch = "wasm32")]
 
 use crate::{js_engine::static_analysis, JsValidationContext};
-use crate::{validate_lua_comprehensive, ValidationContext, ValidationResult};
-use serde_json::{json, Value};
+use serde_json::json;
 use wasm_bindgen::prelude::*;
 
-/// Wasm-compatible validation function that returns JSON string
-/// This can be called from JavaScript in Cloudflare Workers
-#[wasm_bindgen]
-pub fn validate_lua_script_wasm(
-    script: &str,
-    is_example: bool,
-    is_test: bool,
-    is_production: bool,
-) -> String {
-    let context = ValidationContext {
-        is_example,
-        is_test,
-        is_production,
-    };
-
-    let result = validate_lua_comprehensive(script, Some(context));
-
-    // Convert to JSON string that can be parsed in JavaScript
-    let json_result = json!({
-        "is_valid": result.is_valid,
-        "syntax_errors": result.syntax_errors,
-        "warnings": result.warnings,
-        "line_count": result.line_count,
-        "character_count": result.character_count
-    });
-
-    json_result.to_string()
-}
-
-/// Simple Wasm-compatible syntax check function
-#[wasm_bindgen]
-pub fn check_lua_syntax_wasm(script: &str) -> String {
-    let result = crate::lint_lua(script);
-
-    // Parse the existing JSON result and return it
-    // The lint_lua function already returns JSON string
-    result
-}
+// Lua wasm exports (validate_lua_script_wasm / check_lua_syntax_wasm) were
+// removed: the mlua/vendored Lua 5.4 runtime cannot target wasm32-unknown-unknown
+// and the Lua engine is being sunset. The pure-Rust JS static analysis below
+// is the supported wasm path.
 
 /// Wasm-compatible JavaScript/TypeScript validation using PURE-RUST static
 /// analysis only. rquickjs cannot compile to wasm32-unknown-unknown, so the
@@ -95,8 +60,7 @@ pub fn check_js_syntax_wasm(script: &str) -> String {
 /// Initialize the Wasm module (called once when loading)
 #[wasm_bindgen(start)]
 pub fn main() {
-    // This function is called when the Wasm module is loaded
-    // Can be used for any initialization if needed
+    #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 }
 
