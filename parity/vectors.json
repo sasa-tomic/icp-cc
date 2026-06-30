@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sdkContractVersion": "0.1.0",
-  "notes": "expectedJs is authoritative; expectedLua null means identical to expectedJs. This file is the single source of truth consumed by the Rust parity test (crates/icp_core/tests/parity_vectors.rs) and the Node-side harness. Helpers are the runtime snake_case names installed in BOTH engines. Args are positional JSON; each element becomes one positional argument.",
+  "notes": "Authoritative helper-output vectors for the TS/QuickJS runtime. This file is the single source of truth consumed by the Rust parity test (crates/icp_core/tests/parity_vectors.rs) and the Node-side harness. Helpers are the runtime snake_case names installed by the engine. Args are positional JSON; each element becomes one positional argument.",
   "cases": [
     {
       "id": "icp_call_canonical",
@@ -14,15 +14,13 @@
         "canister": "rrkah-fqaaa-aaaaa-aaaaq-cai",
         "method": "get_balance",
         "args": {}
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_call_no_arg",
       "helper": "icp_call",
       "args": [],
-      "expectedJs": { "action": "call" },
-      "expectedLua": null
+      "expectedJs": { "action": "call" }
     },
     {
       "id": "icp_batch_canonical",
@@ -33,22 +31,19 @@
       "expectedJs": {
         "action": "batch",
         "calls": { "calls": [ { "canister": "a" }, { "canister": "b" } ] }
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_message_canonical",
       "helper": "icp_message",
       "args": [ { "text": "Hello", "type": "info" } ],
-      "expectedJs": { "action": "message", "text": "Hello", "type": "info" },
-      "expectedLua": null
+      "expectedJs": { "action": "message", "text": "Hello", "type": "info" }
     },
     {
       "id": "icp_message_defaults",
       "helper": "icp_message",
       "args": [],
-      "expectedJs": { "action": "message", "text": "", "type": "info" },
-      "expectedLua": null
+      "expectedJs": { "action": "message", "text": "", "type": "info" }
     },
     {
       "id": "icp_ui_list_canonical",
@@ -57,8 +52,7 @@
       "expectedJs": {
         "action": "ui",
         "ui": { "type": "list", "items": [ "a", "b", "c" ], "buttons": [ "click" ] }
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_result_display_canonical",
@@ -67,8 +61,7 @@
       "expectedJs": {
         "action": "ui",
         "ui": { "type": "result_display", "props": { "result": "ok", "type": "success" } }
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_searchable_list_canonical",
@@ -80,8 +73,7 @@
           "type": "list",
           "props": { "searchable": true, "items": [ 1, 2 ], "title": "Recent" }
         }
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_searchable_list_default_true",
@@ -93,8 +85,7 @@
           "type": "list",
           "props": { "searchable": true, "items": [ 1 ], "title": "Results" }
         }
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_section_canonical",
@@ -103,8 +94,7 @@
       "expectedJs": {
         "action": "ui",
         "ui": { "type": "section", "props": { "title": "T", "content": "C" } }
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_table_canonical",
@@ -116,86 +106,74 @@
           "type": "table",
           "props": { "data": [ { "a": 1 } ], "headers": [ "a" ] }
         }
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_format_number_canonical",
       "helper": "icp_format_number",
       "args": [ 123.456, 2 ],
-      "expectedJs": "123.456",
-      "expectedLua": null
+      "expectedJs": "123.456"
     },
     {
       "id": "icp_format_number_invalid",
       "helper": "icp_format_number",
       "args": [ "abc" ],
-      "expectedJs": "0",
-      "expectedLua": null
+      "expectedJs": "0"
     },
     {
       "id": "icp_format_icp_canonical",
       "helper": "icp_format_icp",
       "args": [ 123456789, 8 ],
-      "expectedJs": "1.23456789",
-      "expectedLua": null
+      "expectedJs": "1.23456789"
     },
     {
-      "id": "icp_format_icp_whole_divergence",
+      "id": "icp_format_icp_whole",
       "helper": "icp_format_icp",
       "args": [ 100000000, 8 ],
       "expectedJs": "1",
-      "expectedLua": "1.0",
-      "notes": "Documented divergence: JS String(1.0) drops the trailing zero ('1') while Lua tostring(1.0) keeps it ('1.0'). Non-whole results agree."
+      "notes": "Whole-number ICP formatting: QuickJS String(1.0) drops the trailing zero, producing '1'."
     },
     {
       "id": "icp_format_timestamp_canonical",
       "helper": "icp_format_timestamp",
       "args": [ 1634567890 ],
-      "expectedJs": "1634567890",
-      "expectedLua": null
+      "expectedJs": "1634567890"
     },
     {
       "id": "icp_format_bytes_canonical",
       "helper": "icp_format_bytes",
       "args": [ 1024 ],
-      "expectedJs": "1024",
-      "expectedLua": null
+      "expectedJs": "1024"
     },
     {
       "id": "icp_truncate_canonical",
       "helper": "icp_truncate",
       "args": [ "text", 5 ],
-      "expectedJs": "text",
-      "expectedLua": null
+      "expectedJs": "text"
     },
     {
       "id": "icp_filter_items_canonical",
       "helper": "icp_filter_items",
       "args": [ [ { "c": "NY" }, { "c": "LA" } ], "c", "NY" ],
-      "expectedJs": [ { "c": "NY" } ],
-      "expectedLua": null
+      "expectedJs": [ { "c": "NY" } ]
     },
     {
       "id": "icp_filter_items_multi",
       "helper": "icp_filter_items",
       "args": [ [ { "c": "NY" }, { "c": "LA" }, { "c": "NY" } ], "c", "NY" ],
-      "expectedJs": [ { "c": "NY" }, { "c": "NY" } ],
-      "expectedLua": null
+      "expectedJs": [ { "c": "NY" }, { "c": "NY" } ]
     },
     {
       "id": "icp_sort_items_ascending",
       "helper": "icp_sort_items",
       "args": [ [ { "n": "C" }, { "n": "A" }, { "n": "B" } ], "n", true ],
-      "expectedJs": [ { "n": "A" }, { "n": "B" }, { "n": "C" } ],
-      "expectedLua": null
+      "expectedJs": [ { "n": "A" }, { "n": "B" }, { "n": "C" } ]
     },
     {
       "id": "icp_sort_items_descending",
       "helper": "icp_sort_items",
       "args": [ [ { "n": "A" }, { "n": "C" }, { "n": "B" } ], "n", false ],
-      "expectedJs": [ { "n": "C" }, { "n": "B" }, { "n": "A" } ],
-      "expectedLua": null
+      "expectedJs": [ { "n": "C" }, { "n": "B" }, { "n": "A" } ]
     },
     {
       "id": "icp_group_by_canonical",
@@ -204,8 +182,7 @@
       "expectedJs": {
         "NY": [ { "c": "NY" }, { "c": "NY" } ],
         "LA": [ { "c": "LA" } ]
-      },
-      "expectedLua": null
+      }
     },
     {
       "id": "icp_group_by_two_bucket",
@@ -217,8 +194,7 @@
       "expectedJs": {
         "NY": [ { "c": "NY", "n": "A" }, { "c": "NY", "n": "C" } ],
         "LA": [ { "c": "LA", "n": "B" } ]
-      },
-      "expectedLua": null
+      }
     }
   ]
 }
