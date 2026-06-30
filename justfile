@@ -187,8 +187,12 @@ test-feature name:
     
     # Run the feature tests
     cd {{flutter_dir}} && flutter test "$feature_dir" --timeout=180s 2>&1 | tee {{logs_dir}}/test-output.log
-    
-    if grep -qiE "❌|FAILED|error:" {{logs_dir}}/test-output.log; then
+
+    # Detect Flutter's real failure markers: the live counter goes negative on
+    # failure (e.g. "00:01 +5 -1:") or the summary reads "Some tests failed.".
+    # Do NOT match "error:" — benign debugPrint output in negative-path widget
+    # tests trips a loose substring match (false failure).
+    if grep -qE "Some tests failed|: \+[0-9]+ -[1-9]" {{logs_dir}}/test-output.log; then
         echo "❌ Feature tests failed!"
         exit 1
     fi
