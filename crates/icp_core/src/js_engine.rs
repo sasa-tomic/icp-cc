@@ -111,28 +111,45 @@ pub mod static_analysis {
         context: &JsValidationContext,
         result: &mut JsValidationResult,
     ) {
-        let dangerous_patterns: &[(&str, &str)] = &[
+        // Dynamic-code-execution and module-loading primitives are forbidden.
+        // Each is matched as a *call site* (`name\s*\(`) where the name is its
+        // own token, not a suffix of a larger identifier. This avoids flagging
+        // benign identifiers such as `assertFunction(`, `isFunction(`, or
+        // `myeval(` while still rejecting `eval(`, `new Function(`,
+        // `globalThis.Function(`, and a bare `Function(` constructor call.
+        for (name, message) in [
             (
-                "eval(",
+                "eval",
                 "eval() detected - dynamic code execution not allowed",
             ),
             (
-                "Function(",
+                "Function",
                 "Function() constructor detected - dynamic code execution not allowed",
             ),
-            ("import(", "dynamic import() not allowed"),
-            ("require(", "require() - module loading not allowed"),
-            ("process.", "process access not allowed"),
-            (
-                "globalThis[",
-                "globalThis property access by key not allowed",
-            ),
-            ("delete globalThis", "globalThis tampering not allowed"),
-        ];
-        for (pattern, message) in dangerous_patterns {
-            if script.contains(pattern) {
+            ("import", "dynamic import() not allowed"),
+            ("require", "require() - module loading not allowed"),
+        ] {
+            if dangerous_call_present(script, name) {
                 result.syntax_errors.push(message.to_string());
             }
+        }
+
+        // Member-access / tampering primitives: these literal substrings have no
+        // identifier-suffix ambiguity, so a plain containment check suffices.
+        if script.contains("process.") {
+            result
+                .syntax_errors
+                .push("process access not allowed".to_string());
+        }
+        if script.contains("globalThis[") {
+            result
+                .syntax_errors
+                .push("globalThis property access by key not allowed".to_string());
+        }
+        if script.contains("delete globalThis") {
+            result
+                .syntax_errors
+                .push("globalThis tampering not allowed".to_string());
         }
 
         if context.is_production {
@@ -193,6 +210,42 @@ pub mod static_analysis {
                 }
             }
         }
+    }
+
+    /// Returns true if `script` contains `name` invoked as a call site
+    /// (`name` optionally followed by whitespace, then `(`) where the character
+    /// immediately before `name` is not a JavaScript identifier character.
+    ///
+    /// This matches the intent of the regex `(?<![A-Za-z0-9_$])name\s*\(` without
+    /// requiring lookbehind (the `regex` crate does not support it). It excludes
+    /// identifier suffixes such as `assertFunction(`, `myeval(`, or `$Function(`,
+    /// while catching `eval(`, `new Function(`, `globalThis.Function(`, and a
+    /// bare leading `Function(` call.
+    ///
+    /// NOTE: this is a conservative *text* scan, not an AST walk — it cannot
+    /// distinguish code from string literals or comments, so a string/comment
+    /// that literally writes `Function(` is also flagged. Fail-safe is intended:
+    /// the QuickJS runtime additionally neutralizes `eval`/`Function`
+    /// (defense-in-depth), so this gate only needs to be sound, not precise.
+    fn dangerous_call_present(script: &str, name: &str) -> bool {
+        let bytes = script.as_bytes();
+        let mut search_from = 0;
+        while let Some(rel) = script[search_from..].find(name) {
+            let start = search_from + rel;
+            let preceded_by_ident = start > 0 && is_ident_char(bytes[start - 1] as char);
+            if !preceded_by_ident {
+                let rest = &script[start + name.len()..];
+                if rest.trim_start().starts_with('(') {
+                    return true;
+                }
+            }
+            search_from = start + name.len();
+        }
+        false
+    }
+
+    fn is_ident_char(c: char) -> bool {
+        c.is_ascii_alphanumeric() || c == '_' || c == '$'
     }
 
     pub fn validate_icp_integration(
@@ -1099,6 +1152,83 @@ mod tests {
         let result = validate_js_comprehensive(script, Some(prod_ctx()));
         assert!(result.syntax_errors.iter().any(|e| e.contains("Function")));
         assert!(result.syntax_errors.iter().any(|e| e.contains("require")));
+    }
+
+    #[test]
+    fn validate_accepts_benign_function_substring_identifiers() {
+        // The literal substring `Function(` must NOT trip the gate when it is a
+        // suffix of a benign identifier (the prior false-positive bug).
+        let script = r#"
+            function assertFunction(x) { return x; }
+            const isFunction = (x) => typeof x === 'function';
+            function _Function(x) { return x; }
+            function $Function(x) { return x; }
+            function myFunction(x) { return x; }
+            function init(arg) { assertFunction(1); isFunction(2); return { state: {}, effects: [] }; }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(
+            result.is_valid,
+            "benign *Function identifiers must not be flagged: {:?}",
+            result.syntax_errors
+        );
+        assert!(!result.syntax_errors.iter().any(|e| e.contains("Function")));
+    }
+
+    #[test]
+    fn validate_rejects_new_function_constructor() {
+        let script = r#"
+            var x = new Function('return 1');
+            function init(arg) { return { state: {}, effects: [] }; }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(result.syntax_errors.iter().any(|e| e.contains("Function")));
+    }
+
+    #[test]
+    fn validate_rejects_globalthis_function_call() {
+        let script = r#"
+            var x = globalThis.Function('return 1');
+            function init(arg) { return { state: {}, effects: [] }; }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(result.syntax_errors.iter().any(|e| e.contains("Function")));
+    }
+
+    #[test]
+    fn validate_rejects_bare_function_call() {
+        let script = r#"
+            var f = Function('x', 'return x');
+            function init(arg) { return { state: {}, effects: [] }; }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(result.syntax_errors.iter().any(|e| e.contains("Function")));
+    }
+
+    #[test]
+    fn validate_accepts_benign_eval_substring_identifier() {
+        // `myeval(` / `resolvedEval(` must NOT trip the eval gate.
+        let script = r#"
+            function myeval(x) { return x; }
+            const resolvedEval = (x) => x;
+            function init(arg) { myeval(1); resolvedEval(2); return { state: {}, effects: [] }; }
+            function view(state) { return {}; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(
+            !result.syntax_errors.iter().any(|e| e.contains("eval")),
+            "benign *eval identifiers must not be flagged: {:?}",
+            result.syntax_errors
+        );
     }
 
     #[test]
