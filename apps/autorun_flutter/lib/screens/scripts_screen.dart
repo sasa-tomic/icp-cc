@@ -1,12 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../controllers/script_controller.dart';
-import '../controllers/profile_controller.dart';
 import '../controllers/account_controller.dart';
 import '../models/script_record.dart';
 import '../models/script_template.dart';
@@ -20,7 +17,6 @@ import '../services/download_history_service.dart';
 import '../services/favorites_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
-import '../services/onboarding_service.dart';
 import '../services/onboarding_progress_service.dart';
 
 import '../rust/native_bridge.dart';
@@ -625,6 +621,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
 
     // Proceed with upload
+    if (!mounted) return;
     final bool? uploaded = await showDialog<bool>(
       context: context,
       builder: (context) => QuickUploadDialog(
@@ -1215,8 +1212,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         if (item.localScript != null) _duplicateScript(item.localScript!);
         break;
       case 'delete':
-        if (item.localScript != null)
+        if (item.localScript != null) {
           _confirmAndDeleteScript(item.localScript!);
+        }
         break;
       case 'publish':
         if (item.localScript != null) _publishToMarketplace(item.localScript!);
@@ -2858,7 +2856,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<ScriptSortOption>(
-                    value: _sortOption,
+                    initialValue: _sortOption,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -3247,75 +3245,6 @@ class _AccountRegistrationPromptDialog extends StatelessWidget {
           child: const Text('Register Username'),
         ),
       ],
-    );
-  }
-}
-
-/// Section header widget for visually separating "My Scripts" and "Marketplace" sections
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.icon,
-    required this.count,
-    required this.color,
-    this.isLoading = false,
-  });
-
-  final String title;
-  final IconData icon;
-  final int count;
-  final Color color;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: color,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-          ),
-          const SizedBox(width: 8),
-          if (count > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ),
-          if (isLoading) ...[
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: color,
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
