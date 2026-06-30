@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/models/script_list_item.dart';
+import 'package:icp_autorun/widgets/connectivity_scope.dart';
 
 void main() {
   group('Downloaded filter chip', () {
@@ -10,7 +11,9 @@ void main() {
 
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -31,7 +34,9 @@ void main() {
 
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -75,7 +80,9 @@ void main() {
 
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 

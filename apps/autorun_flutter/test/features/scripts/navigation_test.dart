@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
+import 'package:icp_autorun/widgets/connectivity_scope.dart';
 
 void main() {
   group('ScriptsScreen navigation', () {
     testWidgets('AppBar contains overflow menu button', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -19,7 +22,9 @@ void main() {
     testWidgets('overflow menu contains Download History item', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -36,7 +41,9 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 
@@ -52,7 +59,9 @@ void main() {
     testWidgets('has no tab bar (flattened UI)', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: ScriptsScreen(),
+          home: ConnectivityScope(
+            child: ScriptsScreen(),
+          ),
         ),
       );
 

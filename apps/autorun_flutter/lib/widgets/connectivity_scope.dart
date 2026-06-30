@@ -12,13 +12,24 @@ import '../services/offline_banner_dismiss_service.dart';
 /// and provides [isOnline] state and banner visibility logic.
 class ConnectivityScope extends StatefulWidget {
   /// Creates a connectivity scope.
+  ///
+  /// Pass [service] to inject a custom [ConnectivityService] (e.g. a no-I/O
+  /// fake in widget tests; the real service performs an uncancellable
+  /// `Socket.connect` whose 5s timeout leaks a pending timer under FakeAsync).
   const ConnectivityScope({
     super.key,
     required this.child,
+    this.service,
   });
 
   /// The child widget to wrap.
   final Widget child;
+
+  /// Optional injected connectivity service.
+  ///
+  /// When null (the default in production), the scope creates its own
+  /// [ConnectivityService].
+  final ConnectivityService? service;
 
   /// Gets the connectivity state from the nearest [ConnectivityScope].
   ///
@@ -63,7 +74,7 @@ class ConnectivityState extends State<ConnectivityScope> {
   @override
   void initState() {
     super.initState();
-    _connectivityService = ConnectivityService();
+    _connectivityService = widget.service ?? ConnectivityService();
     _dismissService = OfflineBannerDismissService();
     _initConnectivity();
   }

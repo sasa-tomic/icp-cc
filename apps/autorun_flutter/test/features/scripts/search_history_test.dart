@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/services/search_history_service.dart';
+import 'package:icp_autorun/widgets/connectivity_scope.dart';
+import '../../shared/fake_connectivity_service.dart';
 
 void main() {
   group('Search History UI', () {
@@ -12,8 +14,11 @@ void main() {
 
     testWidgets('search field is present on ScriptsScreen', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
+        MaterialApp(
+          home: ConnectivityScope(
+            service: FakeConnectivityService(),
+            child: const ScriptsScreen(),
+          ),
         ),
       );
 
@@ -25,8 +30,11 @@ void main() {
 
     testWidgets('search field has search icon', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
+        MaterialApp(
+          home: ConnectivityScope(
+            service: FakeConnectivityService(),
+            child: const ScriptsScreen(),
+          ),
         ),
       );
 
@@ -41,8 +49,11 @@ void main() {
       await service.addSearchQuery('test query');
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
+        MaterialApp(
+          home: ConnectivityScope(
+            service: FakeConnectivityService(),
+            child: const ScriptsScreen(),
+          ),
         ),
       );
 
@@ -63,8 +74,11 @@ void main() {
       await service.addSearchQuery('previous search');
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
+        MaterialApp(
+          home: ConnectivityScope(
+            service: FakeConnectivityService(),
+            child: const ScriptsScreen(),
+          ),
         ),
       );
 
@@ -86,8 +100,11 @@ void main() {
       await service.addSearchQuery('lua script');
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
+        MaterialApp(
+          home: ConnectivityScope(
+            service: FakeConnectivityService(),
+            child: const ScriptsScreen(),
+          ),
         ),
       );
 
@@ -108,8 +125,11 @@ void main() {
 
     testWidgets('typing in search field shows clear button', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
+        MaterialApp(
+          home: ConnectivityScope(
+            service: FakeConnectivityService(),
+            child: const ScriptsScreen(),
+          ),
         ),
       );
 
@@ -125,8 +145,11 @@ void main() {
 
     testWidgets('clear button clears search field', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: ScriptsScreen(),
+        MaterialApp(
+          home: ConnectivityScope(
+            service: FakeConnectivityService(),
+            child: const ScriptsScreen(),
+          ),
         ),
       );
 
