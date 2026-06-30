@@ -2,6 +2,10 @@
 
 This guide covers setting up and running the ICP Script Marketplace with the local Poem-based API server for development and testing.
 
+> **Note on `vendors/`:** a `vendors/` directory (optional local reference repos)
+> is gitignored and not referenced by any build. It is safe to delete locally;
+> re-clone if you need it again.
+
 ## Quick Start
 
 Install dependencies with `scripts/bootstrap.sh`

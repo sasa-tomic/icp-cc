@@ -42,11 +42,11 @@ class ValidationResult {
 /// Validates TypeScript/QuickJS script bundles through the authoritative Rust
 /// validator (rquickjs-based) over FFI.
 ///
-/// Previously this class hosted a Lua-regex `quickValidate` heuristic that ran
-/// as a fallback when the Rust bridge was unavailable. Per cleanup-plan TD-8,
-/// that heuristic is removed: the Rust validator is authoritative and the
-/// previous fallback used wrong-language rules. When FFI is unavailable we now
-/// surface a clear error rather than silently returning stale heuristics.
+/// This class previously hosted a `quickValidate` heuristic that ran as a
+/// fallback when the Rust bridge was unavailable. Per cleanup-plan TD-8, that
+/// heuristic is removed: the Rust validator is authoritative, and when FFI is
+/// unavailable we now surface a clear error rather than silently returning
+/// stale heuristics.
 class ScriptValidationService {
   static final ScriptValidationService _instance = ScriptValidationService._internal();
   factory ScriptValidationService() => _instance;

@@ -485,6 +485,12 @@ clean:
     rm -rf {{flutter_dir}}/linux/flutter/ephemeral || true
     rm -rf {{api_dir}}/target/debug || true
 
+# Remove transient tool/runtime scratch directories (.tmp/, .just-tmp/)
+clean-tmp:
+    @echo "==> Cleaning scratch directories..."
+    rm -rf {{root}}/.tmp || true
+    rm -rf {{root}}/.just-tmp || true
+
 # Deep clean including dependencies
 distclean: clean
     @echo "==> Deep cleaning all artifacts and dependencies..."

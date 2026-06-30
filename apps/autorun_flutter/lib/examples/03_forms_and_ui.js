@@ -1,6 +1,6 @@
 // TypeScript/QuickJS bundle: exercises the rich UI widget surface
 // (text_field, toggle, select, image, section, list, row, button).
-// Ports the widget coverage of the legacy advanced-UI Lua demo.
+// Ports the widget coverage of the advanced-UI demo.
 "use strict";
 (() => {
   function init() {
