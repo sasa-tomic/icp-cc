@@ -591,7 +591,6 @@ pub use runtime::{
 #[cfg(not(target_arch = "wasm32"))]
 mod tests {
     use super::*;
-    use crate::lua_engine;
     use rquickjs::{Ctx, Value};
     use runtime::{
         create_sandboxed_js, install_host_globals, js_value_to_json_string, DEFAULT_BUDGET_MS,
@@ -732,20 +731,6 @@ mod tests {
         let out = execute_js_json(&script, None).unwrap();
         let v: JsonValue = serde_json::from_str(&out).unwrap();
         v["result"].clone()
-    }
-
-    fn run_helper_in_lua(lua_call: &str) -> JsonValue {
-        let script = format!(
-            r#"
-                function init(arg) return {{}}, {{}} end
-                function view(state) return {} end
-                function update(msg, state) return state, {{}} end
-            "#,
-            lua_call
-        );
-        let out = lua_engine::app_view(&script, "{}", 1000);
-        let v: JsonValue = serde_json::from_str(&out).unwrap();
-        v["ui"].clone()
     }
 
     #[test]
@@ -901,48 +886,6 @@ mod tests {
             run_helper_in_js("icp_group_by([{c:'NY',n:'A'},{c:'LA',n:'B'},{c:'NY',n:'C'}], 'c')");
         assert_eq!(js["NY"].as_array().unwrap().len(), 2);
         assert_eq!(js["LA"].as_array().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn parity_oracle_helpers_match_lua() {
-        let cases: &[(&str, &str)] = &[
-            ("icp_call({ canister: 'rrkah-fqaaa-aaaaa-aaaaq-cai', method: 'get_balance', args: {} })",
-             "icp_call({ canister = 'rrkah-fqaaa-aaaaa-aaaaq-cai', method = 'get_balance', args = {} })"),
-            ("icp_batch({ calls: [{ canister: 'a' }, { canister: 'b' }] })",
-             "icp_batch({ calls = { { canister = 'a' }, { canister = 'b' } } })"),
-            ("icp_message({ text: 'Hello', type: 'info' })",
-             "icp_message({ text = 'Hello', type = 'info' })"),
-            ("icp_ui_list({ items: ['a','b','c'], buttons: ['click'] })",
-             "icp_ui_list({ items = {'a','b','c'}, buttons = {'click'} })"),
-            ("icp_result_display({ result: 'ok', type: 'success' })",
-             "icp_result_display({ result = 'ok', type = 'success' })"),
-            ("icp_searchable_list({ items: [1,2], title: 'Recent', searchable: true })",
-             "icp_searchable_list({ items = {1,2}, title = 'Recent', searchable = true })"),
-            ("icp_section({ title: 'T', content: 'C' })",
-             "icp_section({ title = 'T', content = 'C' })"),
-            ("icp_table({ data: [{a:1}], headers: ['a'] })",
-             "icp_table({ data = {{a=1}}, headers = {'a'} })"),
-            ("icp_format_number(123.456, 2)", "icp_format_number(123.456, 2)"),
-            ("icp_format_icp(123456789, 8)", "icp_format_icp(123456789, 8)"),
-            ("icp_format_timestamp(1634567890)", "icp_format_timestamp(1634567890)"),
-            ("icp_format_bytes(1024)", "icp_format_bytes(1024)"),
-            ("icp_truncate('text', 5)", "icp_truncate('text', 5)"),
-            ("icp_filter_items([{c:'NY'},{c:'LA'}], 'c', 'NY')",
-             "icp_filter_items({{c='NY'},{c='LA'}}, 'c', 'NY')"),
-            ("icp_sort_items([{n:'C'},{n:'A'},{n:'B'}], 'n', true)",
-             "icp_sort_items({{n='C'},{n='A'},{n='B'}}, 'n', true)"),
-            ("icp_group_by([{c:'NY'},{c:'LA'},{c:'NY'}], 'c')",
-             "icp_group_by({{c='NY'},{c='LA'},{c='NY'}}, 'c')"),
-        ];
-        for (js_call, lua_call) in cases {
-            let js_result = run_helper_in_js(js_call);
-            let lua_result = run_helper_in_lua(lua_call);
-            assert_eq!(
-                js_result, lua_result,
-                "parity mismatch for `{}` vs `{}`\n JS: {}\nLua: {}",
-                js_call, lua_call, js_result, lua_result,
-            );
-        }
     }
 
     #[test]

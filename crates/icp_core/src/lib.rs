@@ -6,8 +6,6 @@ pub mod contract;
 pub mod ffi;
 pub mod js_engine;
 pub mod keypair;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod lua_engine;
 pub mod principal;
 pub mod vault;
 
@@ -25,11 +23,6 @@ pub use js_engine::{
 pub use js_engine::{JsExecError, JsValidationContext, JsValidationResult};
 pub use keypair::{
     generate_ed25519_keypair, generate_secp256k1_keypair, sign_ed25519, sign_secp256k1, KeypairData,
-};
-#[cfg(not(target_arch = "wasm32"))]
-pub use lua_engine::{
-    execute_lua_json, lint_lua, validate_lua_comprehensive, LuaExecError, ValidationContext,
-    ValidationResult,
 };
 pub use principal::{der_encode_public_key, principal_from_der, principal_from_public_key};
 pub use vault::{

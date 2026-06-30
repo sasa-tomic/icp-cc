@@ -4,7 +4,7 @@
 //! on the locale-free `icp_format_*` helpers; pulling in full ICU would bloat the
 //! binary and complicate the NDK/wasm toolchain.
 //!
-//! Probe evidence (bundled QuickJS, native build): `typeof Intl` evaluates to the
+//! Probe evidence (bundled QuickJS, native build): `typeof Intl` resolves to the
 //! string `"undefined"` and `new Intl.NumberFormat('de-DE').format(1234.5)` throws
 //! `ReferenceError: Intl is not defined`. The ICU data set is therefore already
 //! absent from the build; the static `validate_intl` gate makes that contract

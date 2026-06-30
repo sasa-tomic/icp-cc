@@ -43,18 +43,10 @@ aes-gcm = "0.10"
 rand = "0.8"
 
 # Native-only dependencies (excluded from wasm32-unknown-unknown builds):
-# - mlua: vendored Lua 5.4 C source cannot be compiled to wasm32
 # - reqwest/ic-agent/tokio: native networking + multi-thread runtime
 # - rquickjs: vendored QuickJS C source cannot be compiled to wasm32
 # The wasm path uses pure-Rust static analysis (see js_engine::static_analysis).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# Embedded Lua interpreter for user scripting
-# - lua54: use Lua 5.4
-# - vendored: build Lua from source for reproducible mobile builds
-# - serde: JSON bridge between Lua values and serde_json
-# - send: allow Lua handle to be Send + Sync where applicable
-mlua = { version = "0.11", features = ["lua54", "vendored", "serde", "send"] }
-
 # Optional networking support (off by default to allow offline builds)
 reqwest = { version = "=0.12.23", default-features = false, features = [
   "rustls-tls",
@@ -63,8 +55,8 @@ reqwest = { version = "=0.12.23", default-features = false, features = [
 ic-agent = { version = "0.44.2" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
-# Embedded QuickJS engine for TypeScript/JavaScript user scripting (dual-runtime).
-# - bindgen: build QuickJS from vendored C source (mirrors mlua "vendored")
+# Embedded QuickJS engine for TypeScript/JavaScript user scripting.
+# - bindgen: build QuickJS from vendored C source
 # - parallel: Runtime/Context are Send (interrupt handler closure must be Send)
 rquickjs = { version = "0.12", features = [
   "bindgen",

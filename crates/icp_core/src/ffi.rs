@@ -1,9 +1,9 @@
 use crate::{
     canister_client::{self, MethodKind},
-    generate_ed25519_keypair, generate_secp256k1_keypair, js_engine, lua_engine,
-    principal_from_public_key, sign_ed25519, sign_secp256k1,
+    generate_ed25519_keypair, generate_secp256k1_keypair, js_engine, principal_from_public_key,
+    sign_ed25519, sign_secp256k1,
     vault::{self, EncryptedVault},
-    JsValidationContext, ValidationContext,
+    JsValidationContext,
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde_json::json;
@@ -303,149 +303,9 @@ pub unsafe extern "C" fn icp_call_authenticated(
     }
 }
 
-// Bookmarks
-/// # Safety
-/// - The returned pointer, when non-null, points to a heap-allocated C string owned by Rust
-///   and must be freed by calling `icp_free_string` exactly once.
-// ---- Lua scripting FFI ----
-/// # Safety
-/// - `script` and `json_arg` must be null or valid, null-terminated C strings.
-/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn icp_lua_exec(
-    script: *const c_char,
-    json_arg: *const c_char,
-) -> *mut c_char {
-    if script.is_null() {
-        return null_c_string();
-    }
-    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let arg_opt = if json_arg.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(json_arg).to_str().unwrap_or(""))
-    };
-    match lua_engine::execute_lua_json(script_s, arg_opt) {
-        Ok(s) => CString::new(s).unwrap().into_raw(),
-        Err(e) => {
-            let err_json = json!({"ok": false, "error": e.to_string()}).to_string();
-            CString::new(err_json).unwrap().into_raw()
-        }
-    }
-}
-
-/// # Safety
-/// - `script` must be null or a valid, null-terminated C string.
-/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn icp_lua_lint(script: *const c_char) -> *mut c_char {
-    if script.is_null() {
-        return null_c_string();
-    }
-    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let json = lua_engine::lint_lua(script_s);
-    CString::new(json).unwrap().into_raw()
-}
-
-/// # Safety
-/// - `script` must be null or a valid, null-terminated C string.
-/// - `is_example`, `is_test`, and `is_production` must be 0 (false) or 1 (true).
-/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn icp_lua_validate_comprehensive(
-    script: *const c_char,
-    is_example: i32,
-    is_test: i32,
-    is_production: i32,
-) -> *mut c_char {
-    if script.is_null() {
-        return null_c_string();
-    }
-    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
-
-    let context = ValidationContext {
-        is_example: is_example != 0,
-        is_test: is_test != 0,
-        is_production: is_production != 0,
-    };
-
-    let result = lua_engine::validate_lua_comprehensive(script_s, Some(context));
-    let json = json!({
-        "is_valid": result.is_valid,
-        "syntax_errors": result.syntax_errors,
-        "warnings": result.warnings,
-        "line_count": result.line_count,
-        "character_count": result.character_count
-    })
-    .to_string();
-
-    CString::new(json).unwrap().into_raw()
-}
-
-// ---- TEA-style Lua app FFI ----
-/// # Safety
-/// - All pointers must be null or valid, null-terminated C strings.
-/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn icp_lua_app_init(
-    script: *const c_char,
-    json_arg: *const c_char,
-    budget_ms: u64,
-) -> *mut c_char {
-    if script.is_null() {
-        return null_c_string();
-    }
-    let s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let arg_opt = if json_arg.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(json_arg).to_str().unwrap_or(""))
-    };
-    let out = lua_engine::app_init(s, arg_opt, budget_ms);
-    CString::new(out).unwrap().into_raw()
-}
-
-/// # Safety
-/// - All pointers must be null or valid, null-terminated C strings.
-/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn icp_lua_app_view(
-    script: *const c_char,
-    state_json: *const c_char,
-    budget_ms: u64,
-) -> *mut c_char {
-    if script.is_null() || state_json.is_null() {
-        return null_c_string();
-    }
-    let s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
-    let out = lua_engine::app_view(s, st, budget_ms);
-    CString::new(out).unwrap().into_raw()
-}
-
-/// # Safety
-/// - All pointers must be null or valid, null-terminated C strings.
-/// - Returns heap-allocated C string (JSON). Must be freed by `icp_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn icp_lua_app_update(
-    script: *const c_char,
-    msg_json: *const c_char,
-    state_json: *const c_char,
-    budget_ms: u64,
-) -> *mut c_char {
-    if script.is_null() || msg_json.is_null() || state_json.is_null() {
-        return null_c_string();
-    }
-    let s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let m = CStr::from_ptr(msg_json).to_str().unwrap_or("");
-    let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
-    let out = lua_engine::app_update(s, m, st, budget_ms);
-    CString::new(out).unwrap().into_raw()
-}
-
 // ---- JavaScript scripting FFI (QuickJS-backed; native only) ----
-// rquickjs cannot compile to wasm32, so these mirrors of the icp_lua_* FFI are
-// excluded from the wasm build. The wasm path uses pure-Rust static analysis
+// rquickjs builds QuickJS from vendored C source, which cannot be compiled to
+// wasm32-unknown-unknown. The wasm path uses pure-Rust static analysis
 // (see wasm_exports.rs).
 
 /// # Safety
