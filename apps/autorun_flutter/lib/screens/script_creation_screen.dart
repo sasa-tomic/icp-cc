@@ -14,21 +14,22 @@ class _BlankScriptTemplate extends ScriptTemplate {
           emoji: '📄',
           level: 'beginner',
           tags: ['blank', 'empty'],
-          preloadedLuaSource: '''-- Blank Script
-function init(arg)
-  return {}, {}
-end
-
-function view(state)
-  return {
-    type = "text",
-    props = { text = "Hello World" }
+          preloadedLuaSource: '''// Blank Script — a minimal TypeScript/QuickJS bundle.
+"use strict";
+(() => {
+  function init() {
+    return { state: {}, effects: [] };
   }
-end
-
-function update(msg, state)
-  return state, {}
-end
+  function view(_state) {
+    return { type: "text", props: { text: "Hello World" } };
+  }
+  function update(_msg, state) {
+    return { state: state, effects: [] };
+  }
+  globalThis.init = init;
+  globalThis.view = view;
+  globalThis.update = update;
+})();
 ''',
         );
 }

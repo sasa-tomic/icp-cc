@@ -205,7 +205,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen>
                 ),
                 const SizedBox(height: AppDesignSystem.spacing16),
                 Text(
-                  'Create and run Lua scripts that interact with ICP canisters',
+                  'Create and run TypeScript scripts that interact with ICP canisters',
                   style: context.textStyles.bodyLarge.copyWith(
                     color: context.colors.onSurfaceVariant,
                   ),
@@ -241,7 +241,7 @@ class _WelcomeOnboardingScreenState extends State<WelcomeOnboardingScreen>
               _buildFeatureItem(
                 icon: Icons.code_rounded,
                 title: 'Write Scripts',
-                description: 'Create Lua scripts with our editor',
+                description: 'Create TypeScript scripts with our editor',
               ),
               const SizedBox(height: AppDesignSystem.spacing12),
               _buildFeatureItem(

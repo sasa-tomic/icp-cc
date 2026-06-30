@@ -53,7 +53,7 @@ class ContextualTipService {
         return const ContextualTipContent(
           title: 'Script Editor',
           description:
-              'Write Lua code here and tap Run to execute. Scripts can '
+              'Write TypeScript here and tap Run to execute. Scripts can '
               'interact with ICP canisters and automate workflows.',
         );
       case ContextualTipFeature.exploreView:

@@ -102,10 +102,10 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     });
 
     try {
-      final luaSource =
+      final bundle =
           await _marketplaceService.downloadScript(widget.script.id);
       // Show first 50 lines as preview
-      final lines = luaSource.split('\n');
+      final lines = bundle.split('\n');
       final previewLines = lines.take(50).join('\n');
       setState(() {
         _scriptPreview = previewLines;
@@ -428,7 +428,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                     child: Row(
                                       children: [
                                         Text(
-                                          'Lua',
+                                          'TypeScript',
                                           style: Theme.of(context)
                                               .textTheme
                                               .labelSmall
@@ -811,7 +811,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                             child: Row(
                               children: [
                                 Text(
-                                  'Lua',
+                                  'TypeScript',
                                   style: Theme.of(context)
                                       .textTheme
                                       .labelSmall

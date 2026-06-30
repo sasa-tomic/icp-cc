@@ -129,51 +129,44 @@ class ScriptTemplates {
       ScriptTemplate(
         id: 'hello_world',
         title: 'Hello World',
-        description: 'Simple introduction to Lua scripting with basic UI components and state management.',
+        description:
+            'Simple introduction to TypeScript scripting — a greeting, a counter, and a text field.',
         emoji: '👋',
         level: 'beginner',
-        filePath: 'lib/examples/01_hello_world.lua',
-        tags: ['basic', 'ui', 'state'],
+        filePath: 'lib/examples/01_hello_world.js',
+        tags: ['typescript', 'basic', 'ui', 'state'],
         isRecommended: true,
       ),
 
       ScriptTemplate(
-        id: 'data_management',
-        title: 'Simple Data Management',
-        description: 'Learn how to manage lists of data, implement filtering, and work with user input.',
-        emoji: '📋',
-        level: 'beginner',
-        filePath: 'lib/examples/02_simple_data.lua',
-        tags: ['data', 'filtering', 'ui'],
-        isRecommended: false,
-      ),
-
-      ScriptTemplate(
         id: 'icp_demo',
-        title: 'Simple ICP Demo',
-        description: 'Make real calls to ICP blockchain canisters and display the results.',
+        title: 'Canister Query Demo',
+        description:
+            'Query an ICP canister via an effect and format the result with SDK helpers.',
         emoji: '🌐',
         level: 'intermediate',
-        filePath: 'lib/examples/03_simple_icp_demo.lua',
-        tags: ['icp', 'blockchain', 'canister'],
+        filePath: 'lib/examples/02_canister_query.js',
+        tags: ['typescript', 'icp', 'blockchain', 'canister'],
         isRecommended: false,
       ),
 
       ScriptTemplate(
         id: 'advanced_ui',
-        title: 'Advanced UI Demo',
-        description: 'Advanced UI with filtering, sorting, statistics, and complex data visualization.',
+        title: 'Forms & UI Demo',
+        description:
+            'Rich TypeScript UI: text fields, toggles, selects, image, sections, and lists.',
         emoji: '🎨',
         level: 'advanced',
-        filePath: 'lib/examples/04_advanced_ui_refactored.lua',
-        tags: ['ui', 'advanced', 'filtering', 'sorting', 'statistics'],
+        filePath: 'lib/examples/03_forms_and_ui.js',
+        tags: ['typescript', 'ui', 'forms', 'advanced'],
         isRecommended: false,
       ),
 
       ScriptTemplate(
         id: 'typescript_counter',
         title: 'TypeScript Counter',
-        description: 'Get started with TypeScript scripting — a simple counter with init/view/update.',
+        description:
+            'Get started with TypeScript scripting — a simple counter with init/view/update.',
         emoji: '🟦',
         level: 'beginner',
         filePath: 'lib/examples/05_typescript_counter.js',

@@ -5,7 +5,7 @@ import '../services/candid_service.dart';
 import '../widgets/candid_args_builder.dart';
 import '../utils/tech_terms.dart';
 
-/// Dialog for building canister method calls that generate Lua code
+/// Dialog for building canister method calls that generate a TypeScript snippet
 class CanisterCallBuilderDialog extends StatefulWidget {
   const CanisterCallBuilderDialog({super.key, this.initialCallSpec});
 
@@ -150,7 +150,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     }
   }
 
-  String _generateLuaCode() {
+  String _generateBundle() {
     if (_selectedMethod == null ||
         _selectedCanisterId == null ||
         _selectedCanisterId!.isEmpty) {
@@ -170,29 +170,29 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     final buffer = StringBuffer();
 
     if (_isAuthenticated) {
-      buffer.writeln('-- Authenticated canister call');
-      buffer.writeln('local result = icp_call({');
+      buffer.writeln('// Authenticated canister call');
+      buffer.writeln('const result = icp_call({');
     } else {
-      buffer.writeln('-- Anonymous canister call');
-      buffer.writeln('local result = icp_call({');
+      buffer.writeln('// Anonymous canister call');
+      buffer.writeln('const result = icp_call({');
     }
 
-    buffer.writeln('  canister_id = "$_selectedCanisterId",');
-    buffer.writeln('  method = "$_selectedMethod",');
-    buffer.writeln('  kind = $_callKind, -- ${_getCallKindLabel(_callKind)}');
-    buffer.writeln('  args = $argsString');
+    buffer.writeln('  canister_id: "$_selectedCanisterId",');
+    buffer.writeln('  method: "$_selectedMethod",');
+    buffer.writeln('  kind: $_callKind, // ${_getCallKindLabel(_callKind)}');
+    buffer.writeln('  args: $argsString');
 
     if (_isAuthenticated && _keypairId != null) {
-      buffer.writeln('  keypair_id = "$_keypairId"');
+      buffer.writeln('  keypair_id: "$_keypairId"');
     } else if (_isAuthenticated) {
       buffer.writeln(
-          '  -- Note: You\'ll need to set private_key_b64 or keypair_id for authenticated calls');
+          '  // Note: You\'ll need to set private_key_b64 or keypair_id for authenticated calls');
     }
 
-    buffer.writeln('})');
+    buffer.writeln('});');
     buffer.writeln();
-    buffer.writeln('-- Use the result in your script');
-    buffer.writeln('return result');
+    buffer.writeln('// Use the result in your script');
+    buffer.writeln('return result;');
 
     return buffer.toString();
   }
@@ -209,11 +209,11 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
   }
 
   void _copyToClipboard() {
-    final luaCode = _generateLuaCode();
-    if (luaCode.isNotEmpty) {
+    final snippet = _generateBundle();
+    if (snippet.isNotEmpty) {
       // TODO: Implement clipboard functionality
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lua code copied to clipboard!')),
+        const SnackBar(content: Text('Snippet copied to clipboard!')),
       );
     }
   }
@@ -473,7 +473,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                 const Spacer(),
               ],
 
-              // Generated Lua code preview
+              // Generated TypeScript snippet preview
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
@@ -486,7 +486,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                 ),
                 child: SingleChildScrollView(
                   child: SelectableText(
-                    _generateLuaCode(),
+                    _generateBundle(),
                     style:
                         const TextStyle(fontFamily: 'monospace', fontSize: 12),
                   ),
@@ -502,14 +502,14 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed: _generateLuaCode().isNotEmpty ? _copyToClipboard : null,
-          child: const Text('Copy Lua'),
+          onPressed: _generateBundle().isNotEmpty ? _copyToClipboard : null,
+          child: const Text('Copy Snippet'),
         ),
         FilledButton(
-          onPressed: _generateLuaCode().isNotEmpty
-              ? () => Navigator.of(context).pop(_generateLuaCode())
+          onPressed: _generateBundle().isNotEmpty
+              ? () => Navigator.of(context).pop(_generateBundle())
               : null,
-          child: const Text('Insert Lua Code'),
+          child: const Text('Insert Snippet'),
         ),
       ],
     );

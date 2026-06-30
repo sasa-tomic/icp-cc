@@ -9,7 +9,7 @@ class UiComponent {
     required this.description,
     required this.category,
     required this.icon,
-    required this.luaTemplate,
+    required this.template,
   });
 
   final String id;
@@ -17,7 +17,7 @@ class UiComponent {
   final String description;
   final UiComponentCategory category;
   final IconData icon;
-  final String luaTemplate;
+  final String template;
 }
 
 class UiComponentPalette {
@@ -28,11 +28,11 @@ class UiComponentPalette {
       description: 'Vertical layout container',
       category: UiComponentCategory.layout,
       icon: Icons.view_column_rounded,
-      luaTemplate: '''{
-  type = "column",
-  children = {
-    -- Add child widgets here
-  }
+      template: '''{
+  type: "column",
+  children: [
+    // Add child widgets here
+  ]
 }''',
     ),
     UiComponent(
@@ -41,11 +41,11 @@ class UiComponentPalette {
       description: 'Horizontal layout container',
       category: UiComponentCategory.layout,
       icon: Icons.view_stream_rounded,
-      luaTemplate: '''{
-  type = "row",
-  children = {
-    -- Add child widgets here
-  }
+      template: '''{
+  type: "row",
+  children: [
+    // Add child widgets here
+  ]
 }''',
     ),
     UiComponent(
@@ -54,14 +54,14 @@ class UiComponentPalette {
       description: 'Card container with optional title',
       category: UiComponentCategory.layout,
       icon: Icons.crop_portrait_rounded,
-      luaTemplate: '''{
-  type = "section",
-  props = {
-    title = "Section Title"
+      template: '''{
+  type: "section",
+  props: {
+    title: "Section Title"
   },
-  children = {
-    -- Add child widgets here
-  }
+  children: [
+    // Add child widgets here
+  ]
 }''',
     ),
     UiComponent(
@@ -70,13 +70,13 @@ class UiComponentPalette {
       description: 'Display text with optional copy button',
       category: UiComponentCategory.text,
       icon: Icons.text_fields_rounded,
-      luaTemplate: '''{
-  type = "text",
-  props = {
-    text = "Your text here",
-    copy = false,
-    copy_label = "Copy",
-    copy_value = "value_to_copy"
+      template: '''{
+  type: "text",
+  props: {
+    text: "Your text here",
+    copy: false,
+    copy_label: "Copy",
+    copy_value: "value_to_copy"
   }
 }''',
     ),
@@ -86,14 +86,14 @@ class UiComponentPalette {
       description: 'Clickable button with handler',
       category: UiComponentCategory.text,
       icon: Icons.smart_button_rounded,
-      luaTemplate: '''{
-  type = "button",
-  props = {
-    label = "Click Me",
-    disabled = false,
-    on_press = {
-      action = "handle_click",
-      data = "optional_payload"
+      template: '''{
+  type: "button",
+  props: {
+    label: "Click Me",
+    disabled: false,
+    on_press: {
+      action: "handle_click",
+      data: "optional_payload"
     }
   }
 }''',
@@ -104,18 +104,18 @@ class UiComponentPalette {
       description: 'Text input with label and placeholder',
       category: UiComponentCategory.input,
       icon: Icons.input_rounded,
-      luaTemplate: '''{
-  type = "text_field",
-  props = {
-    label = "Input Label",
-    placeholder = "Enter text...",
-    value = "",
-    enabled = true,
-    obscure = false,
-    keyboard_type = "text",
-    on_change = {
-      action = "handle_input",
-      field = "input_name"
+      template: '''{
+  type: "text_field",
+  props: {
+    label: "Input Label",
+    placeholder: "Enter text...",
+    value: "",
+    enabled: true,
+    obscure: false,
+    keyboard_type: "text",
+    on_change: {
+      action: "handle_input",
+      field: "input_name"
     }
   }
 }''',
@@ -126,15 +126,15 @@ class UiComponentPalette {
       description: 'Boolean switch with label',
       category: UiComponentCategory.input,
       icon: Icons.toggle_on_rounded,
-      luaTemplate: '''{
-  type = "toggle",
-  props = {
-    label = "Enable feature",
-    value = false,
-    enabled = true,
-    on_change = {
-      action = "handle_toggle",
-      field = "toggle_name"
+      template: '''{
+  type: "toggle",
+  props: {
+    label: "Enable feature",
+    value: false,
+    enabled: true,
+    on_change: {
+      action: "handle_toggle",
+      field: "toggle_name"
     }
   }
 }''',
@@ -145,19 +145,19 @@ class UiComponentPalette {
       description: 'Dropdown selection from options',
       category: UiComponentCategory.input,
       icon: Icons.arrow_drop_down_circle_rounded,
-      luaTemplate: '''{
-  type = "select",
-  props = {
-    label = "Choose option",
-    value = "",
-    enabled = true,
-    options = {
-      { label = "Option 1", value = "opt1" },
-      { label = "Option 2", value = "opt2" }
-    },
-    on_change = {
-      action = "handle_select",
-      field = "select_name"
+      template: '''{
+  type: "select",
+  props: {
+    label: "Choose option",
+    value: "",
+    enabled: true,
+    options: [
+      { label: "Option 1", value: "opt1" },
+      { label: "Option 2", value: "opt2" }
+    ],
+    on_change: {
+      action: "handle_select",
+      field: "select_name"
     }
   }
 }''',
@@ -168,15 +168,15 @@ class UiComponentPalette {
       description: 'Scrollable list of items',
       category: UiComponentCategory.display,
       icon: Icons.list_rounded,
-      luaTemplate: '''{
-  type = "list",
-  props = {
-    title = "List Title",
-    searchable = false,
-    items = {
-      { title = "Item 1", subtitle = "Description 1" },
-      { title = "Item 2", subtitle = "Description 2" }
-    }
+      template: '''{
+  type: "list",
+  props: {
+    title: "List Title",
+    searchable: false,
+    items: [
+      { title: "Item 1", subtitle: "Description 1" },
+      { title: "Item 2", subtitle: "Description 2" }
+    ]
   }
 }''',
     ),
@@ -186,18 +186,18 @@ class UiComponentPalette {
       description: 'Data table with columns and rows',
       category: UiComponentCategory.display,
       icon: Icons.table_chart_rounded,
-      luaTemplate: '''{
-  type = "table",
-  props = {
-    title = "Table Title",
-    columns = {
-      { key = "col1", label = "Column 1" },
-      { key = "col2", label = "Column 2" }
-    },
-    rows = {
-      { col1 = "Row 1 Cell 1", col2 = "Row 1 Cell 2" },
-      { col1 = "Row 2 Cell 1", col2 = "Row 2 Cell 2" }
-    }
+      template: '''{
+  type: "table",
+  props: {
+    title: "Table Title",
+    columns: [
+      { key: "col1", label: "Column 1" },
+      { key: "col2", label: "Column 2" }
+    ],
+    rows: [
+      { col1: "Row 1 Cell 1", col2: "Row 1 Cell 2" },
+      { col1: "Row 2 Cell 1", col2: "Row 2 Cell 2" }
+    ]
   }
 }''',
     ),
@@ -207,13 +207,13 @@ class UiComponentPalette {
       description: 'Display image from URL or local',
       category: UiComponentCategory.display,
       icon: Icons.image_rounded,
-      luaTemplate: '''{
-  type = "image",
-  props = {
-    src = "https://example.com/image.png",
-    width = 200,
-    height = 150,
-    fit = "cover"
+      template: '''{
+  type: "image",
+  props: {
+    src: "https://example.com/image.png",
+    width: 200,
+    height: 150,
+    fit: "cover"
   }
 }''',
     ),
@@ -223,13 +223,13 @@ class UiComponentPalette {
       description: 'Expandable result container',
       category: UiComponentCategory.display,
       icon: Icons.expand_rounded,
-      luaTemplate: '''{
-  type = "result_display",
-  props = {
-    title = "Result",
-    expandable = true,
-    expanded = false,
-    data = { key = "value" }
+      template: '''{
+  type: "result_display",
+  props: {
+    title: "Result",
+    expandable: true,
+    expanded: false,
+    data: { key: "value" }
   }
 }''',
     ),
@@ -313,7 +313,7 @@ class _UiComponentPaletteSheetState extends State<_UiComponentPaletteSheet> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tap to insert Lua template at cursor position',
+              'Tap to insert TypeScript snippet at cursor position',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -341,7 +341,7 @@ class _UiComponentPaletteSheetState extends State<_UiComponentPaletteSheet> {
                   final component = components[index];
                   return _ComponentTile(
                     component: component,
-                    onTap: () => Navigator.of(context).pop(component.luaTemplate),
+                    onTap: () => Navigator.of(context).pop(component.template),
                   );
                 },
               ),

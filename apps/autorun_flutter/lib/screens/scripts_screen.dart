@@ -2439,7 +2439,7 @@ class _ScriptTemplateSelectionDialogState
             ),
             const SizedBox(height: 8),
             Text(
-              'Select a template to get started with your Lua script',
+              'Select a template to get started with your TypeScript script',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),

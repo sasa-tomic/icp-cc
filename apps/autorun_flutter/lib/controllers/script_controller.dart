@@ -6,155 +6,171 @@ import 'package:uuid/uuid.dart';
 import '../models/script_record.dart';
 import '../services/script_repository.dart';
 
-// Default sample TEA-style Lua app demonstrating UI widgets, forms, and canister calls.
-// Shows various UI elements and allows loading sample governance/ledger data via a batch effect.
-const String kDefaultSampleLua = r'''
-function init(arg)
-  return {
-    count = 0,
-    items = json.decode('[]'),
-    last = nil,
-    name = "",
-    email = "",
-    enabled = true,
-    role = "user",
-    showImage = false
-  }, {}
-end
-
-function view(state)
-  local children = {
-    { type = "section", props = { title = "UI Widgets Demo" }, children = {
-      { type = "text", props = { text = "Counter: "..tostring(state.count or 0) } },
-      { type = "text_field", props = {
-        label = "Name",
-        placeholder = "Enter your name",
-        value = state.name or "",
-        on_change = { type = "set_name" }
-      }},
-      { type = "text_field", props = {
-        label = "Email",
-        placeholder = "Enter your email",
-        value = state.email or "",
-        keyboard_type = "email",
-        on_change = { type = "set_email" }
-      }},
-      { type = "toggle", props = {
-        label = "Enable features",
-        value = state.enabled == true,
-        on_change = { type = "set_enabled" }
-      }},
-      { type = "select", props = {
-        label = "Role",
-        value = state.role or "user",
-        options = {
-          { value = "user", label = "User" },
-          { value = "admin", label = "Administrator" },
-          { value = "moderator", label = "Moderator" }
-        },
-        on_change = { type = "set_role" }
-      }},
-      { type = "toggle", props = {
-        label = "Show image",
-        value = state.showImage == true,
-        on_change = { type = "toggle_image" }
-      }},
-      { type = "row", children = {
-        { type = "button", props = { label = "Increment", on_press = { type = "inc" } } },
-        { type = "button", props = { label = "Load ICP samples", on_press = { type = "load_sample" } } }
-      } }
-    } }
+// Default sample TS app demonstrating UI widgets, forms, and canister calls.
+// Self-contained IIFE bundle (the host runs QuickJS). Shows a counter, a
+// name/email form, toggles, a select, an image, and a load_sample batch effect
+// against the NNS governance + ICP ledger canisters.
+const String kDefaultSampleBundle = r'''"use strict";
+(() => {
+  function init() {
+    return {
+      state: {
+        count: 0,
+        items: [],
+        last: null,
+        name: "",
+        email: "",
+        enabled: true,
+        role: "user",
+        showImage: false
+      },
+      effects: []
+    };
   }
 
-  -- Show image if enabled
-  if state.showImage then
-    table.insert(children, { type = "section", props = { title = "Image Demo" }, children = {
-      { type = "image", props = {
-        src = "https://picsum.photos/seed/icp-demo/300/200.jpg",
-        width = 300,
-        height = 200,
-        fit = "cover"
-      }}
-    } })
-  end
+  function view(state) {
+    var children = [];
 
-  -- Show current form values
-  table.insert(children, { type = "section", props = { title = "Current Values" }, children = {
-    { type = "list", props = {
-      items = {
-        { title = "Name", subtitle = state.name or "(empty)" },
-        { title = "Email", subtitle = state.email or "(empty)" },
-        { title = "Enabled", subtitle = tostring(state.enabled) },
-        { title = "Role", subtitle = state.role or "user" },
-        { title = "Show Image", subtitle = tostring(state.showImage) }
+    children.push({
+      type: "section",
+      props: { title: "UI Widgets Demo" },
+      children: [
+        { type: "text", props: { text: "Counter: " + (state.count || 0) } },
+        { type: "text_field", props: {
+          label: "Name", placeholder: "Enter your name",
+          value: state.name || "", on_change: { type: "set_name" }
+        }},
+        { type: "text_field", props: {
+          label: "Email", placeholder: "Enter your email",
+          value: state.email || "", keyboard_type: "email",
+          on_change: { type: "set_email" }
+        }},
+        { type: "toggle", props: {
+          label: "Enable features",
+          value: state.enabled === true,
+          on_change: { type: "set_enabled" }
+        }},
+        { type: "select", props: {
+          label: "Role", value: state.role || "user",
+          options: [
+            { value: "user", label: "User" },
+            { value: "admin", label: "Administrator" },
+            { value: "moderator", label: "Moderator" }
+          ],
+          on_change: { type: "set_role" }
+        }},
+        { type: "toggle", props: {
+          label: "Show image",
+          value: state.showImage === true,
+          on_change: { type: "toggle_image" }
+        }},
+        { type: "row", children: [
+          { type: "button", props: { label: "Increment", on_press: { type: "inc" } } },
+          { type: "button", props: { label: "Load ICP samples", on_press: { type: "load_sample" } } }
+        ]}
+      ]
+    });
+
+    if (state.showImage) {
+      children.push({
+        type: "section",
+        props: { title: "Image Demo" },
+        children: [{
+          type: "image",
+          props: {
+            src: "https://picsum.photos/seed/icp-demo/300/200.jpg",
+            width: 300, height: 200, fit: "cover"
+          }
+        }]
+      });
+    }
+
+    children.push({
+      type: "section",
+      props: { title: "Current Values" },
+      children: [{
+        type: "list",
+        props: {
+          items: [
+            { title: "Name", subtitle: state.name || "(empty)" },
+            { title: "Email", subtitle: state.email || "(empty)" },
+            { title: "Enabled", subtitle: String(state.enabled) },
+            { title: "Role", subtitle: state.role || "user" },
+            { title: "Show Image", subtitle: String(state.showImage) }
+          ]
+        }
+      }]
+    });
+
+    var items = state.items || [];
+    if (Array.isArray(items) && items.length > 0) {
+      children.push({
+        type: "section",
+        props: { title: "Loaded results" },
+        children: [{ type: "list", props: { items: items } }]
+      });
+    }
+
+    return { type: "column", children: children };
+  }
+
+  function update(msg, state) {
+    var t = (msg && msg.type) || "";
+
+    if (t === "set_name") {
+      return { state: { ...state, name: typeof msg.value === "string" ? msg.value : "" }, effects: [] };
+    }
+    if (t === "set_email") {
+      return { state: { ...state, email: typeof msg.value === "string" ? msg.value : "" }, effects: [] };
+    }
+    if (t === "set_enabled") {
+      return { state: { ...state, enabled: msg.value === true }, effects: [] };
+    }
+    if (t === "set_role") {
+      return { state: { ...state, role: typeof msg.value === "string" ? msg.value : "user" }, effects: [] };
+    }
+    if (t === "toggle_image") {
+      return { state: { ...state, showImage: msg.value === true }, effects: [] };
+    }
+    if (t === "inc") {
+      return { state: { ...state, count: (state.count || 0) + 1 }, effects: [] };
+    }
+    if (t === "load_sample") {
+      var gov = {
+        label: "gov", kind: 0,
+        canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai",
+        method: "get_pending_proposals", args: "()"
+      };
+      var ledger = {
+        label: "ledger", kind: 0,
+        canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai",
+        method: "query_blocks", args: '{"start":0,"length":3}'
+      };
+      return { state: state, effects: [{ kind: "icp_batch", id: "load", items: [gov, ledger] }] };
+    }
+    if (t === "effect/result" && msg.id === "load") {
+      var items = [];
+      if (msg.ok) {
+        var data = msg.data || {};
+        for (var key in data) {
+          if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+          var v = data[key];
+          var subtitle = (typeof v === "object" && v !== null) ? JSON.stringify(v) : String(v);
+          items.push({ title: String(key), subtitle: subtitle });
+        }
+      } else {
+        items.push({ title: "Error", subtitle: String(msg.error || "unknown error") });
       }
-    }}
-  } })
+      return { state: { ...state, items: items }, effects: [] };
+    }
 
-  -- Show loaded results if any
-  local items = state.items or {}
-  if type(items) == 'table' and #items > 0 then
-    table.insert(children, { type = "section", props = { title = "Loaded results" }, children = {
-      { type = "list", props = { items = items } }
-    } })
-  end
+    return { state: { ...state, last: msg }, effects: [] };
+  }
 
-  return { type = "column", children = children }
-end
-
-function update(msg, state)
-  local t = (msg and msg.type) or ""
-
-  -- Handle UI widget events
-  if t == "set_name" then
-    state.name = msg.value or ""
-    return state, {}
-  end
-  if t == "set_email" then
-    state.email = msg.value or ""
-    return state, {}
-  end
-  if t == "set_enabled" then
-    state.enabled = msg.value == true
-    return state, {}
-  end
-  if t == "set_role" then
-    state.role = msg.value or "user"
-    return state, {}
-  end
-  if t == "toggle_image" then
-    state.showImage = msg.value == true
-    return state, {}
-  end
-
-  -- Handle existing functionality
-  if t == "inc" then
-    state.count = (state.count or 0) + 1
-    return state, {}
-  end
-  if t == "load_sample" then
-    -- Trigger a batch of canister calls; host will request permission
-    local gov = { label = "gov", kind = 0, canister_id = "rrkah-fqaaa-aaaaa-aaaaq-cai", method = "get_pending_proposals", args = "()" }
-    local ledger = { label = "ledger", kind = 0, canister_id = "ryjl3-tyaaa-aaaaa-aaaba-cai", method = "query_blocks", args = "{\"start\":0,\"length\":3}" }
-    return state, { { kind = "icp_batch", id = "load", items = { gov, ledger } } }
-  end
-  if t == "effect/result" and msg.id == "load" then
-    -- Normalize results into a list for display
-    local items = {}
-    if msg.ok then
-      for k, v in pairs(msg.data or {}) do
-        table.insert(items, { title = tostring(k), subtitle = type(v) == 'table' and json.encode(v) or tostring(v) })
-      end
-    else
-      table.insert(items, { title = "Error", subtitle = tostring(msg.error or "unknown error") })
-    end
-    state.items = items
-    return state, {}
-  end
-
-  state.last = msg
-  return state, {}
-end
+  globalThis.init = init;
+  globalThis.view = view;
+  globalThis.update = update;
+})();
 ''';
 
 class ScriptController extends ChangeNotifier {
@@ -224,9 +240,9 @@ class ScriptController extends ChangeNotifier {
     try {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now().toUtc();
-      final String defaultLua =
+      final String defaultBundle =
           luaSourceOverride == null || luaSourceOverride.trim().isEmpty
-              ? kDefaultSampleLua
+              ? kDefaultSampleBundle
               : luaSourceOverride;
 
       final ScriptRecord record = ScriptRecord(
@@ -234,7 +250,7 @@ class ScriptController extends ChangeNotifier {
         title: title.trim(),
         emoji: finalEmoji,
         imageUrl: finalImageUrl,
-        luaSource: defaultLua,
+        luaSource: defaultBundle,
         createdAt: now,
         updatedAt: now,
         metadata: metadata ?? {},

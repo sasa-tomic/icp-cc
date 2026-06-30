@@ -41,7 +41,7 @@ class SpotlightService {
       targetKey: 'scripts_section',
       title: 'Your Scripts',
       description:
-          'Create, edit, and run Lua scripts here. Scripts can interact with ICP canisters and automate your workflows.',
+          'Create, edit, and run TypeScript scripts here. Scripts can interact with ICP canisters and automate your workflows.',
       position: SpotlightPosition.bottom,
     ),
     SpotlightStep(

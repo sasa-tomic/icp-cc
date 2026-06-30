@@ -23,20 +23,20 @@ class IntegrationsHelpDialog extends StatelessWidget {
               subtitle: const Text('Build canister method calls with a visual interface'),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () async {
-                final String? luaCode = await showDialog<String>(
+                final String? snippet = await showDialog<String>(
                   context: context,
                   builder: (_) => const CanisterCallBuilderDialog(),
                 );
-                if (luaCode != null && luaCode.isNotEmpty && context.mounted) {
-                  // Return the generated Lua code
-                  Navigator.of(context).pop(luaCode);
+                if (snippet != null && snippet.isNotEmpty && context.mounted) {
+                  // Return the generated TypeScript snippet
+                  Navigator.of(context).pop(snippet);
                 }
               },
             ),
             const Divider(height: 1),
             const SizedBox(height: 8),
             const Text(
-              'Lua Helper Functions',
+              'SDK Helper Functions',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),

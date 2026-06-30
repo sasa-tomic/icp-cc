@@ -212,40 +212,36 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
       final timestamp = DateTime.now().toUtc().toIso8601String();
 
-      // Generate a default Lua script since API requires non-empty lua_source
-      final defaultLuaSource = '''-- Default Script for $title
-function init(arg)
-  return {
-    message = "Hello from $title!",
-    description = "$description"
-  }, {}
-end
-
-function view(state)
-  return {
-    type = "column",
-    children = {
-      {
-        type = "text",
-        props = {
-          text = state.message,
-          style = "title"
-        }
+      // Generate a default TS bundle since API requires non-empty lua_source
+      final defaultBundle = '''// Default Script for $title
+"use strict";
+(() => {
+  function init() {
+    return {
+      state: {
+        message: "Hello from $title!",
+        description: "$description"
       },
-      {
-        type = "text",
-        props = {
-          text = state.description,
-          style = "body"
-        }
-      }
-    }
+      effects: []
+    };
   }
-end
-
-function update(msg, state)
-  return state, {}
-end''';
+  function view(state) {
+    return {
+      type: "column",
+      children: [
+        { type: "text", props: { text: state.message, style: "title" } },
+        { type: "text", props: { text: state.description, style: "body" } }
+      ]
+    };
+  }
+  function update(_msg, state) {
+    return { state: state, effects: [] };
+  }
+  globalThis.init = init;
+  globalThis.view = view;
+  globalThis.update = update;
+})();
+''';
 
       // Sign the script upload
       final signature = await ScriptSignatureService.signScriptUpload(
@@ -253,7 +249,7 @@ end''';
         title: title,
         description: description,
         category: category,
-        luaSource: defaultLuaSource,
+        luaSource: defaultBundle,
         version: version,
         tags: tags,
         compatibility: compatibility,
@@ -269,7 +265,7 @@ end''';
         description: description,
         category: category,
         tags: tags,
-        luaSource: defaultLuaSource,
+        luaSource: defaultBundle,
         canisterIds: canisterIds.isEmpty ? null : canisterIds,
         iconUrl: iconUrl,
         screenshots: screenshots.isEmpty ? null : screenshots,

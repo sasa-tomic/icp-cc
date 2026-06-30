@@ -193,9 +193,6 @@ class ScriptRunner {
   final SecureKeypairRepository? _secureRepository;
 
   /// Catalog of integrations available to TS scripts.
-  /// (Example bodies still reference the Lua helper API and are ported to TS
-  /// in cleanup-plan WU-4; the descriptions remain accurate for the SDK
-  /// surface the runtime exposes to bundles.)
   static const List<IntegrationInfo> integrationCatalog = <IntegrationInfo>[
     IntegrationInfo(
       id: 'icp_call',
@@ -203,7 +200,7 @@ class ScriptRunner {
       description:
           'Perform a single canister method call. Supports anonymous or authenticated calls. Returns the raw JSON result.',
       example:
-          'return icp_call({\n  canister_id = "aaaaa-aa",\n  method = "greet",\n  kind = 0, -- 0=query, 1=update, 2=composite\n  args = "(".."World"..")"\n})',
+          'return icp_call({\n  canister_id: "aaaaa-aa",\n  method: "greet",\n  kind: 0, // 0=query, 1=update, 2=composite\n  args: "World"\n})',
     ),
     IntegrationInfo(
       id: 'icp_batch',
@@ -211,14 +208,14 @@ class ScriptRunner {
       description:
           'Execute multiple canister calls and return a map of label→result. Each item can include canister_id, method, kind, args, host, private_key_b64.',
       example:
-          'local a = { label = "gov", canister_id = "rrkah-fqaaa-aaaaa-aaaaq-cai", method = "get_pending_proposals", kind = 0, args = "()" }\nlocal b = { label = "ledger", canister_id = "ryjl3-tyaaa-aaaaa-aaaba-cai", method = "query_blocks", kind = 0, args = "{".."start"..":0,".."length"..":10}" }\nreturn icp_batch({ a, b })',
+          'const a = { label: "gov", canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai", method: "get_pending_proposals", kind: 0, args: "()" };\nconst b = { label: "ledger", canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai", method: "query_blocks", kind: 0, args: \'{"start":0,"length":10}\' };\nreturn icp_batch([a, b])',
     ),
     IntegrationInfo(
       id: 'icp_message',
       title: 'Message',
       description:
           'Return a simple message to the UI layer. Useful for debugging or informing the user.',
-      example: 'return icp_message("Hello from Lua")',
+      example: 'return icp_message({ text: "Hello from TypeScript" })',
     ),
     IntegrationInfo(
       id: 'icp_ui_list',
@@ -226,7 +223,7 @@ class ScriptRunner {
       description:
           'Describe a minimal UI list that the app renders. Items are shown with optional buttons that can trigger actions (e.g. icp_call).',
       example:
-          'return icp_ui_list({\n  items = { { title = "Item A" }, { title = "Item B" } },\n  buttons = { { title = "Refresh", action = { action = "batch", calls = {} } } }\n})',
+          'return icp_ui_list({\n  items: [{ title: "Item A" }, { title: "Item B" }],\n  buttons: [{ title: "Refresh", action: { action: "batch", calls: [] } }]\n})',
     ),
     IntegrationInfo(
       id: 'icp_result_display',
@@ -234,7 +231,7 @@ class ScriptRunner {
       description:
           'Display canister call results with improved formatting, copy/export capabilities, and smart data visualization.',
       example:
-          'return icp_result_display({\n  data = call_result,\n  title = "Query Results",\n  expandable = true,\n  expanded = false\n})',
+          'return icp_result_display({\n  data: call_result,\n  title: "Query Results",\n  expandable: true,\n  expanded: false\n})',
     ),
     IntegrationInfo(
       id: 'icp_searchable_list',
@@ -242,7 +239,7 @@ class ScriptRunner {
       description:
           'Display a searchable, filterable list of results with advanced interaction capabilities.',
       example:
-          'return icp_searchable_list({\n  items = processed_items,\n  title = "Transactions",\n  searchable = true\n})',
+          'return icp_searchable_list({\n  items: processed_items,\n  title: "Transactions",\n  searchable: true\n})',
     ),
     IntegrationInfo(
       id: 'icp_format_icp',
@@ -250,7 +247,7 @@ class ScriptRunner {
       description:
           'Format ICP token values from e8s (8 decimals) to human-readable format.',
       example:
-          'return icp_message("Balance: " .. icp_format_icp(123456789)) -- "1.23456789 ICP"',
+          'return icp_message({ text: "Balance: " + icp_format_icp(123456789) }) // "1.23456789"',
     ),
     IntegrationInfo(
       id: 'icp_format_timestamp',
@@ -258,7 +255,7 @@ class ScriptRunner {
       description:
           'Format nanosecond timestamps into human-readable date/time strings.',
       example:
-          'return icp_message("Created: " .. icp_format_timestamp(1704067200000000000))',
+          'return icp_message({ text: "Created: " + icp_format_timestamp(1704067200000000000) })',
     ),
     IntegrationInfo(
       id: 'icp_filter_items',
@@ -266,7 +263,7 @@ class ScriptRunner {
       description:
           'Filter lists of items by field values. Useful for processing canister results.',
       example:
-          'local filtered = icp_filter_items(transactions, "type", "transfer")\nreturn icp_searchable_list({ items = filtered })',
+          'const filtered = icp_filter_items(transactions, "type", "transfer");\nreturn icp_searchable_list({ items: filtered })',
     ),
     IntegrationInfo(
       id: 'icp_sort_items',
@@ -274,7 +271,7 @@ class ScriptRunner {
       description:
           'Sort lists of items by field values in ascending or descending order.',
       example:
-          'local sorted = icp_sort_items(transactions, "timestamp", false)\nreturn icp_searchable_list({ items = sorted })',
+          'const sorted = icp_sort_items(transactions, "timestamp", false);\nreturn icp_searchable_list({ items: sorted })',
     ),
   ];
 

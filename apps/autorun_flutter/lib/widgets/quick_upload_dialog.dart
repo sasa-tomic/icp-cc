@@ -103,17 +103,17 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       final lines = widget.script!.luaSource.split('\n');
       final contentLines = lines
           .where(
-              (line) => !line.trim().startsWith('--') && line.trim().isNotEmpty)
+              (line) => !line.trim().startsWith('//') && line.trim().isNotEmpty)
           .take(3)
           .toList();
       if (contentLines.isNotEmpty) {
         _descriptionController.text =
-            'A Lua script with ${contentLines.length} main functions: ${widget.script!.title}';
+            'A TypeScript script with ${contentLines.length} main functions: ${widget.script!.title}';
         return;
       }
     }
     _descriptionController.text =
-        'A Lua script for automation and utility tasks.';
+        'A TypeScript script for automation and utility tasks.';
   }
 
   void _detectCategoryFromScript() {
@@ -122,13 +122,13 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
   void _generateTagsFromScript() {
     if (widget.script != null) {
-      _tagsController.text = 'lua, script';
+      _tagsController.text = 'typescript, script';
       return;
     }
     _tagsController.text = 'automation, utility';
   }
 
-  String _getLuaSource() {
+  String _getBundle() {
     if (widget.script != null) {
       return widget.script!.luaSource;
     }
@@ -142,23 +142,27 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
         ? _descriptionController.text
         : 'A script for automation tasks';
 
-    return '''-- $title
--- $description
-
-function app_init()
-  return {
-    title = "$title",
-    description = "$description"
+    return '''// $title
+// $description
+"use strict";
+(() => {
+  function init() {
+    return {
+      state: { title: "$title", description: "$description" },
+      effects: []
+    };
   }
-end
-
-function app_view(state)
-  return icp.message("Hello from $title!")
-end
-
-function app_update(state, action, params)
-  return state
-end''';
+  function view(state) {
+    return icp_message({ text: "Hello from " + state.title + "!", type: "info" });
+  }
+  function update(_msg, state) {
+    return { state: state, effects: [] };
+  }
+  globalThis.init = init;
+  globalThis.view = view;
+  globalThis.update = update;
+})();
+''';
   }
 
   void _goToCodePreview() {
@@ -233,35 +237,17 @@ end''';
       const String version = '1.0.0';
       final String timestamp = DateTime.now().toUtc().toIso8601String();
 
-      // Use the actual Lua source from the script, or pre-filled code, or generate default
-      String luaSource;
+      // Use the actual bundle source from the script, pre-filled code, or generate a default
+      String bundle;
       if (widget.script?.luaSource != null &&
           widget.script!.luaSource.isNotEmpty) {
-        luaSource = widget.script!.luaSource;
+        bundle = widget.script!.luaSource;
       } else if (widget.preFilledCode != null &&
           widget.preFilledCode!.isNotEmpty) {
-        luaSource = widget.preFilledCode!;
+        bundle = widget.preFilledCode!;
       } else {
-        // Generate a default Lua script since API requires non-empty lua_source
-        luaSource = '''-- Default Script
-function init(arg)
-  return {
-    message = "Hello from $title!"
-  }, {}
-end
-
-function view(state)
-  return {
-    type = "text",
-    props = {
-      text = state.message
-    }
-  }
-end
-
-function update(msg, state)
-  return state, {}
-end''';
+        // Generate a default TS bundle since API requires non-empty lua_source
+        bundle = _getBundle();
       }
 
       // Update progress: signing
@@ -276,7 +262,7 @@ end''';
         title: title,
         description: description,
         category: _selectedCategory,
-        luaSource: luaSource,
+        luaSource: bundle,
         version: version,
         tags: tags,
         timestampIso: timestamp,
@@ -296,7 +282,7 @@ end''';
         description: description,
         category: _selectedCategory,
         tags: tags,
-        luaSource: luaSource,
+        luaSource: bundle,
         price: price,
         version: version,
         authorPrincipal: authorPrincipal,
@@ -602,7 +588,7 @@ end''';
   }
 
   Widget _buildCodePreview() {
-    final luaSource = _getLuaSource();
+    final bundle = _getBundle();
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -625,7 +611,7 @@ end''';
           ),
           const SizedBox(height: 8),
           Text(
-            'This is the Lua code that will be uploaded to the marketplace. Review it before publishing.',
+            'This is the TypeScript bundle that will be uploaded to the marketplace. Review it before publishing.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -633,7 +619,7 @@ end''';
           const SizedBox(height: 16),
           Expanded(
             child: ScriptEditor(
-              initialCode: luaSource,
+              initialCode: bundle,
               onCodeChanged: (_) {}, // Read-only, ignore changes
               readOnly: true,
               showIntegrations: false,
