@@ -6,7 +6,6 @@ import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_highlight/themes/vs2015.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
-import 'package:highlight/languages/lua.dart';
 import 'package:highlight/languages/javascript.dart';
 import '../rust/native_bridge.dart';
 import '../widgets/integrations_help.dart';
@@ -18,7 +17,6 @@ class ScriptEditor extends StatefulWidget {
     super.key,
     required this.initialCode,
     required this.onCodeChanged,
-    required this.language,
     this.showIntegrations = true,
     this.readOnly = false,
     this.minLines = 20,
@@ -27,7 +25,6 @@ class ScriptEditor extends StatefulWidget {
 
   final String initialCode;
   final ValueChanged<String> onCodeChanged;
-  final String language;
   final bool showIntegrations;
   final bool readOnly;
   final int minLines;
@@ -95,7 +92,7 @@ class ScriptEditorState extends State<ScriptEditor> {
     _initialCode = widget.initialCode;
     _controller = CodeController(
       text: widget.initialCode,
-      language: widget.language == 'typescript' ? javascript : lua,
+      language: javascript,
     );
     _controller.addListener(_onTextChanged);
     _updateLineCount();
@@ -139,7 +136,7 @@ class ScriptEditorState extends State<ScriptEditor> {
     }
 
     try {
-      final String? out = (const RustBridgeLoader()).luaLint(script: code);
+      final String? out = (const RustBridgeLoader()).jsLint(script: code);
 
       if (out == null || out.trim().isEmpty) {
         if (mounted) setState(() => _lintError = 'Linter unavailable');
@@ -266,7 +263,7 @@ class ScriptEditorState extends State<ScriptEditor> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              widget.language.toUpperCase(),
+              'TYPESCRIPT',
               style: const TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,

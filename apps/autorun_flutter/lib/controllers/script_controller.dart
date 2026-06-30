@@ -4,9 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/script_record.dart';
-import '../services/language_detector.dart';
 import '../services/script_repository.dart';
-import '../services/script_runner.dart';
 
 // Default sample TEA-style Lua app demonstrating UI widgets, forms, and canister calls.
 // Shows various UI elements and allows loading sample governance/ledger data via a batch effect.
@@ -209,7 +207,6 @@ class ScriptController extends ChangeNotifier {
     String? imageUrl,
     String? luaSourceOverride,
     Map<String, dynamic>? metadata,
-    ScriptLanguage? language,
   }) async {
     if (title.trim().isEmpty) {
       throw ArgumentError('title is required');
@@ -231,8 +228,6 @@ class ScriptController extends ChangeNotifier {
           luaSourceOverride == null || luaSourceOverride.trim().isEmpty
               ? kDefaultSampleLua
               : luaSourceOverride;
-      final ScriptLanguage lang =
-          language ?? detectLanguage(defaultLua);
 
       final ScriptRecord record = ScriptRecord(
         id: id,
@@ -243,7 +238,6 @@ class ScriptController extends ChangeNotifier {
         createdAt: now,
         updatedAt: now,
         metadata: metadata ?? {},
-        language: lang,
       );
       _scripts.add(record);
       await _repository.persistScripts(_scripts);

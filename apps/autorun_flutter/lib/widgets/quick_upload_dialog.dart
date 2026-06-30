@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import '../controllers/profile_controller.dart';
 import '../models/profile_keypair.dart';
 import '../models/script_record.dart';
-import '../services/language_detector.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
-import '../services/script_runner.dart';
 import '../utils/principal.dart';
 import '../widgets/profile_scope.dart';
 import '../widgets/script_editor.dart';
@@ -637,9 +635,6 @@ end''';
             child: ScriptEditor(
               initialCode: luaSource,
               onCodeChanged: (_) {}, // Read-only, ignore changes
-              language: detectLanguage(luaSource) == ScriptLanguage.typescript
-                  ? 'typescript'
-                  : 'lua',
               readOnly: true,
               showIntegrations: false,
               minLines: 10,

@@ -11,7 +11,6 @@ import '../models/marketplace_script.dart';
 import '../models/script_list_item.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
-import '../services/language_detector.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
 import '../services/favorites_service.dart';
@@ -49,8 +48,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   final RustScriptBridge _bridge =
       RustScriptBridge(const RustBridgeLoader());
 
-  ScriptAppRuntime _runtimeFor(ScriptRecord r) =>
-      ScriptAppRuntime(_bridge, language: r.language);
+  ScriptAppRuntime _runtimeFor(ScriptRecord r) => ScriptAppRuntime(_bridge);
 
   final MarketplaceOpenApiService _marketplaceService =
       MarketplaceOpenApiService();
@@ -387,9 +385,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         title: '${script.title}$titleSuffix',
         emoji: '📦',
         luaSourceOverride: luaSource,
-        language: script.language == ScriptLanguage.typescript
-            ? ScriptLanguage.typescript
-            : detectLanguage(luaSource),
         metadata: {
           'marketplace_id': script.id,
           'marketplace_title': script.title,
@@ -2146,9 +2141,6 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
                     key: _editorKey,
                     initialCode: widget.record.luaSource,
                     onCodeChanged: _onCodeChanged,
-                    language: widget.record.language == ScriptLanguage.typescript
-                        ? 'typescript'
-                        : 'lua',
                     showIntegrations: !isCompactScreen,
                     minLines: isCompactScreen ? 20 : 30,
                   ),

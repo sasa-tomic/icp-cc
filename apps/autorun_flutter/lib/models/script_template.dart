@@ -2,8 +2,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../services/script_runner.dart';
-
 /// Model for a script template that users can select when creating new scripts
 class ScriptTemplate {
   final String id;
@@ -11,10 +9,9 @@ class ScriptTemplate {
   final String description;
   final String emoji;
   final String level; // beginner, intermediate, advanced
-  final String? _filePath; // Path to the actual Lua file
+  final String? _filePath; // Path to the bundle asset
   final List<String> tags;
   final bool isRecommended;
-  final ScriptLanguage language;
   final String? _initialLuaSource;
   String? _cachedLuaSource;
 
@@ -28,7 +25,6 @@ class ScriptTemplate {
     String? filePath,
     String? preloadedLuaSource,
     this.isRecommended = false,
-    this.language = ScriptLanguage.lua,
   })  : _filePath = filePath,
         _initialLuaSource = preloadedLuaSource,
         assert(
@@ -36,20 +32,20 @@ class ScriptTemplate {
           'preloadedLuaSource for $id cannot be empty',
         );
 
-  /// Lua source associated with this template.
+  /// Bundle source associated with this template.
   /// Throws if the source has not been loaded (fail fast requirement).
   String get luaSource {
     final String? source = _cachedLuaSource ?? _initialLuaSource;
     if (source == null) {
       throw StateError(
-        'Lua source for template "$id" has not been loaded. '
+        'Bundle source for template "$id" has not been loaded. '
         'Call ScriptTemplates.ensureInitialized() before accessing templates.',
       );
     }
     return source;
   }
 
-  /// Load the Lua source from the provided [AssetBundle].
+  /// Load the bundle source from the provided [AssetBundle].
   Future<void> load(AssetBundle bundle) async {
     if (_cachedLuaSource != null || _initialLuaSource != null) {
       _cachedLuaSource ??= _initialLuaSource;
@@ -68,13 +64,13 @@ class ScriptTemplate {
       final String assetContent = await bundle.loadString(path, cache: false);
       if (assetContent.trim().isEmpty) {
         throw StateError(
-          'Lua source loaded from "$path" for template "$id" is empty.',
+          'Bundle source loaded from "$path" for template "$id" is empty.',
         );
       }
       _cachedLuaSource = assetContent;
     } on FlutterError catch (error) {
       throw StateError(
-        'Failed to load Lua template asset "$path" for "$id": ${error.message}',
+        'Failed to load template asset "$path" for "$id": ${error.message}',
       );
     }
   }
@@ -92,8 +88,7 @@ class ScriptTemplate {
           _filePath == other._filePath &&
           tags == other.tags &&
           _initialLuaSource == other._initialLuaSource &&
-          isRecommended == other.isRecommended &&
-          language == other.language;
+          isRecommended == other.isRecommended;
 
   @override
   int get hashCode =>
@@ -105,8 +100,7 @@ class ScriptTemplate {
       _filePath.hashCode ^
       _initialLuaSource.hashCode ^
       tags.hashCode ^
-      isRecommended.hashCode ^
-      language.hashCode;
+      isRecommended.hashCode;
 }
 
 /// Built-in script templates available to users
@@ -185,7 +179,6 @@ class ScriptTemplates {
         filePath: 'lib/examples/05_typescript_counter.js',
         tags: ['typescript', 'basic', 'counter'],
         isRecommended: true,
-        language: ScriptLanguage.typescript,
       ),
     ];
     for (final ScriptTemplate template in templates) {

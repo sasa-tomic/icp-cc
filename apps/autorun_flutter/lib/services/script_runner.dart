@@ -4,10 +4,6 @@ import '../rust/native_bridge.dart';
 import '../models/profile_keypair.dart';
 import 'secure_keypair_repository.dart';
 
-/// Scripting language for a [ScriptRunPlan]/[ScriptAppRuntime].
-/// Defaults to [lua] so all existing callers behave unchanged.
-enum ScriptLanguage { lua, typescript }
-
 class IntegrationInfo {
   const IntegrationInfo({
     required this.id,
@@ -19,7 +15,7 @@ class IntegrationInfo {
   final String id; // e.g. icp_call
   final String title; // Short human label
   final String description; // Helpful description
-  final String example; // Minimal Lua snippet example
+  final String example; // Minimal TypeScript snippet example
 }
 
 class CanisterCallSpec {
@@ -35,7 +31,7 @@ class CanisterCallSpec {
     this.isAnonymous = false,
   });
 
-  /// Logical name to expose this call's JSON output under in the Lua arg
+  /// Logical name to expose this call's JSON output under in the bundle arg
   final String label;
   final String canisterId;
   final String method;
@@ -63,17 +59,16 @@ class ScriptRunPlan {
     required this.luaSource,
     this.calls = const <CanisterCallSpec>[],
     this.initialArg,
-    this.language = ScriptLanguage.lua,
   });
 
+  /// Source bundle (TypeScript/QuickJS IIFE). The legacy field name `luaSource`
+  /// is retained for now; the rename to `bundle` is a coordinated backend+client
+  /// change tracked separately (cleanup-plan WU-7).
   final String luaSource;
   final List<CanisterCallSpec> calls;
 
   /// Optional initial JSON to pass under arg.input
   final Map<String, dynamic>? initialArg;
-
-  /// Language of [luaSource]. For [ScriptLanguage.typescript] it holds the bundle.
-  final ScriptLanguage language;
 }
 
 class ScriptRunResult {
@@ -102,20 +97,7 @@ abstract class ScriptBridge {
     String? host,
   });
 
-  String? luaExec({required String script, String? jsonArg});
-  String? luaLint({required String script});
-
-  // TEA-style app
-  String? luaAppInit({required String script, String? jsonArg, int budgetMs});
-  String? luaAppView(
-      {required String script, required String stateJson, int budgetMs});
-  String? luaAppUpdate(
-      {required String script,
-      required String msgJson,
-      required String stateJson,
-      int budgetMs});
-
-  // QuickJS (TypeScript) equivalents — self-contained bundles (no helper injection).
+  // Script app lifecycle (TS/QuickJS bundles).
   String? jsExec({required String script, String? jsonArg});
   String? jsLint({required String script});
   String? jsAppInit({required String script, String? jsonArg, int budgetMs});
@@ -166,43 +148,6 @@ class RustScriptBridge implements ScriptBridge {
   }
 
   @override
-  String? luaExec({required String script, String? jsonArg}) {
-    return _bridge.luaExec(script: script, jsonArg: jsonArg);
-  }
-
-  @override
-  String? luaLint({required String script}) {
-    return _bridge.luaLint(script: script);
-  }
-
-  @override
-  String? luaAppInit(
-      {required String script, String? jsonArg, int budgetMs = 50}) {
-    return _bridge.luaAppInit(
-        script: script, jsonArg: jsonArg, budgetMs: budgetMs);
-  }
-
-  @override
-  String? luaAppView(
-      {required String script, required String stateJson, int budgetMs = 50}) {
-    return _bridge.luaAppView(
-        script: script, stateJson: stateJson, budgetMs: budgetMs);
-  }
-
-  @override
-  String? luaAppUpdate(
-      {required String script,
-      required String msgJson,
-      required String stateJson,
-      int budgetMs = 50}) {
-    return _bridge.luaAppUpdate(
-        script: script,
-        msgJson: msgJson,
-        stateJson: stateJson,
-        budgetMs: budgetMs);
-  }
-
-  @override
   String? jsExec({required String script, String? jsonArg}) {
     return _bridge.jsExec(script: script, jsonArg: jsonArg);
   }
@@ -247,8 +192,10 @@ class ScriptRunner {
   final ScriptBridge _bridge;
   final SecureKeypairRepository? _secureRepository;
 
-  /// Catalog of integrations available to Lua scripts.
-  /// Extend this list as new helpers are added in [_injectHelpers].
+  /// Catalog of integrations available to TS scripts.
+  /// (Example bodies still reference the Lua helper API and are ported to TS
+  /// in cleanup-plan WU-4; the descriptions remain accurate for the SDK
+  /// surface the runtime exposes to bundles.)
   static const List<IntegrationInfo> integrationCatalog = <IntegrationInfo>[
     IntegrationInfo(
       id: 'icp_call',
@@ -375,7 +322,118 @@ class ScriptRunner {
     return null;
   }
 
-  /// Execute the plan: call canisters in order, build arg, run Lua.
+  /// Build a [CanisterCallSpec] from a decoded action item. Used to share
+  /// keypair-resolution logic across single-call and batch paths.
+  CanisterCallSpec _specFromCallItem(Map<String, dynamic> item,
+      {required String defaultLabel}) {
+    final String label =
+        ((item['label'] as String?) ?? (item['method'] as String? ?? '')).trim();
+    final String canisterId = (item['canister_id'] as String?)?.trim() ?? '';
+    final String method = (item['method'] as String?)?.trim() ?? '';
+    final int kind = (item['kind'] as num?)?.toInt() ?? 0;
+    final String args = (item['args'] as String?) ?? '()';
+    final String? host = (item['host'] as String?)?.trim().isEmpty == true
+        ? null
+        : item['host'] as String?;
+    final String? key = (item['private_key_b64'] as String?)?.trim();
+    final String? keypairId = (item['keypair_id'] as String?)?.trim();
+    final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
+    return CanisterCallSpec(
+      label: label.isEmpty ? defaultLabel : label,
+      canisterId: canisterId,
+      method: method,
+      kind: kind,
+      argsJson: args,
+      host: host,
+      privateKeyB64: key,
+      keypairId: keypairId,
+      isAnonymous: isAnonymous,
+    );
+  }
+
+  /// Resolve the keypair, execute a single canister call, and decode its JSON
+  /// output. [resolveContext] humanizes keypair-resolution errors; [emptyError]
+  /// is surfaced verbatim when the call returns no body. Non-JSON responses are
+  /// returned as raw strings.
+  Future<ScriptRunResult> _executeCanisterCall(
+    CanisterCallSpec spec, {
+    required String resolveContext,
+    required String emptyError,
+  }) async {
+    final String? privateKey;
+    try {
+      privateKey = await _resolveKeypair(spec);
+    } catch (e) {
+      return ScriptRunResult(
+          ok: false, error: 'Failed to resolve keypair for $resolveContext: $e');
+    }
+
+    final String? callOut = (privateKey == null || privateKey.isEmpty)
+        ? _bridge.callAnonymous(
+            canisterId: spec.canisterId,
+            method: spec.method,
+            kind: spec.kind,
+            args: spec.argsJson,
+            host: spec.host,
+          )
+        : _bridge.callAuthenticated(
+            canisterId: spec.canisterId,
+            method: spec.method,
+            kind: spec.kind,
+            privateKeyB64: privateKey,
+            args: spec.argsJson,
+            host: spec.host,
+          );
+
+    if (callOut == null || callOut.trim().isEmpty) {
+      return ScriptRunResult(ok: false, error: emptyError);
+    }
+    try {
+      return ScriptRunResult(ok: true, result: json.decode(callOut));
+    } catch (_) {
+      return ScriptRunResult(ok: true, result: callOut);
+    }
+  }
+
+  /// Execute every call spec in [calls], collecting outputs keyed by label
+  /// (falls back to the method name when a label is absent). Returns the first
+  /// failure encountered or the assembled output map on success.
+  Future<ScriptRunResult> _executeBatch(List<dynamic> calls) async {
+    if (calls.isEmpty) {
+      return ScriptRunResult(ok: false, error: 'batch has no calls');
+    }
+    final Map<String, dynamic> outputs = <String, dynamic>{};
+    for (final dynamic item in calls) {
+      if (item is! Map<String, dynamic>) {
+        return ScriptRunResult(
+            ok: false, error: 'invalid call spec in batch');
+      }
+      final String label =
+          ((item['label'] as String?) ?? (item['method'] as String? ?? ''))
+              .trim();
+      final CanisterCallSpec spec =
+          _specFromCallItem(item, defaultLabel: 'batch_call');
+      final String outputKey = label.isEmpty ? spec.method : label;
+
+      if (spec.canisterId.isEmpty || spec.method.isEmpty) {
+        return ScriptRunResult(
+            ok: false, error: 'batch call missing canister_id/method');
+      }
+
+      final ScriptRunResult result = await _executeCanisterCall(
+        spec,
+        resolveContext: 'batch call "$label"',
+        emptyError: 'Follow-up call returned empty for $outputKey',
+      );
+      if (!result.ok) {
+        return result;
+      }
+      outputs[outputKey] = result.result;
+    }
+    return ScriptRunResult(ok: true, result: outputs);
+  }
+
+  /// Execute the plan: call canisters in order, build arg, run the TS bundle.
   /// Fails fast on any call/parse error.
   Future<ScriptRunResult> run(ScriptRunPlan plan) async {
     if (plan.luaSource.trim().isEmpty) {
@@ -424,194 +482,50 @@ class ScriptRunner {
       callOutputs[spec.label] = parsed;
     }
 
-    // Build arg for Lua: { input: <initialArg?>, calls: { label: json, ... } }
+    // Build arg for the bundle: { input: <initialArg?>, calls: { label: json, ... } }
     final Map<String, dynamic> arg = <String, dynamic>{
       'input': plan.initialArg,
       'calls': callOutputs,
     };
     final String jsonArg = json.encode(arg);
 
-    // Route to the appropriate engine. Lua gets helpers injected; TS bundles
-    // are self-contained and must NOT receive the Lua helper preamble.
-    final bool isTypescript = plan.language == ScriptLanguage.typescript;
-    final String scriptText =
-        isTypescript ? plan.luaSource : _injectHelpers(plan.luaSource);
-    final String? luaOut = isTypescript
-        ? _bridge.jsExec(script: scriptText, jsonArg: jsonArg)
-        : _bridge.luaExec(script: scriptText, jsonArg: jsonArg);
-    if (luaOut == null || luaOut.trim().isEmpty) {
+    // The TS bundle is self-contained (no host-injected preamble).
+    final String? out = _bridge.jsExec(script: plan.luaSource, jsonArg: jsonArg);
+    if (out == null || out.trim().isEmpty) {
       return ScriptRunResult(
-          ok: false,
-          error: isTypescript
-              ? 'JS execution returned empty'
-              : 'Lua execution returned empty');
+          ok: false, error: 'Script execution returned empty');
     }
 
     try {
       final Map<String, dynamic> obj =
-          json.decode(luaOut) as Map<String, dynamic>;
+          json.decode(out) as Map<String, dynamic>;
       final bool ok = (obj['ok'] as bool?) ?? false;
       if (!ok) {
         return ScriptRunResult(
-            ok: false, error: (obj['error'] as String?) ?? 'Lua error');
+            ok: false, error: (obj['error'] as String?) ?? 'Script error');
       }
       final dynamic result = obj['result'];
-      // If Lua requests a follow-up call, perform it now
+      // If the script requests a follow-up call, perform it now
       if (result is Map<String, dynamic> &&
           (result['action'] as String?) == 'call') {
-        final String canisterId =
-            (result['canister_id'] as String?)?.trim() ?? '';
-        final String method = (result['method'] as String?)?.trim() ?? '';
-        final int kind = (result['kind'] as num?)?.toInt() ?? 0;
-        final String args = (result['args'] as String?) ?? '()';
-        final String? host = (result['host'] as String?)?.trim().isEmpty == true
-            ? null
-            : result['host'] as String?;
-        final String? key = (result['private_key_b64'] as String?)?.trim();
-        final String? keypairId = (result['keypair_id'] as String?)?.trim();
-        final bool isAnonymous = (result['is_anonymous'] as bool?) ?? false;
-
-        if (canisterId.isEmpty || method.isEmpty) {
+        final CanisterCallSpec spec =
+            _specFromCallItem(result, defaultLabel: 'follow_up_call');
+        if (spec.canisterId.isEmpty || spec.method.isEmpty) {
           return ScriptRunResult(
               ok: false, error: 'call action missing canister_id/method');
         }
-
-        // Create a temporary CanisterCallSpec to reuse keypair resolution logic
-        final CanisterCallSpec tempSpec = CanisterCallSpec(
-          label: 'follow_up_call',
-          canisterId: canisterId,
-          method: method,
-          kind: kind,
-          argsJson: args,
-          host: host,
-          privateKeyB64: key,
-          keypairId: keypairId,
-          isAnonymous: isAnonymous,
+        return _executeCanisterCall(
+          spec,
+          resolveContext: 'follow-up call',
+          emptyError: 'Follow-up call returned empty',
         );
-
-        final String? privateKey;
-        try {
-          privateKey = await _resolveKeypair(tempSpec);
-        } catch (e) {
-          return ScriptRunResult(
-              ok: false,
-              error: 'Failed to resolve keypair for follow-up call: $e');
-        }
-
-        final String? callOut;
-        if (privateKey == null || privateKey.isEmpty) {
-          callOut = _bridge.callAnonymous(
-              canisterId: canisterId,
-              method: method,
-              kind: kind,
-              args: args,
-              host: host);
-        } else {
-          callOut = _bridge.callAuthenticated(
-            canisterId: canisterId,
-            method: method,
-            kind: kind,
-            privateKeyB64: privateKey,
-            args: args,
-            host: host,
-          );
-        }
-        if (callOut == null || callOut.trim().isEmpty) {
-          return ScriptRunResult(
-              ok: false, error: 'Follow-up call returned empty');
-        }
-        try {
-          final dynamic parsed = json.decode(callOut);
-          return ScriptRunResult(ok: true, result: parsed);
-        } catch (e) {
-          return ScriptRunResult(ok: true, result: callOut);
-        }
       }
       // Batch of follow-up calls
       if (result is Map<String, dynamic> &&
           (result['action'] as String?) == 'batch') {
         final List<dynamic> calls =
             (result['calls'] as List<dynamic>? ?? const <dynamic>[]);
-        if (calls.isEmpty) {
-          return ScriptRunResult(ok: false, error: 'batch has no calls');
-        }
-        final Map<String, dynamic> outputs = <String, dynamic>{};
-        for (final dynamic item in calls) {
-          if (item is! Map<String, dynamic>) {
-            return ScriptRunResult(
-                ok: false, error: 'invalid call spec in batch');
-          }
-          final String label =
-              ((item['label'] as String?) ?? (item['method'] as String? ?? ''))
-                  .trim();
-          final String canisterId =
-              (item['canister_id'] as String?)?.trim() ?? '';
-          final String method = (item['method'] as String?)?.trim() ?? '';
-          final int kind = (item['kind'] as num?)?.toInt() ?? 0;
-          final String args = (item['args'] as String?) ?? '()';
-          final String? host = (item['host'] as String?)?.trim().isEmpty == true
-              ? null
-              : item['host'] as String?;
-          final String? key = (item['private_key_b64'] as String?)?.trim();
-          final String? keypairId = (item['keypair_id'] as String?)?.trim();
-          final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
-
-          if (canisterId.isEmpty || method.isEmpty) {
-            return ScriptRunResult(
-                ok: false, error: 'batch call missing canister_id/method');
-          }
-
-          // Create a temporary CanisterCallSpec to reuse keypair resolution logic
-          final CanisterCallSpec tempSpec = CanisterCallSpec(
-            label: label.isEmpty ? 'batch_call' : label,
-            canisterId: canisterId,
-            method: method,
-            kind: kind,
-            argsJson: args,
-            host: host,
-            privateKeyB64: key,
-            keypairId: keypairId,
-            isAnonymous: isAnonymous,
-          );
-
-          final String? privateKey;
-          try {
-            privateKey = await _resolveKeypair(tempSpec);
-          } catch (e) {
-            return ScriptRunResult(
-                ok: false,
-                error: 'Failed to resolve keypair for batch call "$label": $e');
-          }
-
-          String? callOut;
-          if (privateKey == null || privateKey.isEmpty) {
-            callOut = _bridge.callAnonymous(
-                canisterId: canisterId,
-                method: method,
-                kind: kind,
-                args: args,
-                host: host);
-          } else {
-            callOut = _bridge.callAuthenticated(
-              canisterId: canisterId,
-              method: method,
-              kind: kind,
-              privateKeyB64: privateKey,
-              args: args,
-              host: host,
-            );
-          }
-          if (callOut == null || callOut.trim().isEmpty) {
-            return ScriptRunResult(
-                ok: false, error: 'Follow-up call returned empty for $label');
-          }
-          try {
-            outputs[label.isEmpty ? method : label] = json.decode(callOut);
-          } catch (_) {
-            outputs[label.isEmpty ? method : label] = callOut;
-          }
-        }
-        return ScriptRunResult(ok: true, result: outputs);
+        return _executeBatch(calls);
       }
       // UI description passthrough (rendered by Flutter layer)
       if (result is Map<String, dynamic> &&
@@ -622,15 +536,15 @@ class ScriptRunner {
     } catch (e) {
       // If not in wrapper, try to parse as bare JSON result
       try {
-        final dynamic any = json.decode(luaOut);
+        final dynamic any = json.decode(out);
         return ScriptRunResult(ok: true, result: any);
       } catch (_) {
-        return ScriptRunResult(ok: false, error: 'Invalid Lua output: $e');
+        return ScriptRunResult(ok: false, error: 'Invalid script output: $e');
       }
     }
   }
 
-  /// Perform a single action object returned by Lua or UI buttons.
+  /// Perform a single action object returned by a script or UI buttons.
   /// Supports 'call' and 'batch'. Returns decoded JSON when possible.
   Future<ScriptRunResult> performAction(Map<String, dynamic> action) async {
     final String kindStr = (action['action'] as String? ?? '').trim();
@@ -638,181 +552,24 @@ class ScriptRunner {
       return ScriptRunResult(ok: false, error: 'performAction: missing action');
     }
     if (kindStr == 'call') {
-      final String canisterId =
-          (action['canister_id'] as String?)?.trim() ?? '';
-      final String method = (action['method'] as String?)?.trim() ?? '';
-      final int kind = (action['kind'] as num?)?.toInt() ?? 0;
-      final String args = (action['args'] as String?) ?? '()';
-      final String? host = (action['host'] as String?)?.trim().isEmpty == true
-          ? null
-          : action['host'] as String?;
-      final String? key = (action['private_key_b64'] as String?)?.trim();
-      final String? keypairId = (action['keypair_id'] as String?)?.trim();
-      final bool isAnonymous = (action['is_anonymous'] as bool?) ?? false;
-
-      if (canisterId.isEmpty || method.isEmpty) {
+      final CanisterCallSpec spec =
+          _specFromCallItem(action, defaultLabel: 'action_call');
+      if (spec.canisterId.isEmpty || spec.method.isEmpty) {
         return ScriptRunResult(
             ok: false, error: 'call action missing canister_id/method');
       }
-
-      // Create a temporary CanisterCallSpec to reuse keypair resolution logic
-      final CanisterCallSpec tempSpec = CanisterCallSpec(
-        label: 'action_call',
-        canisterId: canisterId,
-        method: method,
-        kind: kind,
-        argsJson: args,
-        host: host,
-        privateKeyB64: key,
-        keypairId: keypairId,
-        isAnonymous: isAnonymous,
+      return _executeCanisterCall(
+        spec,
+        resolveContext: 'action call',
+        emptyError: 'call returned empty',
       );
-
-      final String? privateKey;
-      try {
-        privateKey = await _resolveKeypair(tempSpec);
-      } catch (e) {
-        return ScriptRunResult(
-            ok: false, error: 'Failed to resolve keypair for action call: $e');
-      }
-
-      String? callOut;
-      if (privateKey == null || privateKey.isEmpty) {
-        callOut = _bridge.callAnonymous(
-            canisterId: canisterId,
-            method: method,
-            kind: kind,
-            args: args,
-            host: host);
-      } else {
-        callOut = _bridge.callAuthenticated(
-          canisterId: canisterId,
-          method: method,
-          kind: kind,
-          privateKeyB64: privateKey,
-          args: args,
-          host: host,
-        );
-      }
-      if (callOut == null || callOut.trim().isEmpty) {
-        return ScriptRunResult(ok: false, error: 'call returned empty');
-      }
-      try {
-        final dynamic parsed = json.decode(callOut);
-        return ScriptRunResult(ok: true, result: parsed);
-      } catch (_) {
-        return ScriptRunResult(ok: true, result: callOut);
-      }
     }
     if (kindStr == 'batch') {
       final List<dynamic> calls =
           (action['calls'] as List<dynamic>? ?? const <dynamic>[]);
-      if (calls.isEmpty) {
-        return ScriptRunResult(ok: false, error: 'batch has no calls');
-      }
-      final Map<String, dynamic> outputs = <String, dynamic>{};
-      for (final dynamic item in calls) {
-        if (item is! Map<String, dynamic>) {
-          return ScriptRunResult(
-              ok: false, error: 'invalid call spec in batch');
-        }
-        final String label =
-            ((item['label'] as String?) ?? (item['method'] as String? ?? ''))
-                .trim();
-        final String canisterId =
-            (item['canister_id'] as String?)?.trim() ?? '';
-        final String method = (item['method'] as String?)?.trim() ?? '';
-        final int kind = (item['kind'] as num?)?.toInt() ?? 0;
-        final String args = (item['args'] as String?) ?? '()';
-        final String? host = (item['host'] as String?)?.trim().isEmpty == true
-            ? null
-            : item['host'] as String?;
-        final String? key = (item['private_key_b64'] as String?)?.trim();
-        final String? keypairId = (item['keypair_id'] as String?)?.trim();
-        final bool isAnonymous = (item['is_anonymous'] as bool?) ?? false;
-
-        if (canisterId.isEmpty || method.isEmpty) {
-          return ScriptRunResult(
-              ok: false, error: 'batch call missing canister_id/method');
-        }
-
-        // Create a temporary CanisterCallSpec to reuse keypair resolution logic
-        final CanisterCallSpec tempSpec = CanisterCallSpec(
-          label: label.isEmpty ? 'batch_call' : label,
-          canisterId: canisterId,
-          method: method,
-          kind: kind,
-          argsJson: args,
-          host: host,
-          privateKeyB64: key,
-          keypairId: keypairId,
-          isAnonymous: isAnonymous,
-        );
-
-        final String? privateKey;
-        try {
-          privateKey = await _resolveKeypair(tempSpec);
-        } catch (e) {
-          return ScriptRunResult(
-              ok: false,
-              error: 'Failed to resolve keypair for batch call "$label": $e');
-        }
-
-        String? callOut;
-        if (privateKey == null || privateKey.isEmpty) {
-          callOut = _bridge.callAnonymous(
-              canisterId: canisterId,
-              method: method,
-              kind: kind,
-              args: args,
-              host: host);
-        } else {
-          callOut = _bridge.callAuthenticated(
-            canisterId: canisterId,
-            method: method,
-            kind: kind,
-            privateKeyB64: privateKey,
-            args: args,
-            host: host,
-          );
-        }
-        if (callOut == null || callOut.trim().isEmpty) {
-          return ScriptRunResult(
-              ok: false,
-              error:
-                  'Follow-up call returned empty for ${label.isEmpty ? method : label}');
-        }
-        try {
-          outputs[label.isEmpty ? method : label] = json.decode(callOut);
-        } catch (_) {
-          outputs[label.isEmpty ? method : label] = callOut;
-        }
-      }
-      return ScriptRunResult(ok: true, result: outputs);
+      return _executeBatch(calls);
     }
     return ScriptRunResult(ok: false, error: 'Unsupported action: $kindStr');
-  }
-
-  String _injectHelpers(String src) {
-    // Provide searchable helpers the script can call.
-    final String helpers =
-        'function icp_call(spec) spec = spec or {}; spec.action = "call"; return spec end\n'
-        'function icp_batch(calls) calls = calls or {}; return { action = "batch", calls = calls } end\n'
-        'function icp_message(text) return { action = "message", text = tostring(text or "") } end\n'
-        'function icp_ui_list(spec) spec = spec or {}; local items = spec.items or {}; local buttons = spec.buttons or {}; return { action = "ui", ui = { type = "list", items = items, buttons = buttons } } end\n'
-        'function icp_result_display(spec) spec = spec or {}; return { action = "ui", ui = { type = "result_display", props = spec } } end\n'
-        'function icp_searchable_list(spec) spec = spec or {}; return { action = "ui", ui = { type = "list", props = { searchable = true, items = spec.items or {}, title = spec.title or "Results", searchable = spec.searchable ~= false } } } end\n'
-        'function icp_section(title, content) return { type = "section", props = { title = title }, children = content and { content } or {} } end\n'
-        'function icp_table(spec) spec = spec or {}; local columns = spec.columns or {}; local rows = spec.rows or {}; local title = spec.title or ""; if #columns == 0 and #rows > 0 then for k, _ in pairs(rows[1]) do table.insert(columns, { key = k, label = k }) end end; return { action = "ui", ui = { type = "table", props = { columns = columns, rows = rows, title = title } } } end\n'
-        'function icp_format_number(value, decimals) return tostring(tonumber(value) or 0) end\n'
-        'function icp_format_icp(value, decimals) local v = tonumber(value) or 0; local d = decimals or 8; return tostring(v / math.pow(10, d)) end\n'
-        'function icp_format_timestamp(value) local t = tonumber(value) or 0; return tostring(t) end\n'
-        'function icp_format_bytes(value) local b = tonumber(value) or 0; return tostring(b) end\n'
-        'function icp_truncate(text, maxLen) return tostring(text) end\n'
-        'function icp_filter_items(items, field, value) local filtered = {}; for i, item in ipairs(items) do if string.find(tostring(item[field] or ""), tostring(value), 1, true) then table.insert(filtered, item) end end return filtered end\n'
-        'function icp_sort_items(items, field, ascending) local sorted = {}; for i, item in ipairs(items) do sorted[i] = item end table.sort(sorted, function(a, b) local av = tostring(a[field] or ""); local bv = tostring(b[field] or ""); if ascending then return av < bv else return av > bv end end) return sorted end\n'
-        'function icp_group_by(items, field) local groups = {}; for i, item in ipairs(items) do local key = tostring(item[field] or "unknown"); if not groups[key] then groups[key] = {} end table.insert(groups[key], item) end return groups end\n';
-    return '$helpers$src';
   }
 }
 
@@ -831,26 +588,20 @@ abstract class IScriptAppRuntime {
       int budgetMs});
 }
 
-/// Runtime host for TEA-style Lua app: init/view/update + effects execution.
+/// Runtime host for a TS app: init/view/update lifecycle.
 class ScriptAppRuntime implements IScriptAppRuntime {
-  ScriptAppRuntime(this._bridge, {this.language = ScriptLanguage.lua});
+  ScriptAppRuntime(this._bridge);
   final ScriptBridge _bridge;
-  final ScriptLanguage language;
 
   @override
   Future<Map<String, dynamic>> init(
       {required String script,
       Map<String, dynamic>? initialArg,
       int budgetMs = 50}) async {
-    final String? out = language == ScriptLanguage.typescript
-        ? _bridge.jsAppInit(
-            script: script,
-            jsonArg: initialArg == null ? null : json.encode(initialArg),
-            budgetMs: budgetMs)
-        : _bridge.luaAppInit(
-            script: script,
-            jsonArg: initialArg == null ? null : json.encode(initialArg),
-            budgetMs: budgetMs);
+    final String? out = _bridge.jsAppInit(
+        script: script,
+        jsonArg: initialArg == null ? null : json.encode(initialArg),
+        budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('app init returned empty');
     }
@@ -866,11 +617,8 @@ class ScriptAppRuntime implements IScriptAppRuntime {
       {required String script,
       required Map<String, dynamic> state,
       int budgetMs = 50}) async {
-    final String? out = language == ScriptLanguage.typescript
-        ? _bridge.jsAppView(
-            script: script, stateJson: json.encode(state), budgetMs: budgetMs)
-        : _bridge.luaAppView(
-            script: script, stateJson: json.encode(state), budgetMs: budgetMs);
+    final String? out = _bridge.jsAppView(
+        script: script, stateJson: json.encode(state), budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('app view returned empty');
     }
@@ -887,17 +635,11 @@ class ScriptAppRuntime implements IScriptAppRuntime {
       required Map<String, dynamic> msg,
       required Map<String, dynamic> state,
       int budgetMs = 50}) async {
-    final String? out = language == ScriptLanguage.typescript
-        ? _bridge.jsAppUpdate(
-            script: script,
-            msgJson: json.encode(msg),
-            stateJson: json.encode(state),
-            budgetMs: budgetMs)
-        : _bridge.luaAppUpdate(
-            script: script,
-            msgJson: json.encode(msg),
-            stateJson: json.encode(state),
-            budgetMs: budgetMs);
+    final String? out = _bridge.jsAppUpdate(
+        script: script,
+        msgJson: json.encode(msg),
+        stateJson: json.encode(state),
+        budgetMs: budgetMs);
     if (out == null || out.trim().isEmpty) {
       throw StateError('app update returned empty');
     }

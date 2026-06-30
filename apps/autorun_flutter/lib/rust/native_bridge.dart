@@ -12,13 +12,6 @@ class _Symbols {
   static const String parseCandid = 'icp_parse_candid';
   static const String callAnonymous = 'icp_call_anonymous';
   static const String callAuthenticated = 'icp_call_authenticated';
-  static const String luaExec = 'icp_lua_exec';
-  static const String luaLint = 'icp_lua_lint';
-  static const String luaValidateComprehensive =
-      'icp_lua_validate_comprehensive';
-  static const String luaAppInit = 'icp_lua_app_init';
-  static const String luaAppView = 'icp_lua_app_view';
-  static const String luaAppUpdate = 'icp_lua_app_update';
   static const String jsExec = 'icp_js_exec';
   static const String jsLint = 'icp_js_lint';
   static const String jsValidateComprehensive = 'icp_js_validate_comprehensive';
@@ -54,7 +47,24 @@ class EncryptedVaultResult {
 class RustBridgeLoader {
   const RustBridgeLoader();
 
+  /// Cached native library. Resolved once on first use; null on platforms
+  /// where the library cannot be located.
+  static ffi.DynamicLibrary? _cachedLib;
+  static bool _libResolved = false;
+
+  /// Cached `icp_free_string` symbol (used in every FFI call's try/finally).
+  static _FreeDart? _cachedFree;
+
+  /// Lazily resolve and cache the native library. Returns null if the library
+  /// cannot be opened on the current platform.
   ffi.DynamicLibrary? _open() {
+    if (_libResolved) return _cachedLib;
+    _cachedLib = _resolveLibrary();
+    _libResolved = true;
+    return _cachedLib;
+  }
+
+  ffi.DynamicLibrary? _resolveLibrary() {
     if (Platform.isAndroid) {
       try {
         return ffi.DynamicLibrary.open('libicp_core.so');
@@ -105,6 +115,16 @@ class RustBridgeLoader {
     return null;
   }
 
+  /// Lazily resolve and cache the `icp_free_string` symbol for [lib].
+  /// Throws if [lib] is null (caller guards against null lib).
+  _FreeDart _freeOf(ffi.DynamicLibrary lib) {
+    final _FreeDart? cached = _cachedFree;
+    if (cached != null && identical(_cachedLib, lib)) return cached;
+    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+    _cachedFree = free;
+    return free;
+  }
+
   RustKeypairResult? generateKeypair({required int alg, String? mnemonic}) {
     final lib = _open();
     if (lib == null) return null;
@@ -112,7 +132,7 @@ class RustBridgeLoader {
     final generate = lib.lookupFunction<_GenNative, _GenDart>(
       _Symbols.generate,
     );
-    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+    final free = _freeOf(lib);
 
     final ffi.Pointer<pkg_ffi.Utf8> strPtr =
         mnemonic == null ? ffi.nullptr : mnemonic.toNativeUtf8();
@@ -145,7 +165,7 @@ class RustBridgeLoader {
 
     final fn = lib
         .lookupFunction<_GenNative, _GenDart>(_Symbols.principalFromPublicKey);
-    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+    final free = _freeOf(lib);
 
     final pk = publicKeyB64.toNativeUtf8().cast<ffi.Int8>();
     final res = fn(alg, pk);
@@ -174,7 +194,7 @@ class RustBridgeLoader {
     final fn = lib.lookupFunction<_SignMessageNative, _SignMessageDart>(
       _Symbols.signMessage,
     );
-    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+    final free = _freeOf(lib);
 
     final msg = messageB64.toNativeUtf8().cast<ffi.Int8>();
     final pk = privateKeyB64.toNativeUtf8().cast<ffi.Int8>();
@@ -203,7 +223,7 @@ class RustBridgeLoader {
         final String s = res.cast<pkg_ffi.Utf8>().toDartString();
         out = s.trim().isEmpty ? null : s;
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        final free = _freeOf(lib);
         free(res);
       }
       return out;
@@ -224,7 +244,7 @@ class RustBridgeLoader {
       try {
         return res.cast<pkg_ffi.Utf8>().toDartString();
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        final free = _freeOf(lib);
         free(res);
       }
     } finally {
@@ -254,7 +274,7 @@ class RustBridgeLoader {
         final s = res.cast<pkg_ffi.Utf8>().toDartString();
         return s;
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        final free = _freeOf(lib);
         free(res);
       }
     } finally {
@@ -286,153 +306,7 @@ class RustBridgeLoader {
         final s = res.cast<pkg_ffi.Utf8>().toDartString();
         return s;
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
-      }
-    } finally {
-      // Memory managed by toNativeUtf8() - no manual free needed
-    }
-  }
-
-  String? luaExec({required String script, String? jsonArg}) {
-    final lib = _open();
-    if (lib == null) return null;
-    final s = script.toNativeUtf8().cast<ffi.Int8>();
-    final a =
-        jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8().cast<ffi.Int8>();
-    try {
-      final fn =
-          lib.lookupFunction<_Str2StrNative, _Str2StrDart>(_Symbols.luaExec);
-      final res = fn(s.cast(), a.cast());
-      if (res == ffi.nullptr) return null;
-      try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
-      } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
-      }
-    } finally {
-      // Memory managed by toNativeUtf8() - no manual free needed
-    }
-  }
-
-  String? luaLint({required String script}) {
-    final lib = _open();
-    if (lib == null) return null;
-    final s = script.toNativeUtf8().cast<ffi.Int8>();
-    try {
-      final fn =
-          lib.lookupFunction<_Str1StrNative, _Str1StrDart>(_Symbols.luaLint);
-      final res = fn(s.cast());
-      if (res == ffi.nullptr) return null;
-      try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
-      } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
-      }
-    } finally {
-      // Memory managed by toNativeUtf8() - no manual free needed
-    }
-  }
-
-  String? validateLuaComprehensive({
-    required String script,
-    bool isExample = false,
-    bool isTest = false,
-    bool isProduction = false,
-  }) {
-    final lib = _open();
-    if (lib == null) return null;
-    final s = script.toNativeUtf8().cast<ffi.Int8>();
-    try {
-      final fn = lib.lookupFunction<_LuaValidateComprehensiveNative,
-          _LuaValidateComprehensiveDart>(
-        _Symbols.luaValidateComprehensive,
-      );
-      final res = fn(
-        s.cast(),
-        isExample ? 1 : 0,
-        isTest ? 1 : 0,
-        isProduction ? 1 : 0,
-      );
-      if (res == ffi.nullptr) return null;
-      try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
-      } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
-      }
-    } finally {
-      // Memory managed by toNativeUtf8() - no manual free needed
-    }
-  }
-
-  // ---- TEA-style Lua app ----
-  String? luaAppInit(
-      {required String script, String? jsonArg, int budgetMs = 50}) {
-    final lib = _open();
-    if (lib == null) return null;
-    final s = script.toNativeUtf8().cast<ffi.Int8>();
-    final a =
-        jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8().cast<ffi.Int8>();
-    try {
-      final fn = lib.lookupFunction<_LuaAppInitNative, _LuaAppInitDart>(
-          _Symbols.luaAppInit);
-      final res = fn(s.cast(), a.cast(), budgetMs);
-      if (res == ffi.nullptr) return null;
-      try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
-      } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
-      }
-    } finally {
-      // Memory managed by toNativeUtf8() - no manual free needed
-    }
-  }
-
-  String? luaAppView(
-      {required String script, required String stateJson, int budgetMs = 50}) {
-    final lib = _open();
-    if (lib == null) return null;
-    final s = script.toNativeUtf8().cast<ffi.Int8>();
-    final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
-    try {
-      final fn = lib.lookupFunction<_LuaAppViewNative, _LuaAppViewDart>(
-          _Symbols.luaAppView);
-      final res = fn(s.cast(), st.cast(), budgetMs);
-      if (res == ffi.nullptr) return null;
-      try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
-      } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
-      }
-    } finally {
-      // Memory managed by toNativeUtf8() - no manual free needed
-    }
-  }
-
-  String? luaAppUpdate(
-      {required String script,
-      required String msgJson,
-      required String stateJson,
-      int budgetMs = 50}) {
-    final lib = _open();
-    if (lib == null) return null;
-    final s = script.toNativeUtf8().cast<ffi.Int8>();
-    final m = msgJson.toNativeUtf8().cast<ffi.Int8>();
-    final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
-    try {
-      final fn = lib.lookupFunction<_LuaAppUpdateNative, _LuaAppUpdateDart>(
-          _Symbols.luaAppUpdate);
-      final res = fn(s.cast(), m.cast(), st.cast(), budgetMs);
-      if (res == ffi.nullptr) return null;
-      try {
-        return res.cast<pkg_ffi.Utf8>().toDartString();
-      } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        final free = _freeOf(lib);
         free(res);
       }
     } finally {
@@ -455,7 +329,7 @@ class RustBridgeLoader {
       try {
         return res.cast<pkg_ffi.Utf8>().toDartString();
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        final free = _freeOf(lib);
         free(res);
       }
     } finally {
@@ -475,7 +349,7 @@ class RustBridgeLoader {
       try {
         return res.cast<pkg_ffi.Utf8>().toDartString();
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+        final free = _freeOf(lib);
         free(res);
       }
     } finally {
@@ -493,8 +367,8 @@ class RustBridgeLoader {
     if (lib == null) return null;
     final s = script.toNativeUtf8().cast<ffi.Int8>();
     try {
-      final fn = lib.lookupFunction<_LuaValidateComprehensiveNative,
-          _LuaValidateComprehensiveDart>(
+      final fn = lib.lookupFunction<_ValidateComprehensiveNative,
+          _ValidateComprehensiveDart>(
         _Symbols.jsValidateComprehensive,
       );
       final res = fn(
@@ -507,8 +381,7 @@ class RustBridgeLoader {
       try {
         return res.cast<pkg_ffi.Utf8>().toDartString();
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
+        _freeOf(lib)(res);
       }
     } finally {
       // Memory managed by toNativeUtf8() - no manual free needed
@@ -523,15 +396,14 @@ class RustBridgeLoader {
     final a =
         jsonArg == null ? ffi.nullptr : jsonArg.toNativeUtf8().cast<ffi.Int8>();
     try {
-      final fn = lib.lookupFunction<_LuaAppInitNative, _LuaAppInitDart>(
+      final fn = lib.lookupFunction<_AppInitNative, _AppInitDart>(
           _Symbols.jsAppInit);
       final res = fn(s.cast(), a.cast(), budgetMs);
       if (res == ffi.nullptr) return null;
       try {
         return res.cast<pkg_ffi.Utf8>().toDartString();
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
+        _freeOf(lib)(res);
       }
     } finally {
       // Memory managed by toNativeUtf8() - no manual free needed
@@ -545,15 +417,14 @@ class RustBridgeLoader {
     final s = script.toNativeUtf8().cast<ffi.Int8>();
     final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
     try {
-      final fn = lib.lookupFunction<_LuaAppViewNative, _LuaAppViewDart>(
-          _Symbols.jsAppView);
+      final fn =
+          lib.lookupFunction<_AppViewNative, _AppViewDart>(_Symbols.jsAppView);
       final res = fn(s.cast(), st.cast(), budgetMs);
       if (res == ffi.nullptr) return null;
       try {
         return res.cast<pkg_ffi.Utf8>().toDartString();
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
+        _freeOf(lib)(res);
       }
     } finally {
       // Memory managed by toNativeUtf8() - no manual free needed
@@ -571,15 +442,14 @@ class RustBridgeLoader {
     final m = msgJson.toNativeUtf8().cast<ffi.Int8>();
     final st = stateJson.toNativeUtf8().cast<ffi.Int8>();
     try {
-      final fn = lib.lookupFunction<_LuaAppUpdateNative, _LuaAppUpdateDart>(
+      final fn = lib.lookupFunction<_AppUpdateNative, _AppUpdateDart>(
           _Symbols.jsAppUpdate);
       final res = fn(s.cast(), m.cast(), st.cast(), budgetMs);
       if (res == ffi.nullptr) return null;
       try {
         return res.cast<pkg_ffi.Utf8>().toDartString();
       } finally {
-        final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
-        free(res);
+        _freeOf(lib)(res);
       }
     } finally {
       // Memory managed by toNativeUtf8() - no manual free needed
@@ -600,7 +470,7 @@ class RustBridgeLoader {
     final fn = lib.lookupFunction<_EncryptVaultNative, _EncryptVaultDart>(
       _Symbols.encryptVault,
     );
-    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+    final free = _freeOf(lib);
 
     final pwd = password.toNativeUtf8().cast<ffi.Int8>();
     final pt = plaintextB64.toNativeUtf8().cast<ffi.Int8>();
@@ -637,7 +507,7 @@ class RustBridgeLoader {
     final fn = lib.lookupFunction<_DecryptVaultNative, _DecryptVaultDart>(
       _Symbols.decryptVault,
     );
-    final free = lib.lookupFunction<_FreeNative, _FreeDart>(_Symbols.free);
+    final free = _freeOf(lib);
 
     final pwd = password.toNativeUtf8().cast<ffi.Int8>();
     final ed = encryptedDataB64.toNativeUtf8().cast<ffi.Int8>();
@@ -662,30 +532,6 @@ class RustBridgeLoader {
 // Convenience wrapper class for easier access
 class NativeBridge {
   final RustBridgeLoader _loader = const RustBridgeLoader();
-
-  String validateLuaComprehensive({
-    required String script,
-    bool isExample = false,
-    bool isTest = false,
-    bool isProduction = false,
-  }) {
-    return _loader.validateLuaComprehensive(
-          script: script,
-          isExample: isExample,
-          isTest: isTest,
-          isProduction: isProduction,
-        ) ??
-        '';
-  }
-
-  // Other convenience methods can be added here as needed
-  String? luaExec({required String script, String? jsonArg}) {
-    return _loader.luaExec(script: script, jsonArg: jsonArg);
-  }
-
-  String? luaLint({required String script}) {
-    return _loader.luaLint(script: script);
-  }
 
   String validateJsComprehensive({
     required String script,
@@ -741,13 +587,13 @@ typedef _Str2StrDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
 );
 
-typedef _LuaValidateComprehensiveNative = ffi.Pointer<ffi.Int8> Function(
+typedef _ValidateComprehensiveNative = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>, // script
   ffi.Int32, // is_example
   ffi.Int32, // is_test
   ffi.Int32, // is_production
 );
-typedef _LuaValidateComprehensiveDart = ffi.Pointer<ffi.Int8> Function(
+typedef _ValidateComprehensiveDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
   int,
   int,
@@ -786,34 +632,34 @@ typedef _CallAuthDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
 );
 
-// Lua app FFI typedefs
-typedef _LuaAppInitNative = ffi.Pointer<ffi.Int8> Function(
+// App lifecycle FFI typedefs
+typedef _AppInitNative = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>, // script
   ffi.Pointer<ffi.Int8>, // json_arg
   ffi.Uint64, // budget_ms
 );
-typedef _LuaAppInitDart = ffi.Pointer<ffi.Int8> Function(
+typedef _AppInitDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
   ffi.Pointer<ffi.Int8>,
   int,
 );
-typedef _LuaAppViewNative = ffi.Pointer<ffi.Int8> Function(
+typedef _AppViewNative = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>, // script
   ffi.Pointer<ffi.Int8>, // state_json
   ffi.Uint64, // budget_ms
 );
-typedef _LuaAppViewDart = ffi.Pointer<ffi.Int8> Function(
+typedef _AppViewDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
   ffi.Pointer<ffi.Int8>,
   int,
 );
-typedef _LuaAppUpdateNative = ffi.Pointer<ffi.Int8> Function(
+typedef _AppUpdateNative = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>, // script
   ffi.Pointer<ffi.Int8>, // msg_json
   ffi.Pointer<ffi.Int8>, // state_json
   ffi.Uint64, // budget_ms
 );
-typedef _LuaAppUpdateDart = ffi.Pointer<ffi.Int8> Function(
+typedef _AppUpdateDart = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<ffi.Int8>,
   ffi.Pointer<ffi.Int8>,
   ffi.Pointer<ffi.Int8>,
