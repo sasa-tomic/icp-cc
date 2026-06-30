@@ -326,7 +326,7 @@ void main() {
         await pumpSettingsScreen(tester);
 
         // Tap somewhere else first
-        await tester.tap(find.text('Documentation'));
+        await tester.tap(find.text('Light'));
         await tester.pumpAndSettle();
 
         // Then tap version - counter should start fresh

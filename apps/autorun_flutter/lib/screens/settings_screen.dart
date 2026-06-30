@@ -105,6 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _enableDeveloperOptions() async {
     await widget.settingsService.setDeveloperOptionsEnabled(true);
+    if (!mounted) return;
     setState(() {
       _developerOptionsEnabled = true;
       _versionTapCount = 0;
@@ -121,6 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _clearDeveloperOptions() async {
     await widget.settingsService.clearDeveloperOptions();
+    if (!mounted) return;
     setState(() {
       _developerOptionsEnabled = false;
       _versionTapCount = 0;
