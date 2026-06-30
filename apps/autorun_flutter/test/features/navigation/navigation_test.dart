@@ -130,10 +130,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Should show Manage Profiles option (combines switch + create)
-      final manageProfilesOption = find.text('Manage Profiles');
+      // Should show Switch Profile option (combines switch + create)
+      final manageProfilesOption = find.text('Switch Profile');
       expect(manageProfilesOption, findsOneWidget,
-          reason: 'Manage Profiles option should be visible');
+          reason: 'Switch Profile option should be visible');
     });
 
     testWidgets('shows profile header with display name', (tester) async {
