@@ -261,8 +261,7 @@ void main() {
         ),
       );
 
-      final exportButtons = find.widgetWithText(TextButton, 'JSON');
-      await tester.tap(exportButtons.last);
+      await tester.tap(find.byIcon(Icons.code));
       await tester.pumpAndSettle();
 
       expect(find.text('JSON copied to clipboard'), findsOneWidget);

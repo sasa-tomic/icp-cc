@@ -163,6 +163,9 @@ void main() {
 
       await tester.pump();
 
+      await tester.tap(find.byKey(const Key('toolbarOverflowButton')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('uiPaletteButton')), findsOneWidget);
     });
 
@@ -186,7 +189,9 @@ void main() {
 
       await tester.pump();
 
-      await tester.ensureVisible(find.byKey(const Key('uiPaletteButton')));
+      await tester.tap(find.byKey(const Key('toolbarOverflowButton')));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byKey(const Key('uiPaletteButton')));
       await tester.pumpAndSettle();
 
@@ -216,7 +221,9 @@ void main() {
 
       await tester.pump();
 
-      await tester.ensureVisible(find.byKey(const Key('uiPaletteButton')));
+      await tester.tap(find.byKey(const Key('toolbarOverflowButton')));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byKey(const Key('uiPaletteButton')));
       await tester.pumpAndSettle();
 

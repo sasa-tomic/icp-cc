@@ -29,8 +29,8 @@ void main() {
 
         // Assert - Verify download history screen loads
         expect(find.text('Download Library'), findsOneWidget);
-        expect(find.text('No downloads yet'), findsOneWidget);
-        expect(find.text('Scripts you download from the marketplace will appear here.'), findsOneWidget);
+        expect(find.text('No Download History'), findsOneWidget);
+        expect(find.text('Scripts you download from the marketplace will appear here'), findsOneWidget);
       });
     });
   });
