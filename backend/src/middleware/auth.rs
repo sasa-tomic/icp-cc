@@ -69,7 +69,7 @@ pub fn build_upload_payload(req: &CreateScriptRequest) -> Result<serde_json::Val
         "title": &req.title,
         "description": &req.description,
         "category": &req.category,
-        "lua_source": &req.lua_source,
+        "bundle": &req.bundle,
         "version": req.version.as_deref().unwrap_or("1.0.0"),
         "author_principal": author_principal,
     });
@@ -176,7 +176,7 @@ pub fn build_canonical_update_payload(
     insert_optional_string("title", &req.title, &mut payload);
     insert_optional_string("description", &req.description, &mut payload);
     insert_optional_string("category", &req.category, &mut payload);
-    insert_optional_string("lua_source", &req.lua_source, &mut payload);
+    insert_optional_string("bundle", &req.bundle, &mut payload);
     insert_optional_string("version", &req.version, &mut payload);
 
     if let Some(tags) = &req.tags {

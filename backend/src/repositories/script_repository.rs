@@ -74,7 +74,7 @@ impl ScriptRepository {
         title: &str,
         description: &str,
         category: &str,
-        lua_source: &str,
+        bundle: &str,
         author_principal: Option<&str>,
         author_public_key: Option<&str>,
         upload_signature: Option<&str>,
@@ -88,7 +88,7 @@ impl ScriptRepository {
         sqlx::query(
             r#"
             INSERT INTO scripts (
-                id, slug, owner_account_id, title, description, category, lua_source,
+                id, slug, owner_account_id, title, description, category, bundle,
                 author_principal, author_public_key, upload_signature, version, price,
                 is_public, compatibility, tags, created_at, updated_at
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
@@ -100,7 +100,7 @@ impl ScriptRepository {
         .bind(title)
         .bind(description)
         .bind(category)
-        .bind(lua_source)
+        .bind(bundle)
         .bind(author_principal)
         .bind(author_public_key)
         .bind(upload_signature)
@@ -123,7 +123,7 @@ impl ScriptRepository {
         title: Option<&str>,
         description: Option<&str>,
         category: Option<&str>,
-        lua_source: Option<&str>,
+        bundle: Option<&str>,
         version: Option<&str>,
         price: Option<f64>,
         is_public: Option<bool>,
@@ -142,8 +142,8 @@ impl ScriptRepository {
         if category.is_some() {
             updates.push("category = ?");
         }
-        if lua_source.is_some() {
-            updates.push("lua_source = ?");
+        if bundle.is_some() {
+            updates.push("bundle = ?");
         }
         if version.is_some() {
             updates.push("version = ?");
@@ -172,7 +172,7 @@ impl ScriptRepository {
         if let Some(c) = category {
             query = query.bind(c);
         }
-        if let Some(l) = lua_source {
+        if let Some(l) = bundle {
             query = query.bind(l);
         }
         if let Some(v) = version {

@@ -49,7 +49,7 @@ class _ScriptExecutionBottomSheetState
               ),
               child: ScriptAppHost(
                 runtime: widget.runtime,
-                script: widget.script.luaSource,
+                script: widget.script.bundle,
                 initialArg: const <String, dynamic>{},
               ),
             ),

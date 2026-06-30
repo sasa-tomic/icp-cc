@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS scripts (
     description TEXT NOT NULL,
     category VARCHAR(100) NOT NULL,
     tags JSONB,
-    lua_source TEXT NOT NULL,
+    bundle TEXT NOT NULL,
     author_principal VARCHAR(255),
     author_public_key TEXT,
     upload_signature TEXT,

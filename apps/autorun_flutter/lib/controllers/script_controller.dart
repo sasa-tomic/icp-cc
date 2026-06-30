@@ -221,7 +221,7 @@ class ScriptController extends ChangeNotifier {
     required String title,
     String? emoji,
     String? imageUrl,
-    String? luaSourceOverride,
+    String? bundleOverride,
     Map<String, dynamic>? metadata,
   }) async {
     if (title.trim().isEmpty) {
@@ -241,16 +241,16 @@ class ScriptController extends ChangeNotifier {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now().toUtc();
       final String defaultBundle =
-          luaSourceOverride == null || luaSourceOverride.trim().isEmpty
+          bundleOverride == null || bundleOverride.trim().isEmpty
               ? kDefaultSampleBundle
-              : luaSourceOverride;
+              : bundleOverride;
 
       final ScriptRecord record = ScriptRecord(
         id: id,
         title: title.trim(),
         emoji: finalEmoji,
         imageUrl: finalImageUrl,
-        luaSource: defaultBundle,
+        bundle: defaultBundle,
         createdAt: now,
         updatedAt: now,
         metadata: metadata ?? {},
@@ -271,7 +271,7 @@ class ScriptController extends ChangeNotifier {
   }
 
   Future<void> updateSource(
-      {required String id, required String luaSource}) async {
+      {required String id, required String bundle}) async {
     final int idx = _scripts.indexWhere((ScriptRecord r) => r.id == id);
     if (idx < 0) {
       throw ArgumentError('Script not found: $id');
@@ -281,7 +281,7 @@ class ScriptController extends ChangeNotifier {
         Map<String, dynamic>.from(current.metadata);
     updatedMetadata.remove('sha256_checksum');
     final ScriptRecord updated = current.copyWith(
-      luaSource: luaSource,
+      bundle: bundle,
       updatedAt: DateTime.now().toUtc(),
       metadata: updatedMetadata,
     );

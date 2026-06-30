@@ -40,7 +40,7 @@ INSERT OR IGNORE INTO accounts (
 
 -- Create sample script
 INSERT OR IGNORE INTO scripts (
-    id, slug, owner_account_id, title, description, category, tags, lua_source,
+    id, slug, owner_account_id, title, description, category, tags, bundle,
     author_principal, author_public_key, upload_signature, canister_ids, icon_url,
     screenshots, version, compatibility, price, is_public, downloads, rating,
     review_count, created_at, updated_at

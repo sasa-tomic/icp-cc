@@ -6,7 +6,7 @@ class ScriptRecord {
     required this.title,
     this.emoji,
     this.imageUrl,
-    required this.luaSource,
+    required this.bundle,
     required this.createdAt,
     required this.updatedAt,
     this.metadata = const {},
@@ -19,10 +19,8 @@ class ScriptRecord {
   final String title;
   final String? emoji;
   final String? imageUrl;
-  // Legacy field name: holds the TS bundle source. Renamed to `bundle` in
-  // cleanup-plan WU-7 (coordinated backend+client change). Wire/JSON key
-  // 'luaSource' is intentionally preserved in this wave.
-  final String luaSource;
+  // Holds the TS bundle source (TypeScript/QuickJS IIFE).
+  final String bundle;
   final DateTime createdAt;
   final DateTime updatedAt;
   final Map<String, dynamic> metadata;
@@ -47,7 +45,7 @@ class ScriptRecord {
         'title': title,
         'emoji': emoji,
         'imageUrl': imageUrl,
-        'luaSource': luaSource,
+        'bundle': bundle,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'metadata': metadata,
@@ -62,9 +60,9 @@ class ScriptRecord {
       throw const FormatException(
           'ScriptRecord requires non-empty id and title');
     }
-    final String luaSource = json['luaSource'] as String? ?? '';
-    if (luaSource.isEmpty) {
-      throw const FormatException('ScriptRecord requires non-empty luaSource');
+    final String bundle = json['bundle'] as String? ?? '';
+    if (bundle.isEmpty) {
+      throw const FormatException('ScriptRecord requires non-empty bundle');
     }
     final String? lastRunAtStr = json['lastRunAt'] as String?;
     return ScriptRecord(
@@ -72,7 +70,7 @@ class ScriptRecord {
       title: title,
       emoji: json['emoji'] as String?,
       imageUrl: json['imageUrl'] as String?,
-      luaSource: luaSource,
+      bundle: bundle,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       metadata: Map<String, dynamic>.from(json['metadata'] as Map? ?? {}),
@@ -85,7 +83,7 @@ class ScriptRecord {
     String? title,
     String? emoji,
     String? imageUrl,
-    String? luaSource,
+    String? bundle,
     DateTime? updatedAt,
     Map<String, dynamic>? metadata,
     int? runCount,
@@ -96,7 +94,7 @@ class ScriptRecord {
       title: title ?? this.title,
       emoji: emoji ?? this.emoji,
       imageUrl: imageUrl ?? this.imageUrl,
-      luaSource: luaSource ?? this.luaSource,
+      bundle: bundle ?? this.bundle,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       metadata: metadata ?? this.metadata,

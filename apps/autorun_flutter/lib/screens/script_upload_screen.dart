@@ -9,11 +9,11 @@ import '../widgets/profile_scope.dart';
 
 class PreFilledUploadData {
   final String title;
-  final String luaSource;
+  final String bundle;
 
   PreFilledUploadData({
     required this.title,
-    required this.luaSource,
+    required this.bundle,
   });
 }
 
@@ -212,7 +212,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
       final timestamp = DateTime.now().toUtc().toIso8601String();
 
-      // Generate a default TS bundle since API requires non-empty lua_source
+      // Generate a default TS bundle since API requires non-empty bundle
       final defaultBundle = '''// Default Script for $title
 "use strict";
 (() => {
@@ -249,7 +249,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
         title: title,
         description: description,
         category: category,
-        luaSource: defaultBundle,
+        bundle: defaultBundle,
         version: version,
         tags: tags,
         compatibility: compatibility,
@@ -265,7 +265,7 @@ class _ScriptUploadScreenState extends State<ScriptUploadScreen> {
         description: description,
         category: category,
         tags: tags,
-        luaSource: defaultBundle,
+        bundle: defaultBundle,
         canisterIds: canisterIds.isEmpty ? null : canisterIds,
         iconUrl: iconUrl,
         screenshots: screenshots.isEmpty ? null : screenshots,

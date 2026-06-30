@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS scripts (
     description TEXT NOT NULL,
     category TEXT NOT NULL,
     tags TEXT, -- JSON as TEXT for SQLite
-    lua_source TEXT NOT NULL,
+    bundle TEXT NOT NULL,
     author_principal TEXT,
     author_public_key TEXT,
     upload_signature TEXT,

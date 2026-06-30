@@ -68,7 +68,7 @@ impl ScriptService {
                 &req.title,
                 &req.description,
                 &req.category,
-                &req.lua_source,
+                &req.bundle,
                 req.author_principal.as_deref(),
                 req.author_public_key.as_deref(),
                 req.signature.as_deref(),
@@ -105,7 +105,7 @@ impl ScriptService {
                 req.title.as_deref(),
                 req.description.as_deref(),
                 req.category.as_deref(),
-                req.lua_source.as_deref(),
+                req.bundle.as_deref(),
                 req.version.as_deref(),
                 req.price,
                 req.is_public,
@@ -234,7 +234,7 @@ mod tests {
             title: "Test Script".to_string(),
             description: "Test Description".to_string(),
             category: "utility".to_string(),
-            lua_source: "print('hello')".to_string(),
+            bundle: "print('hello')".to_string(),
             author_principal: Some("test-principal".to_string()),
             author_public_key: Some("test-public-key".to_string()),
             upload_signature: None,
@@ -317,7 +317,7 @@ mod tests {
             title: Some("Updated Title".to_string()),
             description: Some("Updated Description".to_string()),
             category: None,
-            lua_source: None,
+            bundle: None,
             version: None,
             price: None,
             is_public: None,
@@ -337,7 +337,7 @@ mod tests {
         assert_eq!(updated.title, "Updated Title");
         assert_eq!(updated.description, "Updated Description");
         assert_eq!(updated.category, "utility"); // Unchanged
-        assert_eq!(updated.lua_source, "print('hello')"); // Unchanged
+        assert_eq!(updated.bundle, "print('hello')"); // Unchanged
     }
 
     #[tokio::test]
@@ -349,7 +349,7 @@ mod tests {
             title: Some("Updated Title".to_string()),
             description: None,
             category: None,
-            lua_source: None,
+            bundle: None,
             version: None,
             price: None,
             is_public: None,

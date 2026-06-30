@@ -154,7 +154,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             description TEXT NOT NULL,
             category TEXT NOT NULL,
             tags TEXT,
-            lua_source TEXT NOT NULL,
+            bundle TEXT NOT NULL,
             author_principal TEXT,
             author_public_key TEXT,
             upload_signature TEXT,

@@ -224,7 +224,7 @@ mod signature_tests {
             "title": "Updated Title",
             "description": "Test script for unit testing",
             "category": "Testing",
-            "lua_source": "function init(arg)\n  return { message = \"Hello from test script!\" }, {}\nend\n\nfunction view(state)\n  return { type = \"text\", text = state.message }\nend\n\nfunction update(msg, state)\n  if msg.type == \"test\" then\n    state.message = \"Updated!\"\n  end\n  return state, {}\nend",
+            "bundle": "function init(arg)\n  return { message = \"Hello from test script!\" }, {}\nend\n\nfunction view(state)\n  return { type = \"text\", text = state.message }\nend\n\nfunction update(msg, state)\n  if msg.type == \"test\" then\n    state.message = \"Updated!\"\n  end\n  return state, {}\nend",
             "version": "2.0.0",
             "price": 0.0,
             "is_public": true,
@@ -274,7 +274,7 @@ mod signature_tests {
             "title": "Title",
             "description": "Desc",
             "category": "Utility",
-            "lua_source": "-- body",
+            "bundle": "-- body",
             "tags": ["alpha", "beta"],
             "version": "1.0.0",
             "price": 1.5,
@@ -1793,7 +1793,7 @@ mod tests {
             "title":"Tampered Title",
             "description":"Updated description",
             "category":"Utility",
-            "lua_source":"-- updated",
+            "bundle":"-- updated",
             "tags":["modified","updated"],
             "version":"2.0.0",
             "price":1.0,
@@ -1826,7 +1826,7 @@ mod tests {
                 id: "script-1",
                 title: "Test Script One",
                 category: "Utility",
-                lua_source: "-- script one",
+                bundle: "-- script one",
                 rating: 4.5,
                 price: 9.99,
                 downloads: 250,
@@ -1842,7 +1842,7 @@ mod tests {
                 id: "script-2",
                 title: "Another Utility Script",
                 category: "Utility",
-                lua_source: "-- script two",
+                bundle: "-- script two",
                 rating: 4.8,
                 price: 14.50,
                 downloads: 300,
@@ -1858,7 +1858,7 @@ mod tests {
                 id: "script-3",
                 title: "Analytics Tool",
                 category: "Analytics",
-                lua_source: "-- script three",
+                bundle: "-- script three",
                 rating: 3.2,
                 price: 0.0,
                 downloads: 120,
@@ -1885,7 +1885,7 @@ mod tests {
         id: &'a str,
         title: &'a str,
         category: &'a str,
-        lua_source: &'a str,
+        bundle: &'a str,
         rating: f64,
         price: f64,
         downloads: i32,
@@ -1895,14 +1895,14 @@ mod tests {
 
     async fn insert_script(pool: &SqlitePool, fixture: ScriptFixture<'_>) {
         sqlx::query(
-            "INSERT INTO scripts (id, slug, owner_account_id, title, description, category, tags, lua_source, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at) VALUES (?1, ?2, NULL, ?3, ?4, ?5, '[]', ?6, NULL, NULL, NULL, NULL, NULL, NULL, '1.0.0', NULL, ?7, 1, ?8, ?9, ?10, ?11, ?11)",
+            "INSERT INTO scripts (id, slug, owner_account_id, title, description, category, tags, bundle, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at) VALUES (?1, ?2, NULL, ?3, ?4, ?5, '[]', ?6, NULL, NULL, NULL, NULL, NULL, NULL, '1.0.0', NULL, ?7, 1, ?8, ?9, ?10, ?11, ?11)",
         )
         .bind(fixture.id)
         .bind(format!("test-{}", fixture.id))  // Generate slug from id
         .bind(fixture.title)
         .bind(format!("{} description", fixture.title))
         .bind(fixture.category)
-        .bind(fixture.lua_source)
+        .bind(fixture.bundle)
         .bind(fixture.price)
         .bind(fixture.downloads)
         .bind(fixture.rating)
@@ -2002,7 +2002,7 @@ mod tests {
             "title": "Title",
             "description": "Desc",
             "category": "Utility",
-            "lua_source": "-- body",
+            "bundle": "-- body",
             "tags": ["alpha", "beta"],
             "version": "1.0.0",
             "price": 1.5,
@@ -2049,7 +2049,7 @@ mod tests {
             "title": "Updated Title",
             "description": "Updated description",
             "category": "Utility",
-            "lua_source": "-- Updated source",
+            "bundle": "-- Updated source",
             "tags": ["modified", "updated"],
             "version": "2.0.0",
             "price": 1.0,

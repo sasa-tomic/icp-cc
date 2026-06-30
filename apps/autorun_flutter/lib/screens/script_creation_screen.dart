@@ -14,7 +14,7 @@ class _BlankScriptTemplate extends ScriptTemplate {
           emoji: '📄',
           level: 'beginner',
           tags: ['blank', 'empty'],
-          preloadedLuaSource: '''// Blank Script — a minimal TypeScript/QuickJS bundle.
+          preloadedBundle: '''// Blank Script — a minimal TypeScript/QuickJS bundle.
 "use strict";
 (() => {
   function init() {
@@ -90,7 +90,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
       _selectedTemplate = ScriptTemplates.templates.first;
     }
 
-    _currentCode = _selectedTemplate!.luaSource;
+    _currentCode = _selectedTemplate!.bundle;
 
     _titleController = TextEditingController(text: _selectedTemplate!.title);
     _emojiController = TextEditingController(text: _selectedTemplate!.emoji);
@@ -109,7 +109,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
   void _onTemplateSelected(ScriptTemplate template) {
     setState(() {
       _selectedTemplate = template;
-      _currentCode = template.luaSource;
+      _currentCode = template.bundle;
 
       _titleController.text = template.title;
       _emojiController.text = template.emoji;
@@ -144,7 +144,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
         imageUrl: _imageUrlController.text.trim().isEmpty
             ? null
             : _imageUrlController.text.trim(),
-        luaSourceOverride: _currentCode,
+        bundleOverride: _currentCode,
       );
 
       if (!mounted) return;

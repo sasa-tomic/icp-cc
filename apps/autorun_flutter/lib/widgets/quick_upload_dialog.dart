@@ -99,8 +99,8 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   }
 
   void _generateDescriptionFromScript() {
-    if (widget.script != null && widget.script!.luaSource.isNotEmpty) {
-      final lines = widget.script!.luaSource.split('\n');
+    if (widget.script != null && widget.script!.bundle.isNotEmpty) {
+      final lines = widget.script!.bundle.split('\n');
       final contentLines = lines
           .where(
               (line) => !line.trim().startsWith('//') && line.trim().isNotEmpty)
@@ -130,7 +130,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
   String _getBundle() {
     if (widget.script != null) {
-      return widget.script!.luaSource;
+      return widget.script!.bundle;
     }
     if (widget.preFilledCode != null) {
       return widget.preFilledCode!;
@@ -239,14 +239,14 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
       // Use the actual bundle source from the script, pre-filled code, or generate a default
       String bundle;
-      if (widget.script?.luaSource != null &&
-          widget.script!.luaSource.isNotEmpty) {
-        bundle = widget.script!.luaSource;
+      if (widget.script?.bundle != null &&
+          widget.script!.bundle.isNotEmpty) {
+        bundle = widget.script!.bundle;
       } else if (widget.preFilledCode != null &&
           widget.preFilledCode!.isNotEmpty) {
         bundle = widget.preFilledCode!;
       } else {
-        // Generate a default TS bundle since API requires non-empty lua_source
+        // Generate a default TS bundle since API requires non-empty bundle
         bundle = _getBundle();
       }
 
@@ -262,7 +262,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
         title: title,
         description: description,
         category: _selectedCategory,
-        luaSource: bundle,
+        bundle: bundle,
         version: version,
         tags: tags,
         timestampIso: timestamp,
@@ -282,7 +282,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
         description: description,
         category: _selectedCategory,
         tags: tags,
-        luaSource: bundle,
+        bundle: bundle,
         price: price,
         version: version,
         authorPrincipal: authorPrincipal,

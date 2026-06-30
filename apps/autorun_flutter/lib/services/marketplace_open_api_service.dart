@@ -333,7 +333,7 @@ class MarketplaceOpenApiService {
         throw Exception('Script is not available for download');
       }
 
-      return script.luaSource;
+      return script.bundle;
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Download script failed: $e');
       rethrow;
@@ -484,7 +484,7 @@ class MarketplaceOpenApiService {
     required String description,
     required String category,
     required List<String> tags,
-    required String luaSource,
+    required String bundle,
     List<String>? canisterIds,
     String? iconUrl,
     List<String>? screenshots,
@@ -503,7 +503,7 @@ class MarketplaceOpenApiService {
         'description': description,
         'category': category,
         'tags': tags,
-        'lua_source': luaSource,
+        'bundle': bundle,
         'canister_ids': canisterIds ?? [],
         'screenshots': screenshots ?? [],
         'version': version ?? '1.0.0',
@@ -596,7 +596,7 @@ class MarketplaceOpenApiService {
           rating: 0.0,
           reviewCount: 0,
           verifiedReviewCount: 0,
-          luaSource: luaSource,
+          bundle: bundle,
           iconUrl: iconUrl,
           screenshots: screenshots ?? [],
           canisterIds: canisterIds ?? [],
@@ -668,7 +668,7 @@ class MarketplaceOpenApiService {
     String? description,
     String? category,
     List<String>? tags,
-    String? luaSource,
+    String? bundle,
     List<String>? canisterIds,
     String? iconUrl,
     List<String>? screenshots,
@@ -684,7 +684,7 @@ class MarketplaceOpenApiService {
       if (description != null) body['description'] = description;
       if (category != null) body['category'] = category;
       if (tags != null) body['tags'] = tags;
-      if (luaSource != null) body['lua_source'] = luaSource;
+      if (bundle != null) body['bundle'] = bundle;
       if (canisterIds != null) body['canister_ids'] = canisterIds;
       if (iconUrl != null) body['icon_url'] = iconUrl;
       if (screenshots != null) body['screenshots'] = screenshots;

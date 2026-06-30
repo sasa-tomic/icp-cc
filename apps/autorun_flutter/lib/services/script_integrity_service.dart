@@ -11,15 +11,15 @@ class ScriptIntegrityException implements Exception {
 }
 
 class ScriptIntegrityService {
-  String computeChecksum(String luaSource) {
-    final bytes = utf8.encode(luaSource);
+  String computeChecksum(String bundle) {
+    final bytes = utf8.encode(bundle);
     final digest = sha256.convert(bytes);
     return digest.toString();
   }
 
-  void verifyChecksum(String luaSource, String expectedChecksum,
+  void verifyChecksum(String bundle, String expectedChecksum,
       {String? scriptId}) {
-    final actualChecksum = computeChecksum(luaSource);
+    final actualChecksum = computeChecksum(bundle);
     if (actualChecksum != expectedChecksum) {
       final idInfo = scriptId != null ? ' (script: $scriptId)' : '';
       throw ScriptIntegrityException(
@@ -31,9 +31,9 @@ class ScriptIntegrityService {
     }
   }
 
-  bool hasValidChecksum(String luaSource, String expectedChecksum) {
+  bool hasValidChecksum(String bundle, String expectedChecksum) {
     try {
-      verifyChecksum(luaSource, expectedChecksum);
+      verifyChecksum(bundle, expectedChecksum);
       return true;
     } catch (_) {
       return false;

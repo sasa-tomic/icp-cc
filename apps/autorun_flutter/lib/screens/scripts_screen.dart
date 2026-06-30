@@ -371,11 +371,11 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         }
       }
 
-      final luaSource =
+      final bundle =
           await _marketplaceService.downloadScript(script.id, version: version);
 
       final integrityService = ScriptIntegrityService();
-      final sha256Checksum = integrityService.computeChecksum(luaSource);
+      final sha256Checksum = integrityService.computeChecksum(bundle);
 
       final effectiveVersion = version ?? script.version ?? '1.0.0';
       final titleSuffix =
@@ -384,7 +384,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       final createdScript = await _controller.createScript(
         title: '${script.title}$titleSuffix',
         emoji: '📦',
-        luaSourceOverride: luaSource,
+        bundleOverride: bundle,
         metadata: {
           'marketplace_id': script.id,
           'marketplace_title': script.title,
@@ -469,7 +469,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     if (checksum != null) {
       final integrityService = ScriptIntegrityService();
       try {
-        integrityService.verifyChecksum(record.luaSource, checksum,
+        integrityService.verifyChecksum(record.bundle, checksum,
             scriptId: record.id);
       } on ScriptIntegrityException catch (e) {
         if (!mounted) return;
@@ -503,7 +503,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         appBar: AppBar(title: Text(record.title)),
         body: ScriptAppHost(
             runtime: _runtimeFor(record),
-            script: record.luaSource,
+            script: record.bundle,
             initialArg: const <String, dynamic>{}),
       ),
     ));
@@ -675,7 +675,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         title: '${record.title} (Copy)',
         emoji: record.emoji,
         imageUrl: record.imageUrl,
-        luaSourceOverride: record.luaSource,
+        bundleOverride: record.bundle,
       );
 
       if (!mounted) return;
@@ -707,7 +707,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   Future<void> _exportScript(ScriptRecord record) async {
     // For now, just copy the source code to clipboard
     // In a real implementation, you might want to export as a file
-    await Clipboard.setData(ClipboardData(text: record.luaSource));
+    await Clipboard.setData(ClipboardData(text: record.bundle));
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1985,7 +1985,7 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
   @override
   void initState() {
     super.initState();
-    _codeNotifier = ValueNotifier<String>(widget.record.luaSource);
+    _codeNotifier = ValueNotifier<String>(widget.record.bundle);
   }
 
   @override
@@ -2004,7 +2004,7 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
     try {
       await widget.controller.updateSource(
         id: widget.record.id,
-        luaSource: _codeNotifier.value,
+        bundle: _codeNotifier.value,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -2139,7 +2139,7 @@ class _ScriptEditorDialogState extends State<_ScriptEditorDialog> {
                   padding: EdgeInsets.all(isCompactScreen ? 4 : 8),
                   child: ScriptEditor(
                     key: _editorKey,
-                    initialCode: widget.record.luaSource,
+                    initialCode: widget.record.bundle,
                     onCodeChanged: _onCodeChanged,
                     showIntegrations: !isCompactScreen,
                     minLines: isCompactScreen ? 20 : 30,
@@ -2165,9 +2165,9 @@ class _ScriptDetailsDialog extends StatefulWidget {
 
 class _NewScriptDetailsDialog extends StatefulWidget {
   const _NewScriptDetailsDialog(
-      {required this.controller, required this.luaSource});
+      {required this.controller, required this.bundle});
   final ScriptController controller;
-  final String luaSource;
+  final String bundle;
 
   @override
   State<_NewScriptDetailsDialog> createState() =>
@@ -2210,7 +2210,7 @@ class _NewScriptDetailsDialogState extends State<_NewScriptDetailsDialog> {
         imageUrl: _imageUrlController.text.trim().isEmpty
             ? null
             : _imageUrlController.text.trim(),
-        luaSourceOverride: widget.luaSource,
+        bundleOverride: widget.bundle,
       );
       if (!mounted) return;
       Navigator.of(context).pop(rec);

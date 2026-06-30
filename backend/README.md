@@ -93,7 +93,7 @@ CREATE TABLE scripts (
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     category TEXT NOT NULL,
-    lua_source TEXT NOT NULL,
+    bundle TEXT NOT NULL,
     author_name TEXT NOT NULL,
     is_public INTEGER DEFAULT 1,
     rating REAL DEFAULT 0.0,

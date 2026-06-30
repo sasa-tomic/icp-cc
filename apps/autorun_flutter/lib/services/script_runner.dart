@@ -56,15 +56,13 @@ class CanisterCallSpec {
 
 class ScriptRunPlan {
   ScriptRunPlan({
-    required this.luaSource,
+    required this.bundle,
     this.calls = const <CanisterCallSpec>[],
     this.initialArg,
   });
 
-  /// Source bundle (TypeScript/QuickJS IIFE). The legacy field name `luaSource`
-  /// is retained for now; the rename to `bundle` is a coordinated backend+client
-  /// change tracked separately (cleanup-plan WU-7).
-  final String luaSource;
+  /// Source bundle (TypeScript/QuickJS IIFE).
+  final String bundle;
   final List<CanisterCallSpec> calls;
 
   /// Optional initial JSON to pass under arg.input
@@ -433,8 +431,8 @@ class ScriptRunner {
   /// Execute the plan: call canisters in order, build arg, run the TS bundle.
   /// Fails fast on any call/parse error.
   Future<ScriptRunResult> run(ScriptRunPlan plan) async {
-    if (plan.luaSource.trim().isEmpty) {
-      return ScriptRunResult(ok: false, error: 'luaSource is empty');
+    if (plan.bundle.trim().isEmpty) {
+      return ScriptRunResult(ok: false, error: 'bundle is empty');
     }
 
     // Collect call outputs as decoded JSON values
@@ -487,7 +485,7 @@ class ScriptRunner {
     final String jsonArg = json.encode(arg);
 
     // The TS bundle is self-contained (no host-injected preamble).
-    final String? out = _bridge.jsExec(script: plan.luaSource, jsonArg: jsonArg);
+    final String? out = _bridge.jsExec(script: plan.bundle, jsonArg: jsonArg);
     if (out == null || out.trim().isEmpty) {
       return ScriptRunResult(
           ok: false, error: 'Script execution returned empty');

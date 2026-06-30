@@ -10,7 +10,7 @@ pub struct Script {
     pub description: String,
     pub category: String,
     pub tags: Option<String>,
-    pub lua_source: String,
+    pub bundle: String,
     pub author_principal: Option<String>,
     pub author_public_key: Option<String>,
     pub upload_signature: Option<String>,
@@ -59,7 +59,7 @@ pub struct CreateScriptRequest {
     pub title: String,
     pub description: String,
     pub category: String,
-    pub lua_source: String,
+    pub bundle: String,
     pub author_principal: Option<String>,
     pub author_public_key: Option<String>,
     pub upload_signature: Option<String>,
@@ -79,7 +79,7 @@ pub struct UpdateScriptRequest {
     pub title: Option<String>,
     pub description: Option<String>,
     pub category: Option<String>,
-    pub lua_source: Option<String>,
+    pub bundle: Option<String>,
     pub version: Option<String>,
     pub price: Option<f64>,
     pub is_public: Option<bool>,
@@ -159,7 +159,7 @@ pub struct ReviewsQuery {
     pub offset: Option<i32>,
 }
 
-pub const SCRIPT_COLUMNS_WITH_ACCOUNT: &str = "scripts.id, scripts.slug, scripts.owner_account_id, scripts.title, scripts.description, scripts.category, scripts.tags, scripts.lua_source, scripts.author_principal, scripts.author_public_key, scripts.upload_signature, scripts.canister_ids, scripts.icon_url, scripts.screenshots, scripts.version, scripts.compatibility, scripts.price, scripts.is_public, scripts.downloads, scripts.rating, scripts.review_count, scripts.created_at, scripts.updated_at, scripts.deleted_at, accounts.display_name as author_name";
+pub const SCRIPT_COLUMNS_WITH_ACCOUNT: &str = "scripts.id, scripts.slug, scripts.owner_account_id, scripts.title, scripts.description, scripts.category, scripts.tags, scripts.bundle, scripts.author_principal, scripts.author_public_key, scripts.upload_signature, scripts.canister_ids, scripts.icon_url, scripts.screenshots, scripts.version, scripts.compatibility, scripts.price, scripts.is_public, scripts.downloads, scripts.rating, scripts.review_count, scripts.created_at, scripts.updated_at, scripts.deleted_at, accounts.display_name as author_name";
 
 // Account Profiles Models
 

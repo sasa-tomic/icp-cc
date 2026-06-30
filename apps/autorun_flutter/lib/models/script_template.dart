@@ -12,8 +12,8 @@ class ScriptTemplate {
   final String? _filePath; // Path to the bundle asset
   final List<String> tags;
   final bool isRecommended;
-  final String? _initialLuaSource;
-  String? _cachedLuaSource;
+  final String? _initialBundle;
+  String? _cachedBundle;
 
   ScriptTemplate({
     required this.id,
@@ -23,19 +23,19 @@ class ScriptTemplate {
     required this.level,
     required this.tags,
     String? filePath,
-    String? preloadedLuaSource,
+    String? preloadedBundle,
     this.isRecommended = false,
   })  : _filePath = filePath,
-        _initialLuaSource = preloadedLuaSource,
+        _initialBundle = preloadedBundle,
         assert(
-          preloadedLuaSource == null || preloadedLuaSource.trim().isNotEmpty,
-          'preloadedLuaSource for $id cannot be empty',
+          preloadedBundle == null || preloadedBundle.trim().isNotEmpty,
+          'preloadedBundle for $id cannot be empty',
         );
 
   /// Bundle source associated with this template.
   /// Throws if the source has not been loaded (fail fast requirement).
-  String get luaSource {
-    final String? source = _cachedLuaSource ?? _initialLuaSource;
+  String get bundle {
+    final String? source = _cachedBundle ?? _initialBundle;
     if (source == null) {
       throw StateError(
         'Bundle source for template "$id" has not been loaded. '
@@ -47,8 +47,8 @@ class ScriptTemplate {
 
   /// Load the bundle source from the provided [AssetBundle].
   Future<void> load(AssetBundle bundle) async {
-    if (_cachedLuaSource != null || _initialLuaSource != null) {
-      _cachedLuaSource ??= _initialLuaSource;
+    if (_cachedBundle != null || _initialBundle != null) {
+      _cachedBundle ??= _initialBundle;
       return;
     }
 
@@ -56,7 +56,7 @@ class ScriptTemplate {
     if (path == null || path.trim().isEmpty) {
       throw StateError(
         'Template "$id" is missing an asset file path. '
-        'Assign a valid filePath or provide preloadedLuaSource.',
+        'Assign a valid filePath or provide preloadedBundle.',
       );
     }
 
@@ -67,7 +67,7 @@ class ScriptTemplate {
           'Bundle source loaded from "$path" for template "$id" is empty.',
         );
       }
-      _cachedLuaSource = assetContent;
+      _cachedBundle = assetContent;
     } on FlutterError catch (error) {
       throw StateError(
         'Failed to load template asset "$path" for "$id": ${error.message}',
@@ -87,7 +87,7 @@ class ScriptTemplate {
           level == other.level &&
           _filePath == other._filePath &&
           tags == other.tags &&
-          _initialLuaSource == other._initialLuaSource &&
+          _initialBundle == other._initialBundle &&
           isRecommended == other.isRecommended;
 
   @override
@@ -98,7 +98,7 @@ class ScriptTemplate {
       emoji.hashCode ^
       level.hashCode ^
       _filePath.hashCode ^
-      _initialLuaSource.hashCode ^
+      _initialBundle.hashCode ^
       tags.hashCode ^
       isRecommended.hashCode;
 }

@@ -17,7 +17,7 @@ class MarketplaceScript {
   final double rating;
   final int reviewCount;
   final int? verifiedReviewCount;
-  final String luaSource;
+  final String bundle;
   final String? iconUrl;
   final List<String>? screenshots;
   final List<String> canisterIds;
@@ -45,7 +45,7 @@ class MarketplaceScript {
     this.rating = 0.0,
     this.reviewCount = 0,
     this.verifiedReviewCount,
-    required this.luaSource,
+    required this.bundle,
     this.iconUrl,
     this.screenshots,
     this.canisterIds = const [],
@@ -126,8 +126,7 @@ class MarketplaceScript {
       reviewCount:
           json['reviewCount'] as int? ?? json['review_count'] as int? ?? 0,
       verifiedReviewCount: json['verifiedReviewCount'] as int?,
-      luaSource:
-          json['luaSource'] as String? ?? json['lua_source'] as String? ?? '',
+      bundle: json['bundle'] as String? ?? '',
       iconUrl: json['iconUrl'] as String? ?? json['icon_url'] as String?,
       screenshots: _parseOptionalStringList(json['screenshots']),
       canisterIds:
@@ -166,7 +165,7 @@ class MarketplaceScript {
       'rating': rating,
       'reviewCount': reviewCount,
       'verifiedReviewCount': verifiedReviewCount,
-      'luaSource': luaSource,
+      'bundle': bundle,
       'iconUrl': iconUrl,
       'screenshots': screenshots,
       'canisterIds': canisterIds,
@@ -193,7 +192,7 @@ class MarketplaceScript {
     double? rating,
     int? reviewCount,
     int? verifiedReviewCount,
-    String? luaSource,
+    String? bundle,
     String? iconUrl,
     List<String>? screenshots,
     List<String>? canisterIds,
@@ -218,7 +217,7 @@ class MarketplaceScript {
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       verifiedReviewCount: verifiedReviewCount ?? this.verifiedReviewCount,
-      luaSource: luaSource ?? this.luaSource,
+      bundle: bundle ?? this.bundle,
       iconUrl: iconUrl ?? this.iconUrl,
       screenshots: screenshots ?? this.screenshots,
       canisterIds: canisterIds ?? this.canisterIds,
