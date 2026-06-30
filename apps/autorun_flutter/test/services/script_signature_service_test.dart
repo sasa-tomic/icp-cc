@@ -197,11 +197,9 @@ void main() {
 
   group('ScriptSignatureService secp256k1', () {
     late ProfileKeypair keypair;
-    late String principal;
 
     setUpAll(() async {
       keypair = await TestKeypairFactory.getSecp256k1Keypair();
-      principal = PrincipalUtils.textFromRecord(keypair);
     });
 
     test('signScriptUpload produces valid secp256k1 signature', () async {

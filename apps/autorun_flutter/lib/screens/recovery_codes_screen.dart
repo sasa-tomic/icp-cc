@@ -1,8 +1,5 @@
-import 'dart:ui' show FontFeature;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/passkey_service.dart';
 import '../theme/app_design_system.dart';
 
 typedef CodesConfirmedCallback = void Function();

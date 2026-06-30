@@ -9,18 +9,15 @@ void main() {
     /// The ScriptsScreen should use this to provide "Browse Marketplace" as
     /// an alternative to "Create Script" for users who want to explore first.
     testWidgets('empty state widget supports secondary action', (tester) async {
-      bool primaryCalled = false;
-      bool secondaryCalled = false;
-
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: ModernEmptyState(
             icon: Icons.code_rounded,
             title: 'Your Script Library is Empty',
             subtitle: 'Create your first script or browse the marketplace',
-            action: () => primaryCalled = true,
+            action: () {},
             actionLabel: 'Create Script',
-            secondaryAction: () => secondaryCalled = true,
+            secondaryAction: () {},
             secondaryActionLabel: 'Browse Marketplace',
           ),
         ),

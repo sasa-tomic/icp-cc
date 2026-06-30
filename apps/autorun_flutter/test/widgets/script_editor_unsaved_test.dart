@@ -32,7 +32,6 @@ void main() {
 
     testWidgets('isDirty becomes true when code changes', (tester) async {
       final editorKey = GlobalKey<ScriptEditorState>();
-      String currentCode = 'print("hello")';
 
       await tester.pumpWidget(
         MaterialApp(
@@ -44,9 +43,7 @@ void main() {
                 initialCode: 'print("hello")',
                 language: 'lua',
                 minLines: 4,
-                onCodeChanged: (code) {
-                  currentCode = code;
-                },
+                onCodeChanged: (_) {},
               ),
             ),
           ),

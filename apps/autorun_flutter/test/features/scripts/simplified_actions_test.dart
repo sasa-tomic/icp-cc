@@ -6,7 +6,6 @@ import 'package:icp_autorun/models/marketplace_script.dart';
 void main() {
   group('Simplified script row actions', () {
     late ScriptRecord localScript;
-    late ScriptRecord marketplaceDownloadedScript;
     late MarketplaceScript marketplaceScript;
 
     setUp(() {
@@ -18,17 +17,6 @@ void main() {
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
-      );
-
-      marketplaceDownloadedScript = ScriptRecord(
-        id: 'mp-1',
-        title: 'Downloaded Script',
-        luaSource: 'return 2',
-        createdAt: DateTime.now().toUtc(),
-        updatedAt: DateTime.now().toUtc(),
-        metadata: {
-          'marketplace_id': 'mp-123',
-        },
       );
 
       marketplaceScript = MarketplaceScript(

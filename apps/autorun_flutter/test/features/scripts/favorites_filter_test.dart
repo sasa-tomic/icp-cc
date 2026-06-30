@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/services/favorites_service.dart';
 
 void main() {

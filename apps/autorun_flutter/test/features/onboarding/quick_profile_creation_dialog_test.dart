@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/screens/quick_profile_creation_dialog.dart';
-import 'package:icp_autorun/models/profile.dart';
-
-import '../../test_helpers/test_keypair_factory.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

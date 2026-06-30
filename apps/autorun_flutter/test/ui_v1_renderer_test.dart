@@ -346,18 +346,12 @@ void main() {
   });
 
   group('UiV1Renderer table widget', () {
-    late Map<String, dynamic> capturedEvent;
-
-    setUp(() {
-      capturedEvent = {};
-    });
-
     Widget createTestWidget(Map<String, dynamic> ui) {
       return MaterialApp(
         home: Scaffold(
           body: UiV1Renderer(
             ui: ui,
-            onEvent: (msg) => capturedEvent = msg,
+            onEvent: (_) {},
           ),
         ),
       );

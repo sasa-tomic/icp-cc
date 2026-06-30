@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
-import 'package:icp_autorun/screens/scripts_screen_state.dart';
 import 'package:icp_autorun/widgets/connectivity_scope.dart';
 
 void main() {

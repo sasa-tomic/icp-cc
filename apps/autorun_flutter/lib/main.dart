@@ -7,7 +7,6 @@ import 'config/app_config.dart';
 import 'controllers/account_controller.dart';
 import 'controllers/profile_controller.dart';
 import 'controllers/script_controller.dart';
-import 'models/profile_keypair.dart';
 import 'models/script_template.dart';
 import 'rust/native_bridge.dart';
 import 'services/deep_link_service.dart';

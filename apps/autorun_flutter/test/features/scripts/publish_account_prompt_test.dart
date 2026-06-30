@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/screens/scripts_screen.dart';
 
 void main() {
   group('Account Registration Prompt', () {

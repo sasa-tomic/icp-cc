@@ -729,6 +729,7 @@ class _ProfileSwitcherSheetState extends State<_ProfileSwitcherSheet> {
                           HapticFeedback.lightImpact();
                           await widget.profileController
                               .setActiveProfile(profile.id);
+                          if (!context.mounted) return;
                           if (mounted) {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(

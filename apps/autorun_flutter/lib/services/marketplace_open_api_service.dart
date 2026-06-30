@@ -215,8 +215,9 @@ class MarketplaceOpenApiService {
           .map((script) => MarketplaceScript.fromJson(script))
           .toList();
     } catch (e) {
-      if (!suppressDebugOutput)
+      if (!suppressDebugOutput) {
         debugPrint('Get scripts by category failed: $e');
+      }
       rethrow;
     }
   }
@@ -307,8 +308,9 @@ class MarketplaceOpenApiService {
 
       return result.scripts;
     } catch (e) {
-      if (!suppressDebugOutput)
+      if (!suppressDebugOutput) {
         debugPrint('Search scripts by canister ID failed: $e');
+      }
       rethrow;
     }
   }
@@ -876,8 +878,9 @@ class MarketplaceOpenApiService {
       }
       return Account.fromJson(data);
     } catch (e) {
-      if (!suppressDebugOutput)
+      if (!suppressDebugOutput) {
         debugPrint('Get account by public key failed: $e');
+      }
       rethrow;
     }
   }

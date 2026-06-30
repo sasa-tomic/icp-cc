@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
-import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/widgets/script_app_host.dart';
 import 'package:icp_autorun/widgets/script_execution_bottom_sheet.dart';
 

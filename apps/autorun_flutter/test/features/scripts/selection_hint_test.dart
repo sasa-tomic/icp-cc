@@ -140,9 +140,8 @@ void main() {
 
       test('hint should not be visible when user has no scripts', () {
         final hasScripts = false;
-        final hintDismissed = false;
 
-        final shouldShowHint = hasScripts && !hintDismissed;
+        final shouldShowHint = hasScripts;
         expect(shouldShowHint, isFalse);
       });
 
