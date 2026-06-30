@@ -13,7 +13,7 @@ void main() {
       final script = ScriptRecord(
         id: 'existing-script',
         title: 'Updated Title',
-        luaSource: '-- updated',
+        bundle: '-- updated',
         metadata: const {
           'description': 'Updated description',
           'category': 'Utility',

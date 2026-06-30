@@ -16,7 +16,6 @@ void main() {
               child: ScriptEditor(
                 key: editorKey,
                 initialCode: 'print("hello")',
-                language: 'lua',
                 minLines: 4,
                 onCodeChanged: (_) {},
               ),
@@ -41,7 +40,6 @@ void main() {
               child: ScriptEditor(
                 key: editorKey,
                 initialCode: 'print("hello")',
-                language: 'lua',
                 minLines: 4,
                 onCodeChanged: (_) {},
               ),
@@ -71,7 +69,6 @@ void main() {
               child: ScriptEditor(
                 key: editorKey,
                 initialCode: 'print("hello")',
-                language: 'lua',
                 minLines: 4,
                 onCodeChanged: (_) {},
               ),
@@ -104,7 +101,6 @@ void main() {
               child: ScriptEditor(
                 key: editorKey,
                 initialCode: 'print("hello")',
-                language: 'lua',
                 minLines: 4,
                 onCodeChanged: (_) {},
               ),

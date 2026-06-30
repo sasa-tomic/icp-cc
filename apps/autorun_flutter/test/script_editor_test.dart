@@ -15,7 +15,6 @@ void main() {
             height: 400,
             child: ScriptEditor(
               initialCode: 'print("hi")',
-              language: 'lua',
               minLines: 4,
               maxLines: 12,
               showIntegrations: false,
@@ -62,7 +61,6 @@ void main() {
             height: 400,
             child: ScriptEditor(
               initialCode: 'print("hi")',
-              language: 'lua',
               minLines: 4,
               maxLines: 12,
               showIntegrations: true,
@@ -87,7 +85,6 @@ void main() {
             height: 400,
             child: ScriptEditor(
               initialCode: 'print("hi")',
-              language: 'lua',
               minLines: 4,
               maxLines: 12,
               showIntegrations: false,
@@ -112,7 +109,6 @@ void main() {
             height: 400,
             child: ScriptEditor(
               initialCode: 'print("hi")',
-              language: 'lua',
               minLines: 4,
               maxLines: 12,
               showIntegrations: false,
@@ -143,7 +139,6 @@ void main() {
             height: 400,
             child: ScriptEditor(
               initialCode: 'print("hi")',
-              language: 'lua',
               minLines: 4,
               maxLines: 12,
               showIntegrations: false,
@@ -174,7 +169,6 @@ void main() {
             height: 400,
             child: ScriptEditor(
               initialCode: 'print("hi")',
-              language: 'lua',
               minLines: 4,
               maxLines: 12,
               showIntegrations: true,
@@ -197,7 +191,7 @@ void main() {
     expect(find.byKey(const Key('snippetsButton')), findsOneWidget);
   });
 
-  testWidgets('language badge is visible in toolbar', (tester) async {
+  testWidgets('editor renders without a language badge (TS-only)', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -205,7 +199,6 @@ void main() {
             height: 400,
             child: ScriptEditor(
               initialCode: 'print("hi")',
-              language: 'lua',
               minLines: 4,
               maxLines: 12,
               showIntegrations: false,
@@ -218,6 +211,8 @@ void main() {
 
     await tester.pump();
 
-    expect(find.text('LUA'), findsOneWidget);
+    // TS-only runtime: there is no language badge in the toolbar.
+    expect(find.text('LUA'), findsNothing);
+    expect(find.text('TS'), findsNothing);
   });
 }

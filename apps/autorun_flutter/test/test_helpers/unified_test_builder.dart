@@ -14,7 +14,7 @@ class SignatureUtils {
 class UnifiedScriptTestBuilder {
   String? _id;
   String? _title;
-  String? _luaSource;
+  String? _bundle;
   String? _description;
   String? _category;
   String? _authorName;
@@ -34,8 +34,8 @@ class UnifiedScriptTestBuilder {
     return this;
   }
 
-  UnifiedScriptTestBuilder withLuaSource(String luaSource) {
-    _luaSource = luaSource;
+  UnifiedScriptTestBuilder withBundle(String bundle) {
+    _bundle = bundle;
     return this;
   }
 
@@ -67,7 +67,7 @@ class UnifiedScriptTestBuilder {
 
   UnifiedScriptTestBuilder asEmpty() {
     return withTitle('')
-        .withLuaSource('')
+        .withBundle('')
         .withDescription('')
         .withCategory('')
         .withAuthor('')
@@ -76,7 +76,8 @@ class UnifiedScriptTestBuilder {
 
   UnifiedScriptTestBuilder withSpecialChars() {
     return withTitle('Special Chars Test 🚀')
-        .withLuaSource('print("Special chars: 🦄✨")\n-- Unicode: ñáéíóú\n-- Quotes: "test" and \'single\'')
+        .withBundle(
+            '// Special chars: 🦄✨\n// Unicode: ñáéíóú\n// Quotes: "test" and \'single\'')
         .withDescription('Testing special characters with signatures: ñoño 🎉')
         .withAuthor('Special Chars Author 🧪')
         .withMetadata({'tags': ['unicode', 'testing', 'español', '🎯']});
@@ -96,7 +97,7 @@ class UnifiedScriptTestBuilder {
   UnifiedScriptTestBuilder forUpdate(ScriptRecord original) {
     _id = original.id;
     _title = 'Updated ${original.title}';
-    _luaSource = 'print("Updated: ${original.luaSource}")';
+    _bundle = '// Updated: ${original.bundle}';
     _createdAt = original.createdAt;
     _updatedAt = DateTime.now();
     _metadata.clear();
@@ -118,7 +119,7 @@ class UnifiedScriptTestBuilder {
       'title': _title ?? 'Test Script',
       'description': _description ?? 'Test script description',
       'category': _category ?? 'Testing',
-      'lua_source': _luaSource ?? 'print("Test script")',
+      'bundle': _bundle ?? 'globalThis.init=()=>({state:{},effects:[]});',
       'version': _metadata['version'] ?? '1.0.0',
       'tags': _metadata['tags'] ?? [],
       'author_principal': principal,
@@ -130,7 +131,7 @@ class UnifiedScriptTestBuilder {
     return ScriptRecord(
       id: _id ?? 'test-script-${DateTime.now().millisecondsSinceEpoch}',
       title: _title ?? 'Test Script',
-      luaSource: _luaSource ?? 'print("Test script")',
+      bundle: _bundle ?? 'globalThis.init=()=>({state:{},effects:[]});',
       createdAt: _createdAt ?? now,
       updatedAt: _updatedAt ?? now,
       metadata: {
@@ -187,7 +188,7 @@ class TestTemplates {
     String category = 'Development',
     List<String> tags = const ['test'],
     String authorName = 'Test Author',
-    String luaSource = 'function init() return {}, {} end',
+    String bundle = 'globalThis.init=()=>({state:{},effects:[]});',
   }) {
     return UnifiedScriptTestBuilder.create()
         .withId(id)
@@ -195,7 +196,7 @@ class TestTemplates {
         .withDescription(description)
         .withCategory(category)
         .withAuthor(authorName)
-        .withLuaSource(luaSource)
+        .withBundle(bundle)
         .withMetadata({
           'tags': tags,
           'version': '1.0.0',

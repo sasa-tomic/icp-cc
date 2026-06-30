@@ -15,7 +15,7 @@ void main() {
       final original = ScriptRecord(
         id: 'test-1',
         title: 'Test Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {
@@ -35,7 +35,7 @@ void main() {
       final original = ScriptRecord(
         id: 'test-1',
         title: 'Test Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {
@@ -48,7 +48,7 @@ void main() {
         ..remove('sha256_checksum');
 
       final updated = original.copyWith(
-        luaSource: 'return 2',
+        bundle: 'return 2',
         metadata: updatedMetadata,
       );
 
@@ -57,14 +57,14 @@ void main() {
     });
 
     test('checksum verification flow for marketplace script', () {
-      const luaSource = 'function init() return {}, {} end';
-      final checksum = integrityService.computeChecksum(luaSource);
+      const source = 'globalThis.init=()=>({state:{},effects:[]});';
+      final checksum = integrityService.computeChecksum(source);
 
       final now = DateTime.now().toUtc();
       final script = ScriptRecord(
         id: 'mp-script-1',
         title: 'Marketplace Script',
-        luaSource: luaSource,
+        bundle: source,
         createdAt: now,
         updatedAt: now,
         metadata: {
@@ -75,15 +75,15 @@ void main() {
 
       final storedChecksum = script.metadata['sha256_checksum'] as String;
       expect(
-        () => integrityService.verifyChecksum(script.luaSource, storedChecksum,
+        () => integrityService.verifyChecksum(script.bundle, storedChecksum,
             scriptId: script.id),
         returnsNormally,
       );
     });
 
     test('detects tampered marketplace script', () {
-      const originalSource = 'function init() return {}, {} end';
-      const tamperedSource = 'function init() return {}, {} ene';
+      const originalSource = 'globalThis.init=()=>({state:{},effects:[]});';
+      const tamperedSource = 'globalThis.init=()=>({state:{},effects:[1]});';
 
       final checksum = integrityService.computeChecksum(originalSource);
 
@@ -91,7 +91,7 @@ void main() {
       final script = ScriptRecord(
         id: 'mp-script-1',
         title: 'Marketplace Script',
-        luaSource: tamperedSource,
+        bundle: tamperedSource,
         createdAt: now,
         updatedAt: now,
         metadata: {
@@ -101,20 +101,20 @@ void main() {
 
       final storedChecksum = script.metadata['sha256_checksum'] as String;
       expect(
-        () => integrityService.verifyChecksum(script.luaSource, storedChecksum,
+        () => integrityService.verifyChecksum(script.bundle, storedChecksum,
             scriptId: script.id),
         throwsA(isA<ScriptIntegrityException>()),
       );
     });
 
     test('local scripts without checksum run without verification', () {
-      const luaSource = 'return 1';
+      const source = 'globalThis.init=()=>({state:{},effects:[]});';
 
       final now = DateTime.now().toUtc();
       final script = ScriptRecord(
         id: 'local-1',
         title: 'Local Script',
-        luaSource: luaSource,
+        bundle: source,
         createdAt: now,
         updatedAt: now,
         metadata: {},
@@ -131,7 +131,7 @@ void main() {
       final original = ScriptRecord(
         id: 'test-1',
         title: 'Test Script',
-        luaSource: 'hello',
+        bundle: 'hello',
         createdAt: now,
         updatedAt: now,
         metadata: {

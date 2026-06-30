@@ -10,10 +10,10 @@ void main() {
       expect(UiComponentPalette.components, isNotEmpty);
     });
 
-    test('all components have valid Lua templates', () {
+    test('all components have valid TS templates', () {
       for (final component in UiComponentPalette.components) {
-        expect(component.luaTemplate, isNotEmpty);
-        expect(component.luaTemplate, contains('type = '));
+        expect(component.template, isNotEmpty);
+        expect(component.template, contains('type: '));
       }
     });
 
@@ -46,9 +46,9 @@ void main() {
           'Display');
     });
 
-    test('Lua templates contain valid table syntax', () {
+    test('templates contain valid object syntax', () {
       final templates =
-          UiComponentPalette.components.map((c) => c.luaTemplate).toList();
+          UiComponentPalette.components.map((c) => c.template).toList();
       for (final template in templates) {
         expect(template, contains('{'));
         expect(template, contains('}'));
@@ -109,7 +109,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);
-      expect(result, contains('type = "column"'));
+      expect(result, contains('type: "column"'));
     });
 
     testWidgets('category filter works', (tester) async {
@@ -151,7 +151,6 @@ void main() {
               height: 400,
               child: ScriptEditor(
                 initialCode: 'print("hi")',
-                language: 'lua',
                 minLines: 4,
                 showIntegrations: true,
                 onCodeChanged: (_) {},
@@ -177,7 +176,6 @@ void main() {
               height: 600,
               child: ScriptEditor(
                 initialCode: 'print("hi")',
-                language: 'lua',
                 minLines: 4,
                 showIntegrations: true,
                 onCodeChanged: (_) {},
@@ -209,7 +207,6 @@ void main() {
               height: 600,
               child: ScriptEditor(
                 initialCode: code,
-                language: 'lua',
                 minLines: 4,
                 showIntegrations: true,
                 onCodeChanged: (newCode) => code = newCode,
@@ -230,7 +227,7 @@ void main() {
       await tester.tap(find.text('Column'));
       await tester.pumpAndSettle();
 
-      expect(code, contains('type = "column"'));
+      expect(code, contains('type: "column"'));
     });
 
     testWidgets('UI palette button is hidden when showIntegrations is false',
@@ -242,7 +239,6 @@ void main() {
               height: 400,
               child: ScriptEditor(
                 initialCode: 'print("hi")',
-                language: 'lua',
                 minLines: 4,
                 showIntegrations: false,
                 onCodeChanged: (_) {},

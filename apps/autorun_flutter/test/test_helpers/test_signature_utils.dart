@@ -162,7 +162,7 @@ class TestSignatureUtils {
       'title': 'Test Script',
       'description': 'A test script for development',
       'category': 'utility',
-      'lua_source': 'print("Hello, World!")',
+      'bundle': 'print("Hello, World!")',
       'version': '1.0.0',
       'tags': ['test', 'utility'],
       'author_name': 'Test Author',

@@ -138,7 +138,7 @@ void main() {
         expect(script!.id, equals(scriptId));
         expect(script.title, isNotEmpty);
         expect(script.description, isNotEmpty);
-        expect(script.luaSource, isNotEmpty);
+        expect(script.bundle, isNotEmpty);
         expect(script.category, isNotEmpty);
         expect(script.authorName, isNotEmpty);
         expect(script.version, isNotEmpty);
@@ -209,7 +209,7 @@ void main() {
           expect(script.description, isNotEmpty);
           expect(script.category, isNotEmpty);
           expect(script.authorName, isNotEmpty);
-          expect(script.luaSource, isNotEmpty);
+          expect(script.bundle, isNotEmpty);
           expect(script.version, isNotEmpty);
           expect(script.createdAt, isNotNull);
           expect(script.updatedAt, isNotNull);
@@ -231,7 +231,7 @@ void main() {
           category: 'Testing',
           tags: ['consistency', 'test'],
           authorId: 'test_author_id',
-          luaSource: '-- Consistency test',
+          bundle: 'globalThis.init=()=>({state:{},effects:[]});',
           version: '1.0.0',
           price: 0.0,
           isPublic: true,
@@ -246,7 +246,7 @@ void main() {
         final scriptRecord = ScriptRecord(
           id: '', // Empty ID for new script
           title: testScript.title,
-          luaSource: testScript.luaSource,
+          bundle: testScript.bundle,
           metadata: {
             'description': testScript.description,
             'category': testScript.category,
@@ -344,7 +344,7 @@ void main() {
                 'category': capturedBody!['category'],
                 'tags': capturedBody!['tags'],
                 'author_name': capturedBody!['author_name'],
-                'lua_source': capturedBody!['lua_source'],
+                'bundle': capturedBody!['bundle'],
                 'price': capturedBody!['price'],
                 'version': capturedBody!['version'],
                 'created_at': '2025-01-01T00:00:00Z',
@@ -369,7 +369,7 @@ void main() {
           description: 'Ensures timestamp travels with payload',
           category: 'Development',
           tags: const ['test', 'upload'],
-          luaSource: '-- lua',
+          bundle: 'globalThis.init=()=>({state:{},effects:[]});',
           price: 0.0,
           version: '1.0.0',
           authorPrincipal: 'author-principal',
@@ -382,6 +382,7 @@ void main() {
         expect(capturedBody!['timestamp'], equals(testTimestamp));
         expect(capturedBody!['signature'], equals(testSignature));
         expect(capturedBody!['author_principal'], equals('author-principal'));
+        expect(capturedBody!['bundle'], isNotEmpty);
         expect(result.id, equals('srv-script'));
         expect(result.title, equals('Upload Test'));
       });
@@ -410,7 +411,7 @@ void main() {
             description: 'Should fail with server error',
             category: 'Testing',
             tags: const ['fail'],
-            luaSource: '--',
+            bundle: 'globalThis.init=()=>({});',
             price: 1.0,
             version: '1.0.0',
             authorPrincipal: 'author-principal',

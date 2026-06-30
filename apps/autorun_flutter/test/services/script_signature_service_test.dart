@@ -33,7 +33,7 @@ void main() {
         title: 'Upload Title',
         description: 'Upload Description',
         category: 'utilities',
-        luaSource: 'print("hello")',
+        bundle: 'globalThis.init=()=>({state:{},effects:[]});',
         version: '1.0.0',
         tags: ['b', 'a'],
         timestampIso: timestamp,
@@ -44,7 +44,7 @@ void main() {
         'title': 'Upload Title',
         'description': 'Upload Description',
         'category': 'utilities',
-        'lua_source': 'print("hello")',
+        'bundle': 'globalThis.init=()=>({state:{},effects:[]});',
         'version': '1.0.0',
         'tags': ['a', 'b'],
         'author_principal': principal,
@@ -65,7 +65,7 @@ void main() {
         'title': 'Upload Title',
         'description': 'Upload Description',
         'category': 'utilities',
-        'lua_source': 'print("hello")',
+        'bundle': 'globalThis.init=()=>({state:{},effects:[]});',
         'version': '1.0.0',
         'tags': ['a', 'b'],
         'author_principal': principal,
@@ -209,7 +209,7 @@ void main() {
         title: 'Secp256k1 Script',
         description: 'Test secp256k1 signing',
         category: 'utilities',
-        luaSource: 'print("hello")',
+        bundle: 'globalThis.init=()=>({state:{},effects:[]});',
         version: '1.0.0',
         tags: ['test'],
         timestampIso: timestamp,
@@ -257,7 +257,7 @@ void main() {
         title: 'Script A',
         description: 'Description A',
         category: 'utilities',
-        luaSource: 'print("a")',
+        bundle: 'globalThis.init=()=>({state:{a:1},effects:[]});',
         version: '1.0.0',
         tags: [],
         timestampIso: '2025-01-01T00:00:00Z',
@@ -268,7 +268,7 @@ void main() {
         title: 'Script B',
         description: 'Description B',
         category: 'utilities',
-        luaSource: 'print("b")',
+        bundle: 'globalThis.init=()=>({state:{b:2},effects:[]});',
         version: '1.0.0',
         tags: [],
         timestampIso: '2025-01-01T00:00:00Z',
@@ -296,7 +296,7 @@ void main() {
           title: 'Test',
           description: 'Test',
           category: 'test',
-          luaSource: 'print(1)',
+          bundle: 'globalThis.init=()=>({});',
           version: '1.0.0',
           tags: [],
         ),
@@ -309,7 +309,7 @@ void main() {
     final canonical = ScriptSignatureService.canonicalizeUpdateFields({
       'tags': ['beta', 'alpha'],
       'price': '2.5',
-      'lua_source': '-- code',
+      'bundle': 'globalThis.init=()=>({});',
       'unknown': 'ignore-me',
       'is_public': true,
     });
@@ -317,7 +317,7 @@ void main() {
     expect(canonical.containsKey('unknown'), isFalse);
     expect(canonical['tags'], equals(['alpha', 'beta']));
     expect(canonical['price'], equals(2.5));
-    expect(canonical['lua_source'], equals('-- code'));
+    expect(canonical['bundle'], equals('globalThis.init=()=>({});'));
     expect(canonical['is_public'], isTrue);
   });
 

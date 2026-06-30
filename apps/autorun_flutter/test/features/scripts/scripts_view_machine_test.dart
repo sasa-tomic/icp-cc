@@ -278,7 +278,7 @@ ScriptRecord _createLocalScript({String? id, String? title}) {
     id: id ?? 'test-local-id',
     title: title ?? 'Test Local Script',
     emoji: '📜',
-    luaSource: 'print("hello")',
+    bundle: 'print("hello")',
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
@@ -291,7 +291,7 @@ MarketplaceScript _createMarketplaceScript({String? id}) {
     description: 'A test marketplace script',
     category: 'Utilities',
     authorName: 'Test Author',
-    luaSource: 'print("hello")',
+    bundle: 'print("hello")',
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );

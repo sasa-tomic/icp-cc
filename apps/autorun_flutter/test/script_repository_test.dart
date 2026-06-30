@@ -15,7 +15,7 @@ void main() {
       title: 'A',
       emoji: '🧪',
       imageUrl: null,
-      luaSource: 'return 1',
+      bundle: 'return 1',
       createdAt: now,
       updatedAt: now,
     );
@@ -24,7 +24,7 @@ void main() {
       title: 'B',
       emoji: null,
       imageUrl: 'local://img.png',
-      luaSource: 'return 2',
+      bundle: 'return 2',
       createdAt: now,
       updatedAt: now,
     );

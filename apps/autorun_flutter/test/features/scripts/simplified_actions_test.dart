@@ -13,7 +13,7 @@ void main() {
         id: 'local-1',
         title: 'My Local Script',
         emoji: '📜',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -25,7 +25,7 @@ void main() {
         description: 'A test marketplace script',
         category: 'Utilities',
         authorName: 'Author',
-        luaSource: 'return 3',
+        bundle: 'return 3',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
       );

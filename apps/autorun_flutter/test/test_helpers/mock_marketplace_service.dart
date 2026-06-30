@@ -25,7 +25,7 @@ class MockMarketplaceOpenApiService {
         downloads: 10,
         rating: 4.5,
         reviewCount: 2,
-        luaSource:
+        bundle:
             '-- Test script 1\nfunction init() return {}, {} end\nfunction view(state) return {type="text", text="Hello World"} end\nfunction update(msg, state) return state, {} end',
         createdAt: DateTime.now().subtract(const Duration(days: 1)),
         updatedAt: DateTime.now().subtract(const Duration(days: 1)),
@@ -44,7 +44,7 @@ class MockMarketplaceOpenApiService {
         downloads: 5,
         rating: 3.0,
         reviewCount: 1,
-        luaSource:
+        bundle:
             '-- Test script 2\nfunction init() return {}, {} end\nfunction view(state) return {type="text", text="Another test"} end\nfunction update(msg, state) return state, {} end',
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
         updatedAt: DateTime.now().subtract(const Duration(days: 2)),
@@ -181,7 +181,7 @@ class MockMarketplaceOpenApiService {
       downloads: 0,
       rating: 0.0,
       reviewCount: 0,
-      luaSource: scriptRecord.luaSource,
+      bundle: scriptRecord.bundle,
       createdAt: scriptRecord.createdAt,
       updatedAt: scriptRecord.updatedAt,
       version: scriptRecord.metadata['version'] as String? ?? '1.0.0',
@@ -221,7 +221,7 @@ class MockMarketplaceOpenApiService {
       downloads: existingScript.downloads,
       rating: existingScript.rating,
       reviewCount: existingScript.reviewCount,
-      luaSource: updatedScript.luaSource,
+      bundle: updatedScript.bundle,
       createdAt: existingScript.createdAt,
       updatedAt: updatedScript.updatedAt,
       version: updatedScript.metadata['version'] ?? existingScript.version,

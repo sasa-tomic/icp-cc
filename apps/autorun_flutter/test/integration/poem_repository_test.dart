@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import '../test_helpers/poem_script_repository.dart';
@@ -57,7 +60,7 @@ void main() {
         await repository.expectScriptExists(savedScriptId);
         final retrievedScript = await repository.getScriptById(savedScriptId);
         expect(retrievedScript!.title, equals('CRUD Test Script'));
-        expect(retrievedScript.luaSource, contains('Hello from test script'));
+        expect(retrievedScript.bundle, contains('Hello from test script'));
       });
 
       test('should update existing script', () async {
@@ -75,7 +78,7 @@ void main() {
         final updatedScript = ScriptRecord(
           id: savedScriptId,
           title: 'Updated Title',
-          luaSource: originalScript.luaSource,
+          bundle: originalScript.bundle,
           metadata: updatedMetadata,
           createdAt: originalScript.createdAt,
           updatedAt: DateTime.now(),
@@ -251,7 +254,7 @@ void main() {
         final scriptToPublish = ScriptRecord(
           id: scriptId,
           title: privateScript.title,
-          luaSource: privateScript.luaSource,
+          bundle: privateScript.bundle,
           metadata: privateScript.metadata,
           createdAt: privateScript.createdAt,
           updatedAt: DateTime.now(),

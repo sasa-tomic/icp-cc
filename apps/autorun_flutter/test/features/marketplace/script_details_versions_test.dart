@@ -31,7 +31,7 @@ void main() {
         downloads: 100,
         rating: 4.2,
         reviewCount: 15,
-        luaSource: 'print("hello")',
+        bundle: 'print("hello")',
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
         updatedAt: DateTime.now(),
       );
@@ -94,7 +94,7 @@ void main() {
               'tags': effectiveScript.tags,
               'author_id': effectiveScript.authorId,
               'author_name': effectiveScript.authorName,
-              'lua_source': effectiveScript.luaSource,
+              'bundle': effectiveScript.bundle,
               'price': effectiveScript.price,
               'downloads': effectiveScript.downloads,
               'rating': effectiveScript.rating,

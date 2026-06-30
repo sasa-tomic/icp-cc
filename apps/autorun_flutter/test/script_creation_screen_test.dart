@@ -10,30 +10,31 @@ import 'package:icp_autorun/screens/script_creation_screen.dart';
 
 import 'script_creation_screen_test.mocks.dart';
 
-const _testLuaCode = '''-- Test Script
-function init(arg)
-  return { counter = 0 }, {}
-end
-
-function view(state)
-  return {
-    type = "section",
-    props = { title = "Test" },
-    children = {
-      {
-        type = "text",
-        props = { text = "Counter: " .. state.counter }
-      }
-    }
+const _testBundle = '''// Test Script
+"use strict";
+(() => {
+  function init() {
+    return { state: { counter: 0 }, effects: [] };
   }
-end
-
-function update(msg, state)
-  if msg.type == "increment" then
-    state.counter = state.counter + 1
-  end
-  return state, {}
-end
+  function view(state) {
+    return {
+      type: "section",
+      props: { title: "Test" },
+      children: [
+        { type: "text", props: { text: "Counter: " + (state.counter ?? 0) } }
+      ]
+    };
+  }
+  function update(msg, state) {
+    if (msg.type === "increment") {
+      return { state: { ...state, counter: (state.counter ?? 0) + 1 }, effects: [] };
+    }
+    return { state, effects: [] };
+  }
+  globalThis.init = init;
+  globalThis.view = view;
+  globalThis.update = update;
+})();
 ''';
 
 @GenerateMocks([ScriptController, ScriptRecord])
@@ -58,7 +59,7 @@ void main() {
         emoji: '🧪',
         level: 'beginner',
         tags: ['test', 'unit'],
-        preloadedLuaSource: _testLuaCode,
+        preloadedBundle: _testBundle,
       );
     });
 
@@ -68,8 +69,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -92,8 +92,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -119,8 +118,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -141,8 +139,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -165,8 +162,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(
@@ -192,8 +188,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       ));
     });
 
@@ -203,8 +198,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => mockRecord);
 
       await tester.pumpWidget(
@@ -224,8 +218,7 @@ void main() {
         title: testTemplate.title,
         emoji: testTemplate.emoji,
         imageUrl: null,
-        luaSourceOverride: testTemplate.luaSource,
-        language: anyNamed('language'),
+        bundleOverride: testTemplate.bundle,
       )).called(1);
     });
 
@@ -236,8 +229,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) => completer.future);
 
       await tester.pumpWidget(
@@ -265,8 +257,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenThrow(Exception('Creation failed'));
 
       await tester.pumpWidget(
@@ -293,8 +284,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => mockRecord);
 
       await tester.pumpWidget(
@@ -319,8 +309,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
-        language: anyNamed('language'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => MockScriptRecord());
 
       await tester.pumpWidget(

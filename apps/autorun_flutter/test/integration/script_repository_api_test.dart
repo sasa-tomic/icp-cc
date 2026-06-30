@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,7 +35,7 @@ void main() {
           description: 'Test script for publishing',
           category: 'Development',
           tags: ['test', 'publish'],
-          luaSource: '''function init(arg)
+          bundle: '''function init(arg)
   return {
     message = "Hello from published script!",
     count = 0
@@ -61,7 +64,7 @@ end''',
         final savedScripts = await poemRepository.getAllScripts();
         final savedScript = savedScripts.firstWhere((s) => s.id == savedScriptId);
         expect(savedScript.title, testScript.title);
-        expect(savedScript.luaSource, testScript.luaSource);
+        expect(savedScript.bundle, testScript.bundle);
       });
 
       test('should update existing script', () async {
@@ -73,7 +76,7 @@ end''',
           category: 'Development',
           tags: ['original'],
           authorName: 'Original Author',
-          luaSource: '-- Original source',
+          bundle: '-- Original source',
         );
         final originalScriptId = await poemRepository.saveScript(originalScript);
 
@@ -84,7 +87,7 @@ end''',
             'title': 'Updated Title',
             'description': 'Updated description',
             'category': 'Utility',
-            'lua_source': '-- Updated source',
+            'bundle': '-- Updated source',
             'version': '2.0.0',
             'tags': ['updated', 'modified'],
             'authorName': 'Updated Author',
@@ -97,7 +100,7 @@ end''',
         final updatedScript = ScriptRecord(
           id: originalScriptId,
           title: 'Updated Title',
-          luaSource: '-- Updated source',
+          bundle: '-- Updated source',
           metadata: updateData,
           createdAt: originalScript.createdAt,
           updatedAt: DateTime.now(),
@@ -108,7 +111,7 @@ end''',
         final retrievedScript = await poemRepository.getScriptById(originalScriptId);
         expect(retrievedScript, isNotNull);
         expect(retrievedScript!.title, 'Updated Title');
-        expect(retrievedScript.luaSource, '-- Updated source');
+        expect(retrievedScript.bundle, '-- Updated source');
         expect(retrievedScript.metadata['description'], 'Updated description');
         expect(retrievedScript.metadata['category'], 'Utility');
         expect(retrievedScript.metadata['isPublic'], true);
@@ -123,7 +126,7 @@ end''',
           category: 'Testing',
           tags: ['delete', 'test'],
           authorName: 'Delete Test',
-          luaSource: '-- This will be deleted',
+          bundle: '-- This will be deleted',
         );
         final scriptId = await poemRepository.saveScript(testScript);
 
@@ -149,7 +152,7 @@ end''',
             category: 'Development',
             tags: ['list', 'test'],
             authorName: 'List Test Author',
-            luaSource: '-- Script 1',
+            bundle: '-- Script 1',
           ),
           TestTemplates.createTestScriptWithSignature(
             id: 'list-test-2',
@@ -158,7 +161,7 @@ end''',
             category: 'Utility',
             tags: ['list', 'test'],
             authorName: 'List Test Author',
-            luaSource: '-- Script 2',
+            bundle: '-- Script 2',
           ),
         ];
 
@@ -186,7 +189,7 @@ end''',
           category: 'Testing',
           tags: ['searchable', 'test'],
           authorName: 'Search Test',
-          luaSource: '-- Searchable script',
+          bundle: '-- Searchable script',
         );
         await poemRepository.saveScript(searchableScript);
 
@@ -210,7 +213,7 @@ end''',
           category: 'Development',
           tags: ['development', 'test'],
           authorName: 'Dev Author',
-          luaSource: '-- Dev script',
+          bundle: '-- Dev script',
         );
         final utilScript = TestTemplates.createTestScriptWithSignature(
           id: 'util-script',
@@ -219,7 +222,7 @@ end''',
           category: 'Utility',
           tags: ['utility', 'test'],
           authorName: 'Util Author',
-          luaSource: '-- Utility script',
+          bundle: '-- Utility script',
         );
 
         await poemRepository.saveScript(devScript);
@@ -243,7 +246,7 @@ end''',
           category: 'Development',
           tags: ['public', 'test'],
           authorName: 'Public Author',
-          luaSource: '-- Public script',
+          bundle: '-- Public script',
         );
 
         // Create private script with its own signature for private script
@@ -253,7 +256,7 @@ end''',
           'title': 'Private Script',
           'description': 'A private script',
           'category': 'Development',
-          'lua_source': '-- Private script',
+          'bundle': '-- Private script',
           'version': '1.0.0',
           'tags': ['private', 'test'],
           'author_principal': TestSignatureUtils.getPrincipal(),
@@ -264,7 +267,7 @@ end''',
         final privateScript = ScriptRecord(
           id: 'private-script',
           title: 'Private Script',
-          luaSource: '-- Private script',
+          bundle: '-- Private script',
           metadata: {
             'description': 'A private script',
             'category': 'Development',
@@ -301,7 +304,7 @@ end''',
           'title': 'Script to Publish',
           'description': 'Script that will be published',
           'category': 'Development',
-          'lua_source': '-- Will be published',
+          'bundle': '-- Will be published',
           'version': '1.0.0',
           'tags': ['publish', 'test'],
           'author_principal': TestSignatureUtils.getPrincipal(),
@@ -312,7 +315,7 @@ end''',
         final privateScript = ScriptRecord(
           id: 'script-to-publish',
           title: 'Script to Publish',
-          luaSource: '-- Will be published',
+          bundle: '-- Will be published',
           metadata: {
             'description': 'Script that will be published',
             'category': 'Development',
@@ -335,7 +338,7 @@ end''',
         final scriptToPublish = ScriptRecord(
           id: savedScriptId,
           title: privateScript.title,
-          luaSource: privateScript.luaSource,
+          bundle: privateScript.bundle,
           metadata: privateScript.metadata,
           createdAt: privateScript.createdAt,
           updatedAt: DateTime.now(),

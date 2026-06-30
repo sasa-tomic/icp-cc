@@ -9,7 +9,7 @@ void main() {
       baseRecord = ScriptRecord(
         id: 'test-id',
         title: 'Test Script',
-        luaSource: 'print("hello")',
+        bundle: 'print("hello")',
         createdAt: DateTime(2024, 1, 1),
         updatedAt: DateTime(2024, 1, 1),
       );
@@ -65,7 +65,7 @@ void main() {
           title: 'My Script',
           emoji: '📜',
           imageUrl: 'https://example.com/image.png',
-          luaSource: 'print("test")',
+          bundle: 'print("test")',
           createdAt: DateTime(2023, 6, 15),
           updatedAt: DateTime(2024, 1, 1),
           metadata: {'marketplace_id': 'mp-123'},
@@ -77,7 +77,7 @@ void main() {
         expect(updated.title, equals(record.title));
         expect(updated.emoji, equals(record.emoji));
         expect(updated.imageUrl, equals(record.imageUrl));
-        expect(updated.luaSource, equals(record.luaSource));
+        expect(updated.bundle, equals(record.bundle));
         expect(updated.createdAt, equals(record.createdAt));
         expect(updated.updatedAt, equals(record.updatedAt));
         expect(updated.metadata, equals(record.metadata));
@@ -101,7 +101,7 @@ void main() {
         final json = {
           'id': 'test-id',
           'title': 'Test Script',
-          'luaSource': 'print("hello")',
+          'bundle': 'print("hello")',
           'createdAt': '2024-01-01T00:00:00.000Z',
           'updatedAt': '2024-01-01T00:00:00.000Z',
           'runCount': 10,
@@ -139,7 +139,7 @@ void main() {
         final json = {
           'id': 'test-id',
           'title': 'Test Script',
-          'luaSource': 'print("hello")',
+          'bundle': 'print("hello")',
           'createdAt': '2024-01-01T00:00:00.000Z',
           'updatedAt': '2024-01-01T00:00:00.000Z',
         };
@@ -153,7 +153,7 @@ void main() {
         final json = {
           'id': 'test-id',
           'title': 'Test Script',
-          'luaSource': 'print("hello")',
+          'bundle': 'print("hello")',
           'createdAt': '2024-01-01T00:00:00.000Z',
           'updatedAt': '2024-01-01T00:00:00.000Z',
         };
@@ -167,7 +167,7 @@ void main() {
         final record = ScriptRecord(
           id: 'new-id',
           title: 'New Script',
-          luaSource: 'return 1',
+          bundle: 'return 1',
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );

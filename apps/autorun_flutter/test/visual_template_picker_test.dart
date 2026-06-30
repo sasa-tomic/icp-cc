@@ -27,7 +27,7 @@ void main() {
         title: anyNamed('title'),
         emoji: anyNamed('emoji'),
         imageUrl: anyNamed('imageUrl'),
-        luaSourceOverride: anyNamed('luaSourceOverride'),
+        bundleOverride: anyNamed('bundleOverride'),
       )).thenAnswer((_) async => MockScriptRecord());
     });
 
@@ -85,9 +85,9 @@ void main() {
 
       // Template emojis should be visible - they're key identifiers
       expect(find.text('👋'), findsWidgets); // Hello World
-      expect(find.text('📋'), findsWidgets); // Simple Data Management
-      expect(find.text('🌐'), findsWidgets); // ICP Demo
-      expect(find.text('🎨'), findsWidgets); // Advanced UI
+      expect(find.text('🌐'), findsWidgets); // Canister Query Demo
+      expect(find.text('🎨'), findsWidgets); // Forms & UI Demo
+      expect(find.text('🟦'), findsWidgets); // TypeScript Counter
     });
 
     testWidgets('difficulty badges show correct levels',
@@ -202,9 +202,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // First, tap on the ICP Demo template
+      // First, tap on the Canister Query Demo template
       final icpDemoCard = find.ancestor(
-        of: find.text('Simple ICP Demo'),
+        of: find.text('Canister Query Demo'),
         matching: find.byType(GestureDetector),
       );
 
@@ -214,7 +214,7 @@ void main() {
       // Title should update
       final titleField = find.widgetWithText(TextFormField, 'Title *');
       final textFieldWidget = tester.widget<TextFormField>(titleField);
-      expect(textFieldWidget.controller?.text, 'Simple ICP Demo');
+      expect(textFieldWidget.controller?.text, 'Canister Query Demo');
     });
   });
 }

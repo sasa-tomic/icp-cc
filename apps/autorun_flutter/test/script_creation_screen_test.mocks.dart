@@ -4,13 +4,12 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i4;
-import 'dart:ui' as _i6;
+import 'dart:ui' as _i5;
 
 import 'package:icp_autorun/controllers/script_controller.dart' as _i3;
 import 'package:icp_autorun/models/script_record.dart' as _i2;
-import 'package:icp_autorun/services/script_runner.dart' as _i5;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i7;
+import 'package:mockito/src/dummies.dart' as _i6;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -98,9 +97,8 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
     required String? title,
     String? emoji,
     String? imageUrl,
-    String? luaSourceOverride,
+    String? bundleOverride,
     Map<String, dynamic>? metadata,
-    _i5.ScriptLanguage? language,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -110,9 +108,8 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
             #title: title,
             #emoji: emoji,
             #imageUrl: imageUrl,
-            #luaSourceOverride: luaSourceOverride,
+            #bundleOverride: bundleOverride,
             #metadata: metadata,
-            #language: language,
           },
         ),
         returnValue: _i4.Future<_i2.ScriptRecord>.value(_FakeScriptRecord_0(
@@ -124,9 +121,8 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
               #title: title,
               #emoji: emoji,
               #imageUrl: imageUrl,
-              #luaSourceOverride: luaSourceOverride,
+              #bundleOverride: bundleOverride,
               #metadata: metadata,
-              #language: language,
             },
           ),
         )),
@@ -145,7 +141,7 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
   @override
   _i4.Future<void> updateSource({
     required String? id,
-    required String? luaSource,
+    required String? bundle,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -153,7 +149,7 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
           [],
           {
             #id: id,
-            #luaSource: luaSource,
+            #bundle: bundle,
           },
         ),
         returnValue: _i4.Future<void>.value(),
@@ -202,7 +198,7 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
       );
 
   @override
-  void addListener(_i6.VoidCallback? listener) => super.noSuchMethod(
+  void addListener(_i5.VoidCallback? listener) => super.noSuchMethod(
         Invocation.method(
           #addListener,
           [listener],
@@ -211,7 +207,7 @@ class MockScriptController extends _i1.Mock implements _i3.ScriptController {
       );
 
   @override
-  void removeListener(_i6.VoidCallback? listener) => super.noSuchMethod(
+  void removeListener(_i5.VoidCallback? listener) => super.noSuchMethod(
         Invocation.method(
           #removeListener,
           [listener],
@@ -240,7 +236,7 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
   @override
   String get id => (super.noSuchMethod(
         Invocation.getter(#id),
-        returnValue: _i7.dummyValue<String>(
+        returnValue: _i6.dummyValue<String>(
           this,
           Invocation.getter(#id),
         ),
@@ -249,18 +245,18 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
   @override
   String get title => (super.noSuchMethod(
         Invocation.getter(#title),
-        returnValue: _i7.dummyValue<String>(
+        returnValue: _i6.dummyValue<String>(
           this,
           Invocation.getter(#title),
         ),
       ) as String);
 
   @override
-  String get luaSource => (super.noSuchMethod(
-        Invocation.getter(#luaSource),
-        returnValue: _i7.dummyValue<String>(
+  String get bundle => (super.noSuchMethod(
+        Invocation.getter(#bundle),
+        returnValue: _i6.dummyValue<String>(
           this,
-          Invocation.getter(#luaSource),
+          Invocation.getter(#bundle),
         ),
       ) as String);
 
@@ -293,12 +289,6 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
         Invocation.getter(#runCount),
         returnValue: 0,
       ) as int);
-
-  @override
-  _i5.ScriptLanguage get language => (super.noSuchMethod(
-        Invocation.getter(#language),
-        returnValue: _i5.ScriptLanguage.lua,
-      ) as _i5.ScriptLanguage);
 
   @override
   bool get isFromMarketplace => (super.noSuchMethod(
@@ -335,12 +325,11 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
     String? title,
     String? emoji,
     String? imageUrl,
-    String? luaSource,
+    String? bundle,
     DateTime? updatedAt,
     Map<String, dynamic>? metadata,
     int? runCount,
     DateTime? lastRunAt,
-    _i5.ScriptLanguage? language,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -350,12 +339,11 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
             #title: title,
             #emoji: emoji,
             #imageUrl: imageUrl,
-            #luaSource: luaSource,
+            #bundle: bundle,
             #updatedAt: updatedAt,
             #metadata: metadata,
             #runCount: runCount,
             #lastRunAt: lastRunAt,
-            #language: language,
           },
         ),
         returnValue: _FakeScriptRecord_0(
@@ -367,12 +355,11 @@ class MockScriptRecord extends _i1.Mock implements _i2.ScriptRecord {
               #title: title,
               #emoji: emoji,
               #imageUrl: imageUrl,
-              #luaSource: luaSource,
+              #bundle: bundle,
               #updatedAt: updatedAt,
               #metadata: metadata,
               #runCount: runCount,
               #lastRunAt: lastRunAt,
-              #language: language,
             },
           ),
         ),

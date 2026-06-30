@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/models/script_record.dart';
@@ -41,7 +44,7 @@ void main() {
         description: 'Ensures uploaded scripts surface in marketplace search results',
         category: 'Integration',
         tags: ['visibility', 'integration', 'ui'],
-        luaSource: '''
+        bundle: '''
 function init(arg)
   return { counter = 0, test_suffix = $uniqueSuffix }, {}
 end

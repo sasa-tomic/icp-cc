@@ -135,7 +135,7 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? luaExec({required String script, String? jsonArg}) {
+  String? jsExec({required String script, String? jsonArg}) {
     final arg = jsonArg != null ? json.decode(jsonArg) : null;
 
     // Mock TEA-style execution for advanced output actions
@@ -261,35 +261,12 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? luaLint({required String script}) {
+  String? jsLint({required String script}) {
     return json.encode({'ok': true, 'errors': []});
   }
 
   @override
-  String? jsExec({required String script, String? jsonArg}) => null;
-
-  @override
-  String? jsLint({required String script}) => null;
-
-  @override
   String? jsAppInit(
-      {required String script, String? jsonArg, int budgetMs = 50}) => null;
-
-  @override
-  String? jsAppView(
-      {required String script, required String stateJson, int budgetMs = 50}) =>
-      null;
-
-  @override
-  String? jsAppUpdate(
-          {required String script,
-          required String msgJson,
-          required String stateJson,
-          int budgetMs = 50}) =>
-      null;
-
-  @override
-  String? luaAppInit(
       {required String script, String? jsonArg, int budgetMs = 50}) {
     // Provide immediate initial UI so the host can render the first frame before calling view().
     // Match the test script by title substring.
@@ -325,7 +302,7 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppUpdate(
+  String? jsAppUpdate(
       {required String script,
       required String msgJson,
       required String stateJson,
@@ -710,7 +687,7 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? luaAppView(
+  String? jsAppView(
       {required String script, required String stateJson, int budgetMs = 50}) {
     final state = json.decode(stateJson);
 
@@ -1359,7 +1336,7 @@ end
         // Create and save the script
         final script = await controller.createScript(
           title: 'Searchable Flow Test',
-          luaSourceOverride: searchableScript,
+          bundleOverride: searchableScript,
         );
 
         // Build the widget tree
@@ -1367,7 +1344,7 @@ end
           MaterialApp(
             home: ScriptAppHost(
               runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.luaSource,
+              script: script.bundle,
             ),
           ),
         );
@@ -1507,14 +1484,14 @@ end
 
         final script = await controller.createScript(
           title: 'Batch Flow Test',
-          luaSourceOverride: batchScript,
+          bundleOverride: batchScript,
         );
 
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
               runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.luaSource,
+              script: script.bundle,
             ),
           ),
         );
@@ -1623,14 +1600,14 @@ end
 
         final script = await controller.createScript(
           title: 'Error Handling Test',
-          luaSourceOverride: errorHandlingScript,
+          bundleOverride: errorHandlingScript,
         );
 
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
               runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.luaSource,
+              script: script.bundle,
             ),
           ),
         );
@@ -1799,14 +1776,14 @@ end
 
         final script = await controller.createScript(
           title: 'Follow-up Call Test',
-          luaSourceOverride: followUpCallScript,
+          bundleOverride: followUpCallScript,
         );
 
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
               runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.luaSource,
+              script: script.bundle,
             ),
           ),
         );
@@ -1993,14 +1970,14 @@ end
 
         final script = await controller.createScript(
           title: 'Dynamic Call Generation Test',
-          luaSourceOverride: dynamicCallScript,
+          bundleOverride: dynamicCallScript,
         );
 
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
               runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.luaSource,
+              script: script.bundle,
             ),
           ),
         );
@@ -2242,14 +2219,14 @@ end
 
         final script = await controller.createScript(
           title: 'Conditional Call Logic Test',
-          luaSourceOverride: conditionalCallScript,
+          bundleOverride: conditionalCallScript,
         );
 
         await tester.pumpWidget(
           MaterialApp(
             home: ScriptAppHost(
               runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.luaSource,
+              script: script.bundle,
             ),
           ),
         );

@@ -1,16 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
-import 'package:icp_autorun/services/script_runner.dart';
 
 void main() {
   test('serializes and deserializes ScriptRecord', () {
     final now = DateTime.now().toUtc();
+    const bundle = 'globalThis.init=()=>({state:{},effects:[]});';
     final rec = ScriptRecord(
       id: '1',
       title: 'Balance Viewer',
       emoji: '💰',
       imageUrl: null,
-      luaSource: 'return 1+2',
+      bundle: bundle,
       createdAt: now,
       updatedAt: now,
     );
@@ -20,16 +20,16 @@ void main() {
     expect(round.title, rec.title);
     expect(round.emoji, rec.emoji);
     expect(round.imageUrl, rec.imageUrl);
-    expect(round.luaSource, rec.luaSource);
+    expect(round.bundle, bundle);
   });
 
-  test('fails fast for empty id/title/luaSource', () {
+  test('fails fast for empty id/title/bundle', () {
     final now = DateTime.now().toUtc();
     expect(
       () => ScriptRecord.fromJson({
         'id': '',
         'title': 'x',
-        'luaSource': 'print(1)',
+        'bundle': 'globalThis.init=()=>({});',
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       }),
@@ -39,7 +39,7 @@ void main() {
       () => ScriptRecord.fromJson({
         'id': '1',
         'title': '',
-        'luaSource': 'print(1)',
+        'bundle': 'globalThis.init=()=>({});',
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       }),
@@ -49,7 +49,7 @@ void main() {
       () => ScriptRecord.fromJson({
         'id': '1',
         'title': 'x',
-        'luaSource': '',
+        'bundle': '',
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       }),
@@ -57,72 +57,17 @@ void main() {
     );
   });
 
-  group('language discriminator', () {
-    test('defaults to lua', () {
-      final now = DateTime.now().toUtc();
-      final rec = ScriptRecord(
-        id: '1',
-        title: 't',
-        luaSource: 'print(1)',
-        createdAt: now,
-        updatedAt: now,
-      );
-      expect(rec.language, ScriptLanguage.lua);
-    });
-
-    test('round-trips language through toJson/fromJson', () {
-      final now = DateTime.now().toUtc();
-      for (final lang in ScriptLanguage.values) {
-        final rec = ScriptRecord(
-          id: '1',
-          title: 't',
-          luaSource: 'print(1)',
-          language: lang,
-          createdAt: now,
-          updatedAt: now,
-        );
-        final round = ScriptRecord.fromJson(rec.toJson());
-        expect(round.language, lang);
-      }
-    });
-
-    test('fromJson without language key migrates to lua', () {
-      final now = DateTime.now().toUtc();
-      final round = ScriptRecord.fromJson({
-        'id': '1',
-        'title': 't',
-        'luaSource': 'print(1)',
-        'createdAt': now.toIso8601String(),
-        'updatedAt': now.toIso8601String(),
-      });
-      expect(round.language, ScriptLanguage.lua);
-    });
-
-    test('fromJson with unknown language value falls back to lua', () {
-      final now = DateTime.now().toUtc();
-      final round = ScriptRecord.fromJson({
-        'id': '1',
-        'title': 't',
-        'luaSource': 'print(1)',
-        'language': 'rust',
-        'createdAt': now.toIso8601String(),
-        'updatedAt': now.toIso8601String(),
-      });
-      expect(round.language, ScriptLanguage.lua);
-    });
-
-    test('copyWith updates language', () {
-      final now = DateTime.now().toUtc();
-      final rec = ScriptRecord(
-        id: '1',
-        title: 't',
-        luaSource: 'print(1)',
-        createdAt: now,
-        updatedAt: now,
-      );
-      expect(rec.copyWith(language: ScriptLanguage.typescript).language,
-          ScriptLanguage.typescript);
-      expect(rec.copyWith().language, ScriptLanguage.lua);
-    });
+  test('copyWith updates the bundle', () {
+    final now = DateTime.now().toUtc();
+    final rec = ScriptRecord(
+      id: '1',
+      title: 't',
+      bundle: 'globalThis.init=()=>({state:{a:1},effects:[]});',
+      createdAt: now,
+      updatedAt: now,
+    );
+    const newBundle = 'globalThis.init=()=>({state:{a:2},effects:[]});';
+    expect(rec.copyWith(bundle: newBundle).bundle, newBundle);
+    expect(rec.copyWith().bundle, rec.bundle);
   });
 }

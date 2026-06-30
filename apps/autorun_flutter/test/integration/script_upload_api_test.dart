@@ -40,7 +40,7 @@ void main() {
         final testScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: testScriptTitle,
-          luaSource: '''-- API Test Script for Upload
+          bundle: '''-- API Test Script for Upload
 -- This script tests the upload functionality
 
 function init(arg)
@@ -120,7 +120,7 @@ end''',
         final specialScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: 'Special Characters Test: naeiou symbols',
-          luaSource: '''-- Special Characters Test
+          bundle: '''-- Special Characters Test
 function init()
   return {
     message = "Hello: naeiou world!",
@@ -167,7 +167,7 @@ end''',
         final minimalScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: 'Minimal Script',
-          luaSource: '''-- Minimal Test Script
+          bundle: '''-- Minimal Test Script
 function init()
   return {}, {}
 end
@@ -207,7 +207,7 @@ end''',
         final largeScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: 'Large Content Script',
-          luaSource: largeLuaCode,
+          bundle: largeLuaCode,
           metadata: {
             'description': 'A script with large content to test upload limits',
             'category': 'Testing',
@@ -230,9 +230,9 @@ end''',
         // Verify the large content was preserved
         final retrievedScript = await mockMarketplaceService.getScriptById(largeScriptId);
         expect(retrievedScript, isNotNull);
-        expect(retrievedScript!.luaSource.length, equals(largeLuaCode.length));
-        expect(retrievedScript.luaSource, contains('Line 50:'));
-        expect(retrievedScript.luaSource, contains('Line 100:'));
+        expect(retrievedScript!.bundle.length, equals(largeLuaCode.length));
+        expect(retrievedScript.bundle, contains('Line 50:'));
+        expect(retrievedScript.bundle, contains('Line 100:'));
       });
     });
 
@@ -242,7 +242,7 @@ end''',
         final testScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: 'Retrieval Test Script',
-          luaSource: '''-- Retrieval Test Script
+          bundle: '''-- Retrieval Test Script
 function init()
   return { message = "Retrieval test" }, {}
 end
@@ -278,7 +278,7 @@ end''',
         expect(retrievedScript.description, equals(testScript.metadata['description']));
         expect(retrievedScript.category, equals(testScript.metadata['category']));
         expect(retrievedScript.authorName, equals(testScript.metadata['authorName']));
-        expect(retrievedScript.luaSource, equals(testScript.luaSource));
+        expect(retrievedScript.bundle, equals(testScript.bundle));
         expect(retrievedScript.isPublic, equals(testScript.metadata['isPublic']));
       });
 
@@ -297,7 +297,7 @@ end''',
         final originalScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: 'Original Title',
-          luaSource: '-- Original source',
+          bundle: '-- Original source',
           metadata: {
             'description': 'Original description',
             'category': 'Development',
@@ -325,7 +325,7 @@ end''',
         final updatedScript = ScriptRecord(
           id: scriptId,
           title: 'Updated Title',
-          luaSource: '-- Updated source code',
+          bundle: '-- Updated source code',
           metadata: updatedMetadata,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -346,7 +346,7 @@ end''',
         expect(retrievedScript.tags, contains('updated'));
         expect(retrievedScript.tags, contains('modified'));
         expect(retrievedScript.authorName, equals('Updated Author'));
-        expect(retrievedScript.luaSource, equals('-- Updated source code'));
+        expect(retrievedScript.bundle, equals('-- Updated source code'));
         expect(retrievedScript.version, equals('2.0.0'));
         expect(retrievedScript.price, equals(1.0));
       });
@@ -356,7 +356,7 @@ end''',
         final updateScript = ScriptRecord(
           id: 'non_existent_id',
           title: 'Non-existent Update',
-          luaSource: '-- Should fail',
+          bundle: '-- Should fail',
           metadata: {
             'description': 'This should fail',
             'category': 'Testing',
@@ -384,7 +384,7 @@ end''',
         final testScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: 'Script to Delete',
-          luaSource: '-- This will be deleted',
+          bundle: '-- This will be deleted',
           metadata: {
             'description': 'This script will be deleted',
             'category': 'Testing',

@@ -104,26 +104,14 @@ extension PoemScriptRepositoryTestExtensions on PoemScriptRepository {
   static ScriptRecord createTestScript({
     String? id,
     String? title,
-    String? luaSource,
+    String? bundle,
     Map<String, dynamic>? metadata,
   }) {
     return ScriptRecord(
       id: id ?? 'test-script-${DateTime.now().millisecondsSinceEpoch}',
       title: title ?? 'Test Script',
-      luaSource: luaSource ?? '''function init(arg)
-  return { message = "Hello from test script!" }, {}
-end
-
-function view(state)
-  return { type = "text", text = state.message }
-end
-
-function update(msg, state)
-  if msg.type == "test" then
-    state.message = "Updated!"
-  end
-  return state, {}
-end''',
+      bundle: bundle ??
+          'globalThis.init=()=>({state:{message:"Hello from test script!"},effects:[]});',
       metadata: metadata ?? {
         'description': 'Test script for unit testing',
         'category': 'Testing',

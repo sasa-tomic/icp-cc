@@ -9,7 +9,7 @@ void main() {
       final script = ScriptRecord(
         id: 'local-1',
         title: 'Local Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {},
@@ -23,7 +23,7 @@ void main() {
       final script = ScriptRecord(
         id: 'mp-1',
         title: 'Marketplace Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {'marketplace_id': 'mp-12345'},
@@ -37,7 +37,7 @@ void main() {
       final script = ScriptRecord(
         id: 'mp-2',
         title: 'Marketplace Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {
@@ -105,7 +105,7 @@ void main() {
       final localScript = ScriptRecord(
         id: 'local-1',
         title: 'Local Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {},
@@ -123,7 +123,7 @@ void main() {
       final marketplaceScript = ScriptRecord(
         id: 'mp-1',
         title: 'Marketplace Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {'marketplace_id': 'mp-12345'},
@@ -140,7 +140,7 @@ void main() {
       final localScript = ScriptRecord(
         id: 'local-1',
         title: 'Local Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {},
@@ -159,7 +159,7 @@ void main() {
       final marketplaceScript = ScriptRecord(
         id: 'mp-1',
         title: 'Marketplace Script',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now,
         updatedAt: now,
         metadata: {'marketplace_id': 'mp-12345'},

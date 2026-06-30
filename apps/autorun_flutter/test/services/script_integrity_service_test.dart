@@ -10,9 +10,9 @@ void main() {
 
   group('computeChecksum', () {
     test('produces consistent SHA256 hash for identical input', () {
-      const luaSource = 'function init() return {}, {} end';
-      final checksum1 = service.computeChecksum(luaSource);
-      final checksum2 = service.computeChecksum(luaSource);
+      const source = 'globalThis.init=()=>({state:{},effects:[]});';
+      final checksum1 = service.computeChecksum(source);
+      final checksum2 = service.computeChecksum(source);
 
       expect(checksum1, equals(checksum2));
       expect(checksum1.length, equals(64));
@@ -50,33 +50,33 @@ void main() {
 
   group('verifyChecksum', () {
     test('passes when checksum matches', () {
-      const luaSource = 'function init() return {}, {} end';
-      final expectedChecksum = service.computeChecksum(luaSource);
+      const source = 'globalThis.init=()=>({state:{},effects:[]});';
+      final expectedChecksum = service.computeChecksum(source);
 
       expect(
-        () => service.verifyChecksum(luaSource, expectedChecksum),
+        () => service.verifyChecksum(source, expectedChecksum),
         returnsNormally,
       );
     });
 
     test('throws ScriptIntegrityException on mismatch', () {
-      const luaSource = 'return 1';
+      const source = 'return 1';
       const wrongChecksum =
           '0000000000000000000000000000000000000000000000000000000000000000';
 
       expect(
-        () => service.verifyChecksum(luaSource, wrongChecksum),
+        () => service.verifyChecksum(source, wrongChecksum),
         throwsA(isA<ScriptIntegrityException>()),
       );
     });
 
     test('includes script ID in error message when provided', () {
-      const luaSource = 'return 1';
+      const source = 'return 1';
       const wrongChecksum =
           '0000000000000000000000000000000000000000000000000000000000000000';
 
       expect(
-        () => service.verifyChecksum(luaSource, wrongChecksum,
+        () => service.verifyChecksum(source, wrongChecksum,
             scriptId: 'script-123'),
         throwsA(allOf(
           isA<ScriptIntegrityException>(),
@@ -89,7 +89,7 @@ void main() {
     });
 
     test('detects tampering (single character change)', () {
-      const original = 'function init() return {}, {} end';
+      const original = 'globalThis.init=()=>({state:{},effects:[]});';
       const tampered = 'function init() return {}, {} ene'; // last char changed
 
       final originalChecksum = service.computeChecksum(original);
@@ -103,18 +103,18 @@ void main() {
 
   group('hasValidChecksum', () {
     test('returns true when checksum matches', () {
-      const luaSource = 'function init() return {}, {} end';
-      final checksum = service.computeChecksum(luaSource);
+      const source = 'globalThis.init=()=>({state:{},effects:[]});';
+      final checksum = service.computeChecksum(source);
 
-      expect(service.hasValidChecksum(luaSource, checksum), isTrue);
+      expect(service.hasValidChecksum(source, checksum), isTrue);
     });
 
     test('returns false when checksum does not match', () {
-      const luaSource = 'function init() return {}, {} end';
+      const source = 'globalThis.init=()=>({state:{},effects:[]});';
       const wrongChecksum =
           '0000000000000000000000000000000000000000000000000000000000000000';
 
-      expect(service.hasValidChecksum(luaSource, wrongChecksum), isFalse);
+      expect(service.hasValidChecksum(source, wrongChecksum), isFalse);
     });
   });
 }

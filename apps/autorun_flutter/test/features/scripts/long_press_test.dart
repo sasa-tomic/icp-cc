@@ -14,7 +14,7 @@ void main() {
         id: 'local-1',
         title: 'Test Local Script',
         emoji: 'T',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -27,7 +27,7 @@ void main() {
         version: '1.0.0',
         description: 'Test description',
         category: 'utilities',
-        luaSource: 'return 2',
+        bundle: 'return 2',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
       );
@@ -73,7 +73,7 @@ void main() {
       final downloadedScript = ScriptRecord(
         id: 'local-2',
         title: 'Downloaded Script',
-        luaSource: 'return 2',
+        bundle: 'return 2',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {
@@ -371,24 +371,18 @@ class _TestContextMenuSheet extends StatelessWidget {
     required this.item,
     this.onRun,
     this.onEdit,
-    this.onDuplicate,
     this.onDelete,
-    this.onPublish,
     this.onViewDetails,
     this.onDownload,
-    this.isDownloading = false,
     this.isDownloaded = false,
   });
 
   final ScriptListItem item;
   final VoidCallback? onRun;
   final VoidCallback? onEdit;
-  final VoidCallback? onDuplicate;
   final VoidCallback? onDelete;
-  final VoidCallback? onPublish;
   final VoidCallback? onViewDetails;
   final VoidCallback? onDownload;
-  final bool isDownloading;
   final bool isDownloaded;
 
   @override
@@ -479,41 +473,6 @@ class _TestContextMenuSheet extends StatelessWidget {
                   ),
                 ),
               ),
-            if (onDuplicate != null)
-              InkWell(
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onDuplicate!();
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.content_copy, size: 22),
-                      SizedBox(width: 12),
-                      Text('Duplicate', style: TextStyle(fontSize: 16)),
-                    ],
-                  ),
-                ),
-              ),
-            if (onPublish != null)
-              InkWell(
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onPublish!();
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.share, size: 22),
-                      SizedBox(width: 12),
-                      Text('Share to Marketplace',
-                          style: TextStyle(fontSize: 16)),
-                    ],
-                  ),
-                ),
-              ),
             if (onDelete != null)
               InkWell(
                 onTap: () {
@@ -553,23 +512,18 @@ class _TestContextMenuSheet extends StatelessWidget {
               ),
             if (onDownload != null && !isDownloaded)
               InkWell(
-                onTap: isDownloading
-                    ? null
-                    : () {
-                        Navigator.of(context).pop();
-                        onDownload!();
-                      },
-                child: Padding(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onDownload!();
+                },
+                child: const Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   child: Row(
                     children: [
-                      const Icon(Icons.download, size: 22),
-                      const SizedBox(width: 12),
-                      Text(
-                        isDownloading ? 'Downloading...' : 'Download',
-                        style: const TextStyle(fontSize: 16),
-                      ),
+                      Icon(Icons.download, size: 22),
+                      SizedBox(width: 12),
+                      Text('Download', style: TextStyle(fontSize: 16)),
                     ],
                   ),
                 ),

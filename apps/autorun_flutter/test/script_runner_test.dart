@@ -6,18 +6,31 @@ import 'package:icp_autorun/services/script_runner.dart';
 import 'test_helpers/fake_secure_keypair_repository.dart';
 import 'test_helpers/test_keypair_factory.dart';
 
+/// Minimal in-memory [ScriptBridge] for [ScriptRunner] tests. The canister
+/// methods return canned JSON keyed by `canisterId::method`; [jsExec] defaults
+/// to an echo that sums two labelled call outputs (for the aggregation test)
+/// but can be overridden per-test via [jsExecResponse].
 class _FakeBridge implements ScriptBridge {
-  _FakeBridge({required this.responses});
-  final Map<String, String> responses;
+  _FakeBridge({Map<String, String>? responses, this.jsExecResponse})
+      : _responses = responses ?? const {};
+
+  final Map<String, String> _responses;
+
+  /// Canned JSON returned by [jsExec]. When null, [jsExec] falls back to the
+  /// aggregation echo logic.
+  String? jsExecResponse;
+  String? lastExecScript;
+  String? lastExecJsonArg;
   final List<Map<String, dynamic>> callLog = [];
 
   @override
-  String? callAnonymous(
-      {required String canisterId,
-      required String method,
-      required int kind,
-      String args = '()',
-      String? host}) {
+  String? callAnonymous({
+    required String canisterId,
+    required String method,
+    required int kind,
+    String args = '()',
+    String? host,
+  }) {
     callLog.add({
       'type': 'anonymous',
       'canisterId': canisterId,
@@ -26,17 +39,18 @@ class _FakeBridge implements ScriptBridge {
       'args': args,
       'host': host,
     });
-    return responses['$canisterId::$method'];
+    return _responses['$canisterId::$method'];
   }
 
   @override
-  String? callAuthenticated(
-      {required String canisterId,
-      required String method,
-      required int kind,
-      required String privateKeyB64,
-      String args = '()',
-      String? host}) {
+  String? callAuthenticated({
+    required String canisterId,
+    required String method,
+    required int kind,
+    required String privateKeyB64,
+    String args = '()',
+    String? host,
+  }) {
     callLog.add({
       'type': 'authenticated',
       'canisterId': canisterId,
@@ -46,377 +60,319 @@ class _FakeBridge implements ScriptBridge {
       'args': args,
       'host': host,
     });
-    return responses['$canisterId::$method'];
+    return _responses['$canisterId::$method'];
   }
 
   @override
-  String? luaExec({required String script, String? jsonArg}) {
-    // Handle both the original test case and the new keypair tests
-    if (jsonArg == null) {
-      return json.encode({'ok': true, 'result': 0});
+  String? jsExec({required String script, String? jsonArg}) {
+    lastExecScript = script;
+    lastExecJsonArg = jsonArg;
+    if (jsExecResponse != null) {
+      return jsExecResponse;
     }
-
-    final Map<String, dynamic> arg =
-        json.decode(jsonArg) as Map<String, dynamic>;
-    final calls = arg['calls'] as Map<String, dynamic>?;
-
-    // For keypair tests, just return 0 since we're only testing call routing
-    if (calls != null && calls.containsKey('test_call')) {
-      return json.encode({'ok': true, 'result': 0});
+    // Default echo: sum two labelled call outputs when present, else 0.
+    if (jsonArg != null) {
+      final Map<String, dynamic> arg =
+          json.decode(jsonArg) as Map<String, dynamic>;
+      final calls = arg['calls'] as Map<String, dynamic>?;
+      if (calls != null && calls.containsKey('a') && calls.containsKey('b')) {
+        final a = (calls['a'] as Map<String, dynamic>)['value'] as int;
+        final b = (calls['b'] as Map<String, dynamic>)['value'] as int;
+        return json.encode({'ok': true, 'result': a + b});
+      }
     }
-
-    // Original test logic: echo sum of two call outputs if present
-    if (calls != null && calls.containsKey('a') && calls.containsKey('b')) {
-      final a = (calls['a'] as Map<String, dynamic>)['value'] as int;
-      final b = (calls['b'] as Map<String, dynamic>)['value'] as int;
-      final result = a + b;
-      return json.encode({'ok': true, 'result': result});
-    }
-
     return json.encode({'ok': true, 'result': 0});
   }
 
+  // Lifecycle/lint methods are exercised by ScriptAppRuntime tests; not needed
+  // for ScriptRunner.run.
   @override
-  String? luaLint({required String script}) {
-    return json.encode({'ok': true, 'errors': []});
-  }
+  String? jsLint({required String script}) =>
+      json.encode({'ok': true, 'errors': <String>[]});
 
   @override
-  String? luaAppInit(
-          {required String script, String? jsonArg, int budgetMs = 50}) =>
-      null;
+  String? jsAppInit({required String script, String? jsonArg, int budgetMs = 50}) => null;
 
   @override
-  String? luaAppUpdate(
-          {required String script,
-          required String msgJson,
-          required String stateJson,
-          int budgetMs = 50}) =>
-      null;
+  String? jsAppView({required String script, required String stateJson, int budgetMs = 50}) => null;
 
   @override
-  String? luaAppView(
-          {required String script,
-          required String stateJson,
-          int budgetMs = 50}) =>
-      null;
-
-  @override
-  String? jsExec({required String script, String? jsonArg}) => null;
-
-  @override
-  String? jsLint({required String script}) => null;
-
-  @override
-  String? jsAppInit(
-          {required String script, String? jsonArg, int budgetMs = 50}) =>
-      null;
-
-  @override
-  String? jsAppView(
-          {required String script, required String stateJson, int budgetMs = 50}) =>
-      null;
-
-  @override
-  String? jsAppUpdate(
-          {required String script,
-          required String msgJson,
-          required String stateJson,
-          int budgetMs = 50}) =>
-      null;
+  String? jsAppUpdate({required String script, required String msgJson, required String stateJson, int budgetMs = 50}) => null;
 }
 
-void main() {
-  // Initialize Flutter bindings for secure storage tests
-  TestWidgetsFlutterBinding.ensureInitialized();
-  test('ScriptRunner aggregates canister outputs and executes Lua', () async {
-    final bridge = _FakeBridge(responses: {
-      'cid1::m1': json.encode({'value': 2}),
-      'cid2::m2': json.encode({'value': 3}),
-    });
-    final runner = ScriptRunner(bridge);
-    final plan = ScriptRunPlan(
-      luaSource: 'return 0',
-      calls: [
-        CanisterCallSpec(
-            label: 'a',
-            canisterId: 'cid1',
-            method: 'm1',
-            kind: 0,
-            argsJson: '()'),
-        CanisterCallSpec(
-            label: 'b',
-            canisterId: 'cid2',
-            method: 'm2',
-            kind: 0,
-            argsJson: '()'),
-      ],
-    );
+const String _bundle = 'globalThis.init=()=>({state:{},effects:[]});';
 
-    final res = await runner.run(plan);
-    expect(res.ok, true);
-    expect(res.result, 5);
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('ScriptRunner.run', () {
+    test('aggregates canister outputs and passes them to the bundle', () async {
+      final bridge = _FakeBridge(responses: {
+        'cid1::m1': json.encode({'value': 2}),
+        'cid2::m2': json.encode({'value': 3}),
+      });
+      final runner = ScriptRunner(bridge);
+      final plan = ScriptRunPlan(
+        bundle: _bundle,
+        calls: [
+          CanisterCallSpec(label: 'a', canisterId: 'cid1', method: 'm1', kind: 0, argsJson: '()'),
+          CanisterCallSpec(label: 'b', canisterId: 'cid2', method: 'm2', kind: 0, argsJson: '()'),
+        ],
+      );
+
+      final res = await runner.run(plan);
+
+      expect(res.ok, true);
+      expect(res.result, 5);
+    });
+
+    test('empty bundle fails with a clear error', () async {
+      final runner = ScriptRunner(_FakeBridge());
+      final res = await runner.run(ScriptRunPlan(bundle: '   '));
+      expect(res.ok, false);
+      expect(res.error, contains('empty'));
+    });
+
+    test('initialArg is forwarded under arg.input', () async {
+      final bridge = _FakeBridge(jsExecResponse: json.encode({'ok': true, 'result': 'ok'}));
+      final runner = ScriptRunner(bridge);
+      await runner.run(ScriptRunPlan(
+        bundle: _bundle,
+        initialArg: {'message': 'Hello'},
+      ));
+      final arg = json.decode(bridge.lastExecJsonArg!) as Map<String, dynamic>;
+      expect(arg['input'], {'message': 'Hello'});
+    });
+
+    test('script returning ok:false surfaces its error message', () async {
+      final bridge = _FakeBridge(jsExecResponse: json.encode({
+        'ok': false,
+        'error': 'syntax error near line 1',
+      }));
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(ScriptRunPlan(bundle: _bundle));
+      expect(res.ok, false);
+      expect(res.error, contains('syntax error near line 1'));
+    });
+
+    test('script returning a UI description is passed through unchanged', () async {
+      final bridge = _FakeBridge(jsExecResponse: json.encode({
+        'ok': true,
+        'result': {
+          'action': 'ui',
+          'ui': {'type': 'list', 'items': [{'title': 'A'}, {'title': 'B'}]},
+        },
+      }));
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(ScriptRunPlan(bundle: _bundle));
+      expect(res.ok, true);
+      final obj = res.result as Map<String, dynamic>;
+      expect(obj['action'], 'ui');
+      expect((obj['ui'] as Map<String, dynamic>)['type'], 'list');
+    });
+
+    test('follow-up call action triggers a single canister call', () async {
+      final bridge = _FakeBridge(
+        responses: {'abc::go': json.encode({'ok': true, 'echo': 'go'})},
+        jsExecResponse: json.encode({
+          'ok': true,
+          'result': {'action': 'call', 'canister_id': 'abc', 'method': 'go', 'kind': 0, 'args': '()'},
+        }),
+      );
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(ScriptRunPlan(bundle: _bundle));
+      expect(res.ok, true);
+      expect((res.result as Map<String, dynamic>)['echo'], 'go');
+      // Exactly one anonymous follow-up call.
+      expect(bridge.callLog.where((c) => c['type'] == 'anonymous'), hasLength(1));
+    });
+
+    test('follow-up call with missing canister_id fails', () async {
+      final bridge = _FakeBridge(jsExecResponse: json.encode({
+        'ok': true,
+        'result': {'action': 'call', 'method': 'go', 'kind': 0, 'args': '()'},
+      }));
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(ScriptRunPlan(bundle: _bundle));
+      expect(res.ok, false);
+      expect(res.error, contains('missing canister_id/method'));
+    });
+
+    test('batch action executes multiple calls and collects outputs by label', () async {
+      final bridge = _FakeBridge(
+        responses: {
+          'c1::m1': json.encode({'value': 1}),
+          'c2::m2': json.encode({'value': 2}),
+        },
+        jsExecResponse: json.encode({
+          'ok': true,
+          'result': {
+            'action': 'batch',
+            'calls': [
+              {'label': 'a', 'canister_id': 'c1', 'method': 'm1', 'kind': 0, 'args': '()'},
+              {'label': 'b', 'canister_id': 'c2', 'method': 'm2', 'kind': 0, 'args': '()'},
+            ],
+          },
+        }),
+      );
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(ScriptRunPlan(bundle: _bundle));
+      expect(res.ok, true);
+      final out = res.result as Map<String, dynamic>;
+      expect((out['a'] as Map)['value'], 1);
+      expect((out['b'] as Map)['value'], 2);
+    });
+
+    test('empty response from a canister call fails', () async {
+      final bridge = _FakeBridge(responses: {'cid::m': ''});
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(ScriptRunPlan(
+        bundle: _bundle,
+        calls: [CanisterCallSpec(label: 'a', canisterId: 'cid', method: 'm', kind: 0)],
+      ));
+      expect(res.ok, false);
+      expect(res.error, contains('Empty response'));
+    });
+
+    test('non-JSON canister response is surfaced as a raw string', () async {
+      final bridge = _FakeBridge(responses: {'cid::m': 'not-json'});
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(ScriptRunPlan(
+        bundle: _bundle,
+        calls: [CanisterCallSpec(label: 'a', canisterId: 'cid', method: 'm', kind: 0)],
+      ));
+      expect(res.ok, false);
+      expect(res.error, contains('Invalid JSON'));
+    });
   });
 
-  group('ScriptRunner Keypair Resolution Tests', () {
+  group('ScriptRunner.performAction', () {
+    test('call action executes and decodes JSON', () async {
+      final runner = ScriptRunner(_FakeBridge(responses: {
+        'abc::go': json.encode({'ok': true}),
+      }));
+      final res = await runner.performAction({
+        'action': 'call',
+        'canister_id': 'abc',
+        'method': 'go',
+        'kind': 0,
+        'args': '()',
+      });
+      expect(res.ok, true);
+      expect((res.result as Map<String, dynamic>)['ok'], true);
+    });
+
+    test('unsupported action fails', () async {
+      final runner = ScriptRunner(_FakeBridge());
+      final res = await runner.performAction({'action': 'rocket'});
+      expect(res.ok, false);
+      expect(res.error, contains('Unsupported action'));
+    });
+
+    test('missing action fails', () async {
+      final runner = ScriptRunner(_FakeBridge());
+      final res = await runner.performAction({});
+      expect(res.ok, false);
+      expect(res.error, contains('missing action'));
+    });
+  });
+
+  group('ScriptRunner keypair resolution', () {
     late _FakeBridge bridge;
     late FakeSecureKeypairRepository secureRepo;
-    late String testKeypairId1;
-    late String testPrivateKey1;
-    late String testKeypairId2;
-    late String testPrivateKey2;
+    late String keypairId1;
+    late String privateKey1;
+    late String keypairId2;
+    late String privateKey2;
 
     setUp(() async {
       bridge = _FakeBridge(responses: {
         'test-canister::method': json.encode({'result': 'success'}),
       });
-
-      // Create test keypairs using TestKeypairFactory for real cryptographic keys
-      final keypair1 = await TestKeypairFactory.fromSeed(1);
-      final keypair2 = await TestKeypairFactory.fromSeed(2);
-
-      testKeypairId1 = keypair1.id;
-      testPrivateKey1 = keypair1.privateKey;
-      testKeypairId2 = keypair2.id;
-      testPrivateKey2 = keypair2.privateKey;
-
-      secureRepo = FakeSecureKeypairRepository([keypair1, keypair2]);
+      final kp1 = await TestKeypairFactory.fromSeed(1);
+      final kp2 = await TestKeypairFactory.fromSeed(2);
+      keypairId1 = kp1.id;
+      privateKey1 = kp1.privateKey;
+      keypairId2 = kp2.id;
+      privateKey2 = kp2.privateKey;
+      secureRepo = FakeSecureKeypairRepository([kp1, kp2]);
     });
 
-    test(
-        'CanisterCallSpec with keypairId uses authenticated call with resolved keypair',
-        () async {
+    ScriptRunPlan buildPlan(String id, {String? privateKey, bool anonymous = false}) =>
+        ScriptRunPlan(
+          bundle: _bundle,
+          calls: [
+            CanisterCallSpec(
+              label: 'test_call',
+              canisterId: 'test-canister',
+              method: 'method',
+              kind: 0,
+              keypairId: id.isEmpty ? null : id,
+              privateKeyB64: privateKey,
+              isAnonymous: anonymous,
+            ),
+          ],
+        );
+
+    test('keypairId resolves via the repository and authenticates', () async {
       final runner = ScriptRunner(bridge, secureRepository: secureRepo);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            keypairId: testKeypairId1,
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
+      final res = await runner.run(buildPlan(keypairId1));
       expect(res.ok, true);
-
-      // Verify that an authenticated call was made with the resolved private key
-      expect(bridge.callLog.length, 1);
-      expect(bridge.callLog.first['type'], 'authenticated');
-      expect(bridge.callLog.first['privateKeyB64'], testPrivateKey1);
-      bridge.callLog.clear();
+      expect(bridge.callLog.single['type'], 'authenticated');
+      expect(bridge.callLog.single['privateKeyB64'], privateKey1);
     });
 
-    test(
-        'CanisterCallSpec with privateKeyB64 uses authenticated call with provided key',
-        () async {
+    test('privateKeyB64 authenticates directly', () async {
       final runner = ScriptRunner(bridge);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            privateKeyB64: 'direct_private_key',
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
+      final res = await runner.run(buildPlan('', privateKey: 'direct_private_key'));
       expect(res.ok, true);
-
-      // Verify that an authenticated call was made with the direct private key
-      expect(bridge.callLog.length, 1);
-      expect(bridge.callLog.first['type'], 'authenticated');
-      expect(bridge.callLog.first['privateKeyB64'], 'direct_private_key');
-      bridge.callLog.clear();
+      expect(bridge.callLog.single['type'], 'authenticated');
+      expect(bridge.callLog.single['privateKeyB64'], 'direct_private_key');
     });
 
-    test(
-        'CanisterCallSpec with isAnonymous=true uses anonymous call even when privateKey provided',
-        () async {
-      final runner = ScriptRunner(bridge);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            privateKeyB64: 'should_be_ignored',
-            isAnonymous: true,
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
-      expect(res.ok, true);
-
-      // Verify that an anonymous call was made despite having a private key
-      expect(bridge.callLog.length, 1);
-      expect(bridge.callLog.first['type'], 'anonymous');
-      bridge.callLog.clear();
-    });
-
-    test('CanisterCallSpec defaults to anonymous when no keypair specified',
-        () async {
-      final runner = ScriptRunner(bridge);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
-      expect(res.ok, true);
-
-      // Verify that an anonymous call was made
-      expect(bridge.callLog.length, 1);
-      expect(bridge.callLog.first['type'], 'anonymous');
-      bridge.callLog.clear();
-    });
-
-    test('CanisterCallSpec prioritizes keypairId over privateKeyB64', () async {
+    test('keypairId takes priority over privateKeyB64', () async {
       final runner = ScriptRunner(bridge, secureRepository: secureRepo);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            privateKeyB64: 'should_be_ignored',
-            keypairId: testKeypairId2,
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
+      final res = await runner.run(buildPlan(keypairId2, privateKey: 'ignored'));
       expect(res.ok, true);
-
-      // Verify that keypairId takes priority over privateKeyB64
-      expect(bridge.callLog.length, 1);
-      expect(bridge.callLog.first['type'], 'authenticated');
-      expect(bridge.callLog.first['privateKeyB64'], testPrivateKey2);
-      bridge.callLog.clear();
+      expect(bridge.callLog.single['privateKeyB64'], privateKey2);
     });
 
-    test('CanisterCallSpec fails when keypairId not found', () async {
-      final runner = ScriptRunner(bridge, secureRepository: secureRepo);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            keypairId: 'non-existent-id',
-          ),
-        ],
-      );
+    test('isAnonymous=true forces anonymous even with a private key', () async {
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(buildPlan('', privateKey: 'ignored', anonymous: true));
+      expect(res.ok, true);
+      expect(bridge.callLog.single['type'], 'anonymous');
+    });
 
-      final res = await runner.run(plan);
+    test('defaults to anonymous when no keypair specified', () async {
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(buildPlan(''));
+      expect(res.ok, true);
+      expect(bridge.callLog.single['type'], 'anonymous');
+    });
+
+    test('empty/whitespace privateKey defaults to anonymous', () async {
+      final runner = ScriptRunner(bridge);
+      final res = await runner.run(buildPlan('', privateKey: '   '));
+      expect(res.ok, true);
+      expect(bridge.callLog.single['type'], 'anonymous');
+    });
+
+    test('unknown keypairId fails with a clear error and makes no calls', () async {
+      final runner = ScriptRunner(bridge, secureRepository: secureRepo);
+      final res = await runner.run(buildPlan('non-existent-id'));
       expect(res.ok, false);
-      expect(
-          res.error, contains('Keypair with ID "non-existent-id" not found'));
-
-      // Verify no calls were made
-      expect(bridge.callLog.isEmpty, true);
-      bridge.callLog.clear();
+      expect(res.error, contains('Keypair with ID "non-existent-id" not found'));
+      expect(bridge.callLog, isEmpty);
     });
 
-    test(
-        'CanisterCallSpec fails when keypairId specified but no repository provided',
-        () async {
-      final runner = ScriptRunner(bridge); // No keypair repository
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            keypairId: 'test-id-1',
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
+    test('keypairId without a repository fails fast', () async {
+      final runner = ScriptRunner(bridge); // no repository
+      final res = await runner.run(buildPlan('test-id-1'));
       expect(res.ok, false);
-      expect(
-          res.error,
-          contains(
-              'Keypair ID specified but no secure keypair repository provided'));
-
-      // Verify no calls were made
-      expect(bridge.callLog.isEmpty, true);
-      bridge.callLog.clear();
-    });
-
-    test('CanisterCallSpec with empty privateKey defaults to anonymous',
-        () async {
-      final runner = ScriptRunner(bridge);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            privateKeyB64: '', // Empty string
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
-      expect(res.ok, true);
-
-      // Verify that an anonymous call was made
-      expect(bridge.callLog.length, 1);
-      expect(bridge.callLog.first['type'], 'anonymous');
-      bridge.callLog.clear();
-    });
-
-    test(
-        'CanisterCallSpec with whitespace-only privateKey defaults to anonymous',
-        () async {
-      final runner = ScriptRunner(bridge);
-      final plan = ScriptRunPlan(
-        luaSource: 'return 0',
-        calls: [
-          CanisterCallSpec(
-            label: 'test_call',
-            canisterId: 'test-canister',
-            method: 'method',
-            kind: 0,
-            privateKeyB64: '   ', // Whitespace only
-          ),
-        ],
-      );
-
-      final res = await runner.run(plan);
-      expect(res.ok, true);
-
-      // Verify that an anonymous call was made
-      expect(bridge.callLog.length, 1);
-      expect(bridge.callLog.first['type'], 'anonymous');
-      bridge.callLog.clear();
+      expect(res.error,
+          contains('Keypair ID specified but no secure keypair repository provided'));
+      expect(bridge.callLog, isEmpty);
     });
   });
 }

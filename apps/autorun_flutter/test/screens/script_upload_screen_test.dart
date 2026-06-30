@@ -77,7 +77,7 @@ void main() {
         // Arrange
         final preFilledData = PreFilledUploadData(
           title: 'My Awesome Script',
-          luaSource: 'print("Hello World")',
+          bundle: 'print("Hello World")',
         );
 
         // Act
@@ -148,7 +148,7 @@ void main() {
         // Arrange
         final preFilledData = PreFilledUploadData(
           title: '',
-          luaSource: '',
+          bundle: '',
         );
 
         // Act

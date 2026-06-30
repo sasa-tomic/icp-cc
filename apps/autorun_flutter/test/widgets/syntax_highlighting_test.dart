@@ -21,7 +21,6 @@ greet("World")
             body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: (code) {},
-              language: 'lua',
             ),
           ),
         ),
@@ -41,7 +40,6 @@ greet("World")
             body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: (code) {},
-              language: 'lua',
             ),
           ),
         ),
@@ -73,7 +71,6 @@ print(x + y)
             body: ScriptEditor(
               initialCode: testCode,
               onCodeChanged: (code) {},
-              language: 'lua',
             ),
           ),
         ),

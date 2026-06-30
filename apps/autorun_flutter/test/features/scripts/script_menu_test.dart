@@ -11,7 +11,7 @@ void main() {
         id: 'test-1',
         title: 'Test Script',
         emoji: '📜',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -21,7 +21,7 @@ void main() {
     test('ScriptRecord has required properties for menu actions', () {
       expect(testScript.id, equals('test-1'));
       expect(testScript.title, equals('Test Script'));
-      expect(testScript.luaSource, equals('return 1'));
+      expect(testScript.bundle, equals('return 1'));
       expect(testScript.isFromMarketplace, isFalse);
     });
 
@@ -34,7 +34,7 @@ void main() {
       final marketplaceScript = ScriptRecord(
         id: 'test-2',
         title: 'Marketplace Script',
-        luaSource: 'return 2',
+        bundle: 'return 2',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {
@@ -78,7 +78,7 @@ void main() {
       final marketplaceDownload = ScriptRecord(
         id: 'test-2',
         title: 'Downloaded',
-        luaSource: 'return 2',
+        bundle: 'return 2',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {

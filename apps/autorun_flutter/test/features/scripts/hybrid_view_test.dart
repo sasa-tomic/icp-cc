@@ -16,7 +16,7 @@ void main() {
         id: 'local-1',
         title: 'Local Script',
         emoji: '📜',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: now.subtract(const Duration(days: 5)),
         updatedAt: now.subtract(const Duration(days: 1)),
         metadata: {},
@@ -26,7 +26,7 @@ void main() {
         id: 'local-2',
         title: 'Downloaded Script (Marketplace)',
         emoji: '📦',
-        luaSource: 'return 2',
+        bundle: 'return 2',
         createdAt: now.subtract(const Duration(days: 3)),
         updatedAt: now.subtract(const Duration(hours: 12)),
         metadata: {
@@ -41,7 +41,7 @@ void main() {
         title: 'Marketplace Script',
         description: 'A script from marketplace',
         category: 'Utilities',
-        luaSource: 'return 3',
+        bundle: 'return 3',
         authorName: 'Another Author',
         version: '2.0.0',
         downloads: 150,
@@ -145,7 +145,7 @@ void main() {
           title: 'Same as Downloaded',
           description: 'desc',
           category: 'Utilities',
-          luaSource: 'return 2',
+          bundle: 'return 2',
           createdAt: DateTime.now().toUtc(),
           updatedAt: DateTime.now().toUtc(),
         );
@@ -195,7 +195,7 @@ void main() {
         final script1 = ScriptRecord(
           id: '1',
           title: 'Alpha Script',
-          luaSource: 'return 1',
+          bundle: 'return 1',
           createdAt: now,
           updatedAt: now.subtract(const Duration(days: 3)),
           metadata: {},
@@ -204,7 +204,7 @@ void main() {
         final script2 = ScriptRecord(
           id: '2',
           title: 'Beta Script',
-          luaSource: 'return 2',
+          bundle: 'return 2',
           createdAt: now,
           updatedAt: now.subtract(const Duration(days: 1)),
           metadata: {},
@@ -213,7 +213,7 @@ void main() {
         final script3 = ScriptRecord(
           id: '3',
           title: 'Gamma Script',
-          luaSource: 'return 3',
+          bundle: 'return 3',
           createdAt: now,
           updatedAt: now,
           metadata: {},
@@ -302,7 +302,7 @@ void main() {
           title: 'Not Installed',
           description: '',
           category: 'Utilities',
-          luaSource: '',
+          bundle: '',
           createdAt: DateTime.now().toUtc(),
           updatedAt: DateTime.now().toUtc(),
         );
@@ -312,7 +312,7 @@ void main() {
           title: 'Also Not Installed',
           description: '',
           category: 'Utilities',
-          luaSource: '',
+          bundle: '',
           createdAt: DateTime.now().toUtc(),
           updatedAt: DateTime.now().toUtc(),
         );

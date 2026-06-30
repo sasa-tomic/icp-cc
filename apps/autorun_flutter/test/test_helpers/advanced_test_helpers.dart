@@ -7,7 +7,7 @@ import 'test_signature_utils.dart';
 class ScriptTestBuilder {
   String? _id;
   String? _title;
-  String? _luaSource;
+  String? _bundle;
   String? _description;
   String? _category;
   String? _authorName;
@@ -27,8 +27,8 @@ class ScriptTestBuilder {
     return this;
   }
 
-  ScriptTestBuilder withLuaSource(String luaSource) {
-    _luaSource = luaSource;
+  ScriptTestBuilder withBundle(String bundle) {
+    _bundle = bundle;
     return this;
   }
 
@@ -60,7 +60,7 @@ class ScriptTestBuilder {
 
   ScriptTestBuilder asEmpty() {
     return withTitle('')
-        .withLuaSource('')
+        .withBundle('')
         .withDescription('')
         .withCategory('')
         .withAuthor('')
@@ -69,7 +69,8 @@ class ScriptTestBuilder {
 
   ScriptTestBuilder withSpecialChars() {
     return withTitle('Special Chars Test 🚀')
-        .withLuaSource('print("Special chars: 🦄✨")\n-- Unicode: ñáéíóú\n-- Quotes: "test" and \'single\'')
+        .withBundle(
+            '// Special chars: 🦄✨\n// Unicode: ñáéíóú\n// Quotes: "test" and \'single\'')
         .withDescription('Testing special characters with signatures: ñoño 🎉')
         .withAuthor('Special Chars Author 🧪')
         .withMetadata({'tags': ['unicode', 'testing', 'español', '🎯']});
@@ -90,7 +91,7 @@ class ScriptTestBuilder {
     return ScriptRecord(
       id: _id ?? 'test-script-${DateTime.now().millisecondsSinceEpoch}',
       title: _title ?? 'Test Script',
-      luaSource: _luaSource ?? 'print("Test script")',
+      bundle: _bundle ?? 'globalThis.init=()=>({state:{},effects:[]});',
       createdAt: _createdAt ?? now,
       updatedAt: _updatedAt ?? now,
       metadata: {
@@ -109,7 +110,7 @@ class ScriptTestBuilder {
     return ScriptTestBuilder()
         .withId(original.id)
         .withTitle('Updated ${original.title}')
-        .withLuaSource('print("Updated: ${original.luaSource}")')
+        .withBundle('// Updated: ${original.bundle}')
         .withTimestamps(createdAt: original.createdAt, updatedAt: DateTime.now())
         .withMetadata(Map<String, dynamic>.from(original.metadata))
         .withDescription('Updated: ${original.metadata['description']}');

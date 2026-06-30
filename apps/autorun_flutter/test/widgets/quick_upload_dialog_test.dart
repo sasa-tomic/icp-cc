@@ -60,7 +60,7 @@ void main() {
                           context: context,
                           builder: (_) => QuickUploadDialog(
                             preFilledTitle: 'Prefilled Title',
-                            preFilledCode: '-- test script',
+                            preFilledCode: '// test script bundle',
                             profileController: profileController,
                             marketplaceService: marketplaceService,
                           ),
@@ -99,7 +99,7 @@ void main() {
           description: any(named: 'description'),
           category: any(named: 'category'),
           tags: any(named: 'tags'),
-          luaSource: any(named: 'luaSource'),
+          bundle: any(named: 'bundle'),
           price: any(named: 'price'),
           version: any(named: 'version'),
           canisterIds: any(named: 'canisterIds'),
@@ -119,7 +119,7 @@ void main() {
           category: 'Example',
           tags: const <String>[],
           authorId: keypair.id,
-          luaSource: '-- test script',
+          bundle: '// test script bundle',
           price: 0,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -149,7 +149,7 @@ void main() {
             description: any(named: 'description'),
             category: any(named: 'category'),
             tags: any(named: 'tags'),
-            luaSource: any(named: 'luaSource'),
+            bundle: any(named: 'bundle'),
             price: any(named: 'price'),
             version: any(named: 'version'),
             canisterIds: any(named: 'canisterIds'),
@@ -178,7 +178,7 @@ void main() {
           description: any(named: 'description'),
           category: any(named: 'category'),
           tags: any(named: 'tags'),
-          luaSource: any(named: 'luaSource'),
+          bundle: any(named: 'bundle'),
           price: any(named: 'price'),
           version: any(named: 'version'),
           canisterIds: any(named: 'canisterIds'),
@@ -201,7 +201,7 @@ void main() {
           authorPrincipal: PrincipalUtils.textFromRecord(keypair),
           authorPublicKey: keypair.publicKey,
           uploadSignature: 'dummy-signature',
-          luaSource: '-- test script',
+          bundle: '// test script bundle',
           price: 0,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -232,7 +232,7 @@ void main() {
           description: 'Short description',
           category: 'Example',
           tags: captureAny(named: 'tags'),
-          luaSource: '-- test script',
+          bundle: '// test script bundle',
           price: 0.0,
           version: '1.0.0',
           canisterIds: captureAny(named: 'canisterIds'),
@@ -286,22 +286,21 @@ void main() {
     });
 
     testWidgets(
-        'uses actual script.luaSource in code preview when ScriptRecord is passed',
+        'uses actual script.bundle in code preview when ScriptRecord is passed',
         (WidgetTester tester) async {
-      const String actualLuaSource = '''-- My Unique Script
--- This is custom code that should appear in preview
-function init()
-  return { custom = "data", unique = true }
-end
-
-function view(state)
-  return icp.message("Custom message from actual script!")
-end''';
+      const String actualBundle = '''// My Unique Script
+// This is custom code that should appear in preview
+"use strict";
+(() => {
+  globalThis.init = () => ({ state: { custom: "data", unique: true }, effects: [] });
+  globalThis.view = (_state) => ({ type: "text", props: { text: "Custom message from actual script!" } });
+  globalThis.update = (_m, state) => ({ state, effects: [] });
+})();''';
 
       final ScriptRecord script = ScriptRecord(
         id: 'test-script-1',
         title: 'Test Script',
-        luaSource: actualLuaSource,
+        bundle: actualBundle,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -350,22 +349,25 @@ end''';
       await tester.pumpAndSettle();
 
       final ScriptEditor editor = tester.widget(find.byType(ScriptEditor));
-      expect(editor.initialCode, equals(actualLuaSource),
+      expect(editor.initialCode, equals(actualBundle),
           reason:
-              'Code preview should show the actual script.luaSource, not generated code');
+              'Code preview should show the actual script.bundle, not generated code');
     });
 
-    testWidgets('uploads actual script.luaSource not generated code',
+    testWidgets('uploads actual script.bundle not generated code',
         (WidgetTester tester) async {
-      const String actualLuaSource = '''-- Unique Upload Test Script
-function init()
-  return { uploaded = true }
-end''';
+      const String actualBundle = '''// Unique Upload Test Script
+"use strict";
+(() => {
+  globalThis.init = () => ({ state: { count: 0 }, effects: [] });
+  globalThis.view = (state) => ({ type: "text", props: { text: "Count: " + (state.count ?? 0) } });
+  globalThis.update = (_m, state) => ({ state, effects: [] });
+})();''';
 
       final ScriptRecord script = ScriptRecord(
         id: 'test-script-2',
         title: 'Upload Test Script',
-        luaSource: actualLuaSource,
+        bundle: actualBundle,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -415,7 +417,7 @@ end''';
           description: any(named: 'description'),
           category: any(named: 'category'),
           tags: any(named: 'tags'),
-          luaSource: any(named: 'luaSource'),
+          bundle: any(named: 'bundle'),
           price: any(named: 'price'),
           version: any(named: 'version'),
           canisterIds: any(named: 'canisterIds'),
@@ -438,7 +440,7 @@ end''';
           authorPrincipal: PrincipalUtils.textFromRecord(keypair),
           authorPublicKey: keypair.publicKey,
           uploadSignature: 'dummy-signature',
-          luaSource: actualLuaSource,
+          bundle: actualBundle,
           price: 0,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -463,7 +465,7 @@ end''';
           description: 'Test description',
           category: 'Example',
           tags: any(named: 'tags'),
-          luaSource: actualLuaSource,
+          bundle: actualBundle,
           price: 0.0,
           version: '1.0.0',
           canisterIds: any(named: 'canisterIds'),

@@ -8,7 +8,7 @@ class ScriptTestData {
   static ScriptRecord createTestScript({
     String? id,
     String? title,
-    String? luaSource,
+    String? bundle,
     String? description,
     String? category,
     String? authorName,
@@ -18,7 +18,7 @@ class ScriptTestData {
     return ScriptRecord(
       id: id ?? 'test-script-${DateTime.now().millisecondsSinceEpoch}',
       title: title ?? 'Test Script',
-      luaSource: luaSource ?? 'print("Test script")',
+      bundle: bundle ?? 'globalThis.init=()=>({state:{},effects:[]});',
       createdAt: now,
       updatedAt: now,
       metadata: {
@@ -35,7 +35,7 @@ class ScriptTestData {
   static ScriptRecord createSpecialCharsScript() {
     return createTestScript(
       title: 'Special Chars Test 🚀',
-      luaSource: 'print("Special chars: 🦄✨")\n-- Unicode: ñáéíóú\n-- Quotes: "test" and \'single\'',
+      bundle: 'print("Special chars: 🦄✨")\n-- Unicode: ñáéíóú\n-- Quotes: "test" and \'single\'',
       description: 'Testing special characters with signatures: ñoño 🎉',
       authorName: 'Special Chars Author 🧪',
       additionalMetadata: {
@@ -49,7 +49,7 @@ class ScriptTestData {
     return ScriptRecord(
       id: 'empty-fields-${DateTime.now().millisecondsSinceEpoch}',
       title: '',
-      luaSource: '',
+      bundle: '',
       createdAt: now,
       updatedAt: now,
       metadata: {
@@ -68,7 +68,7 @@ class ScriptTestData {
     return ScriptRecord(
       id: originalId,
       title: 'Updated Title',
-      luaSource: 'print("Updated")',
+      bundle: 'print("Updated")',
       createdAt: originalCreatedAt,
       updatedAt: DateTime.now(),
       metadata: {

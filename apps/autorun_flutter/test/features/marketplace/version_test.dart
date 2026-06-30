@@ -61,7 +61,7 @@ void main() {
       final record = ScriptRecord(
         id: 'test-id',
         title: 'Test Script',
-        luaSource: 'print("hello")',
+        bundle: 'print("hello")',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         metadata: {
@@ -83,7 +83,7 @@ void main() {
       final record = ScriptRecord(
         id: 'test-id',
         title: 'Local Script',
-        luaSource: 'print("hello")',
+        bundle: 'print("hello")',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -123,7 +123,7 @@ void main() {
               'title': 'Test Script',
               'description': 'A test',
               'category': 'Test',
-              'lua_source': 'print("latest")',
+              'bundle': 'print("latest")',
               'version': '2.0.0',
               'price': 0,
               'is_public': true,
@@ -157,7 +157,7 @@ void main() {
               'title': 'Test Script',
               'description': 'A test',
               'category': 'Test',
-              'lua_source': 'print("version 1.5.0")',
+              'bundle': 'print("version 1.5.0")',
               'version': '1.5.0',
               'price': 0,
               'is_public': true,
@@ -274,7 +274,7 @@ void main() {
         'title': 'Test',
         'description': 'Test',
         'category': 'Test',
-        'lua_source': 'code',
+        'bundle': 'code',
         'version': '3.2.1',
         'created_at': '2025-01-01T00:00:00Z',
         'updated_at': '2025-01-01T00:00:00Z',
@@ -290,7 +290,7 @@ void main() {
         'title': 'Test',
         'description': 'Test',
         'category': 'Test',
-        'lua_source': 'code',
+        'bundle': 'code',
         'created_at': '2025-01-01T00:00:00Z',
         'updated_at': '2025-01-01T00:00:00Z',
       };

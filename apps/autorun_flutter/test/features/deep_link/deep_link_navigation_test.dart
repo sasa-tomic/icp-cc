@@ -21,7 +21,7 @@ void main() {
         rating: 4.5,
         reviewCount: 10,
         verifiedReviewCount: 8,
-        luaSource: 'print("Hello")',
+        bundle: 'print("Hello")',
         canisterIds: [],
         isPublic: true,
         createdAt: DateTime.now(),

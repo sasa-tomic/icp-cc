@@ -24,7 +24,7 @@ void main() {
 
       expect(
         find.text(
-            'Create and run Lua scripts that interact with ICP canisters'),
+            'Create and run TypeScript scripts that interact with ICP canisters'),
         findsOneWidget,
       );
       expect(

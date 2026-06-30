@@ -29,7 +29,7 @@ void main() {
     // Check that the new Canister Call Builder is present
     expect(find.text('Canister Call Builder'), findsOneWidget);
     expect(find.text('Build canister method calls with a visual interface'), findsOneWidget);
-    expect(find.text('Lua Helper Functions'), findsOneWidget);
+    expect(find.text('SDK Helper Functions'), findsOneWidget);
 
     // Count total integration items (should be 4 original + 1 new button = 5 total visible items)
     final integrationItems = find.byType(ListTile);

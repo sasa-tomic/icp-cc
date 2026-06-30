@@ -106,7 +106,7 @@ class PoemScriptRepository extends ScriptRepository {
       title: script.title,
       description: script.metadata['description'] ?? '',
       category: script.metadata['category'] ?? 'Development',
-      luaSource: script.luaSource,
+      bundle: script.bundle,
       version: (script.metadata['version'] ?? '1.0.0').toString(),
       tags: (script.metadata['tags'] as List<dynamic>? ?? const [])
           .map((tag) => tag.toString())
@@ -122,7 +122,7 @@ class PoemScriptRepository extends ScriptRepository {
       'tags': (script.metadata['tags'] as List<dynamic>? ?? const [])
           .map((tag) => tag.toString())
           .toList(),
-      'lua_source': script.luaSource,
+      'bundle': script.bundle,
       'author_name': script.metadata['authorName'] ?? 'Anonymous',
       'author_id': script.metadata['authorId'] ?? 'test-author-id',
       'author_principal': principal,
@@ -151,7 +151,7 @@ class PoemScriptRepository extends ScriptRepository {
     return ScriptRecord(
       id: id.toString(),
       title: title.toString(),
-      luaSource: json['lua_source']?.toString() ?? '',
+      bundle: json['bundle']?.toString() ?? '',
       metadata: {
         'description': json['description']?.toString() ?? '',
         'category': json['category']?.toString() ?? 'Development',
@@ -467,7 +467,7 @@ class PoemScriptRepository extends ScriptRepository {
           'title': script.title,
           'description': script.metadata['description'] ?? '',
           'category': script.metadata['category'] ?? 'Development',
-          'lua_source': script.luaSource,
+          'bundle': script.bundle,
           'tags': (script.metadata['tags'] as List<dynamic>? ?? const [])
               .map((tag) => tag.toString())
               .toList(),

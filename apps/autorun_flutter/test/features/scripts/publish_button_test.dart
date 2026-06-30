@@ -12,7 +12,7 @@ void main() {
         id: 'local-1',
         title: 'My Local Script',
         emoji: '📜',
-        luaSource: 'return 1',
+        bundle: 'return 1',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -21,7 +21,7 @@ void main() {
       marketplaceScript = ScriptRecord(
         id: 'mp-1',
         title: 'Downloaded Script',
-        luaSource: 'return 2',
+        bundle: 'return 2',
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {

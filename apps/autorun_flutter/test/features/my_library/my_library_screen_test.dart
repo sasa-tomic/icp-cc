@@ -155,7 +155,7 @@ void main() {
           ScriptRecord(
             id: 'local-1',
             title: 'My Local Script',
-            luaSource: 'print("hello")',
+            bundle: 'print("hello")',
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           ),
@@ -171,14 +171,14 @@ void main() {
           ScriptRecord(
             id: 'local-1',
             title: 'Script 1',
-            luaSource: 'print("1")',
+            bundle: 'print("1")',
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           ),
           ScriptRecord(
             id: 'local-2',
             title: 'Script 2',
-            luaSource: 'print("2")',
+            bundle: 'print("2")',
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           ),
@@ -249,7 +249,7 @@ void main() {
           ScriptRecord(
             id: 'local-1',
             title: 'Executed Script',
-            luaSource: 'print("hello")',
+            bundle: 'print("hello")',
             createdAt: DateTime.now().subtract(const Duration(days: 1)),
             updatedAt: DateTime.now(),
             lastRunAt: DateTime.now(),

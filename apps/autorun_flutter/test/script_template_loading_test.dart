@@ -18,15 +18,15 @@ void main() {
     expect(() => ScriptTemplates.templates, throwsStateError);
   });
 
-  test('ScriptTemplates.ensureInitialized loads Lua sources from bundled assets', () async {
+  test('ScriptTemplates.ensureInitialized loads TS bundles from bundled assets', () async {
     ScriptTemplates.resetForTest();
     await ScriptTemplates.ensureInitialized();
 
     final template = ScriptTemplates.getById('hello_world');
     expect(template, isNotNull, reason: 'hello_world template must be available after initialization');
 
-    final expected = File('lib/examples/01_hello_world.lua').readAsStringSync();
-    expect(template!.luaSource, expected, reason: 'Template must mirror the actual Lua asset contents');
+    final expected = File('lib/examples/01_hello_world.js').readAsStringSync();
+    expect(template!.bundle, expected, reason: 'Template must mirror the actual TS bundle asset contents');
   });
 
   test('ScriptTemplate.load surfaces bundle failures immediately', () async {
@@ -37,7 +37,7 @@ void main() {
       emoji: '❌',
       level: 'beginner',
       tags: const ['test'],
-      filePath: 'lib/examples/missing_template.lua',
+      filePath: 'lib/examples/missing_template.js',
     );
 
     final bundle = _ThrowingAssetBundle();
@@ -48,7 +48,7 @@ void main() {
         isA<StateError>().having(
           (err) => err.toString(),
           'message',
-          contains('Failed to load Lua template asset'),
+          contains('Failed to load template asset'),
         ),
       ),
     );

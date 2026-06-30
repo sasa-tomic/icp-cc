@@ -14,7 +14,7 @@ void main() {
           id: 'script-1',
           title: 'Test Script 1',
           emoji: '📜',
-          luaSource: 'print("hello 1")',
+          bundle: 'print("hello 1")',
           createdAt: DateTime.now().toUtc(),
           updatedAt: DateTime.now().toUtc(),
           metadata: {'marketplace_id': 'mp-1'},
@@ -23,7 +23,7 @@ void main() {
           id: 'script-2',
           title: 'Test Script 2',
           emoji: '📦',
-          luaSource: 'print("hello 2")',
+          bundle: 'print("hello 2")',
           createdAt: DateTime.now().toUtc(),
           updatedAt: DateTime.now().toUtc(),
           metadata: {},
@@ -32,7 +32,7 @@ void main() {
           id: 'script-3',
           title: 'Test Script 3',
           emoji: '⚡',
-          luaSource: 'print("hello 3")',
+          bundle: 'print("hello 3")',
           createdAt: DateTime.now().toUtc(),
           updatedAt: DateTime.now().toUtc(),
           metadata: {},
@@ -227,7 +227,7 @@ void main() {
         expect(exportedScript['id'], equals(script.id));
         expect(exportedScript['title'], equals(script.title));
         expect(exportedScript['emoji'], equals(script.emoji));
-        expect(exportedScript['luaSource'], equals(script.luaSource));
+        expect(exportedScript['bundle'], equals(script.bundle));
         expect(exportedScript['metadata'], isNotNull);
       });
 
@@ -305,8 +305,8 @@ void main() {
         for (int i = 0; i < originalScripts.length; i++) {
           expect(importedScripts[i].id, equals(originalScripts[i].id));
           expect(importedScripts[i].title, equals(originalScripts[i].title));
-          expect(importedScripts[i].luaSource,
-              equals(originalScripts[i].luaSource));
+          expect(importedScripts[i].bundle,
+              equals(originalScripts[i].bundle));
         }
       });
     });

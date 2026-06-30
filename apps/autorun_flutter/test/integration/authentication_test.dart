@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import '../test_helpers/unified_authentication_helper.dart';
 import '../test_helpers/unified_test_builder.dart';
@@ -76,7 +79,7 @@ void main() {
             .withTitle('Fluent Builder Test')
             .withDescription('Testing fluent builder pattern')
             .withAuthor('Fluent Builder Author')
-            .withLuaSource('print("Fluent builder works!")')
+            .withBundle('print("Fluent builder works!")')
             .withMetadata({'category': 'Testing', 'tags': ['fluent', 'builder']})
             .build();
 
@@ -129,7 +132,7 @@ void main() {
         final longContent = 'print("${'A' * 1000}")';
         final longScript = UnifiedScriptTestBuilder.create()
             .withTitle('Long Content Test')
-            .withLuaSource(longContent)
+            .withBundle(longContent)
             .withDescription('A' * 500)
             .build();
 
