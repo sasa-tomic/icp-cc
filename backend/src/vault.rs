@@ -1,6 +1,10 @@
-//! Vault encryption utilities (Argon2id KDF + AES-GCM)
+//! Vault encryption utilities (Argon2id KDF + AES-GCM).
 //!
-//! Per PASSKEY_IMPLEMENTATION_PLAN.md:
+//! The backend is zero-knowledge: it only ever *encrypts* vault data and stores
+//! the opaque ciphertext + salt + nonce. Decryption happens client-side (the
+//! holder of the password), so no decrypt path exists server-side.
+//!
+//! Parameters (Bitwarden-level):
 //! - Argon2id: time=3, memory=64MB, parallelism=4, output=32 bytes
 //! - AES-GCM: key=256 bits, nonce=96 bits
 
@@ -83,18 +87,6 @@ pub fn encrypt_vault(password: &str, plaintext: &[u8]) -> Result<EncryptedVault,
     })
 }
 
-/// Decrypts AES-256-GCM encrypted data using a password-derived key
-pub fn decrypt_vault(password: &str, vault: &EncryptedVault) -> Result<Vec<u8>, String> {
-    let key = derive_key(password, &vault.salt)?;
-    let cipher =
-        Aes256Gcm::new_from_slice(&key).map_err(|e| format!("Cipher init failed: {}", e))?;
-
-    let nonce = Nonce::from_slice(&vault.nonce);
-    cipher
-        .decrypt(nonce, vault.encrypted_data.as_ref())
-        .map_err(|_| "Decryption failed: invalid password or corrupted data".to_string())
-}
-
 // ============================================================================
 // Recovery Codes
 // ============================================================================
@@ -148,42 +140,6 @@ pub fn verify_recovery_code(code: &str, hash: &str) -> Result<bool, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_encrypt_decrypt_roundtrip() {
-        let password = "test-password-123";
-        let plaintext = b"secret vault data";
-
-        let vault = encrypt_vault(password, plaintext).expect("encryption should succeed");
-        let decrypted = decrypt_vault(password, &vault).expect("decryption should succeed");
-
-        assert_eq!(decrypted, plaintext);
-    }
-
-    #[test]
-    fn test_wrong_password_fails() {
-        let password = "correct-password";
-        let wrong_password = "wrong-password";
-        let plaintext = b"secret data";
-
-        let vault = encrypt_vault(password, plaintext).expect("encryption should succeed");
-        let result = decrypt_vault(wrong_password, &vault);
-
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("invalid password"));
-    }
-
-    #[test]
-    fn test_corrupted_data_fails() {
-        let password = "test-password";
-        let plaintext = b"secret data";
-
-        let mut vault = encrypt_vault(password, plaintext).expect("encryption should succeed");
-        vault.encrypted_data[0] ^= 0xFF; // Corrupt first byte
-
-        let result = decrypt_vault(password, &vault);
-        assert!(result.is_err());
-    }
 
     #[test]
     fn test_unique_salt_per_encryption() {
