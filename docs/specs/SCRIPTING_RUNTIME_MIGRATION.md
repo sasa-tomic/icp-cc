@@ -1,9 +1,15 @@
 # Marketplace Scripting Runtime — Migration to TypeScript + QuickJS
 
-- **Status:** Accepted — Primary High-Priority Objective
-- **Date:** 2026-06-28
+- **Status:** DONE — Phase 4 (Lua sunset) complete on 2026-06-30
+- **Date:** 2026-06-28 (decision); 2026-06-30 (sunset delivered)
 - **Type:** Decision + Plan (ADR-style)
 - **Owners:** Marketplace / Platform team
+
+> **Phase 4 delivered.** The Lua runtime has been fully removed; TypeScript/QuickJS is
+> the single scripting runtime (see `docs/specs/CLEANUP_PLAN.md` WU-1..WU-10 for the
+> execution record). This document is retained as the ADR history. The §12 G5
+> dual-runtime deprecation timeline was **collapsed to a direct sunset** (greenfield
+> project — no backward compatibility, no Lua corpus to wind down).
 
 ---
 
@@ -83,7 +89,7 @@ The bundle artifact is host-language-agnostic: loads in Go (`quickjs-go`), Rust 
 - **Phase 1 — SDK + Tooling:** typed SDK package, scaffold CLI, Vitest-QuickJS harness, esbuild + lint rules (no Node built-ins).
 - **Phase 2 — Parity Hardening:** Intl/SDK-drift controls, dependency allowlist, CI parity gate (local QuickJS == prod QuickJS).
 - **Phase 3 — Migration:** onboard pilot scripts; AI-assisted Lua → TS rewrites; publish a Lua deprecation timeline.
-- **Phase 4 — GA / Lua sunset:** TS-only marketplace authoring.
+- **Phase 4 — GA / Lua sunset:** TS-only marketplace authoring. **DONE (2026-06-30)** — the Lua runtime was removed entirely; only TS/QuickJS bundles execute.
 
 ## 10. Success Criteria
 
@@ -116,16 +122,20 @@ Marketplace scripts MUST NOT call `Intl.*` (`Intl.DateTimeFormat`, `Intl.NumberF
 - **Clippy gate:** `cargo clippy --workspace --all-targets -- -D warnings` (i.e. `clippy::all` at deny-on-warning). This is the required-green gate.
 - **Pedantic is intentionally NOT enforced.** Adding `#![warn(clippy::pedantic)]` would surface an estimated 200–500 lints across unrelated pre-existing backend crates (`crates/**`), which is out of scope for the scripting migration and would derail the gate. Pedantic will be considered only as part of a dedicated, workspace-wide cleanup phase. Do NOT add the pedantic lint as a drive-by.
 
-### Lua deprecation timeline (G5) — PROPOSED, pending product sign-off
+### Lua deprecation timeline (G5) — SUPERSEDED (collapsed to direct sunset)
 
-A dual-runtime deprecation path, proposed (not yet committed) pending product/PM sign-off:
+A dual-runtime deprecation path was *proposed* here (write-disabled → read-only →
+sunset across releases N+2..N+4). It was **never adopted**: the project is greenfield
+with no backward-compatibility obligation and no production Lua corpus to wind down, so
+the timeline was collapsed to a **direct sunset** delivered in Phase 4 (2026-06-30).
+Kept for ADR history.
 
 - **Release N (current):** TS is the primary authoring path; Lua still fully supported (create/edit/run).
 - **Release N+2:** Lua becomes **write-disabled** — existing Lua scripts run, but creating/editing Lua scripts is blocked in the UI; TS is the only authoring path for new/changed scripts.
 - **Release N+3:** Lua becomes **read-only** — existing Lua scripts continue to run, but no new Lua scripts can be registered at all.
 - **Release N+4:** **Lua sunset** — the Lua runtime is removed from the host; only TS/QuickJS bundles execute.
 
-> Status: PROPOSED. Concrete release numbers to be assigned once product confirms the migration telemetry from the Phase 3 pilot.
+> Status: SUPERSEDED — see the note above. The N+2..N+4 staging was not enacted.
 
 ### `cargo fmt` gate scope
 

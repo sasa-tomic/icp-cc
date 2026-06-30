@@ -17,7 +17,7 @@
 │         │                │                │                │            │
 │  ┌──────▼────────────────▼────────────────▼────────────────▼──────┐    │
 │  │                     RUST FFI BRIDGE                             │    │
-│  │  libicp_core.so: crypto, ICP calls, Lua runtime, Candid parse  │    │
+│  │  libicp_core.so: crypto, ICP calls, TS/QuickJS runtime, Candid │    │
 │  └────────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -67,11 +67,11 @@ User fills upload form
 ### 3. Script Execution Flow
 ```
 User runs script
-    → ScriptRunner.execute(luaSource, input)
-    → Rust FFI: icp_lua_exec()
+    → ScriptRunner.execute(bundle, input)
+    → Rust FFI: icp_js_exec()
     → Effects returned (icp_call, icp_batch)
     → Host executes effects via Rust FFI
-    → Results injected back to Lua
+    → Results injected back to the bundle
     → UI rendered via UiV1Renderer
 ```
 
@@ -121,7 +121,7 @@ test/
 │   │   └── download_script_test.dart
 │   ├── scripts/
 │   │   ├── execute_test.dart
-│   │   └── lua_effects_test.dart
+│   │   └── one_tap_execution_test.dart
 │   ├── profile/
 │   │   ├── create_profile_test.dart
 │   │   ├── manage_keypairs_test.dart

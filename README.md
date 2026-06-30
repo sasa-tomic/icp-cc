@@ -40,7 +40,7 @@ just test                       # Full suite (Rust + Flutter)
 test/
 ├── features/
 │   ├── marketplace/        # Browse, upload, download scripts
-│   ├── scripts/            # Lua execution, effects, UI
+│   ├── scripts/            # TS execution, effects, UI
 │   ├── profile/            # Profiles, keypairs, accounts
 │   └── passkey/            # Passkey authentication
 └── shared/                 # Test helpers (keypairs, signatures)
@@ -59,7 +59,7 @@ apps/autorun_flutter/     # Flutter application
 ├── test/
 │   ├── features/          # E2E tests by feature
 │   └── shared/            # Test utilities
-crates/icp_core/           # Rust FFI library (crypto, Lua, ICP)
+crates/icp_core/           # Rust FFI library (crypto, TS/QuickJS, ICP)
 backend/                   # Poem-based API server
 docs/                      # Architecture documentation
 ```

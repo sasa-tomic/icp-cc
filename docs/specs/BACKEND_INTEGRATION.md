@@ -25,7 +25,8 @@
 │  RUST FFI BRIDGE (Native)                                       │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │  libicp_core.so/.dylib/.dll                              │   │
-│  │  - Keypair generation, signing, ICP calls, Lua runtime   │   │
+│  │  - Keypair generation, signing, ICP calls, TS/QuickJS    │   │
+│  │    runtime, Candid parse                                 │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -106,7 +107,8 @@ All authenticated requests include:
 | Message Signing | `icp_sign_message` |
 | Candid Interface | `icp_fetch_candid`, `icp_parse_candid` |
 | Canister Calls | `icp_call_anonymous`, `icp_call_authenticated` |
-| Lua Execution | `icp_lua_exec`, `icp_lua_lint` |
+| Script Execution | `icp_js_exec`, `icp_js_lint`, `icp_js_validate_comprehensive` |
+| App Lifecycle | `icp_js_app_init`, `icp_js_app_view`, `icp_js_app_update` |
 
 ---
 

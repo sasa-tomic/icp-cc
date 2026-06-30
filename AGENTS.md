@@ -153,7 +153,7 @@ Profile (Local + Backend)
 |---------|-----------|-----------|
 | Marketplace | `lib/screens/scripts_screen.dart` | service: `marketplace_open_api_service.dart`, model: `marketplace_script.dart` |
 | Script Upload | `lib/screens/script_upload_screen.dart` | service: `script_signature_service.dart` |
-| Script Execution | `lib/services/script_runner.dart` | FFI: `lib/rust/native_bridge.dart` |
+| Script Execution | `lib/services/script_runner.dart` | engine: QuickJS via FFI (`lib/rust/native_bridge.dart`); runtime in `crates/icp_core/src/js_engine.rs` |
 | Profile | `lib/controllers/profile_controller.dart` | repo: `profile_repository.dart`, model: `profile.dart` |
 | Account | `lib/controllers/account_controller.dart` | service: `account_signature_service.dart` |
 | Passkey | `lib/screens/passkey_management_screen.dart` | service: `passkey_service.dart`, platform: `utils/passkey_platform.dart` |
@@ -165,7 +165,7 @@ Profile (Local + Backend)
 ```bash
 # Quick verification (use constantly)
 just test-feature marketplace   # Marketplace browse/upload/download
-just test-feature scripts       # Script execution, Lua runtime
+just test-feature scripts       # Script execution, TS/QuickJS runtime
 just test-feature profile       # Profile/account management
 
 # Full suite (before committing)
@@ -176,6 +176,18 @@ cd apps/autorun_flutter && flutter test test/features/marketplace/browse_test.da
 ```
 
 ---
+
+## Passkey + Vault Architecture
+
+- **Hybrid auth**: passkey for phishing-resistant login + a separate vault password
+  for credential encryption (zero-knowledge: the server only ever *encrypts* the
+  vault and stores opaque ciphertext; decryption is client-side).
+- **Loss isolation**: losing a passkey ≠ losing data (recovery codes reset the vault
+  password). Pure-passkey PRF encryption was rejected (platform fragmentation,
+  irreversible data-loss risk).
+- **Crypto params** (Bitwarden-level): Argon2id (time=3, memory=64 MB, parallelism=4,
+  32-byte output) + AES-256-GCM. Backend code: `backend/src/vault.rs`;
+- API endpoints: `/api/v1/passkey/*` and `/api/v1/vault` (`create`/`get`/`update`).
 
 ## Passkey Testing on Linux
 
