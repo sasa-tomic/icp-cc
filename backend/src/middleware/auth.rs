@@ -206,8 +206,6 @@ pub fn build_canonical_update_payload(
     Ok(serde_json::Value::Object(payload))
 }
 
-/// Verifies script update signature (used in tests)
-#[cfg(test)]
 pub fn verify_script_update_signature(
     req: &UpdateScriptRequest,
     script_id: &str,

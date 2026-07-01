@@ -1,17 +1,12 @@
-mod auth;
-mod cleanup;
-mod db;
-mod middleware;
-mod models;
-mod repositories;
-mod responses;
-mod services;
-mod vault;
-
-#[cfg(test)]
-use auth::create_canonical_payload;
-
-use models::*;
+use icp_marketplace_api::{
+    cleanup, db, middleware,
+    models::{self, *},
+    responses::error_response,
+    services::{
+        AccountService, PasskeyAuthenticationFinish, PasskeyRegistrationFinish, PasskeyService,
+        ReviewService, ScriptService,
+    },
+};
 use poem::{
     delete, get, handler,
     http::StatusCode,
@@ -21,296 +16,8 @@ use poem::{
     web::{Data, Json, Path, Query},
     EndpointExt, IntoResponse, Response, Route, Server,
 };
-use responses::error_response;
-use services::{
-    AccountService, PasskeyAuthenticationFinish, PasskeyRegistrationFinish, PasskeyService,
-    ReviewService, ScriptService,
-};
 use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
-
-#[cfg(test)]
-async fn run_marketplace_search(
-    pool: &SqlitePool,
-    request: &SearchRequest,
-) -> Result<SearchResultPayload, (StatusCode, String)> {
-    if request.canister_id.is_some() {
-        tracing::debug!("Ignoring canister_id filter; backend does not support it yet");
-    }
-
-    let limit = request.limit.unwrap_or(20);
-    if limit <= 0 || limit > 100 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "limit must be between 1 and 100".to_string(),
-        ));
-    }
-
-    let offset = request.offset.unwrap_or(0);
-    if offset < 0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "offset must be zero or greater".to_string(),
-        ));
-    }
-
-    let sort_field = request.sort_by.as_deref().unwrap_or("createdAt");
-    let sort_column = match sort_field {
-        "createdAt" => "scripts.created_at",
-        "rating" => "scripts.rating",
-        "downloads" => "scripts.downloads",
-        "price" => "scripts.price",
-        "title" => "scripts.title",
-        _ => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "unsupported sort field".to_string(),
-            ));
-        }
-    };
-
-    let sort_order_raw = request.sort_order.as_deref().unwrap_or("desc");
-    let sort_order = match sort_order_raw.to_ascii_lowercase().as_str() {
-        "asc" => "ASC",
-        "desc" => "DESC",
-        _ => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "order must be 'asc' or 'desc'".to_string(),
-            ));
-        }
-    };
-
-    #[derive(Clone)]
-    enum BindValue {
-        Text(String),
-        Float(f64),
-        Integer(i64),
-        Bool(bool),
-    }
-
-    let mut conditions: Vec<String> = Vec::new();
-    let mut condition_binds: Vec<BindValue> = Vec::new();
-
-    conditions.push("scripts.is_public = ?".to_string());
-    condition_binds.push(BindValue::Bool(true));
-
-    if let Some(query) = request
-        .query
-        .as_ref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-    {
-        let like_pattern = format!("%{}%", query);
-        conditions.push(
-            "(scripts.title LIKE ? OR scripts.description LIKE ? OR scripts.category LIKE ?)"
-                .to_string(),
-        );
-        condition_binds.push(BindValue::Text(like_pattern.clone()));
-        condition_binds.push(BindValue::Text(like_pattern.clone()));
-        condition_binds.push(BindValue::Text(like_pattern));
-    }
-
-    if let Some(category) = request
-        .category
-        .as_ref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-    {
-        conditions.push("scripts.category = ?".to_string());
-        condition_binds.push(BindValue::Text(category.to_string()));
-    }
-
-    if let Some(min_rating) = request.min_rating {
-        conditions.push("scripts.rating >= ?".to_string());
-        condition_binds.push(BindValue::Float(min_rating));
-    }
-
-    if let Some(max_price) = request.max_price {
-        conditions.push("scripts.price <= ?".to_string());
-        condition_binds.push(BindValue::Float(max_price));
-    }
-
-    let mut where_clause = String::new();
-    if !conditions.is_empty() {
-        where_clause.push_str(" WHERE ");
-        where_clause.push_str(&conditions.join(" AND "));
-    }
-
-    let search_sql = format!(
-        "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id{} ORDER BY {} {} LIMIT ? OFFSET ?",
-        SCRIPT_COLUMNS_WITH_ACCOUNT, where_clause, sort_column, sort_order
-    );
-
-    let count_sql = format!("SELECT COUNT(*) FROM scripts{}", where_clause);
-
-    let mut search_binds = condition_binds.clone();
-    search_binds.push(BindValue::Integer(limit));
-    search_binds.push(BindValue::Integer(offset));
-
-    let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql);
-    for value in &condition_binds {
-        count_query = match value {
-            BindValue::Text(val) => count_query.bind(val),
-            BindValue::Float(val) => count_query.bind(val),
-            BindValue::Integer(val) => count_query.bind(val),
-            BindValue::Bool(val) => count_query.bind(*val),
-        };
-    }
-
-    let total = count_query.fetch_one(pool).await.map_err(|e| {
-        tracing::error!("Failed to count scripts: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to execute search".to_string(),
-        )
-    })?;
-
-    let mut query = sqlx::query_as::<_, Script>(&search_sql);
-    for value in &search_binds {
-        query = match value {
-            BindValue::Text(val) => query.bind(val),
-            BindValue::Float(val) => query.bind(val),
-            BindValue::Integer(val) => query.bind(*val),
-            BindValue::Bool(val) => query.bind(*val),
-        };
-    }
-
-    let scripts = query.fetch_all(pool).await.map_err(|e| {
-        tracing::error!("Failed to search scripts: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to execute search".to_string(),
-        )
-    })?;
-
-    Ok(SearchResultPayload {
-        scripts,
-        total,
-        limit,
-        offset,
-    })
-}
-
-#[cfg(test)]
-mod signature_tests {
-    use super::*;
-    use ed25519_dalek::{Signer, SigningKey};
-
-    /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
-    fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
-        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
-        // Standard Ed25519: sign message directly (RFC 8032)
-        // The algorithm does SHA-512 internally as part of the signature process
-        let signature = signing_key.sign(canonical_json.as_bytes());
-
-        // Return base64-encoded signature and public key (matches Flutter app format)
-        let signature_b64 = B64.encode(signature.to_bytes());
-        let public_key_b64 = B64.encode(signing_key.verifying_key().as_bytes());
-
-        (signature_b64, public_key_b64)
-    }
-
-    #[test]
-    fn dart_generated_update_signature_verifies() {
-        let secret_key_bytes = [11u8; 32];
-        let signing_key = SigningKey::from_bytes(&secret_key_bytes);
-
-        let canonical_payload = serde_json::json!({
-            "action": "update",
-            "script_id": "41935708-8561-4424-a42f-cba44e26785a",
-            "timestamp": "2025-11-06T13:36:31.766449Z",
-            "author_principal": "yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae",
-            "title": "Updated Title",
-            "description": "Test script for unit testing",
-            "category": "Testing",
-            "bundle": "function init(arg)\n  return { message = \"Hello from test script!\" }, {}\nend\n\nfunction view(state)\n  return { type = \"text\", text = state.message }\nend\n\nfunction update(msg, state)\n  if msg.type == \"test\" then\n    state.message = \"Updated!\"\n  end\n  return state, {}\nend",
-            "version": "2.0.0",
-            "price": 0.0,
-            "is_public": true,
-            "tags": ["test", "unit"]
-        });
-
-        let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
-
-        let mut request_payload = canonical_payload
-            .as_object()
-            .expect("canonical payload must be an object")
-            .clone();
-        request_payload.insert(
-            "author_public_key".to_string(),
-            serde_json::Value::String(public_key_b64),
-        );
-        request_payload.insert(
-            "signature".to_string(),
-            serde_json::Value::String(signature_b64),
-        );
-
-        let req: UpdateScriptRequest =
-            serde_json::from_value(serde_json::Value::Object(request_payload))
-                .expect("valid canonical update request");
-
-        assert!(
-            middleware::auth::verify_script_update_signature(
-                &req,
-                "41935708-8561-4424-a42f-cba44e26785a"
-            )
-            .is_ok(),
-            "Expected canonical payload signature to verify successfully"
-        );
-    }
-
-    #[test]
-    fn verify_update_signature_allows_extra_fields_without_affecting_signature() {
-        let secret_key_bytes = [7u8; 32];
-        let signing_key = SigningKey::from_bytes(&secret_key_bytes);
-
-        let canonical_payload = serde_json::json!({
-            "action": "update",
-            "script_id": "script-123",
-            "timestamp": "2024-01-01T00:00:00Z",
-            "author_principal": "principal-1",
-            "title": "Title",
-            "description": "Desc",
-            "category": "Utility",
-            "bundle": "-- body",
-            "tags": ["alpha", "beta"],
-            "version": "1.0.0",
-            "price": 1.5,
-            "is_public": true
-        });
-
-        let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
-
-        let mut request_payload = canonical_payload
-            .as_object()
-            .expect("canonical payload must be an object")
-            .clone();
-        request_payload.insert(
-            "author_public_key".to_string(),
-            serde_json::Value::String(public_key_b64),
-        );
-        request_payload.insert(
-            "signature".to_string(),
-            serde_json::Value::String(signature_b64),
-        );
-        request_payload.insert(
-            "extra_field".to_string(),
-            serde_json::Value::String("should-be-ignored".to_string()),
-        );
-
-        let request: UpdateScriptRequest =
-            serde_json::from_value(serde_json::Value::Object(request_payload))
-                .expect("valid update request json");
-
-        assert!(
-            middleware::auth::verify_script_update_signature(&request, "script-123").is_ok(),
-            "extra fields outside canonical payload must not affect signature verification"
-        );
-    }
-}
 
 fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
@@ -572,11 +279,6 @@ async fn get_marketplace_stats(Data(state): Data<&Arc<AppState>>) -> Response {
             )
         }
     }
-}
-
-#[cfg(test)]
-fn resolve_script_visibility(flag: Option<bool>) -> bool {
-    flag.unwrap_or(true)
 }
 
 #[handler]
@@ -1626,35 +1328,33 @@ async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
         );
     }
 
-    let reset_scripts = sqlx::query("DELETE FROM scripts")
+    if let Err(e) = sqlx::query("DELETE FROM scripts")
         .execute(&state.pool)
-        .await;
-
-    let reset_reviews = sqlx::query("DELETE FROM reviews")
-        .execute(&state.pool)
-        .await;
-
-    if reset_scripts.is_ok() && reset_reviews.is_ok() {
-        Json(serde_json::json!({
-            "success": true,
-            "message": "Database reset successfully"
-        }))
-        .into_response()
-    } else {
-        tracing::error!(
-            "Failed to reset database: scripts={:?}, reviews={:?}",
-            reset_scripts.err(),
-            reset_reviews.err()
-        );
-        (
+        .await
+    {
+        tracing::error!("Failed to reset scripts table: {}", e);
+        return error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Failed to reset database"
-            })),
-        )
-            .into_response()
+            "Failed to reset database",
+        );
     }
+
+    if let Err(e) = sqlx::query("DELETE FROM reviews")
+        .execute(&state.pool)
+        .await
+    {
+        tracing::error!("Failed to reset reviews table: {}", e);
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to reset database",
+        );
+    }
+
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Database reset successfully"
+    }))
+    .into_response()
 }
 
 #[tokio::main]
@@ -1719,6 +1419,57 @@ async fn main() -> Result<(), std::io::Error> {
         pool,
     });
 
+    // ========================================================================
+    // Route map — every public API route wired below, grouped by resource.
+    // Keep this in sync with the `.at(...)` chain. (Admin routes wear AdminAuth.)
+    // ------------------------------------------------------------------------
+    // Health & misc
+    //   GET    /api/v1/health                         -> health_check
+    //   GET    /api/v1/ping                           -> ping
+    //   GET    /api/v1/marketplace-stats              -> get_marketplace_stats
+    //   POST   /api/v1/update-script-stats            -> update_script_stats
+    //   POST   /api/dev/reset-database                -> reset_database (dev only)
+    // Scripts
+    //   GET    /api/v1/scripts                        -> get_scripts
+    //   POST   /api/v1/scripts                        -> create_script
+    //   GET    /api/v1/scripts/count                  -> get_scripts_count
+    //   POST   /api/v1/scripts/search                 -> search_scripts
+    //   GET    /api/v1/scripts/trending               -> get_trending_scripts
+    //   GET    /api/v1/scripts/featured               -> get_featured_scripts
+    //   GET    /api/v1/scripts/compatible             -> get_compatible_scripts
+    //   GET    /api/v1/scripts/category/:category     -> get_scripts_by_category
+    //   GET    /api/v1/scripts/:id                    -> get_script
+    //   PUT    /api/v1/scripts/:id                    -> update_script
+    //   DELETE /api/v1/scripts/:id                    -> delete_script
+    //   POST   /api/v1/scripts/:id/publish            -> publish_script
+    //   GET    /api/v1/scripts/:id/reviews            -> get_reviews
+    //   POST   /api/v1/scripts/:id/reviews            -> create_review
+    // Accounts
+    //   POST   /api/v1/accounts                       -> register_account
+    //   GET    /api/v1/accounts/:username             -> get_account
+    //   PATCH  /api/v1/accounts/:username             -> update_account
+    //   GET    /api/v1/accounts/by-public-key/:pubkey -> get_account_by_public_key
+    //   POST   /api/v1/accounts/:username/keys        -> add_account_key
+    //   DELETE /api/v1/accounts/:username/keys/:key_id-> remove_account_key
+    // Passkeys
+    //   POST   /api/v1/passkey/register/start         -> passkey_register_start
+    //   POST   /api/v1/passkey/register/finish        -> passkey_register_finish
+    //   POST   /api/v1/passkey/authenticate/start     -> passkey_authenticate_start
+    //   POST   /api/v1/passkey/authenticate/finish    -> passkey_authenticate_finish
+    //   GET    /api/v1/passkey/list/:account_id       -> passkey_list
+    //   DELETE /api/v1/passkey/:passkey_id            -> passkey_delete
+    // Vault
+    //   POST   /api/v1/vault                          -> vault_create
+    //   GET    /api/v1/vault                          -> vault_get
+    //   PUT    /api/v1/vault                          -> vault_update
+    // Recovery codes
+    //   POST   /api/v1/recovery/generate              -> recovery_generate
+    //   POST   /api/v1/recovery/verify                -> recovery_verify
+    //   GET    /api/v1/recovery/status/:account_id    -> recovery_status
+    // Admin (AdminAuth middleware)
+    //   POST   /api/v1/admin/accounts/:username/keys/:key_id/disable -> admin_disable_key
+    //   POST   /api/v1/admin/accounts/:username/recovery-key         -> admin_add_recovery_key
+    // ========================================================================
     // Build app
     let app = Route::new()
         .at("/api/v1/health", get(health_check))
@@ -1854,330 +1605,4 @@ async fn main() -> Result<(), std::io::Error> {
     let listener = TcpListener::bind(final_bind_addr);
 
     Server::new(listener).run(app).await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ed25519_dalek::{Signer, SigningKey};
-    use poem::http::StatusCode;
-    use sqlx::sqlite::SqlitePoolOptions;
-
-    /// Helper: Sign a canonical JSON payload per ACCOUNT_PROFILES_DESIGN.md
-    /// Returns (base64_signature, base64_public_key)
-    fn sign_test_payload(signing_key: &SigningKey, canonical_json: &str) -> (String, String) {
-        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
-        // Standard Ed25519: sign message directly (RFC 8032)
-        // The algorithm does SHA-512 internally as part of the signature process
-        let signature = signing_key.sign(canonical_json.as_bytes());
-
-        // Return base64-encoded signature and public key (matches Flutter app format)
-        let signature_b64 = B64.encode(signature.to_bytes());
-        let public_key_b64 = B64.encode(signing_key.verifying_key().as_bytes());
-
-        (signature_b64, public_key_b64)
-    }
-
-    #[test]
-    fn verify_update_signature_rejects_tampered_payload() {
-        let tampered_json = r#"{
-            "action":"update",
-            "script_id":"existing-script",
-            "timestamp":"2025-11-06T14:22:44.069472Z",
-            "author_principal":"yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae",
-            "title":"Tampered Title",
-            "description":"Updated description",
-            "category":"Utility",
-            "bundle":"-- updated",
-            "tags":["modified","updated"],
-            "version":"2.0.0",
-            "price":1.0,
-            "is_public":true,
-            "author_public_key":"HeNS5EzTM2clk/IzSnMOGAqvKQ3omqFtSA3llONOKWE=",
-            "signature":"c0HBe9ELBP1/pQiFOrnPEbUq9mYt+MSAr23YknlIg2+3ErC/DB/9LDq5F/FxCudj+COY8l/VNASZspj6h7zPBA=="
-        }"#;
-
-        let request: UpdateScriptRequest =
-            serde_json::from_str(tampered_json).expect("valid tampered request json");
-
-        assert!(
-            middleware::auth::verify_script_update_signature(&request, "existing-script").is_err(),
-            "tampering payload must invalidate signature verification"
-        );
-    }
-
-    async fn setup_search_state() -> Arc<AppState> {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await
-            .expect("failed to create in-memory sqlite pool");
-
-        db::initialize_database(&pool).await;
-
-        insert_script(
-            &pool,
-            ScriptFixture {
-                id: "script-1",
-                title: "Test Script One",
-                category: "Utility",
-                bundle: "-- script one",
-                rating: 4.5,
-                price: 9.99,
-                downloads: 250,
-                review_count: 5,
-                created_at: "2024-01-01T00:00:00Z",
-            },
-        )
-        .await;
-
-        insert_script(
-            &pool,
-            ScriptFixture {
-                id: "script-2",
-                title: "Another Utility Script",
-                category: "Utility",
-                bundle: "-- script two",
-                rating: 4.8,
-                price: 14.50,
-                downloads: 300,
-                review_count: 8,
-                created_at: "2024-03-15T12:00:00Z",
-            },
-        )
-        .await;
-
-        insert_script(
-            &pool,
-            ScriptFixture {
-                id: "script-3",
-                title: "Analytics Tool",
-                category: "Analytics",
-                bundle: "-- script three",
-                rating: 3.2,
-                price: 0.0,
-                downloads: 120,
-                review_count: 2,
-                created_at: "2023-12-10T08:30:00Z",
-            },
-        )
-        .await;
-
-        let passkey_service =
-            PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
-                .expect("Failed to create PasskeyService");
-
-        Arc::new(AppState {
-            account_service: AccountService::new(pool.clone()),
-            script_service: ScriptService::new(pool.clone()),
-            review_service: ReviewService::new(pool.clone()),
-            passkey_service,
-            pool,
-        })
-    }
-
-    struct ScriptFixture<'a> {
-        id: &'a str,
-        title: &'a str,
-        category: &'a str,
-        bundle: &'a str,
-        rating: f64,
-        price: f64,
-        downloads: i32,
-        review_count: i32,
-        created_at: &'a str,
-    }
-
-    async fn insert_script(pool: &SqlitePool, fixture: ScriptFixture<'_>) {
-        sqlx::query(
-            "INSERT INTO scripts (id, slug, owner_account_id, title, description, category, tags, bundle, author_principal, author_public_key, upload_signature, canister_ids, icon_url, screenshots, version, compatibility, price, is_public, downloads, rating, review_count, created_at, updated_at) VALUES (?1, ?2, NULL, ?3, ?4, ?5, '[]', ?6, NULL, NULL, NULL, NULL, NULL, NULL, '1.0.0', NULL, ?7, 1, ?8, ?9, ?10, ?11, ?11)",
-        )
-        .bind(fixture.id)
-        .bind(format!("test-{}", fixture.id))  // Generate slug from id
-        .bind(fixture.title)
-        .bind(format!("{} description", fixture.title))
-        .bind(fixture.category)
-        .bind(fixture.bundle)
-        .bind(fixture.price)
-        .bind(fixture.downloads)
-        .bind(fixture.rating)
-        .bind(fixture.review_count)
-        .bind(fixture.created_at)
-        .execute(pool)
-        .await
-        .expect("failed to insert script");
-    }
-
-    #[tokio::test]
-    async fn search_scripts_returns_paginated_results() {
-        let state = setup_search_state().await;
-
-        let request = SearchRequest {
-            query: Some("Utility".to_string()),
-            category: Some("Utility".to_string()),
-            sort_by: Some("createdAt".to_string()),
-            sort_order: Some("desc".to_string()),
-            limit: Some(1),
-            offset: Some(0),
-            ..Default::default()
-        };
-
-        let result = run_marketplace_search(&state.pool, &request)
-            .await
-            .expect("marketplace search should succeed");
-
-        assert_eq!(result.limit, 1, "limit must echo input");
-        assert_eq!(result.offset, 0, "offset must echo input");
-        assert_eq!(result.total, 2, "total must reflect matching rows");
-        assert_eq!(result.scripts.len(), 1, "should return single script page");
-        assert_eq!(
-            result.scripts[0].id, "script-2",
-            "most recent Utility script must be first"
-        );
-        assert!(
-            result.offset + (result.scripts.len() as i64) < result.total,
-            "hasMore must be true when additional rows exist"
-        );
-    }
-
-    #[tokio::test]
-    async fn search_scripts_rejects_invalid_sort_field() {
-        let state = setup_search_state().await;
-
-        let request = SearchRequest {
-            query: Some("Utility".to_string()),
-            sort_by: Some("unsupported".to_string()),
-            sort_order: Some("asc".to_string()),
-            limit: Some(5),
-            offset: Some(0),
-            ..Default::default()
-        };
-
-        let error = run_marketplace_search(&state.pool, &request)
-            .await
-            .expect_err("unsupported sort field must fail");
-
-        assert_eq!(
-            error.0,
-            StatusCode::BAD_REQUEST,
-            "invalid sort should map to 400"
-        );
-        assert!(
-            error.1.contains("sort"),
-            "error message must mention sort validation"
-        );
-    }
-
-    #[test]
-    fn resolve_visibility_defaults_to_public() {
-        assert!(
-            resolve_script_visibility(None),
-            "missing visibility flag must default to public"
-        );
-    }
-
-    #[test]
-    fn resolve_visibility_preserves_private_flag() {
-        assert!(
-            !resolve_script_visibility(Some(false)),
-            "explicit private uploads must stay private"
-        );
-    }
-
-    #[test]
-    fn verify_update_signature_ignores_author_public_key_field() {
-        let secret_key_bytes = [7u8; 32];
-        let signing_key = SigningKey::from_bytes(&secret_key_bytes);
-
-        let canonical_payload = serde_json::json!({
-            "action": "update",
-            "script_id": "script-123",
-            "timestamp": "2024-01-01T00:00:00Z",
-            "author_principal": "principal-1",
-            "title": "Title",
-            "description": "Desc",
-            "category": "Utility",
-            "bundle": "-- body",
-            "tags": ["alpha", "beta"],
-            "version": "1.0.0",
-            "price": 1.5,
-            "is_public": true
-        });
-
-        let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
-
-        let mut request_payload = canonical_payload
-            .as_object()
-            .expect("canonical payload must be an object")
-            .clone();
-        request_payload.insert(
-            "author_public_key".to_string(),
-            serde_json::Value::String(public_key_b64),
-        );
-        request_payload.insert(
-            "signature".to_string(),
-            serde_json::Value::String(signature_b64),
-        );
-
-        let request: UpdateScriptRequest =
-            serde_json::from_value(serde_json::Value::Object(request_payload))
-                .expect("valid update request json");
-
-        assert!(
-            middleware::auth::verify_script_update_signature(&request, "script-123").is_ok(),
-            "author_public_key should be ignored by signature verification logic"
-        );
-    }
-
-    #[test]
-    fn verify_update_signature_accepts_fixture_payload() {
-        // Regenerate with correct signature format
-        let secret_key_bytes = [11u8; 32];
-        let signing_key = SigningKey::from_bytes(&secret_key_bytes);
-
-        let canonical_payload = serde_json::json!({
-            "action": "update",
-            "script_id": "93e91d19-ce61-4497-821e-4d32c03c6cc2",
-            "timestamp": "2025-11-06T16:11:26.756452Z",
-            "author_principal": "yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae",
-            "title": "Updated Title",
-            "description": "Updated description",
-            "category": "Utility",
-            "bundle": "-- Updated source",
-            "tags": ["modified", "updated"],
-            "version": "2.0.0",
-            "price": 1.0,
-            "is_public": true
-        });
-
-        let canonical_json = create_canonical_payload(&canonical_payload);
-        let (signature_b64, public_key_b64) = sign_test_payload(&signing_key, &canonical_json);
-
-        let mut request_payload = canonical_payload
-            .as_object()
-            .expect("canonical payload must be an object")
-            .clone();
-        request_payload.insert(
-            "author_public_key".to_string(),
-            serde_json::Value::String(public_key_b64),
-        );
-        request_payload.insert(
-            "signature".to_string(),
-            serde_json::Value::String(signature_b64),
-        );
-
-        let request: UpdateScriptRequest =
-            serde_json::from_value(serde_json::Value::Object(request_payload))
-                .expect("valid fixture request json");
-
-        assert!(
-            middleware::auth::verify_script_update_signature(
-                &request,
-                "93e91d19-ce61-4497-821e-4d32c03c6cc2"
-            )
-            .is_ok(),
-            "fixture payload signature should verify successfully"
-        );
-    }
 }
