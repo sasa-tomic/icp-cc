@@ -49,7 +49,9 @@ class ScriptRepository {
     } else {
       try {
         directory = await getApplicationSupportDirectory();
-      } catch (_) {
+      } catch (e, st) {
+        debugPrint('ScriptRepository: path_provider unavailable, '
+            'falling back to temp dir: $e\n$st');
         directory = await Directory.systemTemp.createTemp('icp_scripts_test_');
       }
     }

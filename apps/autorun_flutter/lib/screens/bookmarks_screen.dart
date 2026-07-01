@@ -1178,8 +1178,9 @@ class _ArgsEditorState extends State<_ArgsEditor> {
         values.add(_controllers[i].text.trim());
       }
       widget.controller.text = model.buildJson(values);
-    } catch (_) {
-      // Let the user fall back to raw JSON
+    } catch (e, st) {
+      debugPrint('bookmarks._rebuildJson failed (user falls back to raw JSON): '
+          '$e\n$st');
     }
   }
 
@@ -1260,7 +1261,9 @@ class _ArgsEditorState extends State<_ArgsEditor> {
               validateJsonArgs(
                   resolvedArgTypes: widget.argTypes, jsonText: jsonStr);
               // Bubble up? The parent shows errors from main controller text; skip here.
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('bookmarks live validation skipped: $e');
+            }
           },
         );
       },

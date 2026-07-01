@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 
 class ScriptIntegrityException implements Exception {
   ScriptIntegrityException(this.message);
@@ -35,7 +36,8 @@ class ScriptIntegrityService {
     try {
       verifyChecksum(bundle, expectedChecksum);
       return true;
-    } catch (_) {
+    } on ScriptIntegrityException catch (e) {
+      debugPrint('ScriptIntegrityService.hasValidChecksum: $e');
       return false;
     }
   }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SearchHistoryService {
@@ -20,7 +21,8 @@ class SearchHistoryService {
         final List<dynamic> historyList = jsonDecode(historyJson);
         _searchHistory = historyList.cast<String>();
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('SearchHistoryService._loadHistory failed: $e\n$st');
       _searchHistory = [];
     }
   }
@@ -30,7 +32,9 @@ class SearchHistoryService {
       final prefs = await SharedPreferences.getInstance();
       final historyJson = jsonEncode(_searchHistory);
       await prefs.setString(_searchHistoryKey, historyJson);
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('SearchHistoryService._saveHistory failed: $e\n$st');
+    }
   }
 
   Future<void> addSearchQuery(String query) async {

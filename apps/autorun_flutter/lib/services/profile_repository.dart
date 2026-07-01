@@ -57,7 +57,9 @@ class ProfileRepository {
     } else {
       try {
         directory = await getApplicationSupportDirectory();
-      } catch (_) {
+      } catch (e, st) {
+        debugPrint('ProfileRepository: path_provider unavailable, '
+            'falling back to temp dir: $e\n$st');
         // In test or restricted environments, fall back to temporary directory
         directory = await Directory.systemTemp.createTemp('icp_autorun_test_');
       }

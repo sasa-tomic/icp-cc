@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io' show Platform;
 import 'package:ffi/ffi.dart' as pkg_ffi;
+import 'package:flutter/foundation.dart';
 
 class _Symbols {
   static const String generate = 'icp_generate_keypair';
@@ -68,14 +69,16 @@ class RustBridgeLoader {
     if (Platform.isAndroid) {
       try {
         return ffi.DynamicLibrary.open('libicp_core.so');
-      } catch (_) {
+      } on ArgumentError catch (e) {
+        debugPrint('native_bridge: Android libicp_core.so open failed: $e');
         return null;
       }
     }
     if (Platform.isIOS) {
       try {
         return ffi.DynamicLibrary.process();
-      } catch (_) {
+      } on ArgumentError catch (e) {
+        debugPrint('native_bridge: iOS process library failed: $e');
         return null;
       }
     }
@@ -88,7 +91,9 @@ class RustBridgeLoader {
       for (final path in paths) {
         try {
           return ffi.DynamicLibrary.open(path);
-        } catch (_) {}
+        } on ArgumentError catch (e) {
+          debugPrint('native_bridge: macOS $path open failed: $e');
+        }
       }
       return null;
     }
@@ -101,14 +106,17 @@ class RustBridgeLoader {
       for (final path in paths) {
         try {
           return ffi.DynamicLibrary.open(path);
-        } catch (_) {}
+        } on ArgumentError catch (e) {
+          debugPrint('native_bridge: Linux $path open failed: $e');
+        }
       }
       return null;
     }
     if (Platform.isWindows) {
       try {
         return ffi.DynamicLibrary.open('icp_core.dll');
-      } catch (_) {
+      } on ArgumentError catch (e) {
+        debugPrint('native_bridge: Windows icp_core.dll open failed: $e');
         return null;
       }
     }

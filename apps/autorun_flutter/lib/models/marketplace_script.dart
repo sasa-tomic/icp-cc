@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 class MarketplaceScript {
   final String id;
   final String title;
@@ -85,8 +87,8 @@ class MarketplaceScript {
               .where((element) => element.trim().isNotEmpty)
               .toList();
         }
-      } catch (_) {
-        // Fall back to comma-separated parsing below.
+      } on FormatException catch (e) {
+        debugPrint('MarketplaceScript tags JSON decode failed: $e');
       }
       return trimmed
           .split(',')

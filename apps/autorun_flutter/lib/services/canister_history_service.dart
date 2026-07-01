@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum CallType {
@@ -88,7 +89,8 @@ class CanisterHistoryService {
                 CanisterCallRecord.fromJson(item as Map<String, dynamic>))
             .toList();
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('CanisterHistoryService._loadHistory failed: $e\n$st');
       _history = [];
     }
   }
@@ -99,7 +101,9 @@ class CanisterHistoryService {
       final historyJson =
           jsonEncode(_history.map((record) => record.toJson()).toList());
       await prefs.setString(_historyKey, historyJson);
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('CanisterHistoryService._saveHistory failed: $e\n$st');
+    }
   }
 
   Future<void> addCall({

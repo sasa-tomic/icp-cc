@@ -22,6 +22,8 @@
 /// See ACCOUNT_PROFILES_DESIGN.md for full specification.
 library;
 
+import 'package:flutter/foundation.dart';
+
 class Account {
   Account({
     required this.id,
@@ -97,7 +99,8 @@ class Account {
   AccountPublicKey? keyById(String keyId) {
     try {
       return publicKeys.firstWhere((AccountPublicKey k) => k.id == keyId);
-    } catch (_) {
+    } on StateError catch (e) {
+      debugPrint('Account.keyById($keyId): $e');
       return null;
     }
   }

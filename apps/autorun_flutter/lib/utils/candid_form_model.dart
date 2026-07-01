@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'candid_args.dart';
 
 /// Converts user-entered values into a JSON string accepted by the Rust client
@@ -47,7 +49,8 @@ class CandidFormModel {
       if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']')) || s == 'null' || s == 'true' || s == 'false') {
         try {
           return json.decode(s);
-        } catch (_) {
+        } on FormatException catch (e) {
+          debugPrint('CandidFormModel._preParse: not JSON, treating as string: $e');
           // fall through; treat as plain string
         }
       }

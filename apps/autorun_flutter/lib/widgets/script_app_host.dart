@@ -200,7 +200,8 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
             'ok': true,
             'data': parsed
           });
-        } catch (_) {
+        } on FormatException catch (e) {
+          debugPrint('script_app_host: call result not JSON, passing raw: $e');
           _enqueueMsg(<String, dynamic>{
             'type': 'effect/result',
             'id': id,
@@ -297,7 +298,9 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
           } else {
             try {
               outputs[label.isEmpty ? method : label] = json.decode(out);
-            } catch (_) {
+            } on FormatException catch (e) {
+              debugPrint(
+                  'script_app_host: batch result not JSON, passing raw: $e');
               outputs[label.isEmpty ? method : label] = out;
             }
           }

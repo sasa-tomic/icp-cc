@@ -159,7 +159,8 @@ class ScriptEditorState extends State<ScriptEditor> {
           setState(() => _lintError = msg);
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('script_editor: failed to parse linter output: $e\n$st');
       if (mounted) setState(() => _lintError = 'Invalid linter output');
     }
   }

@@ -82,7 +82,8 @@ class CandidSmartFormState extends State<CandidSmartForm> {
       }
       final values = _controllers.map((c) => c.toJsonValue()).toList();
       return const JsonEncoder.withIndent(null).convert(values);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('CandidSmartForm.getJson encode failed: $e\n$st');
       return '';
     }
   }
@@ -568,7 +569,8 @@ class _VecFieldController extends _FieldController {
     if (text.isEmpty) return [];
     try {
       return json.decode(text);
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('CandidSmartForm array field not JSON, using raw text: $e');
       return text;
     }
   }
@@ -619,7 +621,8 @@ class _JsonFieldController extends _FieldController {
     if (text.isEmpty) return null;
     try {
       return json.decode(text);
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('CandidSmartForm json field not JSON, using raw text: $e');
       return text;
     }
   }

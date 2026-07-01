@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../rust/native_bridge.dart';
 import '../models/profile_keypair.dart';
 import 'secure_keypair_repository.dart';
@@ -390,7 +392,8 @@ class ScriptRunner {
     }
     try {
       return ScriptRunResult(ok: true, result: json.decode(callOut));
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('ScriptRunner: canister response not JSON, returning raw: $e');
       return ScriptRunResult(ok: true, result: callOut);
     }
   }
@@ -518,7 +521,8 @@ class ScriptRunner {
       try {
         final dynamic any = json.decode(out);
         return ScriptRunResult(ok: true, result: any);
-      } catch (_) {
+      } on FormatException catch (fe) {
+        debugPrint('ScriptRunner: invalid script output: $e / bare decode: $fe');
         return ScriptRunResult(ok: false, error: 'Invalid script output: $e');
       }
     }

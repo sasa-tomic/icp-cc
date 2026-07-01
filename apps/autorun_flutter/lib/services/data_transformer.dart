@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Utility class for transforming and formatting canister call results
 class DataTransformer {
   /// Format numbers with locale-appropriate formatting
@@ -26,7 +28,8 @@ class DataTransformer {
       }
 
       return num.toString();
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('DataTransformer.formatNumber parse failed: $e');
       return value.toString();
     }
   }
@@ -40,7 +43,8 @@ class DataTransformer {
       // First convert from e8s to ICP, then format to requested decimals
       final num = double.parse(value.toString()) / pow10(8);
       return '${num.toStringAsFixed(decimals)} ICP';
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('DataTransformer.formatIcp parse failed: $e');
       return '$value ICP';
     }
   }
@@ -83,10 +87,12 @@ class DataTransformer {
             dateTime =
                 DateTime.fromMillisecondsSinceEpoch(intTime, isUtc: true);
           }
-        } catch (_) {
-          // If not a number, try parsing as ISO string
-          dateTime = DateTime.parse(value);
-        }
+          } on FormatException catch (e) {
+            debugPrint(
+                'DataTransformer.formatTimestamp int parse failed: $e');
+            // If not a number, try parsing as ISO string
+            dateTime = DateTime.parse(value);
+          }
       } else {
         return value.toString();
       }
@@ -113,7 +119,8 @@ class DataTransformer {
         default:
           return dateTime.toString();
       }
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('DataTransformer.formatTimestamp parse failed: $e');
       return value.toString();
     }
   }
@@ -125,7 +132,8 @@ class DataTransformer {
     try {
       final num = double.parse(value.toString()) * 100;
       return '${num.toStringAsFixed(decimals)}%';
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('DataTransformer.formatPercentage parse failed: $e');
       return '$value%';
     }
   }
@@ -142,7 +150,8 @@ class DataTransformer {
         return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
       }
       return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('DataTransformer.formatFileSize parse failed: $e');
       return '$value bytes';
     }
   }
@@ -214,8 +223,8 @@ class DataTransformer {
             final bNum = double.parse(bValue.toString());
             final comparison = aNum.compareTo(bNum);
             return ascending ? comparison : -comparison;
-          } catch (_) {
-            // Fall back to string comparison if parsing fails
+          } on FormatException catch (e) {
+            debugPrint('DataTransformer.filterSortList numeric compare failed: $e');
           }
         }
 

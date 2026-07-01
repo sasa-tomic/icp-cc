@@ -1,4 +1,7 @@
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
 import 'profile_keypair.dart';
 
 /// Profile represents a user profile with cryptographic keypairs and backend account
@@ -70,7 +73,8 @@ class Profile {
   ProfileKeypair? getKeypair(String keypairId) {
     try {
       return keypairs.firstWhere((k) => k.id == keypairId);
-    } catch (_) {
+    } on StateError catch (e) {
+      debugPrint('Profile.getKeypair($keypairId): $e');
       return null;
     }
   }

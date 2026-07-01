@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 String composeCandidArgs(List<String> rawValues) {
   final List<String> cleaned = rawValues
       .map((s) => s.trim())
@@ -173,8 +175,9 @@ dynamic parseFlexibleRecordValue(String input) {
   try {
     // ignore: avoid_dynamic_calls
     return _strictJsonDecode(s);
-  } catch (_) {
-    // fall through
+  } on UnsupportedError catch (e) {
+    debugPrint('parseFlexibleRecordValue: strict JSON unavailable, '
+        'using loose parsing: $e');
   }
   String inner = s;
   if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {

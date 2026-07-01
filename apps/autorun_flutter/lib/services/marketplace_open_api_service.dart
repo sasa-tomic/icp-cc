@@ -644,8 +644,8 @@ class MarketplaceOpenApiService {
               detail = errorValue;
             }
           }
-        } catch (_) {
-          // Ignore JSON decoding issues and fall back to raw body sample.
+        } on FormatException catch (e) {
+          debugPrint('MarketplaceOpenApi error-body JSON decode failed: $e');
         }
 
         detail ??= bodyText.length > 200
@@ -1039,7 +1039,8 @@ class MarketplaceOpenApiService {
         return decoded['error'] as String;
       }
       return body;
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('MarketplaceOpenApi._extractErrorMessage decode failed: $e');
       return body;
     }
   }

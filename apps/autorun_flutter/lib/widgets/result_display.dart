@@ -377,8 +377,8 @@ class _ResultDisplayState extends State<ResultDisplay> {
     try {
       final parsed = json.decode(text);
       return _buildValueDisplay(context, parsed);
-    } catch (_) {
-      // Not JSON, display as regular text
+    } on FormatException catch (e) {
+      debugPrint('result_display: value not JSON, rendering as text: $e');
       return SelectableText(
         text,
         style: const TextStyle(fontFamily: 'monospace', fontSize: 14),

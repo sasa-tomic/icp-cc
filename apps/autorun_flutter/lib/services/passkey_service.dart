@@ -207,7 +207,8 @@ class PasskeyService {
     try {
       final json = jsonDecode(body);
       return json['error']?.toString() ?? body;
-    } catch (_) {
+    } on FormatException catch (e) {
+      debugPrint('PasskeyService._tryParseError: body is not JSON: $e');
       return body;
     }
   }
