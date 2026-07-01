@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../controllers/script_controller.dart';
 import '../controllers/account_controller.dart';
+import '../models/account.dart';
 import '../models/script_record.dart';
 import '../models/marketplace_script.dart';
 import '../models/script_list_item.dart';
@@ -588,9 +589,9 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
       // Navigate to registration wizard
       if (!mounted) return;
-      final account = await Navigator.push<dynamic>(
+      final Account? account = await Navigator.push<Account>(
         context,
-        MaterialPageRoute(
+        MaterialPageRoute<Account>(
           builder: (context) => AccountRegistrationWizard(
             keypair: profile!.primaryKeypair,
             accountController: AccountController(

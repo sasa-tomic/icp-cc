@@ -6,6 +6,12 @@ import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../theme/app_design_system.dart';
 import '../utils/passkey_platform.dart';
+import 'passkey_management_screen.dart';
+
+/// Default passkey-support probe. A top-level function so it can be used as a
+/// const default argument (tear-offs of top-level functions are constants),
+/// while still being injectable in tests.
+bool _defaultIsPasskeySupported() => PasskeyPlatform.isSupported;
 
 /// Account registration screen with single-page form
 ///
@@ -18,6 +24,7 @@ class AccountRegistrationWizard extends StatefulWidget {
     required this.keypair,
     required this.accountController,
     this.initialDisplayName,
+    this.isPasskeySupported = _defaultIsPasskeySupported,
     super.key,
   });
 
@@ -26,6 +33,12 @@ class AccountRegistrationWizard extends StatefulWidget {
 
   /// Pre-filled display name (typically from profile name)
   final String? initialDisplayName;
+
+  /// Whether passkey setup is offered after a successful registration.
+  /// Defaults to [PasskeyPlatform.isSupported]. Injectable in tests so the
+  /// passkey branch can be exercised on Linux desktop (where it is normally
+  /// false).
+  final bool Function() isPasskeySupported;
 
   @override
   State<AccountRegistrationWizard> createState() =>
@@ -526,17 +539,35 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
 
       if (!mounted) return;
 
-      if (PasskeyPlatform.isSupported) {
+      // Registration succeeded: stop the in-progress spinner now. Without this
+      // the Register button's CircularProgressIndicator keeps ticking forever
+      // behind the passkey prompt (or after pop), which never lets
+      // `pumpAndSettle` settle in tests and burns a ticker in production.
+      setState(() => _isRegistering = false);
+
+      if (widget.isPasskeySupported()) {
         final shouldSetupPasskey = await _showPasskeySetupPrompt(account);
         if (!mounted) return;
         if (shouldSetupPasskey == true) {
-          Navigator.pop(context, (account, true));
-        } else {
-          Navigator.pop(context, account);
+          // Replace this wizard with passkey management for the new account,
+          // resolving the caller's `Navigator.push<Account>` with the account
+          // via [result]. Returning a record here previously crashed every
+          // caller (which reads `.username`) on web/mobile where passkeys are
+          // supported; the wizard now always resolves with an [Account].
+          await Navigator.of(context).pushReplacement<Account, Account>(
+            MaterialPageRoute<Account>(
+              builder: (_) => PasskeyManagementScreen(
+                accountId: account.id,
+                username: account.username,
+              ),
+            ),
+            result: account,
+          );
+          return;
         }
-      } else {
-        Navigator.pop(context, account);
       }
+      if (!mounted) return;
+      Navigator.pop(context, account);
     } catch (e) {
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');

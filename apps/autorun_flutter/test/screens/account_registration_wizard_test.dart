@@ -1,9 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/account_controller.dart';
+import 'package:icp_autorun/models/account.dart';
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/account_registration_wizard.dart';
+import 'package:icp_autorun/screens/passkey_management_screen.dart';
+import 'package:icp_autorun/utils/passkey_platform.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../test_helpers/test_keypair_factory.dart';
+
+class _MockAccountController extends Mock implements AccountController {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -280,6 +288,171 @@ void main() {
         expect(find.text('Lowercase letters and numbers'), findsOneWidget);
         expect(find.text('Can use _ or -'), findsOneWidget);
         expect(find.text('Cannot start or end with _ or -'), findsOneWidget);
+      });
+    });
+
+    // Regression coverage for F-12: the wizard must resolve the caller's
+    // `Navigator.push<Account>` with an Account (never a record) on every
+    // platform, and the passkey-supported branch must not crash.
+    group('Registration completion (return value)', () {
+      late _MockAccountController mockController;
+      late ProfileKeypair keypair;
+      late Account testAccount;
+
+      setUp(() async {
+        keypair = await TestKeypairFactory.getEd25519Keypair();
+        mockController = _MockAccountController();
+        testAccount = Account(
+          id: 'acc-1',
+          username: 'alice',
+          displayName: 'Alice',
+          publicKeys: const <AccountPublicKey>[],
+          createdAt: DateTime.utc(2024, 1, 1),
+          updatedAt: DateTime.utc(2024, 1, 1),
+        );
+
+        registerFallbackValue('');
+        registerFallbackValue(keypair);
+
+        when(() => mockController.validateUsername(any()))
+            .thenReturn(UsernameValidation.valid);
+        // Synchronously-completed futures so the awaited controller calls
+        // resolve on the immediate microtask queue that pumpAndSettle drains —
+        // no `runAsync` clock-juggling required.
+        when(() => mockController.isUsernameAvailable(any()))
+            .thenAnswer((_) => Future<bool>.value(true));
+        when(() => mockController.registerAccount(
+              keypair: any(named: 'keypair'),
+              username: any(named: 'username'),
+              displayName: any(named: 'displayName'),
+              contactEmail: any(named: 'contactEmail'),
+              contactTelegram: any(named: 'contactTelegram'),
+              contactTwitter: any(named: 'contactTwitter'),
+              contactDiscord: any(named: 'contactDiscord'),
+              websiteUrl: any(named: 'websiteUrl'),
+              bio: any(named: 'bio'),
+            )).thenAnswer((_) => Future<Account>.value(testAccount));
+      });
+
+      /// Pumps the wizard on top of a host route and returns a [Completer]
+      /// that resolves with whatever the caller's `push<Account>` receives.
+      Future<Completer<Object?>> pumpWizard(
+        WidgetTester tester, {
+        required bool Function() isPasskeySupported,
+      }) async {
+        final completer = Completer<Object?>();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final result = await Navigator.of(context)
+                          .push<Account>(MaterialPageRoute<Account>(
+                        builder: (_) => AccountRegistrationWizard(
+                          keypair: keypair,
+                          accountController: mockController,
+                          isPasskeySupported: isPasskeySupported,
+                        ),
+                      ));
+                      if (!completer.isCompleted) completer.complete(result);
+                    },
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        return completer;
+      }
+
+      Future<void> fillAndSubmitRegistration(WidgetTester tester) async {
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Username').first,
+          'alice',
+        );
+        // Wait out the 500ms username-validation debounce.
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Display Name *').first,
+          'Alice',
+        );
+        await tester.pumpAndSettle();
+
+        final registerFinder =
+            find.widgetWithText(FilledButton, 'Register');
+        final registerButton = tester.widget<FilledButton>(registerFinder);
+        expect(registerButton.onPressed, isNotNull,
+            reason: 'Register must be enabled once the form is valid');
+        // The Register button can sit below the fold in the scrollable form.
+        await tester.ensureVisible(registerFinder);
+        await tester.tap(registerFinder, warnIfMissed: false);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets(
+          'returns an Account (not a record) to the caller on platforms '
+          'without passkey support', (WidgetTester tester) async {
+        final completer = await pumpWizard(
+          tester,
+          isPasskeySupported: () => PasskeyPlatform.isSupported,
+        );
+
+        await fillAndSubmitRegistration(tester);
+
+        final result = await completer.future;
+        expect(result, isA<Account>(),
+            reason: 'wizard must return an Account, never a record');
+        expect((result as Account).username, 'alice');
+      });
+
+      testWidgets(
+          'passkey-supported branch: "Set Up Passkey" returns an Account and '
+          'opens passkey management without crashing',
+          (WidgetTester tester) async {
+        final completer = await pumpWizard(
+          tester,
+          isPasskeySupported: () => true,
+        );
+
+        await fillAndSubmitRegistration(tester);
+
+        // Success prompt must be visible.
+        expect(find.text('Set Up Passkey'), findsOneWidget);
+
+        await tester.tap(find.text('Set Up Passkey'));
+        await tester.pumpAndSettle();
+
+        final result = await completer.future;
+        expect(result, isA<Account>(),
+            reason: 'pushReplacement result must be the Account, not a record');
+        expect((result as Account).username, 'alice');
+
+        // Wizard was replaced by passkey management for the new account.
+        expect(find.byType(PasskeyManagementScreen), findsOneWidget);
+        expect(find.byType(AccountRegistrationWizard), findsNothing);
+      });
+
+      testWidgets('passkey-supported branch: "Skip for now" returns an Account',
+          (WidgetTester tester) async {
+        final completer = await pumpWizard(
+          tester,
+          isPasskeySupported: () => true,
+        );
+
+        await fillAndSubmitRegistration(tester);
+
+        await tester.tap(find.text('Skip for now'));
+        await tester.pumpAndSettle();
+
+        final result = await completer.future;
+        expect(result, isA<Account>());
+        expect((result as Account).username, 'alice');
       });
     });
   });
