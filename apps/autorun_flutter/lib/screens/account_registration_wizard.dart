@@ -202,91 +202,116 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
             ),
             const SizedBox(height: 16),
 
-            // Contact Email (optional)
-            TextFormField(
-              controller: _contactEmailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Email (optional)',
-                hintText: 'alice@example.com',
-                prefixIcon: const Icon(Icons.email_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            // Optional contact details are collapsed by default so the primary
+            // task ("pick a @username so I can publish") stays front and center.
+            // Matches the contact-info expander used in account_profile_screen.
+            ExpansionTile(
+              title: Text(
+                'Add contact details (optional)',
+                style: AppDesignSystem.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
+              subtitle: Text(
+                'Email, social links, website, and bio',
+                style: AppDesignSystem.bodySmall.copyWith(
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+              leading: Icon(
+                Icons.contact_mail_outlined,
+                color: AppDesignSystem.primaryLight,
+              ),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(top: 8),
+              children: [
+                // Contact Email (optional)
+                TextFormField(
+                  controller: _contactEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email (optional)',
+                    hintText: 'alice@example.com',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
 
-            // Contact Telegram (optional)
-            TextFormField(
-              controller: _contactTelegramController,
-              decoration: InputDecoration(
-                labelText: 'Telegram (optional)',
-                hintText: '@alice',
-                prefixIcon: const Icon(Icons.send_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                // Contact Telegram (optional)
+                TextFormField(
+                  controller: _contactTelegramController,
+                  decoration: InputDecoration(
+                    labelText: 'Telegram (optional)',
+                    hintText: '@alice',
+                    prefixIcon: const Icon(Icons.send_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-            // Contact Twitter (optional)
-            TextFormField(
-              controller: _contactTwitterController,
-              decoration: InputDecoration(
-                labelText: 'Twitter/X (optional)',
-                hintText: '@alice_dev',
-                prefixIcon: const Icon(Icons.tag),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                // Contact Twitter (optional)
+                TextFormField(
+                  controller: _contactTwitterController,
+                  decoration: InputDecoration(
+                    labelText: 'Twitter/X (optional)',
+                    hintText: '@alice_dev',
+                    prefixIcon: const Icon(Icons.tag),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-            // Contact Discord (optional)
-            TextFormField(
-              controller: _contactDiscordController,
-              decoration: InputDecoration(
-                labelText: 'Discord (optional)',
-                hintText: 'alice#1234',
-                prefixIcon: const Icon(Icons.forum_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                // Contact Discord (optional)
+                TextFormField(
+                  controller: _contactDiscordController,
+                  decoration: InputDecoration(
+                    labelText: 'Discord (optional)',
+                    hintText: 'alice#1234',
+                    prefixIcon: const Icon(Icons.forum_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-            // Website URL (optional)
-            TextFormField(
-              controller: _websiteUrlController,
-              keyboardType: TextInputType.url,
-              decoration: InputDecoration(
-                labelText: 'Website (optional)',
-                hintText: 'https://alice.dev',
-                prefixIcon: const Icon(Icons.language),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                // Website URL (optional)
+                TextFormField(
+                  controller: _websiteUrlController,
+                  keyboardType: TextInputType.url,
+                  decoration: InputDecoration(
+                    labelText: 'Website (optional)',
+                    hintText: 'https://alice.dev',
+                    prefixIcon: const Icon(Icons.language),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-            // Bio (optional)
-            TextFormField(
-              controller: _bioController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: 'Bio (optional)',
-                hintText: 'Tell us about yourself...',
-                prefixIcon: const Icon(Icons.notes),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                // Bio (optional)
+                TextFormField(
+                  controller: _bioController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Bio (optional)',
+                    hintText: 'Tell us about yourself...',
+                    prefixIcon: const Icon(Icons.notes),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignLabelWithHint: true,
+                  ),
                 ),
-                alignLabelWithHint: true,
-              ),
+              ],
             ),
             const SizedBox(height: 24),
 

@@ -233,9 +233,20 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Assert
+        // Assert — primary fields are always visible.
         expect(find.text('Username'), findsOneWidget);
         expect(find.text('Display Name *'), findsOneWidget);
+
+        // Optional contact fields are hidden behind a collapsed expander.
+        final expanderTitle = find.text('Add contact details (optional)');
+        expect(expanderTitle, findsOneWidget);
+        expect(find.text('Email (optional)'), findsNothing,
+            reason: 'contact fields start collapsed');
+
+        // Expand the expander; the contact fields become visible.
+        await tester.tap(expanderTitle);
+        await tester.pumpAndSettle();
+
         expect(find.text('Email (optional)'), findsOneWidget);
         expect(find.text('Telegram (optional)'), findsOneWidget);
         expect(find.text('Twitter/X (optional)'), findsOneWidget);
