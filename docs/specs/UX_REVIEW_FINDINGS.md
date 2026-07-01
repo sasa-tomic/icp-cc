@@ -391,6 +391,8 @@ registration → passkey-enrollment flow and the vault-password setup
   `if (profile != null)` (`profile_menu.dart:255`). On a true first run there is
   no active profile, so tapping the highlighted “My Account / Register to publish
   scripts” tile does **nothing** — no navigation, no error, no feedback.
+  (FIXED in `4e5e728`: the My Account tile always renders; with no active
+  profile it routes to profile creation/selection instead of no-op’ing.)
 - **B2 — In-app instructions advertise an unreachable command.** Three surfaces
   tell users to run `flutter run -d chrome` for passkeys
   (`passkey_management_screen.dart:37`, `:228`;
@@ -398,22 +400,37 @@ registration → passkey-enrollment flow and the vault-password setup
   unconditional `dart:ffi` import in `lib/main.dart:11` and
   `lib/rust/native_bridge.dart:2`). Following the instruction yields a hard build
   failure.
+  (FIXED in `5116b27`: removed `flutter run -d chrome` everywhere; passkey
+  surfaces now state macOS/Windows/Android support and reference R-1, since no
+  command — not even `flutter run -d linux` — enables passkeys on this box.)
 - **B3 — Orphaned onboarding wizard.** `UnifiedSetupWizard`
   (`unified_setup_wizard.dart`) is the designed single-screen first-run flow but
   is constructed **only in tests** (`test/screens/unified_setup_wizard_test.dart`)
   and **never in `lib/`**. First-run users never see it; the production first-run
   path is the 4-tap manual profile creation in Flow 1.
+  (FIXED in `4b1ce93`: the wizard is complete and coherent, so it was WIRED as
+  the first-run gate via `showFirstRunSetupIfNeeded()` when no profile exists —
+  not deleted.)
 - **B4 — “Export” is a clipboard stub.** `_exportScript`
   (`scripts_screen.dart:709`) copies the bundle to the clipboard with the comment
   “For now, just copy the source code to clipboard // In a real implementation,
   you might want to export as a file.” It is exposed in the UI as “Copy Source”
   (context menu `scripts_screen.dart:1139`, overflow menu `:1329`) — functional
   but mislabeled (the action is a clipboard copy, not an export).
+  (FIXED in `1660033`: real file export isn’t trivially available (no
+  share_plus/file_picker dep), so the action was made self-consistent — renamed
+  `_exportScript`→`_copyScriptSource`, action id `export`→`copy_source`, stub
+  comment dropped, behavior extracted to a unit-tested
+  `copyScriptSourceToClipboard()`.)
 - **B5 — Publish dialog performs no bundle-sandbox validation.**
   `QuickUploadDialog._uploadScript` (`quick_upload_dialog.dart:176`) validates
   form fields only; it signs and uploads the bundle without calling
   `ScriptValidationService`. An invalid/escaping bundle can be published (caught
   only later at execution by the Rust sandbox).
+  (FIXED in `5e5a7a6`: `_uploadScript` now runs the authoritative
+  `ScriptValidationService` over the bundle before signing; invalid bundles are
+  refused with a dedicated, selectable error panel showing the specific rejected
+  primitive.)
 
 ---
 
@@ -427,6 +444,12 @@ registration → passkey-enrollment flow and the vault-password setup
 | 4 | Run → interact → `icp_call` | 2 first / **1** after allow | **1** (unchanged) | 9/10 | Already meets target after “Always allow” |
 | 5 | Profile / keypair mgmt | switch **3**; add key ~4 | switch **2**; add ~3 | 9/10 | Inline profile list (5.1) |
 | 6 | Passkey setup | N/A — env-blocked on Linux | N/A | 10/10 (block) | Fix stale `chrome` instructions (6.1); real review needs macOS/Win/Android |
+
+> **Remediation status (2026-07-01):** bugs B1, B2, B3, B4, B5 are all fixed
+> (see §4 for commit hashes). That covers proposals 1.1 (wizard first-run gate),
+> 1.2 (first-run dead-end), 3.2 (publish validation gate), and 6.1 (stale
+> `chrome` instructions). The remaining click-reduction proposals (2.1/2.2/3.1,
+> 5.x) are deferred — they are UX polish, not the bugs in scope.
 
 ### Top 5 highest-impact reduction proposals
 1. **(1.1)** Wire the orphaned `UnifiedSetupWizard` as the first-run gate — collapses onboarding from 4 taps / no guidance to 2 taps / guided. **Impact HIGH, Effort Low.**
