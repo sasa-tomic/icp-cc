@@ -56,7 +56,7 @@ void main() {
     final fake = _FakeRuntime();
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: ScriptAppHost(runtime: fake, script: '-- lua --'),
+        body: ScriptAppHost(runtime: fake, script: '/* ts bundle */'),
       ),
     ));
 

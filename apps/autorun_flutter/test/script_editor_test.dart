@@ -212,7 +212,6 @@ void main() {
     await tester.pump();
 
     // TS-only runtime: there is no language badge in the toolbar.
-    expect(find.text('LUA'), findsNothing);
     expect(find.text('TS'), findsNothing);
   });
 }

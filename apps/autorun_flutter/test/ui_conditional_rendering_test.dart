@@ -36,8 +36,8 @@ void main() {
             'type': 'text',
             'props': {'text': 'Always visible'},
           },
-          // This simulates: false and {type: 'section', ...}
-          // In Lua, this would evaluate to false and be inserted into the children array
+          // This simulates: false && {type: 'section', ...}
+          // In JS, the && short-circuits to false, which gets inserted into the children array
           false,
           {
             'type': 'text',
@@ -66,8 +66,8 @@ void main() {
             'type': 'text',
             'props': {'text': 'Before conditional'},
           },
-          // This simulates: true and {type: 'section', ...}
-          // In a real scenario, this would be the actual UI node, not true
+          // This simulates: true && {type: 'section', ...}
+          // In a real scenario, this would be the actual UI node, not `true`
           {
             'type': 'section',
             'props': {'title': 'Conditional Section'},
@@ -100,8 +100,8 @@ void main() {
 
     testWidgets('demonstrates the original issue pattern', (WidgetTester tester) async {
       // This test demonstrates the pattern that caused the original issue
-      // In Lua: state.show_info and {type: 'section', ...}
-      // When state.show_info is false, this evaluates to false
+      // In JS: state.show_info && {type: 'section', ...}
+      // When state.show_info is false, this short-circuits to false
       
       // Simulate the problematic case where false gets into the children array
       final problematicUi = {
@@ -111,7 +111,7 @@ void main() {
             'type': 'text',
             'props': {'text': 'Header'},
           },
-          false, // This is what "state.show_info and {...}" evaluates to when false
+          false, // This is what "state.show_info && {...}" short-circuits to when false
           {
             'type': 'text',
             'props': {'text': 'Footer'},

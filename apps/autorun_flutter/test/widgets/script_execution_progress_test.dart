@@ -177,7 +177,7 @@ void main() {
         home: Scaffold(
           body: ScriptAppHost(
             runtime: fake,
-            script: '-- lua --',
+            script: '/* ts bundle */',
             progressNotifier: progressNotifier,
           ),
         ),

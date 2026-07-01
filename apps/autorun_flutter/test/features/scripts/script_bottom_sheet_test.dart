@@ -4,7 +4,7 @@ import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/widgets/script_app_host.dart';
 import 'package:icp_autorun/widgets/script_execution_bottom_sheet.dart';
 
-const _validLuaScript = '''
+const _validBundle = '''
 function init(arg)
   return { message = "Hello World" }, {}
 end
@@ -24,7 +24,7 @@ void main() {
         id: 'test-1',
         title: 'Test Script',
         emoji: '📜',
-        bundle: _validLuaScript,
+        bundle: _validBundle,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -56,7 +56,7 @@ void main() {
         id: 'test-2',
         title: 'Script with Host',
         emoji: '🧪',
-        bundle: _validLuaScript,
+        bundle: _validBundle,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -88,7 +88,7 @@ void main() {
         id: 'test-3',
         title: 'Expandable Script',
         emoji: '↗️',
-        bundle: _validLuaScript,
+        bundle: _validBundle,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -120,7 +120,7 @@ void main() {
         id: 'test-4',
         title: 'Closable Script',
         emoji: '❌',
-        bundle: _validLuaScript,
+        bundle: _validBundle,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -152,7 +152,7 @@ void main() {
         id: 'test-5',
         title: 'Dismissible Script',
         emoji: '👇',
-        bundle: _validLuaScript,
+        bundle: _validBundle,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -190,7 +190,7 @@ void main() {
         id: 'test-6',
         title: 'Scrollable Script',
         emoji: '📜',
-        bundle: _validLuaScript,
+        bundle: _validBundle,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},
@@ -225,7 +225,7 @@ void main() {
         id: 'test-7',
         title: 'Loading Script',
         emoji: '⏳',
-        bundle: _validLuaScript,
+        bundle: _validBundle,
         createdAt: DateTime.now().toUtc(),
         updatedAt: DateTime.now().toUtc(),
         metadata: {},

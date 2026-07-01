@@ -14,7 +14,7 @@ import {
   icpTruncate,
 } from "../helpers.js";
 
-describe("format functions — Rust/Lua oracle values", () => {
+describe("format functions — Rust oracle values", () => {
   it("formatNumber(123.456, 2) === '123.456'", () => {
     expect(formatNumber(123.456)).toBe("123.456");
   });

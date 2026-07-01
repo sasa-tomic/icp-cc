@@ -14,7 +14,7 @@ import {
   icpGroupBy,
 } from "../helpers.js";
 
-describe("icp_* helpers — byte-identical to Rust/Lua oracle", () => {
+describe("icp_* helpers — byte-identical to Rust oracle", () => {
   it("icp_call: sets action=call and passes through spec fields", () => {
     const out = icpCall({
       canister: "rrkah-fqaaa-aaaaa-aaaaq-cai",

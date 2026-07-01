@@ -200,14 +200,14 @@ end''',
 
       test('should handle script upload with large content', () async {
         // Arrange - Create a script with large content
-        final largeLuaCode = List.generate(100, (i) => 
-          '-- Line ${i + 1}: This is a long line with some content to test large script handling\n'
+        final largeBundle = List.generate(100, (i) => 
+          '// Line ${i + 1}: This is a long line with some content to test large script handling\n'
         ).join();
 
         final largeScript = ScriptRecord(
           id: '', // Empty ID for new script
           title: 'Large Content Script',
-          bundle: largeLuaCode,
+          bundle: largeBundle,
           metadata: {
             'description': 'A script with large content to test upload limits',
             'category': 'Testing',
@@ -230,7 +230,7 @@ end''',
         // Verify the large content was preserved
         final retrievedScript = await mockMarketplaceService.getScriptById(largeScriptId);
         expect(retrievedScript, isNotNull);
-        expect(retrievedScript!.bundle.length, equals(largeLuaCode.length));
+        expect(retrievedScript!.bundle.length, equals(largeBundle.length));
         expect(retrievedScript.bundle, contains('Line 50:'));
         expect(retrievedScript.bundle, contains('Line 100:'));
       });

@@ -59,7 +59,7 @@ describe("pilot-sample bundle — runs end-to-end in REAL QuickJS", () => {
     }
   });
 
-  it("init returns the exact Lua state shape with no effects", async () => {
+  it("init returns the exact QuickJS runtime state shape with no effects", async () => {
     const ctx = await freshPilotVm();
     try {
       const res = await evalJson<{ state: Record<string, unknown>; effects: unknown[] }>(ctx, `init({})`);

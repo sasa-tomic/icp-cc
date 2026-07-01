@@ -25,7 +25,6 @@ interface ParityCase {
   helper: string;
   args: unknown[];
   expectedJs: unknown;
-  expectedLua: unknown;
   notes?: string;
 }
 
