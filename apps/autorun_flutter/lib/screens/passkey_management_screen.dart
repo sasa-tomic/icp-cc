@@ -32,9 +32,9 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
   Future<void> _loadPasskeys() async {
     if (!PasskeyPlatform.isSupported) {
       setState(() {
-        _errorMessage = 'Passkeys require a browser on Linux.\n\n'
-            'Run this command to use passkeys with KeePassXC, your phone, or a hardware key:\n\n'
-            'flutter run -d chrome';
+        _errorMessage = 'Passkeys are not available on Linux desktop.\n\n'
+            'Use the app on macOS, Windows, or Android to manage passkeys '
+            '(browser support is deferred — see R-1).';
         _isLoading = false;
       });
       return;
@@ -225,7 +225,6 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
   }
 
   Widget _buildUnsupportedPlatformError() {
-    const command = 'flutter run -d chrome';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -239,7 +238,7 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Passkeys require a browser on Linux',
+              "Passkeys aren't available on Linux desktop",
               style: AppDesignSystem.heading4.copyWith(
                 color: AppDesignSystem.neutral700,
               ),
@@ -247,7 +246,7 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Run the command below to use passkeys with:',
+              'Passkeys are supported on macOS, Windows, and Android.',
               style: AppDesignSystem.bodyMedium.copyWith(
                 color: AppDesignSystem.neutral600,
               ),
@@ -255,43 +254,13 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '• KeePassXC\n• Your phone (hybrid)\n• Hardware key (YubiKey, Titan)',
+              'Run the app on a supported platform to use passkeys with '
+              'KeePassXC, your phone (hybrid), or a hardware key '
+              '(YubiKey, Titan). Browser support on Linux is deferred (R-1).',
               style: AppDesignSystem.bodySmall.copyWith(
                 color: AppDesignSystem.neutral500,
               ),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppDesignSystem.neutral900,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    command,
-                    style: AppDesignSystem.bodyMedium.copyWith(
-                      color: Colors.greenAccent,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () {
-                      // Copy to clipboard functionality would go here
-                      // For now, just a visual hint
-                    },
-                    child: Icon(
-                      Icons.copy,
-                      size: 18,
-                      color: AppDesignSystem.neutral400,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),

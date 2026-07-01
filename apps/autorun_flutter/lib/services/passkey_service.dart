@@ -26,7 +26,7 @@ class PasskeyService {
   }) async {
     if (!PasskeyPlatform.isSupported) {
       throw PasskeyException(
-          'Passkeys not supported on this platform. Use Web (flutter run -d chrome).');
+          "Passkeys aren't available on this platform. Use the app on macOS, Windows, or Android.");
     }
 
     final startResponse = await _post('/passkey/register/start', {
@@ -54,7 +54,7 @@ class PasskeyService {
   }) async {
     if (!PasskeyPlatform.isSupported) {
       throw PasskeyException(
-          'Passkeys not supported on this platform. Use Web (flutter run -d chrome).');
+          "Passkeys aren't available on this platform. Use the app on macOS, Windows, or Android.");
     }
 
     final startResponse = await _post('/passkey/authenticate/start', {

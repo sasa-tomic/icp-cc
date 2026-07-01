@@ -687,24 +687,11 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       childrenPadding: const EdgeInsets.only(left: 56, bottom: 8),
       children: [
         Text(
-          'Passkeys require a browser on Linux. Run:',
+          "Passkeys aren't available on Linux desktop. "
+          'Use the app on macOS, Windows, or Android to set up passkeys '
+          '(browser support is deferred — see R-1).',
           style: AppDesignSystem.bodySmall.copyWith(
             color: context.colors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppDesignSystem.neutral100,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            'flutter run -d chrome',
-            style: AppDesignSystem.bodySmall.copyWith(
-              fontFamily: 'monospace',
-              color: AppDesignSystem.neutral700,
-            ),
           ),
         ),
       ],

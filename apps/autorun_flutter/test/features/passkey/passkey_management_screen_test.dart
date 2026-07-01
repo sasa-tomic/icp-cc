@@ -56,16 +56,19 @@ void main() {
       // Should show the terminal icon
       expect(find.byIcon(Icons.terminal), findsOneWidget);
 
-      // Should show the helpful error message
+      // Should show the helpful, accurate unsupported-platform message
       expect(
-        find.text('Passkeys require a browser on Linux'),
+        find.text("Passkeys aren't available on Linux desktop"),
         findsOneWidget,
       );
 
-      // Should show the flutter run command
-      expect(find.text('flutter run -d chrome'), findsOneWidget);
+      // Must NOT advertise the unbuildable web command (R-1).
+      expect(find.text('flutter run -d chrome'), findsNothing);
 
-      // Should mention supported authenticators
+      // Should mention the supported platforms and authenticators.
+      expect(find.textContaining('macOS'), findsOneWidget);
+      expect(find.textContaining('Windows'), findsOneWidget);
+      expect(find.textContaining('Android'), findsOneWidget);
       expect(find.textContaining('KeePassXC'), findsOneWidget);
       expect(find.textContaining('YubiKey'), findsOneWidget);
       expect(find.textContaining('Titan'), findsOneWidget);
@@ -90,9 +93,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Should NOT show the Linux-specific error
+      // Should NOT show the Linux-specific unsupported-platform error
       expect(
-        find.text('Passkeys require a browser on Linux'),
+        find.text("Passkeys aren't available on Linux desktop"),
         findsNothing,
       );
     });
@@ -119,7 +122,7 @@ void main() {
       expect(find.byIcon(Icons.error_outline), findsNothing);
     });
 
-    testWidgets('Linux error displays command in styled container',
+    testWidgets('Linux error does not advertise the unbuildable web command',
         (tester) async {
       if (!PasskeyPlatform.isLinuxDesktop) {
         markTestSkipped('This test only runs on Linux desktop');
@@ -137,13 +140,11 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Should find the command text
-      final commandText = find.text('flutter run -d chrome');
-      expect(commandText, findsOneWidget);
-
-      // Verify the text widget has monospace font
-      final textWidget = tester.widget<Text>(commandText);
-      expect(textWidget.style?.fontFamily, equals('monospace'));
+      // The unbuildable `flutter run -d chrome` command (blocked by R-1's
+      // unconditional dart:ffi import) must never be shown to the user.
+      expect(find.text('flutter run -d chrome'), findsNothing);
+      // No monospace command block is rendered anymore.
+      expect(find.byIcon(Icons.copy), findsNothing);
     });
   });
 }
