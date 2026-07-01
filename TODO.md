@@ -18,6 +18,7 @@ Genuinely open items are listed below.
 |-------|----------|----------|-------|
 | Cross-profile key sharing is allowed by the Flutter models (violates the profile-centric design; the backend enforces key uniqueness) | `lib/models/account.dart` (`FIXME` at L18, L304) | MEDIUM | Architectural — needs a human decision. See `docs/ACCOUNT_PROFILES_DESIGN.md`. |
 | Key label editing is blocked by a missing backend endpoint | `AccountController` | MEDIUM | No rename/label route exists server-side. |
+| Flutter Web build is broken (`dart:ffi` imported unconditionally) | `lib/rust/native_bridge.dart:2`, `lib/main.dart:11` | HIGH | Pre-existing, not introduced by the migration. Web can't compile, so the passkey flow (which AGENTS.md routes through Web) and the `flutter-dev-local` (`-d chrome`) recipe are unreachable. Fix needs conditional-import split (`*_io.dart` FFI impl + `*_web.dart` stub) plus a Web-native strategy for keypair-gen/signing/QuickJS-exec (WASM QuickJS + WebCrypto). Architectural — needs a human decision on whether Web is a supported target. |
 
 ## Future / Optional
 
