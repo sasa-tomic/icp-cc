@@ -9,7 +9,7 @@ import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
-import '../test_helpers/test_keypair_factory.dart';
+import '../shared/test_keypair_factory.dart';
 
 void main() {
   // Initialize secure storage mock for tests

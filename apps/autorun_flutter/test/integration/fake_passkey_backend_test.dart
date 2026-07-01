@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../test_helpers/fake_passkey_authenticator.dart';
+import '../shared/fake_passkey_authenticator.dart';
 
 /// Integration test for FakePasskeyAuthenticator against backend WebAuthn verification.
 ///

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:icp_autorun/controllers/script_controller.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 
-import '../../test_helpers/mock_script_repository.dart';
+import '../../shared/mock_script_repository.dart';
 
 class MockCanisterBridge implements ScriptBridge {
   final Map<String, dynamic> _mockCanisterData = {

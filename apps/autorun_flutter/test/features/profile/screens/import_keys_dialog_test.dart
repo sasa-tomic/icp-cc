@@ -4,7 +4,7 @@ import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/screens/import_keys_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../test_helpers/fake_secure_keypair_repository.dart';
+import '../../../shared/fake_secure_keypair_repository.dart';
 
 void main() {
   group('ImportKeysDialog', () {

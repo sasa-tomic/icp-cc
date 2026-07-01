@@ -38,7 +38,7 @@ This directory contains standardized test utilities for testing ICP AutoRun func
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import '../test_helpers/test_keypair_factory.dart';
+import '../shared/test_keypair_factory.dart';
 
 void main() {
   test('example test', () async {
@@ -145,8 +145,8 @@ final signature = TestSignatureUtils.generateTestSignatureSync(payload);
 **Usage:**
 
 ```dart
-import '../test_helpers/fake_secure_keypair_repository.dart';
-import '../test_helpers/test_keypair_factory.dart';
+import '../shared/fake_secure_keypair_repository.dart';
+import '../shared/test_keypair_factory.dart';
 
 test('example test', () async {
   // Create test keypairs

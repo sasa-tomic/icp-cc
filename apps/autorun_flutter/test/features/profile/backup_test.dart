@@ -5,8 +5,8 @@ import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/utils/encrypted_export.dart';
 
-import '../../test_helpers/fake_secure_keypair_repository.dart';
-import '../../test_helpers/test_keypair_factory.dart';
+import '../../shared/fake_secure_keypair_repository.dart';
+import '../../shared/test_keypair_factory.dart';
 
 void main() {
   group('Profile Backup', () {

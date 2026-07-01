@@ -7,7 +7,7 @@ import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/utils/passkey_platform.dart';
 
 import 'account_profile_test_helpers.dart';
-import '../../test_helpers/test_keypair_factory.dart';
+import '../../shared/test_keypair_factory.dart';
 
 void main() {
   setUpAll(() {

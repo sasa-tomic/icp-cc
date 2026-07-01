@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 
-import 'test_helpers/fake_secure_keypair_repository.dart';
-import 'test_helpers/test_keypair_factory.dart';
+import 'shared/fake_secure_keypair_repository.dart';
+import 'shared/test_keypair_factory.dart';
 
 /// Minimal in-memory [ScriptBridge] for [ScriptRunner] tests. The canister
 /// methods return canned JSON keyed by `canisterId::method`; [jsExec] defaults

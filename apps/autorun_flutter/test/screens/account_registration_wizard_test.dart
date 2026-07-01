@@ -9,7 +9,7 @@ import 'package:icp_autorun/screens/passkey_management_screen.dart';
 import 'package:icp_autorun/utils/passkey_platform.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../test_helpers/test_keypair_factory.dart';
+import '../shared/test_keypair_factory.dart';
 
 class _MockAccountController extends Mock implements AccountController {}
 

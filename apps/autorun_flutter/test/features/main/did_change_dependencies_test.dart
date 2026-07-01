@@ -7,7 +7,7 @@ import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../test_helpers/fake_secure_keypair_repository.dart';
+import '../../shared/fake_secure_keypair_repository.dart';
 
 void main() {
   group('MainHomePage didChangeDependencies', () {

@@ -8,7 +8,7 @@ import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-import '../test_helpers/mock_marketplace_service.dart';
+import '../shared/mock_marketplace_service.dart';
 
 void main() {
   group('MarketplaceOpenApiService', () {

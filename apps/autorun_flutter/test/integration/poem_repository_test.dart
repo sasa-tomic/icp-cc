@@ -3,8 +3,8 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
-import '../test_helpers/poem_script_repository.dart';
-import '../test_helpers/poem_test_helper.dart';
+import '../shared/poem_script_repository.dart';
+import '../shared/poem_test_helper.dart';
 
 /// Integration tests for PoemScriptRepository
 /// These tests verify that the repository can work with the Poem API deployment

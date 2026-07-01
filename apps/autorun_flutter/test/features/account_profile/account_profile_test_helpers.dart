@@ -9,7 +9,7 @@ import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
 
-import '../../test_helpers/test_keypair_factory.dart';
+import '../../shared/test_keypair_factory.dart';
 
 /// Fake ProfileKeypair for mocktail fallback values
 class FakeProfileKeypair extends Fake implements ProfileKeypair {}

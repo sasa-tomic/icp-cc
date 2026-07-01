@@ -6,7 +6,7 @@ import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/script_signature_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 
-import '../test_helpers/test_keypair_factory.dart';
+import '../shared/test_keypair_factory.dart';
 
 void main() {
   group('ScriptSignatureService', () {

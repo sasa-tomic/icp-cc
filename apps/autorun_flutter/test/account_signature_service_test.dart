@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/account_signature_service.dart';
 import 'package:icp_autorun/utils/base64_utils.dart';
 
-import 'test_helpers/test_keypair_factory.dart';
+import 'shared/test_keypair_factory.dart';
 
 void main() {
   test('createRegisterAccountRequest uses base64 keys and signature', () async {

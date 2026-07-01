@@ -7,9 +7,9 @@ import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../test_helpers/api_service_manager.dart';
-import '../test_helpers/poem_script_repository.dart';
-import '../test_helpers/unified_test_builder.dart';
+import '../shared/api_service_manager.dart';
+import '../shared/poem_script_repository.dart';
+import '../shared/unified_test_builder.dart';
 
 void main() {
   group('Marketplace visibility end-to-end', () {

@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../test_helpers/mock_marketplace_service.dart';
+import '../shared/mock_marketplace_service.dart';
 
 void main() {
   group('Script Upload API Tests', () {

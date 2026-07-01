@@ -8,8 +8,8 @@ import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../test_helpers/fake_secure_keypair_repository.dart';
-import '../../test_helpers/test_keypair_factory.dart';
+import '../../shared/fake_secure_keypair_repository.dart';
+import '../../shared/test_keypair_factory.dart';
 
 class _MockMarketplaceService extends Mock
     implements MarketplaceOpenApiService {}

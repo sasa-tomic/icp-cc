@@ -2,8 +2,8 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import '../test_helpers/unified_authentication_helper.dart';
-import '../test_helpers/unified_test_builder.dart';
+import '../shared/unified_authentication_helper.dart';
+import '../shared/unified_test_builder.dart';
 
 /// Streamlined authentication tests using unified helpers
 /// Eliminates redundancy while maintaining comprehensive coverage

@@ -4,8 +4,8 @@ import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/screens/export_keys_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../test_helpers/fake_secure_keypair_repository.dart';
-import '../../../test_helpers/test_keypair_factory.dart';
+import '../../../shared/fake_secure_keypair_repository.dart';
+import '../../../shared/test_keypair_factory.dart';
 
 void main() {
   group('ExportKeysDialog', () {

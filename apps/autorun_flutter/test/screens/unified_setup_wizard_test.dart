@@ -7,7 +7,7 @@ import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 
-import '../test_helpers/test_keypair_factory.dart';
+import '../shared/test_keypair_factory.dart';
 
 class _FakeProfileController extends ChangeNotifier
     implements ProfileController {

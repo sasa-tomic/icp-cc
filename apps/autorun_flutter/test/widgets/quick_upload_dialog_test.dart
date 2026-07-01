@@ -12,8 +12,8 @@ import 'package:icp_autorun/widgets/script_editor.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../test_helpers/fake_secure_keypair_repository.dart';
-import '../test_helpers/test_keypair_factory.dart';
+import '../shared/fake_secure_keypair_repository.dart';
+import '../shared/test_keypair_factory.dart';
 
 class _MockMarketplaceService extends Mock
     implements MarketplaceOpenApiService {}

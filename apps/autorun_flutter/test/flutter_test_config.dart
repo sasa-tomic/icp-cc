@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'test_helpers/test_signature_utils.dart';
+import 'shared/test_signature_utils.dart';
 
 /// Global test configuration
 /// This file is automatically loaded by Flutter test framework
