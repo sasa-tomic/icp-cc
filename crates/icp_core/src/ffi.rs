@@ -10,6 +10,48 @@ use serde_json::json;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
+unsafe fn cstr_or_empty<'a>(p: *const c_char) -> &'a str {
+    if p.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(p).to_str().unwrap_or("")
+    }
+}
+
+unsafe fn cstr_opt<'a>(p: *const c_char) -> Option<&'a str> {
+    if p.is_null() {
+        None
+    } else {
+        CStr::from_ptr(p).to_str().ok()
+    }
+}
+
+unsafe fn cstr_opt_or_empty<'a>(p: *const c_char) -> Option<&'a str> {
+    if p.is_null() {
+        None
+    } else {
+        Some(cstr_or_empty(p))
+    }
+}
+
+fn err_ptr<E: std::fmt::Display>(e: E) -> *mut c_char {
+    CString::new(json!({"ok": false, "error": e.to_string()}).to_string())
+        .unwrap()
+        .into_raw()
+}
+
+fn method_kind(kind: i32) -> MethodKind {
+    match kind {
+        2 => MethodKind::CompositeQuery,
+        1 => MethodKind::Update,
+        _ => MethodKind::Query,
+    }
+}
+
+fn null_c_string() -> *mut c_char {
+    CString::new("").unwrap().into_raw()
+}
+
 /// # Safety
 /// `mnemonic` must be either null or a valid, null-terminated C string pointer.
 #[no_mangle]
@@ -19,14 +61,7 @@ pub unsafe extern "C" fn icp_generate_keypair(alg: i32, mnemonic: *const c_char)
         1 => "secp256k1",
         _ => return null_c_string(),
     };
-    let mnemonic_opt = if mnemonic.is_null() {
-        None
-    } else {
-        CStr::from_ptr(mnemonic)
-            .to_str()
-            .ok()
-            .map(|s| s.to_string())
-    };
+    let mnemonic_opt = cstr_opt(mnemonic).map(str::to_string);
 
     let result = match alg_str {
         "ed25519" => generate_ed25519_keypair(mnemonic_opt),
@@ -51,12 +86,9 @@ pub unsafe extern "C" fn icp_principal_from_public_key(
     alg: i32,
     pk_b64: *const c_char,
 ) -> *mut c_char {
-    if pk_b64.is_null() {
-        return null_c_string();
-    }
-    let pk_str = match CStr::from_ptr(pk_b64).to_str() {
-        Ok(s) => s,
-        Err(_) => return null_c_string(),
+    let pk_str = match cstr_opt(pk_b64) {
+        Some(s) => s,
+        None => return null_c_string(),
     };
     let pk_bytes = match B64.decode(pk_str) {
         Ok(b) => b,
@@ -89,36 +121,21 @@ pub unsafe extern "C" fn icp_sign_message(
     private_key_b64: *const c_char,
 ) -> *mut c_char {
     if message_b64.is_null() || private_key_b64.is_null() {
-        let err_json = json!({"ok": false, "error": "Null parameters"}).to_string();
-        return CString::new(err_json).unwrap().into_raw();
+        return err_ptr("Null parameters");
     }
-
-    let msg_b64 = match CStr::from_ptr(message_b64).to_str() {
-        Ok(s) => s,
-        Err(_) => {
-            let err_json = json!({"ok": false, "error": "Invalid message encoding"}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+    let msg_b64 = match cstr_opt(message_b64) {
+        Some(s) => s,
+        None => return err_ptr("Invalid message encoding"),
     };
-
-    let pk_b64 = match CStr::from_ptr(private_key_b64).to_str() {
-        Ok(s) => s,
-        Err(_) => {
-            let err_json =
-                json!({"ok": false, "error": "Invalid private key encoding"}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+    let pk_b64 = match cstr_opt(private_key_b64) {
+        Some(s) => s,
+        None => return err_ptr("Invalid private key encoding"),
     };
 
     // Decode the message from base64
     let message = match B64.decode(msg_b64) {
         Ok(b) => b,
-        Err(e) => {
-            let err_json =
-                json!({"ok": false, "error": format!("Failed to decode message: {}", e)})
-                    .to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+        Err(e) => return err_ptr(format!("Failed to decode message: {}", e)),
     };
 
     let result = match alg {
@@ -145,10 +162,6 @@ pub unsafe extern "C" fn icp_free_string(ptr: *mut c_char) {
     drop(CString::from_raw(ptr));
 }
 
-fn null_c_string() -> *mut c_char {
-    CString::new("").unwrap().into_raw()
-}
-
 // ---- Canister client FFI (JSON strings in/out) ----
 
 /// # Safety
@@ -162,16 +175,8 @@ pub unsafe extern "C" fn icp_fetch_candid(
     canister_id: *const c_char,
     host: *const c_char,
 ) -> *mut c_char {
-    let cid = if canister_id.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(canister_id).to_str().unwrap_or("")
-    };
-    let host_opt = if host.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(host).to_str().unwrap_or(""))
-    };
+    let cid = cstr_or_empty(canister_id);
+    let host_opt = cstr_opt_or_empty(host);
     match canister_client::fetch_candid(cid, host_opt) {
         Ok(s) => CString::new(s).unwrap().into_raw(),
         Err(_) => null_c_string(),
@@ -187,7 +192,7 @@ pub unsafe extern "C" fn icp_parse_candid(candid_text: *const c_char) -> *mut c_
     if candid_text.is_null() {
         return null_c_string();
     }
-    let s = CStr::from_ptr(candid_text).to_str().unwrap_or("");
+    let s = cstr_or_empty(candid_text);
     match canister_client::parse_candid_interface(s) {
         Ok(parsed) => {
             let json = serde_json::to_string(&parsed).unwrap_or_else(|_| "{}".to_string());
@@ -211,37 +216,13 @@ pub unsafe extern "C" fn icp_call_anonymous(
     arg_candid: *const c_char,
     host: *const c_char,
 ) -> *mut c_char {
-    let cid = if canister_id.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(canister_id).to_str().unwrap_or("")
-    };
-    let m = if method.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(method).to_str().unwrap_or("")
-    };
-    let a = if arg_candid.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(arg_candid).to_str().unwrap_or("")
-    };
-    let host_opt = if host.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(host).to_str().unwrap_or(""))
-    };
-    let mk = match kind {
-        2 => MethodKind::CompositeQuery,
-        1 => MethodKind::Update,
-        _ => MethodKind::Query,
-    };
-    match canister_client::call_anonymous(cid, m, mk, a, host_opt) {
+    let cid = cstr_or_empty(canister_id);
+    let m = cstr_or_empty(method);
+    let a = cstr_or_empty(arg_candid);
+    let host_opt = cstr_opt_or_empty(host);
+    match canister_client::call_anonymous(cid, m, method_kind(kind), a, host_opt) {
         Ok(s) => CString::new(s).unwrap().into_raw(),
-        Err(e) => {
-            let err_json = json!({"ok": false, "error": e.to_string()}).to_string();
-            CString::new(err_json).unwrap().into_raw()
-        }
+        Err(e) => err_ptr(e),
     }
 }
 
@@ -262,44 +243,14 @@ pub unsafe extern "C" fn icp_call_authenticated(
     ed25519_private_key_b64: *const c_char,
     host: *const c_char,
 ) -> *mut c_char {
-    let cid = if canister_id.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(canister_id).to_str().unwrap_or("")
-    };
-    let m = if method.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(method).to_str().unwrap_or("")
-    };
-    let a = if arg_candid.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(arg_candid).to_str().unwrap_or("")
-    };
-    let k = if ed25519_private_key_b64.is_null() {
-        ""
-    } else {
-        CStr::from_ptr(ed25519_private_key_b64)
-            .to_str()
-            .unwrap_or("")
-    };
-    let host_opt = if host.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(host).to_str().unwrap_or(""))
-    };
-    let mk = match kind {
-        2 => MethodKind::CompositeQuery,
-        1 => MethodKind::Update,
-        _ => MethodKind::Query,
-    };
-    match canister_client::call_authenticated(cid, m, mk, a, k, host_opt) {
+    let cid = cstr_or_empty(canister_id);
+    let m = cstr_or_empty(method);
+    let a = cstr_or_empty(arg_candid);
+    let k = cstr_or_empty(ed25519_private_key_b64);
+    let host_opt = cstr_opt_or_empty(host);
+    match canister_client::call_authenticated(cid, m, method_kind(kind), a, k, host_opt) {
         Ok(s) => CString::new(s).unwrap().into_raw(),
-        Err(e) => {
-            let err_json = json!({"ok": false, "error": e.to_string()}).to_string();
-            CString::new(err_json).unwrap().into_raw()
-        }
+        Err(e) => err_ptr(e),
     }
 }
 
@@ -320,18 +271,11 @@ pub unsafe extern "C" fn icp_js_exec(
     if script.is_null() {
         return null_c_string();
     }
-    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let arg_opt = if json_arg.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(json_arg).to_str().unwrap_or(""))
-    };
+    let script_s = cstr_or_empty(script);
+    let arg_opt = cstr_opt_or_empty(json_arg);
     match js_engine::execute_js_json(script_s, arg_opt) {
         Ok(s) => CString::new(s).unwrap().into_raw(),
-        Err(e) => {
-            let err_json = json!({"ok": false, "error": e.to_string()}).to_string();
-            CString::new(err_json).unwrap().into_raw()
-        }
+        Err(e) => err_ptr(e),
     }
 }
 
@@ -344,7 +288,7 @@ pub unsafe extern "C" fn icp_js_lint(script: *const c_char) -> *mut c_char {
     if script.is_null() {
         return null_c_string();
     }
-    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
+    let script_s = cstr_or_empty(script);
     let json = js_engine::lint_js(script_s);
     CString::new(json).unwrap().into_raw()
 }
@@ -364,7 +308,7 @@ pub unsafe extern "C" fn icp_js_validate_comprehensive(
     if script.is_null() {
         return null_c_string();
     }
-    let script_s = CStr::from_ptr(script).to_str().unwrap_or("");
+    let script_s = cstr_or_empty(script);
 
     let context = JsValidationContext {
         is_example: is_example != 0,
@@ -398,12 +342,8 @@ pub unsafe extern "C" fn icp_js_app_init(
     if script.is_null() {
         return null_c_string();
     }
-    let s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let arg_opt = if json_arg.is_null() {
-        None
-    } else {
-        Some(CStr::from_ptr(json_arg).to_str().unwrap_or(""))
-    };
+    let s = cstr_or_empty(script);
+    let arg_opt = cstr_opt_or_empty(json_arg);
     let out = js_engine::js_app_init(s, arg_opt, budget_ms);
     CString::new(out).unwrap().into_raw()
 }
@@ -421,8 +361,8 @@ pub unsafe extern "C" fn icp_js_app_view(
     if script.is_null() || state_json.is_null() {
         return null_c_string();
     }
-    let s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
+    let s = cstr_or_empty(script);
+    let st = cstr_or_empty(state_json);
     let out = js_engine::js_app_view(s, st, budget_ms);
     CString::new(out).unwrap().into_raw()
 }
@@ -441,9 +381,9 @@ pub unsafe extern "C" fn icp_js_app_update(
     if script.is_null() || msg_json.is_null() || state_json.is_null() {
         return null_c_string();
     }
-    let s = CStr::from_ptr(script).to_str().unwrap_or("");
-    let m = CStr::from_ptr(msg_json).to_str().unwrap_or("");
-    let st = CStr::from_ptr(state_json).to_str().unwrap_or("");
+    let s = cstr_or_empty(script);
+    let m = cstr_or_empty(msg_json);
+    let st = cstr_or_empty(state_json);
     let out = js_engine::js_app_update(s, m, st, budget_ms);
     CString::new(out).unwrap().into_raw()
 }
@@ -464,34 +404,22 @@ pub unsafe extern "C" fn icp_encrypt_vault(
     plaintext_b64: *const c_char,
 ) -> *mut c_char {
     if password.is_null() || plaintext_b64.is_null() {
-        let err_json = json!({"ok": false, "error": "Null parameters"}).to_string();
-        return CString::new(err_json).unwrap().into_raw();
+        return err_ptr("Null parameters");
     }
 
-    let password_str = match CStr::from_ptr(password).to_str() {
-        Ok(s) => s,
-        Err(_) => {
-            let err_json = json!({"ok": false, "error": "Invalid password encoding"}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+    let password_str = match cstr_opt(password) {
+        Some(s) => s,
+        None => return err_ptr("Invalid password encoding"),
     };
 
-    let plaintext_b64_str = match CStr::from_ptr(plaintext_b64).to_str() {
-        Ok(s) => s,
-        Err(_) => {
-            let err_json = json!({"ok": false, "error": "Invalid plaintext encoding"}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+    let plaintext_b64_str = match cstr_opt(plaintext_b64) {
+        Some(s) => s,
+        None => return err_ptr("Invalid plaintext encoding"),
     };
 
     let plaintext = match B64.decode(plaintext_b64_str) {
         Ok(b) => b,
-        Err(e) => {
-            let err_json =
-                json!({"ok": false, "error": format!("Failed to decode plaintext: {}", e)})
-                    .to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+        Err(e) => return err_ptr(format!("Failed to decode plaintext: {}", e)),
     };
 
     match vault::encrypt_vault(password_str, &plaintext) {
@@ -505,10 +433,7 @@ pub unsafe extern "C" fn icp_encrypt_vault(
             .to_string();
             CString::new(json).unwrap().into_raw()
         }
-        Err(e) => {
-            let err_json = json!({"ok": false, "error": e}).to_string();
-            CString::new(err_json).unwrap().into_raw()
-        }
+        Err(e) => err_ptr(e),
     }
 }
 
@@ -532,53 +457,32 @@ pub unsafe extern "C" fn icp_decrypt_vault(
         || salt_b64.is_null()
         || nonce_b64.is_null()
     {
-        let err_json = json!({"ok": false, "error": "Null parameters"}).to_string();
-        return CString::new(err_json).unwrap().into_raw();
+        return err_ptr("Null parameters");
     }
 
-    let password_str = match CStr::from_ptr(password).to_str() {
-        Ok(s) => s,
-        Err(_) => {
-            let err_json = json!({"ok": false, "error": "Invalid password encoding"}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+    let password_str = match cstr_opt(password) {
+        Some(s) => s,
+        None => return err_ptr("Invalid password encoding"),
     };
 
-    let encrypted_data = match B64.decode(CStr::from_ptr(encrypted_data_b64).to_str().unwrap_or(""))
-    {
+    let encrypted_data = match B64.decode(cstr_or_empty(encrypted_data_b64)) {
         Ok(b) => b,
-        Err(e) => {
-            let err_json =
-                json!({"ok": false, "error": format!("Failed to decode encrypted_data: {}", e)})
-                    .to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+        Err(e) => return err_ptr(format!("Failed to decode encrypted_data: {}", e)),
     };
 
-    let salt = match B64.decode(CStr::from_ptr(salt_b64).to_str().unwrap_or("")) {
+    let salt = match B64.decode(cstr_or_empty(salt_b64)) {
         Ok(b) => b,
-        Err(e) => {
-            let err_json =
-                json!({"ok": false, "error": format!("Failed to decode salt: {}", e)}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+        Err(e) => return err_ptr(format!("Failed to decode salt: {}", e)),
     };
 
-    let nonce = match B64.decode(CStr::from_ptr(nonce_b64).to_str().unwrap_or("")) {
+    let nonce = match B64.decode(cstr_or_empty(nonce_b64)) {
         Ok(b) => b,
-        Err(e) => {
-            let err_json =
-                json!({"ok": false, "error": format!("Failed to decode nonce: {}", e)}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+        Err(e) => return err_ptr(format!("Failed to decode nonce: {}", e)),
     };
 
     let vault = match EncryptedVault::new(encrypted_data, salt, nonce) {
         Ok(v) => v,
-        Err(e) => {
-            let err_json = json!({"ok": false, "error": e}).to_string();
-            return CString::new(err_json).unwrap().into_raw();
-        }
+        Err(e) => return err_ptr(e),
     };
 
     match vault::decrypt_vault(password_str, &vault) {
@@ -590,9 +494,6 @@ pub unsafe extern "C" fn icp_decrypt_vault(
             .to_string();
             CString::new(json).unwrap().into_raw()
         }
-        Err(e) => {
-            let err_json = json!({"ok": false, "error": e}).to_string();
-            CString::new(err_json).unwrap().into_raw()
-        }
+        Err(e) => err_ptr(e),
     }
 }
