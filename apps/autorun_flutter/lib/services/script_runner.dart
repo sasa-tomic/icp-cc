@@ -346,6 +346,26 @@ class ScriptRunner {
     );
   }
 
+  String? _dispatchCall(CanisterCallSpec spec, String? privateKey) {
+    if (privateKey == null || privateKey.isEmpty) {
+      return _bridge.callAnonymous(
+        canisterId: spec.canisterId,
+        method: spec.method,
+        kind: spec.kind,
+        args: spec.argsJson,
+        host: spec.host,
+      );
+    }
+    return _bridge.callAuthenticated(
+      canisterId: spec.canisterId,
+      method: spec.method,
+      kind: spec.kind,
+      privateKeyB64: privateKey,
+      args: spec.argsJson,
+      host: spec.host,
+    );
+  }
+
   /// Resolve the keypair, execute a single canister call, and decode its JSON
   /// output. [resolveContext] humanizes keypair-resolution errors; [emptyError]
   /// is surfaced verbatim when the call returns no body. Non-JSON responses are
@@ -363,22 +383,7 @@ class ScriptRunner {
           ok: false, error: 'Failed to resolve keypair for $resolveContext: $e');
     }
 
-    final String? callOut = (privateKey == null || privateKey.isEmpty)
-        ? _bridge.callAnonymous(
-            canisterId: spec.canisterId,
-            method: spec.method,
-            kind: spec.kind,
-            args: spec.argsJson,
-            host: spec.host,
-          )
-        : _bridge.callAuthenticated(
-            canisterId: spec.canisterId,
-            method: spec.method,
-            kind: spec.kind,
-            privateKeyB64: privateKey,
-            args: spec.argsJson,
-            host: spec.host,
-          );
+    final String? callOut = _dispatchCall(spec, privateKey);
 
     if (callOut == null || callOut.trim().isEmpty) {
       return ScriptRunResult(ok: false, error: emptyError);
@@ -447,22 +452,7 @@ class ScriptRunner {
             error: 'Failed to resolve keypair for ${spec.label}: $e');
       }
 
-      final String? raw = (privateKey == null || privateKey.isEmpty)
-          ? _bridge.callAnonymous(
-              canisterId: spec.canisterId,
-              method: spec.method,
-              kind: spec.kind,
-              args: spec.argsJson,
-              host: spec.host,
-            )
-          : _bridge.callAuthenticated(
-              canisterId: spec.canisterId,
-              method: spec.method,
-              kind: spec.kind,
-              privateKeyB64: privateKey,
-              args: spec.argsJson,
-              host: spec.host,
-            );
+      final String? raw = _dispatchCall(spec, privateKey);
       if (raw == null || raw.trim().isEmpty) {
         return ScriptRunResult(
             ok: false, error: 'Empty response from ${spec.label}');
@@ -521,11 +511,6 @@ class ScriptRunner {
         final List<dynamic> calls =
             (result['calls'] as List<dynamic>? ?? const <dynamic>[]);
         return _executeBatch(calls);
-      }
-      // UI description passthrough (rendered by Flutter layer)
-      if (result is Map<String, dynamic> &&
-          (result['action'] as String?) == 'ui') {
-        return ScriptRunResult(ok: true, result: result);
       }
       return ScriptRunResult(ok: true, result: result);
     } catch (e) {
