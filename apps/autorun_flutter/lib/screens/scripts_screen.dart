@@ -706,10 +706,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
-  Future<void> _exportScript(ScriptRecord record) async {
-    // For now, just copy the source code to clipboard
-    // In a real implementation, you might want to export as a file
-    await Clipboard.setData(ClipboardData(text: record.bundle));
+  Future<void> _copyScriptSource(ScriptRecord record) async {
+    await copyScriptSourceToClipboard(record);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1131,7 +1129,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             ),
           ),
         const PopupMenuItem(
-          value: 'export',
+          value: 'copy_source',
           child: Row(
             children: [
               Icon(Icons.copy, size: 20),
@@ -1216,8 +1214,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       case 'publish':
         if (item.localScript != null) _publishToMarketplace(item.localScript!);
         break;
-      case 'export':
-        if (item.localScript != null) _exportScript(item.localScript!);
+      case 'copy_source':
+        if (item.localScript != null) _copyScriptSource(item.localScript!);
         break;
       case 'view_details':
         if (item.marketplaceScript != null) {
@@ -1321,7 +1319,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 ),
               ),
             const PopupMenuItem(
-              value: 'export',
+              value: 'copy_source',
               child: Row(
                 children: [
                   Icon(Icons.copy, size: 20),
@@ -1375,8 +1373,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       case 'duplicate':
         _duplicateScript(record);
         break;
-      case 'export':
-        _exportScript(record);
+      case 'copy_source':
+        _copyScriptSource(record);
         break;
       case 'view_marketplace':
         _viewInMarketplace(record);
@@ -2022,4 +2020,13 @@ class _ActiveFilterChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Copies a script's TypeScript bundle to the system clipboard.
+///
+/// "Copy Source" is a clipboard action (not a file export): the bundle the
+/// author wrote is placed on the clipboard verbatim. Extracted as a top-level
+/// function so the behavior is unit-testable without pumping the full screen.
+Future<void> copyScriptSourceToClipboard(ScriptRecord record) {
+  return Clipboard.setData(ClipboardData(text: record.bundle));
 }

@@ -264,7 +264,7 @@ class LocalScriptRowTest extends StatelessWidget {
                 child: Text('Share to Marketplace'),
               ),
             const PopupMenuItem(
-              value: 'export',
+              value: 'copy_source',
               child: Text('Copy Source'),
             ),
             const PopupMenuItem(

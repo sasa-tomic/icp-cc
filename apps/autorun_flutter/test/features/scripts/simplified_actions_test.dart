@@ -491,7 +491,7 @@ class SimplifiedLocalScriptRowTest extends StatelessWidget {
               case 'publish':
                 onPublish();
                 break;
-              case 'export':
+              case 'copy_source':
                 onExport();
                 break;
             }
@@ -512,7 +512,7 @@ class SimplifiedLocalScriptRowTest extends StatelessWidget {
                 child: Text('Share to Marketplace'),
               ),
             const PopupMenuItem(
-              value: 'export',
+              value: 'copy_source',
               child: Text('Copy Source'),
             ),
             const PopupMenuDivider(),

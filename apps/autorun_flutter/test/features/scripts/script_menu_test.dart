@@ -48,12 +48,12 @@ void main() {
     test(
         'Local script menu should have secondary actions (run is now a button)',
         () {
-      final secondaryActions = ['delete', 'duplicate', 'export', 'publish'];
+      final secondaryActions = ['delete', 'duplicate', 'copy_source', 'publish'];
       expect(secondaryActions.length, equals(4));
     });
 
     test('Run action is now a separate play button, not in menu', () {
-      final popupMenuActions = ['delete', 'duplicate', 'export', 'publish'];
+      final popupMenuActions = ['delete', 'duplicate', 'copy_source', 'publish'];
       expect(popupMenuActions.contains('run'), isFalse);
     });
 
@@ -67,7 +67,7 @@ void main() {
       final localScriptPopupMenuItems = [
         'delete',
         'duplicate',
-        'export',
+        'copy_source',
         'publish',
       ];
       expect(localScriptPopupMenuItems.length, equals(4));
@@ -181,7 +181,7 @@ class ScriptsScreenMenuTest extends StatelessWidget {
               ),
             ),
             const PopupMenuItem(
-              value: 'export',
+              value: 'copy_source',
               child: Row(
                 children: [
                   Icon(Icons.copy, size: 20),
