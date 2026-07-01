@@ -1,366 +1,153 @@
-# Docker Deployment with Cloudflare Tunnel
+# Production Deployment (Docker + Cloudflare Tunnel)
 
-This guide explains how to deploy the ICP Marketplace API using Docker Compose with Cloudflare Tunnel for secure external access.
+How the **ICP Marketplace API** is deployed to production. This document covers
+the *what* and *why*; for a copy-paste operational checklist (deploy, verify,
+rollback, troubleshoot) see **[DEPLOY_RUNBOOK.md](./DEPLOY_RUNBOOK.md)**.
 
-## Overview
-
-The deployment consists of two services:
-- **api**: The ICP Marketplace API (Poem-based Rust application)
-- **cloudflared**: Cloudflare Tunnel connector for secure external access
+> **Runtime note (post TypeScript/QuickJS migration).** The backend is a
+> Rust/poem HTTP API. It **stores and serves TypeScript script bundles** (the
+> `bundle` field on scripts) — it does **not** host or execute a second
+> scripting runtime. QuickJS execution happens client-side in the Flutter app
+> via FFI. There is no Lua anywhere in the stack. Any older doc implying a
+> second server-side runtime is obsolete.
 
 ## Architecture
 
 ```
-Internet
-    ↓
-Cloudflare Network
-    ↓
-Cloudflare Tunnel (cloudflared container)
-    ↓
-icp-mp.kalaj.org → api:58000
+Internet ──► Cloudflare Network ──► Cloudflare Tunnel (cloudflared container)
+                                        │ reaches over the bridge network
+                                        ▼
+                            icp-mp.kalaj.org ──► api-prod:58000
 ```
 
-**Benefits:**
-- No firewall ports need to be opened
-- Built-in DDoS protection via Cloudflare
-- Automatic TLS/SSL encryption
-- No public IP exposure
-- **No local cloudflared installation needed** - everything runs in containers
+- **api-prod** — the Rust API (image `icp-marketplace-api:prod`), listens on
+  container port `58000`.
+- **cloudflared-prod** — Cloudflare Tunnel connector. Terminates public TLS on
+  `https://icp-mp.kalaj.org` and forwards to `api-prod:58000` over the
+  `api-network-prod` bridge. No host firewall ports are opened for public
+  traffic.
+
+**Port mapping reconciliation.** `docker-compose.prod.yml` publishes
+`58100:58000` (host:container). The host port **58100** exists **only for
+direct/debug access** from the server itself (e.g. `curl
+http://127.0.0.1:58100/api/v1/health`). Public traffic does **not** use 58100 —
+it flows `https://icp-mp.kalaj.org` → tunnel → `api-prod:58000` (container
+internal). This is intentional and correct.
+
+**WebAuthn RP origin.** `WEBAUTHN_RP_ORIGIN` must be the **user-facing origin**
+`https://icp-mp.kalaj.org` — scheme + host, **no port**. It must NOT include
+the internal `:58100`; the WebAuthn RP ID/origin is what the user's browser
+sees, not the container's listen port.
 
 ## Prerequisites
 
-1. A Cloudflare account with access to the domain `kalaj.org`
-2. Docker and Docker Compose installed
+1. Docker Engine + Docker Compose v2 (`docker compose version` works).
+2. `cargo` (Rust toolchain) on the deploy host — the release binary is built
+   **on the host first**, then copied into the image (see Dockerfile). The
+   image does not build from source.
+3. A Cloudflare account with control over the `kalaj.org` zone.
+4. (Recommended) `just` — the deploy recipes in the root `justfile` wrap the
+   raw commands below.
 
-That's it! No need to install cloudflared locally.
+## Environment variables
 
-## Required Environment Variables
+`docker-compose.prod.yml` wires production defaults via `${VAR:-default}`
+interpolation, so the stack starts with safe prod values even from an empty
+environment. Override any of them in `backend/.env` (gitignored). The full
+ground-truth set the **code** reads:
 
-The API reads its deployment config from environment variables. `docker-compose.prod.yml`
-already wires the production defaults; override them in `.env.tunnel` (or your shell)
-when targeting a different hostname.
+| Variable | Prod default | Required in prod? | Purpose |
+|----------|--------------|-------------------|---------|
+| `ENVIRONMENT` | `production` | yes (compose sets it) | Marks a prod run. Only `development` enables destructive dev endpoints (`/api/dev/reset-database`). |
+| `PORT` | `58000` | yes (compose sets it) | Container listen port. |
+| `DATABASE_URL` | `sqlite:///data/marketplace-prod.db?mode=rwc` | yes (compose sets it) | SQLite path, persisted via the `./data` bind mount. |
+| `RUST_LOG` | `info` | no | `tracing` filter. |
+| `WEBAUTHN_RP_ID` | `icp-mp.kalaj.org` | **yes** | WebAuthn RP ID = public hostname. Passkeys are scoped to it. |
+| `WEBAUTHN_RP_ORIGIN` | `https://icp-mp.kalaj.org` | **yes** | WebAuthn RP origin (scheme + host, no port). Must be `https://` in prod. |
+| `ADMIN_TOKEN` | `change-me-in-production` | **yes — OVERRIDE** | Bearer token for `/api/v1/admin/*`. **Generate a long random secret** and set it in `.env`. See *Known operational gaps* below. |
+| `TUNNEL_TOKEN` | _(none)_ | **yes** for the tunnel | Cloudflare tunnel token. Put in `.env` (from `.env.tunnel.example`). |
 
-| Variable | Prod default | Purpose |
-|----------|--------------|---------|
-| `ENVIRONMENT` | `production` | Marks this as a production run. Must NOT be `development` in prod (dev enables destructive endpoints like DB reset). |
-| `WEBAUTHN_RP_ID` | `icp-mp.kalaj.org` | WebAuthn Relying Party ID (the public hostname). Passkeys are scoped to this origin. |
-| `WEBAUTHN_RP_ORIGIN` | `https://icp-mp.kalaj.org` | WebAuthn RP origin (scheme + host). Must be `https://` in prod. |
-| `DATABASE_URL` | `sqlite:///data/marketplace-prod.db?mode=rwc` | SQLite database location (persisted via the `./data` volume). |
-| `PORT` | `58000` | Container listen port (cloudflared reaches `api-prod:58000`). |
-| `RUST_LOG` | `info` | Log level. |
-| `TUNNEL_TOKEN` | (from `.env.tunnel`) | Cloudflare tunnel token. |
+### The two loud misconfiguration warnings on boot
 
-### Passkey RP misconfiguration warning
+The API prints banners to **stderr and the log** and refuses to stay quiet when
+prod-critical config is wrong:
 
-If `ENVIRONMENT` is **not** `development` and `WEBAUTHN_RP_ID`/`WEBAUTHN_RP_ORIGIN`
-resolve to a localhost address (e.g. `localhost` / `127.0.0.1`, or an `http://localhost`
-origin), passkeys will be registered against localhost and **silently fail** for the public
-hostname. On boot the API prints a **loud `[!!] PRODUCTION PASSKEY MISCONFIGURATION` banner**
-to stderr and the log. Never ignore it — set both `WEBAUTHN_RP_*` vars to the public host.
+1. **Passkey RP (PR-2).** If `ENVIRONMENT != development` and
+   `WEBAUTHN_RP_ID`/`WEBAUTHN_RP_ORIGIN` resolve to a localhost address, on
+   boot you get:
+   ```
+   ========================================================================
+   [!!] PRODUCTION PASSKEY MISCONFIGURATION — PASSKEYS WILL BE BROKEN [!!]
+   ========================================================================
+   ```
+   Passkeys would be registered against localhost and silently fail for the
+   public hostname. **Never ignore this** — set both `WEBAUTHN_RP_*` vars to
+   the public host.
 
-## Setup (5-minute setup)
+2. **Admin token.** `admin_auth.rs` currently falls back to the hardcoded
+   `change-me-in-production` when `ADMIN_TOKEN` is unset, logging only a single
+   `warn!`. This is **not** loud enough and is tracked as an operational gap
+   (see DEPLOY_RUNBOOK.md). Until it is tightened, treat the presence of the
+   default value as a misconfiguration you must fix before exposing the
+   service: set a strong `ADMIN_TOKEN` in `.env`.
 
-### Step 1: Create a Remotely-Managed Tunnel in Cloudflare Dashboard
+## Deploy procedure (summary)
 
-1. Go to [Cloudflare Zero Trust](https://one.dash.cloudflare.com/)
-2. Navigate to **Networks** > **Connectors** > **Cloudflare Tunnels**
-3. Click **Create a tunnel**
-4. Choose **Cloudflared** and click **Next**
-5. Enter tunnel name: `icp-marketplace`
-6. Click **Save tunnel**
-
-### Step 2: Configure Public Hostname
-
-1. In the tunnel configuration page, go to the **Public Hostname** tab
-2. Click **Add a public hostname**
-3. Configure:
-   - **Subdomain**: `icp-mp`
-   - **Domain**: `kalaj.org`
-   - **Service Type**: `HTTP`
-   - **URL**: `api:58000`
-4. Click **Save hostname**
-
-### Step 3: Get the Tunnel Token
-
-1. In the tunnel page, select **Configure** (or **Edit**)
-2. Choose **Docker** as the environment
-3. Copy the installation command shown in the dashboard
-4. Extract just the token value (the long string starting with `eyJhIjoiNWFi...`)
-
-The command looks like:
-```bash
-docker run cloudflare/cloudflared:latest tunnel --no-autoupdate run --token eyJhIjoiNWFi...
-```
-
-### Step 4: Save Token Locally
-
-Create `.env.tunnel` file in the `backend` directory:
+The full numbered procedure — including verification and rollback — lives in
+[DEPLOY_RUNBOOK.md](./DEPLOY_RUNBOOK.md). The short version:
 
 ```bash
-# Copy the example file
-cp .env.tunnel.example .env.tunnel
+# 0. From the repo root, on the deploy host:
+cargo build --release                                # builds target/release/icp-marketplace-api
+cd backend
+mkdir -p data && chmod 777 data                      # SQLite persistence + container write access
 
-# Edit and add your token
-nano .env.tunnel
+# 1. Provide env (tunnel token + any overrides). .env is gitignored.
+cp .env.tunnel.example .env                          # then edit: set TUNNEL_TOKEN, ADMIN_TOKEN, etc.
+
+# 2. Validate the resolved config (optional but recommended):
+TUNNEL_TOKEN=… docker compose -f docker-compose.prod.yml config | less
+
+# 3. Build the image and start the stack:
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 4. Verify health:
+docker compose -f docker-compose.prod.yml ps         # api-prod shows (healthy)
+curl -s http://127.0.0.1:58100/api/v1/health         # direct/debug port
+curl -s https://icp-mp.kalaj.org/api/v1/health       # via tunnel
 ```
 
-Add your token:
-```bash
-TUNNEL_TOKEN=eyJhIjoiNWFi...your-actual-token-here
-```
-
-**Important:** This file is gitignored and contains secrets - never commit it!
-
-### Step 5: Prepare Data Directory
-
-```bash
-# Create and set permissions for the database directory
-mkdir -p data
-chmod 777 data
-```
-
-### Step 6: Start Services
-
-```bash
-# Load the tunnel token and start services
-export $(cat .env.tunnel | xargs) && docker compose up -d
-
-# Or use --env-file (Docker Compose v2.1+)
-docker compose --env-file .env.tunnel up -d
-```
-
-### Step 7: Verify Deployment
-
-```bash
-# Check service health
-docker compose ps
-
-# View logs
-docker compose logs -f
-
-# Test the API endpoint
-curl https://icp-mp.kalaj.org/api/v1/health
-
-# Expected response: {"status":"ok"}
-```
-
-## Management
-
-### View Logs
-
-```bash
-# All services
-docker compose logs -f
-
-# API only
-docker compose logs -f api
-
-# Cloudflared only
-docker compose logs -f cloudflared
-```
-
-### Restart Services
-
-```bash
-# Restart all
-export $(cat .env.tunnel | xargs) && docker compose restart
-
-# Restart specific service
-export $(cat .env.tunnel | xargs) && docker compose restart api
-export $(cat .env.tunnel | xargs) && docker compose restart cloudflared
-```
-
-### Stop Services
-
-```bash
-docker compose down
-```
-
-### Update and Rebuild
-
-```bash
-# Pull latest code changes
-git pull
-
-# Rebuild and restart
-export $(cat .env.tunnel | xargs) && docker compose up -d --build
-```
-
-## Monitoring
-
-### Health Checks
-
-The API service includes a built-in health check that runs every 30 seconds:
-
-```bash
-docker compose ps  # Shows health status
-```
-
-### Tunnel Status
-
-Check tunnel status in the Cloudflare dashboard:
-1. Go to [Cloudflare Zero Trust](https://one.dash.cloudflare.com/)
-2. Navigate to **Networks** > **Connectors** > **Cloudflare Tunnels**
-3. Your tunnel should show as "Healthy" with active connections
-
-## Troubleshooting
-
-### API Service Won't Start
-
-```bash
-# Check logs for errors
-docker compose logs api
-
-# Verify the database directory exists
-ls -la data/
-
-# Check environment variables
-docker compose config
-```
-
-### Tunnel Connection Issues
-
-```bash
-# View cloudflared logs
-docker compose logs cloudflared
-
-# Common issues:
-# 1. Invalid token - verify TUNNEL_TOKEN in .env.tunnel
-# 2. Token not loaded - ensure you run: export $(cat .env.tunnel | xargs)
-# 3. Network issues - check your firewall allows outbound connections to Cloudflare
-```
-
-### "TUNNEL_TOKEN not found" Error
-
-```bash
-# Make sure to export the environment variable before running docker compose
-export $(cat .env.tunnel | xargs)
-docker compose up -d
-
-# Or use --env-file flag
-docker compose --env-file .env.tunnel up -d
-```
-
-### DNS Not Resolving
-
-```bash
-# Check DNS propagation (may take a few minutes)
-nslookup icp-mp.kalaj.org
-
-# Verify public hostname configuration in Cloudflare dashboard
-# Networks > Tunnels > icp-marketplace > Public Hostname tab
-```
-
-## Security Considerations
-
-1. **Token Protection**: The `.env.tunnel` file contains a secret token and is automatically excluded from git via `.gitignore`
-
-2. **Cloudflare Protection**: All traffic goes through Cloudflare's network, providing:
-   - DDoS protection
-   - Web Application Firewall (WAF)
-   - Rate limiting
-   - TLS encryption
-
-3. **Container Security**: The API runs as a non-root user inside the container
-
-4. **Token Rotation**: You can regenerate the tunnel token at any time from the Cloudflare dashboard
-
-## Data Persistence
-
-The SQLite database is stored in `./data/marketplace-prod.db` on your host machine:
-
-- **Location**: `backend/data/marketplace-prod.db`
-- **Automatic Creation**: Database file and schema are created automatically on first startup
-- **Backups**: Simply copy the `data/` directory
-- **Direct Access**: You can query the database directly with any SQLite client
-
-```bash
-# View database file
-ls -lh data/marketplace-prod.db
-
-# Backup database
-cp -r data/ data-backup-$(date +%Y%m%d)/
-
-# Query with sqlite3
-sqlite3 data/marketplace-prod.db "SELECT COUNT(*) FROM scripts;"
-```
-
-## Production Recommendations
-
-1. **Monitoring**: Set up Cloudflare Access logs and API monitoring
-2. **Backups**: Regularly backup the `data/` directory (SQLite database)
-3. **Updates**: Keep Docker images updated with `docker compose pull`
-4. **Secrets Management**: Consider using Docker secrets or a secrets manager for production
-5. **Rate Limiting**: Configure Cloudflare rate limiting rules for API protection
-6. **Health Alerts**: Enable Cloudflare tunnel health notifications
-
-## Alternative: Using Docker Secrets (Production)
-
-For production environments, use Docker secrets instead of environment variables:
-
-```yaml
-# docker-compose.yml
-services:
-  cloudflared:
-    secrets:
-      - tunnel_token
-    command: tunnel --no-autoupdate run --token $(cat /run/secrets/tunnel_token)
-
-secrets:
-  tunnel_token:
-    file: ./secrets/tunnel_token.txt
-```
-
-## Cleanup
-
-To completely remove the deployment:
-
-```bash
-# Stop and remove containers
-docker compose down
-
-# Remove volumes (including database)
-docker compose down -v
-
-# Delete tunnel from Cloudflare dashboard
-# Networks > Tunnels > icp-marketplace > Delete
-```
-
-## Comparison: Token-Based vs. Credentials-Based Setup
-
-| Feature | Token-Based (This Setup) | Credentials-Based |
-|---------|-------------------------|-------------------|
-| Local installation needed | ❌ No | ✅ Yes |
-| Setup complexity | ⭐ Simple | ⭐⭐⭐ Complex |
-| Configuration files | 1 file (`.env.tunnel`) | 3+ files |
-| Tunnel management | Dashboard | CLI + Config files |
-| Token rotation | Easy (dashboard) | Requires re-auth |
-| Best for | Docker/Container deployments | Traditional server deployments |
-
-## Related Documentation
-
-- [Local Development](./LOCAL_DEVELOPMENT.md) - Run locally without Docker
-- [API Documentation](./README.md) - API endpoints and usage
-- [Quick Start](./QUICKSTART.md) - 5-minute setup guide
-
-## Quick Reference Commands
-
-```bash
-# Start with token from file
-export $(cat .env.tunnel | xargs) && docker compose up -d
-
-# Start with explicit env file
-docker compose --env-file .env.tunnel up -d
-
-# View all logs
-docker compose logs -f
-
-# Test endpoint
-curl https://icp-mp.kalaj.org/api/v1/health
-
-# Stop everything
-docker compose down
-
-# Rebuild after code changes
-export $(cat .env.tunnel | xargs) && docker compose up -d --build
-```
+The `just docker-deploy-prod` recipe automates steps 0+1+3 (it runs
+`cargo build --release` then `backend/scripts/start-tunnel.sh`, which checks
+for `.env`, prepares `data/`, and runs `compose up -d --build`).
+
+## Cloudflare Tunnel one-time setup
+
+Only needed when creating a new tunnel (not on every deploy):
+
+1. Go to [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) →
+   **Networks → Connectors → Cloudflare Tunnels → Create a tunnel**.
+2. Choose **Cloudflared**, name it `icp-marketplace`, save.
+3. **Public Hostname** tab → add:
+   - Subdomain `icp-mp`, Domain `kalaj.org`
+   - Service type `HTTP`, URL `api-prod:58000` (the container service+port)
+4. Select the **Docker** install option and copy the token (the long string
+   after `--token`). Put it in `backend/.env` as `TUNNEL_TOKEN=…`.
+
+`.env` (created from `.env.tunnel.example`) is gitignored — never commit it.
+
+## Data persistence
+
+- The SQLite DB lives at `backend/data/marketplace-prod.db` on the host,
+  bind-mounted to `/data` in the container.
+- Created automatically on first boot. Back it up by copying the `data/`
+  directory (see DEPLOY_RUNBOOK.md → Backup).
+- The container runs as non-root UID 1000 (`appuser`); ensure `data/` is
+  writable by that UID (`chmod 777 data` is the simplest fix).
+
+## Related documentation
+
+- [DEPLOY_RUNBOOK.md](./DEPLOY_RUNBOOK.md) — operational runbook (deploy,
+  verify, rollback, troubleshoot, backup).
+- [README.md](./README.md) — API endpoints.
+- [QUICKSTART.md](./QUICKSTART.md) — local dev quick start.

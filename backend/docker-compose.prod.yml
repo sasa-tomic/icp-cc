@@ -14,6 +14,7 @@ services:
       - PORT=58000
       - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-icp-mp.kalaj.org}
       - WEBAUTHN_RP_ORIGIN=${WEBAUTHN_RP_ORIGIN:-https://icp-mp.kalaj.org}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-change-me-in-production}
     volumes:
       - ./data:/data
     ports:
