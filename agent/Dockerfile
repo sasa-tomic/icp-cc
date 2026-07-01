@@ -67,7 +67,7 @@ RUN rustup target add x86_64-unknown-linux-gnu wasm32-unknown-unknown \
     && curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install cargo tools using binstall for faster installation
-RUN cargo binstall --no-confirm cargo-make cargo-nextest sqlx-cli ripgrep cargo-sweep wasm-pack plasmate
+RUN cargo binstall --no-confirm cargo-make cargo-nextest sqlx-cli ripgrep cargo-sweep wasm-pack
 
 # Install UV to .local/bin (not .cargo/bin which gets shadowed by cargo-cache volume)
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME/.local/bin" sh
@@ -94,6 +94,9 @@ RUN mkdir -p ~/.npm-global \
 
 # Install OpenCode
 RUN curl -fsSL https://opencode.ai/install | bash
+
+# Install Plasmate
+RUN curl -fsSL https://plasmate.app/install.sh | sh
 
 # Install Flutter SDK for ICP-CC project
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \
