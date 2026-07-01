@@ -44,7 +44,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   bool _isUploading = false;
   double _uploadProgress = 0.0; // Track upload progress 0.0 to 1.0
   String? _error;
-  int _currentStep = 0; // 0 = form, 1 = code preview
 
   final List<String> _availableCategories = [
     'Example',
@@ -165,23 +164,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 ''';
   }
 
-  void _goToCodePreview() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    setState(() {
-      _currentStep = 1;
-      _error = null;
-    });
-  }
-
-  void _goBackToForm() {
-    setState(() {
-      _currentStep = 0;
-      _error = null;
-    });
-  }
-
   @override
   void dispose() {
     _titleController.dispose();
@@ -192,7 +174,12 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   }
 
   Future<void> _uploadScript() async {
-    // Validation is done in _goToCodePreview() before reaching this step
+    // Validate the form first. The publish flow is now a single page, so the
+    // primary action owns validation (previously it lived in the "Next" step).
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
     final ProfileController controller =
         _profileController(context, listen: false);
     final ProfileKeypair? keypair = controller.activeKeypair;
@@ -239,8 +226,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
       // Use the actual bundle source from the script, pre-filled code, or generate a default
       String bundle;
-      if (widget.script?.bundle != null &&
-          widget.script!.bundle.isNotEmpty) {
+      if (widget.script?.bundle != null && widget.script!.bundle.isNotEmpty) {
         bundle = widget.script!.bundle;
       } else if (widget.preFilledCode != null &&
           widget.preFilledCode!.isNotEmpty) {
@@ -388,198 +374,172 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
             // Form content
             Expanded(
-              child: _currentStep == 0
-                  ? Form(
-                      key: _formKey,
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.only(
-                          left: 20,
-                          right: 20,
-                          top: 20,
-                          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              child: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 20,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_error != null) ...[
+                        ErrorDisplay(
+                          error: _error!,
+                          onRetry: _isUploading ? null : _uploadScript,
+                          retryText: 'Retry upload',
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (_error != null) ...[
-                              ErrorDisplay(
-                                error: _error!,
-                                onRetry: _isUploading ? null : _uploadScript,
-                                retryText: 'Retry upload',
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                            // Basic Information Section
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Basic Information',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                        const SizedBox(height: 16),
+                      ],
+                      // Basic Information Section
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Basic Information',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _titleController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Title *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Title is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _descriptionController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Description *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  maxLines: 3,
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Description is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Keypair context',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                _buildKeypairCard(_profileController(context)),
-                                const SizedBox(height: 16),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedCategory,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Category *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  items: _availableCategories.map((category) {
-                                    return DropdownMenuItem(
-                                      value: category,
-                                      child: Text(category),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() {
-                                        _selectedCategory = value;
-                                      });
-                                    }
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _tagsController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Tags (comma-separated)',
-                                    border: OutlineInputBorder(),
-                                    helperText:
-                                        'e.g., automation, defi, gaming',
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _priceController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Price (ICP) *',
-                                    border: OutlineInputBorder(),
-                                    helperText: 'Set to 0 for free scripts',
-                                  ),
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Price is required';
-                                    }
-                                    final price = double.tryParse(value.trim());
-                                    if (price == null || price < 0) {
-                                      return 'Invalid price';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _titleController,
+                            decoration: const InputDecoration(
+                              labelText: 'Title *',
+                              border: OutlineInputBorder(),
                             ),
-                          ],
-                        ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Title is required';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _descriptionController,
+                            decoration: const InputDecoration(
+                              labelText: 'Description *',
+                              border: OutlineInputBorder(),
+                            ),
+                            maxLines: 3,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Description is required';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Keypair context',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildKeypairCard(_profileController(context)),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedCategory,
+                            decoration: const InputDecoration(
+                              labelText: 'Category *',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _availableCategories.map((category) {
+                              return DropdownMenuItem(
+                                value: category,
+                                child: Text(category),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedCategory = value;
+                                });
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _tagsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Tags (comma-separated)',
+                              border: OutlineInputBorder(),
+                              helperText: 'e.g., automation, defi, gaming',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _priceController,
+                            decoration: const InputDecoration(
+                              labelText: 'Price (ICP) *',
+                              border: OutlineInputBorder(),
+                              helperText: 'Set to 0 for free scripts',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Price is required';
+                              }
+                              final price = double.tryParse(value.trim());
+                              if (price == null || price < 0) {
+                                return 'Invalid price';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
                       ),
-                    )
-                  : _buildCodePreview(),
+                      const SizedBox(height: 16),
+                      // Inline collapsible code preview (collapsed by
+                      // default) — replaces the old "Next: Review Code"
+                      // step so publishing is a single action.
+                      _buildCodePreviewExpander(),
+                    ],
+                  ),
+                ),
+              ),
             ),
 
-            // Action buttons
+            // Single primary action — the form and code preview live on one
+            // page now, so there is no "Next" step.
             Padding(
               padding: const EdgeInsets.all(20),
-              child: _currentStep == 0
-                  ? SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        key: const Key('quick-upload-next'),
-                        onPressed: _goToCodePreview,
-                        icon: const Icon(Icons.arrow_forward),
-                        label: const Text('Next: Review Code'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                      ),
-                    )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _isUploading ? null : _goBackToForm,
-                            icon: const Icon(Icons.arrow_back),
-                            label: const Text('Back'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const Key('quick-upload-submit'),
+                  onPressed: _isUploading ? null : _uploadScript,
+                  icon: _isUploading
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            value: _uploadProgress,
+                            strokeWidth: 2,
+                            color: Colors.white,
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.3),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: FilledButton.icon(
-                            key: const Key('quick-upload-submit'),
-                            onPressed: _isUploading ? null : _uploadScript,
-                            icon: _isUploading
-                                ? SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      value: _uploadProgress,
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                      backgroundColor:
-                                          Colors.white.withValues(alpha: 0.3),
-                                    ),
-                                  )
-                                : const Icon(Icons.upload),
-                            label: Text(_isUploading
-                                ? 'Uploading ${(_uploadProgress * 100).toInt()}%'
-                                : 'Upload to Marketplace'),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                        )
+                      : const Icon(Icons.upload),
+                  label: Text(_isUploading
+                      ? 'Uploading ${(_uploadProgress * 100).toInt()}%'
+                      : 'Upload to Marketplace'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -587,47 +547,37 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     );
   }
 
-  Widget _buildCodePreview() {
-    final bundle = _getBundle();
-
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_error != null) ...[
-            ErrorDisplay(
-              error: _error!,
-              onRetry: _isUploading ? null : _uploadScript,
-              retryText: 'Retry upload',
+  /// Inline, collapsed-by-default code preview shown on the form page. Authors
+  /// wrote the code, so the review step is opt-in rather than a forced extra
+  /// tap; expanding it reveals the read-only TypeScript bundle.
+  Widget _buildCodePreviewExpander() {
+    return ExpansionTile(
+      key: const Key('quick-upload-code-preview'),
+      title: const Text('Preview code (optional)'),
+      subtitle: Text(
+        'Review the TypeScript bundle that will be published',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 16),
-          ],
-          Text(
-            'Review Script Code',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'This is the TypeScript bundle that will be uploaded to the marketplace. Review it before publishing.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ScriptEditor(
-              initialCode: bundle,
-              onCodeChanged: (_) {}, // Read-only, ignore changes
-              readOnly: true,
-              showIntegrations: false,
-              minLines: 10,
-            ),
-          ),
-        ],
       ),
+      leading: Icon(
+        Icons.code,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(top: 8),
+      children: [
+        SizedBox(
+          height: 320,
+          child: ScriptEditor(
+            initialCode: _getBundle(),
+            onCodeChanged: (_) {}, // Read-only, ignore changes
+            readOnly: true,
+            showIntegrations: false,
+            minLines: 10,
+          ),
+        ),
+      ],
     );
   }
 

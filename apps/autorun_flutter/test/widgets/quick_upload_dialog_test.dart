@@ -129,14 +129,8 @@ void main() {
       // Just verify dialog opens without crashing when no keypair is active
       expect(find.byType(QuickUploadDialog), findsOneWidget);
 
-      // Click Next to go to code preview step
-      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
-      expect(nextButton, findsOneWidget);
-      await tester.ensureVisible(nextButton);
-      await tester.tap(nextButton);
-      await tester.pumpAndSettle();
-
-      // Now on step 1, verify the submit button exists
+      // Single primary action: the submit button lives on the form page now
+      // (no separate "Next: Review Code" step).
       final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
       expect(submitButton, findsOneWidget);
       final button = tester.widget<FilledButton>(submitButton);
@@ -210,13 +204,7 @@ void main() {
 
       // Keypair is already active through KeypairScope
 
-      // Click Next to go to code preview step
-      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
-      await tester.ensureVisible(nextButton);
-      await tester.tap(nextButton);
-      await tester.pumpAndSettle();
-
-      // Now on step 1, find and click submit button
+      // Single primary action: upload directly from the form page.
       final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
       await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);
@@ -343,9 +331,10 @@ void main() {
           'Test description');
       await tester.pumpAndSettle();
 
-      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
-      await tester.ensureVisible(nextButton);
-      await tester.tap(nextButton);
+      // Code preview is collapsed by default; expand it to reveal the editor.
+      await tester
+          .ensureVisible(find.byKey(const Key('quick-upload-code-preview')));
+      await tester.tap(find.text('Preview code (optional)'));
       await tester.pumpAndSettle();
 
       final ScriptEditor editor = tester.widget(find.byType(ScriptEditor));
@@ -447,11 +436,7 @@ void main() {
         ),
       );
 
-      final Finder nextButton = find.byKey(const Key('quick-upload-next'));
-      await tester.ensureVisible(nextButton);
-      await tester.tap(nextButton);
-      await tester.pumpAndSettle();
-
+      // Single primary action: upload directly from the form page.
       final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
       await tester.ensureVisible(submitButton);
       await tester.tap(submitButton);
