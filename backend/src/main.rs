@@ -113,6 +113,74 @@ mod webauthn_rp_tests {
     }
 }
 
+fn is_insecure_admin_token(admin_token: &str) -> bool {
+    admin_token.is_empty() || admin_token == "change-me-in-production"
+}
+
+fn warn_if_insecure_prod_admin_token(environment: &str, admin_token: &str) -> bool {
+    if environment == "development" || !is_insecure_admin_token(admin_token) {
+        return false;
+    }
+    let rule = "=".repeat(72);
+    let msg = format!(
+        "\n{rule}\n\
+         [!!] PRODUCTION ADMIN TOKEN MISCONFIGURATION — ADMIN ROUTES ARE EXPOSED [!!]\n\
+         {rule}\n\
+         ADMIN_TOKEN is unset or still the public default value\n\
+         (\"change-me-in-production\") in a non-development environment. The\n\
+         admin routes (/api/v1/admin/*) are guarded by a publicly-known token\n\
+         and are effectively unprotected.\n\
+         \n\
+         Fix: set ADMIN_TOKEN to a strong, secret, operator-chosen value\n\
+         before deploying.\n\
+         \n\
+         ENVIRONMENT = {environment}\n\
+         ADMIN_TOKEN = {admin_token}\n\
+         {rule}"
+    );
+    eprintln!("{msg}");
+    tracing::error!("{msg}");
+    true
+}
+
+#[cfg(test)]
+mod admin_token_tests {
+    use super::*;
+
+    #[test]
+    fn default_token_is_detected() {
+        assert!(is_insecure_admin_token("change-me-in-production"));
+    }
+
+    #[test]
+    fn empty_token_is_detected() {
+        assert!(is_insecure_admin_token(""));
+    }
+
+    #[test]
+    fn real_token_is_not_detected() {
+        assert!(!is_insecure_admin_token(
+            "super-secret-operator-token-9f3a7c1e"
+        ));
+    }
+
+    #[test]
+    fn warning_fires_for_production_insecure_only() {
+        assert!(warn_if_insecure_prod_admin_token(
+            "production",
+            "change-me-in-production"
+        ));
+        assert!(!warn_if_insecure_prod_admin_token(
+            "development",
+            "change-me-in-production"
+        ));
+        assert!(!warn_if_insecure_prod_admin_token(
+            "production",
+            "super-secret-operator-token-9f3a7c1e"
+        ));
+    }
+}
+
 /// Verifies that the authenticated user owns the script
 async fn verify_script_ownership(
     state: &Arc<AppState>,
@@ -1408,6 +1476,14 @@ async fn main() -> Result<(), std::io::Error> {
         &rp_id,
         &rp_origin,
     );
+
+    let admin_token =
+        env::var("ADMIN_TOKEN").unwrap_or_else(|_| "change-me-in-production".to_string());
+    warn_if_insecure_prod_admin_token(
+        &env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
+        &admin_token,
+    );
+
     let passkey_service = PasskeyService::new(pool.clone(), &rp_id, &rp_origin)
         .expect("Failed to create PasskeyService");
 
