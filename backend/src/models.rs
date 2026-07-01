@@ -369,3 +369,71 @@ impl AuthenticatedRequest for DeleteScriptRequest {
         self.author_public_key.as_deref()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EXPECTED_SCRIPT_FIELDS: &[&str] = &[
+        "id",
+        "slug",
+        "owner_account_id",
+        "title",
+        "description",
+        "category",
+        "tags",
+        "bundle",
+        "author_principal",
+        "author_public_key",
+        "upload_signature",
+        "canister_ids",
+        "icon_url",
+        "screenshots",
+        "version",
+        "compatibility",
+        "price",
+        "is_public",
+        "downloads",
+        "rating",
+        "review_count",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "author_name",
+    ];
+
+    fn column_field_name(col: &str) -> &str {
+        let col = col.trim();
+        if let Some((_, alias)) = col.rsplit_once(" as ") {
+            return alias.trim();
+        }
+        col.rsplit_once('.')
+            .map(|(_, name)| name)
+            .unwrap_or(col)
+            .trim()
+    }
+
+    #[test]
+    fn script_columns_with_account_match_struct_fields() {
+        let parsed: Vec<&str> = SCRIPT_COLUMNS_WITH_ACCOUNT
+            .split(',')
+            .map(column_field_name)
+            .collect();
+        assert_eq!(
+            parsed, EXPECTED_SCRIPT_FIELDS,
+            "SCRIPT_COLUMNS_WITH_ACCOUNT drifted from struct Script. Update both the column \
+             string and the struct in lockstep (including the accounts.* JOIN alias for \
+             author_name)."
+        );
+    }
+
+    #[test]
+    fn column_field_name_parses_table_prefixed_and_aliased() {
+        assert_eq!(column_field_name("scripts.id"), "id");
+        assert_eq!(column_field_name(" scripts.bundle "), "bundle");
+        assert_eq!(
+            column_field_name("accounts.display_name as author_name"),
+            "author_name"
+        );
+    }
+}
