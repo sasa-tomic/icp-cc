@@ -19,6 +19,7 @@ import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
 import 'screens/scripts_screen.dart';
+import 'screens/unified_setup_wizard.dart';
 import 'widgets/connectivity_scope.dart';
 import 'widgets/keyboard_shortcuts.dart';
 import 'widgets/profile_scope.dart';
@@ -297,6 +298,18 @@ class _MainHomePageState extends State<MainHomePage> {
     );
     // Contextual tips are shown in-context via ContextualTipService
     // when user first reaches each feature screen.
+
+    // First-run gate: a brand-new user has no profile, so walk them through
+    // the unified setup wizard (the polished single-screen onboarding) before
+    // they reach an empty Scripts screen with no path to identity creation.
+    if (mounted) {
+      await showFirstRunSetupIfNeeded(
+        context: context,
+        profileController: profileController,
+        accountController: _getAccountController(),
+      );
+      if (mounted) setState(() {});
+    }
   }
 
   void _handleSpotlightComplete() {}
@@ -431,4 +444,28 @@ class _MainHomePageState extends State<MainHomePage> {
       ],
     );
   }
+}
+
+/// First-run gate. When the user has no profile yet, present the
+/// [UnifiedSetupWizard] so onboarding is guided (one form + success screen)
+/// instead of a dead-end empty Scripts screen. Returns whether the wizard was
+/// shown. Top-level so the first-run decision is unit-testable in isolation.
+Future<bool> showFirstRunSetupIfNeeded({
+  required BuildContext context,
+  required ProfileController profileController,
+  required AccountController accountController,
+}) async {
+  if (profileController.profiles.isNotEmpty) {
+    return false;
+  }
+  await Navigator.of(context).push<UnifiedSetupResult>(
+    MaterialPageRoute<UnifiedSetupResult>(
+      fullscreenDialog: true,
+      builder: (_) => UnifiedSetupWizard(
+        profileController: profileController,
+        accountController: accountController,
+      ),
+    ),
+  );
+  return true;
 }
