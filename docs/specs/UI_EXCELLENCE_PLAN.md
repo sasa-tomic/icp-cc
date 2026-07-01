@@ -47,6 +47,25 @@ that doc). Re-validation of each deferred proposal against current code:
 
 These are **flagged, not silently decided.** Each blocks or shapes a WU.
 
+> **ORCHESTRATOR DECISIONS (recorded 2026-07-01, unblocking all tracks):**
+> - **A-1 → RESOLVED: take the KISS floor.** Relabel the 2nd tab "Explore" →
+>   **"Canisters"** (honest label, zero behavior change, removes the
+>   expectation mismatch — the single biggest confusion for new users). The
+>   paradigm shift of *promoting marketplace to its own tab* (option b) is
+>   **deferred**: it restructures `ScriptsScreen` (high regression risk) and is
+>   YAGNI until marketplace content volume warrants it. The empirical UX review
+>   (Wave 1) will photograph + assess the Canisters tab to inform any future
+>   IA move. **WU-7 is UNBLOCKED with the relabel scope.**
+> - **A-2 → RESOLVED: keep Flutter Web deferred.** Reversing R-1 is a separate
+>   multi-day initiative (conditional `*_io.dart`/`*_web.dart` split + WASM
+>   QuickJS + WebCrypto). Desktop + Android remain the shipped, fully-functional
+>   targets; Linux-desktop passkeys degrade gracefully (correct). No WU assumes
+>   Web. Recorded in `docs/BROWSER_SUPPORT.md`.
+> - **A-3 → RESOLVED: defer the model fix (documented debt), defend in the UI.**
+>   WU-4's switcher MUST surface only the active profile's *own* keypairs (no
+>   cross-profile bleed). The `account.dart` model tightening stays a tracked
+>   architectural item; not half-fixed here.
+
 ### A-1 — "Explore" tab is a canister-call dev tool, not marketplace explore
 - **Finding:** the second nav tab "Explore" (`main.dart:439–443`, label "Explore",
   icon `dns`) renders `BookmarksScreen` — the app's **largest screen at 1,865
