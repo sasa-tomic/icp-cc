@@ -88,6 +88,7 @@ just api-dev-test         # Test endpoints
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture (read first)
 - [TODO.md](TODO.md) - Active tasks and priorities
 - [AGENTS.md](AGENTS.md) - Development rules and patterns
+- [docs/BROWSER_SUPPORT.md](docs/BROWSER_SUPPORT.md) - Supported Flutter targets (Web deferred, R-1)
 - [docs/specs/](docs/specs/) - Detailed implementation status
 
 ## UX Principles

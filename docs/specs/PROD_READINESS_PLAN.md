@@ -602,7 +602,7 @@ curl -s http://127.0.0.1:58100/api/v1/health        # {"status":"ok"}
 
 ---
 
-### PR-4 — Decide & document R-1 (Flutter Web support)
+### PR-4 — Decide & document R-1 (Flutter Web support)  (DONE → docs/BROWSER_SUPPORT.md)
 **Complexity:** Simple (decision + doc, not code) · **Dependencies:** none · **Risk:** None
 
 Per `TODO.md` F-0, `lib/main.dart:11` + `lib/rust/native_bridge.dart:2` import `dart:ffi`

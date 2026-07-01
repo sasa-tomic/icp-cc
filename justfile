@@ -390,7 +390,7 @@ flutter-dev-local +args="":
     echo "==> Starting Flutter app with local API server"
     api_port=$(just _api-dev-port)
     echo "==> Using API endpoint: http://127.0.0.1:$api_port"
-    cd {{flutter_dir}} && flutter run -d chrome --dart-define=API_ENDPOINT=http://127.0.0.1:$api_port {{args}}
+    cd {{flutter_dir}} && flutter run -d linux --dart-define=API_ENDPOINT=http://127.0.0.1:$api_port {{args}}
 
 # Start Android emulator
 android-emulator:
