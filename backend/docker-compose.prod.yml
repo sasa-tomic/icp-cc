@@ -12,6 +12,8 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/marketplace-prod.db?mode=rwc}
       - ENVIRONMENT=production
       - PORT=58000
+      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-icp-mp.kalaj.org}
+      - WEBAUTHN_RP_ORIGIN=${WEBAUTHN_RP_ORIGIN:-https://icp-mp.kalaj.org}
     volumes:
       - ./data:/data
     ports:

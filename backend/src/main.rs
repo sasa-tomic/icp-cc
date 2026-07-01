@@ -316,6 +316,96 @@ fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
 }
 
+fn is_localhost_webauthn_rp(rp_id: &str, rp_origin: &str) -> bool {
+    let rp_is_local = matches!(rp_id, "localhost" | "127.0.0.1");
+    let origin_is_local_http = rp_origin.starts_with("http://")
+        && (rp_origin.contains("localhost") || rp_origin.contains("127.0.0.1"));
+    rp_is_local || origin_is_local_http
+}
+
+fn warn_if_broken_prod_passkey_rp(environment: &str, rp_id: &str, rp_origin: &str) -> bool {
+    if environment == "development" || !is_localhost_webauthn_rp(rp_id, rp_origin) {
+        return false;
+    }
+    let rule = "=".repeat(72);
+    let msg = format!(
+        "\n{rule}\n\
+         [!!] PRODUCTION PASSKEY MISCONFIGURATION — PASSKEYS WILL BE BROKEN [!!]\n\
+         {rule}\n\
+         WEBAUTHN_RP_ID resolves to a localhost address in a non-development\n\
+         environment. Passkeys will be registered/authenticated against\n\
+         localhost and silently fail for the public hostname.\n\
+         \n\
+         Fix: set WEBAUTHN_RP_ID to the public host (e.g. icp-mp.kalaj.org)\n\
+         and WEBAUTHN_RP_ORIGIN to its https origin\n\
+         (e.g. https://icp-mp.kalaj.org).\n\
+         \n\
+         ENVIRONMENT       = {environment}\n\
+         WEBAUTHN_RP_ID    = {rp_id}\n\
+         WEBAUTHN_RP_ORIGIN = {rp_origin}\n\
+         {rule}"
+    );
+    eprintln!("{msg}");
+    tracing::error!("{msg}");
+    true
+}
+
+#[cfg(test)]
+mod webauthn_rp_tests {
+    use super::*;
+
+    #[test]
+    fn localhost_rp_id_is_detected() {
+        assert!(is_localhost_webauthn_rp(
+            "localhost",
+            "https://icp-mp.kalaj.org"
+        ));
+        assert!(is_localhost_webauthn_rp(
+            "127.0.0.1",
+            "https://icp-mp.kalaj.org"
+        ));
+    }
+
+    #[test]
+    fn http_localhost_origin_is_detected() {
+        assert!(is_localhost_webauthn_rp(
+            "icp-mp.kalaj.org",
+            "http://localhost:58000"
+        ));
+        assert!(is_localhost_webauthn_rp(
+            "icp-mp.kalaj.org",
+            "http://127.0.0.1:58000"
+        ));
+    }
+
+    #[test]
+    fn public_host_is_not_detected() {
+        assert!(!is_localhost_webauthn_rp(
+            "icp-mp.kalaj.org",
+            "https://icp-mp.kalaj.org"
+        ));
+    }
+
+    #[test]
+    fn warning_fires_for_production_localhost_only() {
+        assert!(warn_if_broken_prod_passkey_rp(
+            "production",
+            "localhost",
+            "http://localhost:58000"
+        ));
+        assert!(!warn_if_broken_prod_passkey_rp(
+            "development",
+            "localhost",
+            "http://localhost:58000"
+        ));
+        assert!(!warn_if_broken_prod_passkey_rp(
+            "production",
+            "icp-mp.kalaj.org",
+            "https://icp-mp.kalaj.org"
+        ));
+    }
+}
+
 /// Verifies that the authenticated user owns the script
 async fn verify_script_ownership(
     state: &Arc<AppState>,
@@ -1613,6 +1703,11 @@ async fn main() -> Result<(), std::io::Error> {
     let rp_id = env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".to_string());
     let rp_origin =
         env::var("WEBAUTHN_RP_ORIGIN").unwrap_or_else(|_| "http://localhost:58000".to_string());
+    warn_if_broken_prod_passkey_rp(
+        &env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
+        &rp_id,
+        &rp_origin,
+    );
     let passkey_service = PasskeyService::new(pool.clone(), &rp_id, &rp_origin)
         .expect("Failed to create PasskeyService");
 

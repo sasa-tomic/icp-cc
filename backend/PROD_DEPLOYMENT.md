@@ -34,6 +34,30 @@ icp-mp.kalaj.org → api:58000
 
 That's it! No need to install cloudflared locally.
 
+## Required Environment Variables
+
+The API reads its deployment config from environment variables. `docker-compose.prod.yml`
+already wires the production defaults; override them in `.env.tunnel` (or your shell)
+when targeting a different hostname.
+
+| Variable | Prod default | Purpose |
+|----------|--------------|---------|
+| `ENVIRONMENT` | `production` | Marks this as a production run. Must NOT be `development` in prod (dev enables destructive endpoints like DB reset). |
+| `WEBAUTHN_RP_ID` | `icp-mp.kalaj.org` | WebAuthn Relying Party ID (the public hostname). Passkeys are scoped to this origin. |
+| `WEBAUTHN_RP_ORIGIN` | `https://icp-mp.kalaj.org` | WebAuthn RP origin (scheme + host). Must be `https://` in prod. |
+| `DATABASE_URL` | `sqlite:///data/marketplace-prod.db?mode=rwc` | SQLite database location (persisted via the `./data` volume). |
+| `PORT` | `58000` | Container listen port (cloudflared reaches `api-prod:58000`). |
+| `RUST_LOG` | `info` | Log level. |
+| `TUNNEL_TOKEN` | (from `.env.tunnel`) | Cloudflare tunnel token. |
+
+### Passkey RP misconfiguration warning
+
+If `ENVIRONMENT` is **not** `development` and `WEBAUTHN_RP_ID`/`WEBAUTHN_RP_ORIGIN`
+resolve to a localhost address (e.g. `localhost` / `127.0.0.1`, or an `http://localhost`
+origin), passkeys will be registered against localhost and **silently fail** for the public
+hostname. On boot the API prints a **loud `[!!] PRODUCTION PASSKEY MISCONFIGURATION` banner**
+to stderr and the log. Never ignore it — set both `WEBAUTHN_RP_*` vars to the public host.
+
 ## Setup (5-minute setup)
 
 ### Step 1: Create a Remotely-Managed Tunnel in Cloudflare Dashboard
