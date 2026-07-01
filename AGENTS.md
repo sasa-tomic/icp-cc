@@ -191,18 +191,35 @@ cd apps/autorun_flutter && flutter test test/features/marketplace/browse_test.da
 
 ## Passkey Testing on Linux
 
-The `passkeys` package does NOT support Linux desktop. Use Flutter Web:
+**Current reality (gap):** there is **no working passkey-authenticator test path
+on a Linux dev box right now.** Both candidate routes are blocked:
 
+- **Linux desktop** (`flutter run -d linux`) — the app builds and runs, but the
+  `passkeys` package does **not** support Linux desktop, so
+  `PasskeyPlatform.isSupported` is `false` there. The passkey UI correctly
+  reports unsupported; you cannot exercise a real authenticator.
+- **Flutter Web** (`flutter run -d chrome`) — would be the supported target
+  (KeePassXC / Android hybrid / YubiKey / Titan Key via the browser), but the
+  Web build is currently **unbuildable**: `lib/main.dart:11` and
+  `lib/rust/native_bridge.dart:2` import `dart:ffi` unconditionally, so
+  `flutter build web` / `flutter run -d chrome` cannot compile. This is tracked
+  as **R-1 / TODO.md F-0** and requires a conditional-import split
+  (`*_io.dart` FFI impl + `*_web.dart` stub) plus a Web-native strategy for
+  keypair-gen / signing / QuickJS-exec (WASM QuickJS + WebCrypto).
+
+**What you CAN do on Linux desktop today:**
 ```bash
-cd apps/autorun_flutter && flutter run -d chrome
+cd apps/autorun_flutter && flutter run -d linux
 ```
-
-**Supported authenticators:** KeePassXC, Android phone (hybrid/QR), YubiKey, Titan Key
+Launch the app, drive the non-passkey flows, and verify the passkey UI degrades
+gracefully (`PasskeyPlatform.isSupported == false`). Genuine authenticator
+testing (registration / login / hybrid QR) must happen on macOS, Windows, or
+Android — or wait for R-1 to restore the Web target.
 
 **Platform Detection:**
-- `PasskeyPlatform.isSupported` - `false` on Linux desktop
+- `PasskeyPlatform.isSupported` - `false` on Linux desktop; `true` in a browser
 - `PasskeyPlatform.isLinuxDesktop` - `true` on Linux (not web)
-- `PasskeyPlatform.isWeb` - `true` in browser
+- `PasskeyPlatform.isWeb` - `true` in browser (currently unreachable — see R-1)
 
 ---
 
