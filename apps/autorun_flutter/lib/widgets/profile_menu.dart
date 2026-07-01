@@ -199,19 +199,10 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       bool hasAccount, int profileCount) {
     return Column(
       children: [
-        // 1. My Account - unified account management (combines account + passkeys)
-        if (profile != null)
-          _MenuTile(
-            icon: hasAccount ? Icons.person : Icons.person_outline,
-            label: 'My Account',
-            subtitle: hasAccount
-                ? '@${profile.username}'
-                : 'Register to publish scripts',
-            onTap: () => _handleAction(hasAccount
-                ? ProfileMenuAction.editProfile
-                : ProfileMenuAction.createAccount),
-            highlight: !hasAccount,
-          ),
+        // 1. My Account - unified account management (combines account + passkeys).
+        // Always rendered: on a first run (no active profile) the tap routes to
+        // profile creation/selection instead of being a silent no-op.
+        _buildMyAccountTile(profile, hasAccount),
         // 2. Switch Profile - simple profile switching
         _MenuTile(
           icon: Icons.swap_horiz,
@@ -229,6 +220,34 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           onTap: () => _handleAction(ProfileMenuAction.settings),
         ),
       ],
+    );
+  }
+
+  Widget _buildMyAccountTile(Profile? profile, bool hasAccount) {
+    final IconData icon;
+    final String subtitle;
+    final ProfileMenuAction action;
+
+    if (profile == null) {
+      icon = Icons.person_add_outlined;
+      subtitle = 'Create a profile to get started';
+      action = ProfileMenuAction.createAccount;
+    } else if (hasAccount) {
+      icon = Icons.person;
+      subtitle = '@${profile.username}';
+      action = ProfileMenuAction.editProfile;
+    } else {
+      icon = Icons.person_outline;
+      subtitle = 'Register to publish scripts';
+      action = ProfileMenuAction.createAccount;
+    }
+
+    return _MenuTile(
+      icon: icon,
+      label: 'My Account',
+      subtitle: subtitle,
+      onTap: () => _handleAction(action),
+      highlight: profile == null || !hasAccount,
     );
   }
 
@@ -254,6 +273,10 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       case ProfileMenuAction.createAccount:
         if (profile != null) {
           await _navigateToAccountRegistration(profile);
+        } else if (widget.profileController.profiles.isEmpty) {
+          await _showCreateProfileDialog();
+        } else {
+          await _showManageProfilesSheet();
         }
         break;
       case ProfileMenuAction.settings:
