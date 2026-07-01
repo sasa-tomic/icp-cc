@@ -4,6 +4,7 @@ import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/models/script_record.dart';
+import 'package:icp_autorun/rust/native_bridge.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:icp_autorun/widgets/quick_upload_dialog.dart';
@@ -14,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../shared/fake_secure_keypair_repository.dart';
 import '../shared/test_keypair_factory.dart';
+import '../shared/ts_bundle_fixtures.dart';
 
 class _MockMarketplaceService extends Mock
     implements MarketplaceOpenApiService {}
@@ -26,6 +28,17 @@ void main() {
   });
 
   group('QuickUploadDialog keypair workflow', () {
+    // A well-formed bundle that passes the authoritative sandbox validator
+    // (the publish gate rejects invalid bundles before signing).
+    const String validBundle = '''
+"use strict";
+(() => {
+  globalThis.init = () => ({ state: { count: 0 }, effects: [] });
+  globalThis.view = (state) => ({ type: "text", props: { text: String(state.count) } });
+  globalThis.update = (_m, state) => ({ state, effects: [] });
+})();
+''';
+
     late ProfileKeypair keypair;
     late ProfileController profileController;
     late _MockMarketplaceService marketplaceService;
@@ -60,7 +73,7 @@ void main() {
                           context: context,
                           builder: (_) => QuickUploadDialog(
                             preFilledTitle: 'Prefilled Title',
-                            preFilledCode: '// test script bundle',
+                            preFilledCode: validBundle,
                             profileController: profileController,
                             marketplaceService: marketplaceService,
                           ),
@@ -220,7 +233,7 @@ void main() {
           description: 'Short description',
           category: 'Example',
           tags: captureAny(named: 'tags'),
-          bundle: '// test script bundle',
+          bundle: validBundle,
           price: 0.0,
           version: '1.0.0',
           canisterIds: captureAny(named: 'canisterIds'),
@@ -463,6 +476,242 @@ void main() {
           timestampIso: any(named: 'timestampIso'),
         ),
       ).called(1);
+    });
+  });
+
+  group('QuickUploadDialog sandbox validation gate (UX-B5)', () {
+    late ProfileKeypair keypair;
+    late ProfileController profileController;
+    late _MockMarketplaceService marketplaceService;
+    final RustBridgeLoader loader = const RustBridgeLoader();
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      keypair = await TestKeypairFactory.getEd25519Keypair();
+      final repository = FakeSecureKeypairRepository(<ProfileKeypair>[keypair]);
+      profileController =
+          ProfileController(profileRepository: repository.profileRepository);
+      await profileController.ensureLoaded();
+      if (profileController.profiles.isNotEmpty) {
+        await profileController
+            .setActiveProfile(profileController.profiles.first.id);
+      }
+      marketplaceService = _MockMarketplaceService();
+    });
+
+    Future<void> pumpDialog(
+      WidgetTester tester, {
+      required String bundle,
+    }) async {
+      await tester.pumpWidget(
+        ProfileScope(
+          controller: profileController,
+          child: MaterialApp(
+            home: Builder(
+              builder: (BuildContext context) {
+                return Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => QuickUploadDialog(
+                            preFilledTitle: 'Gate Test',
+                            preFilledCode: bundle,
+                            profileController: profileController,
+                            marketplaceService: marketplaceService,
+                          ),
+                        );
+                      },
+                      child: const Text('Open'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // Description is a required field; the bundle is pre-filled.
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Description *'),
+          'Gate test description');
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a valid pilot bundle publishes through the gate',
+        (tester) async {
+      if (!nativeLibAvailable(loader)) {
+        // The authoritative Rust validator must be present to assert the
+        // positive path; skip when the native bridge can't load.
+        return;
+      }
+      final String pilotBundle = loadPilotBundle();
+
+      when(
+        () => marketplaceService.uploadScript(
+          slug: any(named: 'slug'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          category: any(named: 'category'),
+          tags: any(named: 'tags'),
+          bundle: any(named: 'bundle'),
+          price: any(named: 'price'),
+          version: any(named: 'version'),
+          canisterIds: any(named: 'canisterIds'),
+          iconUrl: any(named: 'iconUrl'),
+          screenshots: any(named: 'screenshots'),
+          compatibility: any(named: 'compatibility'),
+          authorPrincipal: any(named: 'authorPrincipal'),
+          authorPublicKey: any(named: 'authorPublicKey'),
+          signature: any(named: 'signature'),
+          timestampIso: any(named: 'timestampIso'),
+        ),
+      ).thenAnswer(
+        (_) async => MarketplaceScript(
+          id: 'script-1',
+          title: 'Gate Test',
+          description: 'Gate test description',
+          category: 'Example',
+          tags: const <String>[],
+          authorId: keypair.id,
+          bundle: pilotBundle,
+          price: 0,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await pumpDialog(tester, bundle: pilotBundle);
+
+      final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pump();
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+
+      verify(
+        () => marketplaceService.uploadScript(
+          slug: any(named: 'slug'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          category: any(named: 'category'),
+          tags: any(named: 'tags'),
+          bundle: pilotBundle,
+          price: any(named: 'price'),
+          version: any(named: 'version'),
+          canisterIds: any(named: 'canisterIds'),
+          iconUrl: any(named: 'iconUrl'),
+          screenshots: any(named: 'screenshots'),
+          compatibility: any(named: 'compatibility'),
+          authorPrincipal: any(named: 'authorPrincipal'),
+          authorPublicKey: any(named: 'authorPublicKey'),
+          signature: any(named: 'signature'),
+          timestampIso: any(named: 'timestampIso'),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('a bundle containing eval() is blocked and never uploaded',
+        (tester) async {
+      if (!nativeLibAvailable(loader)) {
+        return;
+      }
+      const String invalidBundle = '''
+"use strict";
+(() => {
+  globalThis.init = () => ({ state: { count: 0 }, effects: [] });
+  globalThis.view = (state) => ({ type: "text", props: { text: String(state.count) } });
+  globalThis.update = (_m, state) => ({ state, effects: [] });
+  eval("1+1");
+})();
+''';
+
+      await pumpDialog(tester, bundle: invalidBundle);
+
+      final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+
+      // The upload MUST be refused: never signed, never sent.
+      verifyNever(() => marketplaceService.uploadScript(
+            slug: any(named: 'slug'),
+            title: any(named: 'title'),
+            description: any(named: 'description'),
+            category: any(named: 'category'),
+            tags: any(named: 'tags'),
+            bundle: any(named: 'bundle'),
+            price: any(named: 'price'),
+            version: any(named: 'version'),
+            canisterIds: any(named: 'canisterIds'),
+            iconUrl: any(named: 'iconUrl'),
+            screenshots: any(named: 'screenshots'),
+            compatibility: any(named: 'compatibility'),
+            authorPrincipal: any(named: 'authorPrincipal'),
+            authorPublicKey: any(named: 'authorPublicKey'),
+            signature: any(named: 'signature'),
+            timestampIso: any(named: 'timestampIso'),
+          ));
+
+      // A clear, user-facing error surfaces the specific violation.
+      expect(
+        find.textContaining('failed sandbox validation'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('eval()'), findsOneWidget);
+    });
+
+    testWidgets('a bundle containing Intl.* is blocked and never uploaded',
+        (tester) async {
+      if (!nativeLibAvailable(loader)) {
+        return;
+      }
+      const String invalidBundle = '''
+"use strict";
+(() => {
+  globalThis.init = () => ({ state: { count: 0 }, effects: [] });
+  globalThis.view = (state) => ({ type: "text", props: { text: String(state.count) } });
+  globalThis.update = (_m, state) => ({ state, effects: [] });
+  return new Intl.NumberFormat("de").format(1);
+})();
+''';
+
+      await pumpDialog(tester, bundle: invalidBundle);
+
+      final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+
+      verifyNever(() => marketplaceService.uploadScript(
+            slug: any(named: 'slug'),
+            title: any(named: 'title'),
+            description: any(named: 'description'),
+            category: any(named: 'category'),
+            tags: any(named: 'tags'),
+            bundle: any(named: 'bundle'),
+            price: any(named: 'price'),
+            version: any(named: 'version'),
+            canisterIds: any(named: 'canisterIds'),
+            iconUrl: any(named: 'iconUrl'),
+            screenshots: any(named: 'screenshots'),
+            compatibility: any(named: 'compatibility'),
+            authorPrincipal: any(named: 'authorPrincipal'),
+            authorPublicKey: any(named: 'authorPublicKey'),
+            signature: any(named: 'signature'),
+            timestampIso: any(named: 'timestampIso'),
+          ));
+
+      expect(
+        find.textContaining('failed sandbox validation'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Intl'), findsOneWidget);
     });
   });
 }

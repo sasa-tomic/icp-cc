@@ -5,6 +5,7 @@ import '../models/profile_keypair.dart';
 import '../models/script_record.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
+import '../services/script_validation_service.dart';
 import '../utils/principal.dart';
 import '../widgets/profile_scope.dart';
 import '../widgets/script_editor.dart';
@@ -44,6 +45,9 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   bool _isUploading = false;
   double _uploadProgress = 0.0; // Track upload progress 0.0 to 1.0
   String? _error;
+  // Sandbox-validation failures are shown verbatim (with the specific
+  // rejected primitive) so authors can fix the bundle before publishing.
+  String? _validationError;
 
   final List<String> _availableCategories = [
     'Example',
@@ -190,10 +194,40 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       return;
     }
 
+    // Resolve the bundle that will be published before doing any signing work.
+    final String bundle;
+    if (widget.script?.bundle != null && widget.script!.bundle.isNotEmpty) {
+      bundle = widget.script!.bundle;
+    } else if (widget.preFilledCode != null &&
+        widget.preFilledCode!.isNotEmpty) {
+      bundle = widget.preFilledCode!;
+    } else {
+      // Generate a default TS bundle since API requires non-empty bundle
+      bundle = _getBundle();
+    }
+
+    // Safety gate: refuse to sign/upload a bundle that fails the authoritative
+    // sandbox validator. Without this, a user could publish a bundle containing
+    // eval()/Intl.*/ESM imports that the runtime only rejects later (or never).
+    final ValidationResult validation =
+        await ScriptValidationService().validateScript(bundle);
+    if (!validation.isValid) {
+      final String bullets = validation.errors.isEmpty
+          ? 'the bundle failed sandbox validation'
+          : validation.errors.map((e) => '• $e').join('\n');
+      setState(() {
+        _validationError =
+            'This script cannot be published because it failed sandbox validation:\n\n'
+            '$bullets';
+      });
+      return;
+    }
+
     setState(() {
       _isUploading = true;
       _uploadProgress = 0.0;
       _error = null;
+      _validationError = null;
     });
 
     try {
@@ -223,18 +257,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       final double price = double.tryParse(_priceController.text.trim()) ?? 0.0;
       const String version = '1.0.0';
       final String timestamp = DateTime.now().toUtc().toIso8601String();
-
-      // Use the actual bundle source from the script, pre-filled code, or generate a default
-      String bundle;
-      if (widget.script?.bundle != null && widget.script!.bundle.isNotEmpty) {
-        bundle = widget.script!.bundle;
-      } else if (widget.preFilledCode != null &&
-          widget.preFilledCode!.isNotEmpty) {
-        bundle = widget.preFilledCode!;
-      } else {
-        // Generate a default TS bundle since API requires non-empty bundle
-        bundle = _getBundle();
-      }
 
       // Update progress: signing
       if (mounted) {
@@ -386,6 +408,10 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (_validationError != null) ...[
+                        _buildValidationError(_validationError!),
+                        const SizedBox(height: 16),
+                      ],
                       if (_error != null) ...[
                         ErrorDisplay(
                           error: _error!,
@@ -578,6 +604,33 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildValidationError(String message) {
+    final theme = Theme.of(context);
+    return Container(
+      key: const Key('quick-upload-validation-error'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.error),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.block, color: theme.colorScheme.error, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SelectableText(
+              message,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onErrorContainer),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
