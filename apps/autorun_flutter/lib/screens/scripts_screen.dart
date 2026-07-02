@@ -575,6 +575,11 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            action: SnackBarAction(
+              label: 'Publish',
+              textColor: Colors.white,
+              onPressed: () => _publishToMarketplace(rec),
+            ),
           ),
         );
       }
