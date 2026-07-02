@@ -31,6 +31,7 @@ import '../widgets/page_transitions.dart';
 import '../widgets/script_execution_bottom_sheet.dart';
 import '../widgets/script_row_menus.dart';
 import '../widgets/scripts_empty_state.dart';
+import '../widgets/scripts_list_item_tile.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
@@ -925,107 +926,47 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Widget _buildAllScriptsListItem(ScriptListItem item) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isCompactScreen = screenWidth < 380;
     final isLocalScript =
         item.source == ScriptSource.local && item.localScript != null;
-    // Normal mode with selection mode entry via long-press
-    return GestureDetector(
+    return ScriptsListItemTile(
+      item: item,
+      onTap: () => _handleAllScriptsItemTap(item),
       onLongPress: () => _showScriptContextMenu(item),
       onSecondaryTapUp: (details) => _showScriptContextMenuAt(
         item,
         details.globalPosition,
       ),
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: isCompactScreen ? 12 : 16,
-          vertical: 4,
-        ),
-        leading: CircleAvatar(
-          radius: isCompactScreen ? 20 : 24,
-          child: Text(
-            (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜')).isNotEmpty
-                ? (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜'))[0]
-                : '📜',
-            style: TextStyle(
-              fontSize: isCompactScreen ? 16 : 20,
-            ),
-          ),
-        ),
-        title: Row(
-          children: [
-            // Source indicator as small color-coded icon
-            _buildSourceIcon(item, isCompactScreen),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                item.title,
-                style: TextStyle(
-                  fontSize: isCompactScreen ? 14 : 16,
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-            // Available indicator as subtle download icon
-            if (!item.isInstalled && item.source == ScriptSource.marketplace)
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Icon(
-                  Icons.download_outlined,
-                  size: isCompactScreen ? 14 : 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: isCompactScreen ? 2 : 4),
-            Text(
-              _buildItemSubtitle(item),
-              style: TextStyle(
-                fontSize: isCompactScreen ? 11 : 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        trailing: isLocalScript
-            ? LocalScriptRowMenu(
-                record: item.localScript!,
-                isFavorite: _favoriteScriptIds.contains(item.localScript!.id),
-                onRun: () => _runScript(item.localScript!),
-                onEdit: () => _editScript(item.localScript!),
-                onPublish: () => _publishToMarketplace(item.localScript!),
-                onConfirmDelete: () => _confirmAndDeleteScript(item.localScript!),
-                onDuplicate: () => _duplicateScript(item.localScript!),
-                onCopySource: () => _copyScriptSource(item.localScript!),
-                onViewInMarketplace: () => _viewInMarketplace(item.localScript!),
-                onToggleFavorite: () => _toggleFavorite(item.localScript!.id),
-              )
-            : item.source == ScriptSource.marketplace &&
-                    item.marketplaceScript != null
-                ? MarketplaceScriptRowMenu(
-                    script: item.marketplaceScript!,
-                    isDownloaded:
-                        _downloadedScriptIds.contains(item.marketplaceScript!.id),
-                    isDownloading:
-                        _downloadingScriptIds.contains(item.marketplaceScript!.id),
-                    isFavorite:
-                        _favoriteScriptIds.contains(item.marketplaceScript!.id),
-                    onViewDetails: () =>
-                        _showScriptDetails(context, item.marketplaceScript!),
-                    onDownload: () => _downloadScript(item.marketplaceScript!),
-                    onShare: () => _shareScript(context, item.marketplaceScript!),
-                    onToggleFavorite: () =>
-                        _toggleFavorite(item.marketplaceScript!.id),
-                  )
-                : null,
-        onTap: () => _handleAllScriptsItemTap(item),
-      ),
+      trailing: isLocalScript
+          ? LocalScriptRowMenu(
+              record: item.localScript!,
+              isFavorite: _favoriteScriptIds.contains(item.localScript!.id),
+              onRun: () => _runScript(item.localScript!),
+              onEdit: () => _editScript(item.localScript!),
+              onPublish: () => _publishToMarketplace(item.localScript!),
+              onConfirmDelete: () => _confirmAndDeleteScript(item.localScript!),
+              onDuplicate: () => _duplicateScript(item.localScript!),
+              onCopySource: () => _copyScriptSource(item.localScript!),
+              onViewInMarketplace: () => _viewInMarketplace(item.localScript!),
+              onToggleFavorite: () => _toggleFavorite(item.localScript!.id),
+            )
+          : item.source == ScriptSource.marketplace &&
+                  item.marketplaceScript != null
+              ? MarketplaceScriptRowMenu(
+                  script: item.marketplaceScript!,
+                  isDownloaded: _downloadedScriptIds
+                      .contains(item.marketplaceScript!.id),
+                  isDownloading: _downloadingScriptIds
+                      .contains(item.marketplaceScript!.id),
+                  isFavorite:
+                      _favoriteScriptIds.contains(item.marketplaceScript!.id),
+                  onViewDetails: () =>
+                      _showScriptDetails(context, item.marketplaceScript!),
+                  onDownload: () => _downloadScript(item.marketplaceScript!),
+                  onShare: () => _shareScript(context, item.marketplaceScript!),
+                  onToggleFavorite: () =>
+                      _toggleFavorite(item.marketplaceScript!.id),
+                )
+              : null,
     );
   }
 
@@ -1242,57 +1183,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           _shareScript(context, item.marketplaceScript!);
         }
         break;
-    }
-  }
-
-  /// Build a small color-coded source icon.
-  /// Blue for local scripts, green for marketplace scripts.
-  Widget _buildSourceIcon(ScriptListItem item, bool isCompactScreen) {
-    final isMarketplace = item.isFromMarketplace;
-    final iconColor = isMarketplace ? Colors.green : Colors.blue;
-    final iconSize = isCompactScreen ? 12.0 : 14.0;
-
-    return Icon(
-      isMarketplace ? Icons.cloud_outlined : Icons.folder_outlined,
-      size: iconSize,
-      color: iconColor,
-    );
-  }
-
-  /// Build simplified subtitle for script list items.
-  /// - For marketplace scripts: shows author only
-  /// - For local scripts: shows relative date only
-  String _buildItemSubtitle(ScriptListItem item) {
-    // For downloaded marketplace scripts (local with marketplace metadata)
-    if (item.source == ScriptSource.local && item.author != null) {
-      return item.author!;
-    }
-
-    // For marketplace scripts, show author
-    if (item.source == ScriptSource.marketplace) {
-      return item.author ?? 'Unknown';
-    }
-
-    // For local scripts without author, show relative date
-    return _formatRelativeTime(item.updatedAt);
-  }
-
-  String _formatRelativeTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inDays > 365) {
-      return '${(difference.inDays / 365).floor()}y ago';
-    } else if (difference.inDays > 30) {
-      return '${(difference.inDays / 30).floor()}mo ago';
-    } else if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'just now';
     }
   }
 
