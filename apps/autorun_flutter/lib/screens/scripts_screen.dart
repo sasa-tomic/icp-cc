@@ -18,6 +18,7 @@ import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
 import '../services/onboarding_progress_service.dart';
 import '../services/secure_storage_readiness.dart';
+import '../theme/app_design_system.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
@@ -1208,7 +1209,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: AppDesignSystem.sheetBorderRadius,
       ),
       builder: (context) => FilterBottomSheet(
         categories: _categories,

@@ -8,6 +8,7 @@ import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
 import '../services/canister_history_service.dart';
 import '../services/canister_registry_service.dart';
+import '../theme/app_design_system.dart';
 import '../utils/candid_form_model.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
@@ -57,7 +58,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: AppDesignSystem.sheetBorderRadius,
       ),
       builder: (context) => CanisterClientSheet(
         bridge: widget.bridge,

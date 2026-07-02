@@ -176,6 +176,10 @@ class AppDesignSystem {
   static const double radius32 = 32.0;
   static const double radius48 = 48.0;
 
+  static const Radius sheetRadius = Radius.circular(radius20);
+  static const BorderRadius sheetBorderRadius =
+      BorderRadius.vertical(top: sheetRadius);
+
   // ==================== SHADOWS ====================
   
   static List<BoxShadow> get shadowLight => [
@@ -231,12 +235,12 @@ class AppDesignSystem {
   ];
 
   // ==================== ANIMATIONS ====================
-  
+   
   static const Duration durationFast = Duration(milliseconds: 150);
   static const Duration durationNormal = Duration(milliseconds: 250);
   static const Duration durationSlow = Duration(milliseconds: 350);
   static const Duration durationSlower = Duration(milliseconds: 500);
-  
+   
   static const Curve curveEaseInOut = Curves.easeInOut;
   static const Curve curveEaseOut = Curves.easeOut;
   static const Curve curveEaseIn = Curves.easeIn;

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../controllers/profile_controller.dart';
 import '../controllers/account_controller.dart';
+import '../theme/app_design_system.dart';
 import '../models/profile.dart';
 import '../models/account.dart';
 import '../services/passkey_service.dart';
@@ -849,7 +850,7 @@ class ProfileAvatarButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest
                 .withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.all(AppDesignSystem.sheetRadius),
             border: Border.all(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
               width: 1,

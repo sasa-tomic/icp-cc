@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/script_record.dart';
 import '../rust/native_bridge.dart';
 import '../services/script_runner.dart';
+import '../theme/app_design_system.dart';
 import 'script_app_host.dart';
 
 class ScriptExecutionBottomSheet extends StatefulWidget {
@@ -34,7 +35,7 @@ class _ScriptExecutionBottomSheetState
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: AppDesignSystem.sheetBorderRadius,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

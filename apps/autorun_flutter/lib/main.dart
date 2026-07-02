@@ -333,8 +333,8 @@ class _MainHomePageState extends State<MainHomePage> {
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppDesignSystem.sheetBorderRadius,
       ),
       builder: (context) => ProfileMenuWidget(
         profileController: ProfileScope.of(context, listen: false),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/models/script_list_item.dart';
 import 'package:icp_autorun/models/script_record.dart';
+import '../theme/app_design_system.dart';
 import 'package:icp_autorun/screens/script_context_menu.dart';
 import 'hover_reveal_actions.dart';
 
@@ -515,8 +516,8 @@ void showScriptContextMenuSheet(
 
   showModalBottomSheet<void>(
     context: context,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    shape: RoundedRectangleBorder(
+      borderRadius: AppDesignSystem.sheetBorderRadius,
     ),
     builder: (context) => ScriptContextMenuSheet(
       item: item,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/profile_controller.dart';
 import '../models/profile_keypair.dart';
+import '../theme/app_design_system.dart';
 import '../utils/principal.dart';
 
 class KeypairSessionBanner extends StatelessWidget {
@@ -47,7 +48,7 @@ class _AnonymousKeypairCard extends StatelessWidget {
           .colorScheme
           .primaryContainer
           .withValues(alpha: 0.35),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(AppDesignSystem.sheetRadius)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -113,7 +114,7 @@ class _ActiveKeypairCard extends StatelessWidget {
     return Card(
       elevation: 0,
       color: colors.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(AppDesignSystem.sheetRadius)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
