@@ -25,6 +25,7 @@ import 'widgets/connectivity_scope.dart';
 import 'widgets/keyboard_shortcuts.dart';
 import 'widgets/profile_scope.dart';
 import 'widgets/profile_menu.dart';
+import 'widgets/shortcuts_help_sheet.dart';
 import 'widgets/spotlight_overlay.dart';
 import 'widgets/script_details_dialog.dart';
 
@@ -269,6 +270,10 @@ class _MainHomePageState extends State<MainHomePage> {
     }
   }
 
+  void _handleShowShortcuts() {
+    showShortcutsHelpSheet(context);
+  }
+
   void _handleEscape() {
     Navigator.of(context).maybePop();
   }
@@ -358,6 +363,7 @@ class _MainHomePageState extends State<MainHomePage> {
       onFocusSearch: _handleFocusSearch,
       onRefresh: _handleRefresh,
       onNavigateToTab: _handleNavigateToTab,
+      onShowShortcuts: _handleShowShortcuts,
       child: EscapeHandler(
         onEscape: _handleEscape,
         child: SpotlightTour(
@@ -408,11 +414,21 @@ class _MainHomePageState extends State<MainHomePage> {
                   Positioned(
                     top: 8,
                     right: 16,
-                    child: ProfileAvatarButton(
-                      key: _profileMenuKey,
-                      displayName: displayName,
-                      hasAccount: activeProfile?.username != null,
-                      onTap: _showProfileMenu,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (DesktopShortcuts.isDesktop)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 8),
+                            child: ShortcutsHelpButton(),
+                          ),
+                        ProfileAvatarButton(
+                          key: _profileMenuKey,
+                          displayName: displayName,
+                          hasAccount: activeProfile?.username != null,
+                          onTap: _showProfileMenu,
+                        ),
+                      ],
                     ),
                   ),
                 ],

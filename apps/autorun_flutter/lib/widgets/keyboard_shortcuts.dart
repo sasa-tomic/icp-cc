@@ -2,6 +2,45 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// Description + platform-independent key token for a single keyboard shortcut.
+class ShortcutSpec {
+  const ShortcutSpec(this.description, this.token);
+
+  /// User-facing description shown in the help overlay.
+  final String description;
+
+  /// Key token where `mod` is the platform modifier (⌘ on macOS, Ctrl
+  /// elsewhere). Examples: `mod+N`, `R`, `?`.
+  final String token;
+}
+
+/// Single source of truth for desktop keyboard shortcuts. Consumed by both
+/// [DesktopShortcuts.getShortcutLabel] and `ShortcutsHelpSheet`, so a
+/// shortcut's label and key are defined in exactly one place.
+const Map<String, ShortcutSpec> kShortcutSpecs = <String, ShortcutSpec>{
+  'new': ShortcutSpec('Create a new script', 'mod+N'),
+  'search': ShortcutSpec('Focus the search bar', 'mod+F'),
+  'refresh': ShortcutSpec('Refresh scripts', 'R'),
+  'tab1': ShortcutSpec('Go to Scripts', 'mod+1'),
+  'tab2': ShortcutSpec('Go to Canisters', 'mod+2'),
+  'help': ShortcutSpec('Show keyboard shortcuts', '?'),
+};
+
+bool _editableTextFocused() {
+  final primary = FocusManager.instance.primaryFocus;
+  final context = primary?.context;
+  if (context == null) return false;
+  var editable = false;
+  context.visitAncestorElements((element) {
+    if (element.widget is EditableText) {
+      editable = true;
+      return false;
+    }
+    return true;
+  });
+  return editable;
+}
+
 class DesktopShortcuts extends StatelessWidget {
   const DesktopShortcuts({
     super.key,
@@ -10,6 +49,7 @@ class DesktopShortcuts extends StatelessWidget {
     required this.onFocusSearch,
     required this.onRefresh,
     required this.onNavigateToTab,
+    required this.onShowShortcuts,
   });
 
   final Widget child;
@@ -17,6 +57,7 @@ class DesktopShortcuts extends StatelessWidget {
   final VoidCallback onFocusSearch;
   final VoidCallback onRefresh;
   final void Function(int index) onNavigateToTab;
+  final VoidCallback onShowShortcuts;
 
   static bool get isDesktop {
     return !kIsWeb &&
@@ -26,27 +67,26 @@ class DesktopShortcuts extends StatelessWidget {
   }
 
   static String getShortcutLabel(String action) {
-    final isMac = !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
-    final modifier = isMac ? 'Cmd' : 'Ctrl';
+    final spec = kShortcutSpecs[action];
+    return spec == null ? '' : formatShortcutToken(spec.token);
+  }
 
-    switch (action) {
-      case 'new':
-        return '$modifier+N';
-      case 'save':
-        return '$modifier+S';
-      case 'search':
-        return '$modifier+F';
-      case 'refresh':
-        return 'R';
-      case 'tab1':
-        return '$modifier+1';
-      case 'tab2':
-        return '$modifier+2';
-      case 'tab3':
-        return '$modifier+3';
-      default:
-        return '';
+  static String formatShortcutToken(String token) {
+    final isMac = !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+    return token.replaceAll('mod', isMac ? '⌘' : 'Ctrl');
+  }
+
+  KeyEventResult _handleHelpKey(FocusNode node, KeyEvent event) {
+    // `?` is Shift+'/' on US layouts; [KeyEvent.character] is the layout-
+    // independent produced glyph. Skip when a text field is focused so users
+    // can type '?' into search without summoning the overlay.
+    if (event is KeyDownEvent &&
+        event.character == '?' &&
+        !_editableTextFocused()) {
+      onShowShortcuts();
+      return KeyEventResult.handled;
     }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -55,33 +95,33 @@ class DesktopShortcuts extends StatelessWidget {
       return child;
     }
 
-    return Shortcuts(
-      shortcuts: <LogicalKeySet, Intent>{
-        LogicalKeySet(
-                PlatformShortcutModifier.modifier, LogicalKeyboardKey.keyN):
-            const _CreateScriptIntent(),
-        LogicalKeySet(
-                PlatformShortcutModifier.modifier, LogicalKeyboardKey.keyF):
-            const _FocusSearchIntent(),
-        LogicalKeySet(LogicalKeyboardKey.keyR): const _RefreshIntent(),
-        LogicalKeySet(
-                PlatformShortcutModifier.modifier, LogicalKeyboardKey.digit1):
-            const _NavigateTabIntent(0),
-        LogicalKeySet(
-                PlatformShortcutModifier.modifier, LogicalKeyboardKey.digit2):
-            const _NavigateTabIntent(1),
-        LogicalKeySet(
-                PlatformShortcutModifier.modifier, LogicalKeyboardKey.digit3):
-            const _NavigateTabIntent(2),
-      },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          _CreateScriptIntent: _CreateScriptAction(onCreateScript),
-          _FocusSearchIntent: _FocusSearchAction(onFocusSearch),
-          _RefreshIntent: _RefreshAction(onRefresh),
-          _NavigateTabIntent: _NavigateTabAction(onNavigateToTab),
+    return Focus(
+      onKeyEvent: _handleHelpKey,
+      child: Shortcuts(
+        shortcuts: <LogicalKeySet, Intent>{
+          LogicalKeySet(
+                  PlatformShortcutModifier.modifier, LogicalKeyboardKey.keyN):
+              const _CreateScriptIntent(),
+          LogicalKeySet(
+                  PlatformShortcutModifier.modifier, LogicalKeyboardKey.keyF):
+              const _FocusSearchIntent(),
+          LogicalKeySet(LogicalKeyboardKey.keyR): const _RefreshIntent(),
+          LogicalKeySet(
+                  PlatformShortcutModifier.modifier, LogicalKeyboardKey.digit1):
+              const _NavigateTabIntent(0),
+          LogicalKeySet(
+                  PlatformShortcutModifier.modifier, LogicalKeyboardKey.digit2):
+              const _NavigateTabIntent(1),
         },
-        child: child,
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            _CreateScriptIntent: _CreateScriptAction(onCreateScript),
+            _FocusSearchIntent: _FocusSearchAction(onFocusSearch),
+            _RefreshIntent: _RefreshAction(onRefresh),
+            _NavigateTabIntent: _NavigateTabAction(onNavigateToTab),
+          },
+          child: child,
+        ),
       ),
     );
   }

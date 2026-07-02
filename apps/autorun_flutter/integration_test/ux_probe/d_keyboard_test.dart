@@ -1,5 +1,5 @@
-// Flow D / WU-6 — desktop keyboard shortcuts: are they discoverable, and is
-// Ctrl+3 a dead shortcut (registered but no third tab exists)?
+// Flow D / WU-6 — desktop keyboard shortcuts: are they discoverable, and does
+// Ctrl+3 do nothing (only 2 tabs exist, binding was removed in WU-6)?
 //
 // Run: DISPLAY=:99 flutter test integration_test/ux_probe/d_keyboard_test.dart
 
@@ -25,7 +25,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  testWidgets('D: Ctrl+2/Ctrl+1 switch tabs; Ctrl+3 is DEAD (no 3rd tab)', (tester) async {
+  testWidgets('D: Ctrl+2/Ctrl+1 switch tabs; Ctrl+3 is unbound (no 3rd tab)', (tester) async {
     await clearProfileState();
     await launchApp(tester);
     await dismissWizard(tester);
@@ -55,7 +55,7 @@ void main() {
     // ignore: avoid_print
     print('D_WU6: exploreShownAfterCtrl1=$exploreAfterCtrl1 (should be false)');
 
-    // Ctrl+3 -> "navigate" to tab index 2 which DOES NOT EXIST.
+    // Ctrl+3 is not registered (only 2 tabs exist). Stays on Scripts.
     await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
@@ -63,40 +63,44 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     final exploreAfterCtrl3 = present(find.text('Popular Canisters'), tester);
     // ignore: avoid_print
-    print('D_WU6: exploreShownAfterCtrl3=$exploreAfterCtrl3 (Ctrl+3 dead -> no change from Ctrl+1)');
+    print('D_WU6: exploreShownAfterCtrl3=$exploreAfterCtrl3 (Ctrl+3 unbound -> no change from Ctrl+1)');
 
     // Verdicts.
     expect(exploreAfterCtrl2, isTrue,
         reason: 'WU-6 partial: Ctrl+2 DOES navigate to Canisters tab (shortcut works).');
     expect(exploreAfterCtrl1, isFalse,
         reason: 'WU-6 partial: Ctrl+1 returns to Scripts (shortcut works).');
-    // Ctrl+3 fired but there is no 3rd tab, so the view must NOT have jumped
-    // to Canisters again — it stays on Scripts (exploreAfterCtrl3 == false).
+    // Ctrl+3 is no longer registered (dead binding removed in WU-6), so the
+    // view must NOT have jumped to Canisters again — it stays on Scripts.
     expect(exploreAfterCtrl3, isFalse,
-        reason: 'WU-6: Ctrl+3 is a DEAD shortcut — registered in keyboard_shortcuts.dart '
-            '(_NavigateTabIntent(2)) but only 2 tabs exist. Fires with no effect.');
+        reason: 'WU-6: Ctrl+3 is unbound — only 2 tabs exist, so no navigation occurs.');
   });
 
-  testWidgets('D: shortcuts are NOT discoverable (no "?" overlay / always-on hints)', (tester) async {
+  testWidgets('D: shortcuts ARE discoverable (? overlay + always-visible button)', (tester) async {
     await clearProfileState();
     await launchApp(tester);
     await dismissWizard(tester);
 
     await tester.pump(const Duration(seconds: 1));
-    await shot(binding, '11_shortcut_undiscoverable', tester);
+    await shot(binding, '11_shortcut_discoverable', tester);
 
-    // There is no keyboard-shortcuts help overlay triggered by "?" or any
-    // always-visible shortcut legend. ShortcutTooltip only renders on hover as
-    // a Material Tooltip, which a user cannot discover without hovering every
-    // control.
-    final hasHelpOverlay = present(find.text('?'), tester) ||
-        present(find.text('Shortcuts'), tester) ||
-        present(find.text('Keyboard Shortcuts'), tester) ||
-        present(find.textContaining('? for shortcuts'), tester);
+    // WU-6: an always-visible keyboard-icon button (next to the profile avatar)
+    // makes shortcuts discoverable without a keyboard.
+    final hasHelpButton = present(find.byIcon(Icons.keyboard_outlined), tester);
     // ignore: avoid_print
-    print('D_WU6_discoverability: hasShortcutHelpOverlay=$hasHelpOverlay');
-    expect(hasHelpOverlay, isFalse,
-        reason: 'WU-6: no discoverable shortcut help (no "?" overlay, no legend); '
-            'shortcuts only surface as hover Tooltips.');
+    print('D_WU6_discoverability: hasShortcutsButton=$hasHelpButton');
+    expect(hasHelpButton, isTrue,
+        reason: 'WU-6: a ShortcutsHelpButton (keyboard icon) must always be visible.');
+
+    // Tapping it opens the shortcuts help overlay.
+    await tester.tap(find.byIcon(Icons.keyboard_outlined).first, warnIfMissed: false);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    final overlayOpen = present(find.text('Keyboard Shortcuts'), tester) ||
+        present(find.text('NAVIGATION'), tester);
+    // ignore: avoid_print
+    print('D_WU6_discoverability: helpOverlayOpenAfterTap=$overlayOpen');
+    expect(overlayOpen, isTrue,
+        reason: 'WU-6: tapping the help button must open the shortcuts overlay.');
   });
 }
