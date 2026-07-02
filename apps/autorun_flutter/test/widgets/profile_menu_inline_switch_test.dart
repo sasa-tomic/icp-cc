@@ -85,6 +85,25 @@ void main() {
       expect(profileController.activeProfileId, equals(second.id));
       expect(profileController.activeProfile?.name, equals(second.name));
     });
+
+    testWidgets(
+        'tapping the already-active profile row is a no-op '
+        '(onTap is nulled for the active row)', (tester) async {
+      final active = profileController.activeProfile!;
+      expect(profileController.activeProfileId, equals(active.id));
+
+      await pumpMenu(tester);
+
+      // The active profile name appears in both the header and the inline list;
+      // .last targets the inline-list row.
+      await tester.tap(find.text(active.name).last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // No switch, no snackbar, menu stays open.
+      expect(profileController.activeProfileId, equals(active.id));
+      expect(find.text('Manage Profiles'), findsOneWidget);
+      expect(find.text('${active.name} is now active'), findsNothing);
+    });
   });
 
   group('WU-4 many profiles (menu scrolls)', () {
