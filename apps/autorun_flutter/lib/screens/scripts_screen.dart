@@ -22,7 +22,6 @@ import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
 import '../widgets/hover_reveal_actions.dart';
 import '../widgets/keyboard_shortcuts.dart';
-import '../widgets/modern_empty_state.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/script_app_host.dart';
 import '../widgets/quick_upload_dialog.dart';
@@ -31,6 +30,7 @@ import '../widgets/profile_scope.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
 import '../widgets/script_execution_bottom_sheet.dart';
+import '../widgets/scripts_empty_state.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
@@ -871,32 +871,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         }
 
         if (displayedItems.isEmpty && !isLoadingAnything) {
-          if (_showDownloadedOnly) {
-            return ModernEmptyState(
-              icon: Icons.download_outlined,
-              title: "You haven't downloaded any scripts yet",
-              subtitle: 'Browse the marketplace to find scripts to download',
-              action: _clearDownloadedFilter,
-              actionLabel: 'Browse Marketplace',
-            );
-          }
-          if (_showFavoritesOnly) {
-            return ModernEmptyState(
-              icon: Icons.star_outline,
-              title: "You haven't favorited any scripts yet",
-              subtitle: 'Tap the star icon on scripts to add them to favorites',
-              action: _clearFavoritesFilter,
-              actionLabel: 'Browse Scripts',
-            );
-          }
-          return ModernEmptyState(
-            icon: Icons.code_rounded,
-            title: 'Your Script Library is Empty',
-            subtitle: 'Create your first script or browse the marketplace',
-            action: _showCreateSheet,
-            actionLabel: 'Create Script',
-            secondaryAction: _browseMarketplaceFromEmptyState,
-            secondaryActionLabel: 'Browse Marketplace',
+          final kind = _showDownloadedOnly
+              ? ScriptsEmptyStateKind.downloadedFilter
+              : _showFavoritesOnly
+                  ? ScriptsEmptyStateKind.favoritesFilter
+                  : ScriptsEmptyStateKind.library;
+          return ScriptsEmptyState(
+            kind: kind,
+            onCreateScript: _showCreateSheet,
+            onBrowseMarketplace: _browseMarketplaceFromEmptyState,
+            onClearDownloadedFilter: _clearDownloadedFilter,
+            onClearFavoritesFilter: _clearFavoritesFilter,
           );
         }
 
