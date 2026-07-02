@@ -34,10 +34,27 @@ unsafe fn cstr_opt_or_empty<'a>(p: *const c_char) -> Option<&'a str> {
     }
 }
 
+/// Convert a [`String`] into a raw C-string pointer for FFI return.
+///
+/// Never panics: on the only failure mode of [`CString::new`] (an interior NUL
+/// byte), returns a JSON error-string pointer instead, matching the
+/// `{"ok":false,"error":"..."}` convention of [`err_ptr`]. A Rust panic across
+/// an `extern "C"` boundary is undefined behavior, so every value returned
+/// across the FFI boundary must go through here.
+fn into_cstring_ptr(s: String) -> *mut c_char {
+    match CString::new(s) {
+        Ok(c) => c.into_raw(),
+        Err(_) => {
+            // Infallible: this JSON literal contains no interior NUL byte.
+            CString::new(r#"{"ok":false,"error":"internal nul byte"}"#)
+                .unwrap()
+                .into_raw()
+        }
+    }
+}
+
 fn err_ptr<E: std::fmt::Display>(e: E) -> *mut c_char {
-    CString::new(json!({"ok": false, "error": e.to_string()}).to_string())
-        .unwrap()
-        .into_raw()
+    into_cstring_ptr(json!({"ok": false, "error": e.to_string()}).to_string())
 }
 
 fn method_kind(kind: i32) -> MethodKind {
@@ -49,7 +66,7 @@ fn method_kind(kind: i32) -> MethodKind {
 }
 
 fn null_c_string() -> *mut c_char {
-    CString::new("").unwrap().into_raw()
+    into_cstring_ptr(String::new())
 }
 
 /// # Safety
@@ -72,7 +89,7 @@ pub unsafe extern "C" fn icp_generate_keypair(alg: i32, mnemonic: *const c_char)
         "{{\"public_key_b64\":\"{}\",\"private_key_b64\":\"{}\",\"principal_text\":\"{}\"}}",
         result.public_key_b64, result.private_key_b64, result.principal_text
     );
-    CString::new(json).unwrap().into_raw()
+    into_cstring_ptr(json)
 }
 
 /// Derive principal from algorithm and base64-encoded public key.
@@ -103,7 +120,7 @@ pub unsafe extern "C" fn icp_principal_from_public_key(
         Some(p) => p,
         None => return null_c_string(),
     };
-    CString::new(principal).unwrap().into_raw()
+    into_cstring_ptr(principal)
 }
 
 /// Sign a message with a private key.
@@ -149,7 +166,7 @@ pub unsafe extern "C" fn icp_sign_message(
         Err(e) => json!({"ok": false, "error": e}).to_string(),
     };
 
-    CString::new(json).unwrap().into_raw()
+    into_cstring_ptr(json)
 }
 
 /// # Safety
@@ -178,7 +195,7 @@ pub unsafe extern "C" fn icp_fetch_candid(
     let cid = cstr_or_empty(canister_id);
     let host_opt = cstr_opt_or_empty(host);
     match canister_client::fetch_candid(cid, host_opt) {
-        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Ok(s) => into_cstring_ptr(s),
         Err(_) => null_c_string(),
     }
 }
@@ -196,7 +213,7 @@ pub unsafe extern "C" fn icp_parse_candid(candid_text: *const c_char) -> *mut c_
     match canister_client::parse_candid_interface(s) {
         Ok(parsed) => {
             let json = serde_json::to_string(&parsed).unwrap_or_else(|_| "{}".to_string());
-            CString::new(json).unwrap().into_raw()
+            into_cstring_ptr(json)
         }
         Err(_) => null_c_string(),
     }
@@ -221,7 +238,7 @@ pub unsafe extern "C" fn icp_call_anonymous(
     let a = cstr_or_empty(arg_candid);
     let host_opt = cstr_opt_or_empty(host);
     match canister_client::call_anonymous(cid, m, method_kind(kind), a, host_opt) {
-        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Ok(s) => into_cstring_ptr(s),
         Err(e) => err_ptr(e),
     }
 }
@@ -249,7 +266,7 @@ pub unsafe extern "C" fn icp_call_authenticated(
     let k = cstr_or_empty(ed25519_private_key_b64);
     let host_opt = cstr_opt_or_empty(host);
     match canister_client::call_authenticated(cid, m, method_kind(kind), a, k, host_opt) {
-        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Ok(s) => into_cstring_ptr(s),
         Err(e) => err_ptr(e),
     }
 }
@@ -274,7 +291,7 @@ pub unsafe extern "C" fn icp_js_exec(
     let script_s = cstr_or_empty(script);
     let arg_opt = cstr_opt_or_empty(json_arg);
     match js_engine::execute_js_json(script_s, arg_opt) {
-        Ok(s) => CString::new(s).unwrap().into_raw(),
+        Ok(s) => into_cstring_ptr(s),
         Err(e) => err_ptr(e),
     }
 }
@@ -290,7 +307,7 @@ pub unsafe extern "C" fn icp_js_lint(script: *const c_char) -> *mut c_char {
     }
     let script_s = cstr_or_empty(script);
     let json = js_engine::lint_js(script_s);
-    CString::new(json).unwrap().into_raw()
+    into_cstring_ptr(json)
 }
 
 /// # Safety
@@ -326,7 +343,7 @@ pub unsafe extern "C" fn icp_js_validate_comprehensive(
     })
     .to_string();
 
-    CString::new(json).unwrap().into_raw()
+    into_cstring_ptr(json)
 }
 
 /// # Safety
@@ -345,7 +362,7 @@ pub unsafe extern "C" fn icp_js_app_init(
     let s = cstr_or_empty(script);
     let arg_opt = cstr_opt_or_empty(json_arg);
     let out = js_engine::js_app_init(s, arg_opt, budget_ms);
-    CString::new(out).unwrap().into_raw()
+    into_cstring_ptr(out)
 }
 
 /// # Safety
@@ -364,7 +381,7 @@ pub unsafe extern "C" fn icp_js_app_view(
     let s = cstr_or_empty(script);
     let st = cstr_or_empty(state_json);
     let out = js_engine::js_app_view(s, st, budget_ms);
-    CString::new(out).unwrap().into_raw()
+    into_cstring_ptr(out)
 }
 
 /// # Safety
@@ -385,7 +402,7 @@ pub unsafe extern "C" fn icp_js_app_update(
     let m = cstr_or_empty(msg_json);
     let st = cstr_or_empty(state_json);
     let out = js_engine::js_app_update(s, m, st, budget_ms);
-    CString::new(out).unwrap().into_raw()
+    into_cstring_ptr(out)
 }
 
 // ---- Vault encryption FFI ----
@@ -431,7 +448,7 @@ pub unsafe extern "C" fn icp_encrypt_vault(
                 "nonce": B64.encode(&encrypted.nonce)
             })
             .to_string();
-            CString::new(json).unwrap().into_raw()
+            into_cstring_ptr(json)
         }
         Err(e) => err_ptr(e),
     }
@@ -492,8 +509,40 @@ pub unsafe extern "C" fn icp_decrypt_vault(
                 "plaintext": B64.encode(&plaintext)
             })
             .to_string();
-            CString::new(json).unwrap().into_raw()
+            into_cstring_ptr(json)
         }
         Err(e) => err_ptr(e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::into_cstring_ptr;
+    use std::ffi::CString;
+
+    #[test]
+    fn nul_byte_returns_json_error_without_panicking() {
+        // A Rust panic across an `extern "C"` boundary is undefined behavior.
+        // An interior NUL byte is the only way `CString::new` can fail, so it
+        // must yield a defined JSON-error pointer instead of panicking.
+        let ptr = into_cstring_ptr("a\0b".to_string());
+        assert!(!ptr.is_null());
+
+        // Sound: `ptr` was produced by `CString::into_raw` inside `into_cstring_ptr`.
+        let s = unsafe { CString::from_raw(ptr) }.into_string().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&s).unwrap();
+        assert_eq!(v["ok"], false);
+        assert!(
+            v["error"].as_str().unwrap().contains("nul byte"),
+            "expected error to mention nul byte, got: {s}"
+        );
+    }
+
+    #[test]
+    fn normal_string_round_trips_unchanged() {
+        let ptr = into_cstring_ptr("hello world".to_string());
+        // Sound: `ptr` was produced by `CString::into_raw` inside `into_cstring_ptr`.
+        let s = unsafe { CString::from_raw(ptr) }.into_string().unwrap();
+        assert_eq!(s, "hello world");
     }
 }
