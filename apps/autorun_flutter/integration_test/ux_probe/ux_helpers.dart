@@ -10,7 +10,6 @@
 
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -27,8 +26,8 @@ const double kDpr = 1.0;
 
 /// Wipe on-disk profile state so the first-run gate fires.
 ///
-/// Profile metadata lives at <appSupport>/profiles.json and secrets live in
-/// FlutterSecureStorage. We can only reliably clear the file side here
+/// Profile metadata lives at the `appSupport`/profiles.json path and secrets
+/// live in FlutterSecureStorage. We can only reliably clear the file side here
 /// (libsecret state is owned by the OS keyring); clearing the file is enough
 /// to force `profiles.isEmpty` for a clean first-run.
 Future<void> clearProfileState() async {
@@ -67,6 +66,9 @@ Future<void> shot(IntegrationTestWidgetsFlutterBinding binding, String name,
   await tester.pump(const Duration(milliseconds: 50));
   final RenderView view = tester.binding.renderViews.first;
   final Size size = view.size.isEmpty ? kDesktopSize : view.size;
+  // Screenshot capture requires direct access to the render layer tree; this is
+  // a legitimate test-only use of the protected member.
+  // ignore: invalid_use_of_protected_member
   final OffsetLayer layer = view.layer! as OffsetLayer;
   final ui.Image image = await layer.toImage(
     Offset.zero & size,

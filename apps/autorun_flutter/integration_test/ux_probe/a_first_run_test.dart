@@ -94,9 +94,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
       if (present(find.byIcon(Icons.error_outline), tester)) {
         sawError = true;
-        final t = find.descendant(
-            of: find.byIcon(Icons.error_outline),
-            matching: find.byType(Text));
         // The banner Text is a sibling, not a descendant; fall back to scanning.
         bannerText = _scanForBanner(tester);
         break;

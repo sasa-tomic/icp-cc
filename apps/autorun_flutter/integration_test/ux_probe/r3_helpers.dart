@@ -73,6 +73,9 @@ Future<void> shotR3(IntegrationTestWidgetsFlutterBinding binding, String name,
   await tester.pump(const Duration(milliseconds: 50));
   final RenderView view = tester.binding.renderViews.first;
   final Size size = view.size.isEmpty ? kDesktopSizeR3 : view.size;
+  // Screenshot capture requires direct access to the render layer tree; this is
+  // a legitimate test-only use of the protected member.
+  // ignore: invalid_use_of_protected_member
   final OffsetLayer layer = view.layer! as OffsetLayer;
   final ui.Image image = await layer.toImage(
     Offset.zero & size,

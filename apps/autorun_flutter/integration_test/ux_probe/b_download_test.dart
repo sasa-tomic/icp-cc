@@ -91,8 +91,6 @@ void main() {
     }
     final hasAction = present(find.byType(SnackBarAction), tester);
     await shot(binding, '05_download_snackbar', tester);
-    // Capture ANY visible snackbar text for diagnosis.
-    String? anySnackbar;
     tester.widgetList(find.byType(SnackBar)).forEach((w) {
       // ignore: avoid_print
       print('WU2_DOWNLOAD: visible SnackBar type=${w.runtimeType}');
