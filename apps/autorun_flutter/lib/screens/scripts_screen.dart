@@ -435,6 +435,11 @@ class ScriptsScreenState extends State<ScriptsScreen> {
             ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Run',
+              textColor: Colors.white,
+              onPressed: () => _runScript(createdScript),
+            ),
           ),
         );
       }
