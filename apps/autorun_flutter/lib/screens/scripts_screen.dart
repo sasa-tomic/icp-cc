@@ -20,7 +20,6 @@ import '../services/onboarding_progress_service.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
-import '../widgets/hover_reveal_actions.dart';
 import '../widgets/keyboard_shortcuts.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/script_app_host.dart';
@@ -30,6 +29,7 @@ import '../widgets/profile_scope.dart';
 import '../widgets/animated_fab.dart';
 import '../widgets/page_transitions.dart';
 import '../widgets/script_execution_bottom_sheet.dart';
+import '../widgets/script_row_menus.dart';
 import '../widgets/scripts_empty_state.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
@@ -994,10 +994,35 @@ class ScriptsScreenState extends State<ScriptsScreen> {
           ],
         ),
         trailing: isLocalScript
-            ? _buildLocalScriptMenu(item.localScript!)
+            ? LocalScriptRowMenu(
+                record: item.localScript!,
+                isFavorite: _favoriteScriptIds.contains(item.localScript!.id),
+                onRun: () => _runScript(item.localScript!),
+                onEdit: () => _editScript(item.localScript!),
+                onPublish: () => _publishToMarketplace(item.localScript!),
+                onConfirmDelete: () => _confirmAndDeleteScript(item.localScript!),
+                onDuplicate: () => _duplicateScript(item.localScript!),
+                onCopySource: () => _copyScriptSource(item.localScript!),
+                onViewInMarketplace: () => _viewInMarketplace(item.localScript!),
+                onToggleFavorite: () => _toggleFavorite(item.localScript!.id),
+              )
             : item.source == ScriptSource.marketplace &&
                     item.marketplaceScript != null
-                ? _buildMarketplaceScriptMenu(item.marketplaceScript!)
+                ? MarketplaceScriptRowMenu(
+                    script: item.marketplaceScript!,
+                    isDownloaded:
+                        _downloadedScriptIds.contains(item.marketplaceScript!.id),
+                    isDownloading:
+                        _downloadingScriptIds.contains(item.marketplaceScript!.id),
+                    isFavorite:
+                        _favoriteScriptIds.contains(item.marketplaceScript!.id),
+                    onViewDetails: () =>
+                        _showScriptDetails(context, item.marketplaceScript!),
+                    onDownload: () => _downloadScript(item.marketplaceScript!),
+                    onShare: () => _shareScript(context, item.marketplaceScript!),
+                    onToggleFavorite: () =>
+                        _toggleFavorite(item.marketplaceScript!.id),
+                  )
                 : null,
         onTap: () => _handleAllScriptsItemTap(item),
       ),
@@ -1216,242 +1241,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         if (item.marketplaceScript != null) {
           _shareScript(context, item.marketplaceScript!);
         }
-        break;
-    }
-  }
-
-  Widget _buildLocalScriptMenu(ScriptRecord record) {
-    final canPublish = !_isPublishedToMarketplace(record);
-
-    // Build hover-reveal actions for desktop discoverability
-    final hoverRevealActions = <Widget>[
-      // Run action (visible on hover for desktop, always visible on mobile)
-      ScriptActionButton(
-        icon: Icons.play_arrow,
-        onPressed: () => _runScript(record),
-        tooltip: 'Run script',
-      ),
-      // Edit action (now a secondary action via ONE-TAP change)
-      ScriptActionButton(
-        icon: Icons.edit,
-        onPressed: () => _editScript(record),
-        tooltip: 'Edit script',
-      ),
-      // Publish action (only for unpublished scripts)
-      if (canPublish)
-        ScriptActionButton(
-          icon: Icons.share,
-          onPressed: () => _publishToMarketplace(record),
-          tooltip: 'Share to Marketplace',
-        ),
-      // Delete action (destructive)
-      ScriptActionButton(
-        icon: Icons.delete_outline,
-        onPressed: () => _confirmAndDeleteScript(record),
-        tooltip: 'Delete script',
-        isDestructive: true,
-      ),
-    ];
-
-    // Always visible: favorite star
-    final alwaysVisibleActions = <Widget>[
-      _buildFavoriteStarButton(record.id),
-    ];
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Hover-reveal actions (Run, Edit, Publish, Delete)
-        HoverRevealActions(
-          actions: hoverRevealActions,
-          alwaysVisibleActions: alwaysVisibleActions,
-        ),
-        // OVERFLOW MENU: Secondary location for all actions
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
-          onSelected: (value) => _handleLocalScriptMenuAction(value, record),
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit, size: 20),
-                  SizedBox(width: 12),
-                  Text('Edit'),
-                ],
-              ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'duplicate',
-              child: Row(
-                children: [
-                  Icon(Icons.content_copy, size: 20),
-                  SizedBox(width: 12),
-                  Text('Duplicate'),
-                ],
-              ),
-            ),
-            if (canPublish)
-              const PopupMenuItem(
-                value: 'publish',
-                child: Row(
-                  children: [
-                    Icon(Icons.share, size: 20),
-                    SizedBox(width: 12),
-                    Text('Share to Marketplace'),
-                  ],
-                ),
-              ),
-            const PopupMenuItem(
-              value: 'copy_source',
-              child: Row(
-                children: [
-                  Icon(Icons.copy, size: 20),
-                  SizedBox(width: 12),
-                  Text('Copy Source'),
-                ],
-              ),
-            ),
-            if (!canPublish)
-              const PopupMenuItem(
-                value: 'view_marketplace',
-                child: Row(
-                  children: [
-                    Icon(Icons.open_in_new, size: 20),
-                    SizedBox(width: 12),
-                    Text('View in Marketplace'),
-                  ],
-                ),
-              ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                  SizedBox(width: 12),
-                  Text('Delete', style: TextStyle(color: Colors.red)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  void _handleLocalScriptMenuAction(String action, ScriptRecord record) {
-    switch (action) {
-      case 'run':
-        _runScript(record);
-        break;
-      case 'edit':
-        _editScript(record);
-        break;
-      case 'publish':
-        _publishToMarketplace(record);
-        break;
-      case 'delete':
-        _confirmAndDeleteScript(record);
-        break;
-      case 'duplicate':
-        _duplicateScript(record);
-        break;
-      case 'copy_source':
-        _copyScriptSource(record);
-        break;
-      case 'view_marketplace':
-        _viewInMarketplace(record);
-        break;
-    }
-  }
-
-  Widget _buildMarketplaceScriptMenu(MarketplaceScript script) {
-    final isDownloaded = _downloadedScriptIds.contains(script.id);
-    final isDownloading = _downloadingScriptIds.contains(script.id);
-
-    // Build hover-reveal actions for desktop discoverability
-    final hoverRevealActions = <Widget>[
-      // Primary action: Download or View Details
-      ScriptActionButton(
-        icon: isDownloaded ? Icons.info_outline : Icons.download,
-        onPressed: isDownloaded
-            ? () => _showScriptDetails(context, script)
-            : () => _downloadScript(script),
-        tooltip: isDownloaded ? 'View details' : 'Download',
-        isLoading: isDownloading,
-      ),
-    ];
-
-    // Always visible: favorite star
-    final alwaysVisibleActions = <Widget>[
-      _buildFavoriteStarButton(script.id),
-    ];
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Hover-reveal actions (Download/View Details)
-        HoverRevealActions(
-          actions: hoverRevealActions,
-          alwaysVisibleActions: alwaysVisibleActions,
-        ),
-        // OVERFLOW MENU: Secondary location for all actions
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
-          onSelected: (value) =>
-              _handleMarketplaceScriptMenuAction(value, script),
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'view_details',
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, size: 20),
-                  SizedBox(width: 12),
-                  Text('View Details'),
-                ],
-              ),
-            ),
-            if (!isDownloaded)
-              const PopupMenuItem(
-                value: 'download',
-                child: Row(
-                  children: [
-                    Icon(Icons.download, size: 20),
-                    SizedBox(width: 12),
-                    Text('Download'),
-                  ],
-                ),
-              ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'share',
-              child: Row(
-                children: [
-                  Icon(Icons.share, size: 20),
-                  SizedBox(width: 12),
-                  Text('Share'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  void _handleMarketplaceScriptMenuAction(
-      String action, MarketplaceScript script) {
-    switch (action) {
-      case 'view_details':
-        _showScriptDetails(context, script);
-        break;
-      case 'download':
-        _downloadScript(script);
-        break;
-      case 'share':
-        _shareScript(context, script);
         break;
     }
   }
@@ -1832,19 +1621,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     await _favoritesService.toggleFavorite(scriptId);
     // The _favoriteScriptIds set will be updated via the favoritesStream
     // listener in _loadFavorites(), which triggers setState.
-  }
-
-  /// Builds a star icon button for toggling favorite status.
-  Widget _buildFavoriteStarButton(String scriptId) {
-    final isFavorite = _favoriteScriptIds.contains(scriptId);
-    return IconButton(
-      icon: Icon(
-        isFavorite ? Icons.star : Icons.star_outline,
-        color: isFavorite ? Colors.amber : null,
-      ),
-      onPressed: () => _toggleFavorite(scriptId),
-      tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
-    );
   }
 
   /// Clears all filters and refreshes marketplace scripts.
