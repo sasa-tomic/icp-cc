@@ -13,6 +13,7 @@ import 'services/deep_link_service.dart';
 import 'services/marketplace_open_api_service.dart';
 import 'services/onboarding_service.dart';
 import 'services/script_repository.dart';
+import 'services/secure_storage_readiness.dart';
 import 'services/settings_service.dart';
 import 'services/spotlight_service.dart';
 import 'theme/app_design_system.dart';
@@ -307,6 +308,7 @@ class _MainHomePageState extends State<MainHomePage> {
         context: context,
         profileController: profileController,
         accountController: _getAccountController(),
+        secureStorageReadiness: SecureStorageReadiness(),
       );
       if (mounted) setState(() {});
     }
@@ -454,6 +456,7 @@ Future<bool> showFirstRunSetupIfNeeded({
   required BuildContext context,
   required ProfileController profileController,
   required AccountController accountController,
+  SecureStorageReadiness? secureStorageReadiness,
 }) async {
   if (profileController.profiles.isNotEmpty) {
     return false;
@@ -464,6 +467,11 @@ Future<bool> showFirstRunSetupIfNeeded({
       builder: (_) => UnifiedSetupWizard(
         profileController: profileController,
         accountController: accountController,
+        // WU-S2: gate profile creation on secure-storage readiness so the
+        // wizard can complete on Linux (and surface an actionable panel +
+        // attempt gnome-keyring auto-start when the keyring is down). When
+        // null (unit tests of the gate), the gate is skipped.
+        secureStorageReadiness: secureStorageReadiness,
       ),
     ),
   );

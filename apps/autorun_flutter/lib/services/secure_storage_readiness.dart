@@ -569,7 +569,12 @@ String humanizeSecureStorageError(Object error) {
           'On Linux, install and start gnome-keyring (see the setup guide).';
     default:
       // Surface the runtime type but never the raw PlatformException string.
-      final detail = error.toString().replaceAll('Exception: ', '');
+      var detail = error.toString().replaceAll('Exception: ', '');
+      // Defensive (NEW-4): if a PlatformException was re-wrapped as a plain
+      // Exception somewhere up the stack, do not let its verbatim string leak.
+      if (detail.contains('PlatformException')) {
+        detail = 'secure storage reported an error';
+      }
       return 'Could not create the profile ($detail). Please try again.';
   }
 }

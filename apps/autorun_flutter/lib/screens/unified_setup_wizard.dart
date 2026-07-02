@@ -6,6 +6,7 @@ import '../models/profile.dart';
 import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../controllers/profile_controller.dart';
+import '../services/secure_storage_readiness.dart';
 import '../theme/app_design_system.dart';
 
 class UnifiedSetupResult {
@@ -25,12 +26,22 @@ class UnifiedSetupWizard extends StatefulWidget {
     required this.profileController,
     required this.accountController,
     this.initialDisplayName,
+    this.secureStorageReadiness,
     super.key,
   });
 
   final ProfileController profileController;
   final AccountController accountController;
   final String? initialDisplayName;
+
+  /// Optional secure-storage readiness gate. When provided (production wiring
+  /// in `main.dart`), the wizard probes whether secrets can be persisted before
+  /// letting the user create a profile. On [StorageUnavailable] it renders a
+  /// blocking, actionable panel (WU-S2 / NEW-4) instead of letting
+  /// `createProfile` throw a raw `PlatformException` (NEW-2). When `null`
+  /// (legacy callers / unit tests that inject a fake ProfileController), the
+  /// gate is skipped and the form is shown directly.
+  final SecureStorageReadiness? secureStorageReadiness;
 
   @override
   State<UnifiedSetupWizard> createState() => _UnifiedSetupWizardState();
@@ -50,12 +61,33 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
   UnifiedSetupResult? _result;
   String? _errorMessage;
 
+  // WU-S2 secure-storage readiness gate state.
+  StorageReadiness? _readiness;
+  bool _isCheckingReadiness = false;
+  bool _showTechnicalDetails = false;
+
   @override
   void initState() {
     super.initState();
     if (widget.initialDisplayName != null) {
       _displayNameController.text = widget.initialDisplayName!;
     }
+    // Probe readiness once on entry so the user learns immediately (WU-S2).
+    if (widget.secureStorageReadiness != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _runReadinessCheck());
+    }
+  }
+
+  Future<void> _runReadinessCheck() async {
+    final service = widget.secureStorageReadiness;
+    if (service == null) return;
+    setState(() => _isCheckingReadiness = true);
+    final StorageReadiness result = await service.check();
+    if (!mounted) return;
+    setState(() {
+      _readiness = result;
+      _isCheckingReadiness = false;
+    });
   }
 
   @override
@@ -71,7 +103,201 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
     if (_isSuccess && _result != null) {
       return _buildSuccessScreen();
     }
+    // WU-S2: block on secure-storage readiness before exposing profile
+    // creation (which would otherwise throw a raw PlatformException — NEW-2/4).
+    if (_isCheckingReadiness) {
+      return _buildReadinessChecking();
+    }
+    final readiness = _readiness;
+    if (readiness is StorageUnavailable) {
+      return _buildReadinessPanel(readiness);
+    }
     return _buildSetupForm();
+  }
+
+  Widget _buildReadinessChecking() {
+    return Scaffold(
+      backgroundColor: context.colors.background,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Get Started',
+          style: AppDesignSystem.heading3.copyWith(color: AppDesignSystem.neutral900),
+        ),
+        centerTitle: true,
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Checking secure storage…'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// WU-S2 / NEW-4: the actionable blocking panel shown when secrets cannot be
+  /// persisted. Replaces the raw `PlatformException(…)` banner with a friendly
+  /// title, explanation, a **copyable** install command, and a Retry button.
+  Widget _buildReadinessPanel(StorageUnavailable unavailable) {
+    return Scaffold(
+      backgroundColor: context.colors.background,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Setup needed',
+          style: AppDesignSystem.heading3.copyWith(color: AppDesignSystem.neutral900),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+          const SizedBox(height: 8),
+          Icon(
+            Icons.lock_outline,
+            size: 48,
+            color: AppDesignSystem.errorDark,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            unavailable.reason,
+            style: AppDesignSystem.heading2.copyWith(
+              color: context.colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            unavailable.explanation,
+            style: AppDesignSystem.bodyMedium.copyWith(
+              color: context.colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 24),
+          if (unavailable.fixCommand.isNotEmpty) ...[
+            Text(
+              'Install command',
+              style: AppDesignSystem.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.colors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: context.colors.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: context.colors.outline.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      unavailable.fixCommand,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_outlined, size: 20),
+                    tooltip: 'Copy',
+                    onPressed: () => _copyToClipboard(unavailable.fixCommand),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Text(
+            unavailable.fixHint,
+            style: AppDesignSystem.bodySmall.copyWith(
+              color: context.colors.onSurfaceVariant,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() =>
+                  _showTechnicalDetails = !_showTechnicalDetails),
+              icon: Icon(
+                _showTechnicalDetails
+                    ? Icons.expand_less
+                    : Icons.expand_more,
+                size: 20,
+              ),
+              label: Text(
+                _showTechnicalDetails ? 'Hide details' : 'Show details',
+                style: AppDesignSystem.bodySmall,
+              ),
+            ),
+          ),
+          // Only build the raw technical detail when the user opts in, so the
+          // verbatim 'PlatformException(…)' string is NEVER in the widget tree
+          // (and thus never accidentally painted/announced) by default (NEW-4).
+          if (_showTechnicalDetails)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SelectableText(
+                unavailable.technicalDetail,
+                style: AppDesignSystem.caption.copyWith(
+                  fontFamily: 'monospace',
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: _runReadinessCheck,
+            icon: const Icon(Icons.refresh),
+            label: const Text(
+              'Retry',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: AppDesignSystem.primaryLight,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    HapticFeedback.selectionClick();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied install command'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   Widget _buildSetupForm() {
@@ -609,8 +835,12 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         _isCreating = false;
       });
     } catch (e) {
+      // WU-S2 / NEW-4: never surface a raw `PlatformException(…)` string. The
+      // readiness gate covers the common keyring-down case; this maps any
+      // residual error (e.g. the keyring went down between probe and create)
+      // to a friendly message.
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = humanizeSecureStorageError(e);
         _isCreating = false;
       });
     }
