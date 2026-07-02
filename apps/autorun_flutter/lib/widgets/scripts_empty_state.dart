@@ -26,15 +26,26 @@ class ScriptsEmptyState extends StatelessWidget {
   const ScriptsEmptyState({
     super.key,
     required this.kind,
+    this.hasProfile = true,
     this.onCreateScript,
     this.onBrowseMarketplace,
+    this.onSetupProfile,
     this.onClearDownloadedFilter,
     this.onClearFavoritesFilter,
   });
 
   final ScriptsEmptyStateKind kind;
+
+  /// Whether an active profile exists. Only consulted by the [library] variant:
+  /// when `false`, the empty state offers a "Set Up Profile" primary action that
+  /// re-opens the setup wizard instead of the keypair-dependent Create / Browse
+  /// CTAs (which lead to broken flows when no keypair exists). Defaults to
+  /// `true` so call sites that don't supply it keep the legacy behavior.
+  final bool hasProfile;
+
   final VoidCallback? onCreateScript;
   final VoidCallback? onBrowseMarketplace;
+  final VoidCallback? onSetupProfile;
   final VoidCallback? onClearDownloadedFilter;
   final VoidCallback? onClearFavoritesFilter;
 
@@ -58,6 +69,16 @@ class ScriptsEmptyState extends StatelessWidget {
           actionLabel: 'Browse Scripts',
         );
       case ScriptsEmptyStateKind.library:
+        if (!hasProfile) {
+          return ModernEmptyState(
+            icon: Icons.person_outline_rounded,
+            title: 'Set Up Your Profile',
+            subtitle:
+                'Create a profile to start building, running, and sharing scripts',
+            action: onSetupProfile,
+            actionLabel: 'Set Up Profile',
+          );
+        }
         return ModernEmptyState(
           icon: Icons.code_rounded,
           title: 'Your Script Library is Empty',

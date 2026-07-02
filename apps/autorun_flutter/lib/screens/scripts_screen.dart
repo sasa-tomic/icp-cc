@@ -17,6 +17,7 @@ import '../services/favorites_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
 import '../services/onboarding_progress_service.dart';
+import '../services/secure_storage_readiness.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
@@ -39,6 +40,7 @@ import 'account_registration_wizard.dart';
 import 'account_registration_prompt_dialog.dart';
 import 'script_editor_dialog.dart';
 import 'script_filter_sheet.dart';
+import 'unified_setup_wizard.dart';
 
 class ScriptsScreen extends StatefulWidget {
   const ScriptsScreen({super.key});
@@ -721,6 +723,18 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     // Use filtered local scripts (updated in _onChanged and _onSearchChanged)
     final scripts = _filteredLocalScripts;
 
+    // WU-1: when the user dismissed the first-run wizard without creating a
+    // profile, the library empty-state must offer "Set Up Profile" instead of
+    // the keypair-dependent Create / Browse CTAs. Lookup is defensive: in
+    // production a ProfileScope is always present, but unit tests often pump
+    // ScriptsScreen without one, so a missing scope is treated as "no gating"
+    // (legacy behavior). dependOnInheritedWidgetOfExactType keeps this reactive.
+    final profileScope =
+        context.dependOnInheritedWidgetOfExactType<ProfileScope>();
+    final profileController = profileScope?.notifier;
+    final hasProfile =
+        profileController == null || profileController.profiles.isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scripts'),
@@ -788,7 +802,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
               ),
               _buildSearchBar(),
               Expanded(
-                child: _buildUnifiedListView(scripts),
+                child: _buildUnifiedListView(scripts, hasProfile: hasProfile),
               ),
             ],
           ),
@@ -811,7 +825,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     );
   }
 
-  Widget _buildUnifiedListView(List<ScriptRecord> localScripts) {
+  Widget _buildUnifiedListView(List<ScriptRecord> localScripts,
+      {required bool hasProfile}) {
     final lastRunMap = <String, DateTime>{};
     for (final s in localScripts) {
       if (s.lastRunAt != null) {
@@ -875,8 +890,10 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                   : ScriptsEmptyStateKind.library;
           return ScriptsEmptyState(
             kind: kind,
+            hasProfile: hasProfile,
             onCreateScript: _showCreateSheet,
             onBrowseMarketplace: _browseMarketplaceFromEmptyState,
+            onSetupProfile: _openSetupWizard,
             onClearDownloadedFilter: _clearDownloadedFilter,
             onClearFavoritesFilter: _clearFavoritesFilter,
           );
@@ -1119,6 +1136,28 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     await _favoritesService.toggleFavorite(scriptId);
     // The _favoriteScriptIds set will be updated via the favoritesStream
     // listener in _loadFavorites(), which triggers setState.
+  }
+
+  /// Re-opens the first-run [UnifiedSetupWizard] from the library empty-state.
+  ///
+  /// Used when the user dismissed the wizard without creating a profile: rather
+  /// than dead-ending them on keypair-dependent CTAs, this gives them a direct
+  /// path back to profile creation. Mirrors [showFirstRunSetupIfNeeded] in
+  /// `main.dart` without introducing a circular import on the app entry point.
+  Future<void> _openSetupWizard() async {
+    final profileController = ProfileScope.of(context, listen: false);
+    final accountController =
+        AccountController(profileController: profileController);
+    await Navigator.of(context).push<UnifiedSetupResult>(
+      MaterialPageRoute<UnifiedSetupResult>(
+        fullscreenDialog: true,
+        builder: (_) => UnifiedSetupWizard(
+          profileController: profileController,
+          accountController: accountController,
+          secureStorageReadiness: SecureStorageReadiness(),
+        ),
+      ),
+    );
   }
 
   /// Clears all filters and refreshes marketplace scripts.
