@@ -28,7 +28,11 @@ class FakeMarketplaceOpenApi implements MarketplaceOpenApi {
     int offset = 0,
   }) async {
     searchCalls++;
-    final all = _scripts.values.toList(growable: false);
+    // `toList()` (growable): ScriptsScreen reuses the returned list and calls
+    // `.clear()` on the next search — a fixed-length list (toList(growable:
+    // false)) would throw `UnsupportedError: Cannot clear a fixed-length list`.
+    // The real MarketplaceOpenApiService returns growable lists.
+    final all = _scripts.values.toList();
     return MarketplaceSearchResult(
       scripts: all,
       total: all.length,

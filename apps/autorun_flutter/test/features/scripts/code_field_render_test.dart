@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:icp_autorun/widgets/script_editor.dart';
 
+import '_scripts_test_harness.dart';
+
 /// WU-S3 — `CodeField` (from `flutter_code_editor`) was throwing
 /// `ArgumentError: string is not well-formed UTF-16 … while building a
 /// TextSpan` whenever the Scripts screen rendered content (NEW-3 in
@@ -17,7 +19,19 @@ import 'package:icp_autorun/widgets/script_editor.dart';
 /// defensive fix and pass after.
 void main() {
   testWidgets('CodeField renders empty content without throwing', (tester) async {
-    await tester.pumpWidget(_harness(initialCode: ''));
+    await pumpInScaffold(
+      tester,
+      SizedBox(
+        height: 400,
+        child: ScriptEditor(
+          initialCode: '',
+          minLines: 4,
+          maxLines: 12,
+          showIntegrations: false,
+          onCodeChanged: (_) {},
+        ),
+      ),
+    );
     // pumpAndSettle forces a full layout/paint pass so any TextSpan build
     // error surfaces via tester.exceptions.
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
@@ -56,7 +70,19 @@ void main() {
   globalThis.update = update;
 })();
 ''';
-    await tester.pumpWidget(_harness(initialCode: code));
+    await pumpInScaffold(
+      tester,
+      SizedBox(
+        height: 400,
+        child: ScriptEditor(
+          initialCode: code,
+          minLines: 4,
+          maxLines: 12,
+          showIntegrations: false,
+          onCodeChanged: (_) {},
+        ),
+      ),
+    );
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
     expect(tester.takeException(), isNull,
@@ -87,7 +113,19 @@ console.log(`${greeting} | ${regex} | ${emoji}`);
     // `\uD800` is a lone high surrogate (no following low surrogate) = the
     // exact malformed-UTF-16 sequence the engine rejects.
     final code = '$bulk\n// lone surrogate: \uD800\n';
-    await tester.pumpWidget(_harness(initialCode: code));
+    await pumpInScaffold(
+      tester,
+      SizedBox(
+        height: 400,
+        child: ScriptEditor(
+          initialCode: code,
+          minLines: 4,
+          maxLines: 12,
+          showIntegrations: false,
+          onCodeChanged: (_) {},
+        ),
+      ),
+    );
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
     expect(tester.takeException(), isNull,
@@ -95,23 +133,4 @@ console.log(`${greeting} | ${regex} | ${emoji}`);
             'special chars incl. malformed UTF-16 (lone surrogate)');
     expect(find.byType(CodeField), findsOneWidget);
   });
-}
-
-/// Minimal host for `ScriptEditor` — same wrapping `scripts_screen.dart`
-/// uses (a sized Scaffold + the editor), no app-level state.
-Widget _harness({required String initialCode}) {
-  return MaterialApp(
-    home: Scaffold(
-      body: SizedBox(
-        height: 400,
-        child: ScriptEditor(
-          initialCode: initialCode,
-          minLines: 4,
-          maxLines: 12,
-          showIntegrations: false,
-          onCodeChanged: (_) {},
-        ),
-      ),
-    ),
-  );
 }

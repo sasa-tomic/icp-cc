@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/script_controller.dart';
 import 'package:icp_autorun/services/script_runner.dart';
-import 'package:icp_autorun/widgets/script_app_host.dart';
 
+import '_scripts_test_harness.dart';
 import 'integration_transform_helpers.dart';
 
 void main() {
@@ -149,17 +149,11 @@ end
           bundleOverride: followUpCallScript,
         );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.bundle,
-            ),
-          ),
+        await pumpScriptApp(
+          tester,
+          runtime: ScriptAppRuntime(MockCanisterBridge()),
+          bundle: script.bundle,
         );
-
-        await tester.pump();
-        await tester.pumpAndSettle();
 
         // Verify initial state
         expect(find.text('Follow-up Call Demo'), findsOneWidget);
@@ -343,17 +337,11 @@ end
           bundleOverride: dynamicCallScript,
         );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.bundle,
-            ),
-          ),
+        await pumpScriptApp(
+          tester,
+          runtime: ScriptAppRuntime(MockCanisterBridge()),
+          bundle: script.bundle,
         );
-
-        await tester.pump();
-        await tester.pumpAndSettle();
 
         expect(find.text('Dynamic Call Generation'), findsOneWidget);
         expect(find.text('Analyze Market'), findsOneWidget);
@@ -592,17 +580,11 @@ end
           bundleOverride: conditionalCallScript,
         );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.bundle,
-            ),
-          ),
+        await pumpScriptApp(
+          tester,
+          runtime: ScriptAppRuntime(MockCanisterBridge()),
+          bundle: script.bundle,
         );
-
-        await tester.pump();
-        await tester.pumpAndSettle();
 
         expect(find.text('Conditional Call Logic'), findsOneWidget);
         expect(find.text('Check Services'), findsOneWidget);
