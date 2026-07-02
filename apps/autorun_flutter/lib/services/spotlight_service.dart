@@ -46,7 +46,7 @@ class SpotlightService {
     ),
     SpotlightStep(
       targetKey: 'discover_tab',
-      title: 'Explore',
+      title: 'Canisters',
       description:
           'Explore the Internet Computer ecosystem. Browse canisters, interact with services, and discover new dapps.',
       position: SpotlightPosition.top,

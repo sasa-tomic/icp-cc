@@ -26,15 +26,15 @@ void main() {
     await tester.tap(find.byIcon(Icons.close).first);
     await tester.pump(const Duration(seconds: 1));
 
-    // Tap the "Explore" navigation item.
-    final exploreTab = find.text('Explore');
+    // Tap the "Canisters" navigation item.
+    final exploreTab = find.text('Canisters');
     expect(present(exploreTab, tester), isTrue);
     await tester.tap(exploreTab.first);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
     await shot(binding, '09_explore_tab_is_canisters', tester);
 
-    // Decisive: the Explore tab renders BookmarksScreen (canister tool), not a
+    // Decisive: the Canisters tab renders BookmarksScreen (canister tool), not a
     // marketplace browse view.
     final isCanisterTool = present(find.text('Popular Canisters'), tester) ||
         present(find.text('Explore ICP Services'), tester) ||
@@ -42,11 +42,11 @@ void main() {
     // ignore: avoid_print
     print('C_A1: isCanisterTool=$isCanisterTool');
     expect(isCanisterTool, isTrue,
-        reason: 'A-1: the "Explore" tab is a canister-call dev tool '
-            '(BookmarksScreen), not a marketplace browser. Label is misleading.');
+        reason: 'A-1: the "Canisters" tab is a canister-call dev tool '
+            '(BookmarksScreen), not a marketplace browser.');
 
     // Exactly two navigation items exist (no third tab).
-    final exploreCount = tester.widgetList(find.text('Explore')).length;
+    final exploreCount = tester.widgetList(find.text('Canisters')).length;
     // ignore: avoid_print
     print('C_A1: exploreLabelCount=$exploreCount');
     expect(present(find.text('Scripts'), tester), isTrue);

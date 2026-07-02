@@ -30,12 +30,12 @@ void main() {
     await launchApp(tester);
     await dismissWizard(tester);
 
-    // Baseline: on Scripts tab (index 0). Explore content NOT shown yet.
+    // Baseline: on Scripts tab (index 0). Canisters content NOT shown yet.
     final exploreInitially = present(find.text('Popular Canisters'), tester);
     // ignore: avoid_print
     print('D_WU6: exploreShownInitially=$exploreInitially');
 
-    // Ctrl+2 -> navigate to tab index 1 (Explore / BookmarksScreen).
+    // Ctrl+2 -> navigate to tab index 1 (Canisters / BookmarksScreen).
     await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
@@ -67,11 +67,11 @@ void main() {
 
     // Verdicts.
     expect(exploreAfterCtrl2, isTrue,
-        reason: 'WU-6 partial: Ctrl+2 DOES navigate to Explore tab (shortcut works).');
+        reason: 'WU-6 partial: Ctrl+2 DOES navigate to Canisters tab (shortcut works).');
     expect(exploreAfterCtrl1, isFalse,
         reason: 'WU-6 partial: Ctrl+1 returns to Scripts (shortcut works).');
     // Ctrl+3 fired but there is no 3rd tab, so the view must NOT have jumped
-    // to Explore again — it stays on Scripts (exploreAfterCtrl3 == false).
+    // to Canisters again — it stays on Scripts (exploreAfterCtrl3 == false).
     expect(exploreAfterCtrl3, isFalse,
         reason: 'WU-6: Ctrl+3 is a DEAD shortcut — registered in keyboard_shortcuts.dart '
             '(_NavigateTabIntent(2)) but only 2 tabs exist. Fires with no effect.');
