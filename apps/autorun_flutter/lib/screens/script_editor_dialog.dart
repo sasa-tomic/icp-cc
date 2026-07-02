@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/script_controller.dart';
 import '../models/script_record.dart';
+import '../theme/app_design_system.dart';
 import '../widgets/script_editor.dart';
 
 /// Improved script editor dialog with syntax highlighting and improved UX
@@ -48,10 +49,7 @@ class ScriptEditorDialogState extends State<ScriptEditorDialog> {
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Script saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
+        AppDesignSystem.successSnackBar('Script saved successfully!'),
       );
     } catch (e) {
       if (mounted) {

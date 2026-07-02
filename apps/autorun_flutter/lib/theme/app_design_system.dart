@@ -246,6 +246,21 @@ class AppDesignSystem {
   static const Curve curveEaseIn = Curves.easeIn;
   static const Curve curveBounce = Curves.elasticOut;
 
+  // ==================== SNACK BAR ====================
+
+  static SnackBar successSnackBar(
+    String message, {
+    SnackBarAction? action,
+    Duration? duration,
+  }) {
+    return SnackBar(
+      content: Text(message),
+      backgroundColor: Colors.green,
+      duration: duration ?? const Duration(seconds: 4),
+      action: action,
+    );
+  }
+
   // ==================== MATERIAL THEME DATA ====================
   
   static ThemeData get lightTheme {

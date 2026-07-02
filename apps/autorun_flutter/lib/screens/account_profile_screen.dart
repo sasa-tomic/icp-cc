@@ -142,10 +142,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           _profile = updatedProfile;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Signing key updated'),
-            backgroundColor: Colors.green,
-          ),
+          AppDesignSystem.successSnackBar('Signing key updated'),
         );
       }
     } catch (e) {
@@ -314,10 +311,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           _profile = updatedProfile;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Switched to registered signing key'),
-            backgroundColor: Colors.green,
-          ),
+          AppDesignSystem.successSnackBar('Switched to registered signing key'),
         );
       }
     } catch (e) {

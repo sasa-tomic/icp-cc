@@ -6,6 +6,7 @@ import '../models/script_record.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
 import '../services/script_validation_service.dart';
+import '../theme/app_design_system.dart';
 import '../utils/principal.dart';
 import '../widgets/profile_scope.dart';
 import '../widgets/script_editor.dart';
@@ -302,10 +303,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Script published successfully!'),
-          backgroundColor: Colors.green,
-        ),
+        AppDesignSystem.successSnackBar('Script published successfully!'),
       );
 
       Navigator.of(context).pop(true);

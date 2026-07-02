@@ -165,10 +165,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     await _loadRecentSearches();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Search history cleared'),
-          backgroundColor: Colors.green,
-        ),
+        AppDesignSystem.successSnackBar('Search history cleared'),
       );
     }
   }
@@ -642,10 +639,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Script published successfully!'),
-            backgroundColor: Colors.green,
-          ),
+          AppDesignSystem.successSnackBar('Script published successfully!'),
         );
       }
     }
@@ -693,9 +687,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Script duplicated as "${newScript.title}"'),
-          backgroundColor: Colors.green,
+        AppDesignSystem.successSnackBar(
+          'Script duplicated as "${newScript.title}"',
           action: SnackBarAction(
             label: 'View',
             onPressed: () {
@@ -721,10 +714,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Script source code copied to clipboard'),
-          backgroundColor: Colors.green,
-        ),
+        AppDesignSystem.successSnackBar('Script source code copied to clipboard'),
       );
     }
   }
@@ -1264,10 +1254,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     await Clipboard.setData(ClipboardData(text: shareUrl));
     if (mounted) {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Script link copied to clipboard!'),
-          backgroundColor: Colors.green,
-        ),
+        AppDesignSystem.successSnackBar('Script link copied to clipboard!'),
       );
     }
   }
