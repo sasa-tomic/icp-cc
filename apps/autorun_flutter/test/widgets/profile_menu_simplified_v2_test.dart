@@ -1,61 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
-import 'package:icp_autorun/controllers/account_controller.dart';
-import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/account.dart';
-import 'package:icp_autorun/models/profile.dart';
-import 'package:icp_autorun/services/passkey_service.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../shared/fake_secure_keypair_repository.dart';
 import '../shared/test_keypair_factory.dart';
-
-class _MockPasskeyService extends Mock implements PasskeyService {}
-
-class _MockAccountController extends Mock implements AccountController {}
-
-class _FakeProfile extends Fake implements Profile {}
+import 'profile_menu_test_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(() {
-    registerFallbackValue(_FakeProfile());
-  });
+  setUpAll(registerProfileMenuFallbacks);
 
   group('Profile Menu Further Simplification (#41)', () {
-    late ProfileKeypair keypair;
     late ProfileController profileController;
-    late _MockPasskeyService mockPasskeyService;
-    late _MockAccountController mockAccountController;
+    late MockPasskeyService mockPasskeyService;
+    late MockAccountController mockAccountController;
     late Account testAccount;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      keypair = await TestKeypairFactory.getEd25519Keypair();
-      final repository = FakeSecureKeypairRepository(<ProfileKeypair>[keypair]);
-      profileController =
-          ProfileController(profileRepository: repository.profileRepository);
-      await profileController.ensureLoaded();
-      if (profileController.profiles.isNotEmpty) {
-        await profileController
-            .setActiveProfile(profileController.profiles.first.id);
-      }
+      final keypair = await TestKeypairFactory.getEd25519Keypair();
+      profileController = await buildProfileController(keypairs: [keypair]);
 
-      mockPasskeyService = _MockPasskeyService();
-      mockAccountController = _MockAccountController();
+      mockPasskeyService = MockPasskeyService();
+      mockAccountController = MockAccountController();
 
-      testAccount = Account(
-        id: 'account-123',
-        username: 'testuser',
-        displayName: 'Test User',
-        publicKeys: [],
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      testAccount = buildTestAccount();
     });
 
     Future<void> pumpProfileMenu(
@@ -73,34 +44,12 @@ void main() {
       when(() => mockPasskeyService.listPasskeys(any()))
           .thenAnswer((_) async => []);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (BuildContext context) {
-                return ElevatedButton(
-                  onPressed: () {
-                    showModalBottomSheet<void>(
-                      context: context,
-                      useSafeArea: true,
-                      isScrollControlled: true,
-                      builder: (_) => ProfileMenuWidget(
-                        profileController: profileController,
-                        accountController: mockAccountController,
-                        passkeyService: mockPasskeyService,
-                      ),
-                    );
-                  },
-                  child: const Text('Open Menu'),
-                );
-              },
-            ),
-          ),
-        ),
+      await pumpProfileMenuHost(
+        tester,
+        profileController: profileController,
+        accountController: mockAccountController,
+        passkeyService: mockPasskeyService,
       );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open Menu'));
-      await tester.pumpAndSettle();
     }
 
     group('Exactly 3 menu items', () {
