@@ -43,6 +43,74 @@ that doc). Re-validation of each deferred proposal against current code:
 
 ---
 
+## 0b. Round-2 EMPIRICAL stabilization WUs (PRIORITY — do BEFORE click-reduction)
+
+The empirical UX review (`docs/specs/UX_REVIEW_ROUND2.md`, run on the live app
+under Xvfb) confirmed every WU-1..7 hypothesis **and** surfaced four real
+runtime bugs. The first three are **functional blockers** — a broken app has no
+UX, so these ship first. Evidence: `docs/specs/ux_screenshots/round2/`.
+
+### WU-S1 — Fix the backend-wiring key mismatch (NEW-1)
+- **Bug:** `apps/autorun_flutter/lib/config/app_config.dart:6` reads
+  `String.fromEnvironment('PUBLIC_API_ENDPOINT', …)`, but `justfile:393`
+  (`flutter-dev-local`) launches with `--dart-define=API_ENDPOINT=…` — a
+  **different key**. Result: `just flutter-dev-local` silently points the app at
+  **production** (`icp-mp.kalaj.org`), not the local backend. The prebuilt bundle
+  has the prod URL baked in too.
+- **Fix:** change the justfile recipe(s) to `--dart-define=PUBLIC_API_ENDPOINT=…`
+  (the key the app actually reads). Audit all `--dart-define=` sites in the
+  justfile for the same class of mismatch. Single source of truth: the env-var
+  name is defined by `app_config.dart` — reference it symbolically everywhere.
+- **Acceptance:** `just api-dev-up` + the run recipe hits localhost (verify via
+  the app's `AppConfig.debugPrintConfig()` log → "Local Development"); a test
+  asserts `API_ENDPOINT` is no longer referenced as a dart-define.
+
+### WU-S2 — Secure-storage readiness + human errors (NEW-2 + NEW-4)  [SEVERE]
+- **Bug:** `unified_setup_wizard.dart:582` `_finish` → `createProfile` →
+  `FlutterSecureStorage.write` THROWS `PlatformException(Libsecret error, Failed
+  to unlock the keyring)` on a Linux box without a running Secret Service
+  (no `gnome-keyring-daemon`/`kwallet`, `DBUS_SESSION_BUS_ADDRESS` unset). The
+  wizard catches it (`:580/:612`) but (a) **`profiles.json` stays empty** → the
+  wizard can **never complete** → cascades into ALL identity flows
+  (share/publish/passkey/multi-profile); and (b) the raw `PlatformException(…)`
+  string is shown to the user (`:300/:613`) — NEW-4.
+- **Fix (fail-loud + automate, per AGENTS.md):**
+  1. New `SecureStorageReadiness` service: probe whether `FlutterSecureStorage`
+     can read/write (or detect a Secret Service via D-Bus). Expose
+     `Future<StorageReadiness>` → `{ok | unavailable(reason, fixHint)}`.
+  2. On `unavailable`, the wizard/first-run shows a **blocking, actionable**
+     panel — NOT a raw exception: "Secure key storage is unavailable. On Linux,
+     install gnome-keyring (or KWallet) and ensure it's running." with a
+     **copyable install command** and a **Retry** button. (Matches AGENTS.md
+     "be LOUD about misconfigurations" + "AUTOMATE EVERYTHING".)
+  3. **Automate where possible:** if `gnome-keyring-daemon` is installed but not
+     running, attempt to start it (D-Bus session + `--start --components=secrets`)
+     and unlock; if that succeeds, proceed transparently.
+  4. Do NOT add an insecure plaintext file fallback (would violate the
+     zero-knowledge secure-storage model). The honest path is "install a Secret
+     Service". Document the Linux requirement in `AGENTS.md` + `README.md`.
+- **Acceptance:** on a keyring-less box the wizard shows the actionable panel
+  (no raw exception, no silent swallow); with a keyring running, profile
+  creation succeeds and `profiles.json` is written. Unit-test both readiness
+  outcomes; widget-test the panel + retry.
+
+### WU-S3 — Fix `code_text_field` `TextSpan` ArgumentError (NEW-3)
+- **Bug:** the `CodeField` widget (`code_text_field`) throws
+  `ArgumentError building a TextSpan` whenever the Scripts screen renders
+  content — destabilizes frames (Flutter recovers sibling widgets).
+- **Fix:** locate the malformed `TextSpan` construction (likely a null/non-String
+  span child or invalid `style`), make it robust. Add a widget test that renders
+  `CodeField` with non-empty content without throwing.
+- **Acceptance:** Scripts screen renders content with no `ArgumentError` in the
+  log; new focused widget test passes.
+
+**Sequencing note:** WU-S1/S2/S3 are independent of WU-8 and each other (justfile
+/ wizard+new service / code_text_field widget) — they run in the FIRST parallel
+wave alongside WU-8 (foundation) and WU-4 (profile switch). WU-1 (empty-state)
+moves to AFTER WU-8 (it touches the file WU-8 extracts).
+
+---
+
 ## 1. Architectural issues REQUIRING a human decision (per AGENTS.md)
 
 These are **flagged, not silently decided.** Each blocks or shapes a WU.
