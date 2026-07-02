@@ -83,7 +83,7 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
+          // Drag handle (pinned)
           Container(
             width: 40,
             height: 4,
@@ -93,13 +93,22 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          // Profile header
-          _buildProfileHeader(
-              context, profile, displayName, username, hasAccount),
-          const Divider(),
-          // Menu items
-          _buildMenuItems(context, profile, hasAccount, profileCount),
-          const SizedBox(height: 16),
+          // Header + items scroll so an inline profile list stays fully
+          // reachable when the user owns many profiles.
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildProfileHeader(
+                      context, profile, displayName, username, hasAccount),
+                  const Divider(),
+                  _buildMenuItems(context, profile, hasAccount, profileCount),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -203,15 +212,19 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
         // Always rendered: on a first run (no active profile) the tap routes to
         // profile creation/selection instead of being a silent no-op.
         _buildMyAccountTile(profile, hasAccount),
-        // 2. Switch Profile - simple profile switching
-        _MenuTile(
-          icon: Icons.swap_horiz,
-          label: 'Switch Profile',
-          subtitle: profileCount > 1
-              ? '$profileCount profiles available'
-              : 'Only you',
-          onTap: () => _handleAction(ProfileMenuAction.manageProfiles),
-        ),
+        // 2. Profile switching. With more than one profile the list is inlined
+        // directly into the menu (2-tap switch). With a single profile the list
+        // would be noise, so we fall back to a single entry that opens the
+        // full manage sheet (create / delete / rename).
+        if (profileCount > 1)
+          _buildInlineProfileSwitcher()
+        else
+          _MenuTile(
+            icon: Icons.swap_horiz,
+            label: 'Switch Profile',
+            subtitle: 'Only you',
+            onTap: () => _handleAction(ProfileMenuAction.manageProfiles),
+          ),
         // 3. Settings
         _MenuTile(
           icon: Icons.settings_outlined,
@@ -220,6 +233,60 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           onTap: () => _handleAction(ProfileMenuAction.settings),
         ),
       ],
+    );
+  }
+
+  /// Inline profile list shown when more than one profile exists. Tapping a
+  /// non-active profile switches immediately (2 taps total) and closes the
+  /// menu; the active profile is marked and non-interactive. A trailing
+  /// "Manage Profiles" entry opens the full sheet for create/delete/rename.
+  Widget _buildInlineProfileSwitcher() {
+    final theme = Theme.of(context);
+    final profiles = widget.profileController.profiles;
+    final activeId = widget.profileController.activeProfileId;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+          child: Text(
+            'Switch profile',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        for (final profile in profiles)
+          _ProfileSwitchRow(
+            profile: profile,
+            isActive: profile.id == activeId,
+            onTap: profile.id == activeId
+                ? null
+                : () => _switchToProfile(profile),
+          ),
+        _MenuTile(
+          icon: Icons.tune_outlined,
+          label: 'Manage Profiles',
+          subtitle: 'Create, rename, or delete',
+          onTap: () => _handleAction(ProfileMenuAction.manageProfiles),
+        ),
+      ],
+    );
+  }
+
+  /// Switches the active profile via the same controller path used by the
+  /// manage sheet, then closes the menu and confirms the switch. Keypair /
+  /// script scoping is therefore identical to the legacy 3-tap flow.
+  Future<void> _switchToProfile(Profile profile) async {
+    HapticFeedback.lightImpact();
+    final messenger = ScaffoldMessenger.of(context);
+    await widget.profileController.setActiveProfile(profile.id);
+    if (!mounted) return;
+    Navigator.of(context).pop(); // Close the menu
+    messenger.showSnackBar(
+      SnackBar(content: Text('${profile.name} is now active')),
     );
   }
 
@@ -461,6 +528,65 @@ class _MenuTile extends StatelessWidget {
   }
 }
 
+/// Shared profile row used both by the inline menu switcher and the manage
+/// profiles sheet. Active profile renders a gradient avatar + check; inactive
+/// rows are tappable via [onTap] (null when active).
+class _ProfileSwitchRow extends StatelessWidget {
+  const _ProfileSwitchRow({
+    required this.profile,
+    required this.isActive,
+    this.onTap,
+  });
+
+  final Profile profile;
+  final bool isActive;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          gradient: isActive
+              ? LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.primary.withValues(alpha: 0.8),
+                  ],
+                )
+              : null,
+          color: isActive ? null : theme.colorScheme.surfaceContainerHighest,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(
+            profile.name.isNotEmpty
+                ? profile.name.substring(0, 1).toUpperCase()
+                : '?',
+            style: TextStyle(
+              color: isActive ? Colors.white : theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+      title: Text(
+        profile.name,
+        style: isActive ? const TextStyle(fontWeight: FontWeight.w600) : null,
+      ),
+      subtitle: profile.username != null ? Text('@${profile.username}') : null,
+      trailing: isActive
+          ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+          : null,
+      enabled: onTap != null,
+      onTap: onTap,
+    );
+  }
+}
+
 /// Combined profile management sheet with switch + create options
 class _ManageProfilesSheet extends StatelessWidget {
   const _ManageProfilesSheet({
@@ -510,60 +636,23 @@ class _ManageProfilesSheet extends StatelessWidget {
                 final profile = profiles[index];
                 final isActive = profile.id == activeId;
 
-                return ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: isActive
-                          ? LinearGradient(
-                              colors: [
-                                theme.colorScheme.primary,
-                                theme.colorScheme.primary
-                                    .withValues(alpha: 0.8),
-                              ],
-                            )
-                          : null,
-                      color: isActive
-                          ? null
-                          : theme.colorScheme.surfaceContainerHighest,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        profile.name.isNotEmpty
-                            ? profile.name.substring(0, 1).toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          color: isActive
-                              ? Colors.white
-                              : theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  title: Text(profile.name),
-                  subtitle: profile.username != null
-                      ? Text('@${profile.username}')
-                      : null,
-                  trailing: isActive
-                      ? Icon(Icons.check_circle,
-                          color: theme.colorScheme.primary)
-                      : null,
+                return _ProfileSwitchRow(
+                  profile: profile,
+                  isActive: isActive,
                   onTap: isActive
                       ? null
                       : () async {
                           HapticFeedback.lightImpact();
-                          await profileController.setActiveProfile(profile.id);
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('${profile.name} is now active'),
-                              ),
-                            );
-                          }
+                          final messenger = ScaffoldMessenger.of(context);
+                          await profileController
+                              .setActiveProfile(profile.id);
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('${profile.name} is now active'),
+                            ),
+                          );
                         },
                 );
               },
