@@ -17,6 +17,9 @@ services:
       - RUST_BACKTRACE=1
       - HOME=/home/ubuntu
       - VIRTUAL_ENV=/home/ubuntu/.venv
+      # All permissions inside the container only; host opencode is unaffected
+      # (a project-local opencode.json would leak to the host via bind mount).
+      - "OPENCODE_CONFIG_CONTENT={\"permission\":\"allow\"}"
       # Android SDK/NDK — NDK auto-detected by scripts/common.sh::setup_android_ndk_env
       - ANDROID_HOME=/home/ubuntu/Android/Sdk
       - ANDROID_SDK_ROOT=/home/ubuntu/Android/Sdk
