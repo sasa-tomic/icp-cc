@@ -25,6 +25,24 @@ just api-dev-up           # Start local API server
 just flutter-dev-local    # Run Flutter with local API
 ```
 
+### Linux desktop: Secret Service required (WU-S2)
+
+Linux desktop needs a running **Secret Service** (gnome-keyring or KWallet) so
+`flutter_secure_storage` (libsecret) can encrypt private keys. Without one,
+profile creation fails — the first-run wizard detects this, attempts to
+auto-start gnome-keyring, and shows an actionable setup panel (never a silent
+failure). On a bare/headless box:
+
+```bash
+sudo apt-get install -y gnome-keyring libsecret-tools   # Debian/Ubuntu
+eval "$(dbus-launch --sh-syntax)"                        # start a D-Bus session
+echo -n | gnome-keyring-daemon --unlock                  # unlock an empty keyring
+```
+
+A full GNOME/KDE session sets this up automatically. See
+[AGENTS.md — Secure storage on Linux desktop](AGENTS.md#secure-storage-on-linux-desktop-wu-s2)
+and [WU-S2](docs/specs/UI_EXCELLENCE_PLAN.md) for details.
+
 ### Testing (Feature-Based)
 
 ```bash

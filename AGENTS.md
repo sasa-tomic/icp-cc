@@ -223,6 +223,46 @@ Android — or wait for R-1 to restore the Web target.
 
 ---
 
+## Secure storage on Linux desktop (WU-S2)
+
+**Linux desktop REQUIRES a running Secret Service** (gnome-keyring or KWallet)
+for `flutter_secure_storage` (→ libsecret) to persist private keys. Without one,
+`FlutterSecureStorage.write` THROWS `PlatformException(Libsecret error, Failed
+to unlock the keyring)` — so `ProfileController.createProfile` throws and the
+first-run wizard can **never complete**, blocking every identity flow
+(share/publish/passkey/multi-profile). This was **NEW-2** in
+`docs/specs/UX_REVIEW_ROUND2.md` (severe) and is fixed by **WU-S2** in
+`docs/specs/UI_EXCELLENCE_PLAN.md`.
+
+**What the app does now (`SecureStorageReadiness`):** the wizard probes whether
+secrets round-trip on entry. On Linux, if the first probe fails it
+**auto-starts** gnome-keyring when possible (`dbus-launch --sh-syntax` → export
+`DBUS_SESSION_BUS_ADDRESS` into the current process via libc `setenv` FFI →
+`gnome-keyring-daemon --start --components=secrets`) and retries transparently.
+If still unavailable, it renders a **blocking, actionable panel** with a
+copyable install command + Retry — never a raw `PlatformException(…)` (NEW-4).
+
+**To make a bare/headless Linux box functional** (no desktop session):
+```bash
+sudo apt-get install -y gnome-keyring libsecret-tools   # Debian/Ubuntu
+# Fedora: sudo dnf install -y gnome-keyring libsecret
+# then, in the shell you launch the app from:
+eval "$(dbus-launch --sh-syntax)"                        # start a session bus
+export $(dbus-launch --sh-syntax)                        # alternative form
+echo -n | gnome-keyring-daemon --unlock                  # unlock an empty keyring
+# verify:
+secret-tool store --label=probe service icp account test <<< "x"   # should succeed
+```
+On a full desktop (GNOME/KDE logged-in session) the keyring is started and
+`DBUS_SESSION_BUS_ADDRESS` is set automatically — nothing to do.
+
+**No insecure plaintext fallback exists** (the zero-knowledge secure-storage
+model is preserved). The honest fix for a keyring-less box is to install/start
+a Secret Service; the per-distro install command is the **single source** in
+`LinuxSecretServiceHelp` (`lib/services/secure_storage_readiness.dart`).
+
+---
+
 ## Test Helpers
 
 | Need | Use | Location |
