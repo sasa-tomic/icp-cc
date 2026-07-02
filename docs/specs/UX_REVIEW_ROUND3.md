@@ -95,3 +95,42 @@ All stabilization WUs (S1/S2/S3) and build WUs (1–9) are implemented, committe
 ## Confidence: 8.5/10
 
 All improvements are code-verified and test-green. Visual confirmation via screenshots for WU-7/S2/S6/S1. Half-point held back for the items that need a keyring-bearing box for full empirical verification (WU-4 inline switch UI, WU-2/3 snackbar actions).
+
+---
+
+# Addendum — Empirical verification under the mock Secret Service
+
+**Date:** 2025-07-02 (same day)
+**Trigger:** the committed mock Secret Service (`scripts/mock_secret_service.py` + `scripts/run-with-mock-keyring.sh`) resolves the root cause that forced the three "CANNOT VERIFY on this box" verdicts above — no Secret Service meant `flutter_secure_storage` threw on every write, so no profile could be created. This addendum re-runs the verification with the mock in place.
+**Method:** (a) real libsecret (C) + GTK clients round-tripping through the mock; (b) the prebuilt release/debug app launched under Xvfb + the mock, screenshotted via ImageMagick `import`; (c) a Flutter integration-test probe that exercises the production `ProfileController` / `ProfileRepository` / `ProfileMenuWidget` against real libsecret under the mock. All artifacts are committed: `scripts/verify_libsecret_mock.c`, `scripts/verify_gtk_libsecret_mock.c`, `scripts/ux_probe_r3_addendum.sh`, `apps/autorun_flutter/integration_test/ux_probe/r3_addendum_{helpers,test}.dart`, screenshots in `docs/specs/ux_screenshots/round3_addendum/`.
+
+## The root cause is resolved — proven at three levels
+
+1. **libsecret (C) ↔ mock, byte-identical.** `scripts/verify_libsecret_mock.c` replays `flutter_secure_storage_linux`'s exact access pattern (warmup dummy item under `schema=NULL` + one JSON blob under the `account` schema) against the mock. `gcc … && scripts/run-with-mock-keyring.sh /tmp/lsm` prints `VERDICT: OK libsecret(C)<->mock round-trip byte-identical` and the mock's `secrets.json` gains both items. `scripts/verify_gtk_libsecret_mock.c` repeats this from a GTK main loop (the app's dispatch context) — same `VERDICT_GTK: OK`. (libsecret negotiates an encrypted session first; the mock rejects `dh-ietf1024-…` and libsecret falls back to `plain` — harmless noise in the log.)
+2. **Running app reaches the profile-creation form.** Under the mock, `SecureStorageReadiness().check()` returns `StorageReady`: the probe's warmup + write + read + delete lands in the mock's `secrets.json` (547-byte signature: warmup item + empty blob). The wizard therefore renders the **creation form** (`07_wizard_form_storage_ready.png`, 42 KB) — NOT the WU-S2 blocking panel (`03_*`) and NOT the "Checking secure storage…" spinner (`01_*`); ImageMagick `compare` confirms it differs from both by 255k / 587k pixels.
+3. **Real profile creation end-to-end (the decisive proof).** The integration probe `r3_addendum_test.dart → Addendum-A` calls the production `ProfileController.createProfile` twice under the mock. Result: **two real Ed25519 profiles created** (distinct principals, e.g. `4lt67-…` and `o4cwm-…`), private keys (44 chars) + mnemonic persisted via libsecret, **no private-key leak into `profiles.json`**, and a fresh controller reloads both profiles with their private keys intact (`ADDENDUM_A: PASS`). The exact NEW-2 data-loss guard holds.
+
+> **Profile creation — the thing that blocked every identity flow — is now empirically proven to work on this box under the mock.**
+
+## Per-WU verdict updates
+
+### WU-4: inline profile switch (3→2 taps) — **CONFIRM (empirical)** ↑ from CANNOT-VERIFY
+- **Probe:** `r3_addendum_test.dart → Addendum-WU4` renders the production `ProfileMenuWidget` against a controller holding the two REAL profiles created above (not the fake-repo widget tests), then drives it.
+- **Evidence:** with >1 profile the menu inlines the list directly — the `"Switch profile"` section header and both profile rows render, the active row carries the only `check_circle`, `Manage Profiles` stays reachable, and the legacy 3-tap `"Switch Profile"` tile is **gone**. A single tap on the inactive row switches via the same `setActiveProfile(…)` path as the old sheet (scoping preserved) — **2 taps total** (`ADDENDUM_WU4: PASS`).
+- **Screenshot:** `08_wu4_inline_profile_switcher.png` (47 KB).
+
+### WU-2: "Run" SnackBarAction after download — **CONFIRM (code); precondition now met** ↑
+- **Code:** `scripts_screen.dart:436-440` — `SnackBarAction(label: 'Run', onPressed: () => _runScript(createdScript))` on the post-download success snackbar. Verified present.
+- **Why not screenshotted:** the success snackbar fires inside `_downloadScript`, which needs a marketplace round-trip through the full `ScriptsScreen`. Driving the real `app.main()` to a stable `ScriptsScreen` does not settle within the integration-test pump budget (async marketplace fetches / app lifecycle), and the GTK window itself cannot be tapped on this box (no `xdotool`/`ydotool`/`wtype`/`xte`/python-xlib — confirmed absent). The single reason this was unreachable before — no profile / no secure storage — is now removed (Addendum-A), so the flow's precondition is satisfied; the remaining gap is harness/input only.
+
+### WU-3: "Publish" SnackBarAction after create — **CONFIRM (code); precondition now met** ↑
+- **Code:** `scripts_screen.dart:576-580` — `SnackBarAction(label: 'Publish', onPressed: () => _publishToMarketplace(rec))` on the create-success snackbar. Verified present.
+- **Why not screenshotted:** same harness/input limitation as WU-2 (the create flow is deep in `ScriptsScreen`, which `app.main()` does not reach within the pump budget; the GTK binary can't be tapped). Precondition (profile) now met.
+
+## New finding (operational)
+
+- **The prebuilt bundles were stale.** `build/linux/x64/{debug,release}/bundle/icp_autorun` were dated 2025-07-01 10:16, predating the 2025-07-02 WU commits (WU-6/7/9, theme tokens). The stale release binary's readiness probe never completed against the mock (stuck on the "Checking secure storage…" spinner; `secrets.json` stayed empty), and the stale debug binary rendered a blank window — so `flutter test integration_test/*` failed with "Unable to start the app on the device". **Rebuilding (`flutter build linux --release` / `--debug`) fixed both.** Future verifiers on this box must rebuild before trusting any binary/UI result.
+
+## Updated confidence: 9/10
+
+WU-4 is now empirically confirmed (real profiles + production widget + 2-tap switch). Profile creation under the mock is proven decisively at the libsecret(C), GTK, and Flutter-controller levels. WU-2/3 remain code-verified (2-line `SnackBarAction`s, unchanged) but their in-app screenshot is blocked purely by the lack of input injection / a stable `app.main()` pump — not by any product defect, and not by the former secure-storage blocker, which is gone.
