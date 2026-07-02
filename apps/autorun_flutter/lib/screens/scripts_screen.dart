@@ -37,7 +37,6 @@ import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
 import 'account_registration_prompt_dialog.dart';
-import 'script_context_menu.dart';
 import 'script_editor_dialog.dart';
 import 'script_filter_sheet.dart';
 
@@ -575,10 +574,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     }
   }
 
-  bool _isPublishedToMarketplace(ScriptRecord record) {
-    return record.metadata.containsKey('marketplace_id');
-  }
-
   Future<void> _publishToMarketplace(ScriptRecord record) async {
     // Check if user has a registered account
     final profileController = ProfileScope.of(context, listen: false);
@@ -932,10 +927,17 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     return ScriptsListItemTile(
       item: item,
       onTap: () => _handleAllScriptsItemTap(item),
-      onLongPress: () => _showScriptContextMenu(item),
-      onSecondaryTapUp: (details) => _showScriptContextMenuAt(
+      onLongPress: () =>
+          showScriptContextMenuSheet(context, item, _contextMenuActionsFor(item)),
+      onSecondaryTapUp: (details) => showScriptContextMenuPopup(
+        context,
         item,
         details.globalPosition,
+        _contextMenuActionsFor(item),
+        canPublish:
+            item.localScript != null && !item.localScript!.isFromMarketplace,
+        isDownloaded: item.marketplaceScript != null &&
+            _downloadedScriptIds.contains(item.marketplaceScript!.id),
       ),
       trailing: isLocalScript
           ? LocalScriptRowMenu(
@@ -971,220 +973,23 @@ class ScriptsScreenState extends State<ScriptsScreen> {
     );
   }
 
-  void _showScriptContextMenu(ScriptListItem item) {
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => ScriptContextMenuSheet(
-        item: item,
-        onRun: item.source == ScriptSource.local && item.localScript != null
-            ? () => _runScript(item.localScript!)
-            : null,
-        onEdit: item.source == ScriptSource.local && item.localScript != null
-            ? () => _editScript(item.localScript!)
-            : null,
-        onDuplicate:
-            item.source == ScriptSource.local && item.localScript != null
-                ? () => _duplicateScript(item.localScript!)
-                : null,
-        onDelete: item.source == ScriptSource.local && item.localScript != null
-            ? () => _confirmAndDeleteScript(item.localScript!)
-            : null,
-        onPublish: item.source == ScriptSource.local && item.localScript != null
-            ? () => _publishToMarketplace(item.localScript!)
-            : null,
-        onViewDetails: item.source == ScriptSource.marketplace &&
-                item.marketplaceScript != null
-            ? () => _showScriptDetails(context, item.marketplaceScript!)
-            : null,
-        onDownload: item.source == ScriptSource.marketplace &&
-                item.marketplaceScript != null &&
-                !_downloadedScriptIds.contains(item.marketplaceScript!.id)
-            ? () => _downloadScript(item.marketplaceScript!)
-            : null,
-        isDownloading: item.source == ScriptSource.marketplace &&
-                item.marketplaceScript != null
-            ? _downloadingScriptIds.contains(item.marketplaceScript!.id)
-            : false,
-        isDownloaded: item.isInstalled,
-      ),
+  /// Builds the bundle of callbacks the extracted context-menu helpers dispatch
+  /// to. Each closure captures the specific record/script on [item]; the menu
+  /// code only invokes the ones valid for the item's source.
+  ScriptContextMenuActions _contextMenuActionsFor(ScriptListItem item) {
+    return ScriptContextMenuActions(
+      onRun: () => _runScript(item.localScript!),
+      onEdit: () => _editScript(item.localScript!),
+      onDuplicate: () => _duplicateScript(item.localScript!),
+      onDelete: () => _confirmAndDeleteScript(item.localScript!),
+      onPublish: () => _publishToMarketplace(item.localScript!),
+      onCopySource: () => _copyScriptSource(item.localScript!),
+      onViewDetails: () => _showScriptDetails(context, item.marketplaceScript!),
+      onDownload: () => _downloadScript(item.marketplaceScript!),
+      onShare: () => _shareScript(context, item.marketplaceScript!),
+      isDownloading: item.marketplaceScript != null &&
+          _downloadingScriptIds.contains(item.marketplaceScript!.id),
     );
-  }
-
-  void _showScriptContextMenuAt(ScriptListItem item, Offset position) {
-    final RenderBox overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(position.dx, position.dy, 0, 0),
-        Offset.zero & overlay.size,
-      ),
-      items: _buildContextMenuItems(item),
-    ).then((value) {
-      if (value != null) {
-        _handleContextMenuAction(value, item);
-      }
-    });
-  }
-
-  List<PopupMenuEntry<String>> _buildContextMenuItems(ScriptListItem item) {
-    final items = <PopupMenuEntry<String>>[];
-
-    if (item.source == ScriptSource.local && item.localScript != null) {
-      final record = item.localScript!;
-      final canPublish = !_isPublishedToMarketplace(record);
-
-      items.addAll([
-        const PopupMenuItem(
-          value: 'run',
-          child: Row(
-            children: [
-              Icon(Icons.play_arrow, size: 20),
-              SizedBox(width: 12),
-              Text('Run'),
-            ],
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit, size: 20),
-              SizedBox(width: 12),
-              Text('Edit'),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'duplicate',
-          child: Row(
-            children: [
-              Icon(Icons.content_copy, size: 20),
-              SizedBox(width: 12),
-              Text('Duplicate'),
-            ],
-          ),
-        ),
-        if (canPublish)
-          const PopupMenuItem(
-            value: 'publish',
-            child: Row(
-              children: [
-                Icon(Icons.share, size: 20),
-                SizedBox(width: 12),
-                Text('Share to Marketplace'),
-              ],
-            ),
-          ),
-        const PopupMenuItem(
-          value: 'copy_source',
-          child: Row(
-            children: [
-              Icon(Icons.copy, size: 20),
-              SizedBox(width: 12),
-              Text('Copy Source'),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 20, color: Colors.red),
-              SizedBox(width: 12),
-              Text('Delete', style: TextStyle(color: Colors.red)),
-            ],
-          ),
-        ),
-      ]);
-    } else if (item.source == ScriptSource.marketplace &&
-        item.marketplaceScript != null) {
-      final isDownloaded =
-          _downloadedScriptIds.contains(item.marketplaceScript!.id);
-
-      items.addAll([
-        const PopupMenuItem(
-          value: 'view_details',
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, size: 20),
-              SizedBox(width: 12),
-              Text('View Details'),
-            ],
-          ),
-        ),
-        if (!isDownloaded)
-          PopupMenuItem(
-            value: 'download',
-            child: Row(
-              children: [
-                const Icon(Icons.download, size: 20),
-                const SizedBox(width: 12),
-                Text(
-                    'Download${item.marketplaceScript!.price > 0 ? ' (${item.marketplaceScript!.price} credits)' : ''}'),
-              ],
-            ),
-          ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'share',
-          child: Row(
-            children: [
-              Icon(Icons.share, size: 20),
-              SizedBox(width: 12),
-              Text('Share'),
-            ],
-          ),
-        ),
-      ]);
-    }
-
-    return items;
-  }
-
-  void _handleContextMenuAction(String action, ScriptListItem item) {
-    switch (action) {
-      case 'run':
-        if (item.localScript != null) _runScript(item.localScript!);
-        break;
-      case 'edit':
-        if (item.localScript != null) _editScript(item.localScript!);
-        break;
-      case 'duplicate':
-        if (item.localScript != null) _duplicateScript(item.localScript!);
-        break;
-      case 'delete':
-        if (item.localScript != null) {
-          _confirmAndDeleteScript(item.localScript!);
-        }
-        break;
-      case 'publish':
-        if (item.localScript != null) _publishToMarketplace(item.localScript!);
-        break;
-      case 'copy_source':
-        if (item.localScript != null) _copyScriptSource(item.localScript!);
-        break;
-      case 'view_details':
-        if (item.marketplaceScript != null) {
-          _showScriptDetails(context, item.marketplaceScript!);
-        }
-        break;
-      case 'download':
-        if (item.marketplaceScript != null) {
-          _downloadScript(item.marketplaceScript!);
-        }
-        break;
-      case 'share':
-        if (item.marketplaceScript != null) {
-          _shareScript(context, item.marketplaceScript!);
-        }
-        break;
-    }
   }
 
   /// ONE-TAP EXECUTION (#34): Single tap on local script runs immediately.
