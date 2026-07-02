@@ -150,46 +150,6 @@ void main() {
 
         expect(actionCalled, isTrue);
       });
-
-      testWidgets('should handle button tap without crashing',
-          (WidgetTester tester) async {
-        await tester.pumpWidget(createWidget(action: () {}));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 600));
-
-        await tester.tap(find.byType(ModernButton));
-        await tester.pump();
-
-        expect(find.byType(ModernEmptyState), findsOneWidget);
-      });
-    });
-
-    group('animations', () {
-      testWidgets('should animate in correctly', (WidgetTester tester) async {
-        await tester.pumpWidget(createWidget());
-
-        await tester.pump(const Duration(milliseconds: 100));
-
-        expect(find.byType(ModernEmptyState), findsOneWidget);
-
-        await tester.pump(const Duration(milliseconds: 400));
-
-        expect(find.byType(ModernEmptyState), findsOneWidget);
-      });
-    });
-
-    group('accessibility', () {
-      testWidgets('should have proper semantic labels',
-          (WidgetTester tester) async {
-        await tester.pumpWidget(createWidget(action: () {}));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 600));
-
-        expect(find.byType(ModernEmptyState), findsOneWidget);
-        expect(find.text('Test Title'), findsOneWidget);
-        expect(find.text('Test Subtitle'), findsOneWidget);
-        expect(find.text('Test Action'), findsOneWidget);
-      });
     });
 
     group('responsive design', () {

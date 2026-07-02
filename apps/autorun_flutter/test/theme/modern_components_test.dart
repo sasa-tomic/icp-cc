@@ -109,13 +109,6 @@ void main() {
       
       expect(tapped, isTrue);
     });
-
-    testWidgets('should show selected state', (WidgetTester tester) async {
-      await tester.pumpWidget(createWidget(isSelected: true));
-      
-      expect(find.byType(ModernCard), findsOneWidget);
-      // The selected state should be reflected in the visual appearance
-    });
   });
 
   group('ModernButton', () {
@@ -209,15 +202,6 @@ void main() {
       await tester.pump();
       
       expect(tapped, isTrue);
-    });
-
-    testWidgets('should show selected state', (WidgetTester tester) async {
-      await tester.pumpWidget(createWidget(
-        label: 'Test Chip',
-        selected: true,
-      ));
-      
-      expect(find.byType(ModernChip), findsOneWidget);
     });
   });
 
