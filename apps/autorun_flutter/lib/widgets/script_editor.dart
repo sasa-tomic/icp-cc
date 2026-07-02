@@ -11,6 +11,43 @@ import '../rust/native_bridge.dart';
 import '../widgets/integrations_help.dart';
 import '../widgets/ui_component_palette.dart';
 
+/// Normalizes [input] to well-formed UTF-16 by replacing any lone (unpaired)
+/// surrogate code unit with U+FFFD (REPLACEMENT CHARACTER).
+///
+/// `flutter_code_editor`'s highlighter builds a `TextSpan` from the source and
+/// hands it to the engine's `ParagraphBuilder.addText`, which throws
+/// `ArgumentError: string is not well-formed UTF-16` if the string contains a
+/// lone surrogate (NEW-3 in `docs/specs/UX_REVIEW_ROUND2.md`). Script and
+/// marketplace content loaded over the network can carry such sequences, so
+/// sanitize before feeding the `CodeController`. Well-formed input is returned
+/// untouched; the highlighter and lint pipeline are unaffected.
+String _sanitizeToWellFormedUtf16(String input) {
+  if (input.isEmpty) return input;
+  final out = StringBuffer();
+  final len = input.length;
+  for (var i = 0; i < len; i++) {
+    final unit = input.codeUnitAt(i);
+    if (unit >= 0xD800 && unit <= 0xDBFF) {
+      // High surrogate — valid only when paired with a following low one.
+      final next = i + 1 < len ? input.codeUnitAt(i + 1) : -1;
+      if (next >= 0xDC00 && next <= 0xDFFF) {
+        out
+          ..writeCharCode(unit)
+          ..writeCharCode(next);
+        i++;
+      } else {
+        out.writeCharCode(0xFFFD);
+      }
+    } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
+      // Lone low surrogate.
+      out.writeCharCode(0xFFFD);
+    } else {
+      out.writeCharCode(unit);
+    }
+  }
+  return out.toString();
+}
+
 /// Script editor with syntax highlighting, live linting, and improved UX
 class ScriptEditor extends StatefulWidget {
   const ScriptEditor({
@@ -77,21 +114,24 @@ class ScriptEditorState extends State<ScriptEditor> {
   @override
   void didUpdateWidget(ScriptEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Update controller text when initialCode changes
-    if (oldWidget.initialCode != widget.initialCode &&
-        _controller.text != widget.initialCode) {
-      _controller.text = widget.initialCode;
-      _initialCode = widget.initialCode;
-      _scheduleLint();
+    // Update controller text when initialCode changes. Sanitize to well-formed
+    // UTF-16 first — see `_sanitizeToWellFormedUtf16`.
+    if (oldWidget.initialCode != widget.initialCode) {
+      final sanitized = _sanitizeToWellFormedUtf16(widget.initialCode);
+      if (_controller.text != sanitized) {
+        _controller.text = sanitized;
+        _scheduleLint();
+      }
+      _initialCode = sanitized;
     }
   }
 
   @override
   void initState() {
     super.initState();
-    _initialCode = widget.initialCode;
+    _initialCode = _sanitizeToWellFormedUtf16(widget.initialCode);
     _controller = CodeController(
-      text: widget.initialCode,
+      text: _initialCode,
       language: javascript,
     );
     _controller.addListener(_onTextChanged);
