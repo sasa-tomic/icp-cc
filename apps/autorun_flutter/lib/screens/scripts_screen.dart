@@ -32,6 +32,7 @@ import '../widgets/script_execution_bottom_sheet.dart';
 import '../widgets/script_row_menus.dart';
 import '../widgets/scripts_empty_state.dart';
 import '../widgets/scripts_list_item_tile.dart';
+import '../widgets/scripts_search_bar.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
@@ -1214,69 +1215,32 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   Widget _buildSearchBar() {
-    final activeFilterCount = _getActiveFilterCount();
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16.0),
-          child: _buildConsolidatedSearchBar(),
-        ),
-        if (activeFilterCount > 0) _buildActiveFilterChips(),
-        if (_showRecentSearches && _recentSearches.isNotEmpty)
-          _buildRecentSearchesDropdown(),
-        if (_isSearching) const LinearProgressIndicator(minHeight: 2),
-      ],
-    );
-  }
-
-  /// Builds the active filter chips displayed below the search bar.
-  Widget _buildActiveFilterChips() {
-    final activeFilters = _getActiveFilters();
-
-    return Container(
-      key: const Key('active_filter_chips'),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: activeFilters.map((filter) {
-                return _ActiveFilterChip(
-                  label: filter.label,
-                  onDismiss: filter.onDismiss,
-                );
-              }).toList(),
-            ),
-          ),
-          if (activeFilters.length > 1) ...[
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: _clearAllFilters,
-              style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text('Clear All'),
-            ),
-          ],
-        ],
-      ),
+    return ScriptsSearchBar(
+      searchController: _searchController,
+      searchFocusNode: _searchFocusNode,
+      onSearchChanged: _onSearchChanged,
+      activeFilterCount: _getActiveFilterCount(),
+      activeFilters: _getActiveFilters(),
+      onClearAllFilters: _clearAllFilters,
+      onFilterButtonPressed: () => _showFilterPopover(context),
+      showRecentSearches: _showRecentSearches,
+      recentSearches: _recentSearches,
+      onSelectRecentSearch: _selectRecentSearch,
+      onRemoveRecentSearch: (query) async {
+        await _searchHistoryService.removeSearchQuery(query);
+        await _loadRecentSearches();
+      },
+      isSearching: _isSearching,
     );
   }
 
   /// Returns a list of active filters with their labels and dismiss callbacks.
-  List<_ActiveFilter> _getActiveFilters() {
-    final filters = <_ActiveFilter>[];
+  List<ScriptsActiveFilter> _getActiveFilters() {
+    final filters = <ScriptsActiveFilter>[];
 
     // Category filter (not 'All')
     if (_selectedCategory != 'All') {
-      filters.add(_ActiveFilter(
+      filters.add(ScriptsActiveFilter(
         label: _selectedCategory,
         onDismiss: () {
           setState(() {
@@ -1289,7 +1253,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
     // Sort filter (not default 'lastRun')
     if (_allScriptsSortOption != ScriptSortOption.lastRun) {
-      filters.add(_ActiveFilter(
+      filters.add(ScriptsActiveFilter(
         label: 'Sort: ${_allScriptsSortOption.label}',
         onDismiss: () {
           setState(() {
@@ -1302,7 +1266,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
     // Downloaded filter
     if (_showDownloadedOnly) {
-      filters.add(_ActiveFilter(
+      filters.add(ScriptsActiveFilter(
         label: 'Downloaded',
         onDismiss: _clearDownloadedFilter,
       ));
@@ -1310,7 +1274,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
     // Favorites filter
     if (_showFavoritesOnly) {
-      filters.add(_ActiveFilter(
+      filters.add(ScriptsActiveFilter(
         label: 'Favorites',
         onDismiss: _clearFavoritesFilter,
       ));
@@ -1329,167 +1293,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
       _showFavoritesOnly = false;
     });
     _loadMarketplaceScripts();
-  }
-
-  Widget _buildRecentSearchesDropdown() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text(
-              'Recent Searches',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
-          ...(_recentSearches.take(5).map((query) => ListTile(
-                dense: true,
-                leading: Icon(
-                  Icons.history,
-                  size: 20,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                title: Text(query),
-                onTap: () => _selectRecentSearch(query),
-                trailing: IconButton(
-                  icon: Icon(
-                    Icons.close,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  onPressed: () async {
-                    await _searchHistoryService.removeSearchQuery(query);
-                    await _loadRecentSearches();
-                  },
-                  tooltip: 'Remove',
-                ),
-              ))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConsolidatedSearchBar() {
-    final activeFilterCount = _getActiveFilterCount();
-
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Search scripts...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearchChanged('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        _buildFilterButton(activeFilterCount),
-      ],
-    );
-  }
-
-  /// Builds the filter button with a badge showing active filter count.
-  Widget _buildFilterButton(int activeCount) {
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: IconButton(
-            icon: Icon(
-              Icons.tune,
-              color: activeCount > 0
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            onPressed: () => _showFilterPopover(context),
-            tooltip: 'Filter options',
-          ),
-        ),
-        if (activeCount > 0)
-          Positioned(
-            right: 4,
-            top: 4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              constraints: const BoxConstraints(minWidth: 18),
-              child: Text(
-                '$activeCount',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-      ],
-    );
   }
 
   /// Clears the "Downloaded" filter to show all scripts.
@@ -1612,64 +1415,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         ),
       );
     }
-  }
-}
-
-/// Represents an active filter with its label and dismiss callback.
-class _ActiveFilter {
-  _ActiveFilter({
-    required this.label,
-    required this.onDismiss,
-  });
-
-  final String label;
-  final VoidCallback onDismiss;
-}
-
-/// A dismissible chip representing an active filter.
-class _ActiveFilterChip extends StatelessWidget {
-  const _ActiveFilterChip({
-    required this.label,
-    required this.onDismiss,
-  });
-
-  final String label;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Material(
-      color: colorScheme.primaryContainer,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onDismiss,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.close,
-                size: 16,
-                color: colorScheme.onPrimaryContainer,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
