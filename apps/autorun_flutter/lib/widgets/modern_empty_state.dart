@@ -346,7 +346,7 @@ class _ModernLoadingIndicatorState extends State<ModernLoadingIndicator>
     );
     
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: AppDurations.shimmer,
       vsync: this,
     );
 

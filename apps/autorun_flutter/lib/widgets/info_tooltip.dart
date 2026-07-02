@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_design_system.dart';
 import '../utils/tech_terms.dart';
 
 class InfoTooltip extends StatelessWidget {
@@ -27,8 +28,8 @@ class InfoTooltip extends StatelessWidget {
     return Tooltip(
       message: message,
       preferBelow: true,
-      showDuration: const Duration(seconds: 5),
-      waitDuration: const Duration(milliseconds: 300),
+      showDuration: AppDurations.tooltipShow,
+      waitDuration: AppDurations.medium,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -81,8 +82,8 @@ class InfoTooltipText extends StatelessWidget {
     return Tooltip(
       message: message,
       preferBelow: true,
-      showDuration: const Duration(seconds: 5),
-      waitDuration: const Duration(milliseconds: 300),
+      showDuration: AppDurations.tooltipShow,
+      waitDuration: AppDurations.medium,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -127,8 +128,8 @@ class TermWithTooltip extends StatelessWidget {
     return Tooltip(
       message: term.fullExplanation,
       preferBelow: true,
-      showDuration: const Duration(seconds: 5),
-      waitDuration: const Duration(milliseconds: 300),
+      showDuration: AppDurations.tooltipShow,
+      waitDuration: AppDurations.medium,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -194,8 +195,8 @@ class InlineTermTooltip extends StatelessWidget {
     return Tooltip(
       message: term.fullExplanation,
       preferBelow: true,
-      showDuration: const Duration(seconds: 5),
-      waitDuration: const Duration(milliseconds: 300),
+      showDuration: AppDurations.tooltipShow,
+      waitDuration: AppDurations.medium,
       child: inline ? content : Semantics(button: true, child: content),
     );
   }

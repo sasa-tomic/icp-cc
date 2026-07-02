@@ -236,10 +236,10 @@ class AppDesignSystem {
 
   // ==================== ANIMATIONS ====================
    
-  static const Duration durationFast = Duration(milliseconds: 150);
-  static const Duration durationNormal = Duration(milliseconds: 250);
-  static const Duration durationSlow = Duration(milliseconds: 350);
-  static const Duration durationSlower = Duration(milliseconds: 500);
+  static const Duration durationFast = AppDurations.fast;
+  static const Duration durationNormal = AppDurations.normal;
+  static const Duration durationSlow = AppDurations.slow;
+  static const Duration durationSlower = AppDurations.slower;
    
   static const Curve curveEaseInOut = Curves.easeInOut;
   static const Curve curveEaseOut = Curves.easeOut;
@@ -706,4 +706,18 @@ class AppDesignSystemShadows {
   List<BoxShadow> get medium => AppDesignSystem.shadowMedium;
   List<BoxShadow> get heavy => AppDesignSystem.shadowHeavy;
   List<BoxShadow> get colored => AppDesignSystem.shadowColored;
+}
+
+class AppDurations {
+  AppDurations._();
+
+  static const Duration fast = Duration(milliseconds: 150);
+  static const Duration normal = Duration(milliseconds: 250);
+  static const Duration medium = Duration(milliseconds: 300);
+  static const Duration slow = Duration(milliseconds: 350);
+  static const Duration slower = Duration(milliseconds: 500);
+
+  static const Duration debounce = slower;
+  static const Duration tooltipShow = Duration(seconds: 5);
+  static const Duration shimmer = Duration(milliseconds: 1500);
 }

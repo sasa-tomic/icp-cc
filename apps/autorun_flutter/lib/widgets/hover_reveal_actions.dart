@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../theme/app_design_system.dart';
 
 /// A widget that reveals action buttons on hover/focus for desktop platforms.
 /// On mobile platforms, actions are always visible.
@@ -41,7 +42,7 @@ class HoverRevealActionsState extends State<HoverRevealActions>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 150),
+      duration: AppDurations.fast,
       vsync: this,
     );
     _fadeAnimation = CurvedAnimation(
@@ -94,7 +95,7 @@ class HoverRevealActionsState extends State<HoverRevealActions>
             ...widget.alwaysVisibleActions,
             // Hover-reveal actions
             AnimatedSize(
-              duration: const Duration(milliseconds: 150),
+              duration: AppDurations.fast,
               curve: Curves.easeInOut,
               child: FadeTransition(
                 opacity: _fadeAnimation,

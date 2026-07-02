@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_design_system.dart';
 
 /// Shimmer loading effect for better loading states
 class ShimmerLoading extends StatefulWidget {
@@ -7,7 +8,7 @@ class ShimmerLoading extends StatefulWidget {
     required this.child,
     this.baseColor = const Color(0xFFE0E0E0),
     this.highlightColor = const Color(0xFFF5F5F5),
-    this.duration = const Duration(milliseconds: 1500),
+    this.duration = AppDurations.shimmer,
   });
 
   final Widget child;

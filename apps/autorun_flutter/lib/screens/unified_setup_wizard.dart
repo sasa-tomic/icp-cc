@@ -736,7 +736,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
       _isValidating = true;
     });
 
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+    _debounceTimer = Timer(AppDurations.debounce, () {
       _validateUsername(value);
     });
   }

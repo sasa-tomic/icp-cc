@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import '../theme/app_design_system.dart';
 
 /// Custom page transition with smooth slide and fade animations
 class SlideUpPageTransition<T> extends PageRouteBuilder<T> {
   SlideUpPageTransition({
     required this.child,
-    this.duration = const Duration(milliseconds: 300),
+    this.duration = AppDurations.medium,
     this.curve = Curves.easeOutCubic,
   }) : super(
           pageBuilder: (context, animation, secondaryAnimation) => child,
@@ -45,7 +46,7 @@ class SlideUpPageTransition<T> extends PageRouteBuilder<T> {
 class ScaleFadePageTransition<T> extends PageRouteBuilder<T> {
   ScaleFadePageTransition({
     required this.child,
-    this.duration = const Duration(milliseconds: 250),
+    this.duration = AppDurations.normal,
     this.curve = Curves.easeOutBack,
   }) : super(
           pageBuilder: (context, animation, secondaryAnimation) => child,

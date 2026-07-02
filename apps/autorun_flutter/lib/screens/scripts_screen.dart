@@ -309,7 +309,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   void _debouncedSearch() {
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(AppDurations.debounce, () {
       if (mounted && _searchController.text == _searchQuery) {
         _addSearchToHistory(_searchQuery);
         _loadMarketplaceScripts();

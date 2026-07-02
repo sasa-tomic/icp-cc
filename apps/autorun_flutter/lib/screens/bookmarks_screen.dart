@@ -38,7 +38,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     if (context != null) {
       Scrollable.ensureVisible(
         context,
-        duration: const Duration(milliseconds: 500),
+        duration: AppDurations.slower,
         curve: Curves.easeInOut,
       );
     }

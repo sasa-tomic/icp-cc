@@ -470,7 +470,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
     }
 
     // Start new timer for debounced validation
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+    _debounceTimer = Timer(AppDurations.debounce, () {
       _validateUsername(value);
     });
   }

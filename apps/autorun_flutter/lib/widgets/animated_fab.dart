@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/app_design_system.dart';
 
 /// Animated Floating Action Button with smooth transitions and haptic feedback
 class AnimatedFab extends StatefulWidget {
@@ -10,7 +11,7 @@ class AnimatedFab extends StatefulWidget {
     required this.label,
     this.heroTag,
     this.extended = true,
-    this.animationDuration = const Duration(milliseconds: 300),
+    this.animationDuration = AppDurations.medium,
   });
 
   final VoidCallback? onPressed;

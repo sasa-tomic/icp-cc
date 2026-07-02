@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/profile_controller.dart';
 import '../models/profile.dart';
+import '../theme/app_design_system.dart';
 import '../utils/principal.dart';
 
 class KeypairSwitcherResult {
@@ -222,7 +223,7 @@ class _KeypairChoiceTile extends StatelessWidget {
         title: Text(title),
         subtitle: Text(subtitle),
         trailing: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 150),
+          duration: AppDurations.fast,
           child: selected
               ? Icon(Icons.check_circle,
                   color: Theme.of(context).colorScheme.primary)

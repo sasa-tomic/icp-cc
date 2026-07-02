@@ -8,6 +8,7 @@ import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:highlight/languages/javascript.dart';
 import '../rust/native_bridge.dart';
+import '../theme/app_design_system.dart';
 import '../widgets/integrations_help.dart';
 import '../widgets/ui_component_palette.dart';
 
@@ -161,7 +162,7 @@ class ScriptEditorState extends State<ScriptEditor> {
 
   void _scheduleLint() {
     _lintDebouncer?.cancel();
-    _lintDebouncer = Timer(const Duration(milliseconds: 500), () {
+    _lintDebouncer = Timer(AppDurations.debounce, () {
       if (mounted) _performLint();
     });
   }
