@@ -17,7 +17,8 @@ use poem::{
     EndpointExt, IntoResponse, Response, Route, Server,
 };
 use sqlx::sqlite::SqlitePool;
-use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc};
+use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc, time::Duration};
+use tokio_util::sync::CancellationToken;
 
 fn is_development() -> bool {
     env::var("ENVIRONMENT").unwrap_or_default() == "development"
@@ -1425,6 +1426,44 @@ async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
     .into_response()
 }
 
+/// Wait for a process shutdown signal (ctrl-c and, on Unix, SIGTERM) and then
+/// cancel `shutdown`. Falls back to ctrl-c only if the SIGTERM handler cannot
+/// be installed. Never returns before a signal arrives.
+async fn shutdown_on_signal(shutdown: CancellationToken) {
+    let ctrl_c = async {
+        if tokio::signal::ctrl_c().await.is_err() {
+            tracing::warn!("Failed to install ctrl-c handler");
+        }
+    };
+
+    #[cfg(unix)]
+    {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                tokio::select! {
+                    _ = ctrl_c => {}
+                    _ = sig.recv() => {}
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to install SIGTERM handler ({}); falling back to ctrl-c only",
+                    e
+                );
+                ctrl_c.await;
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        ctrl_c.await;
+    }
+
+    tracing::info!("Shutdown signal received; initiating graceful shutdown");
+    shutdown.cancel();
+}
+
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
     // Initialize tracing with clean, parseable format
@@ -1671,8 +1710,13 @@ async fn main() -> Result<(), std::io::Error> {
     // Log the actual listening address for external tools to parse
     tracing::info!("listening on addr=socket://{}", final_bind_addr);
 
+    // Graceful shutdown: one token drives both the background cleanup job and
+    // the HTTP server, triggered by ctrl-c or SIGTERM.
+    let shutdown = CancellationToken::new();
+    tokio::spawn(shutdown_on_signal(shutdown.clone()));
+
     // Start background cleanup job for signature audit
-    cleanup::start_audit_cleanup_job(cleanup_pool).await;
+    cleanup::start_audit_cleanup_job(cleanup_pool, shutdown.clone());
 
     // Close the std listener since we just needed it for the address
     drop(std_listener);
@@ -1680,5 +1724,10 @@ async fn main() -> Result<(), std::io::Error> {
     // Now bind with Poem's listener
     let listener = TcpListener::bind(final_bind_addr);
 
-    Server::new(listener).run(app).await
+    // Run until a shutdown signal arrives; when it does, drain in-flight
+    // connections (hard limit 30s) then return. With no signal this runs
+    // forever, identical to the previous behavior.
+    Server::new(listener)
+        .run_with_graceful_shutdown(app, shutdown.cancelled(), Some(Duration::from_secs(30)))
+        .await
 }

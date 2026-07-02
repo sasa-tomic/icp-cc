@@ -1,6 +1,7 @@
 use sqlx::SqlitePool;
 use std::time::Duration;
 use tokio::time;
+use tokio_util::sync::CancellationToken;
 
 /// Signature audit retention period in days
 /// Records older than this will be deleted by the cleanup job
@@ -9,31 +10,44 @@ const AUDIT_RETENTION_DAYS: i32 = 90;
 
 /// Background job that cleans up old signature audit records
 /// Runs daily and removes records older than AUDIT_RETENTION_DAYS
-pub async fn start_audit_cleanup_job(pool: SqlitePool) {
+///
+/// `shutdown` is observed every iteration: cancelling it makes the job exit
+/// cleanly instead of running forever. Returns immediately after spawning the
+/// task (fire-and-forget, same as before); the spawned task owns the pool.
+pub fn start_audit_cleanup_job(pool: SqlitePool, shutdown: CancellationToken) {
     tracing::info!("Starting signature audit cleanup background job");
+    tokio::spawn(cleanup_loop(pool, shutdown));
+}
 
-    tokio::spawn(async move {
-        // Run cleanup once per day
-        let mut interval = time::interval(Duration::from_secs(86400)); // 24 hours
+/// The cleanup loop, factored out so its cancellation behaviour is testable
+/// independently of the spawn in [`start_audit_cleanup_job`].
+async fn cleanup_loop(pool: SqlitePool, shutdown: CancellationToken) {
+    // Run cleanup once per day
+    let mut interval = time::interval(Duration::from_secs(86400)); // 24 hours
 
-        loop {
-            interval.tick().await;
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                tracing::info!("Running signature audit cleanup...");
 
-            tracing::info!("Running signature audit cleanup...");
-
-            match cleanup_old_audit_records(&pool).await {
-                Ok(deleted_count) => {
-                    tracing::info!(
-                        "Signature audit cleanup completed: {} records deleted",
-                        deleted_count
-                    );
-                }
-                Err(e) => {
-                    tracing::error!("Signature audit cleanup failed: {}", e);
+                match cleanup_old_audit_records(&pool).await {
+                    Ok(deleted_count) => {
+                        tracing::info!(
+                            "Signature audit cleanup completed: {} records deleted",
+                            deleted_count
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!("Signature audit cleanup failed: {}", e);
+                    }
                 }
             }
+            _ = shutdown.cancelled() => {
+                tracing::info!("cleanup job stopped");
+                return;
+            }
         }
-    });
+    }
 }
 
 /// Deletes signature audit records older than AUDIT_RETENTION_DAYS
@@ -196,5 +210,22 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(exists, 1);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_job_stops_on_cancellation() {
+        // The cleanup job MUST observe a cancellation token and exit cleanly,
+        // rather than looping forever and being dropped on process exit.
+        let pool = setup_test_db().await;
+        let shutdown = CancellationToken::new();
+
+        let handle = tokio::spawn(cleanup_loop(pool, shutdown.clone()));
+
+        // Cancel from outside the task and assert it returns within ~2s.
+        shutdown.cancel();
+        tokio::time::timeout(Duration::from_secs(2), handle)
+            .await
+            .expect("cleanup job did not stop within 2s after cancellation")
+            .expect("cleanup task panicked");
     }
 }
