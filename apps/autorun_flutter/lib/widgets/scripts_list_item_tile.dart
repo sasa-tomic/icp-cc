@@ -40,9 +40,11 @@ class ScriptsListItemTile extends StatelessWidget {
         leading: CircleAvatar(
           radius: isCompactScreen ? 20 : 24,
           child: Text(
-            (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜')).isNotEmpty
-                ? (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜'))[0]
-                : '📜',
+            (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜')).isEmpty
+                ? '📜'
+                : (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜'))
+                    .characters
+                    .first,
             style: TextStyle(
               fontSize: isCompactScreen ? 16 : 20,
             ),

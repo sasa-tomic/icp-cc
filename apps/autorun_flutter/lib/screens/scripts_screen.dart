@@ -44,7 +44,14 @@ import 'script_filter_sheet.dart';
 import 'unified_setup_wizard.dart';
 
 class ScriptsScreen extends StatefulWidget {
-  const ScriptsScreen({super.key});
+  const ScriptsScreen({
+    super.key,
+    this.marketplaceService,
+    this.controller,
+  });
+
+  final MarketplaceOpenApi? marketplaceService;
+  final ScriptController? controller;
 
   @override
   State<ScriptsScreen> createState() => ScriptsScreenState();
@@ -56,8 +63,8 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   ScriptAppRuntime _runtimeFor(ScriptRecord r) => ScriptAppRuntime(_bridge);
 
-  final MarketplaceOpenApiService _marketplaceService =
-      MarketplaceOpenApiService();
+  late final MarketplaceOpenApi _marketplaceService =
+      widget.marketplaceService ?? MarketplaceOpenApiService();
   final DownloadHistoryService _downloadHistoryService =
       DownloadHistoryService();
   final SearchHistoryService _searchHistoryService = SearchHistoryService();
@@ -69,9 +76,10 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   final Set<String> _downloadingScriptIds = <String>{};
   final Map<String, double> _downloadProgress = <String, double>{};
   Set<String> _downloadedScriptIds = {};
-  // KEY FIX: Initialize marketplace loading to true to prevent showing
-  // empty state before marketplace data arrives for new users
+  // `_isMarketplaceLoading=true` shows the initial spinner; `_marketplaceLoadInitiated`
+  // lets the first fetch run (the re-entrancy guard only blocks later concurrent calls).
   bool _isMarketplaceLoading = true;
+  bool _marketplaceLoadInitiated = false;
   bool _isLoadingMore = false;
   bool _isSearching = false;
   int _offset = 0;
@@ -94,7 +102,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = ScriptController(ScriptRepository.instance)
+    _controller = (widget.controller ?? ScriptController(ScriptRepository.instance))
       ..addListener(_onChanged);
     _controller.ensureLoaded();
     _initializeMarketplace();
@@ -229,12 +237,13 @@ class ScriptsScreenState extends State<ScriptsScreen> {
 
   Future<void> _loadMarketplaceScripts({bool isLoadMore = false}) async {
     if (isLoadMore && (_isLoadingMore || !_hasMore)) return;
-    if (!isLoadMore && _isMarketplaceLoading) return;
+    if (!isLoadMore && _marketplaceLoadInitiated && _isMarketplaceLoading) return;
 
     setState(() {
       if (isLoadMore) {
         _isLoadingMore = true;
       } else {
+        _marketplaceLoadInitiated = true;
         _isMarketplaceLoading = true;
         _offset = 0;
         _marketplaceScripts.clear();

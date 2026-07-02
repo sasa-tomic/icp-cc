@@ -10,7 +10,25 @@ import '../utils/base64_utils.dart';
 // Flag to control debug output in tests
 bool suppressDebugOutput = false;
 
-class MarketplaceOpenApiService {
+abstract class MarketplaceOpenApi {
+  Future<MarketplaceSearchResult> searchScripts({
+    String? query,
+    String? category,
+    String? canisterId,
+    double? minRating,
+    double? maxPrice,
+    String sortBy = 'createdAt',
+    String sortOrder = 'desc',
+    int limit = 20,
+    int offset = 0,
+  });
+
+  List<String> getCategories();
+
+  Future<String> downloadScript(String scriptId, {String? version});
+}
+
+class MarketplaceOpenApiService implements MarketplaceOpenApi {
   static final MarketplaceOpenApiService _instance =
       MarketplaceOpenApiService._internal();
   factory MarketplaceOpenApiService() => _instance;
@@ -32,6 +50,7 @@ class MarketplaceOpenApiService {
   }
 
   // Search scripts with advanced filtering
+  @override
   Future<MarketplaceSearchResult> searchScripts({
     String? query,
     String? category,
@@ -262,6 +281,7 @@ class MarketplaceOpenApiService {
   }
 
   // Get marketplace categories
+  @override
   List<String> getCategories() {
     return const [
       'Example',
@@ -315,6 +335,7 @@ class MarketplaceOpenApiService {
     }
   }
 
+  @override
   Future<String> downloadScript(String scriptId, {String? version}) async {
     try {
       MarketplaceScript script;
