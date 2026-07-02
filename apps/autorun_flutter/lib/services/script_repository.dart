@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/script_record.dart';
+import 'file_io.dart';
 
 class ScriptRepository {
   // Singleton pattern
@@ -61,7 +62,7 @@ class ScriptRepository {
 
     final File file = File('${directory.path}/scripts.json');
     if (!await file.exists()) {
-      await file.writeAsString(jsonEncode(<String, dynamic>{
+      await writeJson(file, jsonEncode(<String, dynamic>{
         'version': 1,
         'scripts': <Map<String, dynamic>>[],
       }));
@@ -75,7 +76,7 @@ class ScriptRepository {
     await _ensureInitialized();
     final File file = _storeFile!;
     try {
-      final String content = await file.readAsString();
+      final String content = await readJson(file);
       if (content.trim().isEmpty) return <ScriptRecord>[];
       final dynamic decoded = jsonDecode(content);
       if (decoded is! Map<String, dynamic>) {
@@ -88,7 +89,7 @@ class ScriptRepository {
     } on FormatException {
       final String backupPath = '${file.path}.bak';
       await file.copy(backupPath);
-      await file.writeAsString(jsonEncode(<String, dynamic>{
+      await writeJson(file, jsonEncode(<String, dynamic>{
         'version': 1,
         'scripts': <Map<String, dynamic>>[],
       }));
@@ -103,7 +104,7 @@ class ScriptRepository {
       'version': 1,
       'scripts': scripts.map((ScriptRecord s) => s.toJson()).toList(),
     };
-    await file.writeAsString(jsonEncode(payload));
+    await writeJson(file, jsonEncode(payload));
 
     // Notify all listeners about the change
     _scriptsController.add(List<ScriptRecord>.unmodifiable(scripts));

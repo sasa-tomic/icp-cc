@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/profile.dart';
 import '../models/profile_keypair.dart';
+import 'file_io.dart';
 
 /// ProfileRepository manages secure storage of user profiles
 ///
@@ -71,7 +72,8 @@ class ProfileRepository {
 
     final File file = File('${directory.path}/profiles.json');
     if (!await file.exists()) {
-      await file.writeAsString(
+      await writeJson(
+        file,
         jsonEncode(<String, dynamic>{
           'version': 1,
           'profiles': <Map<String, dynamic>>[],
@@ -89,7 +91,7 @@ class ProfileRepository {
     final File file = _storeFile!;
 
     try {
-      final String content = await file.readAsString();
+      final String content = await readJson(file);
       if (content.trim().isEmpty) {
         return <Profile>[];
       }
@@ -146,7 +148,8 @@ class ProfileRepository {
       // If parsing fails, back up the corrupted file and start fresh
       final String backupPath = '${file.path}.bak';
       await file.copy(backupPath);
-      await file.writeAsString(
+      await writeJson(
+        file,
         jsonEncode(<String, dynamic>{
           'version': 1,
           'profiles': <Map<String, dynamic>>[],
@@ -203,7 +206,7 @@ class ProfileRepository {
       'profiles': publicProfiles,
     };
 
-    await file.writeAsString(jsonEncode(payload));
+    await writeJson(file, jsonEncode(payload));
   }
 
   /// Delete secure data for a specific keypair

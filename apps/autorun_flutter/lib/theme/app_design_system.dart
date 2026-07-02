@@ -720,4 +720,6 @@ class AppDurations {
   static const Duration debounce = slower;
   static const Duration tooltipShow = Duration(seconds: 5);
   static const Duration shimmer = Duration(milliseconds: 1500);
+
+  static const Duration ioOperation = Duration(seconds: 5);
 }

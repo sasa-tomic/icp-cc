@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+
+import 'file_io.dart';
 
 class BookmarkEntry {
   BookmarkEntry({
@@ -94,7 +97,7 @@ class BookmarksService {
       final file = File('${directory.path}/$_fileName');
 
       if (await file.exists()) {
-        final jsonString = await file.readAsString();
+        final jsonString = await readJson(file);
         if (jsonString.isNotEmpty) {
           final List<dynamic> jsonList = json.decode(jsonString) as List<dynamic>;
           _cachedBookmarks = jsonList
@@ -105,6 +108,8 @@ class BookmarksService {
         }
       }
       _cachedBookmarks = [];
+    } on TimeoutException {
+      rethrow;
     } catch (e) {
       // If loading fails, start with empty list
       _cachedBookmarks = [];
@@ -119,7 +124,7 @@ class BookmarksService {
       final jsonString = json.encode(
         _cachedBookmarks.map((entry) => entry.toJson()).toList(),
       );
-      await file.writeAsString(jsonString);
+      await writeJson(file, jsonString);
     } catch (e) {
       // Fail-fast: rethrow the error to make it visible
       throw Exception('Failed to save bookmarks: $e');
