@@ -39,7 +39,14 @@ eval "$(dbus-launch --sh-syntax)"                        # start a D-Bus session
 echo -n | gnome-keyring-daemon --unlock                  # unlock an empty keyring
 ```
 
-A full GNOME/KDE session sets this up automatically. See
+A full GNOME/KDE session sets this up automatically.
+
+**No sudo? Containers/headless?** Use the bundled mock Secret Service:
+```bash
+scripts/run-with-mock-keyring.sh --display :99 flutter run -d linux
+```
+
+See
 [AGENTS.md — Secure storage on Linux desktop](AGENTS.md#secure-storage-on-linux-desktop-wu-s2)
 and [WU-S2](docs/specs/UI_EXCELLENCE_PLAN.md) for details.
 

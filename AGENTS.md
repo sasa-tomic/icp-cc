@@ -209,7 +209,11 @@ on a Linux dev box right now.** Both candidate routes are blocked:
 
 **What you CAN do on Linux desktop today:**
 ```bash
+# Option A: if gnome-keyring is installed + running (full desktop session):
 cd apps/autorun_flutter && flutter run -d linux
+
+# Option B: headless / container (no keyring) — use the mock Secret Service:
+scripts/run-with-mock-keyring.sh --display :99 flutter run -d linux
 ```
 Launch the app, drive the non-passkey flows, and verify the passkey UI degrades
 gracefully (`PasskeyPlatform.isSupported == false`). Genuine authenticator
@@ -256,10 +260,38 @@ secret-tool store --label=probe service icp account test <<< "x"   # should succ
 On a full desktop (GNOME/KDE logged-in session) the keyring is started and
 `DBUS_SESSION_BUS_ADDRESS` is set automatically — nothing to do.
 
-**No insecure plaintext fallback exists** (the zero-knowledge secure-storage
-model is preserved). The honest fix for a keyring-less box is to install/start
-a Secret Service; the per-distro install command is the **single source** in
-`LinuxSecretServiceHelp` (`lib/services/secure_storage_readiness.dart`).
+**No insecure plaintext fallback exists** in the app (the zero-knowledge
+secure-storage model is preserved). The honest fix for a keyring-less box is to
+install/start a Secret Service; the per-distro install command is the **single
+source** in `LinuxSecretServiceHelp` (`lib/services/secure_storage_readiness.dart`).
+
+### Mock Secret Service for dev/CI (no sudo, no gnome-keyring)
+
+For containers/headless boxes where you **cannot install gnome-keyring** (no
+sudo), the repo ships a **mock Secret Service** that implements just enough of
+the `org.freedesktop.secrets` D-Bus interface for `flutter_secure_storage`
+(libsecret) to work. Secrets are stored as **plain JSON — dev/CI only, no
+encryption**.
+
+```bash
+# One-liner: run the Flutter app (or any command) against the mock:
+scripts/run-with-mock-keyring.sh --display :99 flutter run -d linux
+
+# Or with the prebuilt release bundle:
+scripts/run-with-mock-keyring.sh --display :99 \
+  ./apps/autorun_flutter/build/linux/x64/release/bundle/icp_autorun
+```
+
+The wrapper starts a private D-Bus session (`dbus-run-session`), launches the
+mock (`scripts/mock_secret_service.py`, requires `pip install dbus-next`), waits
+for it to claim the `org.freedesktop.secrets` name, then runs your command.
+Secrets persist in `$MOCK_SECRET_DATA_DIR` (or `$XDG_DATA_HOME`, default
+`~/.local/share/mock-secret-service/secrets.json`).
+
+**Verified end-to-end:** `SecureStorageReadiness().check()` returns
+`StorageReady` under the mock, and profile creation succeeds (the entire
+identity flow — share/publish/multi-profile — is unblocked on a keyring-less
+box).
 
 ---
 

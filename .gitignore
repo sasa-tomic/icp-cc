@@ -2,6 +2,8 @@
 vendors/
 .rgignore
 third_party/
+__pycache__/
+*.pyc
 .tooling/
 /.idea/
 /.vscode/
