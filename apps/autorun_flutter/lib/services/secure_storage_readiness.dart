@@ -26,13 +26,13 @@
 ///   Service"; the single source for that guidance is [LinuxSecretServiceHelp].
 library;
 
-import 'dart:ffi' as ffi;
 import 'dart:io' show File, Platform, Process, ProcessResult;
 
-import 'package:ffi/ffi.dart' as pkg_ffi;
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart' show MissingPluginException, PlatformException;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import '../rust/libc_setenv.dart';
 
 /// Single source of truth for "how do I get a Secret Service on Linux".
 ///
@@ -309,31 +309,13 @@ ProcessRunner _defaultProcessRunner = (
 /// injectable for tests.
 typedef EnvSetter = bool Function(String name, String value);
 
-/// Linux default [EnvSetter]: calls libc `setenv` via FFI so the *current*
-/// process (where libsecret lives) picks up the new `DBUS_SESSION_BUS_ADDRESS`.
-/// Returns `true` on success. Off-Linux or on lookup failure, returns `false`.
+/// Linux default [EnvSetter]: exports the variable into the CURRENT process
+/// via libc `setenv` (so libsecret, running in-process, picks up the new
+/// `DBUS_SESSION_BUS_ADDRESS`). Returns `true` on success. Off-Linux or on
+/// lookup failure, returns `false`. Routed through the conditional `dart:ffi`
+/// split (lib/rust/libc_setenv.dart) so this file compiles on Web.
 EnvSetter _defaultEnvSetter = (String name, String value) {
-  if (!Platform.isLinux) return false;
-  try {
-    final lib = ffi.DynamicLibrary.process();
-    final setenv = lib.lookupFunction<
-        ffi.Int32 Function(
-            ffi.Pointer<pkg_ffi.Utf8>, ffi.Pointer<pkg_ffi.Utf8>, ffi.Int32),
-        int Function(
-            ffi.Pointer<pkg_ffi.Utf8>, ffi.Pointer<pkg_ffi.Utf8>, int)>('setenv');
-    final namePtr = name.toNativeUtf8();
-    final valuePtr = value.toNativeUtf8();
-    try {
-      final rc = setenv(namePtr, valuePtr, 1);
-      return rc == 0;
-    } finally {
-      pkg_ffi.calloc.free(namePtr);
-      pkg_ffi.calloc.free(valuePtr);
-    }
-  } catch (e) {
-    debugPrint('SecureStorageReadiness: libc setenv failed for $name: $e');
-    return false;
-  }
+  return setProcessEnv(name, value);
 };
 
 /// Strategy interface for attempting to bring up a Secret Service. Injected so
