@@ -133,6 +133,19 @@ Map<String, dynamic> _authEffect({String id = 'whoami'}) => <String, dynamic>{
       'authenticated': true,
     };
 
+/// An effect that does NOT opt into auth (no `authenticated` flag, no explicit
+/// key): the host must resolve it to the Anonymous identity and call the
+/// anonymous bridge — never a loud error, never a signed call.
+Map<String, dynamic> _anonEffect({String id = 'listPolls'}) => <String, dynamic>{
+      'kind': 'icp_call',
+      'id': id,
+      'mode': 0,
+      'canister_id': _canister,
+      'method': 'listPolls',
+      'args': '()',
+      'authenticated': false,
+    };
+
 void main() {
   testWidgets(
       'authenticated effect with active keypair signs via that keypair (active profile label shown)',
@@ -226,5 +239,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(bridge.authenticatedCalls, 1);
     expect(bridge.lastPrivateKeyB64, keypair.privateKey);
+  });
+
+  testWidgets(
+      'anonymous effect (no auth flag, no explicit key) falls back to the anonymous bridge',
+      (tester) async {
+    // No authenticatedKeypair wired in, and the effect does not request auth.
+    // The host MUST resolve to Anonymous and dispatch via callAnonymous — the
+    // only path that legitimately does not sign. Guards against a regression
+    // that either loud-errors here (breaking view-only mode) or silently signs
+    // as some default identity.
+    final bridge = _RecordingBridge();
+    final runtime = _EffectRuntime(initEffect: _anonEffect());
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ScriptAppHost(
+          runtime: runtime,
+          script: '/* bundle */',
+          testBridge: bridge,
+        ),
+      ),
+    ));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    // The permission dialog must label the identity as Anonymous (proving the
+    // host did not resolve it to an authenticated identity).
+    expect(find.textContaining('Anonymous'), findsOneWidget);
+    await tester.tap(find.text('Allow once'));
+    await tester.pumpAndSettle();
+
+    expect(bridge.anonymousCalls, 1);
+    expect(bridge.authenticatedCalls, 0);
   });
 }
