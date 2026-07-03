@@ -204,7 +204,7 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
                     AppDesignSystem.spacing12,
                     AppDesignSystem.spacing12,
                     AppDesignSystem.spacing4),
-                child: _buildAuthStatus(theme,
+                child: _buildAuthStatus(
                     hasProfile: keypair != null, principal: principal),
               ),
             ),
@@ -303,8 +303,7 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     );
   }
 
-  Widget _buildAuthStatus(ThemeData theme,
-      {required bool hasProfile, String? principal}) {
+  Widget _buildAuthStatus({required bool hasProfile, String? principal}) {
     if (hasProfile) {
       final label = (principal == null || principal.isEmpty)
           ? 'Signed in with the active profile'
@@ -313,7 +312,6 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
         icon: Icons.verified_user_outlined,
         text: label,
         color: AppDesignSystem.successColor,
-        background: AppDesignSystem.successColor,
       );
     }
     return _StatusChip(
@@ -321,7 +319,6 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
       text: 'No active profile — create/vote disabled (view-only)',
       hint: 'Open the profile menu (top-right) to create or switch a profile.',
       color: AppDesignSystem.warningColor,
-      background: AppDesignSystem.warningColor,
     );
   }
 
@@ -359,13 +356,11 @@ class _StatusChip extends StatelessWidget {
     required this.icon,
     required this.text,
     required this.color,
-    required this.background,
     this.hint,
   });
   final IconData icon;
   final String text;
   final Color color;
-  final Color background;
   final String? hint;
 
   @override
@@ -378,9 +373,9 @@ class _StatusChip extends StatelessWidget {
         vertical: AppDesignSystem.spacing8,
       ),
       decoration: BoxDecoration(
-        color: background.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppDesignSystem.radius12),
-        border: Border.all(color: background.withValues(alpha: 0.4), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
