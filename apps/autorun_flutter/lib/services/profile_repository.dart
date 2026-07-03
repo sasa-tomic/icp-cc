@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/profile.dart';
 import '../models/profile_keypair.dart';
 import 'file_io.dart';
+import 'profile_invariants.dart';
 
 /// ProfileRepository manages secure storage of user profiles
 ///
@@ -143,6 +144,12 @@ class ProfileRepository {
         }
       }
 
+      // Fail loud if the decoded state already violates the keypair-ownership
+      // invariant (a keypair claimed by >1 profile). Never silently dedupe —
+      // that would mask permanent key loss. Mirrors the FormatException
+      // corrupt-file recovery below, but throws so the app surfaces the error.
+      assertUniqueKeypairOwnership(result);
+
       return result;
     } on FormatException {
       // If parsing fails, back up the corrupted file and start fresh
@@ -156,12 +163,30 @@ class ProfileRepository {
         }),
       );
       return <Profile>[];
+    } on KeypairOwnershipViolation {
+      // Back the corrupt file aside (as `.corrupt`) for inspection/recovery,
+      // reset the store to a safe empty state, then rethrow so the violation
+      // is surfaced loudly — never silently dedupe or delete.
+      final String corruptPath = '${file.path}.corrupt';
+      await file.copy(corruptPath);
+      await writeJson(
+        file,
+        jsonEncode(<String, dynamic>{
+          'version': 1,
+          'profiles': <Map<String, dynamic>>[],
+        }),
+      );
+      rethrow;
     }
   }
 
   /// Persist profiles to storage
   Future<void> persistProfiles(List<Profile> profiles) async {
     await _ensureInitialized();
+    // Fail loud BEFORE any write: refuse to persist state that violates the
+    // keypair-ownership invariant (a keypair must belong to exactly ONE
+    // profile). See profile_invariants.dart.
+    assertUniqueKeypairOwnership(profiles);
     final File file = _storeFile!;
 
     // Store sensitive data in secure storage for all keypairs
