@@ -8,8 +8,18 @@ use candid::{Int as CandidInt, Nat as CandidNat, Principal as CanisterPrincipal}
 use candid_parser::{check_prog, IDLProg};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::time::Duration;
 use std::vec::Vec as StdVec;
 use thiserror::Error;
+use tokio::time::timeout;
+
+/// Maximum wall-clock time for a single synchronous canister FFI call before it
+/// is aborted. These calls run on a `tokio::runtime::Runtime::block_on(...)` and
+/// are invoked synchronously from the Flutter UI thread via FFI, so without a
+/// timeout a hung/slow replica would freeze the entire app. Single source of
+/// truth — mirrors the 30s convention used in
+/// `apps/autorun_flutter/lib/services/candid_service.dart`.
+const CANISTER_CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Error)]
 pub enum CanisterClientError {
@@ -527,9 +537,17 @@ pub fn fetch_candid(canister_id: &str, host: Option<&str>) -> Result<String, Can
     };
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let bytes = rt
-        .block_on(fut)
-        .map_err(|e| CanisterClientError::Net(format!("read_state: {e}")))?;
+    let bytes = match rt.block_on(timeout(CANISTER_CALL_TIMEOUT, fut)) {
+        Ok(Ok(b)) => b,
+        Ok(Err(e)) => {
+            return Err(CanisterClientError::Net(format!("read_state: {e}")));
+        }
+        Err(_) => {
+            return Err(CanisterClientError::Net(format!(
+                "canister call timeout (30s): canister={canister_id} (fetch_candid)"
+            )));
+        }
+    };
 
     let candid_text =
         String::from_utf8(bytes).map_err(|e| CanisterClientError::Net(format!("utf8: {e}")))?;
@@ -593,9 +611,17 @@ pub fn call_anonymous(
     };
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let out = rt
-        .block_on(fut)
-        .map_err(|e| CanisterClientError::Net(format!("call: {e}")))?;
+    let out = match rt.block_on(timeout(CANISTER_CALL_TIMEOUT, fut)) {
+        Ok(Ok(b)) => b,
+        Ok(Err(e)) => {
+            return Err(CanisterClientError::Net(format!("call: {e}")));
+        }
+        Err(_) => {
+            return Err(CanisterClientError::Net(format!(
+                "canister call timeout (30s): canister={canister_id} method={method}"
+            )));
+        }
+    };
     let json_value = try_decode_with_types(canister_id, method, host, &out)
         .or_else(|| {
             IDLArgs::from_bytes(&out)
@@ -678,9 +704,17 @@ pub fn call_authenticated(
     };
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let out = rt
-        .block_on(fut)
-        .map_err(|e| CanisterClientError::Net(format!("call: {e}")))?;
+    let out = match rt.block_on(timeout(CANISTER_CALL_TIMEOUT, fut)) {
+        Ok(Ok(b)) => b,
+        Ok(Err(e)) => {
+            return Err(CanisterClientError::Net(format!("call: {e}")));
+        }
+        Err(_) => {
+            return Err(CanisterClientError::Net(format!(
+                "canister call timeout (30s): canister={canister_id} method={method}"
+            )));
+        }
+    };
     let json_value = try_decode_with_types(canister_id, method, host, &out)
         .or_else(|| {
             IDLArgs::from_bytes(&out)

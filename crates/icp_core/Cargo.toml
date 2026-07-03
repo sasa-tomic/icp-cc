@@ -53,7 +53,10 @@ reqwest = { version = "=0.12.23", default-features = false, features = [
   "blocking",
 ] }
 ic-agent = { version = "0.44.2" }
-tokio = { version = "1", features = ["rt-multi-thread"] }
+# "rt-multi-thread": block_on runtime for synchronous FFI canister calls.
+# "time": tokio::time::timeout — every FFI I/O call is wrapped in a 30s timeout
+#         (CANISTER_CALL_TIMEOUT) so a hung replica cannot freeze the Flutter UI.
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 
 # Embedded QuickJS engine for TypeScript/JavaScript user scripting.
 # - bindgen: build QuickJS from vendored C source
