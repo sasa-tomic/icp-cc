@@ -252,5 +252,147 @@ void main() {
       expect((obj['state'] as Map<String, dynamic>)['error'],
           'Question must not be empty');
     });
+
+    test('create with one option is rejected at the ≥2 boundary', () async {
+      if (!nativeLibAvailable(loader)) {
+        stdout.writeln('SKIP: libicp_core.so did not load');
+        return;
+      }
+      final ScriptAppRuntime rt = bootRuntime();
+      final state = Map<String, dynamic>.from((await rt.init(
+              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
+          as Map);
+      // Non-empty question but only ONE option → options check must fire.
+      state['newQuestion'] = 'Favourite colour?';
+      state['newOptions'] = 'red';
+
+      final obj = await rt.update(
+          script: bundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
+      expect((obj['effects'] as List), isEmpty);
+      expect(
+          (obj['state'] as Map<String, dynamic>)['error'],
+          'Provide at least 2 options (comma-separated)');
+    });
+
+    test('create with exactly two options emits an authed createPoll UPDATE',
+        () async {
+      if (!nativeLibAvailable(loader)) {
+        stdout.writeln('SKIP: libicp_core.so did not load');
+        return;
+      }
+      final ScriptAppRuntime rt = bootRuntime();
+      final state = Map<String, dynamic>.from((await rt.init(
+              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
+          as Map);
+      // Boundary: exactly 2 options is the minimum legal create.
+      state['newQuestion'] = 'Tea or coffee?';
+      state['newOptions'] = 'Tea, Coffee';
+
+      final obj = await rt.update(
+          script: bundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
+      final effects = obj['effects'] as List<dynamic>;
+      expect(effects, hasLength(1));
+      final eff = effects.first as Map<String, dynamic>;
+      expect(eff['kind'], 'icp_call');
+      expect(eff['id'], 'create');
+      expect(eff['method'], 'createPoll');
+      expect(eff['mode'], 1); // update
+      expect(eff['authenticated'], true);
+      // Textual Candid record + vec literal, with escaping applied.
+      expect(eff['args'], '("Tea or coffee?", vec { "Tea"; "Coffee" })');
+      // Inputs are cleared after a successful (client-side) create so the form
+      // doesn't double-submit.
+      final nextState = obj['state'] as Map<String, dynamic>;
+      expect(nextState['newQuestion'], '');
+      expect(nextState['newOptions'], '');
+      expect(nextState['error'], '');
+    });
+
+    test('whoami missing-auth error keeps principal empty (view-only, NOT loud)',
+        () async {
+      if (!nativeLibAvailable(loader)) {
+        stdout.writeln('SKIP: libicp_core.so did not load');
+        return;
+      }
+      final ScriptAppRuntime rt = bootRuntime();
+      final state = Map<String, dynamic>.from((await rt.init(
+              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
+          as Map);
+
+      // Host delivers the exact missing-auth envelope (mirrors
+      // _kMissingAuthMessage in script_app_host.dart) — the only whoami failure
+      // that is treated as expected/non-fatal.
+      final obj = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{
+            'type': 'effect/result',
+            'id': 'whoami',
+            'ok': false,
+            'error': 'authenticated call requested but no active profile keypair',
+          },
+          state: state,
+          budgetMs: 1000);
+      final nextState = obj['state'] as Map<String, dynamic>;
+      expect(nextState['principal'], '');
+      // Critical: this branch must NOT raise a loud error — the user simply
+      // stays view-only. A regression that surfaces this as an error would spam
+      // every keyless session on refresh.
+      expect(nextState['error'], '');
+    });
+
+    test('whoami OTHER error is surfaced LOUDLY with a whoami: prefix',
+        () async {
+      if (!nativeLibAvailable(loader)) {
+        stdout.writeln('SKIP: libicp_core.so did not load');
+        return;
+      }
+      final ScriptAppRuntime rt = bootRuntime();
+      final state = Map<String, dynamic>.from((await rt.init(
+              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
+          as Map);
+
+      // Any whoami failure that is NOT missing-auth (replica down, canister
+      // fault, ...) must be loud so the user knows the view is stale.
+      final obj = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{
+            'type': 'effect/result',
+            'id': 'whoami',
+            'ok': false,
+            'error': 'replica unreachable',
+          },
+          state: state,
+          budgetMs: 1000);
+      expect((obj['state'] as Map<String, dynamic>)['error'],
+          'whoami: replica unreachable');
+    });
+
+    test('getTally error surfaces a "tally <id>:" prefix in state.error (M1 fix)',
+        () async {
+      if (!nativeLibAvailable(loader)) {
+        stdout.writeln('SKIP: libicp_core.so did not load');
+        return;
+      }
+      final ScriptAppRuntime rt = bootRuntime();
+      final state = Map<String, dynamic>.from((await rt.init(
+              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
+          as Map);
+
+      // A failed tally (e.g. transient read_state error) must NOT be swallowed —
+      // the bundle prefixes it with the poll id so the user can see WHICH poll
+      // failed. This is the M1 loud-error fix.
+      final obj = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{
+            'type': 'effect/result',
+            'id': 'tally:7',
+            'ok': false,
+            'error': 'network down',
+          },
+          state: state,
+          budgetMs: 1000);
+      expect((obj['state'] as Map<String, dynamic>)['error'],
+          'tally 7: network down');
+    });
   });
 }
