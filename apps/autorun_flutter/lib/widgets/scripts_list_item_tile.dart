@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:icp_autorun/models/script_list_item.dart';
+import '../theme/app_design_system.dart';
 
 /// A single row in the unified Scripts list.
 ///
@@ -99,7 +100,7 @@ class ScriptsListItemTile extends StatelessWidget {
   /// Blue for local scripts, green for marketplace scripts.
   Widget _buildSourceIcon(bool isCompactScreen) {
     final isMarketplace = item.isFromMarketplace;
-    final iconColor = isMarketplace ? Colors.green : Colors.blue;
+    final iconColor = isMarketplace ? AppDesignSystem.successColor : Colors.blue;
     final iconSize = isCompactScreen ? 12.0 : 14.0;
 
     return Icon(

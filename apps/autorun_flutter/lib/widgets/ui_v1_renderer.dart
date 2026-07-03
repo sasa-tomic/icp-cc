@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_design_system.dart';
 import 'result_display.dart';
 
 typedef UiEventHandler = void Function(Map<String, dynamic> msg);
@@ -313,18 +314,20 @@ class UiV1Renderer extends StatelessWidget {
                 width: width,
                 height: height,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red),
+                  border: Border.all(color: AppDesignSystem.errorColor),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.broken_image, size: 32, color: Colors.red),
+                      Icon(Icons.broken_image,
+                          size: 32, color: AppDesignSystem.errorColor),
                       SizedBox(height: 4),
                       Text('Failed to load',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: Colors.red)),
+                          style: TextStyle(
+                              fontSize: 12, color: AppDesignSystem.errorColor)),
                     ],
                   ),
                 ),

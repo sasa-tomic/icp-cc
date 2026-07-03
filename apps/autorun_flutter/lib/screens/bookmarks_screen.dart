@@ -844,6 +844,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                     ? Icons.sync_alt
                     : (isComposite ? Icons.merge_type : Icons.search),
                 size: 16,
+                // call-type category colour (query/update/composite), not a
+                // status semantic — intentionally off-token (composite has no
+                // status token either, so the 3-way scheme stays coherent).
                 color: isSelected
                     ? theme.colorScheme.onSecondaryContainer
                     : (isUpdate
@@ -950,6 +953,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     final kindLabel = _selectedKind == 1
         ? TechTerm.update.plainLabel
         : (_selectedKind == 2 ? 'Complex Read' : TechTerm.query.plainLabel);
+    // call-type category colour (query/update/composite), not a status — see above.
     final kindColor = _selectedKind == 1
         ? Colors.orange
         : (_selectedKind == 2 ? Colors.purple : theme.colorScheme.primary);
@@ -1362,6 +1366,7 @@ class _RecentCallsListState extends State<_RecentCallsList> {
             final icon = isUpdate
                 ? Icons.sync_alt
                 : (isComposite ? Icons.merge_type : Icons.search);
+            // call-type category colour (query/update/composite), not a status — see above.
             final iconColor = isUpdate
                 ? Colors.orange
                 : (isComposite ? Colors.purple : theme.colorScheme.primary);
@@ -1398,7 +1403,7 @@ class _RecentCallsListState extends State<_RecentCallsList> {
                           isSuccess ? Icons.check_circle : Icons.error,
                           size: 12,
                           color: isSuccess
-                              ? Colors.green
+                              ? AppDesignSystem.successColor
                               : theme.colorScheme.error,
                         ),
                         const SizedBox(width: 4),
@@ -1406,7 +1411,7 @@ class _RecentCallsListState extends State<_RecentCallsList> {
                           isSuccess ? 'Success' : record.resultSummary,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: isSuccess
-                                ? Colors.green
+                                ? AppDesignSystem.successColor
                                 : theme.colorScheme.error,
                             fontSize: 11,
                           ),
@@ -1818,7 +1823,7 @@ class _BookmarksListState extends State<_BookmarksList> {
                       IconButton(
                         icon: Icon(
                           Icons.delete_outline_rounded,
-                          color: Colors.red.shade400,
+                          color: AppDesignSystem.errorColor,
                           size: 20,
                         ),
                         onPressed: () async {

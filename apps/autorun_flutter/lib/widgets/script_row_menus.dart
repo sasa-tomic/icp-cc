@@ -169,9 +169,11 @@ class LocalScriptRowMenu extends StatelessWidget {
               value: 'delete',
               child: Row(
                 children: [
-                  Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                  Icon(Icons.delete_outline,
+                      size: 20, color: AppDesignSystem.errorColor),
                   SizedBox(width: 12),
-                  Text('Delete', style: TextStyle(color: Colors.red)),
+                  Text('Delete',
+                      style: TextStyle(color: AppDesignSystem.errorColor)),
                 ],
               ),
             ),
@@ -416,9 +418,10 @@ List<PopupMenuEntry<String>> buildScriptContextMenuItems(
         value: 'delete',
         child: Row(
           children: [
-            Icon(Icons.delete_outline, size: 20, color: Colors.red),
+            Icon(Icons.delete_outline,
+                size: 20, color: AppDesignSystem.errorColor),
             SizedBox(width: 12),
-            Text('Delete', style: TextStyle(color: Colors.red)),
+            Text('Delete', style: TextStyle(color: AppDesignSystem.errorColor)),
           ],
         ),
       ),

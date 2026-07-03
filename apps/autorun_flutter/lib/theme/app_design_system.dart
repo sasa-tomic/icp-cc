@@ -28,16 +28,26 @@ class AppDesignSystem {
   static const Color accentLight = Color(0xFF14B8A6);
   static const Color accentDark = Color(0xFF0D9488);
   
-  /// Success colors - Modern green
-  static const Color successLight = Color(0xFF10B981);
+  /// Semantic status colors — the single source of truth for success /
+  /// warning / error across the app. Use these (or `.withValues(alpha:)`
+  /// tints of them) wherever a colour encodes status: verified / available /
+  /// installed / complete = success, delete / failure = error, caution /
+  /// pending = warning. A whole-app status palette swap is a one-file change
+  /// here; the `*Light` aliases below keep the gradient-pair naming aligned.
+  static const Color successColor = Color(0xFF10B981);
+  static const Color warningColor = Color(0xFFF59E0B);
+  static const Color errorColor = Color(0xFFEF4444);
+
+  /// Success gradient stop + dark variant (alias the semantic token).
+  static const Color successLight = successColor;
   static const Color successDark = Color(0xFF059669);
   
-  /// Warning colors - Warm amber
-  static const Color warningLight = Color(0xFFF59E0B);
+  /// Warning gradient stop + dark variant (alias the semantic token).
+  static const Color warningLight = warningColor;
   static const Color warningDark = Color(0xFFD97706);
   
-  /// Error colors - Modern red
-  static const Color errorLight = Color(0xFFEF4444);
+  /// Error gradient stop + dark variant (alias the semantic token).
+  static const Color errorLight = errorColor;
   static const Color errorDark = Color(0xFFDC2626);
   
   /// Neutral colors - Sophisticated grays
@@ -255,7 +265,7 @@ class AppDesignSystem {
   }) {
     return SnackBar(
       content: Text(message),
-      backgroundColor: Colors.green,
+      backgroundColor: successColor,
       duration: duration ?? const Duration(seconds: 4),
       action: action,
     );

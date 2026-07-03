@@ -165,7 +165,7 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: AppDesignSystem.errorColor,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: Theme.of(context).colorScheme.surface,

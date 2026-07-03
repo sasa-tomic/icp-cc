@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/script_list_item.dart';
+import '../theme/app_design_system.dart';
 
 /// Context menu bottom sheet for script quick actions
 class ScriptContextMenuSheet extends StatelessWidget {
@@ -208,8 +209,8 @@ class _ContextMenuAction extends StatelessWidget {
     Color? backgroundColor;
 
     if (isDestructive) {
-      textColor = Colors.red;
-      iconColor = Colors.red;
+      textColor = AppDesignSystem.errorColor;
+      iconColor = AppDesignSystem.errorColor;
     } else if (isPrimary) {
       textColor = colorScheme.primary;
       iconColor = colorScheme.primary;

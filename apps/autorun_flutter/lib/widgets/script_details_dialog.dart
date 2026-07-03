@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 import '../services/marketplace_open_api_service.dart';
+import '../theme/app_design_system.dart';
 import 'diff_viewer_dialog.dart';
 
 class ScriptDetailsDialog extends StatefulWidget {
@@ -231,13 +232,14 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.green[100],
+                                      color: AppDesignSystem.successColor
+                                          .withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
                                       '\$${widget.script.price.toStringAsFixed(2)}',
                                       style: TextStyle(
-                                        color: Colors.green[800],
+                                        color: AppDesignSystem.successDark,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -524,7 +526,10 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: widget.isDownloaded
-                            ? Colors.green
+                            ? AppDesignSystem.successColor
+                            // Purchase CTA tied to `price > 0` (a commerce tier,
+                            // paired with the free-download primary) — not a
+                            // warning, so intentionally off-token.
                             : widget.script.price > 0
                                 ? Colors.orange
                                 : Theme.of(context).colorScheme.primary,
@@ -654,7 +659,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: widget.isDownloaded
-                      ? Colors.green
+                      ? AppDesignSystem.successColor
+                      // Purchase CTA (commerce tier) — not a warning; off-token.
                       : widget.script.price > 0
                           ? Colors.orange
                           : Theme.of(context).colorScheme.primary,
@@ -1199,7 +1205,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.green[100],
+                    color: AppDesignSystem.successColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -1208,7 +1214,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                       Icon(
                         Icons.verified,
                         size: 12,
-                        color: Colors.green[700],
+                        color: AppDesignSystem.successDark,
                       ),
                       const SizedBox(width: 2),
                       Text(
@@ -1216,7 +1222,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green[700],
+                          color: AppDesignSystem.successDark,
                         ),
                       ),
                     ],
@@ -1346,7 +1352,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             height: 40,
             decoration: BoxDecoration(
               color: isInstalled
-                  ? Colors.green.withValues(alpha: 0.1)
+                  ? AppDesignSystem.successColor.withValues(alpha: 0.1)
                   : Theme.of(context).colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -1357,7 +1363,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                       ? Icons.new_releases
                       : Icons.code,
               color: isInstalled
-                  ? Colors.green
+                  ? AppDesignSystem.successColor
                   : Theme.of(context).colorScheme.primary,
             ),
           ),
@@ -1399,16 +1405,18 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.1),
+                          color: AppDesignSystem.successColor
+                              .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.green),
+                          border:
+                              Border.all(color: AppDesignSystem.successColor),
                         ),
                         child: Text(
                           'Installed',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green[700],
+                            color: AppDesignSystem.successDark,
                           ),
                         ),
                       ),

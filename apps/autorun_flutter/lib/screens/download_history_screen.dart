@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/download_history_service.dart';
 import '../controllers/script_controller.dart';
 import '../services/script_repository.dart';
+import '../theme/app_design_system.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/modern_empty_state.dart';
 
@@ -338,7 +339,7 @@ class _DownloadHistoryTile extends StatelessWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Script not found. It may have been deleted.'),
-                  backgroundColor: Colors.orange,
+                  backgroundColor: AppDesignSystem.warningColor,
                 ),
               );
             }

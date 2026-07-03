@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/script_execution_progress.dart';
+import '../theme/app_design_system.dart';
 
 class ScriptExecutionProgressIndicator extends StatelessWidget {
   const ScriptExecutionProgressIndicator({
@@ -65,7 +66,7 @@ class ScriptExecutionProgressIndicator extends StatelessWidget {
         return Icon(
           Icons.check_circle,
           size: 48,
-          color: Colors.green,
+          color: AppDesignSystem.successColor,
         );
       case ScriptExecutionPhase.error:
         return Icon(
@@ -90,7 +91,7 @@ class ScriptExecutionProgressIndicator extends StatelessWidget {
       case ScriptExecutionPhase.error:
         return colorScheme.error.withValues(alpha: 0.5);
       case ScriptExecutionPhase.complete:
-        return Colors.green.withValues(alpha: 0.5);
+        return AppDesignSystem.successColor.withValues(alpha: 0.5);
       default:
         return colorScheme.outline.withValues(alpha: 0.3);
     }
