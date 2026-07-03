@@ -1,6 +1,6 @@
 # Plan — Example Dapp: Standalone + icp-cc Integration
 
-**Status:** APPROVED (2026-07-03) — Phase 1 in progress
+**Status:** APPROVED (2026-07-03) — Phase 1 COMPLETE; Phase 2 (webview) blocked on WPE libs (no root on dev box); Phase 3 (UX/align) in progress
 **Author:** agent (research-synthesized)
 **Date:** 2026-07-03
 
@@ -281,9 +281,9 @@ Per project rules, backend-only changes are forbidden — users must *access* th
 | Phase | Scope | Confidence | Depends on |
 |-------|-------|------------|------------|
 | **0 — Plan** | This doc, committed | — | human review |
-| **1 — Standalone dapp + Path B** | `examples/icp_poll_dapp/` (backend+frontend); `dfx deploy` verified locally; `06_icp_poll.js` Path B bundle talking to the deployed backend; fix the 3 contract bugs (§5.2); Dapps UI entry; tests | **9/10** | dfx local replica works (will verify) |
-| **2 — Path A webview** | `flutter_inappwebview` dep; `DappBrowserScreen`; identity injection; JS bridge | **6/10** (Linux) / 8/10 (other targets) | **human OK on system deps + beta plugin** |
-| **3 — Polish & verify** | UX review (screenshots), full `just test`, alignment verification, human-expectations doc | 9/10 | Phases 1–2 |
+| **1 — Standalone dapp + Path B** ✅ DONE | `examples/icp_poll_dapp/` (backend+frontend); `dfx deploy` verified locally; contract bugs fixed; `06_icp_poll.js` Path B bundle; authenticated effects via active profile; Dapps tab + runner; tests (commits `d69217db`, `90d00123`, `e2ae64eb`, `a8b29c62`) | **9/10** | dfx local replica works ✓ |
+| **2 — Path A webview** ⏳ CODED-ONLY on Linux | `flutter_inappwebview` dep; `DappBrowserScreen`; identity injection; JS bridge | **6/10** (Linux) / 8/10 (other targets) | WPE libs (root) — not installable on dev box; code lands, Linux degrades to `url_launcher` |
+| **3 — Polish & verify** 🔄 | UX review (drive app as user), full `just test`, alignment verification, human-expectations doc | 9/10 | Phases 1 (✓) – 2 |
 
 **Recommendation:** execute **Phase 1 fully now** (it proves "talks with a real
 canister" with near-zero risk), then checkpoint with you before Phase 2 (the
@@ -335,3 +335,33 @@ Phase 1 is green and the WPE libs are installed.
 | Identity injection via `Ed25519KeyIdentity.fromSecretKey` (no II) | 9/10 | 8/10 |
 | `flutter_inappwebview` for Path A | 8/10 | 6/10 (Linux) |
 | Phase-1 scope & sequencing | 9/10 | 9/10 |
+
+---
+
+## 12. Progress log
+
+- **Phase 1A — standalone dapp** (`d69217db`): Motoko poll backend (createPoll/vote/
+  listPolls/getTally/whoami, stable storage, loud input validation) + vite/TS frontend
+  with dual identity mode (injected Ed25519KeyIdentity or random local). Deployed to the
+  local replica; all 5 methods verified live via `dfx canister call`; frontend serves HTML.
+  Backend id `uxrrr-q7777-77774-qaaaq-cai`, host `http://127.0.0.1:4943`.
+- **Phase 1B — contract fixes** (`90d00123`): button `on_press`, reconciled static-analysis
+  widget allowlist (`input`→ removed; `paginated_list`/`result_display`/`table`→ added),
+  `mode` (not `kind`) for effect call mode in app bundles. 76 Rust + 152 Flutter tests green.
+  *(Reported follow-up: the separate helper-API in `script_runner.dart` still reads `kind`
+  for call mode — internally consistent, distinct surface; align to `mode` in a dedicated pass.)*
+- **Phase 1C-1 — auth + bundle** (`e2ae64eb`): PROVED authenticated canister calls work
+  end-to-end (non-anonymous principal, vote→tally change). Response shapes captured
+  (`{"ok":true,"result":<value>}`, principal=string, vec nat→string[]). `ScriptAppHost`
+  gains optional `authenticatedKeypair`; effects opt into signing via `authenticated:true`
+  (loud failure when no keypair — never silent anonymous). Bundle `06_icp_poll.js`
+  (refresh/vote/create/handlers; no raw keys in sandbox). 165 Flutter + 76 Rust + 4 live tests green.
+- **Phase 1C-2 — Dapps UI** (`a8b29c62`): `example_dapps.dart` (single-source defaults),
+  `DappRuntimeConfig` (per-dapp editable backend-id/host, persisted), Dapps catalog tab,
+  `DappRunnerScreen` (collapsible connection config, auth/view-only status chip, mounts
+  ScriptAppHost, "Open frontend in browser" with loud failure), `Alt+3` shortcut. 14 new
+  tests; live smoke confirms the runner's data path against the replica.
+- **Constraint (carried into Phase 2):** no `sudo` / not root on the dev box → cannot install
+  WPE WebKit libs → the embedded webview (Phase 2) cannot be built/run on Linux here. The
+  webview code + pubspec dep + graceful runtime degradation (detect missing libs → clear
+  warning + `url_launcher` fallback) will land; it runs on Android/macOS/Windows as-is.
