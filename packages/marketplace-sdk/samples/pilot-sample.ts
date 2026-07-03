@@ -1,4 +1,4 @@
-import { EffectKind, register } from "@icp-cc/marketplace-sdk";
+import { CallMode, register } from "@icp-cc/marketplace-sdk";
 import type {
   Effect,
   EffectItem,
@@ -182,14 +182,14 @@ function update(msg: Msg, state: PilotState): UpdateResult<PilotState> {
   if (t === "load_sample") {
     const gov: EffectItem = {
       label: "gov",
-      kind: EffectKind.Query,
+      mode: CallMode.Query,
       canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai",
       method: "get_pending_proposals",
       args: "()",
     };
     const ledger: EffectItem = {
       label: "ledger",
-      kind: EffectKind.Query,
+      mode: CallMode.Query,
       canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai",
       method: "query_blocks",
       args: '{"start":0,"length":3}',

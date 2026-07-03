@@ -9,17 +9,17 @@ export interface Msg {
   [key: string]: unknown;
 }
 
-export const EffectKind = {
+export const CallMode = {
   Query: 0,
   Update: 1,
   Composite: 2,
 } as const;
 
-export type EffectKindValue = (typeof EffectKind)[keyof typeof EffectKind];
+export type CallModeValue = (typeof CallMode)[keyof typeof CallMode];
 
 export interface EffectItem {
   label: string;
-  kind: EffectKindValue;
+  mode: CallModeValue;
   canister_id: string;
   method: string;
   args: unknown;

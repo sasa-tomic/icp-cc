@@ -7,8 +7,8 @@ import type {
   UiActionResult,
 } from "./types.js";
 export {
-  EffectKind,
-  type EffectKindValue,
+  CallMode,
+  type CallModeValue,
   type Effect,
   type EffectItem,
   type IcpCallSpec,

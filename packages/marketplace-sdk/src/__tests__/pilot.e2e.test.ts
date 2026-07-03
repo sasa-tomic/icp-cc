@@ -121,7 +121,7 @@ describe("pilot-sample bundle — runs end-to-end in REAL QuickJS", () => {
         effects: {
           kind: string;
           id: string;
-          items: { label: string; kind: number; canister_id: string; method: string; args: string }[];
+          items: { label: string; mode: number; canister_id: string; method: string; args: string }[];
         }[];
       }>(ctx, `update(${JSON.stringify({ type: "load_sample" })}, ${JSON.stringify(initRes.state)})`);
       expect(upd.effects).toHaveLength(1);
@@ -131,14 +131,14 @@ describe("pilot-sample bundle — runs end-to-end in REAL QuickJS", () => {
       expect(effect.items).toHaveLength(2);
       expect(effect.items[0]).toMatchObject({
         label: "gov",
-        kind: 0,
+        mode: 0,
         canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai",
         method: "get_pending_proposals",
         args: "()",
       });
       expect(effect.items[1]).toMatchObject({
         label: "ledger",
-        kind: 0,
+        mode: 0,
         canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai",
         method: "query_blocks",
         args: '{"start":0,"length":3}',

@@ -8,11 +8,11 @@ import type {
   State,
   Update,
   View,
-  EffectKindValue,
+  CallModeValue,
   IcpCallResult,
   IcpBatchResult,
 } from "../types.js";
-import { EffectKind } from "../types.js";
+import { CallMode } from "../types.js";
 
 describe("SDK contract", () => {
   it("exports SDK_CONTRACT_VERSION as a stable semver string", () => {
@@ -21,15 +21,15 @@ describe("SDK contract", () => {
     expect(SDK_CONTRACT_VERSION).toBe("0.1.0");
   });
 
-  it("EffectKind maps query/update/composite to 0/1/2", () => {
-    const values: EffectKindValue[] = [EffectKind.Query, EffectKind.Update, EffectKind.Composite];
+  it("CallMode maps query/update/composite to 0/1/2", () => {
+    const values: CallModeValue[] = [CallMode.Query, CallMode.Update, CallMode.Composite];
     expect(values).toEqual([0, 1, 2]);
   });
 
   it("Effect/EffectItem shapes type-check against the contract", () => {
     const item: EffectItem = {
       label: "ledger",
-      kind: EffectKind.Query,
+      mode: CallMode.Query,
       canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai",
       method: "query_blocks",
       args: '{"start":0,"length":3}',

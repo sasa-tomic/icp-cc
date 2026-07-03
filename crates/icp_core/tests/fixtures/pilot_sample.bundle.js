@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // dist/index.js
-  var EffectKind = {
+  var CallMode = {
     Query: 0,
     Update: 1,
     Composite: 2
@@ -177,14 +177,14 @@
     if (t === "load_sample") {
       const gov = {
         label: "gov",
-        kind: EffectKind.Query,
+        mode: CallMode.Query,
         canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai",
         method: "get_pending_proposals",
         args: "()"
       };
       const ledger = {
         label: "ledger",
-        kind: EffectKind.Query,
+        mode: CallMode.Query,
         canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai",
         method: "query_blocks",
         args: '{"start":0,"length":3}'
