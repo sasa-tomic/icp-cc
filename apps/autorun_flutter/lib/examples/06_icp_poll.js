@@ -234,10 +234,14 @@
     var parsed = readEffect(msg);
 
     if (id === "whoami") {
-      // Auth unavailable (no profile) is non-fatal: principal stays empty and
-      // the view renders "view-only". Other whoami errors are surfaced.
+      // Auth unavailable (no active profile) is the expected non-fatal case:
+      // principal stays empty and the view renders "view-only". Any OTHER
+      // whoami error (replica down, canister fault) is surfaced loudly.
       if (!parsed.ok) {
-        return setState(state, { principal: "" });
+        if (String(parsed.error).indexOf("active profile") !== -1) {
+          return setState(state, { principal: "" });
+        }
+        return setState(state, { loading: false, error: "whoami: " + parsed.error });
       }
       return setState(state, { principal: String(parsed.value || "") });
     }
@@ -263,7 +267,7 @@
     if (id.indexOf("tally:") === 0) {
       var pollId = id.substring("tally:".length);
       if (!parsed.ok) {
-        return { state: state, effects: [] };
+        return setState(state, { error: "tally " + pollId + ": " + parsed.error });
       }
       var tallies = Object.assign({}, state.tallies);
       tallies[pollId] = (parsed.value || []).map(function (n) {

@@ -261,9 +261,9 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
                   TextFormField(
                     key: const Key('dappBackendIdField'),
                     controller: _backendIdController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Backend canister id',
-                      hintText: 'e.g. uxrrr-q7777-77774-qaaaq-cai',
+                      hintText: 'e.g. $kLocalPollBackendCanisterId',
                     ),
                     validator: (v) {
                       final s = v?.trim() ?? '';
@@ -275,9 +275,9 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
                   TextFormField(
                     key: const Key('dappHostField'),
                     controller: _hostController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Replica host',
-                      hintText: 'e.g. http://127.0.0.1:4943',
+                      hintText: 'e.g. $kLocalPollHost',
                     ),
                     validator: (v) {
                       final s = v?.trim() ?? '';
