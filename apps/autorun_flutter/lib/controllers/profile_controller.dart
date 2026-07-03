@@ -215,7 +215,7 @@ class ProfileController extends ChangeNotifier {
     final request = await AccountSignatureService.createAddPublicKeyRequest(
       signingKeypair: signingKeypair,
       username: username,
-      newPublicKeyB64: newKeypair.publicKey,
+      newKeypair: newKeypair,
     );
 
     // Submit to backend

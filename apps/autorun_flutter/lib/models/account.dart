@@ -15,14 +15,21 @@
 /// - Keys belong to ONE profile only (NO cross-profile sharing)
 /// - Backend enforces unique public keys across ALL accounts
 ///
-/// FIXME: This model currently allows keys to be "shared" across accounts in the
-/// data structure, but this violates the profile-centric design. The backend
-/// enforces uniqueness, but the Flutter models don't reflect the ownership relationship.
-///
-/// See ACCOUNT_PROFILES_DESIGN.md for full specification.
+/// Profile-ownership of keys:
+/// `Account` is a backend view and deliberately has NO notion of client
+/// Profiles — the backend only ever sees opaque `publicKey` strings and
+/// enforces uniqueness via its `public_key UNIQUE` constraint. The
+/// client-side ownership invariant ("a keypair belongs to exactly ONE
+/// profile") is enforced by [assertUniqueKeypairOwnership] in
+/// `lib/services/profile_invariants.dart`, wired into
+/// `ProfileRepository`'s persist/load/import boundaries. The link between a
+/// local Profile and its backend Account is the shared `username` field
+/// (`Profile.username` ↔ `Account.username`).
 library;
 
 import 'package:flutter/foundation.dart';
+
+import 'profile_keypair.dart';
 
 class Account {
   Account({
@@ -302,23 +309,18 @@ class RegisterAccountRequest {
   }
 }
 
-/// Request payload for adding a public key to an account
+/// Request payload for adding a public key to an account.
 ///
-/// FIXME - ARCHITECTURE VIOLATION:
-/// Current implementation allows passing ANY public key (newPublicKeyB64) to be added
-/// to ANY account. This violates the profile-centric model where:
-/// - Keys should be GENERATED for the current profile, not imported
-/// - Keys belong to ONE profile only
-/// - No cross-profile key sharing
-///
-/// Correct behavior:
-/// - Service should GENERATE a new keypair for the current profile
-/// - Only the generated public key should be sent to backend
-/// - newPublicKeyB64 should come from a newly generated keypair, not from user input
+/// Type-safe by construction: the new key arrives as a [ProfileKeypair], not a
+/// raw base64 string, so callers cannot attach an arbitrary/forged key to an
+/// account — the public key is always derived from a real keypair owned by the
+/// current profile. The wire-format base64 is exposed via [newPublicKeyB64]
+/// (derived from [newKeypair]). `createAddPublicKeyRequest` is the sanctioned
+/// production path (it signs the canonical payload before constructing).
 class AddPublicKeyRequest {
   AddPublicKeyRequest({
     required this.username,
-    required this.newPublicKeyB64,
+    required this.newKeypair,
     required this.signingPublicKeyB64,
     required this.timestamp,
     required this.nonce,
@@ -327,12 +329,20 @@ class AddPublicKeyRequest {
   });
 
   final String username;
-  final String newPublicKeyB64;
+
+  /// The freshly-generated keypair being added to the account. Must belong to
+  /// exactly one Profile (enforced by [assertUniqueKeypairOwnership]).
+  final ProfileKeypair newKeypair;
   final String signingPublicKeyB64;
   final int timestamp;
   final String nonce;
   final String signature;
   final String? label;
+
+  /// Wire-format base64 of the public key being added (derived from
+  /// [newKeypair]). Kept as a getter so serialization matches the backend's
+  /// `newPublicKeyB64` field name exactly.
+  String get newPublicKeyB64 => newKeypair.publicKey;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{

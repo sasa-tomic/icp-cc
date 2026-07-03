@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
+import 'package:icp_autorun/services/profile_invariants.dart';
 import 'package:icp_autorun/utils/encrypted_export.dart';
 
 import '../../shared/fake_secure_keypair_repository.dart';
@@ -302,6 +303,102 @@ void main() {
       );
     });
 
+    // Cross-profile keypair-ownership invariant (A-3c): a backup must never be
+    // imported if any of its keypairs already belongs to an existing profile —
+    // by id OR by publicKey. Flat secure-storage keys are not profile-scoped,
+    // so such a collision would mean deleting the key in one profile silently
+    // destroys the other profile's secret. Fail loud; never silently merge.
+    test(
+        'import throws KeypairOwnershipViolation when keypair id collides '
+        'with existing profile', () async {
+      // Same keypair (same id + publicKey) lives in two DIFFERENT profiles.
+      final sharedKeypair = await TestKeypairFactory.fromSeed(42);
+      final existingProfile = Profile(
+        id: 'existing-profile',
+        name: 'Existing',
+        keypairs: [sharedKeypair],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      // The backup ships the SAME keypair under a different profile id.
+      final backupProfile = Profile(
+        id: 'incoming-profile',
+        name: 'Incoming Backup',
+        keypairs: [sharedKeypair],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final repo = FakeSecureKeypairRepository([]);
+      await repo.profileRepository.persistProfiles([existingProfile]);
+
+      final backup = await _encryptBackupForTest(backupProfile, 'password');
+
+      await expectLater(
+        repo.profileRepository.importProfileBackup(backup, 'password'),
+        throwsA(isA<KeypairOwnershipViolation>()),
+      );
+
+      // No silent mutation: existing store is untouched.
+      final loaded = await repo.profileRepository.loadProfiles();
+      expect(loaded.length, equals(1));
+      expect(loaded.first.id, equals('existing-profile'));
+    });
+
+    test(
+        'import throws KeypairOwnershipViolation when publicKey collides '
+        'across profiles (distinct keypair id)', () async {
+      // Two keypairs with the SAME publicKey but DIFFERENT ids. This can happen
+      // when a backup is hand-edited or a key is re-derived. The publicKey
+      // collision alone must trip the invariant.
+      final realKeypair = await TestKeypairFactory.fromSeed(7);
+      // Reconstruct a "foreign" keypair that reuses the public key material but
+      // gets a fresh id + label (simulating a cross-device restore mistake).
+      final collidingKeypair = ProfileKeypair(
+        id: 'foreign-keypair-id',
+        label: 'Foreign Device',
+        algorithm: realKeypair.algorithm,
+        publicKey: realKeypair.publicKey,
+        privateKey: realKeypair.privateKey,
+        mnemonic: realKeypair.mnemonic,
+        createdAt: realKeypair.createdAt,
+        principal: realKeypair.principal,
+      );
+
+      final existingProfile = Profile(
+        id: 'existing-profile',
+        name: 'Existing',
+        keypairs: [realKeypair],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final backupProfile = Profile(
+        id: 'incoming-profile',
+        name: 'Incoming Backup',
+        keypairs: [collidingKeypair],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final repo = FakeSecureKeypairRepository([]);
+      await repo.profileRepository.persistProfiles([existingProfile]);
+
+      final backup = await _encryptBackupForTest(backupProfile, 'password');
+
+      await expectLater(
+        repo.profileRepository.importProfileBackup(backup, 'password'),
+        throwsA(
+          allOf(
+            isA<KeypairOwnershipViolation>(),
+            predicate<KeypairOwnershipViolation>(
+              (v) => v.field == 'publicKey',
+              'flags the publicKey field',
+            ),
+          ),
+        ),
+      );
+    });
+
     test('backup with profile containing 10 keypairs (maximum)', () async {
       final keypairs = <ProfileKeypair>[];
       for (int i = 0; i < 10; i++) {
@@ -421,4 +518,17 @@ void main() {
 
 Future<String> _decryptForTest(String encryptedJson, String password) async {
   return EncryptedExport.decrypt(encryptedJson, password);
+}
+
+/// Encrypts an arbitrary [Profile] into a v1 profile_backup blob, mirroring the
+/// on-disk wire format produced by `ProfileRepository.exportProfileBackup`.
+/// Used by the cross-profile ownership tests to craft backups whose keypairs
+/// intentionally collide with an existing profile's keypairs.
+Future<String> _encryptBackupForTest(Profile profile, String password) async {
+  final backupData = <String, dynamic>{
+    'v': 1,
+    'type': 'profile_backup',
+    'profile': profile.toJson(),
+  };
+  return EncryptedExport.encrypt(jsonEncode(backupData), password);
 }

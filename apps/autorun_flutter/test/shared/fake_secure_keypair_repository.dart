@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/profile.dart';
+import 'package:icp_autorun/services/profile_invariants.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/services/secure_keypair_repository.dart';
 import 'package:icp_autorun/utils/encrypted_export.dart';
@@ -36,25 +37,6 @@ class FakeSecureKeypairRepository implements SecureKeypairRepository {
   @override
   Future<List<ProfileKeypair>> loadKeypairs() async {
     return List<ProfileKeypair>.from(_keypairs);
-  }
-
-  @override
-  Future<void> persistKeypairs(List<ProfileKeypair> keypairs) async {
-    _keypairs = List<ProfileKeypair>.from(keypairs);
-
-    // Also update profiles - each keypair becomes a profile with one keypair
-    final List<Profile> profiles = keypairs.map((keypair) {
-      return Profile(
-        id: 'profile_${keypair.id}', // Deterministic profile ID
-        name: keypair.label,
-        keypairs: [keypair],
-        username: null,
-        createdAt: keypair.createdAt,
-        updatedAt: keypair.createdAt,
-      );
-    }).toList();
-
-    await _fakeProfileRepository.persistProfiles(profiles);
   }
 
   @override
@@ -176,36 +158,6 @@ class FakeProfileRepository implements ProfileRepository {
   }
 
   @override
-  Future<ProfileKeypair> importKeypairEncrypted(
-    String encryptedJson,
-    String password,
-    String profileId,
-  ) async {
-    final keypair = await ProfileKeypair.fromEncryptedExport(
-      encryptedJson,
-      password,
-    );
-
-    final profileIndex = _profiles.indexWhere((p) => p.id == profileId);
-    if (profileIndex == -1) {
-      throw ArgumentError('Profile not found: $profileId');
-    }
-
-    final profile = _profiles[profileIndex];
-    if (profile.keypairs.length >= 10) {
-      throw StateError('Profile already has maximum keypairs (10)');
-    }
-
-    final updatedKeypairs = [...profile.keypairs, keypair];
-    _profiles[profileIndex] = profile.copyWith(
-      keypairs: updatedKeypairs,
-      updatedAt: DateTime.now(),
-    );
-
-    return keypair;
-  }
-
-  @override
   Future<String> exportProfileBackup(String profileId, String password) async {
     final profile = _profiles.firstWhere(
       (p) => p.id == profileId,
@@ -243,6 +195,10 @@ class FakeProfileRepository implements ProfileRepository {
     if (existingIndex != -1) {
       throw StateError('Profile with ID ${profile.id} already exists');
     }
+
+    // Mirror the real ProfileRepository: guard the cross-profile keypair-
+    // ownership invariant before mutating state. Fail loud on collision.
+    assertUniqueKeypairOwnership([..._profiles, profile]);
 
     _profiles.add(profile);
 
