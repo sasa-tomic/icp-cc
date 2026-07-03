@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>icp-cc Poll</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #e7e7e7;
+        --bg: #1a1a1a;
+        --card: #262626;
+        --accent: #29b6f6;
+        --muted: #9a9a9a;
+        --error: #ef5350;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.5;
+      }
+      header {
+        padding: 1.5rem 1rem 0.5rem;
+        border-bottom: 1px solid #333;
+      }
+      header h1 { margin: 0 0 0.25rem; font-size: 1.4rem; }
+      main { max-width: 720px; margin: 0 auto; padding: 1rem; }
+      .principal {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+        word-break: break-all;
+        color: var(--accent);
+      }
+      .muted { color: var(--muted); font-size: 0.85rem; }
+      #status { margin: 0.75rem 0; min-height: 1.4em; }
+      #status.error { color: var(--error); }
+      .card {
+        background: var(--card);
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+      .card h3 { margin: 0 0 0.25rem; }
+      .options { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+      button {
+        background: #333;
+        color: var(--fg);
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 0.5rem 0.85rem;
+        cursor: pointer;
+        font: inherit;
+      }
+      button:hover { background: #3a3a3a; }
+      button.primary { background: var(--accent); color: #002b3d; border-color: var(--accent); font-weight: 600; }
+      button.primary:hover { filter: brightness(1.1); }
+      form .field { margin-bottom: 0.75rem; }
+      label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem; }
+      input[type="text"] {
+        width: 100%;
+        background: #111;
+        color: var(--fg);
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 0.5rem 0.65rem;
+        font: inherit;
+      }
+      .toolbar { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>icp-cc Poll</h1>
+        <p class="muted">A standalone Internet Computer poll/voting dapp.</p>
+      </header>
+      <main>
+      <p>Your principal: <span id="principal" class="principal">—</span></p>
+
+      <div class="toolbar">
+        <button id="refresh" type="button">Refresh</button>
+        <span id="status" class="muted">Loading…</span>
+      </div>
+
+      <h2>Polls</h2>
+      <div id="polls"></div>
+
+      <h2>Create a poll</h2>
+      <form id="create-form" class="card">
+        <div class="field">
+          <label for="question">Question</label>
+          <input id="question" type="text" placeholder="Tea or coffee?" required />
+        </div>
+        <div class="field">
+          <label for="options">Options (comma-separated, at least 2)</label>
+          <input id="options" type="text" placeholder="Tea, Coffee" required />
+        </div>
+        <button class="primary" type="submit">Create poll</button>
+      </form>
+      </main>
+    </div>
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

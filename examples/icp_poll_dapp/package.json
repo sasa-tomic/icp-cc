@@ -1,0 +1,19 @@
+{
+  "name": "icp-poll-dapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "icp-cc Poll — a standalone Internet Computer poll/voting dapp (Motoko backend + vite frontend).",
+  "scripts": {
+    "build": "vite build --config src/frontend/vite.config.ts",
+    "dev": "vite --config src/frontend/vite.config.ts"
+  },
+  "dependencies": {
+    "@dfinity/agent": "^2.1.0",
+    "@dfinity/identity": "^2.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}
