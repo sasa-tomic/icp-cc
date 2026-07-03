@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/account.dart';
 
+import '../shared/test_keypair_factory.dart';
+
 void main() {
   group('AccountPublicKey', () {
     group('fromJson', () {
@@ -229,11 +231,14 @@ void main() {
   });
 
   group('AddPublicKeyRequest', () {
+    // The new key arrives as a real ProfileKeypair; the wire-format
+    // newPublicKeyB64 is derived from newKeypair.publicKey (never raw input).
     group('toJson', () {
-      test('includes label when provided', () {
+      test('includes label when provided and derives newPublicKeyB64', () async {
+        final newKeypair = await TestKeypairFactory.fromSeed(101);
         final request = AddPublicKeyRequest(
           username: 'alice',
-          newPublicKeyB64: 'newKey123',
+          newKeypair: newKeypair,
           signingPublicKeyB64: 'signingKey456',
           timestamp: 1700000100,
           nonce: 'uuid-1234',
@@ -244,14 +249,15 @@ void main() {
         final json = request.toJson();
 
         expect(json['label'], 'Phone');
-        expect(json['newPublicKeyB64'], 'newKey123');
+        expect(json['newPublicKeyB64'], newKeypair.publicKey);
         expect(json['nonce'], 'uuid-1234');
       });
 
-      test('omits label when null', () {
+      test('omits label when null', () async {
+        final newKeypair = await TestKeypairFactory.fromSeed(102);
         final request = AddPublicKeyRequest(
           username: 'bob',
-          newPublicKeyB64: 'newKey999',
+          newKeypair: newKeypair,
           signingPublicKeyB64: 'signingKey888',
           timestamp: 1700000200,
           nonce: 'uuid-5678',
@@ -265,10 +271,11 @@ void main() {
     });
 
     group('toCanonicalPayload', () {
-      test('includes label in canonical payload when provided', () {
+      test('includes label in canonical payload when provided', () async {
+        final newKeypair = await TestKeypairFactory.fromSeed(103);
         final request = AddPublicKeyRequest(
           username: 'alice',
-          newPublicKeyB64: 'newKey123',
+          newKeypair: newKeypair,
           signingPublicKeyB64: 'signingKey456',
           timestamp: 1700000100,
           nonce: 'uuid-1234',
@@ -281,13 +288,14 @@ void main() {
         expect(payload['label'], 'Hardware Wallet');
         expect(payload['action'], 'add_key');
         expect(payload['username'], 'alice');
-        expect(payload['newPublicKeyB64'], 'newKey123');
+        expect(payload['newPublicKeyB64'], newKeypair.publicKey);
       });
 
-      test('omits label from canonical payload when null', () {
+      test('omits label from canonical payload when null', () async {
+        final newKeypair = await TestKeypairFactory.fromSeed(104);
         final request = AddPublicKeyRequest(
           username: 'bob',
-          newPublicKeyB64: 'newKey999',
+          newKeypair: newKeypair,
           signingPublicKeyB64: 'signingKey888',
           timestamp: 1700000200,
           nonce: 'uuid-5678',

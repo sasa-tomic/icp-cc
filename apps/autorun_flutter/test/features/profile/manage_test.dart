@@ -809,10 +809,11 @@ void main() {
   });
 
   group('ProfileController - Marketplace Integration', () {
-    setUpAll(() {
+    setUpAll(() async {
+      final fallbackKeypair = await TestKeypairFactory.fromSeed(9001);
       registerFallbackValue(AddPublicKeyRequest(
         username: 'fallback',
-        newPublicKeyB64: 'fallback',
+        newKeypair: fallbackKeypair,
         signingPublicKeyB64: 'fallback',
         timestamp: 0,
         nonce: 'fallback',

@@ -71,19 +71,24 @@ class AccountSignatureService {
     );
   }
 
-  /// Create and sign an add key request
+  /// Create and sign an add key request.
+  ///
+  /// [newKeypair] is the freshly-generated keypair being added to the account
+  /// (the caller is responsible for generating it for the current profile).
+  /// Defense-in-depth: validate [newKeypair.publicKey] is well-formed base64
+  /// before signing.
   static Future<AddPublicKeyRequest> createAddPublicKeyRequest({
     required ProfileKeypair signingKeypair,
     required String username,
-    required String newPublicKeyB64,
+    required ProfileKeypair newKeypair,
   }) async {
-    _assertBase64(newPublicKeyB64, fieldName: 'newPublicKeyB64');
+    _assertBase64(newKeypair.publicKey, fieldName: 'newPublicKeyB64');
     final timestamp = _getCurrentTimestamp();
     final nonce = _uuid.v4();
 
     final request = AddPublicKeyRequest(
       username: username,
-      newPublicKeyB64: newPublicKeyB64,
+      newKeypair: newKeypair,
       signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
@@ -97,7 +102,7 @@ class AccountSignatureService {
 
     return AddPublicKeyRequest(
       username: username,
-      newPublicKeyB64: newPublicKeyB64,
+      newKeypair: newKeypair,
       signingPublicKeyB64: signingKeypair.publicKey,
       timestamp: timestamp,
       nonce: nonce,
