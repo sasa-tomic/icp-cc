@@ -1,6 +1,6 @@
 # Plan — Example Dapp: Standalone + icp-cc Integration
 
-**Status:** APPROVED (2026-07-03) — Phase 1 COMPLETE; Phase 2 (webview) blocked on WPE libs (no root on dev box); Phase 3 (UX/align) in progress
+**Status:** APPROVED (2026-07-03) — Phase 1 + Round 2 COMPLETE; Phase 2 (embedded webview) deferred (blocked: no root for WPE libs on dev box; current `url_launcher` fallback covers Path A); Phase 3 alignment signed off
 **Author:** agent (research-synthesized)
 **Date:** 2026-07-03
 
@@ -365,3 +365,42 @@ Phase 1 is green and the WPE libs are installed.
   WPE WebKit libs → the embedded webview (Phase 2) cannot be built/run on Linux here. The
   webview code + pubspec dep + graceful runtime degradation (detect missing libs → clear
   warning + `url_launcher` fallback) will land; it runs on Android/macOS/Windows as-is.
+
+### Round 2 — tech debt, tests, SDK consistency (2026-07-03)
+
+- **M4 timeout** (`55f44442` + `15432799`): all Rust canister FFI calls (`call_anonymous`,
+  `call_authenticated`, `fetch_candid`) now wrapped in `tokio::time::timeout(30s)`. Single
+  constant `CANISTER_CALL_TIMEOUT`. Caught + fixed a runtime-context regression via the
+  existing `fetch_candid_registry_mainnet` integration test. 77 Rust tests green.
+- **Dart kind→mode** (`6a21d70c`): unified the helper-API call-mode field to `mode` across
+  `CanisterCallSpec`, `CanisterMethod`, `_specFromCallItem`, `script_app_host`, bridge FFI
+  params, and all consuming tests. The effect-TYPE string field (`kind:"icp_call"`) is
+  unchanged — different semantic. 171 scripts tests green.
+- **DRY/KISS** (`a19d3f7b`): collapsed redundant `_StatusChip.background` param; removed
+  unused `_buildAuthStatus` theme param.
+- **SDK kind→mode** (`4a8cb70d`): renamed `EffectKind`→`CallMode`, `EffectItem.kind`→`mode`
+  in `marketplace-sdk` for cross-language consistency. Rebuilt `pilot_sample.bundle.js`
+  fixtures (both Rust + Flutter copies) — fixes a latent bug where the bundle emitted `kind`
+  but the host reads `mode`. 71 SDK + 77 Rust + 171 scripts + 14 dapps tests green.
+- **Test coverage** (`9f4bcbec`, `8171c80b`, `c198a978`, `66e5e18d`, `bb3658c2`, `ef807916`):
+  +8 tests (tally error loudness, whoami missing-auth vs other-error, create boundaries,
+  anonymous-fallback resolution, open-frontend loud-failure, canister-call blackhole timeout,
+  DRY bundle-loader + boot-block helper). Dropped 1 redundant round-trip test. Strengthened
+  create-validation assertion to exact message. Mutation-checked the highest-risk test.
+
+### Phase 2 — embedded webview (DEFERRED)
+
+**Recommendation (confidence 9/10):** keep the current `url_launcher` (system browser) for
+Path A. The embedded webview requires `flutter_inappwebview` 6.2.0-beta.3 with WPE WebKit
+libs, which cannot be installed without root on this dev box. Shipping untestable code
+violates the PoC-first principle. The webview is a UX enhancement (in-app vs system-browser),
+not a functional gap — both canisters are already accessible. Defer until a dev box with root
+(or macOS/Android) is available.
+
+### Phase 3 — alignment sign-off
+
+- **Human expectations:** `docs/HUMAN_EXPECTATIONS.md` created + linked from `AGENTS.md:3`.
+- **Value alignment:** the example genuinely talks to a REAL canister (proven live); teaches
+  the standalone→integrated pattern; no AI slop/stubs; user-facing (Dapps tab, not backend-only).
+- **Mechanical:** all project rules satisfied (no silent errors, all I/O timeout'd, single-source
+  constants, DRY call-mode field across Dart+TS, no mocks in prod code).
