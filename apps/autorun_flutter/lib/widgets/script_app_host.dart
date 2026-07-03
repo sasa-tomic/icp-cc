@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
+import '../models/profile_keypair.dart';
 import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
 import '../models/script_execution_progress.dart';
@@ -15,11 +16,24 @@ class ScriptAppHost extends StatefulWidget {
     required this.script,
     this.initialArg,
     this.progressNotifier,
+    this.authenticatedKeypair,
+    this.testBridge,
   });
   final IScriptAppRuntime runtime;
   final String script;
   final Map<String, dynamic>? initialArg;
   final ValueNotifier<ScriptExecutionProgress>? progressNotifier;
+
+  /// Active profile keypair used to sign effects that opt in via
+  /// `authenticated: true`. When null, such effects fail LOUDLY rather than
+  /// silently degrading to anonymous. Raw private keys never enter the sandbox.
+  final ProfileKeypair? authenticatedKeypair;
+
+  /// Test-only canister-bridge override. When null (production) the host
+  /// constructs the real [RustScriptBridge]; tests inject a fake to assert
+  /// which key material is passed to `callAuthenticated`.
+  @visibleForTesting
+  final ScriptBridge? testBridge;
 
   @override
   State<ScriptAppHost> createState() => _ScriptAppHostState();
@@ -37,6 +51,11 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
   void _updateProgress(ScriptExecutionProgress progress) {
     widget.progressNotifier?.value = progress;
   }
+
+  /// Resolve the canister bridge: test override when provided, else the real
+  /// FFI-backed [RustScriptBridge].
+  ScriptBridge _bridge() =>
+      widget.testBridge ?? RustScriptBridge(const RustBridgeLoader());
 
   @override
   void initState() {
@@ -147,13 +166,23 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
         final String? host = (eff['host'] as String?)?.trim().isEmpty == true
             ? null
             : eff['host'] as String?;
-        final String? key = (eff['private_key_b64'] as String?)?.trim();
-        final bool authenticated = key != null && key.isNotEmpty;
+        final _ResolvedAuth auth = _resolveAuthForCall(eff);
+        if (auth.missingAuth) {
+          _enqueueMsg(<String, dynamic>{
+            'type': 'effect/result',
+            'id': id,
+            'ok': false,
+            'error': _kMissingAuthMessage,
+          });
+          return;
+        }
+        final bool authenticated = auth.isAuthenticated;
         final bool permitted = await _ensurePermissionForCall(
           canisterId: canisterId,
           method: method,
           mode: mode,
           authenticated: authenticated,
+          authLabel: auth.label,
           argsPreview: args,
         );
         if (!permitted) {
@@ -165,7 +194,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
           });
           return;
         }
-        final ScriptBridge bridge = RustScriptBridge(const RustBridgeLoader());
+        final ScriptBridge bridge = _bridge();
         String? out;
         if (!authenticated) {
           out = bridge.callAnonymous(
@@ -179,7 +208,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
               canisterId: canisterId,
               method: method,
               kind: mode,
-              privateKeyB64: key,
+              privateKeyB64: auth.privateKey!,
               args: args,
               host: host);
         }
@@ -215,7 +244,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
         final List<dynamic> items =
             (eff['items'] as List<dynamic>? ?? const <dynamic>[]);
         final Map<String, dynamic> outputs = <String, dynamic>{};
-        final ScriptBridge bridge = RustScriptBridge(const RustBridgeLoader());
+        final ScriptBridge bridge = _bridge();
         final List<Map<String, dynamic>> unknown = <Map<String, dynamic>>[];
         for (final dynamic item in items) {
           if (item is! Map<String, dynamic>) continue;
@@ -223,8 +252,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
           final String canisterId =
               (item['canister_id'] as String? ?? '').trim();
           final String method = (item['method'] as String? ?? '').trim();
-          final String? key = (item['private_key_b64'] as String?)?.trim();
-          final bool authenticated = key != null && key.isNotEmpty;
+          final bool authenticated = _resolveAuthForCall(item).isAuthenticated;
           if (!_isAllowed(
               canisterId: canisterId,
               method: method,
@@ -260,14 +288,22 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
           final String? host = (item['host'] as String?)?.trim().isEmpty == true
               ? null
               : item['host'] as String?;
-          final String? key = (item['private_key_b64'] as String?)?.trim();
-          final bool authenticated = key != null && key.isNotEmpty;
+          final _ResolvedAuth auth = _resolveAuthForCall(item);
+          final String outputKey = label.isEmpty ? method : label;
+          if (auth.missingAuth) {
+            outputs[outputKey] = <String, dynamic>{
+              'ok': false,
+              'error': _kMissingAuthMessage,
+            };
+            continue;
+          }
+          final bool authenticated = auth.isAuthenticated;
           if (!_isAllowed(
               canisterId: canisterId,
               method: method,
               mode: mode,
               authenticated: authenticated)) {
-            outputs[label.isEmpty ? method : label] = {
+            outputs[outputKey] = <String, dynamic>{
               'ok': false,
               'error': 'denied'
             };
@@ -286,22 +322,22 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
                 canisterId: canisterId,
                 method: method,
                 kind: mode,
-                privateKeyB64: key,
+                privateKeyB64: auth.privateKey!,
                 args: args,
                 host: host);
           }
           if (out == null || out.trim().isEmpty) {
-            outputs[label.isEmpty ? method : label] = {
+            outputs[outputKey] = <String, dynamic>{
               'ok': false,
               'error': 'empty'
             };
           } else {
             try {
-              outputs[label.isEmpty ? method : label] = json.decode(out);
+              outputs[outputKey] = json.decode(out);
             } on FormatException catch (e) {
               debugPrint(
                   'script_app_host: batch result not JSON, passing raw: $e');
-              outputs[label.isEmpty ? method : label] = out;
+              outputs[outputKey] = out;
             }
           }
         }
@@ -355,6 +391,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
       required String method,
       required int mode,
       required bool authenticated,
+      required String authLabel,
       String? argsPreview}) async {
     final String key = _keyFor(
         canisterId: canisterId,
@@ -365,7 +402,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
     final _Decision decision = await _showPermissionDialog(
       title: 'Allow canister call?',
       details:
-          '${authenticated ? 'Authenticated' : 'Anonymous'} ${_modeLabel(mode)}\n$canisterId.$method\nargs: ${_truncate(argsPreview ?? '()')}',
+          '$authLabel ${_modeLabel(mode)}\n$canisterId.$method\nargs: ${_truncate(argsPreview ?? '()')}',
       allowLabel: 'Allow once',
       allowAlwaysLabel: 'Always allow',
     );
@@ -386,16 +423,16 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
       final int mode = (item['mode'] as num? ?? 0).toInt();
       final String canisterId = (item['canister_id'] as String? ?? '').trim();
       final String method = (item['method'] as String? ?? '').trim();
-      final String? key = (item['private_key_b64'] as String?)?.trim();
-      final bool authenticated = key != null && key.isNotEmpty;
+      final _ResolvedAuth auth = _resolveAuthForCall(item);
+      if (auth.missingAuth) continue; // surfaced as an error in execution
+      final bool authenticated = auth.isAuthenticated;
       final String k = _keyFor(
           canisterId: canisterId,
           method: method,
           mode: mode,
           authenticated: authenticated);
       if (_sessionAllow[k] == true) continue;
-      lines.add(
-          '${authenticated ? 'Auth' : 'Anon'} ${_modeLabel(mode)} $canisterId.$method');
+      lines.add('${auth.label} ${_modeLabel(mode)} $canisterId.$method');
     }
     if (lines.isEmpty) return true;
     final _Decision decision = await _showPermissionDialog(
@@ -410,8 +447,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
         final int mode = (item['mode'] as num? ?? 0).toInt();
         final String canisterId = (item['canister_id'] as String? ?? '').trim();
         final String method = (item['method'] as String? ?? '').trim();
-        final String? key = (item['private_key_b64'] as String?)?.trim();
-        final bool authenticated = key != null && key.isNotEmpty;
+        final bool authenticated = _resolveAuthForCall(item).isAuthenticated;
         final String k = _keyFor(
             canisterId: canisterId,
             method: method,
@@ -466,6 +502,33 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
       default:
         return 'Query';
     }
+  }
+
+  /// Resolve the private key for a single effect/item with this priority:
+  ///   1. explicit `private_key_b64` (compat),
+  ///   2. `authenticated: true` + [widget.authenticatedKeypair] (sign as me),
+  ///   3. anonymous.
+  /// When auth is requested but no keypair is available, returns
+  /// [missingAuth] = true so the caller surfaces a LOUD error instead of
+  /// silently degrading to anonymous.
+  _ResolvedAuth _resolveAuthForCall(Map<String, dynamic> spec) {
+    final String? explicitKey =
+        (spec['private_key_b64'] as String?)?.trim();
+    if (explicitKey != null && explicitKey.isNotEmpty) {
+      return _ResolvedAuth(
+          privateKey: explicitKey, label: 'Authenticated (explicit key)');
+    }
+    final bool wantAuth = (spec['authenticated'] as bool?) ?? false;
+    if (wantAuth) {
+      final ProfileKeypair? kp = widget.authenticatedKeypair;
+      if (kp == null) {
+        return const _ResolvedAuth(
+            label: 'Authenticated (no keypair)', missingAuth: true);
+      }
+      return _ResolvedAuth(
+          privateKey: kp.privateKey, label: 'Authenticated (active profile)');
+    }
+    return const _ResolvedAuth(label: 'Anonymous');
   }
 
   String _truncate(String s, {int max = 160}) {
@@ -539,3 +602,17 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
 }
 
 enum _Decision { deny, allowOnce, allowAlways }
+
+/// Resolved signing identity + human label for a single effect/item.
+class _ResolvedAuth {
+  const _ResolvedAuth({this.privateKey, required this.label, this.missingAuth = false});
+  final String? privateKey;
+  final String label;
+  final bool missingAuth;
+  bool get isAuthenticated => privateKey != null && privateKey!.isNotEmpty;
+}
+
+/// Surfaced verbatim when an effect opts into `authenticated: true` but no
+/// active-profile keypair is wired into the host. Never a silent anon fallback.
+const String _kMissingAuthMessage =
+    'authenticated call requested but no active profile keypair';
