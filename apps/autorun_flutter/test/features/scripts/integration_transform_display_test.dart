@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/script_controller.dart';
 import 'package:icp_autorun/services/script_runner.dart';
-import 'package:icp_autorun/widgets/script_app_host.dart';
 
+import '_scripts_test_harness.dart';
 import 'integration_transform_helpers.dart';
 
 void main() {
@@ -111,19 +111,12 @@ end
           bundleOverride: searchableScript,
         );
 
-        // Build the widget tree
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.bundle,
-            ),
-          ),
+        // Build the widget tree + allow async init/view to complete
+        await pumpScriptApp(
+          tester,
+          runtime: ScriptAppRuntime(MockCanisterBridge()),
+          bundle: script.bundle,
         );
-
-        // Allow async init/view to complete
-        await tester.pump();
-        await tester.pumpAndSettle();
 
         // Verify initial UI state
         expect(find.text('Complete Flow Demo'), findsOneWidget);
@@ -259,17 +252,11 @@ end
           bundleOverride: batchScript,
         );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.bundle,
-            ),
-          ),
+        await pumpScriptApp(
+          tester,
+          runtime: ScriptAppRuntime(MockCanisterBridge()),
+          bundle: script.bundle,
         );
-
-        await tester.pump();
-        await tester.pumpAndSettle();
 
         // Initial state
         expect(find.text('Batch Processing Demo'), findsOneWidget);
@@ -375,17 +362,11 @@ end
           bundleOverride: errorHandlingScript,
         );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ScriptAppHost(
-              runtime: ScriptAppRuntime(MockCanisterBridge()),
-              script: script.bundle,
-            ),
-          ),
+        await pumpScriptApp(
+          tester,
+          runtime: ScriptAppRuntime(MockCanisterBridge()),
+          bundle: script.bundle,
         );
-
-        await tester.pump();
-        await tester.pumpAndSettle();
 
         expect(find.text('Error Handling Demo'), findsOneWidget);
 

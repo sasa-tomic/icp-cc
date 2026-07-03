@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/services/search_history_service.dart';
-import 'package:icp_autorun/widgets/connectivity_scope.dart';
-import '../../shared/fake_connectivity_service.dart';
+
+import '_scripts_test_harness.dart';
 
 void main() {
   group('Search History UI', () {
@@ -13,32 +12,14 @@ void main() {
     });
 
     testWidgets('search field is present on ScriptsScreen', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ConnectivityScope(
-            service: FakeConnectivityService(),
-            child: const ScriptsScreen(),
-          ),
-        ),
-      );
-
-      await tester.pump(const Duration(seconds: 2));
+      await pumpScriptsScreen(tester);
 
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Search scripts...'), findsOneWidget);
     });
 
     testWidgets('search field has search icon', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ConnectivityScope(
-            service: FakeConnectivityService(),
-            child: const ScriptsScreen(),
-          ),
-        ),
-      );
-
-      await tester.pump(const Duration(seconds: 2));
+      await pumpScriptsScreen(tester);
 
       expect(find.byIcon(Icons.search), findsWidgets);
     });
@@ -48,16 +29,7 @@ void main() {
       await service.clearHistory();
       await service.addSearchQuery('test query');
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ConnectivityScope(
-            service: FakeConnectivityService(),
-            child: const ScriptsScreen(),
-          ),
-        ),
-      );
-
-      await tester.pump(const Duration(seconds: 2));
+      await pumpScriptsScreen(tester);
 
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pump(const Duration(milliseconds: 100));
@@ -73,19 +45,9 @@ void main() {
       await service.clearHistory();
       await service.addSearchQuery('previous search');
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ConnectivityScope(
-            service: FakeConnectivityService(),
-            child: const ScriptsScreen(),
-          ),
-        ),
-      );
+      await pumpScriptsScreen(tester);
 
-      await tester.pump(const Duration(seconds: 2));
-
-      final searchField = find.byType(TextField);
-      await tester.tap(searchField);
+      await tester.tap(find.byType(TextField));
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Recent Searches'), findsOneWidget);
@@ -99,44 +61,24 @@ void main() {
       await service.clearHistory();
       await service.addSearchQuery('lua script');
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ConnectivityScope(
-            service: FakeConnectivityService(),
-            child: const ScriptsScreen(),
-          ),
-        ),
-      );
+      await pumpScriptsScreen(tester);
 
-      await tester.pump(const Duration(seconds: 2));
-
-      final searchField = find.byType(TextField);
-      await tester.tap(searchField);
+      await tester.tap(find.byType(TextField));
       await tester.pump(const Duration(milliseconds: 500));
 
       await tester.tap(find.text('lua script'));
       await tester.pump(const Duration(milliseconds: 500));
 
-      final textField = tester.widget<TextField>(searchField);
+      final textField = tester.widget<TextField>(find.byType(TextField));
       expect(textField.controller?.text, equals('lua script'));
 
       await service.clearHistory();
     });
 
     testWidgets('typing in search field shows clear button', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ConnectivityScope(
-            service: FakeConnectivityService(),
-            child: const ScriptsScreen(),
-          ),
-        ),
-      );
+      await pumpScriptsScreen(tester);
 
-      await tester.pump(const Duration(seconds: 2));
-
-      final searchField = find.byType(TextField);
-      await tester.enterText(searchField, 'test search');
+      await tester.enterText(find.byType(TextField), 'test search');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
@@ -144,19 +86,9 @@ void main() {
     });
 
     testWidgets('clear button clears search field', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ConnectivityScope(
-            service: FakeConnectivityService(),
-            child: const ScriptsScreen(),
-          ),
-        ),
-      );
+      await pumpScriptsScreen(tester);
 
-      await tester.pump(const Duration(seconds: 2));
-
-      final searchField = find.byType(TextField);
-      await tester.enterText(searchField, 'test search');
+      await tester.enterText(find.byType(TextField), 'test search');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
@@ -164,7 +96,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      final textField = tester.widget<TextField>(searchField);
+      final textField = tester.widget<TextField>(find.byType(TextField));
       expect(textField.controller?.text, isEmpty);
     });
   });

@@ -8,18 +8,15 @@ import 'package:icp_autorun/models/script_template.dart';
 import 'package:icp_autorun/screens/account_registration_prompt_dialog.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
-import 'package:icp_autorun/widgets/connectivity_scope.dart';
-import 'package:icp_autorun/widgets/profile_scope.dart';
 import 'package:icp_autorun/widgets/quick_upload_dialog.dart';
 import 'package:icp_autorun/widgets/script_execution_bottom_sheet.dart';
 import 'package:icp_autorun/widgets/script_row_menus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../shared/fake_connectivity_service.dart';
 import '../../shared/fake_secure_keypair_repository.dart';
 import '../../shared/mock_script_repository.dart';
 import '../../shared/test_keypair_factory.dart';
-import 'fake_marketplace_open_api.dart';
+import '_scripts_test_harness.dart';
 
 const String _tsBundle = '"use strict";\n'
     '(() => {\n'
@@ -64,21 +61,14 @@ Future<void> _driveCreateToPublishSnackbar(
   WidgetTester tester, {
   required ProfileController profileController,
 }) async {
-  await tester.pumpWidget(
-    ProfileScope(
-      controller: profileController,
-      child: MaterialApp(
-        home: ConnectivityScope(
-          service: FakeConnectivityService(),
-          child: ScriptsScreen(
-            controller: ScriptController(MockScriptRepository()),
-            marketplaceService: FakeMarketplaceOpenApi(scripts: [_freePublicScript()]),
-          ),
-        ),
-      ),
-    ),
+  await pumpScriptsScreen(
+    tester,
+    controller: ScriptController(MockScriptRepository()),
+    marketplaceService:
+        FakeMarketplaceOpenApi(scripts: [_freePublicScript()]),
+    profileController: profileController,
+    settle: const Duration(seconds: 1),
   );
-  await tester.pump(const Duration(seconds: 1));
 
   tester.state<ScriptsScreenState>(find.byType(ScriptsScreen)).createNewScript();
   await tester.pump();
@@ -108,18 +98,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final fake = FakeMarketplaceOpenApi(scripts: [_freePublicScript()]);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ConnectivityScope(
-          service: FakeConnectivityService(),
-          child: ScriptsScreen(
-            controller: ScriptController(MockScriptRepository()),
-            marketplaceService: fake,
-          ),
-        ),
-      ),
+    await pumpScriptsScreen(
+      tester,
+      controller: ScriptController(MockScriptRepository()),
+      marketplaceService: fake,
+      settle: const Duration(seconds: 1),
     );
-    await tester.pump(const Duration(seconds: 1));
 
     final overflow = find.descendant(
       of: find.byType(MarketplaceScriptRowMenu),

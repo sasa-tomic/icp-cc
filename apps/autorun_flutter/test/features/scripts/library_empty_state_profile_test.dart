@@ -2,38 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/widgets/scripts_empty_state.dart';
 
+import '_scripts_test_harness.dart';
+
 /// WU-1: Profile-aware Scripts empty-state.
 ///
 /// When the user dismissed the first-run wizard without creating a profile, the
 /// `library` variant must offer a "Set Up Profile" CTA instead of the
 /// keypair-dependent Create / Browse actions.
 void main() {
-  group('ScriptsEmptyState library variant (WU-1)', () {
-    Future<void> pump(
-      WidgetTester tester, {
-      required bool hasProfile,
-      VoidCallback? onSetupProfile,
-      VoidCallback? onCreateScript,
-      VoidCallback? onBrowseMarketplace,
-    }) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ScriptsEmptyState(
-              kind: ScriptsEmptyStateKind.library,
-              hasProfile: hasProfile,
-              onSetupProfile: onSetupProfile,
-              onCreateScript: onCreateScript,
-              onBrowseMarketplace: onBrowseMarketplace,
-            ),
-          ),
-        ),
-      );
-      // Run the ModernEmptyState entrance animations to completion.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 600));
-    }
+  Future<void> pump(
+    WidgetTester tester, {
+    required bool hasProfile,
+    VoidCallback? onSetupProfile,
+    VoidCallback? onCreateScript,
+    VoidCallback? onBrowseMarketplace,
+  }) async {
+    await pumpInScaffold(
+      tester,
+      ScriptsEmptyState(
+        kind: ScriptsEmptyStateKind.library,
+        hasProfile: hasProfile,
+        onSetupProfile: onSetupProfile,
+        onCreateScript: onCreateScript,
+        onBrowseMarketplace: onBrowseMarketplace,
+      ),
+    );
+    // Run the ModernEmptyState entrance animations to completion.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+  }
 
+  group('ScriptsEmptyState library variant (WU-1)', () {
     testWidgets(
         'hasProfile=false shows "Set Up Profile" and hides Create / Browse',
         (tester) async {
@@ -77,15 +76,12 @@ void main() {
     });
 
     testWidgets('omitting hasProfile defaults to legacy CTAs', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ScriptsEmptyState(
-              kind: ScriptsEmptyStateKind.library,
-              onCreateScript: () {},
-              onBrowseMarketplace: () {},
-            ),
-          ),
+      await pumpInScaffold(
+        tester,
+        ScriptsEmptyState(
+          kind: ScriptsEmptyStateKind.library,
+          onCreateScript: () {},
+          onBrowseMarketplace: () {},
         ),
       );
       await tester.pump();
