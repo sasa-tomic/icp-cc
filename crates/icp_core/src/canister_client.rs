@@ -537,7 +537,7 @@ pub fn fetch_candid(canister_id: &str, host: Option<&str>) -> Result<String, Can
     };
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let bytes = match rt.block_on(timeout(CANISTER_CALL_TIMEOUT, fut)) {
+    let bytes = match rt.block_on(async { timeout(CANISTER_CALL_TIMEOUT, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
             return Err(CanisterClientError::Net(format!("read_state: {e}")));
@@ -611,7 +611,7 @@ pub fn call_anonymous(
     };
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let out = match rt.block_on(timeout(CANISTER_CALL_TIMEOUT, fut)) {
+    let out = match rt.block_on(async { timeout(CANISTER_CALL_TIMEOUT, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
             return Err(CanisterClientError::Net(format!("call: {e}")));
@@ -704,7 +704,7 @@ pub fn call_authenticated(
     };
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let out = match rt.block_on(timeout(CANISTER_CALL_TIMEOUT, fut)) {
+    let out = match rt.block_on(async { timeout(CANISTER_CALL_TIMEOUT, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
             return Err(CanisterClientError::Net(format!("call: {e}")));
