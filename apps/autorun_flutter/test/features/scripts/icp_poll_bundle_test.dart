@@ -243,12 +243,14 @@ void main() {
           script: bundle, initialArg: _initialArg(), budgetMs: 1000);
       final state = Map<String, dynamic>.from(initObj['state'] as Map);
 
-      // Empty question + single option → must NOT emit a createPoll effect.
+      // Empty question + empty options → question check fires first; no effect.
       final obj = await rt.update(
           script: bundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
       expect((obj['effects'] as List), isEmpty);
-      expect(
-          (obj['state'] as Map<String, dynamic>)['error'].toString().length, greaterThan(0));
+      // Verify the SPECIFIC message so a regression that swaps branches or
+      // drops the text is caught — not just "some non-empty string".
+      expect((obj['state'] as Map<String, dynamic>)['error'],
+          'Question must not be empty');
     });
   });
 }

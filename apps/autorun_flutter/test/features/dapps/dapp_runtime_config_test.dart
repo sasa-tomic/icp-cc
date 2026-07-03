@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/config/example_dapps.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Unit coverage for [DappRuntimeConfig]: the override-wins-over-default rule,
-/// a save→load round-trip, and [DappRuntimeConfig.clear] restoring defaults.
+/// Unit coverage for [DappRuntimeConfig]: the override-wins-over-default rule
+/// (which also proves a full save→load round-trip), per-field partial override,
+/// and [DappRuntimeConfig.clear] restoring defaults.
 void main() {
   const DappDescriptor descriptor = DappDescriptor(
     id: 'test_dapp',
@@ -58,18 +59,6 @@ void main() {
   });
 
   group('DappRuntimeConfig round-trip', () {
-    test('save then load returns exactly what was saved', () async {
-      await DappRuntimeConfig.save(
-        descriptor.id,
-        backendCanisterId: 'aaaaa-aa',
-        host: 'http://1.2.3.4:4943',
-      );
-
-      final cfg = await DappRuntimeConfig.load(descriptor);
-      expect(cfg.backendCanisterId, 'aaaaa-aa');
-      expect(cfg.host, 'http://1.2.3.4:4943');
-    });
-
     test('save updates only the field passed (partial override)', () async {
       await DappRuntimeConfig.save(descriptor.id, backendCanisterId: 'only-id');
 
