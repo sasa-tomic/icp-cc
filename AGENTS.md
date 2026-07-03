@@ -1,5 +1,7 @@
 # Project Rules for AI Agents
 
+> **Human expectations (intent of record):** [`docs/HUMAN_EXPECTATIONS.md`](docs/HUMAN_EXPECTATIONS.md) — what humans value; distils the rules below. Read alongside this file.
+
 ## CRITICAL: Read This First
 
 You work **INDEPENDENTLY**. Make reasonable decisions on UX, data structures, APIs, defaults. Only ask for high-level steering on major direction.
