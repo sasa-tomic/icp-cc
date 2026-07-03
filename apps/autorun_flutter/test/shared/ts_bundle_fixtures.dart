@@ -25,6 +25,25 @@ String loadPilotBundle() {
       '${_pilotBundleCandidates.join("\n")}');
 }
 
+const List<String> _pollBundleCandidates = <String>[
+  'lib/examples/06_icp_poll.js',
+  'apps/autorun_flutter/lib/examples/06_icp_poll.js',
+  '/code/icp-cc/apps/autorun_flutter/lib/examples/06_icp_poll.js',
+];
+
+/// Loads the on-chain poll app-lifecycle bundle (06_icp_poll.js). Centralized
+/// here next to [loadPilotBundle] so every bundle loader lives in one module.
+String loadPollBundle() {
+  for (final String path in _pollBundleCandidates) {
+    final File f = File(path);
+    if (f.existsSync()) {
+      return f.readAsStringSync();
+    }
+  }
+  fail('06_icp_poll.js not found in any candidate location:\n'
+      '${_pollBundleCandidates.join("\n")}');
+}
+
 bool nativeLibAvailable(RustBridgeLoader loader) {
   final String? probe = loader.jsExec(script: '1', jsonArg: null);
   return probe != null;

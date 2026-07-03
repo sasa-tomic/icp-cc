@@ -15,22 +15,25 @@ import '../../shared/ts_bundle_fixtures.dart';
 const String _backendId = 'uxrrr-q7777-77774-qaaaq-cai';
 const String _host = 'http://127.0.0.1:4943';
 
-const List<String> _bundleCandidates = <String>[
-  'lib/examples/06_icp_poll.js',
-  'apps/autorun_flutter/lib/examples/06_icp_poll.js',
-  '/code/icp-cc/apps/autorun_flutter/lib/examples/06_icp_poll.js',
-];
-
-String loadPollBundle() {
-  for (final String path in _bundleCandidates) {
-    final File f = File(path);
-    if (f.existsSync()) return f.readAsStringSync();
-  }
-  fail('06_icp_poll.js not found in candidates:\n${_bundleCandidates.join("\n")}');
-}
-
 Map<String, dynamic> _initialArg() =>
     <String, dynamic>{'backend_id': _backendId, 'host': _host};
+
+/// Boot the bundle + run init once, returning the runtime and the resulting
+/// state. Returns null (with a SKIP log) when libicp_core.so isn't available in
+/// this environment — callers `return` on null. Collapses the skip-guard +
+/// boot + init + state-extract block that would otherwise repeat per test.
+Future<(ScriptAppRuntime, Map<String, dynamic>)?> _boot(String script) async {
+  final RustBridgeLoader loader = const RustBridgeLoader();
+  if (!nativeLibAvailable(loader)) {
+    stdout.writeln('SKIP: libicp_core.so did not load');
+    return null;
+  }
+  final ScriptAppRuntime rt = bootRuntime();
+  final Map<String, dynamic> state = Map<String, dynamic>.from((await rt.init(
+          script: script, initialArg: _initialArg(), budgetMs: 1000))['state']
+      as Map);
+  return (rt, state);
+}
 
 /// Walk a UI tree and collect every text node's text + every button's label.
 void _collectTextsAndButtons(Map<String, dynamic> node,
@@ -54,8 +57,8 @@ void _collectTextsAndButtons(Map<String, dynamic> node,
 }
 
 void main() {
+  final String pollBundle = loadPollBundle();
   final RustBridgeLoader loader = const RustBridgeLoader();
-  final String bundle = loadPollBundle();
 
   group('06_icp_poll bundle', () {
     test('init stores backend_id/host and starts empty', () async {
@@ -63,9 +66,11 @@ void main() {
         stdout.writeln('SKIP: libicp_core.so did not load');
         return;
       }
+      // This test inspects init's output directly, so it does its own boot
+      // (the _boot() helper below consumes init and returns only state+rt).
       final ScriptAppRuntime rt = bootRuntime();
       final obj = await rt.init(
-          script: bundle, initialArg: _initialArg(), budgetMs: 1000);
+          script: pollBundle, initialArg: _initialArg(), budgetMs: 1000);
       final state = Map<String, dynamic>.from(obj['state'] as Map);
       expect(state['backend_id'], _backendId);
       expect(state['host'], _host);
@@ -76,17 +81,12 @@ void main() {
 
     test('refresh emits whoami(auth) + listPolls(anon) with the right target',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final initObj = await rt.init(
-          script: bundle, initialArg: _initialArg(), budgetMs: 1000);
-      final state = Map<String, dynamic>.from(initObj['state'] as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
 
       final obj = await rt.update(
-          script: bundle, msg: {'type': 'refresh'}, state: state, budgetMs: 1000);
+          script: pollBundle, msg: {'type': 'refresh'}, state: state, budgetMs: 1000);
       final effects = obj['effects'] as List<dynamic>;
       expect(effects, hasLength(2));
 
@@ -108,17 +108,12 @@ void main() {
     });
 
     test('vote emits an authenticated UPDATE effect with mode 1', () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final initObj = await rt.init(
-          script: bundle, initialArg: _initialArg(), budgetMs: 1000);
-      final state = Map<String, dynamic>.from(initObj['state'] as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
 
       final obj = await rt.update(
-          script: bundle,
+          script: pollBundle,
           msg: {'type': 'vote', 'pollId': '3', 'optionIndex': 1},
           state: state,
           budgetMs: 1000);
@@ -136,19 +131,16 @@ void main() {
 
     test('listPolls effect/result builds poll UI with vote buttons + tally',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      var state = Map<String, dynamic>.from(
-          (await rt.init(script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
-              as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final ScriptAppRuntime rt = boot.$1;
+      // listPolls + getTally each return an updated state we re-feed.
+      var state = boot.$2;
 
       // Feed listPolls success (real shape: data.ok=true, data.result=[polls]).
       // Principal serializes as a STRING in the `creator` field.
       final listOut = await rt.update(
-          script: bundle,
+          script: pollBundle,
           msg: <String, dynamic>{
             'type': 'effect/result',
             'id': 'listPolls',
@@ -177,7 +169,7 @@ void main() {
 
       // Feed getTally success (real shape: vec nat → numeric strings).
       final tallyOut = await rt.update(
-          script: bundle,
+          script: pollBundle,
           msg: <String, dynamic>{
             'type': 'effect/result',
             'id': 'tally:3',
@@ -195,7 +187,7 @@ void main() {
 
       // Render the view and assert the poll UI nodes appear.
       final viewObj =
-          await rt.view(script: bundle, state: state, budgetMs: 1000);
+          await rt.view(script: pollBundle, state: state, budgetMs: 1000);
       final ui = viewObj['ui'] as Map<String, dynamic>;
       final List<String> texts = <String>[];
       final List<String> buttonLabels = <String>[];
@@ -209,17 +201,12 @@ void main() {
     });
 
     test('an ok:false result sets state.error LOUDLY', () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final initObj = await rt.init(
-          script: bundle, initialArg: _initialArg(), budgetMs: 1000);
-      final state = Map<String, dynamic>.from(initObj['state'] as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
 
       final obj = await rt.update(
-          script: bundle,
+          script: pollBundle,
           msg: <String, dynamic>{
             'type': 'effect/result',
             'id': 'listPolls',
@@ -234,18 +221,13 @@ void main() {
 
     test('create validates inputs client-side (LOUD error, no effect emitted)',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final initObj = await rt.init(
-          script: bundle, initialArg: _initialArg(), budgetMs: 1000);
-      final state = Map<String, dynamic>.from(initObj['state'] as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
 
       // Empty question + empty options → question check fires first; no effect.
       final obj = await rt.update(
-          script: bundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
+          script: pollBundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
       expect((obj['effects'] as List), isEmpty);
       // Verify the SPECIFIC message so a regression that swaps branches or
       // drops the text is caught — not just "some non-empty string".
@@ -254,20 +236,15 @@ void main() {
     });
 
     test('create with one option is rejected at the ≥2 boundary', () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final state = Map<String, dynamic>.from((await rt.init(
-              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
-          as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
       // Non-empty question but only ONE option → options check must fire.
       state['newQuestion'] = 'Favourite colour?';
       state['newOptions'] = 'red';
 
       final obj = await rt.update(
-          script: bundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
+          script: pollBundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
       expect((obj['effects'] as List), isEmpty);
       expect(
           (obj['state'] as Map<String, dynamic>)['error'],
@@ -276,20 +253,15 @@ void main() {
 
     test('create with exactly two options emits an authed createPoll UPDATE',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final state = Map<String, dynamic>.from((await rt.init(
-              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
-          as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
       // Boundary: exactly 2 options is the minimum legal create.
       state['newQuestion'] = 'Tea or coffee?';
       state['newOptions'] = 'Tea, Coffee';
 
       final obj = await rt.update(
-          script: bundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
+          script: pollBundle, msg: {'type': 'create'}, state: state, budgetMs: 1000);
       final effects = obj['effects'] as List<dynamic>;
       expect(effects, hasLength(1));
       final eff = effects.first as Map<String, dynamic>;
@@ -310,20 +282,15 @@ void main() {
 
     test('whoami missing-auth error keeps principal empty (view-only, NOT loud)',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final state = Map<String, dynamic>.from((await rt.init(
-              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
-          as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
 
       // Host delivers the exact missing-auth envelope (mirrors
       // _kMissingAuthMessage in script_app_host.dart) — the only whoami failure
       // that is treated as expected/non-fatal.
       final obj = await rt.update(
-          script: bundle,
+          script: pollBundle,
           msg: <String, dynamic>{
             'type': 'effect/result',
             'id': 'whoami',
@@ -342,19 +309,14 @@ void main() {
 
     test('whoami OTHER error is surfaced LOUDLY with a whoami: prefix',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final state = Map<String, dynamic>.from((await rt.init(
-              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
-          as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
 
       // Any whoami failure that is NOT missing-auth (replica down, canister
       // fault, ...) must be loud so the user knows the view is stale.
       final obj = await rt.update(
-          script: bundle,
+          script: pollBundle,
           msg: <String, dynamic>{
             'type': 'effect/result',
             'id': 'whoami',
@@ -369,20 +331,15 @@ void main() {
 
     test('getTally error surfaces a "tally <id>:" prefix in state.error (M1 fix)',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load');
-        return;
-      }
-      final ScriptAppRuntime rt = bootRuntime();
-      final state = Map<String, dynamic>.from((await rt.init(
-              script: bundle, initialArg: _initialArg(), budgetMs: 1000))['state']
-          as Map);
+      final boot = await _boot(pollBundle);
+      if (boot == null) return;
+      final (rt, state) = boot;
 
       // A failed tally (e.g. transient read_state error) must NOT be swallowed —
       // the bundle prefixes it with the poll id so the user can see WHICH poll
       // failed. This is the M1 loud-error fix.
       final obj = await rt.update(
-          script: bundle,
+          script: pollBundle,
           msg: <String, dynamic>{
             'type': 'effect/result',
             'id': 'tally:7',
