@@ -32,6 +32,7 @@ const Map<String, ShortcutSpec> kShortcutSpecs = <String, ShortcutSpec>{
   'refresh': ShortcutSpec('Refresh scripts', 'R'),
   'tab1': ShortcutSpec('Go to Scripts', 'Alt+1'),
   'tab2': ShortcutSpec('Go to Canisters', 'Alt+2'),
+  'tab3': ShortcutSpec('Go to Dapps', 'Alt+3'),
   'help': ShortcutSpec('Show keyboard shortcuts', '?'),
 };
 
@@ -131,6 +132,8 @@ class DesktopShortcuts extends StatelessWidget {
               const _NavigateTabIntent(0),
           const SingleActivator(LogicalKeyboardKey.digit2, alt: true):
               const _NavigateTabIntent(1),
+          const SingleActivator(LogicalKeyboardKey.digit3, alt: true):
+              const _NavigateTabIntent(2),
           // `/` (GitHub/YouTube) and Ctrl/Cmd+F (browser) both focus search.
           // Both are guard-disabled while typing (see _GuardedAction) so the
           // user can still type a literal `/` into any text field.

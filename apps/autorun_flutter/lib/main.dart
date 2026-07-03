@@ -19,6 +19,7 @@ import 'services/spotlight_service.dart';
 import 'theme/app_design_system.dart';
 import 'theme/modern_components.dart';
 import 'screens/bookmarks_screen.dart';
+import 'screens/dapps_screen.dart';
 import 'screens/scripts_screen.dart';
 import 'screens/unified_setup_wizard.dart';
 import 'widgets/connectivity_scope.dart';
@@ -265,7 +266,7 @@ class _MainHomePageState extends State<MainHomePage> {
   }
 
   void _handleNavigateToTab(int index) {
-    if (index >= 0 && index < 2) {
+    if (index >= 0 && index < 3) {
       setState(() => _currentIndex = index);
     }
   }
@@ -404,6 +405,7 @@ class _MainHomePageState extends State<MainHomePage> {
                             children: <Widget>[
                               ScriptsScreen(key: _scriptsScreenKey),
                               BookmarksScreen(bridge: _bridge),
+                              const DappsScreen(),
                             ],
                           ),
                         ),
@@ -458,6 +460,11 @@ class _MainHomePageState extends State<MainHomePage> {
           icon: Icons.dns_outlined,
           activeIcon: Icons.dns_rounded,
           label: kCanistersTabLabel,
+        ),
+        ModernNavigationItem(
+          icon: Icons.apps_outlined,
+          activeIcon: Icons.apps_rounded,
+          label: 'Dapps',
         ),
       ],
     );

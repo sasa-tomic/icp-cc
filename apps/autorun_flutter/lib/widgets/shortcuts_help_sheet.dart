@@ -25,7 +25,7 @@ class ShortcutsHelpSheet extends StatelessWidget {
   const ShortcutsHelpSheet({super.key});
 
   static const List<_ShortcutGroup> _groups = <_ShortcutGroup>[
-    _ShortcutGroup('Navigation', ['tab1', 'tab2']),
+    _ShortcutGroup('Navigation', ['tab1', 'tab2', 'tab3']),
     _ShortcutGroup('Scripts', ['new', 'search', 'refresh']),
     _ShortcutGroup('Help', ['help']),
   ];
