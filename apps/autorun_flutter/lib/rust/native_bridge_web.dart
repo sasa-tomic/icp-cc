@@ -42,7 +42,7 @@ class RustBridgeLoader {
   String? callAnonymous({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     String args = '()',
     String? host,
   }) =>
@@ -51,7 +51,7 @@ class RustBridgeLoader {
   String? callAuthenticated({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,

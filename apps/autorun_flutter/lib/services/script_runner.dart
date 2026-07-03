@@ -25,7 +25,7 @@ class CanisterCallSpec {
     required this.label,
     required this.canisterId,
     required this.method,
-    required this.kind,
+    required this.mode,
     this.argsJson = '()',
     this.host,
     this.privateKeyB64,
@@ -39,7 +39,7 @@ class CanisterCallSpec {
   final String method;
 
   /// 0=query, 1=update, 2=composite
-  final int kind;
+  final int mode;
   final String argsJson;
   final String? host;
 
@@ -83,7 +83,7 @@ abstract class ScriptBridge {
   String? callAnonymous({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     String args,
     String? host,
   });
@@ -91,7 +91,7 @@ abstract class ScriptBridge {
   String? callAuthenticated({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     required String privateKeyB64,
     String args,
     String? host,
@@ -118,13 +118,13 @@ class RustScriptBridge implements ScriptBridge {
   String? callAnonymous(
       {required String canisterId,
       required String method,
-      required int kind,
+      required int mode,
       String args = '()',
       String? host}) {
     return _bridge.callAnonymous(
         canisterId: canisterId,
         method: method,
-        kind: kind,
+        mode: mode,
         args: args,
         host: host);
   }
@@ -133,14 +133,14 @@ class RustScriptBridge implements ScriptBridge {
   String? callAuthenticated(
       {required String canisterId,
       required String method,
-      required int kind,
+      required int mode,
       required String privateKeyB64,
       String args = '()',
       String? host}) {
     return _bridge.callAuthenticated(
       canisterId: canisterId,
       method: method,
-      kind: kind,
+      mode: mode,
       privateKeyB64: privateKeyB64,
       args: args,
       host: host,
@@ -200,15 +200,15 @@ class ScriptRunner {
       description:
           'Perform a single canister method call. Supports anonymous or authenticated calls. Returns the raw JSON result.',
       example:
-          'return icp_call({\n  canister_id: "aaaaa-aa",\n  method: "greet",\n  kind: 0, // 0=query, 1=update, 2=composite\n  args: "World"\n})',
+          'return icp_call({\n  canister_id: "aaaaa-aa",\n  method: "greet",\n  mode: 0, // 0=query, 1=update, 2=composite\n  args: "World"\n})',
     ),
     IntegrationInfo(
       id: 'icp_batch',
       title: 'Batch calls',
       description:
-          'Execute multiple canister calls and return a map of label→result. Each item can include canister_id, method, kind, args, host, private_key_b64.',
+          'Execute multiple canister calls and return a map of label→result. Each item can include canister_id, method, mode, args, host, private_key_b64.',
       example:
-          'const a = { label: "gov", canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai", method: "get_pending_proposals", kind: 0, args: "()" };\nconst b = { label: "ledger", canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai", method: "query_blocks", kind: 0, args: \'{"start":0,"length":10}\' };\nreturn icp_batch([a, b])',
+          'const a = { label: "gov", canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai", method: "get_pending_proposals", mode: 0, args: "()" };\nconst b = { label: "ledger", canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai", method: "query_blocks", mode: 0, args: \'{"start":0,"length":10}\' };\nreturn icp_batch([a, b])',
     ),
     IntegrationInfo(
       id: 'icp_message',
@@ -327,7 +327,7 @@ class ScriptRunner {
         ((item['label'] as String?) ?? (item['method'] as String? ?? '')).trim();
     final String canisterId = (item['canister_id'] as String?)?.trim() ?? '';
     final String method = (item['method'] as String?)?.trim() ?? '';
-    final int kind = (item['kind'] as num?)?.toInt() ?? 0;
+    final int mode = (item['mode'] as num?)?.toInt() ?? 0;
     final String args = (item['args'] as String?) ?? '()';
     final String? host = (item['host'] as String?)?.trim().isEmpty == true
         ? null
@@ -339,7 +339,7 @@ class ScriptRunner {
       label: label.isEmpty ? defaultLabel : label,
       canisterId: canisterId,
       method: method,
-      kind: kind,
+      mode: mode,
       argsJson: args,
       host: host,
       privateKeyB64: key,
@@ -353,7 +353,7 @@ class ScriptRunner {
       return _bridge.callAnonymous(
         canisterId: spec.canisterId,
         method: spec.method,
-        kind: spec.kind,
+        mode: spec.mode,
         args: spec.argsJson,
         host: spec.host,
       );
@@ -361,7 +361,7 @@ class ScriptRunner {
     return _bridge.callAuthenticated(
       canisterId: spec.canisterId,
       method: spec.method,
-      kind: spec.kind,
+      mode: spec.mode,
       privateKeyB64: privateKey,
       args: spec.argsJson,
       host: spec.host,

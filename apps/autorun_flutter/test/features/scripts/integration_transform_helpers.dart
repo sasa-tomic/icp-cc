@@ -81,7 +81,7 @@ class MockCanisterBridge implements ScriptBridge {
   String? callAnonymous(
       {required String canisterId,
       required String method,
-      required int kind,
+      required int mode,
       String args = '()',
       String? host}) {
     // Simulate different canister responses based on ID and method
@@ -118,7 +118,7 @@ class MockCanisterBridge implements ScriptBridge {
   String? callAuthenticated(
       {required String canisterId,
       required String method,
-      required int kind,
+      required int mode,
       String? keypairId,
       String? privateKeyB64,
       String args = '()',
@@ -126,7 +126,7 @@ class MockCanisterBridge implements ScriptBridge {
     return callAnonymous(
         canisterId: canisterId,
         method: method,
-        kind: kind,
+        mode: mode,
         args: args,
         host: host);
   }

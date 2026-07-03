@@ -2,7 +2,7 @@
 class CanisterMethod {
   const CanisterMethod({
     required this.name,
-    required this.kind,
+    required this.mode,
     required this.args,
     this.returnType,
     this.description,
@@ -10,7 +10,7 @@ class CanisterMethod {
 
   final String name;
   /// 0=query, 1=update, 2=composite
-  final int kind;
+  final int mode;
   final List<CanisterArg> args;
   final String? returnType;
   final String? description;
@@ -18,7 +18,7 @@ class CanisterMethod {
   factory CanisterMethod.fromJson(Map<String, dynamic> json) {
     return CanisterMethod(
       name: json['name'] as String? ?? '',
-      kind: (json['kind'] as num?)?.toInt() ?? 0,
+      mode: (json['mode'] as num?)?.toInt() ?? 0,
       args: (json['args'] as List<dynamic>?)
               ?.map((arg) => CanisterArg.fromJson(arg as Map<String, dynamic>))
               .toList() ??
@@ -31,7 +31,7 @@ class CanisterMethod {
   Map<String, dynamic> toJson() {
     return {
       'name': name,
-      'kind': kind,
+      'mode': mode,
       'args': args.map((arg) => arg.toJson()).toList(),
       'return_type': returnType,
       'description': description,
@@ -43,12 +43,12 @@ class CanisterMethod {
     if (identical(this, other)) return true;
     return other is CanisterMethod &&
         other.name == name &&
-        other.kind == kind &&
+        other.mode == mode &&
         _listEquals(other.args, args);
   }
 
   @override
-  int get hashCode => name.hashCode ^ kind.hashCode ^ args.hashCode;
+  int get hashCode => name.hashCode ^ mode.hashCode ^ args.hashCode;
 
   static bool _listEquals<T>(List<T> a, List<T> b) {
     if (a.length != b.length) return false;

@@ -25,10 +25,10 @@ class _RecordingBridge implements ScriptBridge {
   });
 
   @override
-  String? callAnonymous({required String canisterId, required String method, required int kind, String args = '()', String? host}) => null;
+  String? callAnonymous({required String canisterId, required String method, required int mode, String args = '()', String? host}) => null;
 
   @override
-  String? callAuthenticated({required String canisterId, required String method, required int kind, required String privateKeyB64, String args = '()', String? host}) => null;
+  String? callAuthenticated({required String canisterId, required String method, required int mode, required String privateKeyB64, String args = '()', String? host}) => null;
 
   @override
   String? jsExec({required String script, String? jsonArg}) => null;

@@ -348,7 +348,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   final TextEditingController _canisterController = TextEditingController();
   final FocusNode _canisterFocusNode = FocusNode();
   final TextEditingController _methodController = TextEditingController();
-  int _selectedKind = 0;
+  int _selectedMode = 0;
   final TextEditingController _jsonArgsController = TextEditingController();
   bool _useAutoForm = true;
   List<Map<String, dynamic>> _currentMethodSig = const <Map<String, dynamic>>[];
@@ -554,7 +554,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
 
   void _selectMethod(Map<String, dynamic> method) {
     final String kind = (method['kind'] as String).toLowerCase();
-    final int kindIndex =
+    final int modeIndex =
         kind.contains('update') ? 1 : (kind.contains('composite') ? 2 : 0);
     final resolver = CandidTypeResolver(_candidRaw ?? '');
     final args = (method['args'] as List<dynamic>).cast<String>();
@@ -562,7 +562,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     setState(() {
       _selectedMethod = method;
       _methodController.text = method['name'] as String;
-      _selectedKind = kindIndex;
+      _selectedMode = modeIndex;
       _resolvedArgs = resolvedArgs;
       _currentMethodSig = resolvedArgs
           .asMap()
@@ -610,14 +610,14 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           .showSnackBar(const SnackBar(content: Text('Please provide input')));
       return;
     }
-    CallType callType = _selectedKind == 1
+    CallType callType = _selectedMode == 1
         ? CallType.update
-        : (_selectedKind == 2 ? CallType.compositeQuery : CallType.query);
+        : (_selectedMode == 2 ? CallType.compositeQuery : CallType.query);
     try {
       final String? out = widget.bridge.callAnonymous(
         canisterId: cid,
         method: method,
-        kind: _selectedKind,
+        mode: _selectedMode,
         args: args,
       );
       setState(() {
@@ -1198,13 +1198,13 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   }
 
   Widget _buildCallButton(ThemeData theme, bool isCompact) {
-    final kindLabel = _selectedKind == 1
+    final modeLabel = _selectedMode == 1
         ? TechTerm.update.plainLabel
-        : (_selectedKind == 2 ? 'Complex Read' : TechTerm.query.plainLabel);
+        : (_selectedMode == 2 ? 'Complex Read' : TechTerm.query.plainLabel);
     // call-type category colour (query/update/composite), not a status — see above.
-    final kindColor = _selectedKind == 1
+    final modeColor = _selectedMode == 1
         ? Colors.orange
-        : (_selectedKind == 2 ? Colors.purple : theme.colorScheme.primary);
+        : (_selectedMode == 2 ? Colors.purple : theme.colorScheme.primary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1213,33 +1213,33 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: kindColor.withValues(alpha: 0.15),
+                color: modeColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    _selectedKind == 1
+                    _selectedMode == 1
                         ? Icons.sync_alt
-                        : (_selectedKind == 2
+                        : (_selectedMode == 2
                             ? Icons.merge_type
                             : Icons.search),
                     size: 14,
-                    color: kindColor,
+                    color: modeColor,
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    kindLabel,
+                    modeLabel,
                     style: TextStyle(
-                      color: kindColor,
+                      color: modeColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(width: 4),
                   Tooltip(
-                    message: _selectedKind == 1
+                    message: _selectedMode == 1
                         ? TechTerm.update.plainExplanation
                         : TechTerm.query.plainExplanation,
                     preferBelow: true,
@@ -1247,7 +1247,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                     child: Icon(
                       Icons.info_outline,
                       size: 12,
-                      color: kindColor.withValues(alpha: 0.7),
+                      color: modeColor.withValues(alpha: 0.7),
                     ),
                   ),
                 ],

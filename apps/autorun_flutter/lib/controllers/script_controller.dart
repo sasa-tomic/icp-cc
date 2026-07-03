@@ -137,12 +137,12 @@ const String kDefaultSampleBundle = r'''"use strict";
     }
     if (t === "load_sample") {
       var gov = {
-        label: "gov", kind: 0,
+        label: "gov", mode: 0,
         canister_id: "rrkah-fqaaa-aaaaa-aaaaq-cai",
         method: "get_pending_proposals", args: "()"
       };
       var ledger = {
-        label: "ledger", kind: 0,
+        label: "ledger", mode: 0,
         canister_id: "ryjl3-tyaaa-aaaaa-aaaba-cai",
         method: "query_blocks", args: '{"start":0,"length":3}'
       };

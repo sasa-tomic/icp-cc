@@ -64,7 +64,7 @@ void main() {
       final listOut = loader.callAnonymous(
         canisterId: canister,
         method: 'listPolls',
-        kind: 0,
+        mode: 0,
         args: '()',
         host: host,
       );
@@ -108,7 +108,7 @@ void main() {
       final out = loader.callAuthenticated(
         canisterId: canister,
         method: 'whoami',
-        kind: 0, // query
+        mode: 0, // query
         privateKeyB64: kp.privateKeyB64,
         args: '()',
         host: host,
@@ -146,7 +146,7 @@ void main() {
       final listOut = loader.callAnonymous(
         canisterId: canister,
         method: 'listPolls',
-        kind: 0,
+        mode: 0,
         args: '()',
         host: host,
       );
@@ -160,7 +160,7 @@ void main() {
       final beforeOut = loader.callAnonymous(
         canisterId: canister,
         method: 'getTally',
-        kind: 0,
+        mode: 0,
         args: '("$pollId")',
         host: host,
       );
@@ -175,7 +175,7 @@ void main() {
       final voteOut = loader.callAuthenticated(
         canisterId: canister,
         method: 'vote',
-        kind: 1, // update
+        mode: 1, // update
         privateKeyB64: kp.privateKeyB64,
         args: '("$pollId", 0 : nat)',
         host: host,
@@ -190,7 +190,7 @@ void main() {
       final afterOut = loader.callAnonymous(
         canisterId: canister,
         method: 'getTally',
-        kind: 0,
+        mode: 0,
         args: '("$pollId")',
         host: host,
       );

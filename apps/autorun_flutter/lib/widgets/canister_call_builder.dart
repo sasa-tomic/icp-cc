@@ -25,7 +25,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
 
   String? _selectedCanisterId;
   CanisterMethod? _selectedMethod;
-  int _callKind = 0; // 0=query, 1=update, 2=composite
+  int _callMode = 0; // 0=query, 1=update, 2=composite
   Map<String, dynamic> _args = {};
   bool _isAuthenticated = false;
   String? _keypairId;
@@ -60,7 +60,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     _methodController.text = spec['method'] ?? '';
     _hostController.text = spec['host'] ?? '';
     _labelController.text = spec['label'] ?? 'call1';
-    _callKind = spec['kind'] ?? 0;
+    _callMode = spec['mode'] ?? 0;
     _isAuthenticated = spec['authenticated'] ?? false;
     _keypairId = spec['keypair_id'];
 
@@ -104,7 +104,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
           (m) => m.name == _methodController.text,
           orElse: () => methods.isNotEmpty
               ? methods.first
-              : CanisterMethod(name: '', kind: 0, args: []),
+               : CanisterMethod(name: '', mode: 0, args: []),
         );
       }
     } catch (e) {
@@ -140,7 +140,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     setState(() {
       _selectedMethod = method;
       _methodController.text = method.name;
-      _callKind = method.kind;
+      _callMode = method.mode;
       _args = {};
     });
 
@@ -179,7 +179,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
 
     buffer.writeln('  canister_id: "$_selectedCanisterId",');
     buffer.writeln('  method: "$_selectedMethod",');
-    buffer.writeln('  kind: $_callKind, // ${_getCallKindLabel(_callKind)}');
+    buffer.writeln('  mode: $_callMode, // ${_getCallModeLabel(_callMode)}');
     buffer.writeln('  args: $argsString');
 
     if (_isAuthenticated && _keypairId != null) {
@@ -197,8 +197,8 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     return buffer.toString();
   }
 
-  String _getCallKindLabel(int kind) {
-    switch (kind) {
+  String _getCallModeLabel(int mode) {
+    switch (mode) {
       case 1:
         return 'update';
       case 2:
@@ -327,7 +327,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                       .map((method) => DropdownMenuItem<CanisterMethod>(
                             value: method,
                             child: Text(
-                                '${method.name} (${_getCallKindLabel(method.kind)})'),
+                                  '${method.name} (${_getCallModeLabel(method.mode)})'),
                           ))
                       .toList(),
                   onChanged: _onMethodChanged,
@@ -389,7 +389,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<int>(
-                          initialValue: _callKind,
+                          initialValue: _callMode,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
                           ),
@@ -426,7 +426,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                                 value: 2, child: Text('Complex Read')),
                           ],
                           onChanged: (value) =>
-                              setState(() => _callKind = value ?? 0),
+                              setState(() => _callMode = value ?? 0),
                         ),
                       ],
                     ),

@@ -27,7 +27,7 @@ class _FakeBridge implements ScriptBridge {
   String? callAnonymous({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     String args = '()',
     String? host,
   }) {
@@ -35,7 +35,7 @@ class _FakeBridge implements ScriptBridge {
       'type': 'anonymous',
       'canisterId': canisterId,
       'method': method,
-      'kind': kind,
+      'mode': mode,
       'args': args,
       'host': host,
     });
@@ -46,7 +46,7 @@ class _FakeBridge implements ScriptBridge {
   String? callAuthenticated({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
@@ -55,7 +55,7 @@ class _FakeBridge implements ScriptBridge {
       'type': 'authenticated',
       'canisterId': canisterId,
       'method': method,
-      'kind': kind,
+      'mode': mode,
       'privateKeyB64': privateKeyB64,
       'args': args,
       'host': host,
@@ -115,8 +115,8 @@ void main() {
       final plan = ScriptRunPlan(
         bundle: _bundle,
         calls: [
-          CanisterCallSpec(label: 'a', canisterId: 'cid1', method: 'm1', kind: 0, argsJson: '()'),
-          CanisterCallSpec(label: 'b', canisterId: 'cid2', method: 'm2', kind: 0, argsJson: '()'),
+          CanisterCallSpec(label: 'a', canisterId: 'cid1', method: 'm1', mode: 0, argsJson: '()'),
+          CanisterCallSpec(label: 'b', canisterId: 'cid2', method: 'm2', mode: 0, argsJson: '()'),
         ],
       );
 
@@ -176,7 +176,7 @@ void main() {
         responses: {'abc::go': json.encode({'ok': true, 'echo': 'go'})},
         jsExecResponse: json.encode({
           'ok': true,
-          'result': {'action': 'call', 'canister_id': 'abc', 'method': 'go', 'kind': 0, 'args': '()'},
+          'result': {'action': 'call', 'canister_id': 'abc', 'method': 'go', 'mode': 0, 'args': '()'},
         }),
       );
       final runner = ScriptRunner(bridge);
@@ -190,7 +190,7 @@ void main() {
     test('follow-up call with missing canister_id fails', () async {
       final bridge = _FakeBridge(jsExecResponse: json.encode({
         'ok': true,
-        'result': {'action': 'call', 'method': 'go', 'kind': 0, 'args': '()'},
+        'result': {'action': 'call', 'method': 'go', 'mode': 0, 'args': '()'},
       }));
       final runner = ScriptRunner(bridge);
       final res = await runner.run(ScriptRunPlan(bundle: _bundle));
@@ -209,8 +209,8 @@ void main() {
           'result': {
             'action': 'batch',
             'calls': [
-              {'label': 'a', 'canister_id': 'c1', 'method': 'm1', 'kind': 0, 'args': '()'},
-              {'label': 'b', 'canister_id': 'c2', 'method': 'm2', 'kind': 0, 'args': '()'},
+              {'label': 'a', 'canister_id': 'c1', 'method': 'm1', 'mode': 0, 'args': '()'},
+              {'label': 'b', 'canister_id': 'c2', 'method': 'm2', 'mode': 0, 'args': '()'},
             ],
           },
         }),
@@ -228,7 +228,7 @@ void main() {
       final runner = ScriptRunner(bridge);
       final res = await runner.run(ScriptRunPlan(
         bundle: _bundle,
-        calls: [CanisterCallSpec(label: 'a', canisterId: 'cid', method: 'm', kind: 0)],
+        calls: [CanisterCallSpec(label: 'a', canisterId: 'cid', method: 'm', mode: 0)],
       ));
       expect(res.ok, false);
       expect(res.error, contains('Empty response'));
@@ -239,7 +239,7 @@ void main() {
       final runner = ScriptRunner(bridge);
       final res = await runner.run(ScriptRunPlan(
         bundle: _bundle,
-        calls: [CanisterCallSpec(label: 'a', canisterId: 'cid', method: 'm', kind: 0)],
+        calls: [CanisterCallSpec(label: 'a', canisterId: 'cid', method: 'm', mode: 0)],
       ));
       expect(res.ok, false);
       expect(res.error, contains('Invalid JSON'));
@@ -255,7 +255,7 @@ void main() {
         'action': 'call',
         'canister_id': 'abc',
         'method': 'go',
-        'kind': 0,
+        'mode': 0,
         'args': '()',
       });
       expect(res.ok, true);
@@ -306,7 +306,7 @@ void main() {
               label: 'test_call',
               canisterId: 'test-canister',
               method: 'method',
-              kind: 0,
+              mode: 0,
               keypairId: id.isEmpty ? null : id,
               privateKeyB64: privateKey,
               isAnonymous: anonymous,

@@ -31,7 +31,7 @@ class CandidService {
       final response = _bridge.callAnonymous(
         canisterId: canisterId,
         method: '__get_candid_interface_tmp',
-        kind: 0, // query
+        mode: 0, // query
         args: '()',
         host: host,
       );
@@ -151,11 +151,11 @@ service : {
           final returnString = methodMatch.group(3);
 
           final args = _parseArgsString(argsString);
-          final kind = _inferMethodKind(methodName, returnString);
+          final mode = _inferMethodMode(methodName, returnString);
 
           methods.add(CanisterMethod(
             name: methodName,
-            kind: kind,
+            mode: mode,
             args: args,
             returnType: returnString?.trim(),
           ));
@@ -196,8 +196,8 @@ service : {
     return args;
   }
 
-  /// Infer method kind (query/update) based on name and return type
-  int _inferMethodKind(String methodName, String? returnType) {
+  /// Infer method mode (0=query, 1=update) based on name and return type
+  int _inferMethodMode(String methodName, String? returnType) {
     // Query methods are typically read-only and don't modify state
     final queryPatterns = [
       'get_', 'query_', 'list_', 'fetch_', 'read_', 'find_',

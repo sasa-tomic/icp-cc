@@ -231,7 +231,7 @@ class RustBridgeLoader {
   String? callAnonymous({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     String args = '()',
     String? host,
   }) {
@@ -244,7 +244,7 @@ class RustBridgeLoader {
     try {
       final fn = lib.lookupFunction<_CallAnonNative, _CallAnonDart>(
           _Symbols.callAnonymous);
-      final res = fn(cid.cast(), m.cast(), kind, a.cast(), h.cast());
+      final res = fn(cid.cast(), m.cast(), mode, a.cast(), h.cast());
       if (res == ffi.nullptr) return null;
       try {
         final s = res.cast<pkg_ffi.Utf8>().toDartString();
@@ -259,7 +259,7 @@ class RustBridgeLoader {
   String? callAuthenticated({
     required String canisterId,
     required String method,
-    required int kind,
+    required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
@@ -274,7 +274,7 @@ class RustBridgeLoader {
     try {
       final fn = lib.lookupFunction<_CallAuthNative, _CallAuthDart>(
           _Symbols.callAuthenticated);
-      final res = fn(cid.cast(), m.cast(), kind, a.cast(), k.cast(), h.cast());
+      final res = fn(cid.cast(), m.cast(), mode, a.cast(), k.cast(), h.cast());
       if (res == ffi.nullptr) return null;
       try {
         final s = res.cast<pkg_ffi.Utf8>().toDartString();

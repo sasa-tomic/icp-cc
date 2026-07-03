@@ -200,14 +200,14 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
           out = bridge.callAnonymous(
               canisterId: canisterId,
               method: method,
-              kind: mode,
+              mode: mode,
               args: args,
               host: host);
         } else {
           out = bridge.callAuthenticated(
               canisterId: canisterId,
               method: method,
-              kind: mode,
+              mode: mode,
               privateKeyB64: auth.privateKey!,
               args: args,
               host: host);
@@ -314,14 +314,14 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
             out = bridge.callAnonymous(
                 canisterId: canisterId,
                 method: method,
-                kind: mode,
+                mode: mode,
                 args: args,
                 host: host);
           } else {
             out = bridge.callAuthenticated(
                 canisterId: canisterId,
                 method: method,
-                kind: mode,
+                mode: mode,
                 privateKeyB64: auth.privateKey!,
                 args: args,
                 host: host);
