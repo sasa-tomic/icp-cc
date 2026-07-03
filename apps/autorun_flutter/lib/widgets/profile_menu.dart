@@ -8,7 +8,6 @@ import '../models/profile.dart';
 import '../models/account.dart';
 import '../services/passkey_service.dart';
 import '../services/settings_service.dart';
-import '../screens/account_registration_wizard.dart';
 import '../screens/account_profile_screen.dart';
 import '../screens/settings_screen.dart';
 
@@ -305,9 +304,13 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       subtitle = '@${profile.username}';
       action = ProfileMenuAction.editProfile;
     } else {
+      // UX-7: a local-only profile (no backend account) still owns local
+      // keypairs that the user must be able to reach. Route to Account & Keys,
+      // which renders the local key surface and an inline "Register" CTA —
+      // do NOT jump straight into the registration wizard and hide the keys.
       icon = Icons.person_outline;
-      subtitle = 'Register to publish scripts';
-      action = ProfileMenuAction.createAccount;
+      subtitle = 'Local profile — view keys or register';
+      action = ProfileMenuAction.editProfile;
     }
 
     return _MenuTile(
@@ -334,14 +337,17 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
 
     switch (action) {
       case ProfileMenuAction.editProfile:
-        if (_activeAccount != null && profile != null) {
-          await _navigateToAccountProfile(_activeAccount!, profile);
+        // Routes for both registered (account != null) and local-only
+        // (account == null, UX-7) profiles. The screen's local-only branch
+        // handles the null-account case without any backend calls.
+        if (profile != null) {
+          await _navigateToAccountProfile(_activeAccount, profile);
         }
         break;
       case ProfileMenuAction.createAccount:
-        if (profile != null) {
-          await _navigateToAccountRegistration(profile);
-        } else if (widget.profileController.profiles.isEmpty) {
+        // Only reachable on first-run (no active profile) now that
+        // local-only profiles route to AccountProfileScreen via editProfile.
+        if (widget.profileController.profiles.isEmpty) {
           await _showCreateProfileDialog();
         } else {
           await _showManageProfilesSheet();
@@ -357,7 +363,7 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
   }
 
   Future<void> _navigateToAccountProfile(
-      Account account, Profile profile) async {
+      Account? account, Profile profile) async {
     widget.onNavigate?.call();
     await Navigator.push<void>(
       context,
@@ -373,30 +379,6 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     if (mounted) {
       await _loadActiveAccount();
       setState(() {});
-    }
-  }
-
-  Future<void> _navigateToAccountRegistration(Profile profile) async {
-    widget.onNavigate?.call();
-    final Account? createdAccount = await Navigator.push<Account>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AccountRegistrationWizard(
-          keypair: profile.primaryKeypair,
-          accountController: widget.accountController,
-          initialDisplayName: profile.name,
-        ),
-      ),
-    );
-
-    if (createdAccount != null && mounted) {
-      await widget.profileController.updateProfileUsername(
-        profileId: profile.id,
-        username: createdAccount.username,
-      );
-      setState(() {
-        _activeAccount = createdAccount;
-      });
     }
   }
 

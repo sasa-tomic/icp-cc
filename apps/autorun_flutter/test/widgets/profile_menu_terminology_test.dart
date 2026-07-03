@@ -75,13 +75,16 @@ void main() {
       });
 
       testWidgets(
-          'shows helpful subtitle explaining registration is for publishing',
+          'shows helpful subtitle advertising the local-keys surface (UX-7)',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        expect(find.text('Register to publish scripts'), findsOneWidget,
+        // UX-7: subtitle now points to Account & Keys (where local keys live
+        // and registration is offered as a CTA), instead of promising a
+        // direct jump into the registration wizard.
+        expect(find.text('Local profile — view keys or register'), findsOneWidget,
             reason:
-                'Subtitle should explain username is for publishing scripts');
+                'Subtitle should advertise the local-keys surface for a local-only profile');
       });
     });
 

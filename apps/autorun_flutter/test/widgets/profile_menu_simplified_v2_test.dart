@@ -154,13 +154,15 @@ void main() {
       });
 
       testWidgets(
-          'shows registration prompt subtitle for users without account',
+          'shows local-keys subtitle for users without account',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        // Should prompt user to register
-        expect(find.text('Register to publish scripts'), findsOneWidget,
-            reason: 'Should show registration prompt when no account');
+        // UX-7: the menu now routes a local-only profile to Account & Keys
+        // (where keys are visible AND a register CTA lives), so the subtitle
+        // must point at that surface — not promise a direct registration jump.
+        expect(find.text('Local profile — view keys or register'), findsOneWidget,
+            reason: 'Should advertise the local-keys surface when no account');
       });
     });
 
@@ -183,17 +185,36 @@ void main() {
       });
 
       testWidgets(
-          'tapping "My Account" without account navigates to registration',
+          'tapping "My Account" without account navigates to Account & Keys '
+          '(UX-7: local keys are reachable without backend registration)',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
         await tester.tap(find.text('My Account'));
         await tester.pumpAndSettle();
 
-        // Should navigate to registration wizard
-        expect(find.text('Register Username'), findsOneWidget,
-            reason:
-                'Tapping "My Account" without account should start registration');
+        // Lands on AccountProfileScreen in local-only mode — NOT the
+        // registration wizard. The screen title is "My Identity" and the
+        // local-only branch renders an honest "not registered" badge.
+        expect(find.text('My Identity'), findsOneWidget,
+            reason: 'Local-only tap must open AccountProfileScreen');
+        expect(find.text('Local profile — not registered'), findsOneWidget,
+            reason: 'AccountProfileScreen must be in its local-only branch');
+        expect(find.text('Register Username'), findsNothing,
+            reason: 'UX-7: must NOT jump straight into the registration wizard');
+
+        // The profile's local keypair is reachable from this screen — proving
+        // the menu no longer hides keys behind registration. Uses real crypto
+        // via TestKeypairFactory (seeded in setUp). The "Local key" caption is
+        // unique to the local key card, so it unambiguously proves the key
+        // surface rendered (the fixture happens to reuse the keypair label as
+        // the profile name, so the label itself appears twice).
+        final activeProfile = profileController.activeProfile;
+        expect(activeProfile, isNotNull);
+        expect(find.text(activeProfile!.primaryKeypair.label), findsWidgets,
+            reason: 'The local keypair label must be visible from the menu');
+        expect(find.text('Local key'), findsOneWidget,
+            reason: 'The local key card must be rendered on the screen');
       });
     });
 
