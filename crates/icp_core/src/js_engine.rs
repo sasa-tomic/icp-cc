@@ -552,11 +552,13 @@ pub mod static_analysis {
             "text",
             "button",
             "toggle",
-            "input",
             "text_field",
             "select",
             "image",
             "list",
+            "paginated_list",
+            "result_display",
+            "table",
         ];
         for line in script.lines() {
             if let Some(idx) = line.find("type:") {
@@ -1276,7 +1278,16 @@ mod tests {
 
     #[test]
     fn validate_ui_node_extended_types_no_warning() {
-        for node_type in ["text_field", "select", "image", "list"] {
+        // Must EXACTLY mirror the node types the UiV1Renderer handles.
+        for node_type in [
+            "text_field",
+            "select",
+            "image",
+            "list",
+            "paginated_list",
+            "result_display",
+            "table",
+        ] {
             let script = format!(
                 r#"
                     function init(arg) {{ return {{ state: {{}}, effects: [] }}; }}
@@ -1296,6 +1307,25 @@ mod tests {
                 result.warnings
             );
         }
+    }
+
+    #[test]
+    fn validate_ui_node_removed_input_type_warns() {
+        // `input` has no renderer case, so it must NOT be in the allowlist.
+        let script = r#"
+            function init(arg) { return { state: {}, effects: [] }; }
+            function view(state) { return { type: "input", props: {} }; }
+            function update(msg, state) { return { state: state, effects: [] }; }
+        "#;
+        let result = validate_js_comprehensive(script, Some(prod_ctx()));
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("Unknown UI node type") && w.contains("input")),
+            "type `input` should be flagged as unknown: {:?}",
+            result.warnings
+        );
     }
 
     #[test]

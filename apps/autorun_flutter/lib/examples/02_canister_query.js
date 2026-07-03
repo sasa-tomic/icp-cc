@@ -44,18 +44,16 @@
     var t = (msg && msg.type) || "";
 
     if (t === "fetch") {
+      // icp_call effects carry the call spec as flat fields on the effect
+      // object; the host reads `mode` for the call mode (0=query, 1=update,
+      // 2=composite) and dispatches the result back as effect/result.
       var effect = {
         kind: "icp_call",
         id: "balance",
-        items: [
-          {
-            label: "balance",
-            kind: 0,
-            canister_id: LEDGER,
-            method: "account_balance",
-            args: '{"account":[]}',
-          },
-        ],
+        mode: 0,
+        canister_id: LEDGER,
+        method: "account_balance",
+        args: '{"account":[]}',
       };
       return { state: { ...state, loading: true, error: "" }, effects: [effect] };
     }

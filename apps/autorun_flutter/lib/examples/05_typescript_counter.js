@@ -11,11 +11,11 @@
         { type: "text", props: { text: "Count: " + (state.count || 0) } },
         {
           type: "button",
-          props: { label: "Increment", action: { type: "inc" } },
+          props: { label: "Increment", on_press: { type: "inc" } },
         },
         {
           type: "button",
-          props: { label: "Reset", action: { type: "reset" } },
+          props: { label: "Reset", on_press: { type: "reset" } },
         },
       ],
     };

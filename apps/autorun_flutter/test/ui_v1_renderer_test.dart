@@ -343,6 +343,30 @@ void main() {
       expect(find.text('Before invalid node'), findsOneWidget);
       expect(find.text('After invalid node'), findsOneWidget);
     });
+
+    testWidgets('button dispatches on_press message when tapped',
+        (WidgetTester tester) async {
+      // Regression guard: the renderer reads the press handler from `on_press`.
+      // Any other field name (e.g. `action`) would render a dead/disabled button.
+      final ui = {
+        'type': 'button',
+        'props': {
+          'label': 'Increment',
+          'on_press': {'type': 'inc'},
+        },
+      };
+
+      await tester.pumpWidget(createTestWidget(ui));
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(button.enabled, isTrue, reason: 'on_press must enable the button');
+
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+
+      expect(capturedEvent, {'type': 'inc'});
+    });
   });
 
   group('UiV1Renderer table widget', () {
