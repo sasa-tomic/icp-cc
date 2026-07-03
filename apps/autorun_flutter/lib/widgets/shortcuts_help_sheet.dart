@@ -103,7 +103,6 @@ class _ShortcutRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final spec = kShortcutSpecs[action]!;
     final theme = Theme.of(context);
-    final parts = DesktopShortcuts.formatShortcutToken(spec.token).split('+');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppDesignSystem.spacing4),
       child: Row(
@@ -114,21 +113,49 @@ class _ShortcutRow extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (var i = 0; i < parts.length; i++) ...[
-                if (i > 0)
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppDesignSystem.spacing2),
-                    child: Text('+',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                  ),
-                _KeyChip(label: parts[i]),
+              _KeySet(token: spec.token),
+              // Secondary binding (e.g. `/` search also responds to Ctrl/Cmd+F).
+              if (spec.altToken != null) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppDesignSystem.spacing4),
+                  child: Text('or',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ),
+                _KeySet(token: spec.altToken!),
               ],
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Renders a `mod+X` / `Alt+1` style token as a row of `+`-separated key chips.
+class _KeySet extends StatelessWidget {
+  const _KeySet({required this.token});
+  final String token;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = DesktopShortcuts.formatShortcutToken(token).split('+');
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < parts.length; i++) ...[
+          if (i > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppDesignSystem.spacing2),
+              child: Text('+',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
+          _KeyChip(label: parts[i]),
+        ],
+      ],
     );
   }
 }
