@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/diff_service.dart';
+import '../theme/app_design_system.dart';
 
 class DiffViewerDialog extends StatelessWidget {
   final String oldCode;
@@ -78,13 +79,14 @@ class DiffViewerDialog extends StatelessWidget {
                             horizontal: 8, vertical: 2),
                         margin: const EdgeInsets.only(right: 8),
                         decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.2),
+                          color: AppDesignSystem.successColor
+                              .withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           '+${diff.additions}',
                           style: TextStyle(
-                            color: Colors.green[700],
+                            color: AppDesignSystem.successDark,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -95,13 +97,14 @@ class DiffViewerDialog extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.2),
+                          color:
+                              AppDesignSystem.errorColor.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           '-${diff.deletions}',
                           style: TextStyle(
-                            color: Colors.red[700],
+                            color: AppDesignSystem.errorDark,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -171,9 +174,9 @@ class DiffViewerDialog extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          _buildLegendItem(context, Colors.green, 'Added'),
+          _buildLegendItem(context, AppDesignSystem.successColor, 'Added'),
           const SizedBox(width: 16),
-          _buildLegendItem(context, Colors.red, 'Removed'),
+          _buildLegendItem(context, AppDesignSystem.errorColor, 'Removed'),
           const SizedBox(width: 16),
           _buildLegendItem(context, Colors.grey, 'Unchanged'),
         ],
@@ -211,14 +214,14 @@ class DiffViewerDialog extends StatelessWidget {
 
     switch (line.type) {
       case DiffLineType.added:
-        backgroundColor = Colors.green.withValues(alpha: 0.1);
-        textColor = Colors.green[800]!;
+        backgroundColor = AppDesignSystem.successColor.withValues(alpha: 0.1);
+        textColor = AppDesignSystem.successDark;
         prefix = '+';
         lineNumber = line.newLineNumber?.toString().padLeft(4) ?? '    ';
         break;
       case DiffLineType.removed:
-        backgroundColor = Colors.red.withValues(alpha: 0.1);
-        textColor = Colors.red[800]!;
+        backgroundColor = AppDesignSystem.errorColor.withValues(alpha: 0.1);
+        textColor = AppDesignSystem.errorDark;
         prefix = '-';
         lineNumber = line.oldLineNumber?.toString().padLeft(4) ?? '    ';
         break;

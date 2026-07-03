@@ -440,7 +440,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 ),
               ],
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: AppDesignSystem.successColor,
             duration: const Duration(seconds: 4),
             action: SnackBarAction(
               label: 'Run',
@@ -455,7 +455,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Download failed: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppDesignSystem.errorColor,
           ),
         );
       }
@@ -493,7 +493,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Script integrity check failed: ${e.message}'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppDesignSystem.errorColor,
           ),
         );
         return;
@@ -577,7 +577,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
                 ),
               ],
             ),
-            backgroundColor: Colors.green.shade600,
+            backgroundColor: AppDesignSystem.successColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -711,7 +711,7 @@ class ScriptsScreenState extends State<ScriptsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to duplicate script: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppDesignSystem.errorColor,
           ),
         );
       }

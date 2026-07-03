@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../controllers/script_controller.dart';
 import '../models/script_template.dart';
+import '../theme/app_design_system.dart';
 import '../widgets/script_editor.dart';
 
 /// Blank script template for starting from scratch
@@ -172,11 +173,11 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
   Color _getLevelColor(String level) {
     switch (level) {
       case 'beginner':
-        return Colors.green;
+        return AppDesignSystem.successColor;
       case 'intermediate':
-        return Colors.orange;
+        return AppDesignSystem.warningColor;
       case 'advanced':
-        return Colors.red;
+        return AppDesignSystem.errorColor;
       default:
         return Colors.blue;
     }

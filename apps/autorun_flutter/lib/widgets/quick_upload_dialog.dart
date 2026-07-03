@@ -316,7 +316,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Upload failed: $_error'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppDesignSystem.errorColor,
           ),
         );
       }

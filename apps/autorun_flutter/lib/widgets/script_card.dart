@@ -150,7 +150,8 @@ class ScriptCard extends StatelessWidget {
                           vertical: AppDesignSystem.spacing4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade600.withValues(alpha: 0.95),
+                          color: AppDesignSystem.successColor
+                              .withValues(alpha: 0.95),
                           borderRadius:
                               BorderRadius.circular(AppDesignSystem.radius16),
                           border: Border.all(
@@ -470,6 +471,9 @@ class ScriptCard extends StatelessWidget {
                               },
                               child: Container(
                                 padding: const EdgeInsets.all(8),
+                                // Favorite heart keeps Material red: it's an
+                                // icon convention (❤), not an error/delete
+                                // status, so it's intentionally off-token.
                                 decoration: BoxDecoration(
                                   color: isFavorite
                                       ? Colors.red.withValues(alpha: 0.1)
