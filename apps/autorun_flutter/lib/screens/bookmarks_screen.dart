@@ -20,6 +20,14 @@ import '../widgets/connectivity_scope.dart';
 import '../widgets/modern_empty_state.dart';
 import '../widgets/offline_banner.dart';
 
+/// Single source of truth for the Canisters tab label (UX-2).
+///
+/// Used by BOTH the bottom-nav tab ([main.dart] `_buildModernNavigationBar`)
+/// and this screen's AppBar title, so a new user always sees the same name on
+/// the tab they tapped and on the screen header. Previously the tab said
+/// "Canisters" while the AppBar said "Explore ICP Services" — an honesty gap.
+const String kCanistersTabLabel = 'Canisters';
+
 class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen({super.key, required this.bridge});
 
@@ -82,10 +90,10 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Explore ICP Services'),
+            Text(kCanistersTabLabel),
             SizedBox(height: 2),
             Text(
-              'Interact with Internet Computer canisters',
+              'Call Internet Computer canisters directly',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
             ),
           ],

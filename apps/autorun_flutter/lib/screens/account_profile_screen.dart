@@ -11,26 +11,37 @@ import '../widgets/add_account_key_sheet.dart';
 import '../utils/passkey_platform.dart';
 import '../utils/tech_terms.dart';
 import 'passkey_management_screen.dart';
+import 'account_registration_wizard.dart';
 import 'export_keys_dialog.dart';
 import 'import_keys_dialog.dart';
 
-/// Account profile screen showing account details and key management
+/// Account profile screen showing account details and key management.
 ///
 /// Displays:
 /// - Account username
 /// - Creation date
 /// - List of public keys (active and disabled)
 /// - Key management actions (add/remove)
+///
+/// UX-7: when [account] is null (the profile exists locally but has NOT been
+/// registered on the marketplace backend), the screen renders a LOCAL key
+/// surface — the profile's own keypairs (label / public key / principal,
+/// "Use for signing", Import / Export) — which is local data that should be
+/// reachable without backend registration. Backend-account specifics
+/// (@username, profile editing, registered-key status) remain gated on a
+/// registered [account], with an inline "Register an account" CTA.
 class AccountProfileScreen extends StatefulWidget {
   const AccountProfileScreen({
-    required this.account,
+    this.account,
     required this.accountController,
     required this.profile,
     required this.profileController,
     super.key,
   });
 
-  final Account account;
+  /// The backend marketplace account, if registered. Null for a local-only
+  /// profile (see [AccountProfileScreen] doc comment / UX-7).
+  final Account? account;
   final AccountController accountController;
   final Profile profile;
   final ProfileController profileController;
@@ -40,9 +51,15 @@ class AccountProfileScreen extends StatefulWidget {
 }
 
 class _AccountProfileScreenState extends State<AccountProfileScreen> {
+  // Assigned only when [widget.account] is non-null (registered mode). In
+  // local-only mode it is never read, so leaving it unassigned is safe.
   late Account _account;
   late Profile _profile;
   bool _isRefreshing = false;
+
+  /// True when the profile has no backend account — render the LOCAL key
+  /// surface instead of the backend-account UI (UX-7).
+  bool _isLocalOnly = false;
 
   // Edit controllers
   final _displayNameController = TextEditingController();
@@ -56,10 +73,13 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _account = widget.account;
+    _isLocalOnly = widget.account == null;
     _profile = widget.profile;
-    _initializeControllers();
-    _refreshAccount();
+    if (!_isLocalOnly) {
+      _account = widget.account!;
+      _initializeControllers();
+      _refreshAccount();
+    }
   }
 
   void _initializeControllers() {
@@ -195,47 +215,553 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              _isRefreshing ? Icons.hourglass_empty : Icons.refresh,
-              color: AppDesignSystem.primaryLight,
+          // Refresh fetches the live backend account — only meaningful when
+          // registered. Local-only mode has no backend state to refresh.
+          if (!_isLocalOnly)
+            IconButton(
+              icon: Icon(
+                _isRefreshing ? Icons.hourglass_empty : Icons.refresh,
+                color: AppDesignSystem.primaryLight,
+              ),
+              onPressed: _isRefreshing ? null : _refreshAccount,
+              tooltip: 'Refresh',
             ),
-            onPressed: _isRefreshing ? null : _refreshAccount,
-            tooltip: 'Refresh',
+        ],
+      ),
+      body: _isLocalOnly ? _buildLocalOnlyBody() : _buildRegisteredBody(),
+      floatingActionButton: _buildFloatingActionButton(),
+    );
+  }
+
+  Widget? _buildFloatingActionButton() {
+    // Local-only: add a NEW local keypair directly to the profile.
+    if (_isLocalOnly) {
+      if (!_profile.canAddKeypair) return null;
+      return FloatingActionButton.extended(
+        onPressed: _addLocalKeypair,
+        backgroundColor: AppDesignSystem.primaryLight,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Key'),
+      );
+    }
+    // Registered: capped by the backend account's key limit.
+    if (_account.isAtMaxKeys) return null;
+    return FloatingActionButton.extended(
+      onPressed: _showAddKeySheet,
+      backgroundColor: AppDesignSystem.primaryLight,
+      icon: const Icon(Icons.add),
+      label: const Text('Add Key'),
+    );
+  }
+
+  /// Registered-mode body: backend account header, editable profile, security
+  /// (passkeys + backend public keys).
+  Widget _buildRegisteredBody() {
+    return RefreshIndicator(
+      onRefresh: _refreshAccount,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Show warning if profile's signing key is not in account
+            if (!_profileKeypairExistsInAccount()) ...[
+              _buildKeypairMismatchWarning(),
+              const SizedBox(height: 16),
+            ],
+            _buildAccountHeader(),
+            const SizedBox(height: 24),
+            _buildProfileSection(),
+            const SizedBox(height: 24),
+            _buildSecuritySection(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Local-only body (UX-7): the profile's local identity + a register CTA +
+  /// the profile's own keypairs. No backend calls.
+  Widget _buildLocalOnlyBody() {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildLocalIdentityHeader(),
+          const SizedBox(height: 16),
+          _buildRegisterCtaCard(),
+          const SizedBox(height: 24),
+          _buildLocalKeysSection(),
+        ],
+      ),
+    );
+  }
+
+  /// Identity header for a local-only profile: shows the local profile name and
+  /// an honest "not registered" badge instead of an @username.
+  Widget _buildLocalIdentityHeader() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: context.colors.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppDesignSystem.primaryGradient,
+              ),
+              child: const Icon(
+                Icons.person_rounded,
+                size: 50,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _profile.name,
+              style: AppDesignSystem.heading2.copyWith(
+                color: AppDesignSystem.primaryDark,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppDesignSystem.warningLight.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.cloud_off_rounded,
+                      size: 14, color: AppDesignSystem.warningDark),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Local profile — not registered',
+                    style: AppDesignSystem.caption.copyWith(
+                      color: AppDesignSystem.warningDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Created ${_formatDate(_profile.createdAt)}',
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: context.colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Inline CTA explaining the value of registration, with a button that opens
+  /// the registration wizard (same flow the profile menu uses).
+  Widget _buildRegisterCtaCard() {
+    return Card(
+      elevation: 0,
+      color: AppDesignSystem.primaryLight.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+            color: AppDesignSystem.primaryLight.withValues(alpha: 0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.how_to_reg_rounded,
+                    color: AppDesignSystem.primaryLight),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Register an account',
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      color: AppDesignSystem.primaryDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Get an @username, publish scripts to the marketplace, and sync '
+              'your public keys across devices. Your local keys keep working '
+              'either way.',
+              style: AppDesignSystem.bodySmall.copyWith(
+                color: context.colors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _registerAccount,
+              icon: const Icon(Icons.how_to_reg_outlined, size: 18),
+              label: const Text('Register an account'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppDesignSystem.primaryLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The profile's local keypairs — always visible, regardless of backend
+  /// registration (UX-7). Each key shows its label, public key, IC principal,
+  /// and "Use for signing". Import / Export are surfaced here too.
+  Widget _buildLocalKeysSection() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: context.colors.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'YOUR KEYS',
+                  style: AppDesignSystem.bodySmall.copyWith(
+                    color: context.colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _profile.canAddKeypair
+                        ? AppDesignSystem.accentLight.withValues(alpha: 0.2)
+                        : AppDesignSystem.warningLight.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_profile.keypairs.length}/10',
+                    style: AppDesignSystem.bodySmall.copyWith(
+                      color: _profile.canAddKeypair
+                          ? AppDesignSystem.accentDark
+                          : AppDesignSystem.warningDark,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _showImportKeysDialog,
+                  icon: const Icon(Icons.upload, size: 18),
+                  label: const Text('Import Keys'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppDesignSystem.primaryLight,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _showExportKeysDialog,
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Export Keys'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppDesignSystem.primaryLight,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final keypair in _profile.keypairs) ...[
+              _buildLocalKeyCard(keypair),
+              const SizedBox(height: 12),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocalKeyCard(ProfileKeypair keypair) {
+    final isSigningKey = _profile.primaryKeypair.id == keypair.id;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isSigningKey
+            ? context.colors.primaryContainer.withValues(alpha: 0.3)
+            : context.colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSigningKey ? context.colors.primary : context.colors.outline,
+          width: isSigningKey ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppDesignSystem.successLight,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Local key',
+                style: AppDesignSystem.bodySmall.copyWith(
+                  color: AppDesignSystem.successDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (isSigningKey) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: context.colors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit, size: 12, color: context.colors.onPrimary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'SIGNING KEY',
+                        style: AppDesignSystem.caption.copyWith(
+                          color: context.colors.onPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (!isSigningKey)
+                TextButton.icon(
+                  onPressed: () => _useLocalKeyForSigning(keypair),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Use for signing'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            keypair.label,
+            style: AppDesignSystem.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Tooltip(
+            message: TechTerm.keypair.fullExplanation,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Public Key',
+                  style: AppDesignSystem.bodySmall.copyWith(
+                    color: context.colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.info_outline,
+                  size: 12,
+                  color:
+                      context.colors.onSurfaceVariant.withValues(alpha: 0.6),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _shortenKey(keypair.publicKey),
+                  style: AppDesignSystem.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy, size: 16),
+                onPressed: () =>
+                    _copyToClipboard(keypair.publicKey, 'Public key'),
+                tooltip: 'Copy',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          if (keypair.principal != null) ...[
+            const SizedBox(height: 12),
+            Tooltip(
+              message: TechTerm.principal.fullExplanation,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'IC Principal',
+                    style: AppDesignSystem.bodySmall.copyWith(
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.info_outline,
+                    size: 12,
+                    color: context.colors.onSurfaceVariant
+                        .withValues(alpha: 0.6),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    keypair.principal!,
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy, size: 16),
+                  onPressed: () =>
+                      _copyToClipboard(keypair.principal!, 'Principal'),
+                  tooltip: 'Copy',
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            'Created ${_formatDate(keypair.createdAt)}',
+            style: AppDesignSystem.bodySmall.copyWith(
+              color: context.colors.onSurfaceVariant,
+            ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshAccount,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Show warning if profile's signing key is not in account
-              if (!_profileKeypairExistsInAccount()) ...[
-                _buildKeypairMismatchWarning(),
-                const SizedBox(height: 16),
-              ],
-              _buildAccountHeader(),
-              const SizedBox(height: 24),
-              _buildProfileSection(),
-              const SizedBox(height: 24),
-              _buildSecuritySection(),
-            ],
-          ),
+    );
+  }
+
+  /// Compact a base64 key/principal for display (mirrors
+  /// [AccountPublicKey.displayKey]'s shape).
+  String _shortenKey(String value) {
+    if (value.length <= 12) return value;
+    return '${value.substring(0, 6)}...${value.substring(value.length - 4)}';
+  }
+
+  /// Open the registration wizard (same flow the profile menu uses). On
+  /// success, flip the screen into registered mode with the new account and
+  /// persist the username on the profile.
+  Future<void> _registerAccount() async {
+    final createdAccount = await Navigator.of(context).push<Account>(
+      MaterialPageRoute<Account>(
+        builder: (context) => AccountRegistrationWizard(
+          keypair: _profile.primaryKeypair,
+          accountController: widget.accountController,
+          initialDisplayName: _profile.name,
         ),
       ),
-      floatingActionButton: _account.isAtMaxKeys
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _showAddKeySheet,
-              backgroundColor: AppDesignSystem.primaryLight,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Key'),
-            ),
     );
+
+    if (createdAccount != null && mounted) {
+      await widget.profileController.updateProfileUsername(
+        profileId: _profile.id,
+        username: createdAccount.username,
+      );
+      setState(() {
+        _isLocalOnly = false;
+        _account = createdAccount;
+      });
+      _initializeControllers();
+      _refreshAccount();
+    }
+  }
+
+  /// Generate a NEW local keypair directly into the profile (no backend
+  /// needed). Available in local-only mode (UX-7).
+  Future<void> _addLocalKeypair() async {
+    try {
+      final updatedProfile = await widget.profileController.addKeypairToProfile(
+        profileId: _profile.id,
+        algorithm: _profile.primaryKeypair.algorithm,
+      );
+      if (mounted) {
+        setState(() => _profile = updatedProfile);
+        _showSuccessSnackbar('Key added successfully');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackbar('Failed to add key: $e');
+      }
+    }
+  }
+
+  /// Set a local keypair as the profile's signing key (local operation).
+  Future<void> _useLocalKeyForSigning(ProfileKeypair keypair) async {
+    try {
+      await widget.profileController.setActiveKeypair(
+        profileId: _profile.id,
+        keypairId: keypair.id,
+      );
+      final updatedProfile = widget.profileController.findById(_profile.id);
+      if (updatedProfile != null && mounted) {
+        setState(() => _profile = updatedProfile);
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppDesignSystem.successSnackBar('Signing key updated'),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackbar('Failed to set signing key: $e');
+      }
+    }
   }
 
   Widget _buildKeypairMismatchWarning() {
