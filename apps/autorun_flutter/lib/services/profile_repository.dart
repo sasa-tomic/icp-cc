@@ -294,40 +294,6 @@ class ProfileRepository {
     return await keypair.toEncryptedExport(password);
   }
 
-  /// Import an encrypted keypair and add it to a profile
-  /// Returns the imported keypair
-  Future<ProfileKeypair> importKeypairEncrypted(
-    String encryptedJson,
-    String password,
-    String profileId,
-  ) async {
-    final keypair = await ProfileKeypair.fromEncryptedExport(
-      encryptedJson,
-      password,
-    );
-
-    final profiles = await loadProfiles();
-    final profileIndex = profiles.indexWhere((p) => p.id == profileId);
-
-    if (profileIndex == -1) {
-      throw ArgumentError('Profile not found: $profileId');
-    }
-
-    final profile = profiles[profileIndex];
-    if (profile.keypairs.length >= 10) {
-      throw StateError('Profile already has maximum keypairs (10)');
-    }
-
-    final updatedKeypairs = [...profile.keypairs, keypair];
-    profiles[profileIndex] = profile.copyWith(
-      keypairs: updatedKeypairs,
-      updatedAt: DateTime.now(),
-    );
-
-    await persistProfiles(profiles);
-    return keypair;
-  }
-
   Future<String> exportProfileBackup(String profileId, String password) async {
     final profiles = await loadProfiles();
     final profile = profiles.firstWhere(
@@ -364,6 +330,13 @@ class ProfileRepository {
     if (existingIndex != -1) {
       throw StateError('Profile with ID ${profile.id} already exists');
     }
+
+    // Guard the cross-profile keypair-ownership invariant BEFORE mutating state.
+    // A backup restored into a store that already owns one of its keypairs (by
+    // id OR publicKey) would create two profiles claiming the same keypair —
+    // permanent key-loss hazard (flat secure-storage keys are not profile-
+    // scoped). Fail loud; never silently merge or drop the colliding key.
+    assertUniqueKeypairOwnership([...profiles, profile]);
 
     profiles.add(profile);
     await persistProfiles(profiles);

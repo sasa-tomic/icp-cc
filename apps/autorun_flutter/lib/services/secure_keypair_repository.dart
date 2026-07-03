@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:uuid/uuid.dart';
-
 import '../models/profile_keypair.dart';
 import '../models/profile.dart';
 import 'profile_repository.dart';
@@ -22,8 +20,6 @@ class SecureKeypairRepository {
             ProfileRepository(overrideDirectory: overrideDirectory);
 
   final ProfileRepository _profileRepository;
-
-  static const _uuid = Uuid();
 
   /// Get the underlying ProfileRepository for direct access
   ProfileRepository get profileRepository => _profileRepository;
@@ -46,26 +42,6 @@ class SecureKeypairRepository {
     }
 
     return result;
-  }
-
-  /// Persist keypairs (converted to profiles)
-  ///
-  /// MIGRATION: Each ProfileKeypair is converted to a Profile with one keypair
-  Future<void> persistKeypairs(List<ProfileKeypair> keypairs) async {
-    // Convert each ProfileKeypair to a Profile with one keypair
-    final List<Profile> profiles = keypairs.map((ProfileKeypair keypair) {
-      return Profile(
-        id: _uuid.v4(), // Generate new profile ID
-        name: keypair.label, // Use keypair label as profile name
-        keypairs: <ProfileKeypair>[keypair], // Single keypair in profile
-        username: null, // Not registered yet
-        createdAt: keypair.createdAt,
-        updatedAt: keypair.createdAt,
-      );
-    }).toList();
-
-    // Save to new profile storage
-    await _profileRepository.persistProfiles(profiles);
   }
 
   Future<void> deleteKeypairSecureData(String keypairId) async {
