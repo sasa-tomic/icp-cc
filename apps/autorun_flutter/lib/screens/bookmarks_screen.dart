@@ -914,7 +914,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       for (final kind in _MethodKind.values) {
         final methods = byKind[kind]!;
         if (methods.isEmpty) continue;
-        if (methodWidgets.isNotEmpty) methodWidgets.add(const SizedBox(height: 12));
+        if (methodWidgets.isNotEmpty) {
+          methodWidgets.add(const SizedBox(height: 12));
+        }
         methodWidgets.add(_buildMethodKindGroup(theme, kind, methods));
       }
     } else {
