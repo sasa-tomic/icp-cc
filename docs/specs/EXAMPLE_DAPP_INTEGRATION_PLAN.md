@@ -1,6 +1,6 @@
 # Plan — Example Dapp: Standalone + icp-cc Integration
 
-**Status:** PROPOSED — for human review
+**Status:** APPROVED (2026-07-03) — Phase 1 in progress
 **Author:** agent (research-synthesized)
 **Date:** 2026-07-03
 
@@ -19,7 +19,7 @@ end-to-end story: *a dapp with its own frontend + backend, that icp-cc can host
 and drive both ways.* This example makes the integration model concrete and
 teachable:
 
-- **New user:** opens the bundled "Counter" dapp, sees a real canister respond,
+- **New user:** opens the bundled "Poll" dapp, sees a real canister respond,
   and can toggle between *the dapp's own UI* (embedded) and *icp-cc's native UI*
   talking to the same backend. One click, no setup.
 - **Returning developer:** sees exactly how a two-canister dapp is structured and
@@ -65,33 +65,48 @@ the user both, side by side, is the clearest possible demonstration of value.
 
 ---
 
-## 4. The reference dapp — "icp-cc Counter"
+## 4. The reference dapp — "icp-cc Poll" (a per-principal voting dapp)
 
-A **per-principal counter** — the canonical read/write/caller-identity example,
-and the smallest thing that exercises everything we care about.
+A **poll / voting** dapp — richer than a counter: it exercises query reads
+(list/tally), update writes (create/vote), **per-principal one-vote-each**
+identity, AND naturally demonstrates **batch effects** (Path B fetches
+`listPolls` + `getTally` together). It is the best teaching artifact for the
+dual-path model.
 
 ### 4.1 Backend canister (Motoko)
 ```
+type Poll = record {
+  id       : text;     // stable opaque id
+  question : text;
+  options  : vec text;
+  creator  : principal;
+};
 service : {
-  whoami   : () -> (text) query;     // returns msg.caller — proves identity wiring
-  getCount : () -> (nat) query;      // total across all callers
-  inc      : () -> (nat);            // update: bump THIS caller's counter, return new value
+  listPolls : () -> (vec Poll) query;                 // all polls
+  getTally  : (text) -> (vec nat) query;              // votes per option, indexed
+  whoami    : () -> (text) query;                     // msg.caller — proves identity wiring
+  createPoll: (text question, vec text options) -> (text);   // update; returns new poll id
+  vote      : (text pollId, nat optionIndex) -> ();   // update; one vote per principal
 }
 ```
-- Stable `Map<Principal, Nat>` so counts survive an upgrade.
-- `< 50 lines` Motoko. Uses `mo:base` (dfx 0.29.x bundled `moc`).
+- Stable `Map<Text, Poll>` + `Map<Text, Map<Principal, Nat>>` (pollId → voter →
+  chosen option), so state survives an upgrade.
+- `vote` is idempotent-per-principal (a caller may change their choice, not stack
+  votes) — demonstrates authenticated, accountable writes.
+- `~80 lines` Motoko, `mo:base` (dfx 0.29.x bundled `moc`).
 
 ### 4.2 Frontend canister (assets + vite)
 - Vanilla TS, `@dfinity/agent` + `@dfinity/identity`.
+- UI: list polls, **create a poll** (question + options), **vote** on a poll,
+  see **live tallies** (bar counts per option), show "your principal".
 - **Dual identity mode**: if `window.__ICPCC_IDENTITY` is present (injected by
   icp-cc's webview), build `Ed25519KeyIdentity.fromSecretKey(...)` from it — no
   Internet Identity popup. Otherwise (standalone browser) fall back to a local
   random identity / optional `@dfinity/auth-client` (II).
-- UI: shows "your principal", the global count, and an **Increment** button.
 
 ### 4.3 Standalone usage (no icp-cc)
 ```bash
-cd examples/icp_counter_dapp
+cd examples/icp_poll_dapp
 dfx start --background --clean      # local replica (port 4943)
 npm install                          # frontend deps
 dfx deploy                           # build + install both canisters
@@ -101,11 +116,11 @@ Optional mainnet: `dfx deploy --network ic` (needs cycles wallet).
 
 ### 4.4 Directory layout (new top-level `examples/`)
 ```
-examples/icp_counter_dapp/
+examples/icp_poll_dapp/
   dfx.json
   package.json                      # workspace: vite + @dfinity/agent + @dfinity/identity
   src/
-    backend/main.mo                 # per-principal counter
+    backend/main.mo                 # poll/voting actor
     frontend/
       index.html
       src/index.ts                  # agent + actor; dual identity mode
@@ -122,40 +137,60 @@ examples/icp_counter_dapp/
 This is the robust, immediately-workable path. It uses only icp-cc's **existing**
 runtime; the dapp backend is the only new external thing.
 
-### 5.1 New example bundle: `lib/examples/06_icp_counter.js`
-A `init`/`view`/`update` bundle that, on a button press, emits an `icp_call`
-effect to `whoami`/`getCount`/`inc` on the deployed backend, then renders the
-result via `UiV1Renderer`. Skeleton (grounded in `script_app_host.dart` +
-`02_canister_query.js`):
+### 5.1 New example bundle: `lib/examples/06_icp_poll.js`
+A `init`/`view`/`update` bundle that drives the poll backend: on load, emits a
+**batch** effect (`listPolls` + `getTally` per poll); buttons let the user create
+a poll / vote / refresh. Renders native UI via `UiV1Renderer`. Skeleton (grounded
+in `script_app_host.dart` + `02_canister_query.js`):
 ```js
 "use strict";
 (() => {
-  const BACKEND = "<<deployed-canister-id>>";  // single constant, injected at build
-  function init(arg){ return { state:{principal:"",count:0,loading:false}, effects:[] }; }
+  const BACKEND = "<<deployed-canister-id>>";  // single constant, resolved at build
+  function init(arg){ return { state:{polls:[],tallies:{},principal:"",status:""}, effects:[
+    { kind:"icp_call", id:"who",  canister_id:BACKEND, method:"whoami",    mode:0, args:"()" },
+    { kind:"icp_batch", id:"load", calls:[
+        { label:"polls", canister_id:BACKEND, method:"listPolls", mode:0, args:"()" },
+    ]},
+  ]}; }
   function view(s){
+    const items = (s.polls||[]).map(function(p){
+      const t = (s.tallies[p.id]||[]).join(" / ");
+      return { title:p.question, subtitle:(p.options||[]).join(", ")+"  ["+t+"]",
+               buttons:[ { title:"Vote 0", msg:{type:"vote",id:p.id,opt:0} } ] };
+    });
     return { type:"column", children:[
       { type:"text", props:{ text:"Principal: "+(s.principal||"—") } },
-      { type:"text", props:{ text:"Global count: "+s.count } },
-      { type:"button", props:{ label:"whoami (query)",  on_press:{type:"call",method:"whoami"} } },
-      { type:"button", props:{ label:"getCount (query)",on_press:{type:"call",method:"getCount"} } },
-      { type:"button", props:{ label:"inc (update)",    on_press:{type:"call",method:"inc"} } },
+      { type:"text", props:{ text:s.status||"" } },
+      { type:"button", props:{ label:"Refresh", on_press:{type:"refresh"} } },
+      { type:"button", props:{ label:"Create demo poll", on_press:{type:"create"} } },
+      { type:"list", props:{ title:"Polls", items:items } },
     ]};
   }
   function update(msg,s){
-    if(msg.type==="call") return {state:s, effects:[{kind:"icp_call",id:"c",
-        canister_id:BACKEND, method:msg.method, mode: msg.method==="inc"?1:0, args:"()"}]};
-    if(msg.type==="effect/result" && msg.id==="c"){
-      if(!msg.ok) return {state:{...s,loading:false}, effects:[]};
-      const d=msg.data; const m=msg.method||"";
-      if(typeof d==="string") return {state:{...s,principal:d,loading:false},effects:[]};
-      if(typeof d==="number"||typeof d==="bigint") return {state:{...s,count:Number(d),loading:false},effects:[]};
-      return {state:{...s,loading:false},effects:[]};
+    if(msg.type==="refresh") return {state:s, effects:[
+      { kind:"icp_batch", id:"load", calls:[
+          { label:"polls", canister_id:BACKEND, method:"listPolls", mode:0, args:"()" } ]} ]};
+    if(msg.type==="create") return {state:{...s,status:"creating…"}, effects:[
+      { kind:"icp_call", id:"create", canister_id:BACKEND, method:"createPoll",
+        mode:1, args:'["Tea or coffee?", ["Tea","Coffee"]]' } ]};
+    if(msg.type==="vote") return {state:{...s,status:"voting…"}, effects:[
+      { kind:"icp_call", id:"vote", canister_id:BACKEND, method:"vote",
+        mode:1, args:'["'+msg.id+'", '+msg.opt+']' } ]};
+    if(msg.type==="effect/result"){
+      if(msg.id==="who")  return {state:{...s,principal:String(msg.data)}, effects:[]};
+      if(msg.id==="create"||msg.id==="vote")
+          return {state:{...s,status:msg.ok?("done: "+msg.id):("error: "+msg.error)}, effects:[
+            { kind:"icp_batch", id:"load", calls:[
+                { label:"polls", canister_id:BACKEND, method:"listPolls", mode:0, args:"()" } ]} ]};
+      if(msg.id==="load" && msg.ok){ /* map msg.data.polls -> state.polls */ }
     }
     return {state:s,effects:[]};
   }
   globalThis.init=init; globalThis.view=view; globalThis.update=update;
 })();
 ```
+> The skeleton is illustrative; the implemented bundle will be productionized,
+> kept under ~120 lines, and its `BACKEND` id injected from the single source.
 
 ### 5.2 Prerequisites / known icp-cc bugs to fix first (so Path B is clean)
 Found while documenting the contract (confidence in each finding ≥8/10):
@@ -177,9 +212,9 @@ These are small, isolated fixes; they make *all* examples honest, not just ours.
 ### 5.3 Backend canister id sourcing (DRY, single constant)
 The backend canister id is needed in (a) the standalone frontend, (b) the Path B
 bundle, (c) icp-cc's dapp registry. **One source of truth:**
-`examples/icp_counter_dapp/canister_ids.local.json` (dfx output) → read at
+`examples/icp_poll_dapp/canister_ids.local.json` (dfx output) → read at
 build/dev time. The bundle and registry reference a **symbolic name**
-(`EXAMPLE_COUNTER_BACKEND`), resolved to the real id from one place. For mainnet
+(`EXAMPLE_POLL_BACKEND`), resolved to the real id from one place. For mainnet
 runs, a mainnet id constant is read instead. (Matches the project rule: a single
 constant value defined in one place.)
 
@@ -236,7 +271,7 @@ Per project rules, backend-only changes are forbidden — users must *access* th
 - **Dapp detail sheet:** shows the dapp's backend Candid, and two primary
   actions: **"Open dapp"** (Path A, embedded/system browser) and **"Backend
   direct"** (Path B, runs the TS bundle in the existing runner screen).
-- The example Counter dapp is pre-registered with sensible defaults so a **new
+- The example Poll dapp is pre-registered with sensible defaults so a **new
   user reaches a working demo in one click.**
 
 ---
@@ -246,7 +281,7 @@ Per project rules, backend-only changes are forbidden — users must *access* th
 | Phase | Scope | Confidence | Depends on |
 |-------|-------|------------|------------|
 | **0 — Plan** | This doc, committed | — | human review |
-| **1 — Standalone dapp + Path B** | `examples/icp_counter_dapp/` (backend+frontend); `dfx deploy` verified locally; `06_icp_counter.js` Path B bundle talking to the deployed backend; fix the 3 contract bugs (§5.2); Dapps UI entry; tests | **9/10** | dfx local replica works (will verify) |
+| **1 — Standalone dapp + Path B** | `examples/icp_poll_dapp/` (backend+frontend); `dfx deploy` verified locally; `06_icp_poll.js` Path B bundle talking to the deployed backend; fix the 3 contract bugs (§5.2); Dapps UI entry; tests | **9/10** | dfx local replica works (will verify) |
 | **2 — Path A webview** | `flutter_inappwebview` dep; `DappBrowserScreen`; identity injection; JS bridge | **6/10** (Linux) / 8/10 (other targets) | **human OK on system deps + beta plugin** |
 | **3 — Polish & verify** | UX review (screenshots), full `just test`, alignment verification, human-expectations doc | 9/10 | Phases 1–2 |
 
@@ -261,10 +296,10 @@ webview is the only part carrying real risk and needs your call on system deps).
 For each phase, prove it works as a user *before* writing tests:
 1. **Standalone dapp:** `dfx deploy` → open frontend URL in a real browser →
    increment → count rises; `whoami` shows a principal.
-2. **Path B:** in icp-cc, run `06_icp_counter.js` against the deployed backend →
-   native UI shows principal/count, buttons trigger real query/update calls,
-   results render. Verified by driving the app (tmux/chrome-cli), not just tests.
-3. **Path A (if approved):** DappBrowserScreen loads the frontend → counter works
+2. **Path B:** in icp-cc, run `06_icp_poll.js` against the deployed backend →
+   native UI shows polls/tallies/principal, buttons trigger real query/update
+   calls, results render. Verified by driving the app (tmux/chrome-cli), not just tests.
+3. **Path A:** DappBrowserScreen loads the frontend → voting works
    → identity injected (no II popup) → principal matches the active profile.
 4. **Error paths:** bad canister id, replica down, unauthenticated `inc` → loud,
    debuggable errors (no silent `null` returns; per project rules).
@@ -273,20 +308,20 @@ and the full `just test`.
 
 ---
 
-## 10. Decisions requested from human (only the genuinely uncertain ones)
+## 10. Decisions (resolved 2026-07-03 with human)
 
-1. **Path A webview** — OK to (a) `apt-get install` WPE webkit libs on the dev box
-   and (b) take a **beta** Flutter plugin (`flutter_inappwebview` 6.2.0-beta.3)?
-   *Confidence this is the best available approach: 8/10. Confidence Linux will
-   be smooth: 6/10.* If you'd rather not, Path A degrades to system-browser
-   `url_launcher` (still real dapp UI, not embedded) — 9/10 safe.
-2. **Mainnet vs local replica** for the demo target: local replica (ephemeral,
-   free, full control) is the default; mainnet deployment needs a cycles wallet.
-   Ship local-first, mainnet-ready. Agree?
-3. Anything you'd add/cut in the dapp scope (counter vs guestbook vs poll)?
+1. **Path A webview** — ✅ **Install WPE libs + `flutter_inappwebview`
+   6.2.0-beta.3.** Full embedded in-app webview on all targets. Accepted the
+   Linux beta-fragility; will mitigate (and document) packaging. Will also keep a
+   graceful degradation to `url_launcher` if WPE is unavailable at runtime.
+2. **Demo target** — ✅ **Local replica first (port 4943), mainnet-ready.**
+   Ship mainnet-ready (one `dfx deploy --network ic` away); no cycles needed now.
+3. **Dapp scope** — ✅ **Poll/Voting** (create poll, vote per-principal,
+   tallies). Richer than a counter; demonstrates batch effects + accountable
+   writes.
 
-Everything else (Phase 1 in particular) I'll proceed with on approval, per
-"iterate until done."
+Phase 1 (standalone dapp + Path B) proceeds now; Phase 2 (webview) follows once
+Phase 1 is green and the WPE libs are installed.
 
 ---
 
@@ -295,7 +330,7 @@ Everything else (Phase 1 in particular) I'll proceed with on approval, per
 | Item | Correct approach | Safe (no new problems) |
 |------|:---:|:---:|
 | Dual-path model (A embedded UI + B native TS) | 9/10 | 8/10 |
-| Per-principal counter as the example | 9/10 | 9/10 |
+| Poll/Voting dapp as the example | 9/10 | 9/10 |
 | Path B (host-mediated `icp_call` + UiV1) | 9/10 | 9/10 |
 | Identity injection via `Ed25519KeyIdentity.fromSecretKey` (no II) | 9/10 | 8/10 |
 | `flutter_inappwebview` for Path A | 8/10 | 6/10 (Linux) |
