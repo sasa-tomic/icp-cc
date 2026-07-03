@@ -16,10 +16,20 @@ use tokio::time::timeout;
 /// Maximum wall-clock time for a single synchronous canister FFI call before it
 /// is aborted. These calls run on a `tokio::runtime::Runtime::block_on(...)` and
 /// are invoked synchronously from the Flutter UI thread via FFI, so without a
-/// timeout a hung/slow replica would freeze the entire app. Single source of
-/// truth — mirrors the 30s convention used in
+/// timeout a hung/slow replica would freeze the entire app.
+///
+/// Override via the `ICPCC_CANISTER_TIMEOUT_SECS` env var (read on every call,
+/// so tests can inject a short bound without caching/teardown headaches). The
+/// 30s default mirrors the convention in
 /// `apps/autorun_flutter/lib/services/candid_service.dart`.
-const CANISTER_CALL_TIMEOUT: Duration = Duration::from_secs(30);
+fn canister_call_timeout() -> Duration {
+    const DEFAULT: Duration = Duration::from_secs(30);
+    std::env::var("ICPCC_CANISTER_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(DEFAULT)
+}
 
 #[derive(Debug, Error)]
 pub enum CanisterClientError {
@@ -535,16 +545,18 @@ pub fn fetch_candid(canister_id: &str, host: Option<&str>) -> Result<String, Can
             .read_state_canister_metadata(canister, "candid:service")
             .await
     };
+    let to = canister_call_timeout();
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let bytes = match rt.block_on(async { timeout(CANISTER_CALL_TIMEOUT, fut).await }) {
+    let bytes = match rt.block_on(async { timeout(to, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
             return Err(CanisterClientError::Net(format!("read_state: {e}")));
         }
         Err(_) => {
             return Err(CanisterClientError::Net(format!(
-                "canister call timeout (30s): canister={canister_id} (fetch_candid)"
+                "canister call timeout ({}s): canister={canister_id} (fetch_candid)",
+                to.as_secs()
             )));
         }
     };
@@ -609,16 +621,18 @@ pub fn call_anonymous(
             }
         }
     };
+    let to = canister_call_timeout();
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let out = match rt.block_on(async { timeout(CANISTER_CALL_TIMEOUT, fut).await }) {
+    let out = match rt.block_on(async { timeout(to, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
             return Err(CanisterClientError::Net(format!("call: {e}")));
         }
         Err(_) => {
             return Err(CanisterClientError::Net(format!(
-                "canister call timeout (30s): canister={canister_id} method={method}"
+                "canister call timeout ({}s): canister={canister_id} method={method}",
+                to.as_secs()
             )));
         }
     };
@@ -702,16 +716,18 @@ pub fn call_authenticated(
             }
         }
     };
+    let to = canister_call_timeout();
     let rt =
         tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
-    let out = match rt.block_on(async { timeout(CANISTER_CALL_TIMEOUT, fut).await }) {
+    let out = match rt.block_on(async { timeout(to, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
             return Err(CanisterClientError::Net(format!("call: {e}")));
         }
         Err(_) => {
             return Err(CanisterClientError::Net(format!(
-                "canister call timeout (30s): canister={canister_id} method={method}"
+                "canister call timeout ({}s): canister={canister_id} method={method}",
+                to.as_secs()
             )));
         }
     };
@@ -868,5 +884,62 @@ mod tests {
         let args = IDLArgs::new(&[idl_value]);
         args.to_bytes_with_types(&env, std::slice::from_ref(list_neurons_ty))
             .expect("encode with types succeeds");
+    }
+
+    /// Proves the per-call timeout actually fires against a hung replica (not
+    /// just that the constant exists). A blackhole TCP listener accepts the
+    /// connection but never responds, so ic-agent's request future would hang
+    /// forever without our timeout. We override the bound to 2s via
+    /// ICPCC_CANISTER_TIMEOUT_SECS so the whole test stays well under the ~10s
+    /// budget.
+    ///
+    /// SAFETY re env mutation: this is the ONLY test in the crate that performs
+    /// a real network call, so temporarily mutating the process-global env var
+    /// cannot affect any concurrently-running test. The var is removed before
+    /// returning. (Rust 2021 edition: `std::env::set_var` is safe to call.)
+    #[test]
+    fn call_anonymous_timeout_fires_against_blackhole() {
+        use std::net::TcpListener;
+        use std::time::Instant;
+
+        // Accept connections but never write a byte → the client hangs forever.
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind blackhole");
+        let addr = listener.local_addr().expect("local addr");
+        let url = format!("http://{}:{}", addr.ip(), addr.port());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                if stream.is_ok() {
+                    // Hold the accepted connection open without responding.
+                    std::thread::sleep(Duration::from_secs(60));
+                }
+            }
+        });
+
+        std::env::set_var("ICPCC_CANISTER_TIMEOUT_SECS", "2");
+        let start = Instant::now();
+        let res = call_anonymous(
+            "uxrrr-q7777-77774-qaaaq-cai",
+            "whoami",
+            MethodKind::Query,
+            "()",
+            Some(&url),
+        );
+        let elapsed = start.elapsed();
+        std::env::remove_var("ICPCC_CANISTER_TIMEOUT_SECS");
+
+        let err = res.expect_err("expected a timeout error");
+        let CanisterClientError::Net(msg) = &err else {
+            panic!("expected CanisterClientError::Net, got: {err:?}");
+        };
+        assert!(
+            msg.contains("timeout"),
+            "error must name the timeout cause, got: {msg}"
+        );
+        // The 2s bound must hold; give a generous upper margin for the runtime
+        // teardown while still catching a regression that drops the timeout.
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "timeout did not fire promptly: {elapsed:?}"
+        );
     }
 }
