@@ -1,6 +1,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/config/example_dapps.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
@@ -9,6 +10,11 @@ import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// Method channel url_launcher talks to. Mocked per-test to force the
+/// "platform could not open the URL" branch (`launchUrl` returns false).
+const MethodChannel _kUrlLauncherChannel =
+    MethodChannel('plugins.flutter.io/url_launcher');
 
 /// Widget coverage for the dapp runner (Path B: backend direct).
 ///
@@ -103,6 +109,31 @@ void main() {
     // Nothing persisted: still the default.
     final persisted = await DappRuntimeConfig.load(descriptor);
     expect(persisted.backendCanisterId, descriptor.backendCanisterId);
+  });
+
+  testWidgets(
+      'Open-frontend-in-browser shows a LOUD error when the platform can\'t launch',
+      (tester) async {
+    // Force url_launcher's launchUrl to report failure (returns false) so the
+    // runner exercises its loud-failure branch — it must surface a visible error
+    // naming the URL it could not open, never silently no-op.
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        _kUrlLauncherChannel, (MethodCall call) async => false);
+
+    final runtime = _RecordingRuntime();
+    await _pumpRunner(tester, descriptor, runtime: runtime);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Open frontend in browser'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Could not open the browser'), findsOneWidget,
+        reason: 'A failed launch must be surfaced loudly, not swallowed');
+    // The error must name the URL it tried so the user can recover manually.
+    expect(find.textContaining(descriptor.frontendUrl), findsOneWidget);
+
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(_kUrlLauncherChannel, null);
   });
 }
 
