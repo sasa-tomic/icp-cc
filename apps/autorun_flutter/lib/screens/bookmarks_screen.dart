@@ -316,6 +316,19 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
 
 enum _ClientFlowState { disconnected, connecting, connected, ready }
 
+/// A canister exposes a "large" method set when it has more than this many
+/// functions. Above it, two things switch on (UX-3): the search field
+/// auto-focuses (the chip wall is otherwise unscannable) and methods are
+/// grouped under call-kind headers (Query / Update / Composite). At or below
+/// it the layout stays flat — small canisters don't warrant a keyboard pop or
+/// per-kind headers. Single source of truth for both thresholds.
+const int _kLargeMethodSetThreshold = 8;
+
+/// Candid call-kind categories used to group the method picker (UX-3).
+/// Order matters: cheap reads first, then writes, then composite calls —
+/// mirroring the per-chip icon/colour scheme already in [_buildMethodSelector].
+enum _MethodKind { query, update, composite }
+
 class CanisterClientSheet extends StatefulWidget {
   const CanisterClientSheet(
       {super.key,
@@ -348,6 +361,11 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   List<String> _validationErrors = const <String>[];
   Map<String, dynamic>? _selectedMethod;
   String? _errorMessage;
+  // UX-3: searchable method picker. [_methodQuery] is the live filter (kept in
+  // sync with [_methodSearchController] via a listener); empty = show all.
+  final TextEditingController _methodSearchController = TextEditingController();
+  final FocusNode _methodSearchFocusNode = FocusNode();
+  String _methodQuery = '';
 
   void _onArgsChanged() {
     if (_resolvedArgs.isEmpty) return;
@@ -363,6 +381,44 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     }
   }
 
+  /// Live-filter the method list on every keystroke (UX-3). Guarded so a
+  /// programmatic [TextEditingController.clear] (where we set [_methodQuery]
+  /// first) does not recurse into a nested setState.
+  void _onMethodSearchChanged() {
+    final next = _methodSearchController.text;
+    if (next == _methodQuery) return;
+    if (mounted) setState(() => _methodQuery = next);
+  }
+
+  /// Escape clears the search query (only when there is one to clear).
+  KeyEventResult _onMethodSearchKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        _methodQuery.isNotEmpty) {
+      _methodQuery = '';
+      _methodSearchController.clear();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// Methods matching the current [_methodQuery] (case-insensitive substring on
+  /// the method name). Empty query → all methods.
+  List<Map<String, dynamic>> _filteredMethods() {
+    final q = _methodQuery.toLowerCase();
+    if (q.isEmpty) return _methods;
+    return _methods
+        .where((m) => (m['name'] as String).toLowerCase().contains(q))
+        .toList();
+  }
+
+  static _MethodKind _classifyKind(String kind) {
+    final k = kind.toLowerCase();
+    if (k.contains('composite')) return _MethodKind.composite;
+    if (k.contains('update')) return _MethodKind.update;
+    return _MethodKind.query;
+  }
+
   @override
   void dispose() {
     _canisterController.dispose();
@@ -370,6 +426,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     _methodController.dispose();
     _jsonArgsController.removeListener(_onArgsChanged);
     _jsonArgsController.dispose();
+    _methodSearchController.removeListener(_onMethodSearchChanged);
+    _methodSearchController.dispose();
+    _methodSearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -377,6 +436,10 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   void initState() {
     super.initState();
     _jsonArgsController.addListener(_onArgsChanged);
+    _methodSearchController.addListener(_onMethodSearchChanged);
+    // Escape clears the filter while the search field has focus (keyboard clear
+    // affordance); all other keys pass through unchanged.
+    _methodSearchFocusNode.onKeyEvent = _onMethodSearchKeyEvent;
     if ((widget.initialCanisterId ?? '').isNotEmpty) {
       _canisterController.text = widget.initialCanisterId!.trim();
     }
@@ -461,6 +524,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                       .toList(),
                 })
             .toList();
+        // Reset any stale filter so methods from the new canister aren't hidden.
+        _methodQuery = '';
+        _methodSearchController.clear();
         _flowState = _ClientFlowState.connected;
         _isFetching = false;
       });
@@ -589,6 +655,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       _currentMethodSig = const <Map<String, dynamic>>[];
       _methodController.clear();
       _jsonArgsController.clear();
+      _methodQuery = '';
+      _methodSearchController.clear();
     });
   }
 
@@ -825,51 +893,221 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   }
 
   Widget _buildMethodSelector(ThemeData theme, bool isCompact) {
+    final filtered = _filteredMethods();
+    final total = _methods.length;
+    final isFiltering = _methodQuery.isNotEmpty;
+    // Group by call-kind only for genuinely large sets — below the threshold a
+    // flat wrap reads better and stays compact (YAGNI).
+    final useGrouping = total > _kLargeMethodSetThreshold;
+
+    final List<Widget> methodWidgets;
+    if (filtered.isEmpty) {
+      methodWidgets = <Widget>[_buildNoMethodMatches(theme)];
+    } else if (useGrouping) {
+      final byKind = <_MethodKind, List<Map<String, dynamic>>>{
+        for (final k in _MethodKind.values) k: <Map<String, dynamic>>[],
+      };
+      for (final m in filtered) {
+        byKind[_classifyKind(m['kind'] as String)]!.add(m);
+      }
+      methodWidgets = <Widget>[];
+      for (final kind in _MethodKind.values) {
+        final methods = byKind[kind]!;
+        if (methods.isEmpty) continue;
+        if (methodWidgets.isNotEmpty) methodWidgets.add(const SizedBox(height: 12));
+        methodWidgets.add(_buildMethodKindGroup(theme, kind, methods));
+      }
+    } else {
+      methodWidgets = <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: filtered.map((m) => _buildMethodChip(theme, m)).toList(),
+        ),
+      ];
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Tooltip(
           message:
               'Choose a function to call.\n${TechTerm.query.plainLabel} = read data (fast), ${TechTerm.update.plainLabel} = change data (slower).',
-          child: Text('Select Function', style: theme.textTheme.titleMedium),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Select Function', style: theme.textTheme.titleMedium),
+              Text(
+                isFiltering ? '${filtered.length} of $total' : '$total functions',
+                key: const Key('methodCount'),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
+        _buildMethodSearchField(theme, isCompact, total),
+        const SizedBox(height: 12),
+        ...methodWidgets,
+      ],
+    );
+  }
+
+  Widget _buildMethodSearchField(
+      ThemeData theme, bool isCompact, int total) {
+    return TextField(
+      key: const Key('methodSearchField'),
+      controller: _methodSearchController,
+      focusNode: _methodSearchFocusNode,
+      // Only auto-grab focus when the chip wall is genuinely large; small
+      // canisters don't warrant popping the keyboard on entry.
+      autofocus: total > _kLargeMethodSetThreshold,
+      decoration: InputDecoration(
+        hintText: 'Search $total functions…',
+        isDense: true,
+        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.search, size: 20),
+        suffixIcon: _methodQuery.isNotEmpty
+            ? IconButton(
+                key: const Key('methodSearchClear'),
+                icon: const Icon(Icons.clear, size: 20),
+                tooltip: 'Clear search',
+                onPressed: () {
+                  _methodSearchController.clear();
+                  _methodSearchFocusNode.requestFocus();
+                },
+              )
+            : null,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 12 : 16,
+          vertical: isCompact ? 10 : 12,
+        ),
+      ),
+      style: TextStyle(fontSize: isCompact ? 14 : 16),
+      textInputAction: TextInputAction.search,
+      // Enter selects the first match — keyboard-only path to a Call.
+      onSubmitted: (_) {
+        final matches = _filteredMethods();
+        if (matches.isNotEmpty) _selectMethod(matches.first);
+      },
+    );
+  }
+
+  Widget _buildMethodKindGroup(
+      ThemeData theme, _MethodKind kind, List<Map<String, dynamic>> methods) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            children: [
+              Icon(_kindIcon(kind), size: 14, color: _kindColor(theme, kind)),
+              const SizedBox(width: 6),
+              Text(
+                '${_kindLabel(kind)} · ${methods.length}',
+                key: Key('methodGroup_${kind.name}'),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _methods.map((m) {
-            final name = m['name'] as String;
-            final kind = (m['kind'] as String).toLowerCase();
-            final isSelected = _selectedMethod?['name'] == name;
-            final isUpdate = kind.contains('update');
-            final isComposite = kind.contains('composite');
-            return FilterChip(
-              key: Key('methodChip_$name'),
-              label: Text(name),
-              selected: isSelected,
-              avatar: Icon(
-                isUpdate
-                    ? Icons.sync_alt
-                    : (isComposite ? Icons.merge_type : Icons.search),
-                size: 16,
-                // call-type category colour (query/update/composite), not a
-                // status semantic — intentionally off-token (composite has no
-                // status token either, so the 3-way scheme stays coherent).
-                color: isSelected
-                    ? theme.colorScheme.onSecondaryContainer
-                    : (isUpdate
-                        ? Colors.orange
-                        : (isComposite
-                            ? Colors.purple
-                            : theme.colorScheme.primary)),
-              ),
-              onSelected: (_) => _selectMethod(m),
-              selectedColor: theme.colorScheme.secondaryContainer,
-            );
-          }).toList(),
+          children: methods.map((m) => _buildMethodChip(theme, m)).toList(),
         ),
       ],
     );
+  }
+
+  Widget _buildMethodChip(ThemeData theme, Map<String, dynamic> m) {
+    final name = m['name'] as String;
+    final kind = (m['kind'] as String).toLowerCase();
+    final isSelected = _selectedMethod?['name'] == name;
+    final isUpdate = kind.contains('update');
+    final isComposite = kind.contains('composite');
+    return FilterChip(
+      key: Key('methodChip_$name'),
+      label: Text(name),
+      selected: isSelected,
+      avatar: Icon(
+        isUpdate
+            ? Icons.sync_alt
+            : (isComposite ? Icons.merge_type : Icons.search),
+        size: 16,
+        // call-type category colour (query/update/composite), not a
+        // status semantic — intentionally off-token (composite has no
+        // status token either, so the 3-way scheme stays coherent).
+        color: isSelected
+            ? theme.colorScheme.onSecondaryContainer
+            : (isUpdate
+                ? Colors.orange
+                : (isComposite ? Colors.purple : theme.colorScheme.primary)),
+      ),
+      onSelected: (_) => _selectMethod(m),
+      selectedColor: theme.colorScheme.secondaryContainer,
+    );
+  }
+
+  /// Inline empty-state shown when the search filter matches nothing.
+  /// (ModernEmptyState is a full-screen animated widget — wrong for a sheet row.)
+  Widget _buildNoMethodMatches(ThemeData theme) {
+    return Padding(
+      key: const Key('methodSearchEmpty'),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.search_off,
+              size: 20, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "No methods match '$_methodQuery'.",
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _kindLabel(_MethodKind kind) {
+    switch (kind) {
+      case _MethodKind.query:
+        return '${TechTerm.query.plainLabel} (fast)';
+      case _MethodKind.update:
+        return '${TechTerm.update.plainLabel} (slower)';
+      case _MethodKind.composite:
+        return 'Composite';
+    }
+  }
+
+  static IconData _kindIcon(_MethodKind kind) {
+    switch (kind) {
+      case _MethodKind.query:
+        return Icons.search;
+      case _MethodKind.update:
+        return Icons.sync_alt;
+      case _MethodKind.composite:
+        return Icons.merge_type;
+    }
+  }
+
+  static Color _kindColor(ThemeData theme, _MethodKind kind) {
+    switch (kind) {
+      case _MethodKind.query:
+        return theme.colorScheme.primary;
+      case _MethodKind.update:
+        return Colors.orange;
+      case _MethodKind.composite:
+        return Colors.purple;
+    }
   }
 
   Widget _buildInputSection(ThemeData theme, bool isCompact) {
