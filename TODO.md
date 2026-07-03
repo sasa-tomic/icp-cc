@@ -12,13 +12,43 @@ Phase 4 done). There is no active scripting work.
 
 Genuinely open items are listed below.
 
+> **Next-phase tech-debt / test-quality / UX initiative: COMPLETE.** See
+> `docs/specs/NEXT_PHASE_PLAN.md` (TD-1..5, TQ-1..3, UX-1) and
+> `docs/specs/UX_REVIEW_ROUND4.md` (UX-2/3/7/9). Highlights: all local file I/O now
+> timeout-bounded (TD-1); backend has a real cancellation/graceful-shutdown path (TD-2);
+> no panics across the FFI boundary (TD-4); single-source semantic status colors (TD-5);
+> WU-2/WU-3 snackbar actions now have real widget tests (TQ-1); ~233 false-confidence
+> scripts tests dropped + a shared harness (TQ-3); keypair ownership invariant enforced
+> (A-3a/c/d); `flutter build web` unblocked (R-1); Canisters label made honest (UX-2),
+> searchable method picker (UX-3), local keys visible without backend (UX-7), intuitive
+> keyboard shortcuts (UX-9).
+
 ## Known Issues
 
 | Issue | Location | Severity | Notes |
 |-------|----------|----------|-------|
-| Cross-profile key sharing is allowed by the Flutter models (violates the profile-centric design; the backend enforces key uniqueness) | `lib/models/account.dart` (`FIXME` at L18, L304) | MEDIUM | Architectural — needs a human decision. See `docs/ACCOUNT_PROFILES_DESIGN.md`. |
 | Key label editing is blocked by a missing backend endpoint | `AccountController` | MEDIUM | No rename/label route exists server-side. |
-| Flutter Web build is broken (`dart:ffi` imported unconditionally) | `lib/rust/native_bridge.dart:2`, `lib/main.dart:11` | HIGH | Pre-existing, not introduced by the migration. Web can't compile, so the passkey flow (which AGENTS.md routes through Web) and the `flutter-dev-local` (`-d chrome`) recipe are unreachable. Fix needs conditional-import split (`*_io.dart` FFI impl + `*_web.dart` stub) plus a Web-native strategy for keypair-gen/signing/QuickJS-exec (WASM QuickJS + WebCrypto). Architectural — needs a human decision on whether Web is a supported target. |
+| Web *runtime* features are stubbed (build compiles) | `lib/rust/native_bridge_web.dart` | MEDIUM | R-1 unblocked `flutter build web` (conditional FFI split). Native-only calls throw honest `UnsupportedError`; full Web runtime is R-2..5 (see Future). |
+
+## Deferred (decided, with justification)
+
+- **A-3b — structural `profileId` on `ProfileKeypair`.** The data-integrity contract is
+  **already enforced** by A-3a's `assertUniqueKeypairOwnership` invariant at persist + load
+  + import (`lib/services/profile_invariants.dart`), closing the real silent-key-loss
+  vector. A-3b's marginal value is construction-time assertions + a queryable field; it
+  keeps the flat secure-storage keying anyway, so it's KISS/YAGNI for now (wide blast
+  radius: models/serializer/generator/controllers/many tests). The `account.dart` FIXMEs
+  (L18/L307) were resolved by A-3d (`AddPublicKeyRequest` now takes a `ProfileKeypair`).
+- **R-2..R-5 — full Flutter Web runtime.** R-1 makes Web **build & launch**; the
+  conditional-import scaffolding is in place. Remaining: R-2 WebCrypto Ed25519 keys, R-3
+  WASM QuickJS, R-4 Web secure storage (IndexedDB), R-5 Web passkeys + CORS. A separate
+  multi-day initiative. See `docs/BROWSER_SUPPORT.md`.
+- **UX-4/5/6/8 — lower-priority UX polish** from `docs/specs/UX_REVIEW_ROUND4.md` (collapse
+  inline Add-Bookmark, lazy per-tab load + paid purchase CTA, lightweight preview endpoint,
+  unify Import/Export). The P0/P1 items (UX-2 header↔tab, UX-3 searchable method picker,
+  UX-7 local keys visible, UX-9 keyboard shortcuts) are done.
+- **TD-7 — SQL column list** (`backend/src/models.rs::SCRIPT_COLUMNS_WITH_ACCOUNT`). Already
+  guarded by the drift-detection test at `models.rs:418-424`.
 
 ## Future / Optional
 
@@ -27,7 +57,6 @@ Not started; pulled from the migration spec's open questions (`docs/specs/SCRIPT
 - **G2** — Android NDK cross-compile of the QuickJS/rquickjs cdylib (NDK is not present in the current environment).
 - **G8** — `qjsc` bytecode precompilation for faster cold start (optional).
 - **G12** — Resource-limit (memory/time) tuning against a real pilot-script load test.
-- **TD-7** — `backend/src/models.rs::SCRIPT_COLUMNS_WITH_ACCOUNT` is a hand-maintained SQL column list; derive it from struct metadata on the next schema change.
 
 ## Architecture Reference
 
