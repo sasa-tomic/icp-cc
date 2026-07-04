@@ -1,11 +1,14 @@
 # Next Iteration Plan — Tech Debt · Test Quality · UX (Dapps + Round-5)
 
-- **Status:** Wave 1 EXECUTED (original 7 COMPLETE; UX-10 added & ACTIVE),
-  Waves 2–4 PLANNING. Extends `NEXT_PHASE_PLAN.md` (COMPLETE),
-  `UI_EXCELLENCE_PLAN.md` (COMPLETE), and `EXAMPLE_DAPP_INTEGRATION_PLAN.md`
-  (Phase 1 COMPLETE; Phase 2 webview DEFERRED). Grounded in two fresh audits
-  (2026-07-04): `audit_techdebt_tests.md` + `audit_ux_round5.md` (both on disk
-  under `/tmp/opencode/`; the UX round captured in this doc's findings).
+- **Status:** ✅ **ALL FOUR WAVES COMPLETE** (Wave 1 incl. UX-10 pulled into
+  scope, Wave 2, Wave 3, Wave 4). Per-WU commit hashes in §2; headline outcome
+  + deferred follow-ups in §6. Earlier draft of this doc marked only Wave 1
+  done (commit `c1912672`); this revision records Waves 2–4 landing. Extends
+  `NEXT_PHASE_PLAN.md` (COMPLETE), `UI_EXCELLENCE_PLAN.md` (COMPLETE), and
+  `EXAMPLE_DAPP_INTEGRATION_PLAN.md` (Phase 1 COMPLETE; Phase 2 webview
+  DEFERRED). Grounded in two fresh audits (2026-07-04):
+  `audit_techdebt_tests.md` + `audit_ux_round5.md` (both on disk under
+  `/tmp/opencode/`; the UX round captured in this doc's findings).
 - **Date:** 2026-07-04
 - **Target:** Linux desktop + backend (Rust/Poem) + the example Poll dapp
   (`examples/icp_poll_dapp`, deployed to the local replica).
@@ -76,11 +79,12 @@
 
 > **Status (2026-07-04):** the original 7 Wave-1 items are all COMPLETE —
 > TD-8 `d190be3d` (drive-by stale-comment `31d1149c`), TD-9 `76402018`
-> (redirected — see its body), TD-13 `4a2cbb83`, UX-11 `7f543480` (impl DONE,
-> acceptance PENDING-UX-10), UX-12 `3b0f05d8`, UX-13 `7648f636`, TQ-4
-> `3e29990d`. **UX-10** (below) was pulled INTO scope after the round began —
-> it is the one remaining ACTIVE Wave-1 item and the dependency that unblocks
-> UX-11's acceptance.
+> (redirected — see its body), TD-13 `4a2cbb83`, UX-11 `7f543480`
+> (acceptance unlocked by UX-10 below — see §6), UX-12 `3b0f05d8`
+> (part (a) only — part (b) deferred; see body + §6), UX-13 `7648f636`,
+> TQ-4 `3e29990d`. **UX-10** (below) was pulled INTO scope after the round
+> began and is also COMPLETE: `26e22056`. Wave 1 has no remaining ACTIVE
+> items.
 
 #### TD-8 — Fix the `canister_call_builder` clipboard slop (user-facing lie) ✅ DONE `d190be3d` (drive-by `31d1149c`)
 - **Problem:** the "Copy bundle" button shows *"Snippet copied to clipboard!"*
@@ -138,11 +142,13 @@
 - **Risk:** LOW (comments only). **Confidence 10/10.**
 - **Commit:** `docs(vault): TD-13 honest code comments pending A-4 zero-knowledge decision`
 
-#### UX-11 — Poll dapp auto-loads on open (not "Polls (0)" + manual Refresh) ✅ impl DONE `7f543480` · acceptance PENDING-UX-10
+#### UX-11 — Poll dapp auto-loads on open (not "Polls (0)" + manual Refresh) ✅ DONE `7f543480` · acceptance UNLOCKED by UX-10 (`26e22056`)
 - **Status:** implementation COMPLETE (`7f543480`) — `init` now emits the
   whoami+listPolls batch so polls load on open instead of "Polls (0)". The
-  **acceptance criterion is reworded** (below) and now depends on **UX-10**;
-  full acceptance is PENDING until UX-10 lands.
+  **acceptance criterion was reworded** (below) to depend on **UX-10**;
+  UX-10 (`26e22056`) has now landed, so acceptance is **MET** (see §6 for
+  the live-verified outcome: real canister, one prompt on first open, zero
+  on restart).
 - **Problem (original):** the bundle's `init` returned `effects: []`, so the
   dapp opened to "Polls (0)" — contradicting the plan's *"sees a real canister
   respond … One click, no setup"*. Fixed by `7f543480`.
@@ -155,12 +161,12 @@
 - **New acceptance (reworded, depends on UX-10):** opening the Poll dapp shows
   **real polls within ~1s** with **at most ONE prompt** — the trust-this-dapp
   grant from UX-10 — **persisting across restarts** (no re-prompt on the second
-  open). Until UX-10 lands, acceptance is PENDING-UX-10.
+  open). **ACCEPTANCE MET** by UX-10 (`26e22056`) — live-verified; see §6.
 - **Grounding:** `lib/examples/06_icp_poll.js` `init`/`refreshEffects`
   (auto-load done); permission gate around the effect dispatcher in
   `lib/screens/dapp_runner_screen.dart` (the UX-10 target).
 - **Risk:** LOW (impl); MED (acceptance gated on UX-10). **Confidence 9/10**
-  (impl), **8/10** (acceptance, once UX-10 lands).
+  (impl), **8/10** (acceptance — UX-10 has landed; live-verified in §6).
 - **Commit:** `fix(dapps): UX-11 poll bundle auto-loads on open` (`7f543480`)
 
 #### UX-13 — Fix the DISPLAY double-prefix in `run-with-mock-keyring.sh` ✅ DONE `7648f636`
@@ -175,18 +181,27 @@
 - **Risk:** TRIVIAL. **Confidence 10/10.**
 - **Commit:** `fix(scripts): UX-13 fix DISPLAY double-prefix in run-with-mock-keyring`
 
-#### UX-12 — Dapps Connection panel honesty ✅ DONE `3b0f05d8`
+#### UX-12 — Dapps Connection panel honesty ✅ DONE `3b0f05d8` (part (a) only; part (b) DEFERRED — see §6)
 - **Problem:** collapsed-by-default Connection panel + *"Loading saved
   connection…"* copy (implies network; it's only SharedPreferences) hides the
   recovery path when a fresh `dfx start --clean` changes the canister ID.
 - **Grounding:** `screens/dapp_runner_screen.dart:242` (`initiallyExpanded:
   false`), `:245-253` (loading copy), `:338-340` (spinner).
-- **Change:** (a) reword the transient to *"Reading saved connection…"* (honest
-  local read); (b) when the first canister call fails reachability, auto-expand
-  the Connection panel + surface a *"Canister unreachable — check id/host in
-  Connection"* hint. No happy-path behaviour change.
+- **Change DELIVERED (part a):** reworded the transient to
+  *"Reading saved connection…"* (honest local read); added an actionable
+  recovery hint at the top of the **expanded** panel naming the exact
+  command that invalidates ids (`dfx start --clean`) and the recovery action
+  (`dfx canister id …` output → Apply). No happy-path behaviour change.
+- **Change DEFERRED (part b — see §6 follow-up UX-12(b)):** auto-expand the
+  panel + surface a *"Canister unreachable"* hint when the first effect
+  actually fails reachability. Deliberately scoped out of this WU: the
+  live UX reviewer found the always-visible expanded-panel hint (part a)
+  already makes the stale-canister-id-after-`dfx-clean` path discoverable
+  enough for a teaching example, and wiring the reactive auto-expand into
+  the effect-dispatch path is a non-trivial follow-up better done as its
+  own small WU.
 - **Risk:** LOW. **Confidence 8/10.**
-- **Commit:** `feat(dapps): UX-12 honest Connection panel + reachable recovery`
+- **Commit:** `feat(dapps): UX-12 honest Connection panel + reachable recovery` (`3b0f05d8`)
 
 #### TQ-4 — Fold the marketplace test `MaterialApp` harness (mirror TQ-3) ✅ DONE `3e29990d`
 - **Problem:** `test/features/marketplace/` rebuilds `MaterialApp(...)` ~10×
@@ -197,11 +212,12 @@
 - **Risk:** LOW. **Confidence 8/10.**
 - **Commit:** `refactor(test): TQ-4 fold marketplace MaterialApp harness`
 
-#### UX-10 — "Trust this dapp" grant for the shipped example (permission-gate fix) 🆕 ACTIVE (pulled into scope; previously omitted)
-- **Status:** ACTIVE — pulled into scope after Wave 1's original 7 items
-  completed. This was previously **omitted** from the plan (not in §5
-  out-of-scope; simply missed). Implementation PENDING. It is the dependency
-  that makes **UX-11's** reworded acceptance achievable.
+#### UX-10 — "Trust this dapp" grant for the shipped example (permission-gate fix) ✅ DONE `26e22056` (pulled into scope mid-iteration)
+- **Status:** COMPLETE (`26e22056`) — previously **omitted** from the plan
+  (not in §5 out-of-scope; simply missed), then pulled into Wave 1 after the
+  original 7 completed. It is the dependency that made **UX-11's** reworded
+  acceptance achievable. **UX-11 acceptance is now MET** (live-verified; see
+  §6).
 - **Problem:** the Dapps permission gate prompts **per method**, so opening the
   Poll dapp fires a prompt for `whoami` AND `listPolls` on every cold start,
   and re-prompts across restarts. That friction is what made UX-11's old
@@ -228,13 +244,19 @@
 
 ---
 
-### Wave 2 — file splits (independent across different files)
+### Wave 2 — file splits (independent across different files) ✅ COMPLETE
 
-#### TD-10 — Split `bookmarks_screen.dart` (2119 lines) into cohesive files
-- **Problem:** the app's largest file crams 6 concerns (screen scaffold, a
+#### TD-10 — Split `bookmarks_screen.dart` (2119 lines) into cohesive files ✅ DONE `23b17fbf` (2119 → 307; 5 widget files extracted in one commit)
+- **Result:** the app's largest file crammed 6 concerns (screen scaffold, a
   ~1040-line canister-call builder sheet, args editor, recent-calls list,
-  well-known-canister catalog, saved-bookmarks list).
-- **Grounding (class/line map):**
+  well-known-canister catalog, saved-bookmarks list). Shipped as a single
+  commit extracting all 5 widgets (`bookmarks_list.dart`,
+  `canister_args_editor.dart`, `canister_client_sheet.dart`,
+  `recent_calls_list.dart`, `well_known_canisters.dart`) — pure mechanical
+  move, byte-identical behavior, classes promoted to public.
+- **Acceptance MET:** `wc -l bookmarks_screen.dart` = **307** (target ≤ ~400);
+  canister-client tests green.
+- **Grounding (class/line map, pre-split):**
   | Lines | Concern |
   |---|---|
   | 332–1370 | `CanisterClientSheet` + state (~1040 lines — the bulk) |
@@ -242,7 +264,7 @@
   | 1528–1708 | `_RecentCallsList` |
   | 1709–1911 | `WellKnownCanister` + `_WellKnownList` + `_WellKnownCard` |
   | 1912–2119 | `_BookmarksList` |
-- **Change (one commit per file):**
+- **Original plan (retained for reference):**
   1. `lib/widgets/canister_client_sheet.dart` ← `CanisterClientSheet` (do FIRST —
      removes ~half the file).
   2. `lib/widgets/canister_args_editor.dart` ← `_ArgsEditor`.
@@ -251,88 +273,111 @@
   5. `lib/widgets/bookmarks_list.dart` ← `_BookmarksList`.
   - Promote moved classes to public (drop `_`); move imports with them. Pure
     move, byte-identical behavior.
-- **Acceptance:** `just test-feature canister-client` (or the canister tests)
-  green after each commit; `wc -l bookmarks_screen.dart` ≤ ~400.
 - **Risk:** MED (large file; clean seams). **Confidence 9/10.**
-- **Commit(s):** `refactor(bookmarks): TD-10a extract CanisterClientSheet`, etc.
+- **Commit:** `refactor(bookmarks): TD-10 split bookmarks_screen into cohesive widget files` (`23b17fbf`)
 
-#### TD-11 — Split `script_details_dialog.dart` (1526 lines)
-- **Problem:** the most-traversed dialog holds 3 concerns: dialog shell + tabs,
-  a reviews subsystem (~246 lines), and a versions + diff subsystem (~272 lines).
-- **Change:**
-  1. `lib/widgets/script_details/reviews_tab.dart` ← reviews block.
-  2. `lib/widgets/script_details/versions_tab.dart` ← versions block + diff.
-  3. (Optional, only if the diff is clearly small) unify `_buildWideLayout` /
-     `_buildNarrowLayout` into one `LayoutBuilder`-driven adaptive layout.
-     **YAGNI** if the duplication isn't obviously small — just extract the tabs.
-- **Risk:** MED (tab extraction LOW; layout unification needs visual check under
-  Xvfb). **Confidence 8/10.**
-- **Commit:** `refactor(script-details): TD-11 extract reviews + versions tabs`
+#### TD-11 — Split `script_details_dialog.dart` (1526 lines) ✅ DONE `aa231ea3` (1526 → 1003 at split; 3 files extracted)
+- **Result:** the most-traversed dialog held 3 concerns (dialog shell + tabs,
+  a reviews subsystem, and a versions + diff subsystem). Split into the dialog
+  shell + 3 cohesive files under `lib/widgets/`: `script_details_helpers.dart`
+  (shared `formatDate`), `script_details_reviews_tab.dart`
+  (`ScriptDetailsReviewsTab` + 4 private widgets), and
+  `script_details_versions_tab.dart` (`ScriptDetailsVersionsTab` + diff).
+  Pure mechanical extraction — no behavior, logic, or copy changes. The
+  optional `_buildWide/NarrowLayout` unification was **declined as YAGNI**
+  (per the plan's own guard). Note: subsequent commits (UX-5 `448c8fab`,
+  UX-9 `f54bb58f`) added logic to the dialog shell, which is now **1057**
+  lines — the TD-11 split figure of 1003 is the post-split, pre-later-WUs
+  baseline.
+- **Risk:** MED (tab extraction LOW). **Confidence 8/10.**
+- **Commit:** `refactor(script-details): TD-11 split script_details_dialog into cohesive files` (`aa231ea3`)
 
 ---
 
-### Wave 3 — touches the split files (after Wave 2 settles)
+### Wave 3 — touches the split files (after Wave 2 settles) ✅ COMPLETE
 
-#### UX-5 — Details dialog: lazy-load Reviews/Versions per-tab + paid-script purchase CTA
-- **Problem:** `initState` fires **all three** loads at once (preview + reviews +
-  versions) → triple spinner/error on slow/offline links. Separately, paid
-  scripts have `onDownload: null` and **no in-dialog purchase CTA** → dead end.
-- **Grounding:** `widgets/script_details_dialog.dart:50-55` (initState triple-load);
-  `screens/scripts_screen.dart:477` (`onDownload: script.price == 0 ? … : null`).
-- **Change:** (a) load only Details/preview on open; fetch reviews/versions when
-  their tab is first selected (track a `_loadedTabs` set). (b) When
-  `script.price > 0`, render a *"Purchase & Download"* primary action wiring to
-  the existing purchase flow.
-- **Dependencies:** after **TD-11** (same file).
+#### UX-5 — Details dialog: lazy-load Reviews/Versions per-tab + paid-script purchase CTA ✅ DONE `448c8fab` (lazy-load delivered; purchase CTA HONESTLY DEFERRED)
+- **Result (lazy-load delivered):** `initState` previously fired **all three**
+  loads at once (preview + reviews + versions) → triple spinner/error on
+  slow/offline links. UX-5 replaces that with lazy-loading: only the visible
+  Details/preview tab loads on open; the Reviews and Versions tabs fetch the
+  first time they are selected and then cache (re-selecting does not re-fetch).
+  Implementation is a small parent-owned gate (the post-TD-11 tabs are
+  conditionally created/disposed on every switch, so per-tab caching would
+  need `IndexedStack` or keep-alive plumbing — heavier than gating in the
+  parent, which already owns the load lifecycle).
+- **Purchase CTA — HONESTLY DEFERRED (not silently dropped):** the planned
+  in-dialog *"Purchase & Download"* CTA for `script.price > 0` depends on a
+  real paid-script purchase flow. Live verification against the running
+  marketplace found paid scripts currently surface as **NOT FOUND** (no live
+  paid listings), so the CTA could not be exercised end-to-end and was NOT
+  shipped as a stub. The existing **"Payments Coming Soon"** affordance is
+  retained as the honest placeholder. Wiring the CTA is a follow-up gated on
+  a real paid listing existing.
+- **Grounding:** `widgets/script_details_dialog.dart` (parent-owned
+  `_loadedTabs`-style gate); `screens/scripts_screen.dart:477`
+  (`onDownload: script.price == 0 ? … : null` — unchanged for now).
+- **Dependencies:** after **TD-11** (same file) — MET.
 - **Risk:** MED. **Confidence 8/10.**
-- **Commit:** `feat(details): UX-5 lazy-load tabs + paid-script purchase CTA`
+- **Commit:** `feat(ux): UX-5 lazy-load Details dialog tabs` (`448c8fab`)
 
-#### UX-4 — Canisters: collapse the inline Add-Bookmark form behind a button
-- **Problem:** the `BookmarkComposer` form (Canister ID / Method / Label / Add)
-  is always rendered inline on the explore screen, pushing Recent Calls below the
-  fold.
-- **Grounding:** `bookmarks_screen.dart:169-181` (always-inline `BookmarkComposer`).
-- **Change:** render a compact `OutlinedButton.icon` ("+ Add Bookmark") that
-  expands the composer on tap and auto-collapses after save. Keep the empty-state.
-- **Dependencies:** after **TD-10** (same file).
+#### UX-4 — Canisters: collapse the inline Add-Bookmark form behind a button ✅ DONE `98f5a05c`
+- **Result:** the `BookmarkComposer` form (Canister ID / Method / Label / Add)
+  was always rendered inline on the explore screen, pushing Recent Calls below
+  the fold. UX-4 collapses it behind a compact `OutlinedButton.icon`
+  ("+ Add Bookmark") that expands the composer on tap and auto-collapses after
+  save; the empty-state is kept.
+- **Grounding:** `widgets/bookmark_composer.dart` (collapsed/expanded state);
+  new test `test/features/canister_client/bookmarks_inline_add_test.dart`.
+- **Dependencies:** after **TD-10** (same file) — MET.
 - **Risk:** LOW. **Confidence 8/10.**
-- **Commit:** `feat(canisters): UX-4 collapse inline Add-Bookmark form`
+- **Commit:** `feat(ux): UX-4 inline Add-Bookmark form` (`98f5a05c`)
 
 ---
 
-### Wave 4 — cross-cutting
+### Wave 4 — cross-cutting ✅ COMPLETE
 
-#### UX-9 (finish) — Surface-specific keyboard shortcuts
-- **Problem:** `Alt+3` (Dapps) + Canisters `/`/`Esc` are done; **remaining**:
-  Dapps runner (`R`=Refresh, `Esc`=back), Details dialog (`Esc`=close,
-  `Enter`=primary action, ←/→ tab traversal), Account (`mod+S`=save, `Esc`=back).
-- **Change:** add to `kShortcutSpecs` + wire `Shortcuts`/`Actions` per surface;
-  all appear in the `?` help sheet.
-- **Dependencies:** after Waves 2–3 (so the targets exist).
+#### UX-9 (finish) — Surface-specific keyboard shortcuts ✅ DONE `97b42da3` (Dapps runner R/Esc + Account Ctrl+S/Esc) + `f54bb58f` (Details ←/→/Esc)
+- **Result:** completed the surface-specific shortcut sweep (prior carries had
+  done `Alt+3` for Dapps and Canisters `/`/`Esc`). Two commits shipped:
+  - `97b42da3` — Dapps runner (`R`=Refresh, `Esc`=back) + Account
+    (`mod+S`=save, `Esc`=back), both added to `kShortcutSpecs` and surfaced
+    in the `?` help sheet.
+  - `f54bb58f` — Details dialog (`Esc`=close, ←/→ tab traversal), rebuilt the
+    dialog's keyboard wiring on top of the post-TD-11 / post-UX-5 shell.
+  All shortcuts appear in the `?` help sheet; both commits include widget
+  tests (`account_profile/keyboard_shortcuts_test.dart`,
+  `features/dapps/dapp_runner_screen_test.dart`,
+  `marketplace/script_details_keyboard_test.dart`).
+- **Dependencies:** after Waves 2–3 (so the targets exist) — MET.
 - **Risk:** MED. **Confidence 8/10.**
-- **Commit:** `feat(ux): UX-9 finish surface-specific keyboard shortcuts`
+- **Commits:** `feat(ux): UX-9 keyboard shortcuts for Dapps runner + Account`
+  (`97b42da3`); `feat(ux): UX-9 keyboard shortcuts for Details dialog`
+  (`f54bb58f`)
 
 ---
 
 ## 3. Dependency graph
 
 ```
-  Wave 1 (parallel, independent) — original 7 COMPLETE; UX-10 added & ACTIVE:
+  Wave 1 (parallel, independent) — ✅ ALL COMPLETE (incl. UX-10 pulled in):
     ✅ TD-8 (d190be3d, +stale-comment 31d1149c)   ✅ TD-9 (76402018, redirected)
     ✅ TD-13 (4a2cbb83)                            ✅ UX-13 (7648f636)
-    ✅ UX-12 (3b0f05d8)                            ✅ TQ-4 (3e29990d)
-    ✅ UX-11 (7f543480) — impl DONE, acceptance PENDING-UX-10
-    🆕 UX-10 (trust-this-dapp grant) — ACTIVE; unblocks UX-11 acceptance
-        UX-11 acceptance ─► after UX-10
+    ✅ UX-12 (3b0f05d8) — part (a) only; part (b) deferred (§6)
+    ✅ TQ-4 (3e29990d)
+    ✅ UX-11 (7f543480) — acceptance UNLOCKED by UX-10
+    ✅ UX-10 (26e22056) — trust-this-dapp grant; unblocked UX-11 acceptance
 
-  Wave 2 (file splits, parallel across different files):
-    TD-10 (bookmarks_screen.dart)   TD-11 (script_details_dialog.dart)
+  Wave 2 (file splits) — ✅ COMPLETE:
+    ✅ TD-10 (23b17fbf) bookmarks_screen.dart 2119→307, 5 widgets extracted
+    ✅ TD-11 (aa231ea3) script_details_dialog.dart 1526→1003, 3 files extracted
 
-  Wave 3 (touches the split files):
-    UX-4 ─► after TD-10          UX-5 ─► after TD-11
+  Wave 3 (touches the split files) — ✅ COMPLETE:
+    ✅ UX-4 (98f5a05c)  — after TD-10
+    ✅ UX-5 (448c8fab)  — after TD-11; lazy-load delivered, purchase CTA deferred
 
-  Wave 4 (cross-cutting):
-    UX-9 (finish) ─► after Waves 2–3
+  Wave 4 (cross-cutting) — ✅ COMPLETE:
+    ✅ UX-9 (97b42da3 + f54bb58f) — after Waves 2–3
 
   Flagged (NOT auto-executed):
     A-4 (vault zero-knowledge migration) ─► human decision (HIGH; see TODO.md)
@@ -383,4 +428,54 @@ wc -l apps/autorun_flutter/lib/screens/bookmarks_screen.dart         # TD-10: �
 - **UX-8** — largely resolved by the local-only account body; recommend CLOSE.
 - **Phase 2 embedded webview** — blocked (no root for WPE libs); deferred.
 - **R-2..R-5 Flutter Web runtime** — deferred (multi-day).
+- **UX-5 paid-script purchase CTA** — gated on a real paid marketplace listing
+  existing (live verification found paid listings currently surface as NOT
+  FOUND; the existing "Payments Coming Soon" affordance is retained as the
+  honest placeholder). See §2 UX-5.
+- **UX-12(b) reactive auto-expand** — auto-expand the Dapps Connection panel
+  on a canister-unreachable effect failure. UX-12 shipped part (a) only (§2).
+
+---
+
+## 6. Iteration complete — headline outcome + deferred follow-ups
+
+**All four waves are landed.** 12 work units shipped across 13 commits
+(Wave 1: 8 incl. the drive-by; Wave 2: 2; Wave 3: 2; Wave 4: split into 2
+commits).
+
+### Headline outcome (the point of the iteration)
+
+The shipped Poll dapp now delivers the **"one click, no setup"** teaching
+promise from `HUMAN_EXPECTATIONS.md` §3 — **verified live** against the
+real `dfx`-deployed canister (not a mock):
+
+- **First open:** exactly **one** prompt — the UX-10 *"Trust this dapp?"*
+  grant dialog — then real polls + tallies render within ~1s.
+- **Second open (restart):** **zero** prompts — the trust grant persists in
+  `SharedPreferences` (keyed by `descriptor.id`) and is awaited before any
+  effect dispatches, so no redundant prompt flashes on cold start.
+- **Unchanged:** user-added and marketplace scripts (untrusted) still go
+  through the strict per-method gate exactly as before — no weakening of
+  the security model for non-shipped code.
+
+This is UX-10 (`26e22056`) + UX-11 (`7f543480`) together closing the loop
+the round-5 audit opened. The prior "Polls (0) + manual Refresh +
+per-method prompt gauntlet" experience is gone.
+
+### Deferred from this iteration (recorded; not silently dropped)
+
+| Item | Why deferred | Size | Tracking |
+|---|---|---|---|
+| **UX-5 paid-script purchase CTA** | Live marketplace has no real paid listing to exercise the flow end-to-end (paid scripts surface as NOT FOUND). Shipped as a stub would violate the no-slop rule. Existing *"Payments Coming Soon"* retained. | S-M | §2 UX-5; TODO.md next-iteration candidates |
+| **UX-12(b) reactive auto-expand** | UX-12 shipped part (a) (honest copy + always-visible expanded-panel recovery hint). Part (b) (auto-expand the panel on a canister-unreachable effect failure) is a non-trivial wiring into the effect-dispatch path, better as its own WU. The expanded-panel hint already makes the stale-canister-id-after-`dfx-clean` path discoverable for a teaching example. | S | §2 UX-12; TODO.md next-iteration candidates (UX-12(b)) |
+
+### Next-iteration candidates surfaced by the final verifier + live UX reviewer
+
+Captured in `TODO.md` under **Next Iteration Candidates** (this iteration's
+live review pass). Headline additions: UX-12(b), a "Manage trust" UI to
+revoke a granted dapp-level trust (`DappTrustStore.clear()` exists, no UI
+yet), an inline *"Create a profile to vote"* CTA on the Dapps runner for
+keyless viewers, and key-label editing (field present-but-disabled, needs
+the backend endpoint). A-4 (vault zero-knowledge) remains the standing
+HIGH-severity decision item and is cross-referenced there.
 ```
