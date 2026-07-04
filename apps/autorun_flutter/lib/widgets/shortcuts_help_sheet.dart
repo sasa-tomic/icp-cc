@@ -29,6 +29,8 @@ class ShortcutsHelpSheet extends StatelessWidget {
     _ShortcutGroup('Scripts', ['new', 'search', 'refresh']),
     _ShortcutGroup('Dapps', ['dapp_refresh']),
     _ShortcutGroup('Account', ['account_save']),
+    _ShortcutGroup(
+        'Details', ['details_close', 'details_prev_tab', 'details_next_tab']),
     _ShortcutGroup('Help', ['help']),
   ];
 

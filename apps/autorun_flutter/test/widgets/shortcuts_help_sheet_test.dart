@@ -7,6 +7,17 @@ void main() {
   group('ShortcutsHelpSheet', () {
     testWidgets('renders every shortcut from the single source of truth',
         (tester) async {
+      // The sheet is a scrollable bottom sheet; on the default 800x600 test
+      // surface the six groups (added UX-9 Details group) overflow and the
+      // bottom groups get lazy-clipped out of the widget tree. Use a
+      // desktop-realistic viewport so every row is built and discoverable by
+      // `find.text` — the production sheet itself scrolls correctly on any
+      // window too short to fit all groups at once.
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(body: Builder(builder: (context) {
           return Center(
@@ -31,6 +42,8 @@ void main() {
       // Groups are rendered.
       expect(find.text('NAVIGATION'), findsOneWidget);
       expect(find.text('SCRIPTS'), findsOneWidget);
+      expect(find.text('DETAILS'), findsOneWidget,
+          reason: 'UX-9 part B added a Details group');
       expect(find.text('HELP'), findsOneWidget);
 
       // The ? affordance (both as a key chip and as a help entry) is shown on

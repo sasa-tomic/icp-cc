@@ -420,6 +420,10 @@ void main() {
       expect(DesktopShortcuts.getShortcutLabel('dapp_refresh'), equals('R'));
       expect(DesktopShortcuts.getShortcutLabel('account_save'), equals('Ctrl+S'));
       expect(DesktopShortcuts.getShortcutLabel('back'), equals('Esc'));
+      // Details dialog (UX-9 part B). Esc close, ←/→ tab traversal.
+      expect(DesktopShortcuts.getShortcutLabel('details_close'), equals('Esc'));
+      expect(DesktopShortcuts.getShortcutLabel('details_prev_tab'), equals('←'));
+      expect(DesktopShortcuts.getShortcutLabel('details_next_tab'), equals('→'));
       // Dead/unknown actions carry no label.
       expect(DesktopShortcuts.getShortcutLabel('save'), isEmpty);
       expect(DesktopShortcuts.getShortcutLabel('unknown'), isEmpty);

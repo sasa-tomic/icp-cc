@@ -4,6 +4,7 @@ import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../theme/app_design_system.dart';
+import 'keyboard_shortcuts.dart';
 import 'script_details_helpers.dart';
 import 'script_details_reviews_tab.dart';
 import 'script_details_versions_tab.dart';
@@ -80,6 +81,23 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     }
   }
 
+  /// ← keyboard shortcut (UX-9 part B). Moves one tab left, clamped at the
+  /// first tab. Goes through [_selectTab] so lazy-load (UX-5) fires exactly as
+  /// it does for a mouse tap on the tab.
+  void _goToPrevTab() {
+    if (_selectedTabIndex > 0) {
+      _selectTab(_selectedTabIndex - 1);
+    }
+  }
+
+  /// → keyboard shortcut (UX-9 part B). Moves one tab right, clamped at the
+  /// last tab. Lazy-load integration is identical to a tab tap.
+  void _goToNextTab() {
+    if (_selectedTabIndex < 2) {
+      _selectTab(_selectedTabIndex + 1);
+    }
+  }
+
   Future<void> _loadVersions() async {
     setState(() {
       _isLoadingVersions = true;
@@ -129,8 +147,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     });
 
     try {
-      final bundle =
-          await _marketplaceService.downloadScript(widget.script.id);
+      final bundle = await _marketplaceService.downloadScript(widget.script.id);
       // Show first 50 lines as preview
       final lines = bundle.split('\n');
       final previewLines = lines.take(50).join('\n');
@@ -149,215 +166,223 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 600;
+      child: DetailsDialogShortcuts(
+        onPrevTab: _goToPrevTab,
+        onNextTab: _goToNextTab,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 600;
 
-          return Container(
-            width: isNarrow
-                ? MediaQuery.of(context).size.width * 0.95
-                : MediaQuery.of(context).size.width * 0.9,
-            height: MediaQuery.of(context).size.height * 0.85,
-            constraints: BoxConstraints(
-              minWidth: isNarrow ? 300 : 600,
-              maxWidth: isNarrow ? 400 : 900,
-              minHeight: 500,
-              maxHeight: 800,
-            ),
-            child: Column(
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // Script icon
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: widget.script.iconUrl != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  widget.script.iconUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.code,
-                                          color: Colors.white),
-                                ),
-                              )
-                            : const Icon(Icons.code, color: Colors.white),
+            return Container(
+              width: isNarrow
+                  ? MediaQuery.of(context).size.width * 0.95
+                  : MediaQuery.of(context).size.width * 0.9,
+              height: MediaQuery.of(context).size.height * 0.85,
+              constraints: BoxConstraints(
+                minWidth: isNarrow ? 300 : 600,
+                maxWidth: isNarrow ? 400 : 900,
+                minHeight: 500,
+                maxHeight: 800,
+              ),
+              child: Column(
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
-                      const SizedBox(width: 16),
+                    ),
+                    child: Row(
+                      children: [
+                        // Script icon
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: widget.script.iconUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    widget.script.iconUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(Icons.code,
+                                                color: Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.code, color: Colors.white),
+                        ),
+                        const SizedBox(width: 16),
 
-                      // Script info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.script.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'by ${widget.script.authorName}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                // Category badge
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    widget.script.category,
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onPrimary,
-                                      fontSize: 12,
+                        // Script info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.script.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
                                       fontWeight: FontWeight.bold,
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-
-                                // Price
-                                if (widget.script.price > 0)
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'by ${widget.script.authorName}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  // Category badge
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: AppDesignSystem.successColor
-                                          .withValues(alpha: 0.1),
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      '\$${widget.script.price.toStringAsFixed(2)}',
+                                      widget.script.category,
                                       style: TextStyle(
-                                        color: AppDesignSystem.successDark,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue[100],
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      'FREE',
-                                      style: TextStyle(
-                                        color: Colors.blue[800],
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onPrimary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
 
-                                const SizedBox(width: 8),
-
-                                // Rating
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.star,
-                                        size: 16, color: Colors.amber),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      widget.script.rating > 0
-                                          ? widget.script.rating
-                                              .toStringAsFixed(1)
-                                          : 'No rating',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                  // Price
+                                  if (widget.script.price > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppDesignSystem.successColor
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '\$${widget.script.price.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          color: AppDesignSystem.successDark,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[100],
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'FREE',
+                                        style: TextStyle(
+                                          color: Colors.blue[800],
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
+
+                                  const SizedBox(width: 8),
+
+                                  // Rating
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.star,
+                                          size: 16, color: Colors.amber),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        widget.script.rating > 0
+                                            ? widget.script.rating
+                                                .toStringAsFixed(1)
+                                            : 'No rating',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
 
-                      // Close button
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
+                        // Close button. Tooltip surfaces the Esc binding so the
+                        // shortcut is discoverable without the help sheet.
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close),
+                          tooltip: 'Close (Esc)',
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
-                // Content
-                Expanded(
-                  child: Column(
-                    children: [
-                      _buildTabBar(),
-                      Expanded(
-                        child: _selectedTabIndex == 0
-                            ? (isNarrow
-                                ? _buildNarrowLayout()
-                                : _buildWideLayout())
-                            : _selectedTabIndex == 1
-                                ? ScriptDetailsReviewsTab(
-                                    script: widget.script,
-                                    reviews: _reviews,
-                                    isLoadingReviews: _isLoadingReviews,
-                                    reviewsError: _reviewsError,
-                                  )
-                                : ScriptDetailsVersionsTab(
-                                    script: widget.script,
-                                    versions: _versions,
-                                    isLoadingVersions: _isLoadingVersions,
-                                    versionsError: _versionsError,
-                                    installedVersion: widget.installedVersion,
-                                    installedScriptSource:
-                                        widget.installedScriptSource,
-                                    onInstallVersion: widget.onInstallVersion,
-                                  ),
-                      ),
-                    ],
+                  // Content
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _buildTabBar(),
+                        Expanded(
+                          child: _selectedTabIndex == 0
+                              ? (isNarrow
+                                  ? _buildNarrowLayout()
+                                  : _buildWideLayout())
+                              : _selectedTabIndex == 1
+                                  ? ScriptDetailsReviewsTab(
+                                      script: widget.script,
+                                      reviews: _reviews,
+                                      isLoadingReviews: _isLoadingReviews,
+                                      reviewsError: _reviewsError,
+                                    )
+                                  : ScriptDetailsVersionsTab(
+                                      script: widget.script,
+                                      versions: _versions,
+                                      isLoadingVersions: _isLoadingVersions,
+                                      versionsError: _versionsError,
+                                      installedVersion: widget.installedVersion,
+                                      installedScriptSource:
+                                          widget.installedScriptSource,
+                                      onInstallVersion: widget.onInstallVersion,
+                                    ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -983,12 +1008,17 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
           ),
         ),
       ),
-      child: Row(
-        children: [
-          _buildTab('Details', 0),
-          _buildTab('Reviews', 1),
-          _buildTab('Versions', 2),
-        ],
+      // Surface the ←/→ tab-traversal binding on hover so the shortcut is
+      // discoverable without opening the ? help sheet (UX-9 part B).
+      child: Tooltip(
+        message: 'Switch tabs with ← / → arrows',
+        child: Row(
+          children: [
+            _buildTab('Details', 0),
+            _buildTab('Reviews', 1),
+            _buildTab('Versions', 2),
+          ],
+        ),
       ),
     );
   }

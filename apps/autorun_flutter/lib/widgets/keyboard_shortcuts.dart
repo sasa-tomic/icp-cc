@@ -40,6 +40,15 @@ const Map<String, ShortcutSpec> kShortcutSpecs = <String, ShortcutSpec>{
   'dapp_refresh': ShortcutSpec('Refresh the dapp', 'R'),
   'account_save': ShortcutSpec('Save profile edits', 'mod+S'),
   'back': ShortcutSpec('Back / close screen', 'Esc'),
+  // Script Details dialog (UX-9 part B). Esc-to-close is the framework's
+  // dialog-route default (verified — Flutter maps Escape → DismissIntent →
+  // maybePop on every showDialog route), so it is NOT re-wired in
+  // [DetailsDialogShortcuts]; it is listed here purely so the help sheet can
+  // surface the binding. ←/→ tab traversal IS wired in
+  // [DetailsDialogShortcuts].
+  'details_close': ShortcutSpec('Close the dialog', 'Esc'),
+  'details_prev_tab': ShortcutSpec('Previous tab', '←'),
+  'details_next_tab': ShortcutSpec('Next tab', '→'),
 };
 
 /// True when the user is currently editing text somewhere. Every guarded
@@ -248,7 +257,8 @@ class ScreenShortcuts extends StatelessWidget {
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         if (onRefresh != null)
-          const SingleActivator(LogicalKeyboardKey.keyR): const _RefreshIntent(),
+          const SingleActivator(LogicalKeyboardKey.keyR):
+              const _RefreshIntent(),
         if (onSave != null)
           _platformModifier(LogicalKeyboardKey.keyS): const _SaveIntent(),
         if (onBack != null)
@@ -265,6 +275,60 @@ class ScreenShortcuts extends StatelessWidget {
         // `onKeyEvent` — it just routes key events up to the Shortcuts widget.
         // Clicking a TextField/button inside the screen moves primary focus
         // there, which is still a descendant of this Shortcuts layer.
+        child: Focus(autofocus: true, child: child),
+      ),
+    );
+  }
+}
+
+/// Dialog-level keyboard shortcuts (UX-9 part B) for the Script Details dialog.
+/// Wires ←/→ tab traversal. Pass [onPrevTab] / [onNextTab] to move the active
+/// tab one step (clamp at the boundaries — the caller decides whether to wrap).
+///
+/// **Esc is intentionally NOT wired here.** Flutter's dialog route already
+/// maps Escape → `DismissIntent` → `Navigator.maybePop` (verified), so every
+/// `showDialog` is Esc-dismissable by default; re-wiring it would be redundant
+/// and risks a double-pop. The `details_close` entry in [kShortcutSpecs]
+/// documents that framework behaviour in the help sheet.
+///
+/// ←/→ are guarded (see [_GuardedAction]): they stay inert while an
+/// `EditableText` has focus — this covers the dialog's `SelectableText` code
+/// preview (which wraps an `EditableText`) — so the user can move the
+/// selection cursor through the preview without the arrows hijacking tab
+/// switches. No-op pass-through on mobile/web.
+class DetailsDialogShortcuts extends StatelessWidget {
+  const DetailsDialogShortcuts({
+    super.key,
+    required this.child,
+    required this.onPrevTab,
+    required this.onNextTab,
+  });
+
+  final Widget child;
+  final VoidCallback onPrevTab;
+  final VoidCallback onNextTab;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!DesktopShortcuts.isDesktop) {
+      return child;
+    }
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        const SingleActivator(LogicalKeyboardKey.arrowLeft):
+            const _PrevTabIntent(),
+        const SingleActivator(LogicalKeyboardKey.arrowRight):
+            const _NextTabIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _PrevTabIntent: _PrevTabAction(onPrevTab),
+          _NextTabIntent: _NextTabAction(onNextTab),
+        },
+        // Autofocus so the shortcut layer owns a primary-focus descendant the
+        // moment the dialog mounts (mirrors ScreenShortcuts). Clicking a tab,
+        // the preview, or a button inside moves primary focus there, which is
+        // still a descendant of this Shortcuts layer.
         child: Focus(autofocus: true, child: child),
       ),
     );
@@ -294,6 +358,16 @@ class _SaveIntent extends Intent {
 
 class _BackIntent extends Intent {
   const _BackIntent();
+}
+
+/// Switch the dialog's active tab one step left (UX-9 part B).
+class _PrevTabIntent extends Intent {
+  const _PrevTabIntent();
+}
+
+/// Switch the dialog's active tab one step right (UX-9 part B).
+class _NextTabIntent extends Intent {
+  const _NextTabIntent();
 }
 
 /// Action base that refuses to run while a text field is being edited, so no
@@ -350,6 +424,34 @@ class _NavigateTabAction extends _GuardedAction<_NavigateTabIntent> {
   @override
   Object? invoke(_NavigateTabIntent intent) {
     onNavigateToTab(intent.index);
+    return null;
+  }
+}
+
+/// ← previous-tab action (UX-9 part B). Guarded so it stays inert inside a
+/// text field / SelectableText preview (arrows move the cursor there instead).
+class _PrevTabAction extends _GuardedAction<_PrevTabIntent> {
+  _PrevTabAction(this.onPrevTab);
+
+  final VoidCallback onPrevTab;
+
+  @override
+  Object? invoke(_PrevTabIntent intent) {
+    onPrevTab();
+    return null;
+  }
+}
+
+/// → next-tab action (UX-9 part B). Guarded, same rationale as
+/// [_PrevTabAction].
+class _NextTabAction extends _GuardedAction<_NextTabIntent> {
+  _NextTabAction(this.onNextTab);
+
+  final VoidCallback onNextTab;
+
+  @override
+  Object? invoke(_NextTabIntent intent) {
+    onNextTab();
     return null;
   }
 }
