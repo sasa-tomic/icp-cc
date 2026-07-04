@@ -61,7 +61,8 @@ void main() {
   final RustBridgeLoader loader = const RustBridgeLoader();
 
   group('06_icp_poll bundle', () {
-    test('init stores backend_id/host and starts empty', () async {
+    test('init stores backend_id/host, starts empty, and AUTO-LOADS (UX-11)',
+        () async {
       if (!nativeLibAvailable(loader)) {
         stdout.writeln('SKIP: libicp_core.so did not load');
         return;
@@ -76,7 +77,32 @@ void main() {
       expect(state['host'], _host);
       expect(state['principal'], '');
       expect(state['polls'], isEmpty);
-      expect(obj['effects'] as List, isEmpty);
+
+      // UX-11: init MUST auto-emit the refresh batch (whoami auth + listPolls
+      // anon) so the Dapps tab opens to real data without a manual Refresh.
+      // A regression that drops back to `effects: []` re-introduces the
+      // "Polls (0)" + forced-Refresh UX bug.
+      final effects = obj['effects'] as List<dynamic>;
+      expect(effects, hasLength(2));
+      final whoami = effects.firstWhere(
+          (e) => (e as Map<String, dynamic>)['id'] == 'whoami') as Map;
+      expect(whoami['method'], 'whoami');
+      expect(whoami['authenticated'], true);
+      expect(whoami['canister_id'], _backendId);
+      final listPolls = effects.firstWhere(
+          (e) => (e as Map<String, dynamic>)['id'] == 'listPolls') as Map;
+      expect(listPolls['method'], 'listPolls');
+      expect(listPolls['authenticated'], false);
+      expect(listPolls['canister_id'], _backendId);
+
+      // The auto-load batch MUST be byte-identical to what a manual Refresh
+      // emits (DRY: init refreshes by reusing refreshEffects, not by hand).
+      final refreshOut = await rt.update(
+          script: pollBundle,
+          msg: <String, dynamic>{'type': 'refresh'},
+          state: state,
+          budgetMs: 1000);
+      expect(refreshOut['effects'], equals(effects));
     });
 
     test('refresh emits whoami(auth) + listPolls(anon) with the right target',

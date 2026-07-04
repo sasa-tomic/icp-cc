@@ -15,19 +15,24 @@
 (() => {
   function init(arg) {
     var a = arg || {};
+    var state = {
+      backend_id: a.backend_id || "",
+      host: a.host || "",
+      principal: "",
+      polls: [],
+      tallies: {},
+      error: "",
+      loading: false,
+      newQuestion: "",
+      newOptions: "",
+    };
+    // Auto-load on mount: emit the same whoami(auth) + listPolls(anon) batch a
+    // manual Refresh sends, so the Dapps "Polls" tab opens to real data instead
+    // of "Polls (0)" + a forced manual Refresh. The host (script_app_host.dart
+    // _boot) executes init's effects exactly like a refresh's.
     return {
-      state: {
-        backend_id: a.backend_id || "",
-        host: a.host || "",
-        principal: "",
-        polls: [],
-        tallies: {},
-        error: "",
-        loading: false,
-        newQuestion: "",
-        newOptions: "",
-      },
-      effects: [],
+      state: state,
+      effects: refreshEffects(state),
     };
   }
 
