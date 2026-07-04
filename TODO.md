@@ -50,12 +50,14 @@ Surfaced by the final live UX reviewer + verifier for the Next-Iteration plan
 (all four waves now COMPLETE — see `docs/specs/NEXT_ITERATION_PLAN.md` §6).
 Sized **S** ≈ half-day, **M** ≈ 1–2 days. Not started.
 
-- **UX-12(b) — reactive Connection-panel auto-expand.** Auto-expand the Dapps
-  Connection panel + show a *"Canister unreachable"* hint when the first effect
-  fails reachability. UX-12 shipped part (a) only (`3b0f05d8` — honest copy +
-  always-visible expanded-panel hint); this closes the
-  stale-canister-id-after-`dfx-clean` stumble reactively. **[S]** Grounding:
-  `lib/screens/dapp_runner_screen.dart` effect-dispatch path.
+- **UX-12(b) — reactive Connection-panel auto-expand.** ✅ DONE — the Dapps
+  Connection panel now auto-expands and surfaces a *"Canister unreachable"* hint
+  the first time a canister call fails reachability. The Rust FFI emits a typed
+  `kind` discriminator (`bfc55e52`) that the Dart host matches on
+  (`CanisterFailureKind.isUnreachable`); net/invalid-canister-id → expand, candid
+  / permission-denial → leave collapsed. Closes the
+  stale-canister-id-after-`dfx-clean` stumble reactively. (Dart half landed in
+  `53261a10` alongside UX-10; activated by the `kind` tag in `bfc55e52`.)
 - **Revoke "Trust this dapp" UI.** `DappTrustStore.clear()` exists (`26e22056`)
   but has no UI wiring. Add a *"Manage trust"* entry on the Dapps catalog/runner
   so a user can revoke the broader dapp-level grant they accepted via UX-10.
