@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -8,6 +7,8 @@ import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
+
+import '_marketplace_test_harness.dart';
 
 void main() {
   group('ScriptDetailsDialog Versions', () {
@@ -111,33 +112,14 @@ void main() {
       service.overrideHttpClient(client);
       addTearDown(client.close);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (_) => ScriptDetailsDialog(
-                        script: effectiveScript,
-                        installedVersion: installedVersion,
-                        onInstallVersion: onInstallVersion,
-                      ),
-                    );
-                  },
-                  child: const Text('Open'),
-                ),
-              ),
-            ),
-          ),
+      await pumpDetailsDialog(
+        tester,
+        dialogBuilder: (_) => ScriptDetailsDialog(
+          script: effectiveScript,
+          installedVersion: installedVersion,
+          onInstallVersion: onInstallVersion,
         ),
       );
-
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
     }
 
     testWidgets('shows Versions tab alongside Details and Reviews',

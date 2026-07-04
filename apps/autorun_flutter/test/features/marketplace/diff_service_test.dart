@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/diff_service.dart';
 
+import '_marketplace_test_harness.dart';
+
 void main() {
   group('DiffService', () {
     group('compute', () {
@@ -159,11 +161,7 @@ end
     testWidgets('displays added lines in green', (WidgetTester tester) async {
       final result = DiffService.compute('', 'local x = 1');
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: _TestDiffViewer(result: result),
-        ),
-      ));
+      await pumpMarketplaceWidget(tester, _TestDiffViewer(result: result));
 
       await tester.pumpAndSettle();
 
@@ -173,11 +171,7 @@ end
     testWidgets('displays removed lines in red', (WidgetTester tester) async {
       final result = DiffService.compute('local x = 1', '');
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: _TestDiffViewer(result: result),
-        ),
-      ));
+      await pumpMarketplaceWidget(tester, _TestDiffViewer(result: result));
 
       await tester.pumpAndSettle();
 
@@ -188,11 +182,7 @@ end
         (WidgetTester tester) async {
       final result = DiffService.compute('line1\nline2', 'line1\nline2');
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: _TestDiffViewer(result: result),
-        ),
-      ));
+      await pumpMarketplaceWidget(tester, _TestDiffViewer(result: result));
 
       await tester.pumpAndSettle();
 

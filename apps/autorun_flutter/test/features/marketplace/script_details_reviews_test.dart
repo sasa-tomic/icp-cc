@@ -10,6 +10,8 @@ import 'package:icp_autorun/models/purchase_record.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
 
+import '_marketplace_test_harness.dart';
+
 void main() {
   group('ScriptDetailsDialog Reviews', () {
     late MarketplaceOpenApiService service;
@@ -105,31 +107,10 @@ void main() {
       service.overrideHttpClient(client);
       addTearDown(client.close);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (_) => ScriptDetailsDialog(
-                        script: effectiveScript,
-                      ),
-                    );
-                  },
-                  child: const Text('Open'),
-                ),
-              ),
-            ),
-          ),
-        ),
+      await pumpDetailsDialog(
+        tester,
+        dialogBuilder: (_) => ScriptDetailsDialog(script: effectiveScript),
       );
-
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
     }
 
     testWidgets('shows reviews section for marketplace scripts',

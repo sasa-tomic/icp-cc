@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/marketplace_stats_banner.dart';
+
+import '_marketplace_test_harness.dart';
 
 /// Unit and widget tests for the Marketplace Stats Banner
 ///
@@ -19,12 +20,9 @@ void main() {
         averageRating: 4.5,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: MarketplaceStatsBanner(stats: stats),
-          ),
-        ),
+      await pumpMarketplaceWidget(
+        tester,
+        MarketplaceStatsBanner(stats: stats),
       );
 
       // Verify stats are displayed
@@ -38,12 +36,9 @@ void main() {
     });
 
     testWidgets('shows loading shimmer when isLoading is true', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: const Scaffold(
-            body: MarketplaceStatsBanner(isLoading: true),
-          ),
-        ),
+      await pumpMarketplaceWidget(
+        tester,
+        const MarketplaceStatsBanner(isLoading: true),
       );
 
       // Should show shimmer/placeholder containers, not actual stats
@@ -53,12 +48,9 @@ void main() {
 
     testWidgets('hides banner on error when showError is false',
         (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: const Scaffold(
-            body: MarketplaceStatsBanner(hasError: true),
-          ),
-        ),
+      await pumpMarketplaceWidget(
+        tester,
+        const MarketplaceStatsBanner(hasError: true),
       );
 
       // On error, banner should not render (returns SizedBox.shrink)
@@ -78,12 +70,9 @@ void main() {
         averageRating: 4.8,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: MarketplaceStatsBanner(stats: stats),
-          ),
-        ),
+      await pumpMarketplaceWidget(
+        tester,
+        MarketplaceStatsBanner(stats: stats),
       );
 
       // Large numbers should be formatted (1.5M, 5M, etc.)
@@ -101,12 +90,9 @@ void main() {
         averageRating: 4.0,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: MarketplaceStatsBanner(stats: stats),
-          ),
-        ),
+      await pumpMarketplaceWidget(
+        tester,
+        MarketplaceStatsBanner(stats: stats),
       );
 
       // At minimum, scripts and downloads should be shown
@@ -122,12 +108,9 @@ void main() {
         averageRating: 4.2,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: MarketplaceStatsBanner(stats: stats),
-          ),
-        ),
+      await pumpMarketplaceWidget(
+        tester,
+        MarketplaceStatsBanner(stats: stats),
       );
 
       // Authors count should be displayed
@@ -143,12 +126,9 @@ void main() {
         averageRating: 4.2,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: MarketplaceStatsBanner(stats: stats),
-          ),
-        ),
+      await pumpMarketplaceWidget(
+        tester,
+        MarketplaceStatsBanner(stats: stats),
       );
 
       // Verify it's a thin banner (not a large card)
