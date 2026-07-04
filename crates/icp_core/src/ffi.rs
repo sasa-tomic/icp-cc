@@ -1,5 +1,5 @@
 use crate::{
-    canister_client::{self, MethodKind},
+    canister_client::{self, CanisterClientError, MethodKind},
     generate_ed25519_keypair, generate_secp256k1_keypair, js_engine, principal_from_public_key,
     sign_ed25519, sign_secp256k1,
     vault::{self, EncryptedVault},
@@ -55,6 +55,35 @@ fn into_cstring_ptr(s: String) -> *mut c_char {
 
 fn err_ptr<E: std::fmt::Display>(e: E) -> *mut c_char {
     into_cstring_ptr(json!({"ok": false, "error": e.to_string()}).to_string())
+}
+
+/// Stable discriminator tag for a [`CanisterClientError`] variant, emitted in
+/// the FFI error JSON as `"kind"` so the Dart host can classify a failed
+/// canister call by **typed variant** (match-style) rather than by
+/// string-matching the human-readable `error` field. This is the signal
+/// UX-12(b) keys off to decide whether a failure is "canister unreachable"
+/// (network/timeout/invalid id → point the user at the Connection panel) vs.
+/// e.g. a Candid decode error (the call reached the canister — not a
+/// reachability problem).
+fn canister_error_kind(e: &CanisterClientError) -> &'static str {
+    match e {
+        CanisterClientError::InvalidCanisterId(_) => "invalid_canister_id",
+        CanisterClientError::Net(_) => "net",
+        CanisterClientError::CandidParse(_) => "candid",
+    }
+}
+
+/// Like [`err_ptr`] but adds a typed `"kind"` discriminator so the Dart host
+/// can match on the error variant instead of grepping the message string.
+fn canister_err_ptr(e: CanisterClientError) -> *mut c_char {
+    into_cstring_ptr(
+        json!({
+            "ok": false,
+            "kind": canister_error_kind(&e),
+            "error": e.to_string()
+        })
+        .to_string(),
+    )
 }
 
 fn method_kind(kind: i32) -> MethodKind {
@@ -239,7 +268,7 @@ pub unsafe extern "C" fn icp_call_anonymous(
     let host_opt = cstr_opt_or_empty(host);
     match canister_client::call_anonymous(cid, m, method_kind(kind), a, host_opt) {
         Ok(s) => into_cstring_ptr(s),
-        Err(e) => err_ptr(e),
+        Err(e) => canister_err_ptr(e),
     }
 }
 
@@ -267,7 +296,7 @@ pub unsafe extern "C" fn icp_call_authenticated(
     let host_opt = cstr_opt_or_empty(host);
     match canister_client::call_authenticated(cid, m, method_kind(kind), a, k, host_opt) {
         Ok(s) => into_cstring_ptr(s),
-        Err(e) => err_ptr(e),
+        Err(e) => canister_err_ptr(e),
     }
 }
 
@@ -517,7 +546,8 @@ pub unsafe extern "C" fn icp_decrypt_vault(
 
 #[cfg(test)]
 mod tests {
-    use super::into_cstring_ptr;
+    use super::{canister_err_ptr, into_cstring_ptr};
+    use crate::canister_client::CanisterClientError;
     use std::ffi::CString;
 
     #[test]
@@ -544,5 +574,48 @@ mod tests {
         // Sound: `ptr` was produced by `CString::into_raw` inside `into_cstring_ptr`.
         let s = unsafe { CString::from_raw(ptr) }.into_string().unwrap();
         assert_eq!(s, "hello world");
+    }
+
+    /// UX-12(b): a failed canister call must cross the FFI boundary as JSON
+    /// carrying a **typed `kind` discriminator** (not just a freeform `error`
+    /// string), so the Dart host can match on the variant to decide whether the
+    /// failure is "canister unreachable" (→ auto-expand the Connection panel)
+    /// vs. a decode error (→ don't). This pins the stable tag for each variant.
+    #[test]
+    fn canister_err_ptr_emits_typed_kind_per_variant() {
+        for (err, expected_kind) in [
+            (
+                CanisterClientError::InvalidCanisterId("not-a-principal".into()),
+                "invalid_canister_id",
+            ),
+            (
+                CanisterClientError::Net("call: connection refused".into()),
+                "net",
+            ),
+            (
+                CanisterClientError::CandidParse("decode failed".into()),
+                "candid",
+            ),
+        ] {
+            let ptr = canister_err_ptr(err);
+            assert!(!ptr.is_null(), "kind={expected_kind} produced a null ptr");
+            // Sound: `ptr` was produced by `CString::into_raw` inside `into_cstring_ptr`.
+            let s = unsafe { CString::from_raw(ptr) }.into_string().unwrap();
+            let v: serde_json::Value = serde_json::from_str(&s).unwrap();
+            assert_eq!(v["ok"], false, "kind={expected_kind} ok flag");
+            assert_eq!(
+                v["kind"].as_str().unwrap(),
+                expected_kind,
+                "typed kind tag mismatch"
+            );
+            // The human-readable body must still be present (unchanged contract)
+            // and name the failure class so logs/UI stay informative.
+            let body = v["error"].as_str().unwrap();
+            assert!(!body.is_empty(), "kind={expected_kind} empty error body");
+            assert!(
+                body.to_lowercase().contains(expected_kind.split('_').next().unwrap()),
+                "kind={expected_kind} body doesn't name its class: {body}"
+            );
+        }
     }
 }
