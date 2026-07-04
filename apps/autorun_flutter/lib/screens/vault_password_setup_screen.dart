@@ -86,10 +86,13 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
     });
 
     try {
+      // A-4 W2: PasskeyService.createVault now encrypts '{}' locally via
+      // VaultCryptoService before POSTing only the opaque blob. The password
+      // never leaves the device.
       await PasskeyService().createVault(
         accountId: widget.accountId,
         password: _passwordController.text,
-        data: '{}',
+        plaintext: '{}',
       );
 
       if (mounted) {

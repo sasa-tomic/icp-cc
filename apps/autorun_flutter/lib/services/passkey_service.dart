@@ -2,8 +2,21 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'passkey_authenticator.dart';
+import 'vault_crypto_service.dart';
 import '../config/app_config.dart';
 import '../utils/passkey_platform.dart';
+import '../rust/native_bridge.dart';
+
+// ─── A-4 vault wire-contract field names (single-source-of-truth) ───────────
+// These are the JSON keys for /api/v1/vault, byte-identical to the W4 backend
+// handlers in backend/src/main.rs. Defined ONCE here; both createVault and
+// updateVault build their bodies via _vaultRequestBody below. The password is
+// intentionally NOT in this list — A-4 zero-knowledge: the server never sees
+// the password (it stays on-device, consumed only by VaultCryptoService FFI).
+const String kVaultFieldAccountId = 'account_id';
+const String kVaultFieldEncryptedData = 'encrypted_data';
+const String kVaultFieldSalt = 'salt';
+const String kVaultFieldNonce = 'nonce';
 
 class PasskeyService {
   static final PasskeyService _instance = PasskeyService._internal();
@@ -111,16 +124,27 @@ class PasskeyService {
     return response['data']['remaining_codes'] as int;
   }
 
+  /// Creates a vault on the server as an OPAQUE BLOB (A-4 zero-knowledge).
+  ///
+  /// [plaintext] is encrypted locally via [VaultCryptoService] BEFORE the
+  /// network call; [password] is consumed only by the local FFI and is NEVER
+  /// serialised into the request body (the server cannot decrypt — it just
+  /// stores the opaque `encrypted_data`/`salt`/`nonce` triple).
+  ///
+  /// Wire contract (matches W4 backend `vault_create`):
+  ///   POST /api/v1/vault  { account_id, encrypted_data, salt, nonce }  (b64)
+  ///   → { "success": true }
   Future<void> createVault({
     required String accountId,
     required String password,
-    required String data,
+    required String plaintext,
+    VaultCryptoService vaultCrypto = const VaultCryptoService(),
   }) async {
-    await _post('/vault', {
-      'account_id': accountId,
-      'password': password,
-      'data': base64Encode(utf8.encode(data)),
-    });
+    final blob = await vaultCrypto.encrypt(
+      password: password,
+      plaintext: plaintext,
+    );
+    await _post('/vault', _vaultRequestBody(accountId, blob));
   }
 
   Future<VaultData?> getVault(String accountId) async {
@@ -135,16 +159,33 @@ class PasskeyService {
     }
   }
 
+  /// Updates the server-side vault blob (A-4 zero-knowledge). Same contract
+  /// as [createVault] but PUT; the password again never leaves the device.
   Future<void> updateVault({
     required String accountId,
     required String password,
-    required String data,
+    required String plaintext,
+    VaultCryptoService vaultCrypto = const VaultCryptoService(),
   }) async {
-    await _put('/vault', {
-      'account_id': accountId,
-      'password': password,
-      'data': base64Encode(utf8.encode(data)),
-    });
+    final blob = await vaultCrypto.encrypt(
+      password: password,
+      plaintext: plaintext,
+    );
+    await _put('/vault', _vaultRequestBody(accountId, blob));
+  }
+
+  /// Builds the opaque-blob request body for createVault/updateVault.
+  /// Defined ONCE so the wire shape can drift in exactly one place.
+  static Map<String, String> _vaultRequestBody(
+    String accountId,
+    EncryptedVaultResult blob,
+  ) {
+    return <String, String>{
+      kVaultFieldAccountId: accountId,
+      kVaultFieldEncryptedData: blob.encryptedDataB64,
+      kVaultFieldSalt: blob.saltB64,
+      kVaultFieldNonce: blob.nonceB64,
+    };
   }
 
   String _getPlatformDeviceType() {
