@@ -29,6 +29,7 @@ Genuinely open items are listed below.
 |-------|----------|----------|-------|
 | Key label editing is blocked by a missing backend endpoint | `AccountController` | MEDIUM | No rename/label route exists server-side. |
 | Web *runtime* features are stubbed (build compiles) | `lib/rust/native_bridge_web.dart` | MEDIUM | R-1 unblocked `flutter build web` (conditional FFI split). Native-only calls throw honest `UnsupportedError`; full Web runtime is R-2..5 (see Future). |
+| A-4 — Vault is NOT actually zero-knowledge (intent ↔ code) | `backend/src/vault.rs`, `lib/screens/vault_unlock_screen.dart` | HIGH (security promise) | The Dart client sends the vault password in plaintext to `/api/v1/vault`; the **backend** does Argon2id + AES-GCM (`vault.rs::encrypt_vault`). There is **no** client-side crypto in Dart. A compromised server (or a DB dump + captured password) can decrypt every vault. `HUMAN_EXPECTATIONS.md` states zero-knowledge as the intent. **Decision needed:** (a) accept the current server-side model and downgrade the doc promise, or (b) migrate to true client-side crypto (Argon2id + AES-GCM in Dart; `/vault` becomes a pure opaque-blob store). Decision + grounding: `docs/specs/NEXT_ITERATION_PLAN.md` §1. |
 
 ## Deferred (decided, with justification)
 

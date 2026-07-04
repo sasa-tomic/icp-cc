@@ -58,8 +58,10 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
         throw PasskeyException('Vault not found');
       }
 
-      // TODO: Decrypt vault data client-side using Argon2id + AES-GCM
-      // For now, we just verify the password with the backend
+      // No client-side decryption yet (A-4): the password is sent to the
+      // backend, which performs Argon2id + AES-GCM server-side
+      // (`backend/src/vault.rs`). TODO(A-4): do the crypto in Dart and decrypt
+      // locally. See docs/specs/NEXT_ITERATION_PLAN.md §1 + TODO.md.
       await PasskeyService().updateVault(
         accountId: widget.accountId,
         password: _passwordController.text,

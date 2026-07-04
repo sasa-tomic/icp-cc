@@ -1,8 +1,20 @@
 //! Vault encryption utilities (Argon2id KDF + AES-GCM).
 //!
-//! The backend is zero-knowledge: it only ever *encrypts* vault data and stores
-//! the opaque ciphertext + salt + nonce. Decryption happens client-side (the
-//! holder of the password), so no decrypt path exists server-side.
+//! CURRENT MODEL — server-side crypto (NOT zero-knowledge). The Dart client
+//! sends the vault password (over TLS) plus the plaintext vault payload to
+//! `/api/v1/vault`; the backend derives the Argon2id key here and performs the
+//! AES-256-GCM encryption (`encrypt_vault`), then stores the opaque ciphertext
+//! + salt + nonce. The client performs NO cryptography — it never encrypts or
+//! decrypts — and no server-side decrypt path exists. Because the password
+//! transits the server on every create/update, a compromised server (or a DB
+//! dump plus a captured password) can decrypt every vault.
+//!
+//! `HUMAN_EXPECTATIONS.md` states zero-knowledge as the product intent; closing
+//! that gap is the deferred A-4 migration.
+//!
+//! TODO(A-4): move Argon2id + AES-GCM into the Dart client and make `/vault` a
+//! pure opaque-blob store so the server never sees the password. Decision and
+//! grounding: `docs/specs/NEXT_ITERATION_PLAN.md` §1; tracked in `TODO.md`.
 //!
 //! Parameters (Bitwarden-level):
 //! - Argon2id: time=3, memory=64MB, parallelism=4, output=32 bytes
