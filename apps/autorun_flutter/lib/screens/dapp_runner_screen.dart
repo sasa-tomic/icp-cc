@@ -7,6 +7,7 @@ import '../models/profile_keypair.dart';
 import '../rust/native_bridge.dart';
 import '../services/script_runner.dart';
 import '../theme/app_design_system.dart';
+import '../widgets/keyboard_shortcuts.dart';
 import '../widgets/profile_scope.dart';
 import '../widgets/script_app_host.dart';
 
@@ -170,52 +171,84 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     return '${p.substring(0, 14)}…${p.substring(p.length - 6)}';
   }
 
+  /// UX-9: remounts the [ScriptAppHost] (re-runs `init` → fresh polls/dapp
+  /// state) without touching the saved connection. Bound to `R`.
+  void _refreshDapp() {
+    // Nothing to refresh until the bundle + connection are loaded — silently
+    // no-op rather than bumping a generation that re-shows the spinner with
+    // no source to mount.
+    if (_bundle == null || _backendId.isEmpty) return;
+    setState(() => _hostGeneration++);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppDesignSystem.successSnackBar('Dapp refreshed'),
+      );
+    }
+  }
+
+  /// UX-9: bound to `Esc`. Pops the runner back to the catalog.
+  void _handleBack() {
+    Navigator.of(context).maybePop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final ProfileKeypair? keypair = ProfileScope.of(context).activeKeypair;
     final String? principal = keypair?.principal;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.descriptor.emoji} ${widget.descriptor.title}'),
-        actions: [
-          if (widget.descriptor.hasFrontendBrowser)
-            IconButton(
-              tooltip: 'Open frontend in browser',
-              icon: const Icon(Icons.open_in_new_rounded),
-              onPressed: _openFrontend,
-            ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        // The body scrolls as a whole. The host is given a fixed generous
-        // height derived from the FULL screen (not keyboard viewInsets) so the
-        // on-screen keyboard can never squeeze it below its content — that
-        // would overflow the host's internal progress indicator.
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildConnectionPanel(theme)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppDesignSystem.spacing12,
-                    AppDesignSystem.spacing12,
-                    AppDesignSystem.spacing12,
-                    AppDesignSystem.spacing4),
-                child: _buildAuthStatus(
-                    hasProfile: keypair != null, principal: principal),
+    return ScreenShortcuts(
+      onRefresh: _refreshDapp,
+      onBack: _handleBack,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${widget.descriptor.emoji} ${widget.descriptor.title}'),
+          actions: [
+            ShortcutTooltip(
+              label: 'Refresh dapp',
+              shortcut: DesktopShortcuts.getShortcutLabel('dapp_refresh'),
+              child: IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: _refreshDapp,
               ),
             ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: _hostHeight(context),
-                width: double.infinity,
-                child: _buildHostArea(theme),
+            if (widget.descriptor.hasFrontendBrowser)
+              IconButton(
+                tooltip: 'Open frontend in browser',
+                icon: const Icon(Icons.open_in_new_rounded),
+                onPressed: _openFrontend,
               ),
-            ),
           ],
+        ),
+        body: SafeArea(
+          top: false,
+          // The body scrolls as a whole. The host is given a fixed generous
+          // height derived from the FULL screen (not keyboard viewInsets) so the
+          // on-screen keyboard can never squeeze it below its content — that
+          // would overflow the host's internal progress indicator.
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _buildConnectionPanel(theme)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppDesignSystem.spacing12,
+                      AppDesignSystem.spacing12,
+                      AppDesignSystem.spacing12,
+                      AppDesignSystem.spacing4),
+                  child: _buildAuthStatus(
+                      hasProfile: keypair != null, principal: principal),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: _hostHeight(context),
+                  width: double.infinity,
+                  child: _buildHostArea(theme),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

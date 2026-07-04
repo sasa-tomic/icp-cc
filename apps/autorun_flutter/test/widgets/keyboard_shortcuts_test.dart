@@ -291,7 +291,7 @@ void main() {
           reason: 'Alt+digit must be inert while editing text.');
     });
 
-    desktopTest('Alt+3 is not bound (no 3rd tab)', (tester) async {
+    desktopTest('Alt+3 switches to the Dapps tab (3rd tab)', (tester) async {
       int? navigatedTabIndex;
       await tester.pumpWidget(
         MaterialApp(
@@ -313,8 +313,8 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.digit3);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.alt);
       await tester.pump();
-      expect(navigatedTabIndex, isNull,
-          reason: 'Alt+3 must not navigate — there is no third tab.');
+      expect(navigatedTabIndex, equals(2),
+          reason: 'Alt+3 must navigate to the Dapps tab (index 2).');
     });
 
     desktopTest('? opens the shortcuts help', (tester) async {
@@ -415,8 +415,12 @@ void main() {
       expect(DesktopShortcuts.getShortcutLabel('tab1'), equals('Alt+1'));
       expect(DesktopShortcuts.getShortcutLabel('tab2'), equals('Alt+2'));
       expect(DesktopShortcuts.getShortcutLabel('help'), equals('?'));
+      // Surface-specific shortcuts (UX-9) carry their own labels.
+      // `getShortcutLabel` returns the platform-formatted token (mod → Ctrl).
+      expect(DesktopShortcuts.getShortcutLabel('dapp_refresh'), equals('R'));
+      expect(DesktopShortcuts.getShortcutLabel('account_save'), equals('Ctrl+S'));
+      expect(DesktopShortcuts.getShortcutLabel('back'), equals('Esc'));
       // Dead/unknown actions carry no label.
-      expect(DesktopShortcuts.getShortcutLabel('tab3'), isEmpty);
       expect(DesktopShortcuts.getShortcutLabel('save'), isEmpty);
       expect(DesktopShortcuts.getShortcutLabel('unknown'), isEmpty);
     });
@@ -490,5 +494,181 @@ void main() {
       final tooltipWidget = tester.widget<Tooltip>(find.byType(Tooltip));
       expect(tooltipWidget.message, equals('New Script (N)'));
     });
+  });
+
+  group('ScreenShortcuts', () {
+    desktopTest('renders child', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            onRefresh: () {},
+            onSave: () {},
+            onBack: () {},
+            child: const Scaffold(body: Text('Screen')),
+          ),
+        ),
+      );
+      expect(find.text('Screen'), findsOneWidget);
+    });
+
+    desktopTest('onRefresh fires on R', (tester) async {
+      bool refreshed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            onRefresh: () => refreshed = true,
+            child: const Scaffold(
+              body: Focus(autofocus: true, child: Text('Screen')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.pump();
+      expect(refreshed, isTrue);
+    });
+
+    desktopTest('onRefresh does NOT fire while a text field is focused',
+        (tester) async {
+      bool refreshed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            onRefresh: () => refreshed = true,
+            child: const Scaffold(
+              body: Padding(
+                padding: EdgeInsets.all(16),
+                child: TextField(autofocus: true),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'r');
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.pump();
+      expect(refreshed, isFalse,
+          reason: 'Plain R must be inert while editing text.');
+      expect(find.widgetWithText(TextField, 'r'), findsOneWidget);
+    });
+
+    desktopTest('onSave fires on Ctrl/Cmd+S', (tester) async {
+      bool saved = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            onSave: () => saved = true,
+            child: const Scaffold(
+              body: Focus(autofocus: true, child: Text('Screen')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyDownEvent(modKey());
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(modKey());
+      await tester.pump();
+      expect(saved, isTrue);
+    });
+
+    desktopTest(
+        'onSave fires EVEN while a text field is focused (modifier shortcut)',
+        (tester) async {
+      // Ctrl/Cmd+S uses the platform modifier, so it never conflicts with
+      // typing an `s`. The desktop idiom is "edit a field, then Ctrl+S to
+      // save" — so this must fire from inside a TextField.
+      bool saved = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            onSave: () => saved = true,
+            child: const Scaffold(
+              body: Padding(
+                padding: EdgeInsets.all(16),
+                child: TextField(autofocus: true),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyDownEvent(modKey());
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(modKey());
+      await tester.pump();
+      expect(saved, isTrue,
+          reason: 'Ctrl/Cmd+S must save even while editing a field.');
+    });
+
+    desktopTest('onBack fires on Escape', (tester) async {
+      bool backed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            onBack: () => backed = true,
+            child: const Scaffold(
+              body: Focus(autofocus: true, child: Text('Screen')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(backed, isTrue);
+    });
+
+    desktopTest('null callbacks leave that binding inert (no throw)', (tester) async {
+      // No callbacks supplied — ScreenShortcuts must render the child as a
+      // pass-through and never throw on any key.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            child: const Scaffold(
+              body: Focus(autofocus: true, child: Text('Screen')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Screen'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.text('Screen'), findsOneWidget);
+    });
+
+    desktopTest('shortcuts are inert on mobile (pass-through)', (tester) async {
+      bool refreshed = false;
+      bool saved = false;
+      bool backed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ScreenShortcuts(
+            onRefresh: () => refreshed = true,
+            onSave: () => saved = true,
+            onBack: () => backed = true,
+            child: const Scaffold(
+              body: Focus(autofocus: true, child: Text('Screen')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      // On mobile, ScreenShortcuts is a pass-through — none of the callbacks
+      // are wired.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(refreshed, isFalse);
+      expect(saved, isFalse);
+      expect(backed, isFalse);
+    }, platform: TargetPlatform.android);
   });
 }

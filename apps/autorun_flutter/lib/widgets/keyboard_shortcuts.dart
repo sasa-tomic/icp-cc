@@ -34,6 +34,12 @@ const Map<String, ShortcutSpec> kShortcutSpecs = <String, ShortcutSpec>{
   'tab2': ShortcutSpec('Go to Canisters', 'Alt+2'),
   'tab3': ShortcutSpec('Go to Dapps', 'Alt+3'),
   'help': ShortcutSpec('Show keyboard shortcuts', '?'),
+  // Surface-specific shortcuts (UX-9). Each is wired only on the screen that
+  // owns it via [ScreenShortcuts]; listed here so the help sheet can surface
+  // the binding from the single source of truth.
+  'dapp_refresh': ShortcutSpec('Refresh the dapp', 'R'),
+  'account_save': ShortcutSpec('Save profile edits', 'mod+S'),
+  'back': ShortcutSpec('Back / close screen', 'Esc'),
 };
 
 /// True when the user is currently editing text somewhere. Every guarded
@@ -206,6 +212,65 @@ class _EscapeHandlerState extends State<EscapeHandler> {
   }
 }
 
+/// Screen-level keyboard shortcuts (UX-9). Wrap a screen's body with this to
+/// wire [onRefresh] (R), [onSave] (Ctrl/Cmd+S), and [onBack] (Esc). Pass only
+/// the callbacks the surface needs; `null` leaves that binding inert.
+///
+/// Behaviour notes:
+/// - Plain-letter shortcuts (R) reach the Shortcuts layer even when an
+///   EditableText has focus, so [onRefresh] is guarded against text entry —
+///   typing `R` into a field never triggers a refresh.
+/// - [onSave] uses the platform modifier (Ctrl/Cmd), which never conflicts
+///   with text entry, so it fires even while editing a field (the desktop
+///   "edit then Ctrl+S to save" idiom).
+/// - [onBack] intercepts Esc via the Shortcuts system, which PREEMPTS the
+///   app-wide [EscapeHandler] in `main.dart` — so a screen can declare its
+///   own back behaviour without the global handler double-firing.
+class ScreenShortcuts extends StatelessWidget {
+  const ScreenShortcuts({
+    super.key,
+    required this.child,
+    this.onRefresh,
+    this.onSave,
+    this.onBack,
+  });
+
+  final Widget child;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onSave;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!DesktopShortcuts.isDesktop) {
+      return child;
+    }
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        if (onRefresh != null)
+          const SingleActivator(LogicalKeyboardKey.keyR): const _RefreshIntent(),
+        if (onSave != null)
+          _platformModifier(LogicalKeyboardKey.keyS): const _SaveIntent(),
+        if (onBack != null)
+          const SingleActivator(LogicalKeyboardKey.escape): const _BackIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          if (onRefresh != null) _RefreshIntent: _RefreshAction(onRefresh!),
+          if (onSave != null) _SaveIntent: _SaveAction(onSave!),
+          if (onBack != null) _BackIntent: _BackAction(onBack!),
+        },
+        // Autofocus so the shortcut layer has a primary-focus descendant the
+        // moment the screen mounts (mirrors `EscapeHandler`). The node has no
+        // `onKeyEvent` — it just routes key events up to the Shortcuts widget.
+        // Clicking a TextField/button inside the screen moves primary focus
+        // there, which is still a descendant of this Shortcuts layer.
+        child: Focus(autofocus: true, child: child),
+      ),
+    );
+  }
+}
+
 class _CreateScriptIntent extends Intent {
   const _CreateScriptIntent();
 }
@@ -221,6 +286,14 @@ class _RefreshIntent extends Intent {
 class _NavigateTabIntent extends Intent {
   final int index;
   const _NavigateTabIntent(this.index);
+}
+
+class _SaveIntent extends Intent {
+  const _SaveIntent();
+}
+
+class _BackIntent extends Intent {
+  const _BackIntent();
 }
 
 /// Action base that refuses to run while a text field is being edited, so no
@@ -277,6 +350,36 @@ class _NavigateTabAction extends _GuardedAction<_NavigateTabIntent> {
   @override
   Object? invoke(_NavigateTabIntent intent) {
     onNavigateToTab(intent.index);
+    return null;
+  }
+}
+
+/// Ctrl/Cmd+S save action. NOT guarded — the platform modifier means this
+/// never conflicts with typing an `s`, and firing from a focused text field
+/// is the desired desktop idiom ("edit then Ctrl+S to save").
+class _SaveAction extends Action<_SaveIntent> {
+  _SaveAction(this.onSave);
+
+  final VoidCallback onSave;
+
+  @override
+  Object? invoke(_SaveIntent intent) {
+    onSave();
+    return null;
+  }
+}
+
+/// Esc back/cancel action. NOT guarded — Esc does not insert a character, and
+/// "Esc to go back" must work even when a text field has focus (it preempts
+/// the app-wide `EscapeHandler` in `main.dart` so the screen owns its back).
+class _BackAction extends Action<_BackIntent> {
+  _BackAction(this.onBack);
+
+  final VoidCallback onBack;
+
+  @override
+  Object? invoke(_BackIntent intent) {
+    onBack();
     return null;
   }
 }

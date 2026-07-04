@@ -6,10 +6,11 @@ import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../controllers/profile_controller.dart';
 import '../theme/app_design_system.dart';
-import '../widgets/account_key_details_sheet.dart';
-import '../widgets/add_account_key_sheet.dart';
 import '../utils/passkey_platform.dart';
 import '../utils/tech_terms.dart';
+import '../widgets/account_key_details_sheet.dart';
+import '../widgets/add_account_key_sheet.dart';
+import '../widgets/keyboard_shortcuts.dart';
 import 'passkey_management_screen.dart';
 import 'account_registration_wizard.dart';
 import 'export_keys_dialog.dart';
@@ -201,35 +202,48 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
     }
   }
 
+  /// UX-9: bound to `Esc`. Returns to the previous route (profile menu).
+  void _handleBack() {
+    Navigator.of(context).maybePop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.background,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        title: Text(
-          'My Identity',
-          style: AppDesignSystem.heading3.copyWith(
-            color: context.colors.onSurface,
-          ),
-        ),
-        actions: [
-          // Refresh fetches the live backend account — only meaningful when
-          // registered. Local-only mode has no backend state to refresh.
-          if (!_isLocalOnly)
-            IconButton(
-              icon: Icon(
-                _isRefreshing ? Icons.hourglass_empty : Icons.refresh,
-                color: AppDesignSystem.primaryLight,
-              ),
-              onPressed: _isRefreshing ? null : _refreshAccount,
-              tooltip: 'Refresh',
+    // UX-9: Ctrl/Cmd+S saves profile edits — only meaningful when the backend
+    // account is registered (the local-only body has no Save Changes action).
+    // Esc always pops back. Both are wired via ScreenShortcuts which is a
+    // no-op pass-through on mobile.
+    return ScreenShortcuts(
+      onSave: _isLocalOnly ? null : _saveProfile,
+      onBack: _handleBack,
+      child: Scaffold(
+        backgroundColor: context.colors.background,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          title: Text(
+            'My Identity',
+            style: AppDesignSystem.heading3.copyWith(
+              color: context.colors.onSurface,
             ),
-        ],
+          ),
+          actions: [
+            // Refresh fetches the live backend account — only meaningful when
+            // registered. Local-only mode has no backend state to refresh.
+            if (!_isLocalOnly)
+              IconButton(
+                icon: Icon(
+                  _isRefreshing ? Icons.hourglass_empty : Icons.refresh,
+                  color: AppDesignSystem.primaryLight,
+                ),
+                onPressed: _isRefreshing ? null : _refreshAccount,
+                tooltip: 'Refresh',
+              ),
+          ],
+        ),
+        body: _isLocalOnly ? _buildLocalOnlyBody() : _buildRegisteredBody(),
+        floatingActionButton: _buildFloatingActionButton(),
       ),
-      body: _isLocalOnly ? _buildLocalOnlyBody() : _buildRegisteredBody(),
-      floatingActionButton: _buildFloatingActionButton(),
     );
   }
 
@@ -1002,13 +1016,21 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
 
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _saveProfile,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                backgroundColor: AppDesignSystem.primaryLight,
+            // UX-9: the shortcut hint surfaces in the tooltip (desktop only,
+            // via ShortcutTooltip) so the Ctrl/Cmd+S binding is discoverable.
+            ShortcutTooltip(
+              label: 'Save Changes',
+              shortcut: DesktopShortcuts.formatShortcutToken(
+                kShortcutSpecs['account_save']!.token,
               ),
-              child: const Text('Save Changes'),
+              child: FilledButton(
+                onPressed: _saveProfile,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: AppDesignSystem.primaryLight,
+                ),
+                child: const Text('Save Changes'),
+              ),
             ),
           ],
         ),

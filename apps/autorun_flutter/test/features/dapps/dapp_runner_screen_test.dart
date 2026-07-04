@@ -1,5 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -164,6 +165,115 @@ void main() {
     tester.binding.defaultBinaryMessenger
         .setMockMethodCallHandler(_kUrlLauncherChannel, null);
   });
+
+  // ───────────────────────── UX-9 keyboard shortcuts ─────────────────────────
+  // `defaultTargetPlatform` is android in `flutter_test`, which would leave
+  // ScreenShortcuts as a no-op pass-through. Force a desktop platform for
+  // these tests and restore it before the binding's invariant assertions run.
+  testWidgets('R remounts the host and shows a Refresh tooltip (UX-9)',
+      (tester) async {
+    final previous = debugDefaultTargetPlatformOverride;
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      final runtime = _RecordingRuntime();
+      await _pumpRunner(tester, descriptor, runtime: runtime);
+      await tester.pumpAndSettle();
+      expect(runtime.initCount, 1, reason: 'initial mount runs init once');
+
+      // The Refresh button's tooltip surfaces the binding so it's discoverable.
+      expect(find.byTooltip('Refresh dapp (R)'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.pumpAndSettle();
+
+      expect(runtime.initCount, 2,
+          reason: 'R must remount the host → init fires again');
+      expect(find.textContaining('Dapp refreshed'), findsOneWidget,
+          reason: 'A visible confirmation closes the loop for the user');
+    } finally {
+      debugDefaultTargetPlatformOverride = previous;
+    }
+  });
+
+  testWidgets('R does NOT fire while editing the canister-id field (UX-9)',
+      (tester) async {
+    final previous = debugDefaultTargetPlatformOverride;
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      final runtime = _RecordingRuntime();
+      await _pumpRunner(tester, descriptor, runtime: runtime);
+      await tester.pumpAndSettle();
+      expect(runtime.initCount, 1);
+
+      // Open the Connection panel and focus the canister-id field.
+      await tester.tap(find.text('Connection'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(const Key('dappBackendIdField')), 'r');
+      await tester.pump();
+
+      // Typing more 'r' characters into the field must NOT trigger a refresh.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.pump();
+
+      expect(runtime.initCount, 1,
+          reason: 'Plain R must stay inert while the user is editing text.');
+      expect(find.widgetWithText(TextField, 'r'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = previous;
+    }
+  });
+
+  testWidgets('Esc pops the dapp runner back to the catalog (UX-9)',
+      (tester) async {
+    final previous = debugDefaultTargetPlatformOverride;
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      final runtime = _RecordingRuntime();
+      // Pump a ROOT route that pushes the runner on tap, so Navigator.pop has
+      // somewhere to pop back to (the runner can't be the home route).
+      await tester.pumpWidget(
+        ProfileScope(
+          controller: ProfileController(
+            marketplaceService: MarketplaceOpenApiService(),
+          ),
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DappRunnerScreen(
+                          descriptor: descriptor,
+                          testRuntime: runtime,
+                          testBundle: '/* test bundle */',
+                        ),
+                      ),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DappRunnerScreen), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DappRunnerScreen), findsNothing,
+          reason: 'Esc must pop the runner back to the catalog');
+    } finally {
+      debugDefaultTargetPlatformOverride = previous;
+    }
+  });
 }
 
 Future<void> _pumpRunner(
@@ -198,6 +308,10 @@ Future<void> _pumpRunner(
 class _RecordingRuntime implements IScriptAppRuntime {
   Map<String, dynamic>? lastInitialArg;
   String? lastScript;
+  /// Count of `init` invocations — each remount of [ScriptAppHost] (driven by
+  /// `_hostGeneration` in the runner) calls `init` once. UX-9 refresh tests
+  /// assert against this to detect a remount.
+  int initCount = 0;
 
   @override
   Future<Map<String, dynamic>> init({
@@ -207,6 +321,7 @@ class _RecordingRuntime implements IScriptAppRuntime {
   }) async {
     lastScript = script;
     lastInitialArg = initialArg;
+    initCount++;
     return <String, dynamic>{
       'ok': true,
       'state': <String, dynamic>{},
