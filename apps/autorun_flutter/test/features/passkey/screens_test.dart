@@ -4,10 +4,47 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'dart:convert';
 
+import 'package:icp_autorun/rust/native_bridge.dart';
 import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
 import 'package:icp_autorun/screens/recovery_codes_screen.dart';
 import 'package:icp_autorun/screens/vault_unlock_screen.dart';
 import 'package:icp_autorun/services/passkey_service.dart';
+import 'package:icp_autorun/services/vault_crypto_service.dart';
+
+/// Deterministic fake VaultCryptoService for widget tests. The real FFI crypto
+/// is unit-tested separately in vault_crypto_service_test.dart; widget tests
+/// use this fake so they run even when libicp_core is unavailable.
+///
+/// `decrypt` throws [VaultDecryptionException] for any password != [password]
+/// (mirrors the real AES-256-GCM auth-tag failure mode).
+class _FakeVaultCrypto extends VaultCryptoService {
+  _FakeVaultCrypto({required this.password, required this.plaintext});
+  final String password;
+  final String plaintext;
+
+  @override
+  Future<EncryptedVaultResult> encrypt({
+    required String password,
+    required String plaintext,
+  }) async {
+    return EncryptedVaultResult(
+      encryptedDataB64: base64.encode(utf8.encode('ENC|$plaintext')),
+      saltB64: 'c2FsdA==',
+      nonceB64: 'bm9uY2U=',
+    );
+  }
+
+  @override
+  Future<String> decrypt({
+    required String password,
+    required EncryptedVaultResult blob,
+  }) async {
+    if (password != this.password) {
+      throw VaultDecryptionException('wrong password (fake)');
+    }
+    return plaintext;
+  }
+}
 
 /// Widget tests for passkey-related screens
 void main() {
@@ -223,5 +260,203 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  // ===========================================================================
+  // A-4 W3 — full round-trip + negative-path widget tests for the vault screens.
+  // Both screens accept an injected VaultCryptoService; widget tests pass a
+  // deterministic fake (above) so they run even when libicp_core is unavailable.
+  // The real FFI crypto is unit-tested in vault_crypto_service_test.dart.
+  // HTTP is mocked; per AGENTS.md the HTTP layer MAY be mocked.
+  // ===========================================================================
+  group('VaultPasswordSetupScreen (A-4 W3 local-crypto round-trip)', () {
+    testWidgets('happy path: form submit encrypts locally and POSTs the blob',
+        (tester) async {
+      Map<String, dynamic>? capturedBody;
+      var onVaultCreatedCalled = false;
+
+      final client = MockClient((request) async {
+        if (request.method == 'POST' && request.body.isNotEmpty) {
+          capturedBody =
+              (jsonDecode(request.body) as Map).cast<String, dynamic>();
+        }
+        return http.Response(jsonEncode({'success': true}), 200);
+      });
+      PasskeyService().overrideHttpClient(client);
+
+      const fakePassword = 'StrongP@ssw0rd!';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VaultPasswordSetupScreen(
+            accountId: 'acct-w3-setup',
+            onVaultCreated: () => onVaultCreatedCalled = true,
+            vaultCrypto:
+                _FakeVaultCrypto(password: fakePassword, plaintext: '{}'),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        fakePassword,
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Confirm Password'),
+        fakePassword,
+      );
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create Vault'));
+      await tester.pumpAndSettle();
+
+      expect(onVaultCreatedCalled, isTrue,
+          reason: 'onVaultCreated must fire on success');
+      expect(capturedBody, isNotNull,
+          reason: 'a POST must have been made');
+      expect(capturedBody!.keys,
+          equals(<String>{'account_id', 'encrypted_data', 'salt', 'nonce'}));
+      expect(capturedBody!.containsKey('password'), isFalse,
+          reason: 'password must never be in the wire body');
+      expect(capturedBody!['account_id'], equals('acct-w3-setup'));
+    });
+  });
+
+  group('VaultUnlockScreen (A-4 W3 decrypt-and-surface)', () {
+    testWidgets('happy path: correct password decrypts the blob locally and '
+        'surfaces the plaintext via onUnlocked', (tester) async {
+      const correctPassword = 'CorrectP@ss1!';
+      const plaintext = '{"k":"v"}';
+
+      // GET returns a blob; the fake crypto will decrypt it iff the password
+      // matches.
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'encrypted_data': 'ZW5j',
+              'salt': 'c2FsdA==',
+              'nonce': 'bm9uY2U=',
+            },
+          }),
+          200,
+        );
+      });
+      PasskeyService().overrideHttpClient(client);
+
+      String? unlockedContents;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VaultUnlockScreen(
+            accountId: 'acct-w3-unlock',
+            onUnlocked: (decrypted) => unlockedContents = decrypted,
+            vaultCrypto:
+                _FakeVaultCrypto(password: correctPassword, plaintext: plaintext),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        correctPassword,
+      );
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Unlock'));
+      await tester.pumpAndSettle();
+
+      expect(unlockedContents, equals(plaintext),
+          reason: 'onUnlocked must fire with the decrypted vault contents');
+    });
+
+    testWidgets('negative path: WRONG password shows a clear error, '
+        'increments failed attempts, does NOT silently succeed',
+        (tester) async {
+      const correctPassword = 'CorrectP@ss1!';
+      const wrongPassword = 'WrongP@ssword2!';
+      const plaintext = '{"k":"v"}';
+
+      final client = MockClient((_) async => http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'encrypted_data': 'ZW5j',
+                'salt': 'c2FsdA==',
+                'nonce': 'bm9uY2U=',
+              },
+            }),
+            200,
+          ));
+      PasskeyService().overrideHttpClient(client);
+
+      var onUnlockedCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VaultUnlockScreen(
+            accountId: 'acct-w3-unlock-wrong',
+            onUnlocked: (_) => onUnlockedCalled = true,
+            vaultCrypto:
+                _FakeVaultCrypto(password: correctPassword, plaintext: plaintext),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        wrongPassword,
+      );
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Unlock'));
+      await tester.pumpAndSettle();
+
+      expect(onUnlockedCalled, isFalse,
+          reason: 'wrong password must NOT fire onUnlocked (no silent success)');
+      expect(find.textContaining('Incorrect password'), findsOneWidget,
+          reason: 'a clear error must be shown to the user');
+    });
+
+    testWidgets('vault not found (404) shows a clear error', (tester) async {
+      const correctPassword = 'CorrectP@ss1!';
+      final client = MockClient((_) async => http.Response(
+            jsonEncode({'success': false, 'error': 'Vault not found'}),
+            404,
+          ));
+      PasskeyService().overrideHttpClient(client);
+
+      var onUnlockedCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VaultUnlockScreen(
+            accountId: 'acct-w3-no-vault',
+            onUnlocked: (_) => onUnlockedCalled = true,
+            vaultCrypto:
+                _FakeVaultCrypto(password: correctPassword, plaintext: '{}'),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        correctPassword,
+      );
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Unlock'));
+      await tester.pumpAndSettle();
+
+      expect(onUnlockedCalled, isFalse);
+      expect(find.textContaining('Vault not found'), findsOneWidget);
+    });
+
+    // Note: the full REAL-FFI round-trip (real Argon2id + AES-256-GCM through
+    // the screen) is intentionally NOT a widget test. It is covered in:
+    //   - vault_crypto_service_test.dart (W1 — real FFI encrypt/decrypt)
+    //   - passkey_service_vault_test.dart  (W2 — captured POST body decrypts
+    //     back via real FFI)
+    // Those are non-widget tests that don't use pumpAndSettle (which would
+    // never settle against the indeterminate CircularProgressIndicator
+    // animating during the isolate crypto). Widget tests use the deterministic
+    // _FakeVaultCrypto above to validate UI flow, per AGENTS.md allowance.
   });
 }

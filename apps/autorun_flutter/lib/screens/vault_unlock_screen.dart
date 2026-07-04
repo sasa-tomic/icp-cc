@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 import '../services/passkey_service.dart';
+import '../services/vault_crypto_service.dart';
+import '../rust/native_bridge.dart';
 import '../theme/app_design_system.dart';
 
-typedef VaultUnlockedCallback = void Function();
+/// Called after the vault is successfully decrypted locally.
+/// [decryptedVaultContents] is the plaintext that was encrypted in the blob
+/// (surfaced to the caller so downstream code can use it — A-4 W3).
+typedef VaultUnlockedCallback = void Function(String decryptedVaultContents);
 
 class VaultUnlockScreen extends StatefulWidget {
   const VaultUnlockScreen({
     required this.accountId,
     this.onUnlocked,
     this.onUseRecoveryCode,
+    this.vaultCrypto = const VaultCryptoService(),
     super.key,
   });
 
   final String accountId;
   final VaultUnlockedCallback? onUnlocked;
   final VoidCallback? onUseRecoveryCode;
+
+  /// Vault crypto service used to decrypt the blob locally. Injected so widget
+  /// tests can substitute a deterministic fake (the real FFI crypto is
+  /// unit-tested separately in vault_crypto_service_test.dart).
+  final VaultCryptoService vaultCrypto;
 
   @override
   State<VaultUnlockScreen> createState() => _VaultUnlockScreenState();
@@ -44,6 +55,11 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
     super.dispose();
   }
 
+  /// A-4 W3: GET the opaque blob → decrypt LOCALLY with the entered password
+  /// → surface the decrypted contents. The password never leaves the device
+  /// (it is consumed only by [VaultCryptoService.decrypt] via the FFI, which
+  /// runs off the UI isolate via `compute()` so the spinner animates honestly
+  /// through the ~0.1–1 s Argon2id derivation).
   Future<void> _unlockVault() async {
     if (_passwordController.text.isEmpty) return;
 
@@ -58,28 +74,57 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
         throw PasskeyException('Vault not found');
       }
 
-      // TODO(A-4 W3): the unlock currently only confirms the vault exists.
-      // The next commit rewrites this to decrypt vaultData locally via
-      // VaultCryptoService.decrypt (using the entered password) and surface
-      // the decrypted contents — replacing today's get→update no-op.
-      // Until then, no client-side decryption is performed.
+      final blob = EncryptedVaultResult(
+        encryptedDataB64: vaultData.encryptedData,
+        saltB64: vaultData.salt,
+        nonceB64: vaultData.nonce,
+      );
+
+      final plaintext = await widget.vaultCrypto.decrypt(
+        password: _passwordController.text,
+        blob: blob,
+      );
+
       if (mounted) {
-        widget.onUnlocked?.call();
+        widget.onUnlocked?.call(plaintext);
         Navigator.pop(context, true);
       }
+    } on VaultDecryptionException {
+      // Wrong password OR tampered blob: AES-256-GCM auth-tag failure.
+      // Fail loud with a clear, honest error (never silent).
+      if (mounted) {
+        setState(() {
+          _failedAttempts++;
+          _errorMessage = _failedAttempts >= 3
+              ? 'Multiple failed attempts. Consider using a recovery code.'
+              : 'Incorrect password. Please try again.';
+          _isUnlocking = false;
+        });
+      }
+    } on VaultUnavailableException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.message;
+          _isUnlocking = false;
+        });
+      }
     } on PasskeyException catch (e) {
-      setState(() {
-        _failedAttempts++;
-        _errorMessage = _failedAttempts >= 3
-            ? 'Multiple failed attempts. Consider using a recovery code.'
-            : e.message;
-        _isUnlocking = false;
-      });
+      if (mounted) {
+        setState(() {
+          _failedAttempts++;
+          _errorMessage = _failedAttempts >= 3
+              ? 'Multiple failed attempts. Consider using a recovery code.'
+              : e.message;
+          _isUnlocking = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to unlock vault: $e';
-        _isUnlocking = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to unlock vault: $e';
+          _isUnlocking = false;
+        });
+      }
     }
   }
 

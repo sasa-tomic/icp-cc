@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/passkey_service.dart';
+import '../services/vault_crypto_service.dart';
 import '../theme/app_design_system.dart';
 
 typedef VaultCreatedCallback = void Function();
@@ -8,11 +9,17 @@ class VaultPasswordSetupScreen extends StatefulWidget {
   const VaultPasswordSetupScreen({
     required this.accountId,
     this.onVaultCreated,
+    this.vaultCrypto = const VaultCryptoService(),
     super.key,
   });
 
   final String accountId;
   final VaultCreatedCallback? onVaultCreated;
+
+  /// Vault crypto service used to encrypt locally before POSTing. Injected so
+  /// widget tests can substitute a deterministic fake (the real FFI crypto is
+  /// unit-tested separately in vault_crypto_service_test.dart).
+  final VaultCryptoService vaultCrypto;
 
   @override
   State<VaultPasswordSetupScreen> createState() =>
@@ -86,13 +93,15 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
     });
 
     try {
-      // A-4 W2: PasskeyService.createVault now encrypts '{}' locally via
+      // A-4 W2/W3: PasskeyService.createVault encrypts '{}' locally via
       // VaultCryptoService before POSTing only the opaque blob. The password
-      // never leaves the device.
+      // never leaves the device; the heavy Argon2id runs off the UI isolate
+      // (compute()) so the _isCreating spinner animates honestly.
       await PasskeyService().createVault(
         accountId: widget.accountId,
         password: _passwordController.text,
         plaintext: '{}',
+        vaultCrypto: widget.vaultCrypto,
       );
 
       if (mounted) {
