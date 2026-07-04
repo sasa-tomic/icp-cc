@@ -2,12 +2,13 @@
 //!
 //! CURRENT MODEL — server-side crypto (NOT zero-knowledge). The Dart client
 //! sends the vault password (over TLS) plus the plaintext vault payload to
-//! `/api/v1/vault`; the backend derives the Argon2id key here and performs the
-//! AES-256-GCM encryption (`encrypt_vault`), then stores the opaque ciphertext
-//! + salt + nonce. The client performs NO cryptography — it never encrypts or
-//! decrypts — and no server-side decrypt path exists. Because the password
-//! transits the server on every create/update, a compromised server (or a DB
-//! dump plus a captured password) can decrypt every vault.
+//! `/api/v1/vault`; the backend derives the Argon2id key here and performs
+//! the AES-256-GCM encryption (`encrypt_vault`), then stores the opaque
+//! ciphertext, salt, and nonce. The client performs NO cryptography — it
+//! never encrypts or decrypts — and no server-side decrypt path exists.
+//! Because the password transits the server on every create/update, a
+//! compromised server (or a DB dump plus a captured password) can decrypt
+//! every vault.
 //!
 //! `HUMAN_EXPECTATIONS.md` states zero-knowledge as the product intent; closing
 //! that gap is the deferred A-4 migration.
