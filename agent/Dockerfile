@@ -21,7 +21,7 @@ RUN chmod +x /tini
 
 # Install dfx
 RUN DFXVM_INIT_YES=yes sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)" \
-    && dfxvm default 0.29.2
+    && dfxvm default 0.32.0
 
 # Install deps
 RUN apt update && \
