@@ -81,6 +81,10 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
   static const String _kKeylessStatusHint =
       'You can read polls anonymously. Creating a profile lets you vote.';
   static const String _kCreateProfileToVoteLabel = 'Create a profile to vote';
+  static const String _kUnreachableHintTitle = 'Canister unreachable';
+  static const String _kUnreachableHintBody =
+      'The dapp couldn\'t reach the canister at the configured id/host. '
+      'Check the canister id and host below, then Apply.';
 
   /// Effective connection values currently driving the [ScriptAppHost].
   String _backendId = '';
@@ -309,14 +313,13 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  'Canister unreachable',
+                  _kUnreachableHintTitle,
                   style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600, color: warn),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'The dapp couldn\'t reach the canister at the configured '
-                  'id/host. Check the canister id and host below, then Apply.',
+                  _kUnreachableHintBody,
                   style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant),
                 ),
