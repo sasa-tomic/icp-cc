@@ -3,10 +3,7 @@
 #![allow(dead_code)]
 
 use crate::repositories::PasskeyRepository;
-use crate::vault::{
-    encrypt_vault as vault_encrypt, generate_recovery_codes, hash_recovery_code,
-    verify_recovery_code,
-};
+use crate::vault::{generate_recovery_codes, hash_recovery_code, verify_recovery_code};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -480,12 +477,24 @@ impl PasskeyService {
     // ========================================================================
     // Vault Operations
     // ========================================================================
+    //
+    // A-4 (zero-knowledge vault): the backend is a PURE OPAQUE-BLOB STORE.
+    // The client encrypts locally (Argon2id + AES-256-GCM via FFI) and POSTs
+    // the resulting bytes; these methods persist/return those bytes verbatim.
+    // The password and plaintext NEVER transit the server. See the wire
+    // contract documented on `VaultBlobRequest` in `main.rs`.
 
+    /// Stores a client-encrypted vault blob for `account_id`.
+    ///
+    /// `encrypted_data` / `salt` / `nonce` are the opaque bytes produced by
+    /// the client; the server stores them without inspection. Fails if a vault
+    /// already exists for this account.
     pub async fn create_vault(
         &self,
         account_id: &str,
-        password: &str,
-        data: &[u8],
+        encrypted_data: &[u8],
+        salt: &[u8],
+        nonce: &[u8],
     ) -> Result<(), String> {
         // Check if vault already exists
         if self
@@ -498,25 +507,21 @@ impl PasskeyService {
             return Err("Vault already exists".to_string());
         }
 
-        let encrypted = vault_encrypt(password, data)?;
         let vault_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
         self.repo
-            .create_vault(
-                &vault_id,
-                account_id,
-                &encrypted.encrypted_data,
-                &encrypted.salt,
-                &encrypted.nonce,
-                &now,
-            )
+            .create_vault(&vault_id, account_id, encrypted_data, salt, nonce, &now)
             .await
             .map_err(|e| format!("DB error: {}", e))?;
 
         Ok(())
     }
 
+    /// Returns the stored opaque vault blob for `account_id` (if any), with
+    /// each component base64-encoded for the JSON wire response. The bytes are
+    /// returned exactly as the client previously stored them — the server
+    /// cannot decrypt them.
     pub async fn get_vault(&self, account_id: &str) -> Result<Option<VaultData>, String> {
         let vault = self
             .repo
@@ -534,24 +539,20 @@ impl PasskeyService {
         }))
     }
 
+    /// Overwrites the stored opaque vault blob for `account_id` with a new
+    /// client-produced blob. Fails if no vault exists for this account.
     pub async fn update_vault(
         &self,
         account_id: &str,
-        password: &str,
-        data: &[u8],
+        encrypted_data: &[u8],
+        salt: &[u8],
+        nonce: &[u8],
     ) -> Result<(), String> {
-        let encrypted = vault_encrypt(password, data)?;
         let now = Utc::now().to_rfc3339();
 
         let updated = self
             .repo
-            .update_vault(
-                account_id,
-                &encrypted.encrypted_data,
-                &encrypted.salt,
-                &encrypted.nonce,
-                &now,
-            )
+            .update_vault(account_id, encrypted_data, salt, nonce, &now)
             .await
             .map_err(|e| format!("DB error: {}", e))?;
 

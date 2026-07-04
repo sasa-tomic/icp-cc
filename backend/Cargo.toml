@@ -42,9 +42,11 @@ ic-agent = "0.44"
 webauthn-rs = { version = "0.5.2", features = ["danger-allow-state-serialisation"] }
 webauthn-rs-proto = "0.5.0"
 
-# Vault encryption (Argon2id KDF + AES-GCM)
+# Vault password recovery (Argon2id hashing of one-time recovery codes).
+# NOTE: vault ENCRYPTION (Argon2id KDF + AES-256-GCM) is now client-side
+# (A-4 W4); the backend is a pure opaque-blob store. The single source of
+# truth for vault crypto params is crates/icp_core/src/vault.rs.
 argon2 = "0.5"
-aes-gcm = "0.10"
 rand = "0.8"
 
 [dev-dependencies]

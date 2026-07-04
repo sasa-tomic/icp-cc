@@ -1,30 +1,26 @@
-//! Vault encryption utilities (Argon2id KDF + AES-GCM).
+//! Recovery-code hashing utilities (Argon2id KDF).
 //!
-//! CURRENT MODEL — server-side crypto (NOT zero-knowledge). The Dart client
-//! sends the vault password (over TLS) plus the plaintext vault payload to
-//! `/api/v1/vault`; the backend derives the Argon2id key here and performs
-//! the AES-256-GCM encryption (`encrypt_vault`), then stores the opaque
-//! ciphertext, salt, and nonce. The client performs NO cryptography — it
-//! never encrypts or decrypts — and no server-side decrypt path exists.
-//! Because the password transits the server on every create/update, a
-//! compromised server (or a DB dump plus a captured password) can decrypt
-//! every vault.
+//! ## A-4 (zero-knowledge vault) — RESOLVED ON THE BACKEND
 //!
-//! `HUMAN_EXPECTATIONS.md` states zero-knowledge as the product intent; closing
-//! that gap is the deferred A-4 migration.
+//! The backend performs **no** vault cryptography. The Dart client derives the
+//! Argon2id key and performs AES-256-GCM encryption locally, then POSTs the
+//! resulting opaque blob (ciphertext + salt + nonce) to `/api/v1/vault`. The
+//! server stores and returns those bytes verbatim — it never sees the password
+//! or the plaintext. See `main.rs::vault_create` / `vault_get` / `vault_update`
+//! for the wire contract, and `docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md` for
+//! the full migration record.
 //!
-//! TODO(A-4): move Argon2id + AES-GCM into the Dart client and make `/vault` a
-//! pure opaque-blob store so the server never sees the password. Decision and
-//! grounding: `docs/specs/NEXT_ITERATION_PLAN.md` §1; tracked in `TODO.md`.
+//! The single source of truth for vault crypto params is now
+//! `crates/icp_core/src/vault.rs` (the Rust core crate consumed via FFI by the
+//! Dart client). This file is **only** the recovery-code Argon2id hashing path.
 //!
+//! ## What lives here
+//!
+//! Argon2id-based hashing for one-time recovery codes. Recovery codes are
+//! generated, hashed (salted Argon2id), stored, and verified at login time.
 //! Parameters (Bitwarden-level):
 //! - Argon2id: time=3, memory=64MB, parallelism=4, output=32 bytes
-//! - AES-GCM: key=256 bits, nonce=96 bits
 
-use aes_gcm::{
-    aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce,
-};
 use argon2::{Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use rand::RngCore;
@@ -35,18 +31,13 @@ const ARGON2_MEMORY_COST: u32 = 65536; // 64 MB
 const ARGON2_PARALLELISM: u32 = 4;
 const ARGON2_OUTPUT_LEN: usize = 32;
 const SALT_LEN: usize = 16;
-const NONCE_LEN: usize = 12;
 
-/// Encrypted vault data with all components needed for decryption
-#[derive(Debug, Clone)]
-pub struct EncryptedVault {
-    pub encrypted_data: Vec<u8>,
-    pub salt: Vec<u8>,
-    pub nonce: Vec<u8>,
-}
-
-/// Derives a 256-bit key from password using Argon2id
-pub fn derive_key(password: &str, salt: &[u8]) -> Result<[u8; 32], String> {
+/// Derives a 256-bit key from a recovery code + salt using Argon2id.
+///
+/// This is scoped to the recovery-code path only (renamed from the old generic
+/// `derive_key` during A-4 W4 to make its purpose explicit once the vault
+/// crypto moved client-side).
+fn derive_recovery_key(code: &str, salt: &[u8]) -> Result<[u8; 32], String> {
     let params = Params::new(
         ARGON2_MEMORY_COST,
         ARGON2_TIME_COST,
@@ -59,45 +50,17 @@ pub fn derive_key(password: &str, salt: &[u8]) -> Result<[u8; 32], String> {
 
     let mut key = [0u8; 32];
     argon2
-        .hash_password_into(password.as_bytes(), salt, &mut key)
+        .hash_password_into(code.as_bytes(), salt, &mut key)
         .map_err(|e| format!("Key derivation failed: {}", e))?;
 
     Ok(key)
 }
 
-/// Generates cryptographically secure random bytes
-pub fn generate_salt() -> [u8; SALT_LEN] {
+/// Generates a cryptographically-secure random salt for recovery-code hashing.
+fn generate_salt() -> [u8; SALT_LEN] {
     let mut salt = [0u8; SALT_LEN];
     rand::thread_rng().fill_bytes(&mut salt);
     salt
-}
-
-/// Generates cryptographically secure random nonce for AES-GCM
-pub fn generate_nonce() -> [u8; NONCE_LEN] {
-    let mut nonce = [0u8; NONCE_LEN];
-    rand::thread_rng().fill_bytes(&mut nonce);
-    nonce
-}
-
-/// Encrypts data with AES-256-GCM using a password-derived key
-pub fn encrypt_vault(password: &str, plaintext: &[u8]) -> Result<EncryptedVault, String> {
-    let salt = generate_salt();
-    let nonce_bytes = generate_nonce();
-
-    let key = derive_key(password, &salt)?;
-    let cipher =
-        Aes256Gcm::new_from_slice(&key).map_err(|e| format!("Cipher init failed: {}", e))?;
-
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    let encrypted_data = cipher
-        .encrypt(nonce, plaintext)
-        .map_err(|e| format!("Encryption failed: {}", e))?;
-
-    Ok(EncryptedVault {
-        encrypted_data,
-        salt: salt.to_vec(),
-        nonce: nonce_bytes.to_vec(),
-    })
 }
 
 // ============================================================================
@@ -127,7 +90,7 @@ pub fn generate_recovery_codes() -> Vec<String> {
 pub fn hash_recovery_code(code: &str) -> Result<String, String> {
     let normalized = code.to_uppercase().replace(['-', ' '], "");
     let salt = generate_salt();
-    let key = derive_key(&normalized, &salt)?;
+    let key = derive_recovery_key(&normalized, &salt)?;
     Ok(format!("{}${}", B64.encode(salt), B64.encode(key)))
 }
 
@@ -145,7 +108,7 @@ pub fn verify_recovery_code(code: &str, hash: &str) -> Result<bool, String> {
     let stored_key = B64
         .decode(parts[1])
         .map_err(|e| format!("Invalid key: {}", e))?;
-    let derived_key = derive_key(&normalized, &salt)?;
+    let derived_key = derive_recovery_key(&normalized, &salt)?;
 
     Ok(derived_key[..] == stored_key[..])
 }
@@ -153,45 +116,6 @@ pub fn verify_recovery_code(code: &str, hash: &str) -> Result<bool, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_unique_salt_per_encryption() {
-        let password = "same-password";
-        let plaintext = b"same data";
-
-        let vault1 = encrypt_vault(password, plaintext).unwrap();
-        let vault2 = encrypt_vault(password, plaintext).unwrap();
-
-        assert_ne!(vault1.salt, vault2.salt, "salts should be unique");
-        assert_ne!(vault1.nonce, vault2.nonce, "nonces should be unique");
-        assert_ne!(
-            vault1.encrypted_data, vault2.encrypted_data,
-            "ciphertexts should differ"
-        );
-    }
-
-    #[test]
-    fn test_derive_key_deterministic() {
-        let password = "test-password";
-        let salt = [1u8; 16];
-
-        let key1 = derive_key(password, &salt).unwrap();
-        let key2 = derive_key(password, &salt).unwrap();
-
-        assert_eq!(key1, key2, "same password+salt should produce same key");
-    }
-
-    #[test]
-    fn test_derive_key_different_salt() {
-        let password = "test-password";
-        let salt1 = [1u8; 16];
-        let salt2 = [2u8; 16];
-
-        let key1 = derive_key(password, &salt1).unwrap();
-        let key2 = derive_key(password, &salt2).unwrap();
-
-        assert_ne!(key1, key2, "different salts should produce different keys");
-    }
 
     // Recovery code tests
     #[test]
@@ -244,5 +168,30 @@ mod tests {
         assert!(verify_recovery_code("ABCD-1234", &hash).unwrap());
         assert!(verify_recovery_code("ABCD 1234", &hash).unwrap());
         assert!(verify_recovery_code("AB-CD 12-34", &hash).unwrap());
+    }
+
+    #[test]
+    fn test_derive_recovery_key_deterministic() {
+        // Same code+salt must produce the same key (regression guard for the
+        // rename of derive_key -> derive_recovery_key).
+        let code = "test-code";
+        let salt = [1u8; 16];
+
+        let key1 = derive_recovery_key(code, &salt).unwrap();
+        let key2 = derive_recovery_key(code, &salt).unwrap();
+
+        assert_eq!(key1, key2, "same code+salt should produce same key");
+    }
+
+    #[test]
+    fn test_derive_recovery_key_different_salt() {
+        let code = "test-code";
+        let salt1 = [1u8; 16];
+        let salt2 = [2u8; 16];
+
+        let key1 = derive_recovery_key(code, &salt1).unwrap();
+        let key2 = derive_recovery_key(code, &salt2).unwrap();
+
+        assert_ne!(key1, key2, "different salts should produce different keys");
     }
 }

@@ -2077,7 +2077,6 @@ dependencies = [
 name = "icp-marketplace-api"
 version = "0.1.0"
 dependencies = [
- "aes-gcm",
  "anyhow",
  "argon2",
  "base64 0.22.1",
