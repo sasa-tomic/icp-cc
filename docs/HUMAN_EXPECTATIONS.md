@@ -16,6 +16,11 @@ A **premium Flutter desktop/mobile app** that lets a user:
 - **Publish/browse** scripts via a marketplace (signed, verifiable).
 - Authenticate with **passkey + zero-knowledge vault** (passkey for login, a
   separate vault password for client-side encryption; losing one ≠ losing data).
+  > *(STATUS: pending decision A-4 — current implementation performs encryption
+  > SERVER-SIDE; the password is transmitted to the backend over TLS and the
+  > backend does Argon2id + AES-GCM. The zero-knowledge / client-side-decryption
+  > intent above is NOT yet implemented. See `TODO.md` A-4. This flag is the
+  > honest interim per §5; the intent text is preserved as the intent of record.)*
 
 **Now also:** interface with **full dapps**, not just raw scripts. Each example
 dapp has ≥2 canisters (frontend + backend). icp-cc drives **BOTH/EITHER**:
