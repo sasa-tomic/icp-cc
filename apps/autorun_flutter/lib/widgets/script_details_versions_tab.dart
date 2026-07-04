@@ -9,12 +9,12 @@ import 'script_details_helpers.dart';
 /// Versions tab of [ScriptDetailsDialog].
 ///
 /// The parent dialog owns the version-list load lifecycle (it fires
-/// `_loadVersions()` in `initState` and passes the result here via these
-/// fields). This widget is stateful only because [_showVersionDiff] runs an
-/// async download + dialog sequence that needs `mounted` guards. It owns its
-/// own [MarketplaceOpenApiService] handle — that class is a process-wide
-/// singleton (factory constructor), so this is the *same* instance the parent
-/// uses; no behaviour change.
+/// `_loadVersions()` lazily the first time this tab is selected and passes the
+/// result here via these fields). This widget is stateful only because
+/// [_showVersionDiff] runs an async download + dialog sequence that needs
+/// `mounted` guards. It owns its own [MarketplaceOpenApiService] handle — that
+/// class is a process-wide singleton (factory constructor), so this is the
+/// *same* instance the parent uses; no behaviour change.
 ///
 /// Extracted verbatim from `script_details_dialog.dart` (TD-11). The only
 /// edits are: leading `_` dropped from the helpers that became this widget's

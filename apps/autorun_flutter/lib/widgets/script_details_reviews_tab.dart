@@ -8,12 +8,12 @@ import 'script_details_helpers.dart';
 /// Reviews tab of [ScriptDetailsDialog].
 ///
 /// Pure display widget: the parent dialog owns the load lifecycle (it fires
-/// `_loadReviews()` in `initState` and streams the result back here via these
-/// fields), so this widget holds no state of its own. Extracted verbatim from
-/// `script_details_dialog.dart` (TD-11) — the only changes are the leading
-/// `_` dropped from the helpers that became this widget's private methods, and
-/// `BuildContext` threaded through where the original `State.context` was read
-/// implicitly. Behaviour is byte-identical.
+/// `_loadReviews()` lazily the first time this tab is selected and streams the
+/// result back here via these fields), so this widget holds no state of its
+/// own. Extracted verbatim from `script_details_dialog.dart` (TD-11) — the
+/// only changes are the leading `_` dropped from the helpers that became this
+/// widget's private methods, and `BuildContext` threaded through where the
+/// original `State.context` was read implicitly. Behaviour is byte-identical.
 class ScriptDetailsReviewsTab extends StatelessWidget {
   const ScriptDetailsReviewsTab({
     super.key,

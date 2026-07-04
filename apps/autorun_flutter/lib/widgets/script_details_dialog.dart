@@ -48,12 +48,36 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   String? _versionsError;
   int _selectedTabIndex = 0;
 
+  /// Tabs whose content has already been fetched at least once. The Details
+  /// tab (index 0) is fetched eagerly in [initState] because it is the first
+  /// thing the user sees; Reviews (1) and Versions (2) are fetched lazily the
+  /// first time the user selects them, then cached here so re-selecting the
+  /// tab does not re-fetch (UX-5: kill the triple-load on dialog open).
+  final Set<int> _loadedTabs = <int>{0};
+
   @override
   void initState() {
     super.initState();
+    // Only the Details/preview tab loads eagerly — Reviews/Versions load on
+    // first selection (see [_selectTab]).
     _loadScriptPreview();
-    _loadReviews();
-    _loadVersions();
+  }
+
+  /// Switches the visible tab and, for Reviews/Versions, triggers their
+  /// fetch the first time they are selected. Subsequent selections reuse the
+  /// cached result (no re-fetch).
+  void _selectTab(int index) {
+    setState(() => _selectedTabIndex = index);
+    if (_loadedTabs.add(index)) {
+      switch (index) {
+        case 1:
+          _loadReviews();
+          break;
+        case 2:
+          _loadVersions();
+          break;
+      }
+    }
   }
 
   Future<void> _loadVersions() async {
@@ -973,7 +997,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     final isSelected = _selectedTabIndex == index;
     return Expanded(
       child: InkWell(
-        onTap: () => setState(() => _selectedTabIndex = index),
+        onTap: () => _selectTab(index),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
