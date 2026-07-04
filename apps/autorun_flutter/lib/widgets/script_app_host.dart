@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
+import '../config/example_dapps.dart';
 import '../models/profile_keypair.dart';
 import '../services/script_runner.dart';
 import '../rust/native_bridge.dart';
@@ -17,6 +18,7 @@ class ScriptAppHost extends StatefulWidget {
     this.initialArg,
     this.progressNotifier,
     this.authenticatedKeypair,
+    this.dappTrustId,
     this.testBridge,
   });
   final IScriptAppRuntime runtime;
@@ -28,6 +30,15 @@ class ScriptAppHost extends StatefulWidget {
   /// `authenticated: true`. When null, such effects fail LOUDLY rather than
   /// silently degrading to anonymous. Raw private keys never enter the sandbox.
   final ProfileKeypair? authenticatedKeypair;
+
+  /// When non-null, the host replaces the strict per-method permission gate
+  /// with a single per-dapp "Trust this dapp?" prompt: choosing Trust allowlists
+  /// ALL of this dapp's canister calls (any method/mode/auth) for the session
+  /// AND persists the grant across restarts via [DappTrustStore] (keyed by this
+  /// id). Only shipped example dapps set this (the runner passes
+  /// `descriptor.id`); user/marketplace scripts leave it null so the strict
+  /// per-method gate is preserved.
+  final String? dappTrustId;
 
   /// Test-only canister-bridge override. When null (production) the host
   /// constructs the real [RustScriptBridge]; tests inject a fake to assert
@@ -48,6 +59,17 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
   final Map<String, bool> _sessionAllow = <String, bool>{};
   bool _cancelled = false;
 
+  /// True once the user has granted the per-dapp "Trust this dapp?" prompt
+  /// (loaded from [DappTrustStore] at boot, set true on grant). Only consulted
+  /// when [widget.dappTrustId] is non-null. When true, the trust gate bypasses
+  /// the strict per-method permission dialog for ALL canister calls.
+  bool _dappTrusted = false;
+
+  /// Completes when the persisted trust grant (if any) has been loaded. Awaited
+  /// before showing the trust dialog so a restart with persisted trust yields
+  /// ZERO prompts instead of flashing a redundant one.
+  late final Future<void> _dappTrustLoaded;
+
   void _updateProgress(ScriptExecutionProgress progress) {
     widget.progressNotifier?.value = progress;
   }
@@ -60,10 +82,25 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
   @override
   void initState() {
     super.initState();
+    _dappTrustLoaded = _loadDappTrust();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateProgress(ScriptExecutionProgress.initializing());
     });
     _boot();
+  }
+
+  /// Loads the persisted trust grant (if any) into [_dappTrusted]. Always
+  /// completes — a storage failure logs loudly and leaves trust as false
+  /// (the safe default; the user simply re-answers the prompt).
+  Future<void> _loadDappTrust() async {
+    final String? id = widget.dappTrustId;
+    if (id == null) return;
+    try {
+      _dappTrusted = await DappTrustStore.isTrusted(id);
+    } catch (e, st) {
+      debugPrint('script_app_host: failed to load dapp trust for "$id": $e\n$st');
+      _dappTrusted = false;
+    }
   }
 
   void _cancel() {
@@ -378,6 +415,9 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
       required String method,
       required int mode,
       required bool authenticated}) {
+    // The per-dapp trust gate (when active) covers every canister call without
+    // consulting the per-method map.
+    if (_dappTrusted) return true;
     final String key = _keyFor(
         canisterId: canisterId,
         method: method,
@@ -393,6 +433,9 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
       required bool authenticated,
       required String authLabel,
       String? argsPreview}) async {
+    if (widget.dappTrustId != null) {
+      return _ensureDappTrust();
+    }
     final String key = _keyFor(
         canisterId: canisterId,
         method: method,
@@ -417,6 +460,11 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
   }
 
   Future<bool> _ensurePermissionForBatch(List<dynamic> items) async {
+    // The per-dapp trust gate is all-or-nothing for the whole dapp, regardless
+    // of which/how many methods are in this batch.
+    if (widget.dappTrustId != null) {
+      return _ensureDappTrust();
+    }
     final List<String> lines = <String>[];
     for (final dynamic item in items) {
       if (item is! Map<String, dynamic>) continue;
@@ -463,10 +511,51 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
     return false;
   }
 
+  /// Single per-dapp "Trust this dapp?" gate. When the user grants trust:
+  ///  - all current and future canister calls from this host instance run
+  ///    without further prompts (`_dappTrusted == true` short-circuits both
+  ///    [_isAllowed] and the per-call/batch permission paths), and
+  ///  - the grant persists across app restarts via [DappTrustStore].
+  /// On Deny, returns false (effect -> "permission denied"); the user is asked
+  /// again on the next canister effect.
+  Future<bool> _ensureDappTrust() async {
+    if (_dappTrusted) return true;
+    // Wait for the persisted trust grant to load so a restart with prior trust
+    // does NOT flash a redundant prompt.
+    try {
+      await _dappTrustLoaded;
+    } catch (e, st) {
+      debugPrint('script_app_host: dapp trust load failed: $e\n$st');
+    }
+    if (!mounted) return false;
+    if (_dappTrusted) return true;
+    final _Decision decision = await _showPermissionDialog(
+      title: _kTrustDappDialogTitle,
+      details: _kTrustDappDialogBody,
+      allowAlwaysLabel: _kTrustDappButton,
+    );
+    if (decision == _Decision.allowAlways) {
+      _dappTrusted = true;
+      final String? id = widget.dappTrustId;
+      if (id != null) {
+        try {
+          await DappTrustStore.setTrusted(id);
+        } catch (e, st) {
+          // Persistence failure is loud but non-blocking: the in-session grant
+          // still applies so the user is not stranded; next restart will
+          // re-prompt.
+          debugPrint('script_app_host: failed to persist dapp trust for "$id": $e\n$st');
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
   Future<_Decision> _showPermissionDialog(
       {required String title,
       required String details,
-      required String allowLabel,
+      String? allowLabel,
       required String allowAlwaysLabel}) async {
     if (!mounted) return _Decision.deny;
     final _Decision? choice = await showDialog<_Decision>(
@@ -479,9 +568,10 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
             TextButton(
                 onPressed: () => Navigator.of(context).pop(_Decision.deny),
                 child: const Text('Deny')),
-            TextButton(
-                onPressed: () => Navigator.of(context).pop(_Decision.allowOnce),
-                child: Text(allowLabel)),
+            if (allowLabel != null)
+              TextButton(
+                  onPressed: () => Navigator.of(context).pop(_Decision.allowOnce),
+                  child: Text(allowLabel)),
             FilledButton(
                 onPressed: () =>
                     Navigator.of(context).pop(_Decision.allowAlways),
@@ -616,3 +706,16 @@ class _ResolvedAuth {
 /// active-profile keypair is wired into the host. Never a silent anon fallback.
 const String _kMissingAuthMessage =
     'authenticated call requested but no active profile keypair';
+
+// =============================================================================
+// "Trust this dapp" prompt copy (UX-10).
+// Distinct from the per-method "Allow canister call? / Always allow" dialog:
+// the trust grant covers ALL current + future methods of one shipped example
+// dapp. Single source of truth — referenced by name from `_ensureDappTrust`.
+// =============================================================================
+const String _kTrustDappDialogTitle = 'Trust this dapp?';
+const String _kTrustDappDialogBody =
+    'Allow ALL current and future canister calls from this dapp — any method, '
+    'signed or anonymous. You won\'t be asked again.\n'
+    'Only trust dapps you recognize.';
+const String _kTrustDappButton = 'Trust this dapp';

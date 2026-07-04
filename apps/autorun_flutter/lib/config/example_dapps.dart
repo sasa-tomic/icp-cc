@@ -140,3 +140,41 @@ class DappRuntimeConfig {
     await prefs.remove(_hostKey(id));
   }
 }
+
+/// Persists the user's "Trust this dapp" grant across app restarts. Keyed by
+/// [DappDescriptor.id] (a stable identifier). When trusted, the runner's
+/// permission gate allows ALL of that dapp's canister calls (any method, mode,
+/// or auth) without further prompts — so a brand-new user opening the shipped
+/// Poll dapp sees at most ONE trust prompt, then never again.
+///
+/// Only shipped example dapps opt into the trust model (the runner passes
+/// `dappTrustId: descriptor.id` to [ScriptAppHost]); user/marketplace scripts
+/// leave `dappTrustId` null and keep the strict per-method gate unchanged.
+///
+/// Storage reuses the same [SharedPreferences] instance as [DappRuntimeConfig]
+/// — no new persistence layer.
+class DappTrustStore {
+  const DappTrustStore();
+
+  static String _trustKey(String id) => 'dapp.$id.trusted';
+
+  /// True iff the user has previously granted trust to this dapp id.
+  static Future<bool> isTrusted(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_trustKey(id)) ?? false;
+  }
+
+  /// Records the trust grant persistently. Idempotent.
+  static Future<void> setTrusted(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_trustKey(id), true);
+  }
+
+  /// Removes the trust grant (next [isTrusted] returns false). Used by tests
+  /// to reset state; no UI affordance wires this today (parity with the
+  /// per-method allow-list, which also has no in-app revocation).
+  static Future<void> clear(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_trustKey(id));
+  }
+}

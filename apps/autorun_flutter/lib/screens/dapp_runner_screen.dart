@@ -384,6 +384,13 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
         'backend_id': _backendId,
         'host': _host,
       },
+      // The shipped example dapp uses the per-dapp "Trust this dapp?" gate
+      // (UX-10) so a first-run user sees at most ONE prompt, then all of the
+      // dapp's methods run without further prompts. The grant is keyed by the
+      // descriptor's stable id and persists across restarts. User/marketplace
+      // scripts (which don't go through this screen) keep the strict
+      // per-method gate by leaving dappTrustId unset.
+      dappTrustId: widget.descriptor.id,
       authenticatedKeypair: ProfileScope.of(context).activeKeypair,
     );
   }
