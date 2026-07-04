@@ -31,7 +31,7 @@ Genuinely open items are listed below.
 > password never leaves the device; the backend is a pure opaque-blob store
 > (`backend/src/vault.rs` has no vault-crypto fns; recovery-code hashing only).
 > End-to-end ZK proven by the W5 integration round-trip test
-> (`test/features/vault/zk_round_trip_test.dart`). Commits: `b92a54d4`,
+> (`test/features/vault/zk_integration_test.dart`). Commits: `b92a54d4`,
 > `30d98a3e` (W4 backend opaque-blob + schema fix), `714c8568` (W1
 > VaultCryptoService), `b4d709ab` (W2 PasskeyService encrypts locally),
 > `d96661af` (W3 screens use local crypto), `f1d425d5` (W5 ZK round-trip test).

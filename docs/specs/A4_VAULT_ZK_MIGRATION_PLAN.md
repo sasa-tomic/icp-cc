@@ -333,7 +333,7 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
 
 ### W5 — Integration test: client-encrypt → store → client-decrypt  [Medium] ✅ DONE `f1d425d5`
 
-- **Files:** NEW `apps/autorun_flutter/test/features/vault/zk_round_trip_test.dart`;
+- **Files:** NEW `apps/autorun_flutter/test/features/vault/zk_integration_test.dart`;
   possibly extend `test/integration/` patterns.
 - **Size:** ~80-120 LOC.
 - **Change:** the proof-of-the-migration. Against the real dev API
@@ -499,7 +499,7 @@ The A-4 migration is **complete and proven.** Concretely:
   place (`crates/icp_core/src/vault.rs:18-24`) — the Dart layer forwards
   password + plaintext only, never re-declares params.
 - **End-to-end proof.** The W5 integration round-trip test
-  (`apps/autorun_flutter/test/features/vault/zk_round_trip_test.dart`,
+  (`apps/autorun_flutter/test/features/vault/zk_integration_test.dart`,
   `f1d425d5`) exercises the full ZK property: client-encrypt → POST opaque blob
   → server-store → GET blob → client-decrypt == original plaintext. Negative
   paths fail loud: wrong password and tampered ciphertext both raise
