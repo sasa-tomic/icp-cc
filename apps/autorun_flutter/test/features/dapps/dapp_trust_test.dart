@@ -374,4 +374,88 @@ void main() {
     // The grant must NOT persist on denial.
     expect(await DappTrustStore.isTrusted(dappId), isFalse);
   });
+
+  // ===========================================================================
+  // UX-10 completeness: programmatic revocation (ScriptAppHostState.revokeTrust).
+  // The UI affordance lives in DappRunnerScreen; this asserts the host-level
+  // primitive the runner depends on: clears the persisted grant, flips the
+  // in-memory flag (next call re-prompts), and publishes the new state to the
+  // dappTrustState notifier.
+  // ===========================================================================
+  testWidgets(
+      'UX-10 revoke: ScriptAppHostState.revokeTrust clears the persisted grant, '
+      'flips the in-memory flag, and publishes false to dappTrustState',
+      (tester) async {
+    // Prime persisted trust — as if the user already trusted this dapp on a
+    // previous run, then reopened it.
+    await DappTrustStore.setTrusted(dappId);
+    expect(await DappTrustStore.isTrusted(dappId), isTrue);
+
+    final bridge = _RecordingBridge();
+    final runtime = _EffectRuntime(initEffects: <Map<String, dynamic>>[
+      _anonCall(id: 'e_list', method: 'listPolls'),
+    ]);
+    final ValueNotifier<bool> trustState = ValueNotifier<bool>(false);
+    final GlobalKey<ScriptAppHostState> hostKey =
+        GlobalKey<ScriptAppHostState>();
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ScriptAppHost(
+          key: hostKey,
+          runtime: runtime,
+          script: '/* bundled poll dapp */',
+          dappTrustId: dappId,
+          dappTrustState: trustState,
+          testBridge: bridge,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Pre-trusted → init's call ran without prompting, and the host mirrored
+    // the loaded trust state to the notifier.
+    expect(bridge.anonymousCalls, 1);
+    expect(find.text('Trust this dapp?'), findsNothing);
+    expect(trustState.value, isTrue,
+        reason: 'host must publish trust=true on load');
+
+    await hostKey.currentState!.revokeTrust();
+    await tester.pump();
+
+    expect(await DappTrustStore.isTrusted(dappId), isFalse,
+        reason: 'revokeTrust must clear the persisted grant');
+    expect(trustState.value, isFalse,
+        reason: 'revokeTrust must publish trust=false to the notifier');
+  });
+
+  testWidgets(
+      'UX-10 revoke: when dappTrustId is null, revokeTrust is a safe no-op '
+      '(the trust gate is not active for this host)', (tester) async {
+    final bridge = _RecordingBridge();
+    final runtime = _EffectRuntime(initEffects: <Map<String, dynamic>>[]);
+    final ValueNotifier<bool> trustState = ValueNotifier<bool>(false);
+    final GlobalKey<ScriptAppHostState> hostKey =
+        GlobalKey<ScriptAppHostState>();
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ScriptAppHost(
+          key: hostKey,
+          runtime: runtime,
+          script: '/* user script */',
+          // dappTrustId intentionally unset.
+          dappTrustState: trustState,
+          testBridge: bridge,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // No throw, no state change — the trust gate isn't active here.
+    await hostKey.currentState!.revokeTrust();
+    await tester.pump();
+
+    expect(trustState.value, isFalse);
+  });
 }

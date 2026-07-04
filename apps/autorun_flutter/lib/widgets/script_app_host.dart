@@ -19,7 +19,9 @@ class ScriptAppHost extends StatefulWidget {
     this.progressNotifier,
     this.authenticatedKeypair,
     this.dappTrustId,
+    this.dappTrustState,
     this.testBridge,
+    this.onCanisterCallFailure,
   });
   final IScriptAppRuntime runtime;
   final String script;
@@ -32,7 +34,7 @@ class ScriptAppHost extends StatefulWidget {
   final ProfileKeypair? authenticatedKeypair;
 
   /// When non-null, the host replaces the strict per-method permission gate
-  /// with a single per-dapp "Trust this dapp?" prompt: choosing Trust allowlists
+  /// with a single per-dapp "Trust this dapp?" prompt: choosing Trust allow lists
   /// ALL of this dapp's canister calls (any method/mode/auth) for the session
   /// AND persists the grant across restarts via [DappTrustStore] (keyed by this
   /// id). Only shipped example dapps set this (the runner passes
@@ -40,17 +42,35 @@ class ScriptAppHost extends StatefulWidget {
   /// per-method gate is preserved.
   final String? dappTrustId;
 
+  /// Optional live mirror of the host's in-memory trust flag, written whenever
+  /// it changes: after [DappTrustStore.isTrusted] resolves on boot, after the
+  /// user grants the prompt, and after [ScriptAppHostState.revokeTrust].
+  /// Parents listen (via [ValueListenableBuilder]) to surface a "Trusted"
+  /// indicator and drive the revoke affordance. Only meaningful when
+  /// [dappTrustId] is set; ignored otherwise. Owned by the parent.
+  final ValueNotifier<bool>? dappTrustState;
+
   /// Test-only canister-bridge override. When null (production) the host
   /// constructs the real [RustScriptBridge]; tests inject a fake to assert
   /// which key material is passed to `callAuthenticated`.
   @visibleForTesting
   final ScriptBridge? testBridge;
 
+  /// Called whenever a canister bridge call fails, with the failure classified
+  /// by [CanisterFailureKind] — match-style on the stable `kind` tag emitted by
+  /// the Rust FFI (NOT message string-matching). Fires once per failing call;
+  /// the parent decides how to react. UX-12(b) keys off
+  /// [CanisterFailureKind.isUnreachable] to auto-expand the Connection panel
+  /// and surface a recovery hint on the stale-canister-id-after-`dfx-clean`
+  /// path. Host-level failures (permission denied, missing auth) never reach
+  /// the bridge and so never fire this callback.
+  final void Function(CanisterCallFailure failure)? onCanisterCallFailure;
+
   @override
-  State<ScriptAppHost> createState() => _ScriptAppHostState();
+  State<ScriptAppHost> createState() => ScriptAppHostState();
 }
 
-class _ScriptAppHostState extends State<ScriptAppHost> {
+class ScriptAppHostState extends State<ScriptAppHost> {
   bool _busy = true;
   String? _error;
   Map<String, dynamic>? _state;
@@ -91,7 +111,9 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
 
   /// Loads the persisted trust grant (if any) into [_dappTrusted]. Always
   /// completes — a storage failure logs loudly and leaves trust as false
-  /// (the safe default; the user simply re-answers the prompt).
+  /// (the safe default; the user simply re-answers the prompt). Publishes the
+  /// resolved value to [widget.dappTrustState] so parents can render an
+  /// indicator / drive the revoke affordance.
   Future<void> _loadDappTrust() async {
     final String? id = widget.dappTrustId;
     if (id == null) return;
@@ -101,6 +123,29 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
       debugPrint('script_app_host: failed to load dapp trust for "$id": $e\n$st');
       _dappTrusted = false;
     }
+    widget.dappTrustState?.value = _dappTrusted;
+  }
+
+  /// Programmatically revokes the per-dapp trust grant (UX-10 completeness).
+  ///
+  /// Clears the persisted value via [DappTrustStore.clear] AND flips the
+  /// in-memory [_dappTrusted] flag, so the very next canister call hits
+  /// [_ensureDappTrust] again and re-surfaces the one-time "Trust this dapp?"
+  /// dialog. The dapp's in-memory JS state is preserved — the user keeps their
+  /// context, only the broad grant is rolled back. Publishes the new state to
+  /// [widget.dappTrustState].
+  ///
+  /// No-op when [widget.dappTrustId] is null (the trust gate isn't active for
+  /// this host). Persistence failures PROPAGATE — the caller must surface them
+  /// loudly. We never flip [_dappTrusted] on a failed clear, so the UI cannot
+  /// claim "revoked" while the grant still lives on disk (it would re-assert
+  /// itself on the next restart).
+  Future<void> revokeTrust() async {
+    final String? id = widget.dappTrustId;
+    if (id == null) return;
+    await DappTrustStore.clear(id); // may throw — propagate loudly.
+    _dappTrusted = false;
+    widget.dappTrustState?.value = false;
   }
 
   void _cancel() {
@@ -260,6 +305,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
         }
         try {
           final dynamic parsed = json.decode(out);
+          _reportBridgeFailureIfAny(parsed);
           _enqueueMsg(<String, dynamic>{
             'type': 'effect/result',
             'id': id,
@@ -370,7 +416,9 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
             };
           } else {
             try {
-              outputs[outputKey] = json.decode(out);
+              final dynamic parsed = json.decode(out);
+              _reportBridgeFailureIfAny(parsed);
+              outputs[outputKey] = parsed;
             } on FormatException catch (e) {
               debugPrint(
                   'script_app_host: batch result not JSON, passing raw: $e');
@@ -536,6 +584,7 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
     );
     if (decision == _Decision.allowAlways) {
       _dappTrusted = true;
+      widget.dappTrustState?.value = true;
       final String? id = widget.dappTrustId;
       if (id != null) {
         try {
@@ -626,6 +675,45 @@ class _ScriptAppHostState extends State<ScriptAppHost> {
     return '${s.substring(0, max - 1)}…';
   }
 
+  /// Inspects a parsed bridge result for the typed error shape
+  /// `{"ok": false, "kind": "<tag>", "error": "..."}` and, when present, fires
+  /// [widget.onCanisterCallFailure] with the classified [CanisterFailureKind].
+  ///
+  /// Match-style on the stable `kind` tag emitted by the Rust FFI
+  /// (`canister_err_ptr` in `ffi.rs`) — never string-matches the human-readable
+  /// `error` body. Unknown `kind` tags (or non-error shapes) are left
+  /// unclassified on purpose: the call still surfaces to the script as a failed
+  /// effect/result (the script's `readEffect` handles `data.ok === false`), we
+  /// just don't pretend to know it's a reachability failure.
+  void _reportBridgeFailureIfAny(dynamic parsed) {
+    if (parsed is! Map<String, dynamic>) return;
+    if (parsed['ok'] != false) return;
+    final CanisterFailureKind? kind = _matchFailureKind(parsed['kind']);
+    if (kind == null) return;
+    final String error = (parsed['error']?.toString().isNotEmpty ?? false)
+        ? parsed['error'].toString()
+        : kind.name;
+    widget.onCanisterCallFailure
+        ?.call(CanisterCallFailure(kind: kind, error: error));
+  }
+
+  /// Maps the stable FFI `kind` string to a typed [CanisterFailureKind].
+  /// Returns `null` for anything unrecognized so the caller can skip
+  /// classification rather than guess.
+  static CanisterFailureKind? _matchFailureKind(dynamic kind) {
+    if (kind is! String) return null;
+    switch (kind) {
+      case 'net':
+        return CanisterFailureKind.net;
+      case 'invalid_canister_id':
+        return CanisterFailureKind.invalidCanisterId;
+      case 'candid':
+        return CanisterFailureKind.candid;
+      default:
+        return null;
+    }
+  }
+
   List<dynamic> _effectsListOf(dynamic raw) {
     if (raw == null) return const <dynamic>[];
     if (raw is List<dynamic>) return raw;
@@ -706,6 +794,48 @@ class _ResolvedAuth {
 /// active-profile keypair is wired into the host. Never a silent anon fallback.
 const String _kMissingAuthMessage =
     'authenticated call requested but no active profile keypair';
+
+// =============================================================================
+// Canister bridge failure classification (UX-12(b)).
+//
+// The Rust FFI emits a typed `kind` discriminator on every failed canister call
+// (see `canister_err_ptr` in `crates/icp_core/src/ffi.rs`): the Dart host
+// matches on that tag — NOT on the human-readable `error` string — to decide
+// whether a failure is "canister unreachable" (point the user at the Connection
+// panel) vs. e.g. a Candid decode error (the call reached the canister, so the
+// connection is fine).
+// =============================================================================
+
+/// Typed discriminator for a failed canister bridge call. Mirrors the Rust
+/// `CanisterClientError` variant tag carried in the FFI error JSON (`"kind"`).
+enum CanisterFailureKind {
+  /// Network / timeout / replica unreachable / canister-not-found. The
+  /// connection config (canister id or host) can't reach a working canister.
+  net,
+
+  /// The canister id text failed to parse as a principal (malformed id).
+  invalidCanisterId,
+
+  /// The call reached the canister but the response / args could not be
+  /// (en)coded as Candid. NOT a reachability problem.
+  candid;
+
+  /// True when this failure means the Connection config can't reach a working
+  /// canister — the recovery is to fix the id/host in the Connection panel.
+  /// This is the predicate UX-12(b) auto-expand keys off.
+  bool get isUnreachable => this == net || this == invalidCanisterId;
+}
+
+/// A canister bridge call that failed, classified by [kind]. Surfaced to the
+/// parent via [ScriptAppHost.onCanisterCallFailure] so it can react (e.g.
+/// UX-12(b): auto-expand the Connection panel when [kind].isUnreachable).
+class CanisterCallFailure {
+  const CanisterCallFailure({required this.kind, required this.error});
+  final CanisterFailureKind kind;
+
+  /// The human-readable error body from the bridge (for logging / diagnostics).
+  final String error;
+}
 
 // =============================================================================
 // "Trust this dapp" prompt copy (UX-10).

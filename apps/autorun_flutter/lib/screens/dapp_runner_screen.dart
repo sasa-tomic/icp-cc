@@ -3,13 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/example_dapps.dart';
+import '../controllers/account_controller.dart';
 import '../models/profile_keypair.dart';
 import '../rust/native_bridge.dart';
 import '../services/script_runner.dart';
+import '../services/secure_storage_readiness.dart';
 import '../theme/app_design_system.dart';
 import '../widgets/keyboard_shortcuts.dart';
 import '../widgets/profile_scope.dart';
 import '../widgets/script_app_host.dart';
+import 'unified_setup_wizard.dart';
 
 /// Runs ONE example dapp via Path B (Backend Direct): mounts [ScriptAppHost]
 /// with the dapp's bundled TS app, pointing at the (editable) backend canister
@@ -24,6 +27,8 @@ class DappRunnerScreen extends StatefulWidget {
     required this.descriptor,
     this.testRuntime,
     this.testBundle,
+    this.testSecureStorageReadiness,
+    this.testBridge,
   });
 
   final DappDescriptor descriptor;
@@ -41,6 +46,20 @@ class DappRunnerScreen extends StatefulWidget {
   @visibleForTesting
   final String? testBundle;
 
+  /// Test-only override for the [SecureStorageReadiness] the deep-linked
+  /// [UnifiedSetupWizard] probes. Production leaves this null and the runner
+  /// constructs the real probe; tests inject a fixed result so the navigation
+  /// test stays hermetic (the real probe would shell out to gnome-keyring-daemon
+  /// on a Linux host). Mirrors the wizard's own `secureStorageReadiness` seam.
+  @visibleForTesting
+  final SecureStorageReadiness? testSecureStorageReadiness;
+
+  /// Test-only canister-bridge override forwarded to [ScriptAppHost.testBridge]
+  /// so widget tests can simulate a reachability failure (UX-12(b)) without
+  /// touching the network or the real FFI. Production leaves this null.
+  @visibleForTesting
+  final ScriptBridge? testBridge;
+
   @override
   State<DappRunnerScreen> createState() => _DappRunnerScreenState();
 }
@@ -50,6 +69,18 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
   late final TextEditingController _backendIdController;
   late final TextEditingController _hostController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Single source of truth for the keyless-user CTA copy. Pedagogically frames
+  // HUMAN_EXPECTATIONS §3: view anonymously, act with identity. Every label on
+  // this screen that mentions the keyless state or the create-profile action
+  // references these symbolic names — never re-spell the literals inline.
+  // ─────────────────────────────────────────────────────────────────────────
+  static const String _kKeylessStatusText =
+      'No active profile — viewing only';
+  static const String _kKeylessStatusHint =
+      'You can read polls anonymously. Creating a profile lets you vote.';
+  static const String _kCreateProfileToVoteLabel = 'Create a profile to vote';
 
   /// Effective connection values currently driving the [ScriptAppHost].
   String _backendId = '';
@@ -61,9 +92,39 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
   String? _bundle;
   bool _bundleLoadFailed = false;
 
-  /// Bumped on every successful Apply → changes the [ScriptAppHost] key so the
-  /// host is rebuilt and the bundle re-runs init with the new `initialArg`.
-  int _hostGeneration = 0;
+  /// Live mirror of the current dapp's "Trust this dapp?" grant. Pre-seeded
+  /// from [DappTrustStore] in [_loadTrustState] (so the indicator is correct
+  /// even before the host boots), then kept in sync by the mounted
+  /// [ScriptAppHost] via its `dappTrustState` parameter (load / grant / revoke
+  /// all publish here). Drives the "Trusted" status chip and the manage-trust
+  /// dialog copy. UX-10 completeness: makes the broad grant VISIBLE and gives
+  /// the user a one-tap revoke.
+  final ValueNotifier<bool> _trustState = ValueNotifier<bool>(false);
+
+  /// Identifies the currently-mounted [ScriptAppHost]. Reassigning the field
+  /// (via setState in [_applyConfig] / [_refreshDapp]) forces a fresh
+  /// [ScriptAppHostState] → init re-runs with the new initialArg. Stable
+  /// across non-remount rebuilds so [_revokeTrust] can reach into
+  /// `currentState` and flip the in-memory trust flag WITHOUT remounting
+  /// (preserving the dapp's JS state — the next canister call re-prompts).
+  GlobalKey<ScriptAppHostState>? _hostKey;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UX-12(b): reactive Connection-panel auto-expand. When the FIRST canister
+  // call fails reachability (e.g. a stale id after `dfx start --clean`, or a
+  // dead replica host), the panel auto-expands so the recovery hint + fields
+  // are immediately visible — instead of leaving the panel collapsed and
+  // hiding the fix. Driven by the typed [CanisterFailureKind] signal emitted
+  // from the Rust FFI (match-style, not message string-matching).
+  // ─────────────────────────────────────────────────────────────────────────
+  final ExpansibleController _connectionController =
+      ExpansibleController();
+
+  /// True once a reachability failure has auto-expanded the panel + surfaced
+  /// the "Canister unreachable" hint. Latched per host-mount: cleared whenever
+  /// the host remounts (Apply / Refresh) so a fresh connection attempt starts
+  /// from the clean, collapsed happy-path state.
+  bool _showUnreachableHint = false;
 
   @override
   void initState() {
@@ -74,10 +135,12 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     _hostController = TextEditingController();
     _loadInitialConfig();
     _loadBundle();
+    _loadTrustState();
   }
 
   @override
   void dispose() {
+    _trustState.dispose();
     _backendIdController.dispose();
     _hostController.dispose();
     super.dispose();
@@ -131,7 +194,8 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     setState(() {
       _backendId = newId;
       _host = newHost;
-      _hostGeneration++;
+      _hostKey = GlobalKey<ScriptAppHostState>(); // fresh State → init re-runs.
+      _showUnreachableHint = false; // new connection attempt → clean slate.
     });
     ScaffoldMessenger.of(context).showSnackBar(
       AppDesignSystem.successSnackBar('Connection updated — dapp restarted'),
@@ -178,7 +242,10 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     // no-op rather than bumping a generation that re-shows the spinner with
     // no source to mount.
     if (_bundle == null || _backendId.isEmpty) return;
-    setState(() => _hostGeneration++);
+    setState(() {
+      _hostKey = GlobalKey<ScriptAppHostState>();
+      _showUnreachableHint = false; // remount → re-evaluate from a clean state.
+    });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         AppDesignSystem.successSnackBar('Dapp refreshed'),
@@ -189,6 +256,237 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
   /// UX-9: bound to `Esc`. Pops the runner back to the catalog.
   void _handleBack() {
     Navigator.of(context).maybePop();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UX-12(b): reactive Connection-panel auto-expand on canister-unreachable.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Called by [ScriptAppHost] whenever a canister bridge call fails, with the
+  /// failure classified by the typed [CanisterFailureKind] (match-style on the
+  /// Rust FFI `kind` tag — never message string-matching). On the FIRST
+  /// reachability failure ([CanisterFailureKind.isUnreachable]) this expands
+  /// the Connection panel and shows the recovery hint, so the user lands on the
+  /// fix instead of a collapsed panel hiding it. Non-reachability failures
+  /// (Candid decode) and repeat reachability failures are ignored here — the
+  /// panel only needs to open once per host-mount.
+  void _onCanisterFailure(CanisterCallFailure failure) {
+    if (!failure.kind.isUnreachable) return;
+    if (!mounted) return;
+    // Expand first (idempotent on an already-open tile), then latch the hint.
+    _connectionController.expand();
+    if (_showUnreachableHint) return;
+    setState(() => _showUnreachableHint = true);
+    debugPrint(
+        'dapp_runner: canister unreachable — auto-expanded Connection panel '
+        '(kind=${failure.kind.name}, error=${failure.error})');
+  }
+
+  /// The honest, non-alarmist hint shown at the top of the (now-expanded)
+  /// Connection panel after a reachability failure. Uses warning amber, not
+  /// error red, and points the user straight at the fields below — it names
+  /// the symptom and the action, never panics.
+  Widget _buildUnreachableHint(ThemeData theme) {
+    final Color warn = AppDesignSystem.warningColor;
+    return Container(
+      key: const ValueKey<String>('dappUnreachableHint'),
+      margin: const EdgeInsets.fromLTRB(
+          AppDesignSystem.spacing16, AppDesignSystem.spacing8, 12, 0),
+      padding: const EdgeInsets.all(AppDesignSystem.spacing12),
+      decoration: BoxDecoration(
+        color: warn.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppDesignSystem.radius12),
+        border: Border.all(color: warn.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.cloud_off_rounded, color: warn, size: 20),
+          const SizedBox(width: AppDesignSystem.spacing8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'Canister unreachable',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600, color: warn),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'The dapp couldn\'t reach the canister at the configured '
+                  'id/host. Check the canister id and host below, then Apply.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UX-10 completeness: trust-state visibility + revoke affordance.
+  //
+  // `DappTrustStore.setTrusted` was already wired (the host's "Trust this dapp?"
+  // prompt), but `clear` had NO UI — a user who'd granted the broad allow-list
+  // had no way to revoke it. The flow below closes that gap:
+  //   - on boot, [_loadTrustState] reads the persisted grant so the indicator
+  //     is correct before the host finishes mounting;
+  //   - the host writes back to [_trustState] on load/grant/revoke via its
+  //     `dappTrustState` notifier;
+  //   - the "Manage trust" toolbar button opens a dialog that mirrors state
+  //     and offers Revoke (with an explicit confirmation, since revocation
+  //     resets the broad grant).
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> _loadTrustState() async {
+    try {
+      final trusted = await DappTrustStore.isTrusted(widget.descriptor.id);
+      if (!mounted) return;
+      _trustState.value = trusted;
+    } catch (e, st) {
+      // Loud but non-fatal: leave the notifier at its safe default (false);
+      // the host's own load will retry on mount.
+      debugPrint('dapp_runner: trust-state load failed: $e\n$st');
+    }
+  }
+
+  /// Opens the "Manage dapp trust" dialog. Mirrors the live [_trustState] so
+  /// the body copy matches reality, and offers Revoke only when trusted.
+  Future<void> _showManageTrustDialog() async {
+    final bool trusted = _trustState.value;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text(_kManageTrustDialogTitle),
+          content: SingleChildScrollView(
+            child: Text(trusted
+                ? _kManageTrustTrustedBody
+                : _kManageTrustNotTrustedBody),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(_kManageTrustCloseButton),
+            ),
+            if (trusted)
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _confirmRevokeTrust();
+                },
+                icon: const Icon(Icons.remove_circle_outline_rounded),
+                label: const Text(_kRevokeTrustButton),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppDesignSystem.errorColor,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Explicit yes/no confirmation for revocation (the grant is broad, so a
+  /// single accidental tap on the red button must not silently undo it).
+  /// Cancel → no state change; Revoke → [_doRevokeTrust].
+  Future<void> _confirmRevokeTrust() async {
+    if (!mounted) return;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text(_kConfirmRevokeTitle),
+          content: const SingleChildScrollView(
+            child: Text(_kConfirmRevokeBody),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text(_kConfirmRevokeCancelButton),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppDesignSystem.errorColor,
+              ),
+              child: const Text(_kRevokeTrustButton),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed == true) {
+      await _doRevokeTrust();
+    }
+  }
+
+  /// Performs the revocation by calling the mounted host's `revokeTrust`,
+  /// which clears [DappTrustStore] AND flips the in-memory trust flag (so the
+  /// next canister call re-prompts) AND publishes `false` to [_trustState].
+  /// Falls back to clearing the store directly when the host isn't mounted
+  /// yet (e.g. bundle still loading) — the next mount will load trust=false.
+  /// Errors surface LOUDLY: there is no silent fallback path.
+  Future<void> _doRevokeTrust() async {
+    final host = _hostKey?.currentState;
+    try {
+      if (host != null) {
+        await host.revokeTrust();
+      } else {
+        await DappTrustStore.clear(widget.descriptor.id);
+        _trustState.value = false;
+      }
+    } catch (e, st) {
+      debugPrint('dapp_runner: revokeTrust failed: $e\n$st');
+      if (mounted) {
+        _showLoudError('Failed to revoke trust: $e');
+      }
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      AppDesignSystem.successSnackBar(_kTrustRevokedMessage),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Keyless-user CTA (HUMAN_EXPECTATIONS §3: teach the dual-path model — view
+  // anonymously, act with identity). The dapp runs view-only without a profile;
+  // this gives a keyless user a one-tap path into the profile-creation wizard
+  // so they can vote, instead of hunting the profile menu (top-right).
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Deep-links a keyless user into the [UnifiedSetupWizard] so they can create
+  /// a profile in one tap and start voting. Mirrors the re-open-wizard path in
+  /// `scripts_screen.dart` without introducing a circular import on the app
+  /// entry point.
+  ///
+  /// The wizard itself probes [SecureStorageReadiness] (WU-S2 / AGENTS.md) and
+  /// renders an actionable panel if secrets can't be persisted — that handling
+  /// is intentionally NOT duplicated here. After the wizard pops, this screen
+  /// rebuilds via [ProfileScope] (listen: true in [build]) and the CTA
+  /// disappears because `activeKeypair` is now non-null.
+  Future<void> _openCreateProfileWizard() async {
+    final profileController = ProfileScope.of(context, listen: false);
+    final accountController =
+        AccountController(profileController: profileController);
+    await Navigator.of(context).push<UnifiedSetupResult>(
+      MaterialPageRoute<UnifiedSetupResult>(
+        fullscreenDialog: true,
+        builder: (_) => UnifiedSetupWizard(
+          profileController: profileController,
+          accountController: accountController,
+          secureStorageReadiness:
+              widget.testSecureStorageReadiness ?? SecureStorageReadiness(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -218,6 +516,15 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
                 icon: const Icon(Icons.open_in_new_rounded),
                 onPressed: _openFrontend,
               ),
+            // UX-10 completeness: the only entry point for revoking the broad
+            // per-dapp trust grant. Always present (even when not trusted) so
+            // a user can inspect the state at any time. The "Trusted" status
+            // chip below the app bar reinforces the indicator.
+            IconButton(
+              tooltip: _kManageTrustTooltip,
+              icon: const Icon(Icons.shield_outlined),
+              onPressed: _showManageTrustDialog,
+            ),
           ],
         ),
         body: SafeArea(
@@ -236,8 +543,15 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
                       AppDesignSystem.spacing12,
                       AppDesignSystem.spacing12,
                       AppDesignSystem.spacing4),
-                  child: _buildAuthStatus(
-                      hasProfile: keypair != null, principal: principal),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      _buildAuthStatus(
+                          hasProfile: keypair != null, principal: principal),
+                      _buildTrustStatus(),
+                    ],
+                  ),
                 ),
               ),
               SliverToBoxAdapter(
@@ -272,6 +586,7 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
         key: _formKey,
         child: ExpansionTile(
           key: const ValueKey<String>('dappConnectionPanel'),
+          controller: _connectionController,
           initiallyExpanded: false,
           leading: const Icon(Icons.cable_rounded),
           title: const Text('Connection'),
@@ -285,6 +600,7 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           children: [
+            if (_showUnreachableHint) _buildUnreachableHint(theme),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   AppDesignSystem.spacing16, 0, AppDesignSystem.spacing16, 12),
@@ -368,11 +684,50 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
         color: AppDesignSystem.successColor,
       );
     }
-    return _StatusChip(
-      icon: Icons.warning_amber_rounded,
-      text: 'No active profile — create/vote disabled (view-only)',
-      hint: 'Open the profile menu (top-right) to create or switch a profile.',
-      color: AppDesignSystem.warningColor,
+    // Keyless user: show the view-only status (teaches the dual-path model)
+    // PLUS a prominent one-tap CTA into the profile-creation wizard. The chip
+    // explains "what is"; the button is the "do this" path to voting.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _StatusChip(
+          icon: Icons.warning_amber_rounded,
+          text: _kKeylessStatusText,
+          hint: _kKeylessStatusHint,
+          color: AppDesignSystem.warningColor,
+        ),
+        const SizedBox(height: AppDesignSystem.spacing8),
+        FilledButton.icon(
+          key: const Key('dappCreateProfileToVoteCta'),
+          onPressed: _openCreateProfileWizard,
+          icon: const Icon(Icons.person_add_rounded),
+          label: const Text(_kCreateProfileToVoteLabel),
+        ),
+      ],
+    );
+  }
+
+  /// UX-10 visibility: surfaces the broad per-dapp "Trust this dapp?" grant as
+  /// a success-coloured "Trusted" chip while it is active, so the user never
+  /// wonders "did I trust this?". Hidden when not trusted (the absence + the
+  /// next prompt answers the same question). The hint directs the user to the
+  /// toolbar shield to revoke.
+  Widget _buildTrustStatus() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _trustState,
+      builder: (BuildContext context, bool trusted, Widget? _) {
+        if (!trusted) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: AppDesignSystem.spacing8),
+          child: _StatusChip(
+            icon: Icons.verified_user_rounded,
+            text: _kTrustedChipLabel,
+            hint: _kTrustedChipHint,
+            color: AppDesignSystem.successColor,
+          ),
+        );
+      },
     );
   }
 
@@ -409,8 +764,14 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
         ),
       );
     }
+    // The host's key is the GlobalKey stored in [_hostKey]. Reassigning the
+    // field forces a fresh State (used by Connection Apply + Refresh to re-run
+    // init). When stable, the same State is reused across rebuilds — letting
+    // _doRevokeTrust reach into `currentState.revokeTrust()` without remount.
+    final GlobalKey<ScriptAppHostState> hostKey =
+        _hostKey ??= GlobalKey<ScriptAppHostState>();
     return ScriptAppHost(
-      key: ValueKey<int>(_hostGeneration),
+      key: hostKey,
       runtime: _runtime,
       script: _bundle!,
       initialArg: <String, dynamic>{
@@ -424,6 +785,18 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
       // scripts (which don't go through this screen) keep the strict
       // per-method gate by leaving dappTrustId unset.
       dappTrustId: widget.descriptor.id,
+      // The host publishes trust-state changes (load / grant / revoke) back to
+      // this notifier so the "Trusted" chip and the manage-trust dialog stay
+      // in sync with the actual gate.
+      dappTrustState: _trustState,
+      // UX-12(b): the host classifies every failed canister bridge call by the
+      // typed `kind` tag from the Rust FFI and reports it here. On a
+      // reachability failure (stale id / dead host) we auto-expand the
+      // Connection panel + surface a recovery hint. Permission denials and
+      // Candid decode errors never fire this (denial is host-side; candid
+      // `kind` is not unreachable).
+      onCanisterCallFailure: _onCanisterFailure,
+      testBridge: widget.testBridge,
       authenticatedKeypair: ProfileScope.of(context).activeKeypair,
     );
   }
@@ -523,3 +896,31 @@ class _CenteredMessage extends StatelessWidget {
     );
   }
 }
+
+// =============================================================================
+// "Manage trust" / "Revoke trust" affordance copy (UX-10 completeness).
+// Distinct from the host's "Trust this dapp?" grant dialog: this is the
+// RE-ENTRY surface for an existing grant. Single source of truth — referenced
+// by name from the IconButton tooltip, the Trusted status chip, and the
+// manage/confirm dialogs above.
+// =============================================================================
+const String _kManageTrustTooltip = 'Manage trust';
+const String _kManageTrustDialogTitle = 'Manage dapp trust';
+const String _kManageTrustTrustedBody =
+    'This dapp is trusted: it can call any canister (any method, signed or '
+    'anonymous) without asking. Revoke to be prompted again on the next call.';
+const String _kManageTrustNotTrustedBody =
+    'This dapp is not trusted. You\'ll be asked once on the next canister call.';
+const String _kManageTrustCloseButton = 'Close';
+const String _kRevokeTrustButton = 'Revoke trust';
+const String _kConfirmRevokeTitle = 'Revoke trust?';
+const String _kConfirmRevokeBody =
+    'Future canister calls from this dapp will prompt you again. The current '
+    'call (if any) is not affected.';
+const String _kConfirmRevokeCancelButton = 'Cancel';
+const String _kTrustRevokedMessage =
+    'Trust revoked — you\'ll be asked again on the next canister call';
+const String _kTrustedChipLabel = 'Trusted';
+const String _kTrustedChipHint =
+    'This dapp can call any canister without asking. Use "Manage trust" in the '
+    'toolbar to revoke.';
