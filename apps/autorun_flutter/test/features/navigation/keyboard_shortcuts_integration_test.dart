@@ -130,6 +130,18 @@ Future<void> _pressAlt(WidgetTester tester, LogicalKeyboardKey key) async {
 }
 
 Future<void> _pumpShell(WidgetTester tester) async {
+  // The shortcuts help sheet (with the UX-9 Dapps/Account/Details groups) is
+  // taller than the default 800x600 test surface. Because the sheet scrolls,
+  // bottom groups like 'HELP' get lazy-clipped out of the widget tree and
+  // `find.text('HELP')` returns 0. Use a desktop-realistic viewport so the
+  // whole sheet lays out — mirrors test/widgets/shortcuts_help_sheet_test.dart.
+  // The other three tests in this file are viewport-insensitive (they assert
+  // on tab text / focus state), so the bump is harmless to them.
+  tester.view.physicalSize = const Size(800, 1200);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   final navKey = GlobalKey<NavigatorState>();
   await tester.pumpWidget(
     MaterialApp(
