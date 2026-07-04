@@ -25,18 +25,24 @@ Genuinely open items are listed below.
 
 ## Known Issues
 
-> **⚠️ HUMAN DECISION REQUIRED (A-4, HIGH security):** the vault is NOT actually
-> zero-knowledge — the backend does the encryption (password sent over TLS), not
-> the client. A compromised server can decrypt every vault. This contradicts the
-> documented security promise. **A human decision (option a vs b) is required
-> before any security-affecting release.** See the A-4 row below and
-> `docs/specs/NEXT_ITERATION_PLAN.md` §1.
+> **✅ RESOLVED (A-4, vault zero-knowledge):** the vault is **now genuinely
+> zero-knowledge**. Argon2id + AES-256-GCM run **client-side** via the Rust FFI
+> bridge (`apps/autorun_flutter/lib/services/vault_crypto_service.dart`); the
+> password never leaves the device; the backend is a pure opaque-blob store
+> (`backend/src/vault.rs` has no vault-crypto fns; recovery-code hashing only).
+> End-to-end ZK proven by the W5 integration round-trip test
+> (`test/features/vault/zk_round_trip_test.dart`). Commits: `b92a54d4`,
+> `30d98a3e` (W4 backend opaque-blob + schema fix), `714c8568` (W1
+> VaultCryptoService), `b4d709ab` (W2 PasskeyService encrypts locally),
+> `d96661af` (W3 screens use local crypto), `f1d425d5` (W5 ZK round-trip test).
+> Plan + outcome: `docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md`. (The former HIGH
+> "human decision required" item is closed; option (b) — true client-side
+> crypto — was executed in full.)
 
 | Issue | Location | Severity | Notes |
 |-------|----------|----------|-------|
 | Key label editing is blocked by a missing backend endpoint | `AccountController` | MEDIUM | No rename/label route exists server-side. |
 | Web *runtime* features are stubbed (build compiles) | `lib/rust/native_bridge_web.dart` | MEDIUM | R-1 unblocked `flutter build web` (conditional FFI split). Native-only calls throw honest `UnsupportedError`; full Web runtime is R-2..5 (see Future). |
-| A-4 — Vault is NOT actually zero-knowledge (intent ↔ code) | `backend/src/vault.rs`, `lib/screens/vault_unlock_screen.dart` | **HIGH (security promise)** | **Divergence:** `HUMAN_EXPECTATIONS.md` §1 promises a *zero-knowledge* vault (client-side encryption), but the code does NOT implement it. The Dart client sends the vault password (over TLS) to `/api/v1/vault`, and the **backend** does Argon2id + AES-GCM (`vault.rs::encrypt_vault`); there is **no** client-side crypto in Dart. **User impact:** a compromised server (or a DB dump + captured password) can decrypt every vault. **Two options:** (a) accept the current server-side model and downgrade the doc promise (keep honest docs), OR (b) execute the multi-day migration to true client-side crypto (Argon2id + AES-256-GCM in Dart; `/vault` becomes a pure opaque-blob store; delete `encrypt_vault` server-side). **Trigger: human decision required before any security-affecting release.** TD-13 (`4a2cbb83`) made the code comments + this row honest as the interim; the migration itself is NOT auto-executed. Grounding: `docs/specs/NEXT_ITERATION_PLAN.md` §1. Cross-referenced from **Next Iteration Candidates** below. |
 
 ## Next Iteration Candidates
 
@@ -61,11 +67,6 @@ Sized **S** ≈ half-day, **M** ≈ 1–2 days. Not started.
 - **Key-label editing.** The UI field is already present-but-disabled; needs a
   backend rename/label endpoint (the `AccountController` blocker in **Known
   Issues** above). **[M, 1–2 d]**
-- **A-4 — vault zero-knowledge migration.** Decision item, already recorded
-  **HIGH** in **Known Issues** above and in
-  `docs/specs/NEXT_ITERATION_PLAN.md` §1. Cross-referenced here so it is not
-  lost between iterations. **Trigger: human decision before any
-  security-affecting release.**
 
 ## Deferred (decided, with justification)
 
