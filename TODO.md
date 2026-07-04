@@ -36,7 +36,36 @@ Genuinely open items are listed below.
 |-------|----------|----------|-------|
 | Key label editing is blocked by a missing backend endpoint | `AccountController` | MEDIUM | No rename/label route exists server-side. |
 | Web *runtime* features are stubbed (build compiles) | `lib/rust/native_bridge_web.dart` | MEDIUM | R-1 unblocked `flutter build web` (conditional FFI split). Native-only calls throw honest `UnsupportedError`; full Web runtime is R-2..5 (see Future). |
-| A-4 — Vault is NOT actually zero-knowledge (intent ↔ code) | `backend/src/vault.rs`, `lib/screens/vault_unlock_screen.dart` | **HIGH (security promise)** | **Divergence:** `HUMAN_EXPECTATIONS.md` §1 promises a *zero-knowledge* vault (client-side encryption), but the code does NOT implement it. The Dart client sends the vault password (over TLS) to `/api/v1/vault`, and the **backend** does Argon2id + AES-GCM (`vault.rs::encrypt_vault`); there is **no** client-side crypto in Dart. **User impact:** a compromised server (or a DB dump + captured password) can decrypt every vault. **Two options:** (a) accept the current server-side model and downgrade the doc promise (keep honest docs), OR (b) execute the multi-day migration to true client-side crypto (Argon2id + AES-256-GCM in Dart; `/vault` becomes a pure opaque-blob store; delete `encrypt_vault` server-side). **Trigger: human decision required before any security-affecting release.** TD-13 (`4a2cbb83`) made the code comments + this row honest as the interim; the migration itself is NOT auto-executed. Grounding: `docs/specs/NEXT_ITERATION_PLAN.md` §1. |
+| A-4 — Vault is NOT actually zero-knowledge (intent ↔ code) | `backend/src/vault.rs`, `lib/screens/vault_unlock_screen.dart` | **HIGH (security promise)** | **Divergence:** `HUMAN_EXPECTATIONS.md` §1 promises a *zero-knowledge* vault (client-side encryption), but the code does NOT implement it. The Dart client sends the vault password (over TLS) to `/api/v1/vault`, and the **backend** does Argon2id + AES-GCM (`vault.rs::encrypt_vault`); there is **no** client-side crypto in Dart. **User impact:** a compromised server (or a DB dump + captured password) can decrypt every vault. **Two options:** (a) accept the current server-side model and downgrade the doc promise (keep honest docs), OR (b) execute the multi-day migration to true client-side crypto (Argon2id + AES-256-GCM in Dart; `/vault` becomes a pure opaque-blob store; delete `encrypt_vault` server-side). **Trigger: human decision required before any security-affecting release.** TD-13 (`4a2cbb83`) made the code comments + this row honest as the interim; the migration itself is NOT auto-executed. Grounding: `docs/specs/NEXT_ITERATION_PLAN.md` §1. Cross-referenced from **Next Iteration Candidates** below. |
+
+## Next Iteration Candidates
+
+Surfaced by the final live UX reviewer + verifier for the Next-Iteration plan
+(all four waves now COMPLETE — see `docs/specs/NEXT_ITERATION_PLAN.md` §6).
+Sized **S** ≈ half-day, **M** ≈ 1–2 days. Not started.
+
+- **UX-12(b) — reactive Connection-panel auto-expand.** Auto-expand the Dapps
+  Connection panel + show a *"Canister unreachable"* hint when the first effect
+  fails reachability. UX-12 shipped part (a) only (`3b0f05d8` — honest copy +
+  always-visible expanded-panel hint); this closes the
+  stale-canister-id-after-`dfx-clean` stumble reactively. **[S]** Grounding:
+  `lib/screens/dapp_runner_screen.dart` effect-dispatch path.
+- **Revoke "Trust this dapp" UI.** `DappTrustStore.clear()` exists (`26e22056`)
+  but has no UI wiring. Add a *"Manage trust"* entry on the Dapps catalog/runner
+  so a user can revoke the broader dapp-level grant they accepted via UX-10.
+  **[S–M]**
+- **Inline "Create a profile to vote" CTA on the Dapps runner.** A keyless
+  viewer of the Poll dapp today sees the polls but cannot vote, with only an
+  indirect path to fix it. A one-tap inline button that deep-links to profile
+  creation closes the see-polls → vote gap. **[M]**
+- **Key-label editing.** The UI field is already present-but-disabled; needs a
+  backend rename/label endpoint (the `AccountController` blocker in **Known
+  Issues** above). **[M, 1–2 d]**
+- **A-4 — vault zero-knowledge migration.** Decision item, already recorded
+  **HIGH** in **Known Issues** above and in
+  `docs/specs/NEXT_ITERATION_PLAN.md` §1. Cross-referenced here so it is not
+  lost between iterations. **Trigger: human decision before any
+  security-affecting release.**
 
 ## Deferred (decided, with justification)
 
@@ -51,10 +80,14 @@ Genuinely open items are listed below.
   conditional-import scaffolding is in place. Remaining: R-2 WebCrypto Ed25519 keys, R-3
   WASM QuickJS, R-4 Web secure storage (IndexedDB), R-5 Web passkeys + CORS. A separate
   multi-day initiative. See `docs/BROWSER_SUPPORT.md`.
-- **UX-4/5/6/8 — lower-priority UX polish** from `docs/specs/UX_REVIEW_ROUND4.md` (collapse
-  inline Add-Bookmark, lazy per-tab load + paid purchase CTA, lightweight preview endpoint,
-  unify Import/Export). The P0/P1 items (UX-2 header↔tab, UX-3 searchable method picker,
-  UX-7 local keys visible, UX-9 keyboard shortcuts) are done.
+- **UX-5 purchase CTA / UX-6 / UX-8 — remaining Round-4/5 polish.** UX-4
+  (collapse inline Add-Bookmark, `98f5a05c`), UX-5 lazy-load Details tabs
+  (`448c8fab`), and UX-9 (surface-specific keyboard shortcuts, `97b42da3` +
+  `f54bb58f`) are DONE in the Next-Iteration plan. Still open: **UX-5 paid-script
+  purchase CTA** (deferred — no live paid marketplace listing to exercise it;
+  existing *"Payments Coming Soon"* retained), **UX-6** lightweight preview
+  endpoint (needs a backend route), **UX-8** (largely resolved by the local-only
+  account body — recommend CLOSE). See `docs/specs/NEXT_ITERATION_PLAN.md`.
 - **TD-7 — SQL column list** (`backend/src/models.rs::SCRIPT_COLUMNS_WITH_ACCOUNT`). Already
   guarded by the drift-detection test at `models.rs:418-424`.
 
