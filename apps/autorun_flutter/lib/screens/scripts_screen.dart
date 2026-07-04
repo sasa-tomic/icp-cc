@@ -1253,8 +1253,6 @@ class ScriptsScreenState extends State<ScriptsScreen> {
   }
 
   void _shareScript(BuildContext context, MarketplaceScript script) async {
-    // For now, just copy the script URL to clipboard
-    // In a real implementation, you would generate a shareable link
     final shareUrl = '${AppConfig.marketplaceWebUrl}/scripts/${script.id}';
 
     // Capture context before async operation
