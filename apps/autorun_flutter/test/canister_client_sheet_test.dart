@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:icp_autorun/screens/bookmarks_screen.dart';
+import 'package:icp_autorun/widgets/canister_client_sheet.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
 
 class _FakeRustBridgeLoader extends RustBridgeLoader {
