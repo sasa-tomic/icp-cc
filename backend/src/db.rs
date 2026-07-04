@@ -331,6 +331,28 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .await
         .expect("Failed to create passkeys credential_id index");
 
+    // -----------------------------------------------------------------------
+    // Legacy-column migration: rename `user_principal` → `account_id` on
+    // `recovery_codes` / `user_vaults` for pre-A-4 dev DBs.
+    //
+    // This MUST run BEFORE the `CREATE TABLE` / `CREATE INDEX` statements
+    // below that reference `account_id`: on a stale dev DB both tables already
+    // exist (so `CREATE TABLE IF NOT EXISTS` is a no-op) but still carry the
+    // old `user_principal` column, and the subsequent
+    // `CREATE INDEX ... (account_id)` would panic with "no such column:
+    // account_id" before the rename ever ran — exactly the A-4 W4 follow-up
+    // bug this block fixes.
+    //
+    // Idempotency is enforced structurally, NOT by silencing errors: we probe
+    // `pragma_table_info(<table>)` and only issue `RENAME COLUMN` when a
+    // `user_principal` column is actually present. A fresh DB (table absent →
+    // pragma returns no rows) and an already-migrated DB (column is
+    // `account_id`) both result in a clearly-logged skip. Any other failure
+    // is fatal (see `rename_legacy_user_principal_column`).
+    // -----------------------------------------------------------------------
+    rename_legacy_user_principal_column(pool, "recovery_codes").await;
+    rename_legacy_user_principal_column(pool, "user_vaults").await;
+
     // Recovery codes table for vault password recovery.
     //
     // The owning account identifier is `account_id` (a keypair principal — see
@@ -338,7 +360,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
     // `user_principal`; every query in `passkey_repository.rs` already used
     // `account_id`, so the prior DDL was unconditionally broken at runtime
     // (`no such column: account_id`). The schema is corrected here, and the
-    // `recovery_codes_rename_user_principal` migration below upgrades any
+    // `rename_legacy_user_principal_column` migration above upgrades any
     // pre-existing dev DB in place (respects "never delete tables").
     sqlx::query(
         r#"
@@ -396,33 +418,6 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .await
     .expect("Failed to create user_vaults account_id index");
 
-    // -----------------------------------------------------------------------
-    // Idempotent in-place migration for pre-existing dev DBs that were created
-    // with the legacy `user_principal` column on `recovery_codes` / `user_vaults`.
-    // On a fresh DB (or one already migrated) each statement is a no-op error
-    // ("no such column" / "index already gone"), which we log at debug level —
-    // this is expected idempotency, NOT a silent failure.
-    // -----------------------------------------------------------------------
-    let legacy_column_migrations = [
-        (
-            "recovery_codes.user_principal",
-            "ALTER TABLE recovery_codes RENAME COLUMN user_principal TO account_id",
-        ),
-        (
-            "user_vaults.user_principal",
-            "ALTER TABLE user_vaults RENAME COLUMN user_principal TO account_id",
-        ),
-    ];
-    for (label, migration_sql) in legacy_column_migrations {
-        if let Err(e) = sqlx::query(migration_sql).execute(pool).await {
-            tracing::debug!(
-                "Legacy-column rename skipped for '{}' (fresh DB or already migrated): {}",
-                label,
-                e
-            );
-        }
-    }
-
     // Drop legacy indexes named after the old column so the renamed `*_account_id`
     // indexes above become the source of truth. `DROP INDEX IF EXISTS` is a
     // genuine no-op when the index is already gone — no error to swallow.
@@ -434,4 +429,62 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .execute(pool)
         .await
         .expect("Failed to drop legacy user_vaults principal index");
+}
+
+/// Idempotently rename the legacy `user_principal` column to `account_id` on
+/// the given table, but only when `pragma_table_info` confirms the legacy
+/// column is actually present.
+///
+/// This exists for pre-existing dev DBs created before A-4 W4 renamed the
+/// owning-account column on `recovery_codes` / `user_vaults`. It MUST be
+/// called before any `CREATE INDEX ... (account_id)` statement that references
+/// the renamed column.
+///
+/// Nothing is silenced: when there is nothing to rename (fresh DB where the
+/// table is absent → `pragma_table_info` returns no rows; or an
+/// already-migrated DB where the column is `account_id`), we skip with an
+/// explicit debug log. `pragma_table_info` failing is fatal — it is expected
+/// to return an empty rowset for absent tables, so any error is genuinely
+/// unexpected. A rename that fails after the column was confirmed present is
+/// also fatal.
+async fn rename_legacy_user_principal_column(pool: &SqlitePool, table: &str) {
+    let column_names: Vec<String> = match sqlx::query_scalar(
+        "SELECT name FROM pragma_table_info(?)",
+    )
+    .bind(table)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(names) => names,
+        Err(e) => panic!(
+            "Legacy-column probe: pragma_table_info('{}') failed unexpectedly \
+             (it should return an empty rowset for absent tables): {}",
+            table, e
+        ),
+    };
+
+    if !column_names.iter().any(|name| name == "user_principal") {
+        tracing::debug!(
+            "Legacy-column rename: no 'user_principal' column on '{}' \
+             (fresh DB or already migrated); skipping",
+            table
+        );
+        return;
+    }
+
+    let rename_sql = format!(
+        "ALTER TABLE {} RENAME COLUMN user_principal TO account_id",
+        table
+    );
+    match sqlx::query(&rename_sql).execute(pool).await {
+        Ok(_) => tracing::info!(
+            "Legacy-column rename: migrated '{}' column 'user_principal' → 'account_id'",
+            table
+        ),
+        Err(e) => panic!(
+            "Legacy-column rename on '{}' failed despite 'user_principal' being present \
+             in pragma_table_info: {}",
+            table, e
+        ),
+    }
 }
