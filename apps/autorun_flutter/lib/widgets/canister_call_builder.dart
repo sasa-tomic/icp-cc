@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/canister_method.dart';
 import '../services/candid_service.dart';
 import '../widgets/candid_args_builder.dart';
@@ -208,11 +209,14 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     }
   }
 
-  void _copyToClipboard() {
+  Future<void> _copyToClipboard() async {
     final snippet = _generateBundle();
     if (snippet.isNotEmpty) {
-      // TODO: Implement clipboard functionality
-      ScaffoldMessenger.of(context).showSnackBar(
+      // Capture before the await (the dialog may close while we yield).
+      final messenger = ScaffoldMessenger.of(context);
+      await Clipboard.setData(ClipboardData(text: snippet));
+      if (!mounted) return;
+      messenger.showSnackBar(
         const SnackBar(content: Text('Snippet copied to clipboard!')),
       );
     }
