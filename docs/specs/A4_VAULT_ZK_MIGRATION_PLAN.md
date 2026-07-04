@@ -1,10 +1,17 @@
 # A-4 — Vault Zero-Knowledge Migration Plan (client-side crypto)
 
-- **Status:** PLANNED (awaiting execution by implementer swarms). Human decision
-  recorded: **execute option (b)** — move Argon2id + AES-256-GCM into the Dart
-  client; make `/api/v1/vault` a pure opaque-blob store; delete server-side
-  vault crypto. Authorised by the human per `TODO.md` A-4 row +
-  `HUMAN_EXPECTATIONS.md` §1 A-4 flag.
+- **Status:** ✅ **COMPLETE (2026-07-04).** The vault is **genuinely
+  zero-knowledge.** Argon2id + AES-256-GCM run **client-side** via the Rust FFI
+  bridge; the vault password never leaves the device; the backend is a pure
+  opaque-blob store that cannot decrypt. Proven end-to-end by the W5
+  integration round-trip test (server-blindness asserted on blob bytes;
+  wrong-password + tamper both fail loud). All WUs W0–W6 landed; per-WU commit
+  hashes in §5 below; headline outcome in §11.
+- **Original decision:** human decision recorded as **execute option (b)** —
+  move Argon2id + AES-256-GCM into the Dart client; make `/api/v1/vault` a pure
+  opaque-blob store; delete server-side vault crypto. Authorised by the human
+  per `TODO.md` A-4 row + `HUMAN_EXPECTATIONS.md` §1 A-4 flag (both now
+  resolved).
 - **Date:** 2026-07-04.
 - **Scope:** desktop (Linux/macOS/Windows) + Android. Web is **out of scope**
   (FFI bridge is stubbed on Web per R-1; vault on Web throws honest
@@ -174,7 +181,7 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
 > tests green; real crypto in tests (no mocks); all I/O timed; fail-fast
 > (match-style, no `try{}catch(_){}`).
 
-### W0 — Verify the existing FFI crypto in isolation (PoC gate, ~30 min)
+### W0 — Verify the existing FFI crypto in isolation (PoC gate, ~30 min) ✅ COMPLETE (folded into W1's real-FFI round-trip test)
 
 - **Why first:** the whole plan rests on `encryptVault`/`decryptVault` actually
   working through the Dart FFI today. Prove it before depending on it.
@@ -187,8 +194,11 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
 - **Acceptance:** test passes on Linux desktop against the real `libicp_core.so`.
 - **Confidence gate:** if this fails, STOP — the rest of the plan is blocked on
   repairing the FFI crypto first.
+- **Outcome:** the FFI crypto round-tripped cleanly; the gate was satisfied by
+  the real-FFI unit test shipped with W1
+  (`test/features/vault/vault_crypto_service_test.dart`).
 
-### W1 — Dart vault-crypto service (thin FFI wrapper)  [Simple]
+### W1 — Dart vault-crypto service (thin FFI wrapper)  [Simple] ✅ DONE `714c8568`
 
 - **Files:** NEW `apps/autorun_flutter/lib/services/vault_crypto_service.dart`.
 - **Size:** ~60-90 LOC.
@@ -219,7 +229,7 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
   skip.
 - **Acceptance:** `flutter test test/features/vault/` green; `flutter analyze` clean.
 
-### W2 — Rewrite Dart `PasskeyService` vault methods (encrypt-before-send)  [Simple]
+### W2 — Rewrite Dart `PasskeyService` vault methods (encrypt-before-send)  [Simple] ✅ DONE `b4d709ab`
 
 - **Files:** `apps/autorun_flutter/lib/services/passkey_service.dart` (modify `:114-148`, `:292-307`).
 - **Size:** ~-20 / +30 LOC (net small).
@@ -248,7 +258,7 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
   over the request-body construction returns nothing; widget test asserts the
   body shape.
 
-### W3 — Rewrite the two vault screens to use local crypto  [Simple]
+### W3 — Rewrite the two vault screens to use local crypto  [Simple] ✅ DONE `d96661af`
 
 - **Files:**
   - `apps/autorun_flutter/lib/screens/vault_password_setup_screen.dart` (`:80-110` `_createVault`).
@@ -275,7 +285,7 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
   the crypto itself is unit-tested separately in W1).
 - **Acceptance:** both screens round-trip via local crypto; `flutter analyze` clean.
 
-### W4 — Backend: strip vault crypto; opaque-blob CRUD; fix schema  [Medium]
+### W4 — Backend: strip vault crypto; opaque-blob CRUD; fix schema  [Medium] ✅ DONE `b92a54d4` (schema) + `30d98a3e` (opaque-blob endpoints)
 
 - **Files:**
   - `backend/src/main.rs` (`:841-929` — `VaultCreateRequest`/`VaultUpdateRequest`/`vault_create`/`vault_get`/`vault_update`).
@@ -321,7 +331,7 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
   zero-knowledge property is testable: the backend binary contains no vault
   decryption code path.
 
-### W5 — Integration test: client-encrypt → store → client-decrypt  [Medium]
+### W5 — Integration test: client-encrypt → store → client-decrypt  [Medium] ✅ DONE `f1d425d5`
 
 - **Files:** NEW `apps/autorun_flutter/test/features/vault/zk_round_trip_test.dart`;
   possibly extend `test/integration/` patterns.
@@ -343,17 +353,27 @@ SQLite would throw `no such column: account_id` on every vault INSERT/SELECT/UPD
 - **Acceptance:** `just test-feature vault` green (new feature dir); end-to-end
   ZK round-trip proven.
 
-### W6 — Docs: remove A-4 flag; mark DONE  [Simple]
+### W6 — Docs: remove A-4 flag; mark DONE  [Simple] ✅ DONE (this revision)
 
 - **Files:**
-  - `docs/HUMAN_EXPECTATIONS.md` (`:17-23` — delete the `(STATUS: pending decision A-4 …)` parenthetical; the ZK bullet at `:17-18` is now TRUE as-written).
-  - `TODO.md` (`:28-33` Known-Issues banner + `:39` A-4 row + `:64-68` Next-Iteration candidate — all removed/moved to a "DONE" note).
-  - `docs/specs/NEXT_ITERATION_PLAN.md` (`:46-68` §1 — mark A-4 DONE with commit refs; or add a short "A-4 resolved" pointer to this plan).
-  - `backend/src/vault.rs` module doc-comment (rewrite — it now covers recovery-code hashing only).
-  - `apps/autorun_flutter/lib/screens/vault_unlock_screen.dart` / `vault_password_setup_screen.dart` — remove any A-4 TODOs (the unlock-screen one is deleted in W3).
+  - `docs/HUMAN_EXPECTATIONS.md` (`:17-23` — the A-4 STATUS flag is replaced
+    with an honest "IMPLEMENTED" note; the ZK bullet is now TRUE as-written).
+  - `TODO.md` — the HIGH "human decision required" Known-Issues banner, the
+    A-4 row, and the Next-Iteration candidate are all replaced with a single
+    "✅ RESOLVED" pointer (option (b) executed; commit hashes cited).
+  - `docs/specs/NEXT_ITERATION_PLAN.md` (§1, §3, §5, §6 — A-4 marked DONE with
+    commit refs pointing here).
+  - `backend/src/vault.rs` module doc-comment — already rewritten in W4
+    (`30d98a3e`) to describe the recovery-code-only role accurately.
+  - `apps/autorun_flutter/lib/screens/vault_unlock_screen.dart` /
+    `vault_password_setup_screen.dart` — A-4 TODOs already deleted in W3
+    (`d96661af`); the remaining `A-4 W2/W3` / `A-4 W3` code comments are
+    ACCURATE implementation-history references (not stale).
 - **Size:** docs-only.
-- **Dependencies:** after W1-W5.
-- **Acceptance:** `rg "A-4|pending decision|server-side crypto" docs/ apps/ backend/` returns only HISTORICAL references inside this plan + the migration spec (no live "pending" claims).
+- **Dependencies:** after W1-W5. MET.
+- **Acceptance:** `rg "A-4|pending decision|server-side crypto" docs/ apps/ backend/`
+  returns only HISTORICAL references inside this plan + the migration spec (no
+  live "pending" claims). MET.
 
 ---
 
@@ -453,3 +473,39 @@ step in W0/W1 — if it fails, the plan degrades gracefully (sync-behind-spinner
 crypto + Dart bindings) is already built and tested, which is why confidence is
 high. The -1 is for the schema-rename decision (FK target needs a verify at
 implement time) and the `compute()` UX question.
+
+**(Post-execution note: every risk above was either retired or never
+materialised. `compute()` worked as hoped — the UI spinner animates honestly
+through the ~0.1–1 s Argon2id derivation. The schema rename landed in `b92a54d4`
+with FK target reconciled.)**
+
+---
+
+## 11. Outcome — the vault is genuinely zero-knowledge
+
+The A-4 migration is **complete and proven.** Concretely:
+
+- **The vault password never leaves the device.** It is consumed only by
+  `VaultCryptoService.encrypt`/`decrypt`
+  (`apps/autorun_flutter/lib/services/vault_crypto_service.dart`), which calls
+  the Rust FFI inside a background Dart isolate. `rg "'password':" apps/autorun_flutter/lib`
+  returns zero hits over HTTP-body construction.
+- **The server cannot decrypt.** `backend/src/vault.rs` contains no vault-crypto
+  symbols — `rg "encrypt_vault|aes_gcm|Aes256Gcm" backend/src` is empty. The
+  `/api/v1/vault` POST/PUT/GET handlers accept and return only opaque base64
+  blobs (`encrypted_data`, `salt`, `nonce`) and store/return them verbatim.
+- **Crypto runs client-side via the FFI bridge.** Argon2id (time=3, memory=64
+  MiB, parallelism=4, 32-byte output) + AES-256-GCM, with params living in ONE
+  place (`crates/icp_core/src/vault.rs:18-24`) — the Dart layer forwards
+  password + plaintext only, never re-declares params.
+- **End-to-end proof.** The W5 integration round-trip test
+  (`apps/autorun_flutter/test/features/vault/zk_round_trip_test.dart`,
+  `f1d425d5`) exercises the full ZK property: client-encrypt → POST opaque blob
+  → server-store → GET blob → client-decrypt == original plaintext. Negative
+  paths fail loud: wrong password and tampered ciphertext both raise
+  `VaultDecryptionException` (AES-256-GCM auth-tag failure). The server's
+  blindness is asserted directly on the blob bytes.
+
+**Commit hashes:** W1 `714c8568`, W2 `b4d709ab`, W3 `d96661af`,
+W4 `b92a54d4` + `30d98a3e`, W5 `f1d425d5`, W6 (this revision). The
+`HUMAN_EXPECTATIONS.md` §1 zero-knowledge bullet is now TRUE as-written.

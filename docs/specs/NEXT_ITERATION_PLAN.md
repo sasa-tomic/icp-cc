@@ -43,28 +43,32 @@
 
 ---
 
-## 1. Architectural issue REQUIRING a human decision (flagged loudly, NOT auto-executed)
+## 1. Architectural issue — RESOLVED: A-4 vault zero-knowledge migration COMPLETE
 
-### A-4 — Vault crypto is NOT actually zero-knowledge (intent ↔ code divergence)
-- **Problem:** `HUMAN_EXPECTATIONS.md` and `AGENTS.md` both state the vault is
-  **zero-knowledge** (*"the server only ever encrypts the vault … decryption is
-  client-side"*). The **code does not implement that**: the client sends the
-  vault password in plaintext to `/api/v1/vault`, and the **backend** derives the
-  Argon2id key and does the AES-256-GCM (`backend/src/vault.rs:70
-  encrypt_vault`; `services/passkey_service.rs:509`). There is **no client-side
-  crypto in Dart**. A compromised server / DB dump + a captured password can
+### A-4 — Vault crypto is now genuinely zero-knowledge ✅ RESOLVED (executed option (b))
+
+- **Original problem (now fixed):** `HUMAN_EXPECTATIONS.md` and `AGENTS.md`
+  both stated the vault is **zero-knowledge**, but the code previously did NOT
+  implement that — the client sent the vault password in plaintext to
+  `/api/v1/vault`, and the **backend** derived the Argon2id key and did the
+  AES-256-GCM. A compromised server / DB dump + a captured password could
   decrypt every vault. The `vault.rs:4` doc-comment *"Decryption happens
-  client-side"* is **false** today.
-- **Confidence: 9/10** (grounded in code; may be an intended-as-staged rollout).
-- **Decision needed (NOT silently decided):**
-  - (a) **Accept the current model** → fix the docs/comments to stop claiming
-    zero-knowledge (downgrades the security promise); OR
-  - (b) **Execute the migration** → Argon2id + AES-256-GCM in Dart, make
-    `/vault` a pure opaque-blob store, delete `encrypt_vault` server-side.
-    Multi-day, touches passkey/vault/recovery end-to-end.
-- **This plan's interim action (mandatory regardless):** make the code comments
-  honest (see **TD-13**) so the code does not lie while the decision is pending.
-  Per AGENTS.md, this is documented, NOT worked around with a symptom fix.
+  client-side"* was previously false; TD-13 (`4a2cbb83`) made the comment
+  honest as the interim while the decision was pending.
+- **Resolution:** **option (b) executed in full** (the multi-day migration).
+  Argon2id + AES-256-GCM now run **client-side** via the Rust FFI bridge
+  (`apps/autorun_flutter/lib/services/vault_crypto_service.dart`); the vault
+  password never leaves the device; `/api/v1/vault` is a pure opaque-blob
+  store; server-side vault crypto is deleted
+  (`rg "encrypt_vault|aes_gcm|Aes256Gcm" backend/src` is empty). Proven
+  end-to-end by the W5 integration round-trip test.
+- **Commit hashes:** schema fix `b92a54d4`, opaque-blob endpoints `30d98a3e`,
+  VaultCryptoService `714c8568`, PasskeyService rewrite `b4d709ab`, screens
+  `d96661af`, ZK round-trip test `f1d425d5`.
+- **Full plan + outcome:** `docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md` (W0–W6
+  all COMPLETE; headline outcome in its §11).
+- **This entry is retained as history** (the §2 WU `TD-13` that made the lie
+  honest in the interim is also retained as a completed WU). No further action.
 
 ---
 
@@ -131,14 +135,18 @@
 - **Risk:** LOW. **Confidence 10/10.**
 - **Commit:** `refactor(design): TD-9 sweep residual status-color literal to token` (`76402018`)
 
-#### TD-13 — Make the vault code comments honest (interim, pending A-4 decision) ✅ DONE `4a2cbb83`
-- **Problem:** `vault.rs:4` claims *"Decryption happens client-side"* — false today.
-  `vault_unlock_screen.dart:61` TODO is already honest. The lie must go while A-4
-  is pending.
-- **Change:** rewrite the `vault.rs` module doc-comment to describe the CURRENT
-  model accurately (server-side Argon2id + AES-GCM) + add a `// TODO(A-4):`
-  pointing to the client-side-crypto migration recorded in `TODO.md`. Do NOT
-  touch `HUMAN_EXPECTATIONS.md` (it is the intent of record).
+#### TD-13 — Make the vault code comments honest (interim, pending A-4 decision) ✅ DONE `4a2cbb83` (subsequently superseded by A-4's full execution — see §1)
+- **Problem:** `vault.rs:4` claimed *"Decryption happens client-side"* — false at the time.
+  `vault_unlock_screen.dart:61` TODO was already honest. The lie had to go while A-4
+  was pending.
+- **Change:** rewrote the `vault.rs` module doc-comment to describe the THEN-current
+  model accurately (server-side Argon2id + AES-GCM) + added a `// TODO(A-4):`
+  pointing to the client-side-crypto migration recorded in `TODO.md`. Did NOT
+  touch `HUMAN_EXPECTATIONS.md` (intent of record).
+- **Status:** shipped as the honest interim. **A-4 has since been executed in full**
+  (see §1 above + `docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md`); the interim
+  `TODO(A-4)` markers were removed in W3/W4, and `vault.rs` now documents the
+  actual client-side-crypto reality.
 - **Risk:** LOW (comments only). **Confidence 10/10.**
 - **Commit:** `docs(vault): TD-13 honest code comments pending A-4 zero-knowledge decision`
 
@@ -379,9 +387,10 @@
   Wave 4 (cross-cutting) — ✅ COMPLETE:
     ✅ UX-9 (97b42da3 + f54bb58f) — after Waves 2–3
 
-  Flagged (NOT auto-executed):
-    A-4 (vault zero-knowledge migration) ─► human decision (HIGH; see TODO.md)
-    Key-label editing backend endpoint   ─► optional feature (1–2 days)
+  Flagged (resolved this iteration):
+    ✅ A-4 (vault zero-knowledge migration) ─► EXECUTED option (b); see §1 +
+       docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md (W0–W6 COMPLETE)
+    Key-label editing backend endpoint   ─► optional feature (1–2 days; still open)
 ```
 
 ---
@@ -420,7 +429,9 @@ wc -l apps/autorun_flutter/lib/screens/bookmarks_screen.dart         # TD-10: �
 
 ## 5. What is explicitly OUT OF SCOPE (with justification)
 
-- **A-4 vault migration** — architectural; awaiting human decision (§1).
+- **A-4 vault migration** — ✅ RESOLVED. Option (b) executed in full; see §1
+  above and `docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md` (W0–W6 COMPLETE with
+  commit hashes; outcome in its §11). The vault is genuinely zero-knowledge.
 - **Key-label editing backend endpoint** — feature (1–2 days); human to prioritise.
 - **TD-12 marketplace service split** — low ROI (flat file); do when next touching.
 - **UX-6 lightweight preview endpoint** — needs a backend route (cross-cutting);
@@ -476,6 +487,6 @@ live review pass). Headline additions: UX-12(b), a "Manage trust" UI to
 revoke a granted dapp-level trust (`DappTrustStore.clear()` exists, no UI
 yet), an inline *"Create a profile to vote"* CTA on the Dapps runner for
 keyless viewers, and key-label editing (field present-but-disabled, needs
-the backend endpoint). A-4 (vault zero-knowledge) remains the standing
-HIGH-severity decision item and is cross-referenced there.
+the backend endpoint). **A-4 (vault zero-knowledge) is now RESOLVED** — see
+§1 above and `docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md`.
 ```
