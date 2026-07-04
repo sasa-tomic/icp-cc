@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'package:icp_autorun/theme/app_design_system.dart';
+
 /// A dismissible banner that displays when the user is offline.
 ///
-/// Shows a warning message with an amber background and info icon.
-/// Can be dismissed with an X button. The dismiss state is managed
+/// Shows a warning message (themed via [AppDesignSystem.warningColor]) with an
+/// info icon. Can be dismissed with an X button. The dismiss state is managed
 /// by the parent widget via [onDismiss] callback.
 class OfflineBanner extends StatelessWidget {
   /// Creates an offline banner.
@@ -37,10 +39,13 @@ class OfflineBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.amber.shade100,
+        // Offline == warning status: derive the whole palette (bg tint /
+        // border / foreground) from the single warningColor token so a
+        // status-palette swap stays a one-file change in AppDesignSystem.
+        color: AppDesignSystem.warningColor.withValues(alpha: 0.2),
         border: Border(
           bottom: BorderSide(
-            color: Colors.amber.shade300,
+            color: AppDesignSystem.warningColor.withValues(alpha: 0.4),
             width: 1,
           ),
         ),
@@ -49,7 +54,7 @@ class OfflineBanner extends StatelessWidget {
         children: [
           Icon(
             Icons.info_outline,
-            color: Colors.amber.shade900,
+            color: AppDesignSystem.warningColor,
             size: 20,
           ),
           const SizedBox(width: 12),
@@ -57,7 +62,7 @@ class OfflineBanner extends StatelessWidget {
             child: Text(
               _message,
               style: textTheme.bodyMedium?.copyWith(
-                color: Colors.amber.shade900,
+                color: AppDesignSystem.warningColor,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -66,7 +71,7 @@ class OfflineBanner extends StatelessWidget {
           IconButton(
             icon: Icon(
               Icons.close,
-              color: Colors.amber.shade900,
+              color: AppDesignSystem.warningColor,
               size: 18,
             ),
             tooltip: 'Dismiss',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:icp_autorun/theme/app_design_system.dart';
 import 'package:icp_autorun/widgets/offline_banner.dart';
 
 void main() {
@@ -46,7 +47,7 @@ void main() {
     });
 
     group('appearance', () {
-      testWidgets('has amber/yellow background', (tester) async {
+      testWidgets('has warning-tinted background', (tester) async {
         await tester.pumpWidget(createWidget(isOnline: false));
 
         // Find the container and check its color
@@ -59,8 +60,12 @@ void main() {
 
         final decoration = container.decoration as BoxDecoration;
         expect(decoration.color, isNotNull);
-        // The color should be amber/amber-like
-        expect(decoration.color, equals(Colors.amber.shade100));
+        // The banner encodes a warning status, so its palette derives from the
+        // single AppDesignSystem.warningColor token (no raw amber literal).
+        expect(
+          decoration.color,
+          equals(AppDesignSystem.warningColor.withValues(alpha: 0.2)),
+        );
       });
 
       testWidgets('has info icon', (tester) async {
