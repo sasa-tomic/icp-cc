@@ -331,17 +331,25 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .await
         .expect("Failed to create passkeys credential_id index");
 
-    // Recovery codes table for vault password recovery
+    // Recovery codes table for vault password recovery.
+    //
+    // The owning account identifier is `account_id` (a keypair principal — see
+    // the FK target). A previous scaffold of this table used the column name
+    // `user_principal`; every query in `passkey_repository.rs` already used
+    // `account_id`, so the prior DDL was unconditionally broken at runtime
+    // (`no such column: account_id`). The schema is corrected here, and the
+    // `recovery_codes_rename_user_principal` migration below upgrades any
+    // pre-existing dev DB in place (respects "never delete tables").
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS recovery_codes (
             id TEXT PRIMARY KEY,
-            user_principal TEXT NOT NULL,
+            account_id TEXT NOT NULL,
             code_hash TEXT NOT NULL,
             used INTEGER NOT NULL DEFAULT 0,
             used_at TEXT,
             created_at TEXT NOT NULL,
-            FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (account_id) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
         )
         "#,
     )
@@ -350,24 +358,30 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .expect("Failed to create recovery_codes table");
 
     sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_principal ON recovery_codes(user_principal)",
+        "CREATE INDEX IF NOT EXISTS idx_recovery_codes_account_id ON recovery_codes(account_id)",
     )
     .execute(pool)
     .await
-    .expect("Failed to create recovery_codes user_principal index");
+    .expect("Failed to create recovery_codes account_id index");
 
-    // Encrypted vault storage for user credentials
+    // Opaque encrypted vault blob storage.
+    //
+    // As of A-4 W4 the backend performs NO vault cryptography: the client
+    // derives the Argon2id key + AES-256-GCM ciphertext locally and POSTs the
+    // resulting opaque blob (ciphertext + salt + nonce); the server stores and
+    // returns those bytes verbatim. `account_id` is the keypair principal that
+    // owns the vault.
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS user_vaults (
             id TEXT PRIMARY KEY,
-            user_principal TEXT NOT NULL UNIQUE,
+            account_id TEXT NOT NULL UNIQUE,
             encrypted_data BLOB NOT NULL,
             salt BLOB NOT NULL,
             nonce BLOB NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (account_id) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
         )
         "#,
     )
@@ -376,9 +390,48 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .expect("Failed to create user_vaults table");
 
     sqlx::query(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_vaults_principal ON user_vaults(user_principal)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_vaults_account_id ON user_vaults(account_id)",
     )
     .execute(pool)
     .await
-    .expect("Failed to create user_vaults principal index");
+    .expect("Failed to create user_vaults account_id index");
+
+    // -----------------------------------------------------------------------
+    // Idempotent in-place migration for pre-existing dev DBs that were created
+    // with the legacy `user_principal` column on `recovery_codes` / `user_vaults`.
+    // On a fresh DB (or one already migrated) each statement is a no-op error
+    // ("no such column" / "index already gone"), which we log at debug level —
+    // this is expected idempotency, NOT a silent failure.
+    // -----------------------------------------------------------------------
+    let legacy_column_migrations = [
+        (
+            "recovery_codes.user_principal",
+            "ALTER TABLE recovery_codes RENAME COLUMN user_principal TO account_id",
+        ),
+        (
+            "user_vaults.user_principal",
+            "ALTER TABLE user_vaults RENAME COLUMN user_principal TO account_id",
+        ),
+    ];
+    for (label, migration_sql) in legacy_column_migrations {
+        if let Err(e) = sqlx::query(migration_sql).execute(pool).await {
+            tracing::debug!(
+                "Legacy-column rename skipped for '{}' (fresh DB or already migrated): {}",
+                label,
+                e
+            );
+        }
+    }
+
+    // Drop legacy indexes named after the old column so the renamed `*_account_id`
+    // indexes above become the source of truth. `DROP INDEX IF EXISTS` is a
+    // genuine no-op when the index is already gone — no error to swallow.
+    sqlx::query("DROP INDEX IF EXISTS idx_recovery_codes_user_principal")
+        .execute(pool)
+        .await
+        .expect("Failed to drop legacy recovery_codes user_principal index");
+    sqlx::query("DROP INDEX IF EXISTS idx_user_vaults_principal")
+        .execute(pool)
+        .await
+        .expect("Failed to drop legacy user_vaults principal index");
 }
