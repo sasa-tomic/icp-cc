@@ -112,6 +112,35 @@ void main() {
   });
 
   testWidgets(
+      'Connection panel is collapsed by default and surfaces a recovery hint '
+      'when expanded', (tester) async {
+    final runtime = _RecordingRuntime();
+    await _pumpRunner(tester, descriptor, runtime: runtime);
+    await tester.pumpAndSettle();
+
+    // Goal 1: collapsed by default — the editable fields are NOT visible until
+    // the user expands. (Common case = a working connection = no attention
+    // demanded.)
+    expect(find.byKey(const Key('dappBackendIdField')), findsNothing,
+        reason: 'Connection panel must be collapsed by default');
+
+    // Goal 2: the configured (default) connection shows in the subtitle so the
+    // user can see the effective id at a glance without expanding.
+    expect(find.textContaining(descriptor.backendCanisterId), findsOneWidget);
+
+    // Goal 3: expanding reveals the OBVIOUS recovery path — the hint names the
+    // exact command (`dfx start --clean`) that regenerates ids and the action
+    // (`dfx deploy`) that yields the new id. No silent "edit somewhere" copy.
+    await tester.tap(find.text('Connection'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('dfx start --clean'), findsOneWidget,
+        reason: 'The recovery hint must name the command that invalidates ids');
+    expect(find.textContaining('dfx deploy'), findsOneWidget,
+        reason: 'The recovery hint must name where the new id comes from');
+  });
+
+  testWidgets(
       'Open-frontend-in-browser shows a LOUD error when the platform can\'t launch',
       (tester) async {
     // Force url_launcher's launchUrl to report failure (returns false) so the

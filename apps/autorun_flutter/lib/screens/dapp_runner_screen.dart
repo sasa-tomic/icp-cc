@@ -244,7 +244,7 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
           title: const Text('Connection'),
           subtitle: Text(
             _backendId.isEmpty
-                ? 'Loading saved connection…'
+                ? 'Reading saved connection…'
                 : '$_backendId · $_host',
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -258,6 +258,27 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: AppDesignSystem.spacing8),
+                      Expanded(
+                        child: Text(
+                          '`dfx start --clean` regenerates canister ids. '
+                          'If the dapp can\'t connect, paste the new id '
+                          'from `dfx deploy` output and Apply.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppDesignSystem.spacing16),
                   TextFormField(
                     key: const Key('dappBackendIdField'),
                     controller: _backendIdController,
@@ -336,7 +357,24 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     // Wait for both the bundle source and the effective config before mounting
     // the host, so init always runs with a real backend_id + host.
     if (_bundle == null || _backendId.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppDesignSystem.spacing24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: AppDesignSystem.spacing12),
+              Text(
+                'Reading the bundled app and saved connection…',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     return ScriptAppHost(
       key: ValueKey<int>(_hostGeneration),
