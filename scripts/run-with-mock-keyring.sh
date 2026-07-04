@@ -35,7 +35,7 @@ trap cleanup EXIT INT TERM
 
 dbus-run-session -- bash -c "
     set -euo pipefail
-    ${DISPLAY_ENV[0]:+export DISPLAY=${DISPLAY_ENV[0]}}
+    ${DISPLAY_ENV[0]:+export ${DISPLAY_ENV[0]}}
     python3 '${MOCK}' &
     MOCK_PID=\$!
     # give the mock a moment to claim its D-Bus name
