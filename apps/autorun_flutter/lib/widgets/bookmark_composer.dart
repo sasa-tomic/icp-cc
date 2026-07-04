@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_design_system.dart';
+
 typedef BookmarkSaveCallback = Future<void> Function({
   required String canisterId,
   required String method,
   String? label,
 });
 
-/// Small form that lets users save bookmarks directly from the Bookmarks tab.
+/// Single source of truth for the inline Add-Bookmark copy (UX-4).
+const String _kAddBookmarkLabel = 'Add Bookmark';
+const String _kAddBookmarkHint =
+    'Save a canister + method for quick access';
+
+/// Small inline form that lets users save bookmarks directly from the
+/// Canisters tab.
+///
+/// UX-4: the form is **collapsed by default** behind a compact
+/// [_kAddBookmarkLabel] button so the bookmarks list stays uncluttered. Tapping
+/// the button expands the inline form (no sheet, no extra screen — the add
+/// stays inline). The form is keyboard-first: type the canister id, Enter to
+/// move to the method, Enter again to save. Escaping/Cancel collapses it back.
 class BookmarkComposer extends StatefulWidget {
   const BookmarkComposer({
     super.key,
@@ -22,9 +36,14 @@ class BookmarkComposer extends StatefulWidget {
 }
 
 class _BookmarkComposerState extends State<BookmarkComposer> {
+  // UX-4: collapsed by default so the always-on form no longer clutters the
+  // explore screen. Expanded on demand via the "+ Add Bookmark" button.
+  bool _expanded = false;
+
   final TextEditingController _canisterController = TextEditingController();
   final TextEditingController _methodController = TextEditingController();
   final TextEditingController _labelController = TextEditingController();
+  final FocusNode _canisterFocusNode = FocusNode();
 
   bool _isSaving = false;
   String? _errorMessage;
@@ -45,6 +64,7 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
     _canisterController.dispose();
     _methodController.dispose();
     _labelController.dispose();
+    _canisterFocusNode.dispose();
     super.dispose();
   }
 
@@ -66,6 +86,25 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
     if (trimmed.isEmpty) return false;
     final regExp = RegExp(r'^[a-z0-9-]{5,64}$');
     return regExp.hasMatch(trimmed);
+  }
+
+  void _expand() {
+    setState(() {
+      _expanded = true;
+      _errorMessage = null;
+    });
+    // Focus the first field once the form has mounted, so a keyboard user can
+    // type immediately without an extra tap.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _canisterFocusNode.requestFocus();
+    });
+  }
+
+  void _collapse() {
+    setState(() {
+      _expanded = false;
+      _errorMessage = null;
+    });
   }
 
   Future<void> _handleSubmit() async {
@@ -99,6 +138,10 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
       _methodController.clear();
       _labelController.clear();
       widget.onSaved?.call(canisterId, method, label);
+      // Collapse back to the compact button on success — the list refreshes
+      // below and the parent's snackbar confirms the save, so the inline form
+      // no longer needs to hold screen space (UX-4 de-clutter).
+      _collapse();
     } catch (e) {
       if (!mounted) return;
       final message = 'Failed to save bookmark: $e';
@@ -119,6 +162,31 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_expanded) {
+      return _buildCollapsed(context);
+    }
+    return _buildExpanded(context);
+  }
+
+  Widget _buildCollapsed(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        key: const Key('bookmarkComposerToggleButton'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDesignSystem.radius12),
+          ),
+        ),
+        onPressed: _expand,
+        icon: const Icon(Icons.add_rounded, size: 20),
+        label: Text(_kAddBookmarkLabel),
+      ),
+    );
+  }
+
+  Widget _buildExpanded(BuildContext context) {
     final theme = Theme.of(context);
     final isValid = _isInputValid;
 
@@ -133,23 +201,29 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Add Bookmark',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Save a canister + method for quick access',
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _kAddBookmarkLabel,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _kAddBookmarkHint,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
                 ),
-                Icon(
-                  Icons.bookmark_add_rounded,
-                  color: theme.colorScheme.primary,
+                IconButton(
+                  key: const Key('bookmarkComposerCollapseButton'),
+                  tooltip: 'Collapse',
+                  icon: const Icon(Icons.expand_less_rounded),
+                  onPressed: _isSaving ? null : _collapse,
                 ),
               ],
             ),
@@ -157,6 +231,7 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
             TextField(
               key: const Key('bookmarkComposerCanisterField'),
               controller: _canisterController,
+              focusNode: _canisterFocusNode,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
                 labelText: 'Canister ID',
@@ -168,7 +243,10 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
             TextField(
               key: const Key('bookmarkComposerMethodField'),
               controller: _methodController,
-              textInputAction: TextInputAction.next,
+              // Enter submits — the common path skips the optional label:
+              // type canister → Enter → type method → Enter → saved.
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _handleSubmit(),
               decoration: const InputDecoration(
                 labelText: 'Method name',
                 hintText: 'icrc1_balance_of',
@@ -192,7 +270,8 @@ class _BookmarkComposerState extends State<BookmarkComposer> {
               Text(
                 _errorMessage!,
                 key: const Key('bookmarkComposerError'),
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error),
               ),
             ],
             const SizedBox(height: 12),
