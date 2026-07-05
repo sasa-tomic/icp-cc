@@ -242,7 +242,9 @@ test-watch name="":
 #        PASS 1 (keyring-less)  : StorageUnavailable path — wus2_readiness,
 #                                 new2_diagnostic, r3_review (WU-S2 panel), etc.
 #        PASS 2 (mock keyring)  : StorageReady path — r3_addendum creates REAL
-#                                 profiles end-to-end (FFI gen + libsecret).
+#                                 profiles end-to-end (FFI gen + libsecret);
+#                                 f_dapp_vote_flow creates a REAL profile
+#                                 mid-flow to sign the headline dapp vote.
 #
 # State is isolated: ~/.cache/data/com.example.icp_autorun/ is wiped before
 # every file so probes never contaminate each other.
@@ -333,7 +335,7 @@ test-ux-probe:
         echo "   python3 -m pip install dbus-next"
         exit 1
     fi
-    MOCK=( r3_addendum_test )
+    MOCK=( r3_addendum_test f_dapp_vote_flow_test )
     : > "$PASS2_LOG"
     echo "==> PASS 2 (mock keyring): ${#MOCK[@]} files -> $PASS2_LOG"
     fail2=0
