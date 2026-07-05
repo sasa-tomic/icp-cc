@@ -244,7 +244,10 @@ test-watch name="":
 #        PASS 2 (mock keyring)  : StorageReady path — r3_addendum creates REAL
 #                                 profiles end-to-end (FFI gen + libsecret);
 #                                 f_dapp_vote_flow creates a REAL profile
-#                                 mid-flow to sign the headline dapp vote.
+#                                 mid-flow to sign the headline dapp vote;
+#                                 g_first_run_wizard drives the wizard FORM
+#                                 happy-path (type name → Get Started → main
+#                                 shell reachable) on a real app boot.
 #
 # State is isolated: ~/.cache/data/com.example.icp_autorun/ is wiped before
 # every file so probes never contaminate each other.
@@ -335,7 +338,7 @@ test-ux-probe:
         echo "   python3 -m pip install dbus-next"
         exit 1
     fi
-    MOCK=( r3_addendum_test f_dapp_vote_flow_test )
+    MOCK=( r3_addendum_test f_dapp_vote_flow_test g_first_run_wizard_happy_path_test )
     : > "$PASS2_LOG"
     echo "==> PASS 2 (mock keyring): ${#MOCK[@]} files -> $PASS2_LOG"
     fail2=0
