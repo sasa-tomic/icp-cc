@@ -30,11 +30,24 @@ const double kDpr = 1.0;
 /// live in FlutterSecureStorage. We can only reliably clear the file side here
 /// (libsecret state is owned by the OS keyring); clearing the file is enough
 /// to force `profiles.isEmpty` for a clean first-run.
+///
+/// path_provider's getApplicationSupportDirectory() on this Linux build
+/// resolves to ~/.cache/data/com.example.icp_autorun/ (see r3_helpers.dart);
+/// the legacy ~/.local/share/... path is cleared too for belt-and-suspenders.
 Future<void> clearProfileState() async {
   final home = Platform.environment['HOME'] ?? '/tmp';
-  final dir = Directory('$home/.local/share/com.example.icp_autorun');
-  if (await dir.exists()) {
-    await dir.delete(recursive: true);
+  // Primary: the path path_provider actually resolves to on Linux.
+  final cacheDir = Directory('$home/.cache/data/com.example.icp_autorun');
+  if (await cacheDir.exists()) {
+    final profiles = File('${cacheDir.path}/profiles.json');
+    if (await profiles.exists()) {
+      await profiles.writeAsString('{"version":1,"profiles":[]}');
+    }
+  }
+  // Legacy/alt path: clear wholesale if it ever exists.
+  final alt = Directory('$home/.local/share/com.example.icp_autorun');
+  if (await alt.exists()) {
+    await alt.delete(recursive: true);
   }
 }
 
