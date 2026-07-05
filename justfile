@@ -317,7 +317,8 @@ test-ux-probe:
     # bites `flutter-tests`. Pass/fail is decided by each `flutter test` exit
     # code, not by grepping the log.
     NOMOCK=( _smoke_test b_download_test c_explore_test e_profile_menu_test \
-             wus2_readiness_test new2_diagnostic_test r3_review_test )
+             wus2_readiness_test new2_diagnostic_test r3_review_test \
+             i_marketplace_download_flow_test )
     : > "$PASS1_LOG"
     echo "==> PASS 1 (keyring-less): ${#NOMOCK[@]} files -> $PASS1_LOG"
     fail1=0
