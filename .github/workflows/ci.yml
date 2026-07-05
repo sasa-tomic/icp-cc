@@ -90,7 +90,8 @@ jobs:
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
             libgtk-3-dev liblzma-dev libstdc++-12-dev \
-            libssl-dev lsof
+            libssl-dev lsof \
+            xvfb dbus-daemon python3-dbus-next
 
       - name: Install just
         uses: taiki-e/install-action@v2
@@ -119,6 +120,15 @@ jobs:
       - name: flutter test
         run: flutter test --concurrency=4 --timeout=360s
         working-directory: apps/autorun_flutter
+
+      # Highest-fidelity suite: launches the REAL app under the integration-test
+      # binding on Xvfb :99 and drives interactive user flows. Needs the FFI lib
+      # (built above by `just linux`), an X display (Xvfb — cold-started by the
+      # recipe), and the mock Secret Service for the profile-creating probes
+      # (dbus-daemon + python3-dbus-next installed above). See the `test-ux-probe`
+      # recipe for the env/pass breakdown and the loudly-documented exclusions.
+      - name: ux_probe integration suite (just test-ux-probe)
+        run: just test-ux-probe
 
       - name: Stop dev API server (just api-dev-down)
         if: always()

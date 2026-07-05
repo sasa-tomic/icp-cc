@@ -226,6 +226,143 @@ test-watch name="":
     fi
 
 # =============================================================================
+# Integration / E2E (real-app user-flow probes)
+# =============================================================================
+#
+# `test-ux-probe` runs the highest-fidelity suite under
+# apps/autorun_flutter/integration_test/ux_probe/. Each probe launches the REAL
+# app (lib/main.dart) under the integration-test binding on a 1440x900 Xvfb
+# surface, driving interactive flows and asserting widget-tree behavior. They
+# need three things the unit/widget tests do not:
+#   1. libicp_core.so on LD_LIBRARY_PATH (real FFI: Ed25519 keypair gen,
+#      vault encrypt/decrypt, poll-endpoint signing).
+#   2. An X display (Xvfb :99) — they render a real surface.
+#   3. A working Secret Service for the profile-creating probes. The box has no
+#      gnome-keyring, so the suite uses TWO passes with opposite expectations:
+#        PASS 1 (keyring-less)  : StorageUnavailable path — wus2_readiness,
+#                                 new2_diagnostic, r3_review (WU-S2 panel), etc.
+#        PASS 2 (mock keyring)  : StorageReady path — r3_addendum creates REAL
+#                                 profiles end-to-end (FFI gen + libsecret).
+#
+# State is isolated: ~/.cache/data/com.example.icp_autorun/ is wiped before
+# every file so probes never contaminate each other.
+#
+# EXCLUDED stale round-2 probes (assert behavior intentionally superseded by
+# later fixes — loudly skipped here, NOT silently; current behavior is verified
+# by the round-3 probes):
+#   - a_first_run_test : A1/A3 assert the pre-WU-S2 wizard-form + raw libsecret
+#                        error path. Post-WU-S2 the wizard renders the blocking
+#                        readiness panel on a keyring-less box (never reaching
+#                        createProfile); current behavior = r3_review WU-S2.
+#   - b_create_test    : WU-3 was fixed — the create-script SnackBar now carries
+#                        an action; the probe asserted its absence.
+#   - d_keyboard_test  : tab shortcuts moved Ctrl+N -> Alt+N; the probe sends
+#                        Ctrl+digit. Discoverability is covered by r3_review WU-6.
+# Run the ux_probe real-app user-flow integration suite (Xvfb + FFI + mock keyring)
+test-ux-probe:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    STATE_DIR="$HOME/.cache/data/com.example.icp_autorun"
+    PASS1_LOG="{{logs_dir}}/ux-probe-pass1-keyring-less.log"
+    PASS2_LOG="{{logs_dir}}/ux-probe-pass2-mock-keyring.log"
+    mkdir -p "{{logs_dir}}"
+
+    echo "==> ux_probe: real-app user-flow integration suite"
+
+    # --- 1. Ensure the FFI library is built (real libicp_core.so) -------------
+    if [[ ! -f "$RELEASE_LIB" ]]; then
+        echo "==> libicp_core.so missing — building (cargo build --release)..."
+        (cd "{{root}}" && cargo build --release)
+    fi
+    [[ -f "$RELEASE_LIB" ]] || { echo "❌ $RELEASE_LIB not found after build"; exit 1; }
+    export LD_LIBRARY_PATH="{{root}}/target/release${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+    # --- 2. Ensure Xvfb :99 is up (1440x900 screen, matches kDesktopSize) -----
+    XVFB_STARTED=0
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        echo "==> starting Xvfb :99 (1440x900x24 + XTEST)"
+        Xvfb :99 -screen 0 1440x900x24 -ac +extension XTEST \
+            >"{{logs_dir}}/xvfb-ux-probe.log" 2>&1 &
+        XVFB_PID=$!
+        XVFB_STARTED=1
+        for _ in $(seq 1 30); do
+            [[ -S /tmp/.X11-unix/X99 ]] && break
+            sleep 0.2
+        done
+    fi
+    [[ -S /tmp/.X11-unix/X99 ]] || { echo "❌ Xvfb :99 did not come up"; exit 1; }
+    export DISPLAY=:99
+    # Only tear down an Xvfb WE started; never kill a host/session one.
+    if [[ "$XVFB_STARTED" -eq 1 ]]; then
+        trap 'kill "$XVFB_PID" 2>/dev/null || true' EXIT
+    fi
+
+    # --- 3. Loudly document the EXCLUDED stale round-2 probes -----------------
+    echo ""
+    echo "==> EXCLUDED stale round-2 probes (assert superseded behavior):"
+    echo "    a_first_run_test : pre-WU-S2 form+libsecret-error path (now the"
+    echo "                      WU-S2 readiness panel — see r3_review WU-S2)."
+    echo "    b_create_test   : WU-3 fixed (create SnackBar now has an action)."
+    echo "    d_keyboard_test : tab shortcuts Ctrl+N -> Alt+N (see r3_review WU-6)."
+    echo ""
+
+    # --- 4. PASS 1: keyring-less (StorageUnavailable) probes ------------------
+    # Fresh per-pass log (NOT append) — avoids the stale-false-positive that
+    # bites `flutter-tests`. Pass/fail is decided by each `flutter test` exit
+    # code, not by grepping the log.
+    NOMOCK=( _smoke_test b_download_test c_explore_test e_profile_menu_test \
+             wus2_readiness_test new2_diagnostic_test r3_review_test )
+    : > "$PASS1_LOG"
+    echo "==> PASS 1 (keyring-less): ${#NOMOCK[@]} files -> $PASS1_LOG"
+    fail1=0
+    for t in "${NOMOCK[@]}"; do
+        rm -rf "$STATE_DIR" 2>/dev/null || true   # isolate state per file
+        printf '   - %-26s ... ' "$t"
+        if (cd "{{flutter_dir}}" && flutter test "integration_test/ux_probe/$t.dart" \
+                --reporter=compact --timeout=240s) >>"$PASS1_LOG" 2>&1; then
+            echo "OK"
+        else
+            echo "FAIL  (see $PASS1_LOG)"; fail1=1
+        fi
+    done
+
+    # --- 5. PASS 2: mock Secret Service (StorageReady) probes -----------------
+    if ! python3 -c 'import dbus_next' >/dev/null 2>&1; then
+        echo "❌ PASS 2 needs python3 + dbus-next (mock Secret Service). Install:"
+        echo "   python3 -m pip install dbus-next"
+        exit 1
+    fi
+    MOCK=( r3_addendum_test )
+    : > "$PASS2_LOG"
+    echo "==> PASS 2 (mock keyring): ${#MOCK[@]} files -> $PASS2_LOG"
+    fail2=0
+    for t in "${MOCK[@]}"; do
+        rm -rf "$STATE_DIR" 2>/dev/null || true
+        printf '   - %-26s ... ' "$t"
+        if "{{scripts_dir}}/run-with-mock-keyring.sh" --display :99 -- \
+                bash -c 'cd "{{flutter_dir}}" && \
+                    LD_LIBRARY_PATH="{{root}}/target/release" \
+                    flutter test "integration_test/ux_probe/'"$t"'.dart" \
+                    --reporter=compact --timeout=240s' >>"$PASS2_LOG" 2>&1; then
+            echo "OK"
+        else
+            echo "FAIL  (see $PASS2_LOG)"; fail2=1
+        fi
+    done
+
+    # --- 6. Verdict -----------------------------------------------------------
+    echo ""
+    if [[ $fail1 -eq 0 && $fail2 -eq 0 ]]; then
+        echo "✅ ux_probe suite PASSED — PASS 1 (keyring-less) + PASS 2 (mock keyring)."
+        exit 0
+    fi
+    echo "❌ ux_probe suite FAILED — see:"
+    [[ $fail1 -eq 1 ]] && echo "   $PASS1_LOG"
+    [[ $fail2 -eq 1 ]] && echo "   $PASS2_LOG"
+    exit 1
+
+# =============================================================================
 # Development API Server (Local Cargo-based)
 # =============================================================================
 
