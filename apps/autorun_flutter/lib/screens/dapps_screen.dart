@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../config/example_dapps.dart';
+import '../services/script_runner.dart';
 import '../theme/app_design_system.dart';
 import 'dapp_runner_screen.dart';
 
@@ -11,11 +12,32 @@ import 'dapp_runner_screen.dart';
 /// Header explains what Dapps are in one line (mirrors the BookmarksScreen
 /// subtitle pattern so the tab label and screen header stay consistent).
 class DappsScreen extends StatelessWidget {
-  const DappsScreen({super.key});
+  const DappsScreen({super.key, this.testBridge});
+
+  /// Test-only canister-bridge override forwarded to the pushed
+  /// [DappRunnerScreen.testBridge] so the headline e2e flow test
+  /// (`integration_test/ux_probe/f_dapp_vote_flow_test.dart`) can drive the full
+  /// catalog→runner→trust→vote→revoke loop with canned canister responses
+  /// through a real `app.main()` boot. Production leaves this null and the
+  /// runner uses the real FFI bridge. Mirrors [DappRunnerScreen.testBridge].
+  @visibleForTesting
+  final ScriptBridge? testBridge;
+
+  /// Process-wide test override used when the app is launched via `app.main()`
+  /// (which constructs `DappsScreen()` with no args). Integration tests set this
+  /// BEFORE launch so the catalog→runner push uses a canned bridge while still
+  /// exercising the real app boot, first-run wizard, and bottom-nav navigation.
+  /// [build] folds it into the per-card [testBridge]. Null in production →
+  /// zero behavior change. Cleared by the test in tearDown.
+  @visibleForTesting
+  static ScriptBridge? testBridgeOverride;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Constructor param wins (unit-test injection); else the process-wide
+    // override (integration-test boot via app.main). Both null in prod.
+    final ScriptBridge? bridge = testBridge ?? testBridgeOverride;
     return Scaffold(
       appBar: AppBar(
         title: const Column(
@@ -52,8 +74,10 @@ class DappsScreen extends StatelessWidget {
                   itemCount: exampleDapps.length,
                   separatorBuilder: (_, __) =>
                       const SizedBox(height: AppDesignSystem.spacing12),
-                  itemBuilder: (context, i) =>
-                      _DappCard(descriptor: exampleDapps[i]),
+                  itemBuilder: (context, i) => _DappCard(
+                    descriptor: exampleDapps[i],
+                    testBridge: bridge,
+                  ),
                 ),
         ),
       ),
@@ -85,12 +109,18 @@ class _EmptyDapps extends StatelessWidget {
 }
 
 class _DappCard extends StatelessWidget {
-  const _DappCard({required this.descriptor});
+  const _DappCard({required this.descriptor, this.testBridge});
   final DappDescriptor descriptor;
+  // Forwarded to DappRunnerScreen so the catalog→runner push honors the
+  // DappsScreen test seam (see DappsScreen.testBridge / .testBridgeOverride).
+  final ScriptBridge? testBridge;
 
   void _open(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => DappRunnerScreen(descriptor: descriptor),
+      builder: (_) => DappRunnerScreen(
+        descriptor: descriptor,
+        testBridge: testBridge,
+      ),
     ));
   }
 
