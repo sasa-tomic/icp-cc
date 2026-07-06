@@ -247,7 +247,11 @@ test-watch name="":
 #                                 mid-flow to sign the headline dapp vote;
 #                                 g_first_run_wizard drives the wizard FORM
 #                                 happy-path (type name → Get Started → main
-#                                 shell reachable) on a real app boot.
+#                                 shell reachable) on a real app boot;
+#                                 h_vault_lifecycle drives the vault full-UI
+#                                 chain (setup → restart → unlock decrypts →
+#                                 wrong-pw reject) with REAL FFI crypto through
+#                                 the real production screens.
 #
 # State is isolated: ~/.cache/data/com.example.icp_autorun/ is wiped before
 # every file so probes never contaminate each other.
@@ -339,7 +343,7 @@ test-ux-probe:
         echo "   python3 -m pip install dbus-next"
         exit 1
     fi
-    MOCK=( r3_addendum_test f_dapp_vote_flow_test g_first_run_wizard_happy_path_test )
+    MOCK=( r3_addendum_test f_dapp_vote_flow_test g_first_run_wizard_happy_path_test h_vault_lifecycle_test )
     : > "$PASS2_LOG"
     echo "==> PASS 2 (mock keyring): ${#MOCK[@]} files -> $PASS2_LOG"
     fail2=0
