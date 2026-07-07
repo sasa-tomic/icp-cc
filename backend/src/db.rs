@@ -448,20 +448,19 @@ pub async fn initialize_database(pool: &SqlitePool) {
 /// unexpected. A rename that fails after the column was confirmed present is
 /// also fatal.
 async fn rename_legacy_user_principal_column(pool: &SqlitePool, table: &str) {
-    let column_names: Vec<String> = match sqlx::query_scalar(
-        "SELECT name FROM pragma_table_info(?)",
-    )
-    .bind(table)
-    .fetch_all(pool)
-    .await
-    {
-        Ok(names) => names,
-        Err(e) => panic!(
-            "Legacy-column probe: pragma_table_info('{}') failed unexpectedly \
+    let column_names: Vec<String> =
+        match sqlx::query_scalar("SELECT name FROM pragma_table_info(?)")
+            .bind(table)
+            .fetch_all(pool)
+            .await
+        {
+            Ok(names) => names,
+            Err(e) => panic!(
+                "Legacy-column probe: pragma_table_info('{}') failed unexpectedly \
              (it should return an empty rowset for absent tables): {}",
-            table, e
-        ),
-    };
+                table, e
+            ),
+        };
 
     if !column_names.iter().any(|name| name == "user_principal") {
         tracing::debug!(

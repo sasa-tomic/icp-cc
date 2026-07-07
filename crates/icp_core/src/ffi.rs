@@ -613,7 +613,8 @@ mod tests {
             let body = v["error"].as_str().unwrap();
             assert!(!body.is_empty(), "kind={expected_kind} empty error body");
             assert!(
-                body.to_lowercase().contains(expected_kind.split('_').next().unwrap()),
+                body.to_lowercase()
+                    .contains(expected_kind.split('_').next().unwrap()),
                 "kind={expected_kind} body doesn't name its class: {body}"
             );
         }
