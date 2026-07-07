@@ -10,6 +10,8 @@ import '../services/passkey_service.dart';
 import '../services/settings_service.dart';
 import '../screens/account_profile_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/vault_password_setup_screen.dart';
+import '../screens/vault_unlock_screen.dart';
 
 /// Profile menu action types
 enum ProfileMenuAction {
@@ -17,6 +19,7 @@ enum ProfileMenuAction {
   createAccount,
   settings,
   manageProfiles,
+  vault,
 }
 
 /// Profile menu widget that can be shown as a bottom sheet or menu
@@ -43,6 +46,12 @@ class ProfileMenuWidget extends StatefulWidget {
 class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
   bool _initialized = false;
   Account? _activeAccount;
+
+  /// True while probing /vault to decide setup-vs-unlock routing. Prevents
+  /// double-taps from stacking two vault screens and gives a visible "Checking…"
+  /// cue. The probe happens with the menu still open (we must not pop first —
+  /// popping disposes this widget mid-await); see [_navigateToVault].
+  bool _isProbingVault = false;
 
   @override
   void didChangeDependencies() {
@@ -212,6 +221,21 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
         // Always rendered: on a first run (no active profile) the tap routes to
         // profile creation/selection instead of being a silent no-op.
         _buildMyAccountTile(profile, hasAccount),
+        // 1b. Vault — the zero-knowledge credential store (A-4). Account-scoped:
+        // the opaque blob is keyed by the backend account id, so the tile is only
+        // reachable when the active profile has a registered account (hasAccount).
+        // Setup-vs-unlock routing is decided by probing /vault ON TAP (never on
+        // menu open), so opening the menu costs zero network calls.
+        if (hasAccount)
+          _MenuTile(
+            icon: Icons.lock_outline,
+            label: 'Vault',
+            subtitle:
+                _isProbingVault ? 'Checking…' : 'Encrypt your credentials',
+            onTap: _isProbingVault
+                ? null
+                : () => _handleAction(ProfileMenuAction.vault),
+          ),
         // 2. Profile switching. With more than one profile the list is inlined
         // directly into the menu (2-tap switch). With a single profile the list
         // would be noise, so we fall back to a single entry that opens the
@@ -262,9 +286,8 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           _ProfileSwitchRow(
             profile: profile,
             isActive: profile.id == activeId,
-            onTap: profile.id == activeId
-                ? null
-                : () => _switchToProfile(profile),
+            onTap:
+                profile.id == activeId ? null : () => _switchToProfile(profile),
           ),
         _MenuTile(
           icon: Icons.tune_outlined,
@@ -331,6 +354,15 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
 
   void _handleAction(ProfileMenuAction action) async {
     HapticFeedback.lightImpact();
+
+    // Vault is special: it must probe /vault to decide setup-vs-unlock BEFORE
+    // closing this menu. Closing first (the pattern every other action uses)
+    // would dispose this widget mid-probe and silently abort the navigation.
+    if (action == ProfileMenuAction.vault) {
+      await _navigateToVault();
+      return;
+    }
+
     Navigator.of(context).pop(); // Close the menu first
 
     final profile = widget.profileController.activeProfile;
@@ -359,6 +391,9 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       case ProfileMenuAction.manageProfiles:
         await _showManageProfilesSheet();
         break;
+      case ProfileMenuAction.vault:
+        // Handled above before the menu-pop. Unreachable.
+        break;
     }
   }
 
@@ -380,6 +415,76 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       await _loadActiveAccount();
       setState(() {});
     }
+  }
+
+  /// Routes to the vault flow (A-4 zero-knowledge credential store).
+  ///
+  /// The vault is account-scoped: its opaque blob is keyed by the backend
+  /// account id, so the active [Account] must be loaded. We probe `/vault`
+  /// ONCE on tap (never on menu open) to choose first-time setup
+  /// ([VaultPasswordSetupScreen]) vs unlock ([VaultUnlockScreen]); that probe
+  /// is the only network call in this flow.
+  ///
+  /// The probe runs BEFORE closing the menu: closing first would dispose this
+  /// widget mid-await and silently abort. On a probe failure we surface the
+  /// error loudly (SnackBar) and abort — we never guess "setup" because a down
+  /// server is NOT "no vault", and guessing setup could clobber an existing
+  /// blob. Uses `widget.passkeyService` when injected (tests) else the
+  /// [PasskeyService] singleton (production).
+  Future<void> _navigateToVault() async {
+    if (_isProbingVault) return; // ignore accidental double-taps
+    final account = _activeAccount;
+    if (account == null) {
+      // Defensive: the tile is gated on hasAccount, so a backend account is
+      // loading. If the user taps before the load resolves, say so honestly
+      // instead of routing with a null id.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account is still loading — try again in a moment.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isProbingVault = true);
+    final service = widget.passkeyService ?? PasskeyService();
+    bool vaultExists;
+    try {
+      final vault = await service.getVault(account.id);
+      vaultExists = vault != null;
+    } on PasskeyException catch (e) {
+      // LOUD: a failed probe must NOT silently fall through to setup/unlock.
+      if (mounted) {
+        setState(() => _isProbingVault = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not check vault status: ${e.message}')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) {
+      // The menu was dismissed while probing (e.g. user tapped elsewhere) —
+      // nothing to route onto.
+      return;
+    }
+    setState(() => _isProbingVault = false);
+
+    // Close the menu, then push the chosen vault screen onto the same (root)
+    // navigator. Both calls are synchronous in this frame — the State stays
+    // mounted through the push (disposal only happens after the menu's exit
+    // animation, which we don't await). This is the same pop-then-push pattern
+    // used by [_navigateToAccountProfile].
+    widget.onNavigate?.call();
+    Navigator.of(context).pop();
+    final screen = vaultExists
+        ? VaultUnlockScreen(accountId: account.id)
+        : VaultPasswordSetupScreen(accountId: account.id);
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    );
   }
 
   Future<void> _navigateToSettings() async {
@@ -627,8 +732,7 @@ class _ManageProfilesSheet extends StatelessWidget {
                       : () async {
                           HapticFeedback.lightImpact();
                           final messenger = ScaffoldMessenger.of(context);
-                          await profileController
-                              .setActiveProfile(profile.id);
+                          await profileController.setActiveProfile(profile.id);
                           if (!context.mounted) return;
                           Navigator.pop(context);
                           messenger.showSnackBar(

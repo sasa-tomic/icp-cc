@@ -59,12 +59,14 @@ void main() {
               'Passkeys should be accessible via My Account > AccountProfileScreen, not a separate menu item');
     });
 
-    testWidgets('menu has exactly 3 items (simplified structure)',
+    testWidgets('menu has the core items (simplified structure)',
         (WidgetTester tester) async {
       await pumpProfileMenu(tester);
 
-      // Should have exactly 3 menu items
+      // The core items: My Account, Vault (account-scoped), Switch Profile, Settings.
       expect(find.text('My Account'), findsOneWidget);
+      expect(find.text('Vault'), findsOneWidget,
+          reason: 'Vault is an account-scoped menu tile for registered users');
       expect(find.text('Switch Profile'), findsOneWidget);
       expect(find.text('Settings'), findsOneWidget);
     });

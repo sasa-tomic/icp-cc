@@ -82,7 +82,8 @@ void main() {
         // UX-7: subtitle now points to Account & Keys (where local keys live
         // and registration is offered as a CTA), instead of promising a
         // direct jump into the registration wizard.
-        expect(find.text('Local profile — view keys or register'), findsOneWidget,
+        expect(
+            find.text('Local profile — view keys or register'), findsOneWidget,
             reason:
                 'Subtitle should advertise the local-keys surface for a local-only profile');
       });
@@ -124,11 +125,14 @@ void main() {
       });
     });
 
-    group('Simplified 3-item menu structure', () {
-      testWidgets('has exactly 3 menu items', (WidgetTester tester) async {
+    group('Core menu structure', () {
+      testWidgets('has the core menu items for a registered user',
+          (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: true);
 
         expect(find.text('My Account'), findsOneWidget);
+        expect(find.text('Vault'), findsOneWidget,
+            reason: 'Vault is an account-scoped tile for registered users');
         expect(find.text('Switch Profile'), findsOneWidget);
         expect(find.text('Settings'), findsOneWidget);
       });

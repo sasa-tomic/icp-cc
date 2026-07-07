@@ -52,32 +52,40 @@ void main() {
       );
     }
 
-    group('Exactly 3 menu items', () {
-      testWidgets('menu shows exactly 3 items for users with account',
+    group('Core menu items', () {
+      testWidgets('menu shows the core items for users with account',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: true);
 
-        // The 3 expected items: My Account, Switch Profile, Settings
+        // My Account, Vault (account-scoped), Switch Profile, Settings.
         expect(find.text('My Account'), findsOneWidget,
             reason: '"My Account" should be visible as primary account item');
+        expect(find.text('Vault'), findsOneWidget,
+            reason: '"Vault" should be visible for registered users');
         expect(find.text('Switch Profile'), findsOneWidget,
             reason: '"Switch Profile" should be visible');
         expect(find.text('Settings'), findsOneWidget,
             reason: '"Settings" should be visible');
 
-        // Count visible menu tiles - should be exactly 3
+        // Count visible menu tiles - should be exactly 4 for a registered
+        // user with a single profile (My Account + Vault + Switch + Settings).
         final menuTiles = find.byType(ListTile);
         final tileCount = menuTiles.evaluate().length;
-        expect(tileCount, equals(3),
+        expect(tileCount, equals(4),
             reason:
-                'Profile menu should have exactly 3 items. Found $tileCount.');
+                'Profile menu should have exactly 4 items for a registered user. '
+                'Found $tileCount.');
       });
 
-      testWidgets('menu shows exactly 3 items for users without account',
+      testWidgets(
+          'menu hides the Vault tile for users without account (still 3 items)',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        // For users without account: My Account (prompts registration), Switch Profile, Settings
+        // No Vault tile: the vault blob is keyed by the backend account id,
+        // so a local-only profile cannot reach it.
+        expect(find.text('Vault'), findsNothing,
+            reason: 'Vault must be hidden for local-only profiles');
         expect(find.text('My Account'), findsOneWidget,
             reason: '"My Account" should be visible even without account');
         expect(find.text('Switch Profile'), findsOneWidget,
@@ -89,7 +97,8 @@ void main() {
         final tileCount = menuTiles.evaluate().length;
         expect(tileCount, equals(3),
             reason:
-                'Profile menu should have exactly 3 items. Found $tileCount.');
+                'Profile menu should have exactly 3 items without an account. '
+                'Found $tileCount.');
       });
     });
 
@@ -153,15 +162,15 @@ void main() {
             reason: 'Should show @username as subtitle when account exists');
       });
 
-      testWidgets(
-          'shows local-keys subtitle for users without account',
+      testWidgets('shows local-keys subtitle for users without account',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
         // UX-7: the menu now routes a local-only profile to Account & Keys
         // (where keys are visible AND a register CTA lives), so the subtitle
         // must point at that surface — not promise a direct registration jump.
-        expect(find.text('Local profile — view keys or register'), findsOneWidget,
+        expect(
+            find.text('Local profile — view keys or register'), findsOneWidget,
             reason: 'Should advertise the local-keys surface when no account');
       });
     });
@@ -201,7 +210,8 @@ void main() {
         expect(find.text('Local profile — not registered'), findsOneWidget,
             reason: 'AccountProfileScreen must be in its local-only branch');
         expect(find.text('Register Username'), findsNothing,
-            reason: 'UX-7: must NOT jump straight into the registration wizard');
+            reason:
+                'UX-7: must NOT jump straight into the registration wizard');
 
         // The profile's local keypair is reachable from this screen — proving
         // the menu no longer hides keys behind registration. Uses real crypto

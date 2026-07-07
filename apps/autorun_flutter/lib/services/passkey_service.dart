@@ -151,10 +151,11 @@ class PasskeyService {
     try {
       final response = await _get('/vault?account_id=$accountId');
       return VaultData.fromJson(response['data']);
-    } catch (e) {
-      if (e.toString().contains('404') || e.toString().contains('not found')) {
-        return null;
-      }
+    } on PasskeyException catch (e) {
+      // Typed status-code check (not string-matching the message): the vault
+      // legitimately doesn't exist yet for first-time users, which the backend
+      // signals with 404. Any other failure is a real error → rethrow.
+      if (e.statusCode == 404) return null;
       rethrow;
     }
   }
@@ -235,7 +236,8 @@ class PasskeyService {
   Map<String, dynamic> _handleResponse(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final error = _tryParseError(response.body);
-      throw PasskeyException('HTTP ${response.statusCode}: $error');
+      throw PasskeyException('HTTP ${response.statusCode}: $error',
+          statusCode: response.statusCode);
     }
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     if (data['success'] != true) {
@@ -257,7 +259,15 @@ class PasskeyService {
 
 class PasskeyException implements Exception {
   final String message;
-  PasskeyException(this.message);
+
+  /// HTTP status code when this exception originated from an HTTP response
+  /// (null for non-HTTP failures such as platform-unsupported or
+  /// `success != true` body errors). Enables a typed status-code check (e.g.
+  /// [PasskeyService.getVault] treats 404 as "vault not yet created") instead
+  /// of fragile message-string matching.
+  final int? statusCode;
+
+  PasskeyException(this.message, {this.statusCode});
   @override
   String toString() => 'PasskeyException: $message';
 }
