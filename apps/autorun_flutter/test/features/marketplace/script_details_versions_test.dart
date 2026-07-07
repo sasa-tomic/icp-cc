@@ -56,6 +56,27 @@ void main() {
       final effectiveStatusCode = versionsStatusCode ?? 200;
 
       final client = MockClient((request) async {
+        // Lightweight preview (UX-6) — the eager Details-tab fetch.
+        if (request.url.path.contains('/preview')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': effectiveScript.id,
+                'description': effectiveScript.description,
+                'version': '1.0.0',
+                'price': effectiveScript.price,
+                'language': 'typescript',
+                'preview': '// preview line 1',
+                'previewTruncated': false,
+                'totalLines': 1,
+              },
+            }),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+
         if (request.url.path.contains('/versions') &&
             !request.url.path.contains('/versions/')) {
           return http.Response(

@@ -161,6 +161,34 @@ pub struct ReviewsQuery {
 
 pub const SCRIPT_COLUMNS_WITH_ACCOUNT: &str = "scripts.id, scripts.slug, scripts.owner_account_id, scripts.title, scripts.description, scripts.category, scripts.tags, scripts.bundle, scripts.author_principal, scripts.author_public_key, scripts.upload_signature, scripts.canister_ids, scripts.icon_url, scripts.screenshots, scripts.version, scripts.compatibility, scripts.price, scripts.is_public, scripts.downloads, scripts.rating, scripts.review_count, scripts.created_at, scripts.updated_at, scripts.deleted_at, accounts.display_name as author_name";
 
+/// Lightweight browse-time preview of a script (UX-6).
+///
+/// Returned by `GET /api/v1/scripts/:id/preview`. Deliberately omits the full
+/// `bundle`: the preview carries only a server-side-capped excerpt (`preview`)
+/// plus the browse-relevant metadata, so opening the Script Details dialog no
+/// longer ships the full source over the wire — and, for paid scripts, NEVER
+/// ships the paid source. The cap is `FREE_PREVIEW_LINES` for free scripts and
+/// the smaller `PAID_PREVIEW_LINES` for paid scripts (see `ScriptService`).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptPreview {
+    pub id: String,
+    pub description: String,
+    pub version: String,
+    pub price: f64,
+    /// Source language of the bundle. The runtime is TypeScript-on-QuickJS for
+    /// every script (see AGENTS.md), so this is currently always "typescript".
+    pub language: String,
+    /// First N lines of the source bundle, joined with `\n`. N is
+    /// `FREE_PREVIEW_LINES` (free) or `PAID_PREVIEW_LINES` (paid).
+    pub preview: String,
+    pub preview_truncated: bool,
+    /// Total line count of the underlying bundle — harmless metadata (like a
+    /// book's page count) that lets the UI show "first 20 of N lines". Never
+    /// reveals the source content itself.
+    pub total_lines: usize,
+}
+
 // Account Profiles Models
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]

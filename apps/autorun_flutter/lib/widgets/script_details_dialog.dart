@@ -39,6 +39,11 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   bool _isLoadingPreview = false;
   String? _scriptPreview;
   String? _previewError;
+  // UX-6: set when the lightweight preview endpoint is unavailable AND the
+  // script is paid. In that case we MUST NOT fall back to the full download
+  // (that would ship paid source the user hasn't purchased); render the
+  // purchase-gate message instead.
+  bool _previewGated = false;
 
   bool _isLoadingReviews = false;
   List<ScriptReview> _reviews = [];
@@ -144,11 +149,49 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     setState(() {
       _isLoadingPreview = true;
       _previewError = null;
+      _previewGated = false;
     });
 
     try {
+      // UX-6: prefer the lightweight preview endpoint — it returns a server-side
+      // CAPPED excerpt instead of the full bundle, so the dialog no longer ships
+      // the whole script just to show 50 lines (and, for paid scripts, NEVER
+      // ships the paid source).
+      final preview =
+          await _marketplaceService.getScriptPreview(widget.script.id);
+      setState(() {
+        _scriptPreview = preview.preview;
+        _isLoadingPreview = false;
+      });
+    } catch (error) {
+      // The preview endpoint should always be available; reaching here means the
+      // backend doesn't serve /preview yet (or a transport failure). The error
+      // is already logged inside `getScriptPreview`. Branch on price:
+      //  - FREE → fall back to the legacy full-download + take(50) path so the
+      //    dialog still works against an older backend (the user can download
+      //    the full script anyway, so no paid-content concern).
+      //  - PAID → NEVER full-download for preview (UX-6's whole point). Show
+      //    the description (already rendered above from `widget.script`) plus
+      //    the purchase-gate message in the preview pane.
+      if (!suppressDebugOutput)
+        debugPrint('Preview endpoint unavailable: $error');
+      if (widget.script.price <= 0) {
+        await _loadScriptPreviewViaFullDownload();
+      } else {
+        setState(() {
+          _previewGated = true;
+          _isLoadingPreview = false;
+        });
+      }
+    }
+  }
+
+  /// Legacy fallback (UX-6): the full-download + take(50) path the dialog used
+  /// to always run. Only reachable for FREE scripts when the lightweight
+  /// preview endpoint is unavailable. Paid scripts never enter this path.
+  Future<void> _loadScriptPreviewViaFullDownload() async {
+    try {
       final bundle = await _marketplaceService.downloadScript(widget.script.id);
-      // Show first 50 lines as preview
       final lines = bundle.split('\n');
       final previewLines = lines.take(50).join('\n');
       setState(() {
@@ -461,86 +504,92 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                         ? const Center(
                             child: CircularProgressIndicator(),
                           )
-                        : _previewError != null
-                            ? Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(
-                                    _previewError!,
-                                    style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              )
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Preview header
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHighest
-                                          .withValues(alpha: 0.5),
-                                      borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(8),
-                                        topRight: Radius.circular(8),
+                        : _previewGated
+                            ? _buildPreviewGatedPane()
+                            : _previewError != null
+                                ? Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Text(
+                                        _previewError!,
+                                        style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error,
+                                        ),
+                                        textAlign: TextAlign.center,
                                       ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          'TypeScript',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                  )
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Preview header
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainerHighest
+                                              .withValues(alpha: 0.5),
+                                          borderRadius: const BorderRadius.only(
+                                            topLeft: Radius.circular(8),
+                                            topRight: Radius.circular(8),
+                                          ),
                                         ),
-                                        const Spacer(),
-                                        IconButton(
-                                          onPressed: () {
-                                            Clipboard.setData(ClipboardData(
-                                                text: _scriptPreview ?? ''));
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              const SnackBar(
-                                                  content: Text(
-                                                      'Preview copied to clipboard')),
-                                            );
-                                          },
-                                          icon:
-                                              const Icon(Icons.copy, size: 16),
-                                          visualDensity: VisualDensity.compact,
-                                          tooltip: 'Copy preview',
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  // Preview content
-                                  Expanded(
-                                    child: SingleChildScrollView(
-                                      padding: const EdgeInsets.all(12),
-                                      child: SelectableText(
-                                        _scriptPreview ?? '',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontFamily: 'monospace',
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              'TypeScript',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                             ),
+                                            const Spacer(),
+                                            IconButton(
+                                              onPressed: () {
+                                                Clipboard.setData(ClipboardData(
+                                                    text:
+                                                        _scriptPreview ?? ''));
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  const SnackBar(
+                                                      content: Text(
+                                                          'Preview copied to clipboard')),
+                                                );
+                                              },
+                                              icon: const Icon(Icons.copy,
+                                                  size: 16),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              tooltip: 'Copy preview',
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
+
+                                      // Preview content
+                                      Expanded(
+                                        child: SingleChildScrollView(
+                                          padding: const EdgeInsets.all(12),
+                                          child: SelectableText(
+                                            _scriptPreview ?? '',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  fontFamily: 'monospace',
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
                   ),
                 ),
               ],
@@ -849,83 +898,86 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                 ? const Center(
                     child: CircularProgressIndicator(),
                   )
-                : _previewError != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            _previewError!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Preview header
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest
-                                  .withValues(alpha: 0.5),
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(8),
-                                topRight: Radius.circular(8),
+                : _previewGated
+                    ? _buildPreviewGatedPane()
+                    : _previewError != null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                _previewError!,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  'TypeScript',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelSmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Preview header
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.5),
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(8),
+                                    topRight: Radius.circular(8),
+                                  ),
                                 ),
-                                const Spacer(),
-                                IconButton(
-                                  onPressed: () {
-                                    Clipboard.setData(ClipboardData(
-                                        text: _scriptPreview ?? ''));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Preview copied to clipboard')),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.copy, size: 16),
-                                  visualDensity: VisualDensity.compact,
-                                  tooltip: 'Copy preview',
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Preview content
-                          Expanded(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(12),
-                              child: SelectableText(
-                                _scriptPreview ?? '',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      fontFamily: 'monospace',
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      'TypeScript',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
+                                    const Spacer(),
+                                    IconButton(
+                                      onPressed: () {
+                                        Clipboard.setData(ClipboardData(
+                                            text: _scriptPreview ?? ''));
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Preview copied to clipboard')),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.copy, size: 16),
+                                      visualDensity: VisualDensity.compact,
+                                      tooltip: 'Copy preview',
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+
+                              // Preview content
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.all(12),
+                                  child: SelectableText(
+                                    _scriptPreview ?? '',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          fontFamily: 'monospace',
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
           ),
 
           const SizedBox(height: 20),
@@ -959,6 +1011,60 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildPreviewGatedMessage() {
+    // UX-6: shown only when the lightweight preview is unavailable AND the
+    // script is paid. The description above is already rendered from
+    // `widget.script.description`; this fills the preview pane with an honest
+    // purchase nudge instead of (a) full-downloading paid source or (b) a red
+    // error string (the gate is expected UX, not an error).
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.lock_outline,
+            size: 36,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Purchase to view source',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Buy this script to download and run the full code.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The gate message placed in a "center when it fits, scroll when it
+  /// doesn't" pane — mirrors how the normal preview path wraps its content in
+  /// a `SingleChildScrollView`, so the gate degrades gracefully on small
+  /// surfaces (e.g. the 800×600 widget-test surface) instead of overflowing.
+  Widget _buildPreviewGatedPane() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(child: _buildPreviewGatedMessage()),
+          ),
+        );
+      },
     );
   }
 

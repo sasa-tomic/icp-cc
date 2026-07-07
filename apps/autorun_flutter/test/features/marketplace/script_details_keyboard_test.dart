@@ -69,9 +69,9 @@ void main() {
 
     /// The same counting MockClient used by `script_details_lazy_load_test` —
     /// counts review / version requests, returns empty arrays for both, and
-    /// serves the script body for the eager preview download. Reused here so
-    /// the arrow-key tests can assert lazy-load integration (→ triggers the
-    /// Reviews fetch exactly once).
+    /// serves the lightweight `/preview` payload for the eager Details-tab
+    /// preview load (UX-6). Reused here so the arrow-key tests can assert
+    /// lazy-load integration (→ triggers the Reviews fetch exactly once).
     MockClient countingClient({
       required void Function() onReview,
       required void Function() onVersion,
@@ -90,6 +90,26 @@ void main() {
           onVersion();
           return http.Response(
             jsonEncode({'success': true, 'data': []}),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        // Lightweight preview (UX-6) — the eager Details-tab fetch.
+        if (path.contains('/preview')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': testScript.id,
+                'description': testScript.description,
+                'version': '1.0.0',
+                'price': testScript.price,
+                'language': 'typescript',
+                'preview': '// preview line 1\n// preview line 2',
+                'previewTruncated': false,
+                'totalLines': 2,
+              },
+            }),
             200,
             headers: {'Content-Type': 'application/json'},
           );
@@ -172,7 +192,8 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pumpAndSettle();
         expect(find.byType(ScriptDetailsVersionsTab), findsOneWidget);
-        expect(versionsFetches, 1, reason: '→ at Versions must clamp (no wrap)');
+        expect(versionsFetches, 1,
+            reason: '→ at Versions must clamp (no wrap)');
       } finally {
         debugDefaultTargetPlatformOverride = previous;
       }

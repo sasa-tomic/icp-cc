@@ -152,6 +152,48 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
+  /// Lightweight browse-time preview (UX-6).
+  ///
+  /// Returns a server-side CAPPED excerpt of the source plus browse-relevant
+  /// metadata instead of the full bundle, so the Script Details dialog can
+  /// render a 50-line preview without downloading the whole script. For PAID
+  /// scripts the cap is smaller and the full source is NEVER sent — call this
+  /// instead of [downloadScript] for any browse/preview purpose.
+  ///
+  /// Throws on 404 / non-2xx / malformed body (same contract as
+  /// [getScriptDetails]); the caller decides the fallback (free → full
+  /// download, paid → purchase gate).
+  Future<ScriptPreview> getScriptPreview(String scriptId) async {
+    try {
+      final response = await _httpClient
+          .get(Uri.parse('$_baseUrl/scripts/$scriptId/preview'))
+          .timeout(_timeout);
+
+      if (response.statusCode == 404) {
+        throw Exception('Script not found');
+      }
+      if (response.statusCode > 299) {
+        throw Exception(
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+
+      final responseData = jsonDecode(response.body);
+      if (!responseData['success']) {
+        throw Exception(
+            responseData['error'] ?? 'Failed to get script preview');
+      }
+
+      final data = responseData['data'];
+      if (data == null || data is! Map<String, dynamic>) {
+        throw Exception('Script preview response missing data field');
+      }
+      return ScriptPreview.fromJson(data);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Get script preview failed: $e');
+      rethrow;
+    }
+  }
+
   // Get featured scripts
   Future<List<MarketplaceScript>> getFeaturedScripts({int limit = 10}) async {
     final response = await _httpClient
@@ -1182,4 +1224,50 @@ class ScriptVersion {
 
   @override
   int get hashCode => version.hashCode;
+}
+
+/// Lightweight browse-time preview of a script (UX-6).
+///
+/// Mirrors the backend `GET /api/v1/scripts/:id/preview` payload: a CAPPED
+/// excerpt of the source plus browse-relevant metadata. Deliberately has no
+/// `bundle` field — the full source is never carried here (and for paid
+/// scripts it is never sent over the wire at all).
+class ScriptPreview {
+  final String id;
+  final String description;
+  final String version;
+  final double price;
+  final String language;
+  final String preview;
+  final bool previewTruncated;
+  final int totalLines;
+
+  const ScriptPreview({
+    required this.id,
+    required this.description,
+    required this.version,
+    required this.price,
+    required this.language,
+    required this.preview,
+    required this.previewTruncated,
+    required this.totalLines,
+  });
+
+  factory ScriptPreview.fromJson(Map<String, dynamic> json) {
+    return ScriptPreview(
+      id: json['id'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      version: json['version'] as String? ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      language: json['language'] as String? ?? 'typescript',
+      preview: json['preview'] as String? ?? '',
+      previewTruncated: json['previewTruncated'] as bool? ?? false,
+      totalLines: json['totalLines'] as int? ?? 0,
+    );
+  }
+
+  @override
+  String toString() =>
+      'ScriptPreview{id: $id, version: $version, price: $price, '
+      'lines: $totalLines, truncated: $previewTruncated}';
 }

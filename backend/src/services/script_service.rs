@@ -1,7 +1,18 @@
-use crate::models::{CreateScriptRequest, Script, UpdateScriptRequest};
+use crate::models::{CreateScriptRequest, Script, ScriptPreview, UpdateScriptRequest};
 use crate::repositories::{AccountRepository, ScriptRepository};
 use chrono::Utc;
 use sqlx::SqlitePool;
+
+/// Maximum preview lines for a FREE script. Matches the prior client-side
+/// `take(50)` so the preview UX is unchanged for free scripts (which the user
+/// can already download in full).
+pub const FREE_PREVIEW_LINES: usize = 50;
+
+/// Maximum preview lines for a PAID script — a teaser only. The preview
+/// endpoint MUST NOT ship the full source for a paid script (UX-6); 20 lines
+/// conveys style/structure without giving away the substance the user pays
+/// for. NEVER raise this to the full bundle length for paid scripts.
+pub const PAID_PREVIEW_LINES: usize = 20;
 
 pub struct ScriptService {
     repo: ScriptRepository,
@@ -137,6 +148,49 @@ impl ScriptService {
 
     pub async fn get_script(&self, script_id: &str) -> Result<Option<Script>, sqlx::Error> {
         self.repo.find_by_id(script_id).await
+    }
+
+    /// Lightweight preview (UX-6): fetches the script and returns a server-side
+    /// CAPPED excerpt of its source instead of the full bundle. Returns
+    /// `Ok(None)` when the script does not exist (the handler maps that to 404,
+    /// mirroring `get_script`). The cap is price-gated: free scripts get
+    /// [`FREE_PREVIEW_LINES`] (matching the old client `take(50)`); paid scripts
+    /// get the smaller [`PAID_PREVIEW_LINES`] and NEVER the full source.
+    pub async fn get_script_preview(
+        &self,
+        script_id: &str,
+    ) -> Result<Option<ScriptPreview>, sqlx::Error> {
+        let script = match self.repo.find_by_id(script_id).await? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+        Ok(Some(Self::build_preview(&script)))
+    }
+
+    fn build_preview(script: &Script) -> ScriptPreview {
+        let cap = if script.price > 0.0 {
+            PAID_PREVIEW_LINES
+        } else {
+            FREE_PREVIEW_LINES
+        };
+        let total_lines = script.bundle.split('\n').count();
+        let preview_truncated = total_lines > cap;
+        let preview = script
+            .bundle
+            .split('\n')
+            .take(cap)
+            .collect::<Vec<&str>>()
+            .join("\n");
+        ScriptPreview {
+            id: script.id.clone(),
+            description: script.description.clone(),
+            version: script.version.clone(),
+            price: script.price,
+            language: "typescript".to_string(),
+            preview,
+            preview_truncated,
+            total_lines,
+        }
     }
 
     pub async fn check_script_exists(&self, script_id: &str) -> Result<bool, sqlx::Error> {
@@ -572,5 +626,123 @@ mod tests {
         // Note: SQLite UPDATE on nonexistent row succeeds (affects 0 rows but doesn't error)
         let result = service.increment_downloads("nonexistent-id").await;
         assert!(result.is_ok());
+    }
+
+    // ---- UX-6 preview ----
+
+    fn line_bundle(count: usize) -> String {
+        (1..=count)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[tokio::test]
+    async fn test_get_script_preview_free_under_cap_is_untruncated() {
+        let pool = setup_test_db().await;
+        let service = ScriptService::new(pool);
+
+        let mut req = create_test_script_request();
+        req.bundle = "line one\nline two".to_string();
+        let created = service.create_script(req).await.unwrap();
+
+        let preview = service
+            .get_script_preview(&created.id)
+            .await
+            .unwrap()
+            .expect("free script must return a preview");
+
+        assert_eq!(preview.id, created.id);
+        assert_eq!(preview.description, "Test Description");
+        assert_eq!(preview.version, "1.0.0");
+        assert_eq!(preview.price, 0.0);
+        assert_eq!(preview.language, "typescript");
+        assert_eq!(preview.preview, "line one\nline two");
+        assert!(
+            !preview.preview_truncated,
+            "a 2-line bundle is under the free cap and must not be truncated"
+        );
+        assert_eq!(preview.total_lines, 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_script_preview_free_caps_at_free_preview_lines() {
+        let pool = setup_test_db().await;
+        let service = ScriptService::new(pool);
+
+        let mut req = create_test_script_request();
+        req.bundle = line_bundle(100);
+        let created = service.create_script(req).await.unwrap();
+
+        let preview = service
+            .get_script_preview(&created.id)
+            .await
+            .unwrap()
+            .expect("free script must return a preview");
+
+        assert!(
+            preview.preview_truncated,
+            "100-line bundle must be truncated"
+        );
+        assert_eq!(preview.total_lines, 100);
+        assert_eq!(
+            preview.preview.split('\n').count(),
+            FREE_PREVIEW_LINES,
+            "free preview must be exactly {} lines",
+            FREE_PREVIEW_LINES,
+        );
+        assert_eq!(preview.preview, line_bundle(FREE_PREVIEW_LINES));
+        assert!(
+            !preview.preview.contains("line 51"),
+            "lines past the free cap MUST NOT appear in the preview"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_script_preview_paid_caps_at_paid_preview_lines_and_never_leaks() {
+        let pool = setup_test_db().await;
+        let service = ScriptService::new(pool);
+
+        let mut req = create_test_script_request();
+        req.bundle = line_bundle(100);
+        req.price = Some(9.99);
+        let created = service.create_script(req).await.unwrap();
+
+        let preview = service
+            .get_script_preview(&created.id)
+            .await
+            .unwrap()
+            .expect("paid script must return a (capped) preview");
+
+        assert_eq!(preview.price, 9.99);
+        assert!(preview.preview_truncated);
+        assert_eq!(preview.total_lines, 100);
+        assert_eq!(
+            preview.preview.split('\n').count(),
+            PAID_PREVIEW_LINES,
+            "paid preview must be exactly {} lines",
+            PAID_PREVIEW_LINES,
+        );
+        assert_eq!(preview.preview, line_bundle(PAID_PREVIEW_LINES));
+        assert!(
+            !preview.preview.contains("line 21"),
+            "paid substance past the teaser cap MUST NOT leak"
+        );
+        assert!(
+            !preview.preview.contains("line 50"),
+            "even the free-cap boundary must not appear in a paid preview"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_script_preview_unknown_id_returns_none() {
+        let pool = setup_test_db().await;
+        let service = ScriptService::new(pool);
+
+        let result = service.get_script_preview("nonexistent-id").await.unwrap();
+        assert!(
+            result.is_none(),
+            "unknown id must resolve to None so the handler maps it to 404"
+        );
     }
 }

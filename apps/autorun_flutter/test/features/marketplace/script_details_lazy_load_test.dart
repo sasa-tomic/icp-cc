@@ -56,8 +56,9 @@ void main() {
     });
 
     /// Builds a counting MockClient that records every review / version
-    /// request, returns empty arrays for both, and serves the script body for
-    /// everything else (covers the preview download's `getScriptDetails`).
+    /// request, returns empty arrays for both, and serves the lightweight
+    /// `/preview` payload for the eager Details-tab preview load (UX-6: the
+    /// dialog now prefers the preview endpoint over the full bundle download).
     MockClient countingClient({
       required void Function() onReview,
       required void Function() onVersion,
@@ -82,8 +83,28 @@ void main() {
             headers: {'Content-Type': 'application/json'},
           );
         }
-        // Default: script details body (used by `_loadScriptPreview` →
-        // `downloadScript` → `getScriptDetails`).
+        // Lightweight preview (UX-6) — the eager Details-tab fetch.
+        if (path.contains('/preview')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': testScript.id,
+                'description': testScript.description,
+                'version': '1.0.0',
+                'price': testScript.price,
+                'language': 'typescript',
+                'preview': '// preview line 1\n// preview line 2',
+                'previewTruncated': false,
+                'totalLines': 2,
+              },
+            }),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        // Default: full script body (free-script fallback path or any other
+        // incidental fetch).
         return http.Response(
           jsonEncode({
             'success': true,

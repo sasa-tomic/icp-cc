@@ -312,6 +312,33 @@ async fn get_script(
     }
 }
 
+/// Lightweight browse-time preview (UX-6). Returns a CAPPED excerpt of the
+/// source plus browse-relevant metadata instead of the full bundle, so the
+/// Script Details dialog stops downloading the whole script just to show 50
+/// lines. For paid scripts the cap is smaller and the full source is NEVER
+/// sent. Public (no auth) — same reachability as `get_script` / `get_scripts`.
+#[handler]
+async fn get_script_preview(
+    Path(script_id): Path<String>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    match state.script_service.get_script_preview(&script_id).await {
+        Ok(Some(preview)) => Json(serde_json::json!({
+            "success": true,
+            "data": preview
+        }))
+        .into_response(),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "Script not found"),
+        Err(e) => {
+            tracing::error!("Failed to get script preview {}: {}", script_id, e);
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get script preview",
+            )
+        }
+    }
+}
+
 #[handler]
 async fn get_scripts_count(Data(state): Data<&Arc<AppState>>) -> Response {
     match state.script_service.get_scripts_count().await {
@@ -1631,6 +1658,7 @@ async fn main() -> Result<(), std::io::Error> {
     //   PUT    /api/v1/scripts/:id                    -> update_script
     //   DELETE /api/v1/scripts/:id                    -> delete_script
     //   POST   /api/v1/scripts/:id/publish            -> publish_script
+    //   GET    /api/v1/scripts/:id/preview            -> get_script_preview
     //   GET    /api/v1/scripts/:id/reviews            -> get_reviews
     //   POST   /api/v1/scripts/:id/reviews            -> create_review
     // Accounts
@@ -1678,6 +1706,7 @@ async fn main() -> Result<(), std::io::Error> {
             get(get_script).put(update_script).delete(delete_script),
         )
         .at("/api/v1/scripts/:id/publish", post(publish_script))
+        .at("/api/v1/scripts/:id/preview", get(get_script_preview))
         .at(
             "/api/v1/scripts/:id/reviews",
             get(get_reviews).post(create_review),
