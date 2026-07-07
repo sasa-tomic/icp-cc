@@ -41,14 +41,31 @@ Genuinely open items are listed below.
 
 | Issue | Location | Severity | Notes |
 |-------|----------|----------|-------|
-| Key label editing is blocked by a missing backend endpoint | `AccountController` | MEDIUM | No rename/label route exists server-side. |
+| **Paid-script bundle is not server-side gated** (security) | `backend/src/main.rs::get_script` | HIGH | `GET /api/v1/scripts/:id` returns the full `bundle` for paid scripts with no purchase verification — only the Dart `downloadScript` wrapper checks `price > 0`. A paid script's source is readable by anyone hitting the details endpoint directly. Surfaced while implementing UX-6 (the preview path is now safe; the full-detail path is not). Needs a human decision on the server-side paywall shape. See **Architectural Issues Requiring Review** below. |
 | Web *runtime* features are stubbed (build compiles) | `lib/rust/native_bridge_web.dart` | MEDIUM | R-1 unblocked `flutter build web` (conditional FFI split). Native-only calls throw honest `UnsupportedError`; full Web runtime is R-2..5 (see Future). |
+
+## Architectural Issues Requiring Review
+
+> Per AGENTS.md: issues needing a human decision. Do NOT work around these with
+> symptom fixes — the root cause must be addressed.
+
+- **Paid-script bundle is not server-side gated.** `GET /api/v1/scripts/:id`
+  (`backend/src/main.rs::get_script`) returns the full `bundle` for paid scripts
+  with **no purchase verification**. The paywall today exists only in the Dart
+  `downloadScript` wrapper (`price > 0` check), which is trivially bypassed by a
+  direct API call. Surfaced while implementing UX-6 (the new `/preview` path is
+  safe by construction — no `bundle` field; but the existing `/scripts/:id`
+  detail path leaks paid source). **Decision needed:** the shape of server-side
+  purchase verification (signature challenge? purchase-record table? entitlement
+  check at the handler?) and whether to gate the `bundle` field behind it while
+  keeping metadata (title/author/description/stats) public. This intersects
+  UX-5 (real ICP-token payments) — likely the same body of work.
 
 ## Next Iteration Candidates
 
 Surfaced by the final live UX reviewer + verifier for the Next-Iteration plan
 (all four waves now COMPLETE — see `docs/specs/NEXT_ITERATION_PLAN.md` §6).
-Sized **S** ≈ half-day, **M** ≈ 1–2 days. Not started.
+Sized **S** ≈ half-day, **M** ≈ 1–2 days.
 
 - **UX-12(b) — reactive Connection-panel auto-expand.** ✅ DONE — the Dapps
   Connection panel now auto-expands and surfaces a *"Canister unreachable"* hint
@@ -58,17 +75,22 @@ Sized **S** ≈ half-day, **M** ≈ 1–2 days. Not started.
   / permission-denial → leave collapsed. Closes the
   stale-canister-id-after-`dfx-clean` stumble reactively. (Dart half landed in
   `53261a10` alongside UX-10; activated by the `kind` tag in `bfc55e52`.)
-- **Revoke "Trust this dapp" UI.** `DappTrustStore.clear()` exists (`26e22056`)
-  but has no UI wiring. Add a *"Manage trust"* entry on the Dapps catalog/runner
-  so a user can revoke the broader dapp-level grant they accepted via UX-10.
-  **[S–M]**
-- **Inline "Create a profile to vote" CTA on the Dapps runner.** A keyless
-  viewer of the Poll dapp today sees the polls but cannot vote, with only an
-  indirect path to fix it. A one-tap inline button that deep-links to profile
-  creation closes the see-polls → vote gap. **[M]**
-- **Key-label editing.** The UI field is already present-but-disabled; needs a
-  backend rename/label endpoint (the `AccountController` blocker in **Known
-  Issues** above). **[M, 1–2 d]**
+- **Revoke "Trust this dapp" UI.** ✅ DONE — the Dapps runner now exposes a
+  *"Revoke trust"* affordance (`_kRevokeTrustButton`) that calls
+  `DappTrustStore.clear(descriptorId)` and flips the in-memory trust flag
+  (`dapp_runner_screen.dart`).
+- **Inline "Create a profile to vote" CTA on the Dapps runner.** ✅ DONE — a
+  keyless viewer of the Poll dapp now sees a one-tap *"Create a profile to
+  vote"* button (`_kCreateProfileToVoteLabel`) that deep-links into profile
+  creation (`dapp_runner_screen.dart`).
+- **Key-label editing.** ✅ DONE — investigation proved the keypair label is a
+  **LOCAL-only** attribute (`ProfileKeypair.label` in secure storage; the
+  backend `account_public_keys` table has no label column and never sends one).
+  The prior "needs a backend endpoint" blocker was a misdiagnosis. The UI in
+  `account_profile_screen.dart` is now editable (tap label / edit icon → rename
+  dialog), wired to the pre-existing `ProfileController.updateKeypairLabel`.
+  Frontend-only by design (YAGNI/KISS — a personal friendly name is not backend
+  data). 4 widget tests added.
 
 ## Deferred (decided, with justification)
 
@@ -88,9 +110,15 @@ Sized **S** ≈ half-day, **M** ≈ 1–2 days. Not started.
   (`448c8fab`), and UX-9 (surface-specific keyboard shortcuts, `97b42da3` +
   `f54bb58f`) are DONE in the Next-Iteration plan. Still open: **UX-5 paid-script
   purchase CTA** (deferred — no live paid marketplace listing to exercise it;
-  existing *"Payments Coming Soon"* retained), **UX-6** lightweight preview
-  endpoint (needs a backend route), **UX-8** (largely resolved by the local-only
-  account body — recommend CLOSE). See `docs/specs/NEXT_ITERATION_PLAN.md`.
+  existing *"Payments Coming Soon"* retained — real ICP-token payments are a
+  separate, larger initiative needing a human decision on the payment
+  integration), **UX-8** (largely resolved by the local-only account body —
+  recommend CLOSE). **UX-6 is ✅ DONE**: `GET /api/v1/scripts/:id/preview`
+  returns a lightweight payload (no `bundle` field by construction); free scripts
+  get a 50-line preview (~51% smaller than the full bundle), paid scripts get a
+  20-line teaser and NEVER the full source; the Details dialog no longer
+  full-downloads to render 50 lines, and never full-downloads a paid script.
+  See `docs/specs/NEXT_ITERATION_PLAN.md`.
 - **TD-7 — SQL column list** (`backend/src/models.rs::SCRIPT_COLUMNS_WITH_ACCOUNT`). Already
   guarded by the drift-detection test at `models.rs:418-424`.
 
