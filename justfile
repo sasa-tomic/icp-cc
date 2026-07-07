@@ -135,13 +135,26 @@ flutter-tests:
         source "{{tmp_dir}}/api-env.sh"
         echo "==> Using MARKETPLACE_API_PORT=$MARKETPLACE_API_PORT"
     fi
+    # Fresh per-invocation log (NOT append) — avoids stale ❌ false-positives
+    # from previous runs accumulating in an append-only log. Same pattern the
+    # ux_probe suite uses (see PASS1_LOG / PASS2_LOG). When invoked via the
+    # `test` umbrella, rust output has already streamed to stdout; this file is
+    # the Flutter-only authoritative archive.
+    : > {{logs_dir}}/test-output.log
     echo "==> Running Flutter analysis..."
     cd {{flutter_dir}} && flutter analyze 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log || true
     if grep -qE "error •" {{logs_dir}}/test-output.log; then echo "❌ Flutter analysis found errors!"; exit 1; fi
     echo "✅ No Flutter analysis errors"
     echo "==> Running Flutter tests..."
+    # Decide pass/fail by `flutter test`'s OWN exit code (PIPESTATUS[0] = the
+    # flutter process, before grep/tee) — NOT by grepping the log. The grep
+    # below is a secondary belt-and-braces check on the now-fresh log only.
+    set +e
     cd {{flutter_dir}} && flutter test --reporter=github --concurrency=$(nproc) --timeout=360s 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
-    if grep -qiE "❌ " {{logs_dir}}/test-output.log; then echo "❌ Flutter tests failed!"; exit 1; fi
+    flutter_exit=${PIPESTATUS[0]}
+    set -e
+    if [ "$flutter_exit" -ne 0 ]; then echo "❌ Flutter tests failed (exit $flutter_exit)!"; exit 1; fi
+    if grep -qiE "❌ " {{logs_dir}}/test-output.log; then echo "❌ Flutter tests reported failure markers!"; exit 1; fi
     echo "✅ All Flutter tests passed"
 
 # =============================================================================
