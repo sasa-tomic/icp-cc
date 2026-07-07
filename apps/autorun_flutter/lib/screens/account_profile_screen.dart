@@ -350,8 +350,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
             const SizedBox(height: 8),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: AppDesignSystem.warningLight.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
@@ -570,7 +569,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.edit, size: 12, color: context.colors.onPrimary),
+                      Icon(Icons.edit,
+                          size: 12, color: context.colors.onPrimary),
                       const SizedBox(width: 4),
                       Text(
                         'SIGNING KEY',
@@ -597,10 +597,28 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            keypair.label,
-            style: AppDesignSystem.bodyMedium.copyWith(
-              fontWeight: FontWeight.w600,
+          // Editable label: the label is a profile-scoped local attribute
+          // (see _editKeyLabel). Tap opens an inline rename dialog.
+          InkWell(
+            onTap: () => _editKeyLabel(keypair),
+            borderRadius: BorderRadius.circular(6),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    keypair.label,
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.edit_outlined,
+                  size: 16,
+                  color: AppDesignSystem.primaryLight,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -619,8 +637,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 Icon(
                   Icons.info_outline,
                   size: 12,
-                  color:
-                      context.colors.onSurfaceVariant.withValues(alpha: 0.6),
+                  color: context.colors.onSurfaceVariant.withValues(alpha: 0.6),
                 ),
               ],
             ),
@@ -663,8 +680,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   Icon(
                     Icons.info_outline,
                     size: 12,
-                    color: context.colors.onSurfaceVariant
-                        .withValues(alpha: 0.6),
+                    color:
+                        context.colors.onSurfaceVariant.withValues(alpha: 0.6),
                   ),
                 ],
               ),
@@ -775,6 +792,33 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       if (mounted) {
         _showErrorSnackbar('Failed to set signing key: $e');
       }
+    }
+  }
+
+  /// Open an inline dialog to rename a local keypair's label.
+  ///
+  /// The label is a profile-scoped attribute stored LOCALLY in secure storage
+  /// (the backend account_key record has no label column — see
+  /// `ProfileKeypair.label`). This is therefore a purely local operation: it
+  /// persists via [ProfileController.updateKeypairLabel] and refreshes the
+  /// screen's profile reference so the new label renders immediately.
+  Future<void> _editKeyLabel(ProfileKeypair keypair) async {
+    final newLabel = await showDialog<String>(
+      context: context,
+      builder: (context) => _EditKeyLabelDialog(currentLabel: keypair.label),
+    );
+    if (newLabel == null || !mounted) return; // user cancelled
+
+    await widget.profileController.updateKeypairLabel(
+      profileId: _profile.id,
+      keypairId: keypair.id,
+      label: newLabel,
+    );
+
+    final updated = widget.profileController.findById(_profile.id);
+    if (updated != null && mounted) {
+      setState(() => _profile = updated);
+      _showSuccessSnackbar('Label updated');
     }
   }
 
@@ -1389,7 +1433,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
   Widget _buildKeyCard(AccountPublicKey key, {required bool isActive}) {
     final isLastActive = isActive && _account.activeKeys.length == 1;
     final isSigningKey = _isSigningKey(key);
-    final hasMatchingKeypair = _findMatchingKeypair(key) != null;
+    final matchingKeypair = _findMatchingKeypair(key);
+    final hasMatchingKeypair = matchingKeypair != null;
 
     return InkWell(
       onTap: () => _showKeyDetails(key),
@@ -1522,11 +1567,28 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             ),
             const SizedBox(height: 12),
 
-            Text(
-              key.displayLabel,
-              style: AppDesignSystem.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            // Label: the authoritative label lives on the LOCAL ProfileKeypair
+            // (the backend account_key has no label column). When we own the
+            // key locally, show that label and make it editable; otherwise fall
+            // back to the backend's displayLabel (read-only).
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    matchingKeypair?.label ?? key.displayLabel,
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (matchingKeypair != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    onPressed: () => _editKeyLabel(matchingKeypair),
+                    tooltip: 'Edit label',
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
 
@@ -1782,6 +1844,76 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       builder: (context) => ImportKeysDialog(
         profileController: widget.profileController,
       ),
+    );
+  }
+}
+
+/// Inline dialog for editing a keypair's label.
+///
+/// Pre-fills the current label, disables Save while the trimmed value is empty
+/// or unchanged, and supports Enter-to-save (keyboard-first). Returns the new
+/// (trimmed) label via [Navigator.pop], or null if the user cancelled.
+class _EditKeyLabelDialog extends StatefulWidget {
+  const _EditKeyLabelDialog({required this.currentLabel});
+
+  final String currentLabel;
+
+  @override
+  State<_EditKeyLabelDialog> createState() => _EditKeyLabelDialogState();
+}
+
+class _EditKeyLabelDialogState extends State<_EditKeyLabelDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentLabel);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _canSave {
+    final trimmed = _controller.text.trim();
+    return trimmed.isNotEmpty && trimmed != widget.currentLabel.trim();
+  }
+
+  void _submit() {
+    if (!_canSave) return;
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Key Label'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+        decoration: const InputDecoration(
+          labelText: 'Label',
+          hintText: 'e.g., Laptop, Phone, Cold backup',
+          border: OutlineInputBorder(),
+        ),
+        onChanged: (_) => setState(() {}),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _canSave ? _submit : null,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
