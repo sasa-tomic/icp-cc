@@ -35,10 +35,10 @@
 // and the vote→tally loop could only be proven by pumping ScriptAppHost
 // directly. `DappsScreen` now mirrors `DappRunnerScreen.testBridge`:
 //   - `DappsScreen.testBridge` constructor param (mirrors the runner's seam);
-//   - `DappsScreen.testBridgeOverride` — a `@visibleForTesting` process-wide
-//     override so a test that boots via `app.main()` (which constructs
-//     `DappsScreen()` with no args) can still inject a canned bridge into the
-//     catalog→runner push. Both null-defaulted → zero prod behavior change.
+//   - a process-wide override via the get_it service locator
+//     (`registerTestScriptBridge`) so a test that boots via `app.main()` (which
+//     constructs `DappsScreen()` with no args) can still inject a canned bridge
+//     into the catalog→runner push. Both null-defaulted → zero prod behavior.
 // The single merged test below sets the override before `app.main()`, then
 // drives the WHOLE flow through the real app boot + real catalog → real runner
 // → real host → real bundle → real trust gate → real vote (real Ed25519) → real
@@ -76,9 +76,9 @@ import 'package:icp_autorun/config/example_dapps.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
-import 'package:icp_autorun/screens/dapps_screen.dart';
 import 'package:icp_autorun/screens/dapp_runner_screen.dart';
 import 'package:icp_autorun/services/script_runner.dart';
+import 'package:icp_autorun/services/service_locator.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 
 import 'r3_helpers.dart';
@@ -123,10 +123,10 @@ void main() {
     // the real signing principal — NO crypto is mocked). ---
     final bridge = _PollCannedBridge(voterPrincipal: '');
 
-    // --- Inject through the DappsScreen seam so the catalog→runner push uses
+    // --- Inject through the service locator so the catalog→runner push uses
     // the canned bridge while still exercising the real app boot + wizard +
-    // bottom-nav. Null-defaulted in prod → zero behavior change. ---
-    DappsScreen.testBridgeOverride = bridge;
+    // bottom-nav. Null-defaulted in prod → zero behavior change.
+    registerTestScriptBridge(bridge);
 
     try {
       await launchAppR3(tester);
@@ -166,10 +166,10 @@ void main() {
         }
       }
       expect(trustDialogShown, isTrue,
-          reason: 'UX-10: the first canister effect must surface the per-dapp '
-              '"Trust this dapp?" dialog. If this fails the runner/host/bundle '
-              'boot is broken — check FFI load (LD_LIBRARY_PATH), the bundle '
-              'asset path, and the DappsScreen.testBridgeOverride seam.');
+              reason: 'UX-10: the first canister effect must surface the per-dapp '
+                  '"Trust this dapp?" dialog. If this fails the runner/host/bundle '
+                  'boot is broken — check FFI load (LD_LIBRARY_PATH), the bundle '
+                  'asset path, and the service-locator ScriptBridge override.');
       // The trust gate REPLACES the strict per-method dialog — it must not
       // appear.
       expect(presentR3(find.text('Allow canister call?'), tester), isFalse);
@@ -319,7 +319,7 @@ void main() {
       // fresh host. Not duplicated here.)
     } finally {
       // NEVER leak the process-wide override into other tests.
-      DappsScreen.testBridgeOverride = null;
+      await resetServiceLocator();
     }
   });
 }

@@ -12,6 +12,7 @@ import 'script_details_versions_tab.dart';
 class ScriptDetailsDialog extends StatefulWidget {
   final MarketplaceScript script;
   final VoidCallback? onDownload;
+  final VoidCallback? onBuy;
   final bool isDownloading;
   final bool isDownloaded;
   final String? installedVersion;
@@ -22,6 +23,7 @@ class ScriptDetailsDialog extends StatefulWidget {
     super.key,
     required this.script,
     this.onDownload,
+    this.onBuy,
     this.isDownloading = false,
     this.isDownloaded = false,
     this.installedVersion,
@@ -173,8 +175,9 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
       //  - PAID → NEVER full-download for preview (UX-6's whole point). Show
       //    the description (already rendered above from `widget.script`) plus
       //    the purchase-gate message in the preview pane.
-      if (!suppressDebugOutput)
+      if (!suppressDebugOutput) {
         debugPrint('Preview endpoint unavailable: $error');
+      }
       if (widget.script.price <= 0) {
         await _loadScriptPreviewViaFullDownload();
       } else {
@@ -606,52 +609,10 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                // Download button
-                if (widget.onDownload != null) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed:
-                          widget.isDownloading ? null : widget.onDownload,
-                      icon: widget.isDownloading
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              widget.isDownloaded
-                                  ? Icons.check_circle
-                                  : Icons.download,
-                              size: 20,
-                            ),
-                      label: Text(
-                        widget.isDownloading
-                            ? 'Downloading...'
-                            : widget.isDownloaded
-                                ? 'Downloaded ✓'
-                                : widget.script.price > 0
-                                    ? 'Purchase \$${widget.script.price.toStringAsFixed(2)}'
-                                    : 'Download FREE',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: widget.isDownloaded
-                            ? AppDesignSystem.successColor
-                            // Purchase CTA tied to `price > 0` (a commerce tier,
-                            // paired with the free-download primary) — not a
-                            // warning, so intentionally off-token.
-                            : widget.script.price > 0
-                                ? Colors.orange
-                                : Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                  ),
+                // Primary action: Buy CTA for paid + not-purchased scripts,
+                // Download for free or already-purchased scripts.
+                if (_buildPrimaryAction() case final action?) ...[
+                  action,
                   const SizedBox(height: 16),
                 ],
 
@@ -740,49 +701,9 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Download button at the top on mobile
-          if (widget.onDownload != null) ...[
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: widget.isDownloading ? null : widget.onDownload,
-                icon: widget.isDownloading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Icon(
-                        widget.isDownloaded
-                            ? Icons.check_circle
-                            : Icons.download,
-                        size: 20,
-                      ),
-                label: Text(
-                  widget.isDownloading
-                      ? 'Downloading...'
-                      : widget.isDownloaded
-                          ? 'Downloaded ✓'
-                          : widget.script.price > 0
-                              ? 'Purchase \$${widget.script.price.toStringAsFixed(2)}'
-                              : 'Download FREE',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: widget.isDownloaded
-                      ? AppDesignSystem.successColor
-                      // Purchase CTA (commerce tier) — not a warning; off-token.
-                      : widget.script.price > 0
-                          ? Colors.orange
-                          : Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
+          // Primary action at the top on mobile
+          if (_buildPrimaryAction() case final action?) ...[
+            action,
             const SizedBox(height: 20),
           ],
 
@@ -1014,6 +935,81 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     );
   }
 
+  /// The primary action button for the dialog:
+  /// - Paid + not purchased + [onBuy] provided → **Buy for $X** CTA.
+  /// - Free OR purchased + [onDownload] provided → Download button.
+  /// - Otherwise → null (no primary action; e.g. paid with no callbacks).
+  ///
+  /// Extracted so the wide + narrow layouts render the SAME button (DRY) and
+  /// the paid-vs-free branch lives in one place.
+  Widget? _buildPrimaryAction() {
+    final isPaid = widget.script.price > 0;
+    final owned = widget.script.isDownloadable;
+
+    // Buy CTA for paid scripts the user hasn't purchased yet.
+    if (isPaid && !owned && widget.onBuy != null) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: widget.isDownloading ? null : widget.onBuy,
+          icon: const Icon(Icons.shopping_cart_outlined, size: 20),
+          label: Text(
+            'Buy for \$${widget.script.price.toStringAsFixed(2)}',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          style: FilledButton.styleFrom(
+            // Commerce CTA — intentionally off-token (not a warning).
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+      );
+    }
+
+    // Download for free or already-purchased scripts.
+    if (widget.onDownload != null) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: widget.isDownloading ? null : widget.onDownload,
+          icon: widget.isDownloading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(
+                  widget.isDownloaded ? Icons.check_circle : Icons.download,
+                  size: 20,
+                ),
+          label: Text(
+            widget.isDownloading
+                ? 'Downloading...'
+                : widget.isDownloaded
+                    ? 'Downloaded ✓'
+                    : isPaid
+                        ? 'Download'
+                        : 'Download FREE',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: widget.isDownloaded
+                ? AppDesignSystem.successColor
+                : Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+      );
+    }
+
+    return null;
+  }
+
   Widget _buildPreviewGatedMessage() {
     // UX-6: shown only when the lightweight preview is unavailable AND the
     // script is paid. The description above is already rendered from
@@ -1055,13 +1051,48 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   /// doesn't" pane — mirrors how the normal preview path wraps its content in
   /// a `SingleChildScrollView`, so the gate degrades gracefully on small
   /// surfaces (e.g. the 800×600 widget-test surface) instead of overflowing.
+  ///
+  /// When [widget.onBuy] is provided, the Buy CTA is rendered below the gate
+  /// message so the user can purchase directly from the preview pane without
+  /// scrolling to the primary action.
   Widget _buildPreviewGatedPane() {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(child: _buildPreviewGatedMessage()),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildPreviewGatedMessage(),
+                  if (widget.onBuy != null) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: widget.isDownloading ? null : widget.onBuy,
+                          icon: const Icon(Icons.shopping_cart_outlined,
+                              size: 20),
+                          label: Text(
+                            'Buy for \$${widget.script.price.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         );
       },

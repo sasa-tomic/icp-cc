@@ -14,6 +14,7 @@ import 'services/marketplace_open_api_service.dart';
 import 'services/onboarding_service.dart';
 import 'services/script_repository.dart';
 import 'services/secure_storage_readiness.dart';
+import 'services/service_locator.dart';
 import 'services/settings_service.dart';
 import 'services/spotlight_service.dart';
 import 'theme/app_design_system.dart';
@@ -32,6 +33,7 @@ import 'widgets/script_details_dialog.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  setupServiceLocator();
   await ScriptTemplates.ensureInitialized();
   AppConfig.debugPrintConfig();
   runApp(const KeypairApp());
@@ -106,8 +108,11 @@ class _KeypairAppState extends State<KeypairApp> {
     );
 
     try {
-      final script =
-          await MarketplaceOpenApiService().getScriptDetails(scriptId);
+      // Pass the active account id so the entitlement view returns
+      // `purchased` + (for paid scripts) a null bundle when not yet purchased.
+      final accountId = _activeAccountIdForDeepLink();
+      final script = await MarketplaceOpenApiService()
+          .getScriptDetails(scriptId, accountId: accountId);
 
       if (!mounted) return;
       // ignore: use_build_context_synchronously
@@ -116,6 +121,7 @@ class _KeypairAppState extends State<KeypairApp> {
       // ignore: use_build_context_synchronously
       Navigator.of(navContext).pop();
 
+      final owned = script.isDownloadable;
       // ignore: use_build_context_synchronously
       await showDialog<void>(
         // ignore: use_build_context_synchronously
@@ -124,6 +130,11 @@ class _KeypairAppState extends State<KeypairApp> {
           script: script,
           onDownload: script.price == 0
               ? () => _downloadScriptFromDeepLink(navContext, script)
+              : (owned
+                  ? () => _downloadScriptFromDeepLink(navContext, script)
+                  : null),
+          onBuy: (script.price > 0 && !owned)
+              ? () => _showPurchaseUnavailableFromDeepLink(navContext, script)
               : null,
         ),
       );
@@ -144,6 +155,33 @@ class _KeypairAppState extends State<KeypairApp> {
         ),
       );
     }
+  }
+
+  /// Best-effort active account id for the deep-link entitlement view. The
+  /// deep-link handler runs before the user has necessarily interacted with
+  /// the Scripts screen, so we resolve the active profile's account here. The
+  /// full buy flow lives in ScriptsScreen (with ProfileScope + AccountController);
+  /// the deep-link path only needs the id to render the right CTA.
+  String? _activeAccountIdForDeepLink() {
+    final profile = _profileController.activeProfile;
+    if (profile == null || profile.username == null) return null;
+    // Account.id requires a backend fetch (cached by AccountController). The
+    // deep-link path intentionally does NOT block on that fetch here — if the
+    // account isn't cached, account_id is null and the server returns the
+    // locked view (paid scripts show Buy), which is the safe default.
+    final cached = _accountController.getAccount(profile.username!);
+    return cached?.id;
+  }
+
+  Future<void> _showPurchaseUnavailableFromDeepLink(
+      BuildContext context, dynamic script) async {
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Open the Scripts tab to purchase this paid script.'),
+        duration: Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<void> _downloadScriptFromDeepLink(

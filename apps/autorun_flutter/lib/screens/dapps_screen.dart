@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../config/example_dapps.dart';
 import '../services/script_runner.dart';
+import '../services/service_locator.dart';
 import '../theme/app_design_system.dart';
 import 'dapp_runner_screen.dart';
 
@@ -23,21 +24,13 @@ class DappsScreen extends StatelessWidget {
   @visibleForTesting
   final ScriptBridge? testBridge;
 
-  /// Process-wide test override used when the app is launched via `app.main()`
-  /// (which constructs `DappsScreen()` with no args). Integration tests set this
-  /// BEFORE launch so the catalog→runner push uses a canned bridge while still
-  /// exercising the real app boot, first-run wizard, and bottom-nav navigation.
-  /// [build] folds it into the per-card [testBridge]. Null in production →
-  /// zero behavior change. Cleared by the test in tearDown.
-  @visibleForTesting
-  static ScriptBridge? testBridgeOverride;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Constructor param wins (unit-test injection); else the process-wide
-    // override (integration-test boot via app.main). Both null in prod.
-    final ScriptBridge? bridge = testBridge ?? testBridgeOverride;
+    // Constructor param wins (direct unit-test injection); else the process-wide
+    // service-locator override (integration-test boot via app.main). Both null
+    // in production → the runner builds its own real FFI bridge.
+    final ScriptBridge? bridge = testBridge ?? scriptBridgeOverride;
     return Scaffold(
       appBar: AppBar(
         title: const Column(
@@ -112,7 +105,7 @@ class _DappCard extends StatelessWidget {
   const _DappCard({required this.descriptor, this.testBridge});
   final DappDescriptor descriptor;
   // Forwarded to DappRunnerScreen so the catalog→runner push honors the
-  // DappsScreen test seam (see DappsScreen.testBridge / .testBridgeOverride).
+  // DappsScreen test seam (constructor param or service-locator override).
   final ScriptBridge? testBridge;
 
   void _open(BuildContext context) {
