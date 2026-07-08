@@ -37,6 +37,44 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// Pumps the dialog and opens it, returning a [KeyParametersResult] whose
+    /// [value] is populated when the dialog is later dismissed (Cancel /
+    /// Generate). Each behavioural test stays focused on the inputs it drives
+    /// + the result it asserts — not the 20-line MaterialApp→Builder→showDialog
+    /// pump host that every result-returning case used to rebuild by hand.
+    Future<KeyParametersResult> pumpDialogReturning(
+      WidgetTester tester, {
+      String title = 'Test Dialog',
+    }) async {
+      final result = KeyParametersResult();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (BuildContext context) {
+              return Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      result.value = await showDialog<KeyParameters>(
+                        context: context,
+                        builder: (_) =>
+                            KeyParametersDialog(title: title),
+                      );
+                    },
+                    child: const Text('Open'),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      return result;
+    }
+
     testWidgets('displays dialog with title', (WidgetTester tester) async {
       await pumpDialog(tester, title: 'Create New Keypair');
 
@@ -118,115 +156,31 @@ void main() {
 
     testWidgets('returns null when Cancel is pressed',
         (WidgetTester tester) async {
-      KeyParameters? result;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              return Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      result = await showDialog<KeyParameters>(
-                        context: context,
-                        builder: (_) => const KeyParametersDialog(
-                          title: 'Test',
-                        ),
-                      );
-                    },
-                    child: const Text('Open'),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      final result = await pumpDialogReturning(tester);
 
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
-      expect(result, isNull);
+      expect(result.value, isNull);
     });
 
     testWidgets(
         'returns parameters with ed25519 and no seed when Generate is pressed',
         (WidgetTester tester) async {
-      KeyParameters? result;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              return Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      result = await showDialog<KeyParameters>(
-                        context: context,
-                        builder: (_) => const KeyParametersDialog(
-                          title: 'Test',
-                        ),
-                      );
-                    },
-                    child: const Text('Open'),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      final result = await pumpDialogReturning(tester);
 
       await tester.tap(find.text('Generate'));
       await tester.pumpAndSettle();
 
-      expect(result, isNotNull);
-      expect(result?.algorithm, KeyAlgorithm.ed25519);
-      expect(result?.seed, isNull);
-      expect(result?.label, isNull);
+      expect(result.value, isNotNull);
+      expect(result.value!.algorithm, KeyAlgorithm.ed25519);
+      expect(result.value!.seed, isNull);
+      expect(result.value!.label, isNull);
     });
 
     testWidgets('returns parameters with secp256k1 when selected',
         (WidgetTester tester) async {
-      KeyParameters? result;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              return Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      result = await showDialog<KeyParameters>(
-                        context: context,
-                        builder: (_) => const KeyParametersDialog(
-                          title: 'Test',
-                        ),
-                      );
-                    },
-                    child: const Text('Open'),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      final result = await pumpDialogReturning(tester);
 
       // Select secp256k1
       await tester.tap(find.text('Secp256k1'));
@@ -235,41 +189,13 @@ void main() {
       await tester.tap(find.text('Generate'));
       await tester.pumpAndSettle();
 
-      expect(result, isNotNull);
-      expect(result!.algorithm, KeyAlgorithm.secp256k1);
+      expect(result.value, isNotNull);
+      expect(result.value!.algorithm, KeyAlgorithm.secp256k1);
     });
 
     testWidgets('returns parameters with custom seed when provided',
         (WidgetTester tester) async {
-      KeyParameters? result;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              return Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      result = await showDialog<KeyParameters>(
-                        context: context,
-                        builder: (_) => const KeyParametersDialog(
-                          title: 'Test',
-                        ),
-                      );
-                    },
-                    child: const Text('Open'),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      final result = await pumpDialogReturning(tester);
 
       // Enable seed input
       await tester.tap(find.byType(Checkbox));
@@ -285,41 +211,13 @@ void main() {
       await tester.tap(find.text('Generate'));
       await tester.pumpAndSettle();
 
-      expect(result, isNotNull);
-      expect(result!.seed, 'test seed phrase');
+      expect(result.value, isNotNull);
+      expect(result.value!.seed, 'test seed phrase');
     });
 
     testWidgets('returns parameters with label when provided',
         (WidgetTester tester) async {
-      KeyParameters? result;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              return Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      result = await showDialog<KeyParameters>(
-                        context: context,
-                        builder: (_) => const KeyParametersDialog(
-                          title: 'Test',
-                        ),
-                      );
-                    },
-                    child: const Text('Open'),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      final result = await pumpDialogReturning(tester);
 
       // Enter label
       await tester.enterText(
@@ -331,41 +229,13 @@ void main() {
       await tester.tap(find.text('Generate'));
       await tester.pumpAndSettle();
 
-      expect(result, isNotNull);
-      expect(result!.label, 'My Test Key');
+      expect(result.value, isNotNull);
+      expect(result.value!.label, 'My Test Key');
     });
 
     testWidgets('trims whitespace from seed and label',
         (WidgetTester tester) async {
-      KeyParameters? result;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              return Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      result = await showDialog<KeyParameters>(
-                        context: context,
-                        builder: (_) => const KeyParametersDialog(
-                          title: 'Test',
-                        ),
-                      );
-                    },
-                    child: const Text('Open'),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      final result = await pumpDialogReturning(tester);
 
       // Enable seed input
       await tester.tap(find.byType(Checkbox));
@@ -387,42 +257,14 @@ void main() {
       await tester.tap(find.text('Generate'));
       await tester.pumpAndSettle();
 
-      expect(result, isNotNull);
-      expect(result?.seed, 'test seed');
-      expect(result?.label, 'My Key');
+      expect(result.value, isNotNull);
+      expect(result.value!.seed, 'test seed');
+      expect(result.value!.label, 'My Key');
     });
 
     testWidgets('returns null for empty seed and label',
         (WidgetTester tester) async {
-      KeyParameters? result;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (BuildContext context) {
-              return Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      result = await showDialog<KeyParameters>(
-                        context: context,
-                        builder: (_) => const KeyParametersDialog(
-                          title: 'Test',
-                        ),
-                      );
-                    },
-                    child: const Text('Open'),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
+      final result = await pumpDialogReturning(tester);
 
       // Enable seed input
       await tester.tap(find.byType(Checkbox));
@@ -443,9 +285,17 @@ void main() {
       await tester.tap(find.text('Generate'));
       await tester.pumpAndSettle();
 
-      expect(result, isNotNull);
-      expect(result!.seed, isNull);
-      expect(result!.label, isNull);
+      expect(result.value, isNotNull);
+      expect(result.value!.seed, isNull);
+      expect(result.value!.label, isNull);
     });
   });
+}
+
+/// Mutable holder so [pumpDialogReturning] can surface the dialog's eventual
+/// [KeyParameters] result to a test AFTER the test drives the dismiss tap —
+/// the closure captures this holder by reference and writes `.value` when the
+/// dialog resolves; the test reads `.value` once its tap + settle completes.
+class KeyParametersResult {
+  KeyParameters? value;
 }

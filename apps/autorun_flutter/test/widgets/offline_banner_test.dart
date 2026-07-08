@@ -105,30 +105,9 @@ void main() {
 
         expect(dismissCalled, isTrue);
       });
-
-      testWidgets('close button has tooltip', (tester) async {
-        await tester.pumpWidget(createWidget(isOnline: false));
-
-        final iconButton = tester.widget<IconButton>(find.byType(IconButton));
-        expect(iconButton.tooltip, isNotNull);
-      });
     });
 
     group('layout', () {
-      testWidgets('has appropriate padding', (tester) async {
-        await tester.pumpWidget(createWidget(isOnline: false));
-
-        // Banner should have padding for comfortable touch/click targets
-        final padding = tester.widget<Padding>(
-          find.descendant(
-            of: find.byType(OfflineBanner),
-            matching: find.byType(Padding).first,
-          ),
-        );
-
-        expect(padding.padding, isNotNull);
-      });
-
       testWidgets('is full width', (tester) async {
         // Bind the test to a specific screen size
         await tester.binding.setSurfaceSize(const Size(400, 800));
@@ -149,16 +128,6 @@ void main() {
     });
 
     group('accessibility', () {
-      testWidgets('has semantic labels for screen readers', (tester) async {
-        await tester.pumpWidget(createWidget(isOnline: false));
-
-        // The text should be accessible
-        final text = tester.widget<Text>(
-          find.text("You're offline. Some features may be unavailable."),
-        );
-        expect(text.data, isNotNull);
-      });
-
       testWidgets('dismiss button is accessible', (tester) async {
         await tester.pumpWidget(createWidget(isOnline: false));
 

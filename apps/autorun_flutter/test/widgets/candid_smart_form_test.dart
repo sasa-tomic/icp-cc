@@ -2,67 +2,69 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/widgets/candid_smart_form.dart';
 
+/// Pumps [CandidSmartForm] in the shared `MaterialApp` → `Scaffold` host that
+/// every test in this file used to rebuild by hand (~10 lines each). Returns
+/// the form's state key so tests can read `getJson()` / `hasErrors`.
+///
+/// Pass [scrollable] for record / multi-arg forms whose fields overflow the
+/// default 800×600 test surface (they need a `SingleChildScrollView` + `Material`
+/// ancestor, mirroring how the prod screen embeds the form).
+Future<GlobalKey<CandidSmartFormState>> pumpForm(
+  WidgetTester tester, {
+  required List<String> argTypes,
+  required ValueChanged<String> onJsonChanged,
+  bool scrollable = false,
+}) async {
+  final formKey = GlobalKey<CandidSmartFormState>();
+  final form = CandidSmartForm(
+    key: formKey,
+    argTypes: argTypes,
+    onJsonChanged: onJsonChanged,
+  );
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: scrollable
+            ? SingleChildScrollView(child: Material(child: form))
+            : form,
+      ),
+    ),
+  );
+  return formKey;
+}
+
 void main() {
   group('CandidSmartForm', () {
     group('scalar types', () {
       testWidgets('renders TextField for text type', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['text'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['text'], onJsonChanged: (_) {});
 
         expect(find.byType(TextField), findsOneWidget);
         expect(find.text('text'), findsOneWidget);
       });
 
       testWidgets('renders number input for nat type', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['nat'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['nat'], onJsonChanged: (_) {});
 
         final textField = tester.widget<TextField>(find.byType(TextField));
         expect(textField.keyboardType, TextInputType.number);
       });
 
       testWidgets('renders Switch for bool type', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['bool'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['bool'], onJsonChanged: (_) {});
 
         expect(find.byType(Switch), findsOneWidget);
       });
 
       testWidgets('renders DropdownButton for variant type', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['variant { active; inactive; pending }'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const ['variant { active; inactive; pending }'],
+          onJsonChanged: (_) {},
+        );
 
         expect(find.byType(DropdownButton<String>), findsOneWidget);
       });
@@ -70,20 +72,12 @@ void main() {
 
     group('record types', () {
       testWidgets('renders nested fields for simple record', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: Material(
-                child: CandidSmartForm(
-                  key: formKey,
-                  argTypes: const ['record { name : text; age : nat }'],
-                  onJsonChanged: (_) {},
-                ),
-              ),
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const ['record { name : text; age : nat }'],
+          onJsonChanged: (_) {},
+          scrollable: true,
+        );
 
         expect(find.text('name'), findsOneWidget);
         expect(find.text('age'), findsOneWidget);
@@ -91,20 +85,12 @@ void main() {
       });
 
       testWidgets('renders bool Switch inside record', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: Material(
-                child: CandidSmartForm(
-                  key: formKey,
-                  argTypes: const ['record { name : text; active : bool }'],
-                  onJsonChanged: (_) {},
-                ),
-              ),
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const ['record { name : text; active : bool }'],
+          onJsonChanged: (_) {},
+          scrollable: true,
+        );
 
         expect(find.byType(Switch), findsOneWidget);
         expect(find.text('active'), findsOneWidget);
@@ -113,16 +99,8 @@ void main() {
 
     group('vec types', () {
       testWidgets('renders JSON editor for vec text', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['vec text'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['vec text'], onJsonChanged: (_) {});
 
         expect(find.byType(TextField), findsOneWidget);
         final hint = tester
@@ -135,16 +113,8 @@ void main() {
 
     group('opt types', () {
       testWidgets('renders nullable field for opt type', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['opt text'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['opt text'], onJsonChanged: (_) {});
 
         expect(find.text('optional'), findsOneWidget);
       });
@@ -153,16 +123,8 @@ void main() {
     group('JSON output', () {
       testWidgets('outputs correct JSON for text input', (tester) async {
         String? output;
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['text'],
-              onJsonChanged: (json) => output = json,
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['text'], onJsonChanged: (json) => output = json);
 
         await tester.enterText(find.byType(TextField), 'hello');
         await tester.pump();
@@ -172,16 +134,8 @@ void main() {
 
       testWidgets('outputs correct JSON for bool Switch', (tester) async {
         String? output;
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['bool'],
-              onJsonChanged: (json) => output = json,
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['bool'], onJsonChanged: (json) => output = json);
 
         await tester.tap(find.byType(Switch));
         await tester.pump();
@@ -191,16 +145,8 @@ void main() {
 
       testWidgets('outputs correct JSON for number input', (tester) async {
         String? output;
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['nat64'],
-              onJsonChanged: (json) => output = json,
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['nat64'], onJsonChanged: (json) => output = json);
 
         await tester.enterText(find.byType(TextField), '42');
         await tester.pump();
@@ -210,16 +156,11 @@ void main() {
 
       testWidgets('outputs correct JSON for variant selection', (tester) async {
         String? output;
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['variant { active; inactive }'],
-              onJsonChanged: (json) => output = json,
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const ['variant { active; inactive }'],
+          onJsonChanged: (json) => output = json,
+        );
 
         await tester.tap(find.byType(DropdownButton<String>));
         await tester.pumpAndSettle();
@@ -232,22 +173,14 @@ void main() {
       testWidgets('outputs correct JSON for record with multiple fields',
           (tester) async {
         String? output;
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: Material(
-                child: CandidSmartForm(
-                  key: formKey,
-                  argTypes: const [
-                    'record { name : text; age : nat64; active : bool }'
-                  ],
-                  onJsonChanged: (json) => output = json,
-                ),
-              ),
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const [
+            'record { name : text; age : nat64; active : bool }'
+          ],
+          onJsonChanged: (json) => output = json,
+          scrollable: true,
+        );
 
         final textFields = find.byType(TextField);
         await tester.enterText(textFields.at(0), 'Alice');
@@ -265,20 +198,12 @@ void main() {
 
     group('multiple args', () {
       testWidgets('renders array of fields for multiple args', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: Material(
-                child: CandidSmartForm(
-                  key: formKey,
-                  argTypes: const ['text', 'nat64', 'bool'],
-                  onJsonChanged: (_) {},
-                ),
-              ),
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const ['text', 'nat64', 'bool'],
+          onJsonChanged: (_) {},
+          scrollable: true,
+        );
 
         expect(find.byType(TextField), findsNWidgets(2));
         expect(find.byType(Switch), findsOneWidget);
@@ -286,20 +211,12 @@ void main() {
 
       testWidgets('outputs array JSON for multiple args', (tester) async {
         String? output;
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: Material(
-                child: CandidSmartForm(
-                  key: formKey,
-                  argTypes: const ['text', 'nat64'],
-                  onJsonChanged: (json) => output = json,
-                ),
-              ),
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const ['text', 'nat64'],
+          onJsonChanged: (json) => output = json,
+          scrollable: true,
+        );
 
         final textFields = find.byType(TextField);
         await tester.enterText(textFields.at(0), 'test');
@@ -313,16 +230,11 @@ void main() {
 
     group('unsupported types', () {
       testWidgets('falls back to JSON editor for func type', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['func (text) -> (text)'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(
+          tester,
+          argTypes: const ['func (text) -> (text)'],
+          onJsonChanged: (_) {},
+        );
 
         expect(find.byType(TextField), findsOneWidget);
         final hint = tester
@@ -335,16 +247,8 @@ void main() {
 
     group('validation', () {
       testWidgets('accepts valid number input', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['nat64'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        final formKey = await pumpForm(tester,
+            argTypes: const ['nat64'], onJsonChanged: (_) {});
 
         await tester.enterText(find.byType(TextField), '42');
         await tester.pump();
@@ -353,16 +257,8 @@ void main() {
       });
 
       testWidgets('number input has input filter', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const ['nat64'],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        await pumpForm(tester,
+            argTypes: const ['nat64'], onJsonChanged: (_) {});
 
         final textField = tester.widget<TextField>(find.byType(TextField));
         expect(textField.inputFormatters, isNotEmpty);
@@ -371,16 +267,8 @@ void main() {
 
     group('getJson', () {
       testWidgets('returns empty string for no args', (tester) async {
-        final formKey = GlobalKey<CandidSmartFormState>();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: CandidSmartForm(
-              key: formKey,
-              argTypes: const [],
-              onJsonChanged: (_) {},
-            ),
-          ),
-        ));
+        final formKey = await pumpForm(tester,
+            argTypes: const [], onJsonChanged: (_) {});
 
         expect(formKey.currentState?.getJson(), '');
       });
