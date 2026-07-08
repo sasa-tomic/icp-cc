@@ -732,4 +732,9 @@ class AppDurations {
   static const Duration shimmer = Duration(milliseconds: 1500);
 
   static const Duration ioOperation = Duration(seconds: 5);
+
+  /// Bounded wait for an outbound network request (candid registry, API
+  /// calls). Single source — every network `.timeout(...)` should name this,
+  /// never re-inline the seconds.
+  static const Duration networkRequest = Duration(seconds: 30);
 }

@@ -61,6 +61,11 @@ class AppConfig {
     return 'Cloudflare Workers';
   }
 
+  /// Single source for the `User-Agent` header sent on outbound HTTP calls
+  /// (candid registry, marketplace API, …). TD-6 sweeps every inline literal
+  /// to this name.
+  static const String userAgent = 'ICP-Autorun-Flutter/1.0';
+
   // Debug method to print current configuration
   static void debugPrintConfig() {
     if (kDebugMode) {

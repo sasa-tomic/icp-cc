@@ -108,6 +108,15 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                : CanisterMethod(name: '', mode: 0, args: []),
         );
       }
+    } on CandidFetchException catch (e) {
+      setState(() {
+        _isLoadingCandid = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
     } catch (e) {
       setState(() {
         _isLoadingCandid = false;
