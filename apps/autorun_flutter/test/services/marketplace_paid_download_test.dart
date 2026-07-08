@@ -243,7 +243,9 @@ void main() {
   });
 
   group('getIcpayConfig', () {
-    test('parses camelCase config on 200', () async {
+    test('parses camelCase config on 200 (echoes the backend shortcode, no '
+        'client-side fallback literal)', () async {
+      const sentShortcode = 'icpay_token_test_42';
       final client = MockClient((request) async {
         expect(request.url.toString(),
             'https://mock.api/api/v1/payments/icpay/config');
@@ -251,7 +253,7 @@ void main() {
           'success': true,
           'data': {
             'publishableKey': 'pk_test_abc',
-            'shortcode': 'ic_icp',
+            'shortcode': sentShortcode,
             'apiUrl': 'https://api.icpay.org',
           },
         }));
@@ -261,8 +263,31 @@ void main() {
 
       final config = await service.getIcpayConfig();
       expect(config.publishableKey, 'pk_test_abc');
-      expect(config.shortcode, 'ic_icp');
+      // Asserts equality to the RETURNED config value — not a bare 'ic_icp'
+      // literal, so a re-introduced client-side fallback would fail here.
+      expect(config.shortcode, sentShortcode);
       expect(config.apiUrl, 'https://api.icpay.org');
+    });
+
+    test('fails loudly when the 200 config omits shortcode (no fallback)',
+        () async {
+      final client = MockClient((request) async {
+        return ok(jsonEncode({
+          'success': true,
+          'data': {
+            'publishableKey': 'pk_test_abc',
+            // shortcode intentionally missing — must NOT default to 'ic_icp'.
+            'apiUrl': 'https://api.icpay.org',
+          },
+        }));
+      });
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      await expectLater(
+        service.getIcpayConfig(),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('throws PaymentsNotConfiguredException on 503 (LOUD)', () async {

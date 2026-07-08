@@ -23,6 +23,7 @@ void main() {
 
     test('delegates to api.getIcpayConfig and caches across calls', () async {
       var fetchCount = 0;
+      const sentShortcode = 'test_shortcode_fixture';
       final api = MarketplaceOpenApiService();
       api.overrideHttpClient(MockClient((_) async {
         fetchCount++;
@@ -31,7 +32,7 @@ void main() {
             'success': true,
             'data': {
               'publishableKey': 'pk_test_cached',
-              'shortcode': 'ic_icp',
+              'shortcode': sentShortcode,
               'apiUrl': 'https://api.icpay.org',
             },
           }),
@@ -48,6 +49,8 @@ void main() {
           reason: 'cached config must be the same instance');
       expect(fetchCount, 1, reason: 'second loadConfig must hit the cache');
       expect(c1.publishableKey, 'pk_test_cached');
+      // Echoes the backend-supplied shortcode (no client-side 'ic_icp' literal).
+      expect(c1.shortcode, sentShortcode);
 
       // resetConfigCache forces a re-fetch.
       service.resetConfigCache();
@@ -74,9 +77,13 @@ void main() {
   });
 
   group('IcpayService.createPaymentIntent', () {
+    // A clearly-test-fixture shortcode — proves the config's shortcode is
+    // passed through verbatim (config.shortcode -> request tokenShortcode),
+    // not a bare 'ic_icp' literal.
+    const shortcode = 'test_shortcode_fixture';
     final config = const IcpayClientConfig(
       publishableKey: 'pk_test_abc',
-      shortcode: 'ic_icp',
+      shortcode: shortcode,
       apiUrl: 'https://api.icpay.org',
     );
 
@@ -111,7 +118,7 @@ void main() {
       expect(capturedHeaders?['Authorization'], 'Bearer pk_test_abc');
       expect(capturedHeaders?['Content-Type'], 'application/json');
       expect(capturedBody, {
-        'tokenShortcode': 'ic_icp',
+        'tokenShortcode': shortcode,
         'usdAmount': 12.5,
         'metadata': {
           'account_id': 'acct-42',

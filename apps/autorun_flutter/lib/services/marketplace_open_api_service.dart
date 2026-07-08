@@ -4,8 +4,8 @@ import 'package:http/http.dart' as http;
 import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 import '../models/account.dart';
-import '../config/app_config.dart';
 import '../utils/base64_utils.dart';
+import 'api_routes.dart';
 
 // Flag to control debug output in tests
 bool suppressDebugOutput = false;
@@ -66,7 +66,6 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal() : _httpClient = http.Client();
 
-  String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1'; // API endpoints
   final Duration _timeout = const Duration(seconds: 45);
   http.Client _httpClient;
   static const int defaultSearchLimit = 20;
@@ -95,7 +94,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     int offset = 0,
   }) async {
     try {
-      final url = '$_baseUrl/scripts/search';
+      final url = ApiRoutes.scriptsSearch;
 
       // Build request body, only including non-null values
       final requestBody = <String, dynamic>{
@@ -161,8 +160,8 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   }) async {
     try {
       final uri = accountId == null || accountId.isEmpty
-          ? Uri.parse('$_baseUrl/scripts/$scriptId')
-          : Uri.parse('$_baseUrl/scripts/$scriptId')
+          ? Uri.parse(ApiRoutes.script(scriptId))
+          : Uri.parse(ApiRoutes.script(scriptId))
               .replace(queryParameters: {'account_id': accountId});
 
       final response = await _httpClient.get(uri).timeout(_timeout);
@@ -209,7 +208,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   Future<ScriptPreview> getScriptPreview(String scriptId) async {
     try {
       final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/scripts/$scriptId/preview'))
+          .get(Uri.parse(ApiRoutes.scriptPreview(scriptId)))
           .timeout(_timeout);
 
       if (response.statusCode == 404) {
@@ -240,7 +239,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   // Get featured scripts
   Future<List<MarketplaceScript>> getFeaturedScripts({int limit = 10}) async {
     final response = await _httpClient
-        .get(Uri.parse('$_baseUrl/scripts/featured?limit=$limit'))
+        .get(Uri.parse('${ApiRoutes.scriptsFeatured}?limit=$limit'))
         .timeout(_timeout);
 
     if (response.statusCode > 299) {
@@ -263,7 +262,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   // Get trending scripts
   Future<List<MarketplaceScript>> getTrendingScripts({int limit = 10}) async {
     final response = await _httpClient
-        .get(Uri.parse('$_baseUrl/scripts/trending?limit=$limit'))
+        .get(Uri.parse('${ApiRoutes.scriptsTrending}?limit=$limit'))
         .timeout(_timeout);
 
     if (response.statusCode > 299) {
@@ -292,7 +291,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     String sortOrder = 'desc',
   }) async {
     try {
-      final uri = Uri.parse('$_baseUrl/scripts/category/$category')
+      final uri = Uri.parse(ApiRoutes.scriptsByCategory(category))
           .replace(queryParameters: {
         'limit': limit.toString(),
         'offset': offset.toString(),
@@ -334,7 +333,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     bool verifiedOnly = false,
   }) async {
     try {
-      final uri = Uri.parse('$_baseUrl/scripts/$scriptId/reviews')
+      final uri = Uri.parse(ApiRoutes.scriptReviews(scriptId))
           .replace(queryParameters: {
         'limit': limit.toString(),
         'offset': offset.toString(),
@@ -455,7 +454,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   Future<IcpayClientConfig> getIcpayConfig() async {
     try {
       final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/payments/icpay/config'))
+          .get(Uri.parse(ApiRoutes.paymentsIcpayConfig))
           .timeout(_timeout);
 
       if (response.statusCode == 503) {
@@ -524,7 +523,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     try {
       response = await _httpClient
           .post(
-            Uri.parse('$_baseUrl/scripts/$scriptId/download'),
+            Uri.parse(ApiRoutes.scriptDownload(scriptId)),
             headers: {'Content-Type': 'application/json'},
             body: body,
           )
@@ -587,7 +586,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       String scriptId, String version) async {
     try {
       final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/scripts/$scriptId/versions/$version'))
+          .get(Uri.parse(ApiRoutes.scriptVersion(scriptId, version)))
           .timeout(_timeout);
 
       if (response.statusCode == 404) {
@@ -620,7 +619,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   Future<List<ScriptVersion>> getScriptVersions(String scriptId) async {
     try {
       final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/scripts/$scriptId/versions'))
+          .get(Uri.parse(ApiRoutes.scriptVersions(scriptId)))
           .timeout(_timeout);
 
       if (response.statusCode == 404) {
@@ -655,7 +654,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
   // Get marketplace statistics (public data)
   Future<MarketplaceStats> getMarketplaceStats() async {
-    final url = '$_baseUrl/marketplace-stats';
+    final url = ApiRoutes.marketplaceStats;
     if (!suppressDebugOutput) debugPrint('GET request URL: $url');
     final response = await _httpClient.get(Uri.parse(url)).timeout(_timeout);
 
@@ -688,7 +687,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
       final response = await _httpClient
           .post(
-            Uri.parse('$_baseUrl/scripts/compatible'),
+            Uri.parse(ApiRoutes.scriptsCompatible),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'canisterId': canisterIds
@@ -777,13 +776,13 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       final requestBody = jsonEncode(requestBodyMap);
 
       if (!suppressDebugOutput) {
-        debugPrint('Upload request URL: $_baseUrl/scripts');
+        debugPrint('Upload request URL: ${ApiRoutes.scriptsCreate}');
         debugPrint('Request body: $requestBody');
       }
 
       final response = await _httpClient
           .post(
-            Uri.parse('$_baseUrl/scripts'),
+            Uri.parse(ApiRoutes.scriptsCreate),
             headers: {'Content-Type': 'application/json'},
             body: requestBody,
           )
@@ -939,7 +938,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
       final response = await _httpClient
           .put(
-            Uri.parse('$_baseUrl/scripts/$scriptId'),
+            Uri.parse(ApiRoutes.script(scriptId)),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(body),
           )
@@ -984,7 +983,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
       final response = await _httpClient
           .post(
-            Uri.parse('$_baseUrl/scripts/$scriptId/delete'),
+            Uri.parse(ApiRoutes.scriptDelete(scriptId)),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(body),
           )
@@ -1010,13 +1009,14 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
   // Account management endpoints
 
-  /// Register a new account with username and public key
-  /// POST /api/v1/accounts
+  /// Register a new account with username and public key.
+  ///
+  /// Route: `ApiRoutes.accounts`.
   Future<Account> registerAccount(RegisterAccountRequest request) async {
     try {
       final response = await _httpClient
           .post(
-            Uri.parse('$_baseUrl/accounts'),
+            Uri.parse(ApiRoutes.accounts),
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -1049,13 +1049,14 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
-  /// Get account details by username
-  /// GET /api/v1/accounts/{username}
+  /// Get account details by username.
+  ///
+  /// Route: `ApiRoutes.accountByUsername`.
   Future<Account?> getAccount({required String username}) async {
     try {
       final encodedUsername = Uri.encodeComponent(username);
       final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/accounts/$encodedUsername'))
+          .get(Uri.parse(ApiRoutes.accountByUsername(encodedUsername)))
           .timeout(_timeout);
 
       if (response.statusCode == 404) {
@@ -1085,8 +1086,9 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
-  /// Get account details by public key
-  /// GET /api/v1/accounts/by-public-key/{publicKey}
+  /// Get account details by public key.
+  ///
+  /// Route: `ApiRoutes.accountByPublicKey`.
   ///
   /// Allows looking up an account using only the public key (base64 encoded).
   /// Returns null if no account is associated with this public key.
@@ -1095,7 +1097,8 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       Base64Utils.requireBytes(publicKeyB64, fieldName: 'publicKeyB64');
       final encodedPublicKey = Uri.encodeComponent(publicKeyB64);
       final response = await _httpClient
-          .get(Uri.parse('$_baseUrl/accounts/by-public-key/$encodedPublicKey'))
+          .get(Uri.parse(
+              ApiRoutes.accountByPublicKey(encodedPublicKey)))
           .timeout(_timeout);
 
       if (response.statusCode == 404) {
@@ -1128,8 +1131,9 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
-  /// Add a public key to an account
-  /// POST /api/v1/accounts/{username}/keys
+  /// Add a public key to an account.
+  ///
+  /// Route: `ApiRoutes.accountKeys`.
   Future<AccountPublicKey> addPublicKey({
     required String username,
     required AddPublicKeyRequest request,
@@ -1138,7 +1142,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       final encodedUsername = Uri.encodeComponent(username);
       final response = await _httpClient
           .post(
-            Uri.parse('$_baseUrl/accounts/$encodedUsername/keys'),
+            Uri.parse(ApiRoutes.accountKeys(encodedUsername)),
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -1171,8 +1175,9 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
-  /// Remove a public key from an account (soft delete)
-  /// DELETE /api/v1/accounts/{username}/keys/{keyId}
+  /// Remove a public key from an account (soft delete).
+  ///
+  /// Route: `ApiRoutes.accountKey`.
   Future<AccountPublicKey> removePublicKey({
     required String username,
     required String keyId,
@@ -1182,7 +1187,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       final encodedUsername = Uri.encodeComponent(username);
       final response = await _httpClient
           .delete(
-            Uri.parse('$_baseUrl/accounts/$encodedUsername/keys/$keyId'),
+            Uri.parse(ApiRoutes.accountKey(encodedUsername, keyId)),
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -1215,8 +1220,9 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
-  /// Update account profile
-  /// PATCH /api/v1/accounts/{username}
+  /// Update account profile.
+  ///
+  /// Route: `ApiRoutes.accountByUsername` (PATCH).
   Future<Account> updateAccount({
     required String username,
     required UpdateAccountRequest request,
@@ -1225,7 +1231,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       final encodedUsername = Uri.encodeComponent(username);
       final response = await _httpClient
           .patch(
-            Uri.parse('$_baseUrl/accounts/$encodedUsername'),
+            Uri.parse(ApiRoutes.accountByUsername(encodedUsername)),
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -1422,9 +1428,22 @@ class IcpayClientConfig {
   });
 
   factory IcpayClientConfig.fromJson(Map<String, dynamic> json) {
+    // The token shortcode is the canonical token id used to charge callers.
+    // It MUST come from the backend payments config (single source: the
+    // server's ICPAY_TOKEN_SHORTCODE); never silently shadowed by a client-side
+    // literal fallback. If it is absent the server config is incomplete — fail
+    // loudly (the fully-unconfigured case already surfaces as HTTP 503 in
+    // getIcpayConfig).
+    final shortcode = json['shortcode'] as String?;
+    if (shortcode == null || shortcode.isEmpty) {
+      throw FormatException(
+        'ICPay config is missing the required "shortcode" field — the backend '
+        'payments config is incomplete.',
+      );
+    }
     return IcpayClientConfig(
       publishableKey: json['publishableKey'] as String? ?? '',
-      shortcode: json['shortcode'] as String? ?? 'ic_icp',
+      shortcode: shortcode,
       apiUrl: json['apiUrl'] as String? ?? 'https://api.icpay.org',
     );
   }

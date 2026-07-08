@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'passkey_authenticator.dart';
 import 'vault_crypto_service.dart';
-import '../config/app_config.dart';
+import 'api_routes.dart';
 import '../utils/passkey_platform.dart';
 import '../rust/native_bridge.dart';
 
@@ -23,7 +23,7 @@ class PasskeyService {
   factory PasskeyService() => _instance;
   PasskeyService._internal() : _httpClient = http.Client();
 
-  String get _baseUrl => '${AppConfig.apiEndpoint}/api/v1';
+  String get _baseUrl => ApiRoutes.base;
   final Duration _timeout = const Duration(seconds: 30);
   http.Client _httpClient;
   final NativePasskeyAuthenticator _authenticator =
