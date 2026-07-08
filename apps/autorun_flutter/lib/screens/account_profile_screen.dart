@@ -297,6 +297,10 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
 
   /// Local-only body (UX-7): the profile's local identity + a register CTA +
   /// the profile's own keypairs. No backend calls.
+  ///
+  /// UXR5-6: also surfaces a disabled passkey hint so a local-only user learns
+  /// where/when passkeys become available — passkeys are gated on a registered
+  /// backend account, so the hint is honest (no fake "Manage" affordance).
   Widget _buildLocalOnlyBody() {
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -309,6 +313,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           _buildRegisterCtaCard(),
           const SizedBox(height: 24),
           _buildLocalKeysSection(),
+          const SizedBox(height: 24),
+          _buildLocalOnlyPasskeyHint(),
         ],
       ),
     );
@@ -1281,6 +1287,58 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Honest, disabled passkey hint for the local-only body (UXR5-6).
+  ///
+  /// Passkeys are issued against a registered backend account, so a local-only
+  /// profile cannot manage them yet. This row states that prerequisite clearly
+  /// (no fake "Manage" button) and, on Linux desktop, also notes the existing
+  /// browser-only limitation so the user isn't misled into registering just to
+  /// hit a platform wall.
+  Widget _buildLocalOnlyPasskeyHint() {
+    final bool linuxDesktop = PasskeyPlatform.isLinuxDesktop;
+    final String subtitle = linuxDesktop
+        ? 'Available after you register a marketplace account. '
+            'On Linux, passkeys need a browser (macOS, Windows, or Android).'
+        : 'Available after you register a marketplace account.';
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: context.colors.outlineVariant),
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        enabled: false,
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: context.colors.onSurface.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.fingerprint,
+            color: context.colors.onSurfaceVariant,
+          ),
+        ),
+        title: Text(
+          'Passkeys',
+          style: AppDesignSystem.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+            color: context.colors.onSurfaceVariant,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: AppDesignSystem.bodySmall.copyWith(
+            color: context.colors.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 
