@@ -130,6 +130,47 @@ void main() {
     });
   });
 
+  group('isUsernameAvailable (TD-7: status code, not .contains("404"))', () {
+    test('returns true when the backend reports 404 (username is free)',
+        () async {
+      service.overrideHttpClient(_statusClient(404, body: 'missing'));
+      expect(await service.isUsernameAvailable('nobody'), isTrue);
+    });
+
+    test('returns false when the account exists (200 with data)', () async {
+      service.overrideHttpClient(MockClient((_) async => http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': 'acct-1',
+                'username': 'alice',
+                'createdAt': '2024-01-01T00:00:00.000Z',
+                'updatedAt': '2024-01-01T00:00:00.000Z',
+              },
+            }),
+            200,
+          )));
+      expect(await service.isUsernameAvailable('alice'), isFalse);
+    });
+
+    test('rethrows 5xx — a server error is never mis-read as "available"', () {
+      service.overrideHttpClient(_statusClient(500));
+      expect(
+        service.isUsernameAvailable('alice'),
+        _exceptionMessageContaining('HTTP 500'),
+      );
+    });
+
+    test('rethrows transport errors (not swallowed as available)', () {
+      service.overrideHttpClient(
+          _throwingClient(http.ClientException('Connection refused')));
+      expect(
+        service.isUsernameAvailable('alice'),
+        throwsA(isA<http.ClientException>()),
+      );
+    });
+  });
+
   group('malformed JSON body', () {
     test('searchScripts throws FormatException on non-JSON 200 body', () {
       service.overrideHttpClient(_statusClient(200, body: 'not-json{'));

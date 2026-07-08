@@ -1265,20 +1265,12 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
-  /// Check if a username is available
-  /// This is a helper method that uses getAccount with error handling
+  /// Whether [username] is free to register. Delegates to [getAccount],
+  /// which returns `null` on HTTP 404; any other failure (5xx, transport,
+  /// malformed body) propagates to the caller.
   Future<bool> isUsernameAvailable(String username) async {
-    try {
-      final account = await getAccount(username: username);
-      return account == null;
-    } catch (e) {
-      // If error is 404, username is available
-      if (e.toString().contains('404')) {
-        return true;
-      }
-      // Other errors should be thrown
-      rethrow;
-    }
+    final account = await getAccount(username: username);
+    return account == null;
   }
 
   /// Extract error message from response body
