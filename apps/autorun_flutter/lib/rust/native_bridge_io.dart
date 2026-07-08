@@ -415,10 +415,18 @@ class RustBridgeLoader {
     } finally {}
   }
 
-  EncryptedVaultResult? encryptVault({
+  /// Encrypt `plaintextB64` under `password` (Argon2id + AES-256-GCM).
+  ///
+  /// Returns a [Future] to keep the conditional-export signature uniform with
+  /// the Web target, whose Argon2id KDF (`package:cryptography`'s
+  /// `DartArgon2id`) is cooperatively async. On IO the underlying FFI call is
+  /// still synchronous and CPU-bound; callers run this inside a background
+  /// isolate via `Isolate.run` (see `VaultCryptoService`) so the UI stays
+  /// responsive during the ~0.1–1 s derivation.
+  Future<EncryptedVaultResult?> encryptVault({
     required String password,
     required String plaintextB64,
-  }) {
+  }) async {
     final lib = _open();
     if (lib == null) return null;
 
@@ -448,12 +456,17 @@ class RustBridgeLoader {
     }
   }
 
-  String? decryptVault({
+  /// Decrypt an Argon2id + AES-256-GCM blob. Throws
+  /// [VaultDecryptionException] on a wrong password / tampered ciphertext.
+  ///
+  /// Returns a [Future] for signature parity with the Web target (see
+  /// [encryptVault]); the FFI call itself remains synchronous.
+  Future<String?> decryptVault({
     required String password,
     required String encryptedDataB64,
     required String saltB64,
     required String nonceB64,
-  }) {
+  }) async {
     final lib = _open();
     if (lib == null) return null;
 

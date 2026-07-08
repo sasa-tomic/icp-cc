@@ -1,43 +1,340 @@
-/// Web stub for the Rust-core bridge (R-1).
+/// Web implementation of the Rust-core bridge (R-2 / R-4).
 ///
 /// Selected by [native_bridge.dart]'s conditional export when compiling for the
-/// Web. The browser has no `dart:ffi`, no native `libicp_core`, and no libc — so
-/// every operation that requires the native core is honestly unavailable and
-/// throws [UnsupportedError]. This is a REAL platform implementation (fail-fast),
-/// not a mock: it never returns fake/null data. Phase-2 work units (R-2…R-5)
-/// will replace these with Web-native equivalents (WebCrypto, WASM QuickJS, …).
+/// Web. The browser has no `dart:ffi` / `libicp_core`, so the operations that
+/// the native core provides are re-implemented here in **pure Dart** using
+/// audited crypto packages. Pure-Dart code runs unchanged on both the Dart VM
+/// and the JS (web) target, so the same code paths are unit-testable in
+/// `flutter test` AND ship to the browser — there is NO `dart:html` /
+/// `dart:js_interop` dependency here, and NO mock crypto.
+///
+/// ## What is REAL here (R-2 / R-4 foundation)
+/// - **Ed25519 key generation, signing, verification** (R-2): `package:ed25519_edwards`
+///   (pure-Dart port of Go's `crypto/ed25519`). The seed → keypair → principal
+///   path is bit-for-bit identical to Rust's `ed25519_dalek` (verified by
+///   cross-compat tests against the live `libicp_core`).
+/// - **IC self-authenticating principal derivation** (R-2): SPKI DER (RFC 8410)
+///   → SHA-224 → `[0x02]++hash` → CRC32 → base32. Matches `candid::Principal`.
+/// - **Vault crypto** (R-4): Argon2id KDF via `package:cryptography`'s
+///   `DartArgon2id` (pure Dart) + AES-256-GCM. The Argon2id output is
+///   bit-for-bit identical to Rust's `argon2` crate (verified by a known
+///   vector), so vault blobs round-trip across native ↔ web.
+///
+/// ## What is still STUBBED (fail-fast, staged)
+/// - **QuickJS script execution / linting** (R-3): `jsExec`, `jsLint`,
+///   `validateJsComprehensive`, `jsAppInit/View/Update`. These need a
+///   QuickJS-WASM runtime (planned R-3 follow-up).
+/// - **IC canister calls**: `fetchCandid`, `parseCandid`, `callAnonymous`,
+///   `callAuthenticated`. These need a web HTTP agent (planned follow-up).
+///
+/// ## Why Argon2id is async (vault methods)
+/// `DartArgon2id` is a pure-Dart but inherently `Future`-returning API (it
+/// cooperatively yields between memory-hard passes). `encryptVault` /
+/// `decryptVault` therefore return `Future`s on BOTH the IO and Web targets so
+/// the conditional-export interface stays uniform — see `vault_crypto_service.dart`
+/// for the isolate / direct-call orchestration.
 library;
+
+import 'dart:convert';
+import 'dart:math' show Random;
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart' as crypto show Hmac, sha224, sha512;
+import 'package:cryptography/cryptography.dart';
+import 'package:cryptography/dart.dart';
+import 'package:ed25519_edwards/ed25519_edwards.dart' as ed;
 
 import 'native_bridge.dart';
 
-const String _reason =
-    'Native core (dart:ffi / libicp_core) is not available on Web — '
-    'see R-1 (docs/BROWSER_SUPPORT.md).';
+/// Reason used by every STUBBED method below (R-3 / IC-agent — staged for a
+/// separate effort). Kept loud (UnsupportedError) so any accidental call from
+/// the browser fails immediately rather than silently degrading.
+const String _stagedReason =
+    'is staged for the Web runtime (R-3 QuickJS-WASM / IC HTTP-agent follow-up) '
+    'and is not yet available on Web — see docs/BROWSER_SUPPORT.md';
+
+/// Algorithm code: 0 = Ed25519 (the ICP-critical path; fully implemented).
+/// 1 = secp256k1 (BIP32 m/44'/223'/... ; best-effort, not yet on Web).
+const int _algEd25519 = 0;
+const int _algSecp256k1 = 1;
+
+String _secpUnsupported(String op) =>
+    '$op for secp256k1 on Web is not yet supported (R-2 follow-up); '
+    'only Ed25519 (alg=0) is implemented. See docs/BROWSER_SUPPORT.md';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Principal derivation helpers (IC self-authenticating principal).
+//
+// Mirrors `crates/icp_core/src/principal.rs` + `ic_principal::Principal`
+// (re-exported as `candid::Principal`). The authoritative algorithm
+// (`ic_principal-0.1.1/src/lib.rs`):
+//   1. hash = SHA-224(der_bytes)            → 28 bytes
+//   2. principal = hash ++ [0x02]           → 29 bytes  (tag 0x02 is APPENDED)
+//   3. crc = CRC32(principal).to_be_bytes() → 4 bytes  (zlib/IEEE, big-endian)
+//   4. checksummed = crc ++ principal       → 33 bytes
+//   5. base32 (RFC 4648, NO-PAD, then LOWERCASE), grouped 5-chars per '-'.
+//
+// SPKI DER for Ed25519 (RFC 8410), captured from Rust as a known vector:
+//   30 2a 30 05 06 03 2b 65 70 03 21 00 || <32-byte pubkey>  (44 bytes total)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// RFC 8410 SubjectPublicKeyInfo prefix for a raw Ed25519 public key.
+/// Verified byte-for-byte against Rust's `der_encode_public_key("ed25519", ..)`
+/// (probe captured DER for the zero pubkey =
+/// `302a300506032b6570032100` ++ 32 zero bytes).
+final List<int> _ed25519DerPrefix = [
+  0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
+];
+
+/// RFC 4648 base32 alphabet (lowercase, no padding). `ic_principal` encodes
+/// uppercase then lowercases the result — equivalent to using this alphabet.
+const _base32Alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
+
+/// Standard CRC32 (IEEE 802.3 / zlib): poly 0xEDB88320, init 0xFFFFFFFF,
+/// reflected input/output, final XOR 0xFFFFFFFF. Same value zlib /
+/// `crc32fast::hash` produces.
+int _crc32(List<int> data) {
+  var crc = 0xFFFFFFFF;
+  for (final b in data) {
+    crc ^= b;
+    for (var i = 0; i < 8; i++) {
+      crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+    }
+  }
+  return crc ^ 0xFFFFFFFF;
+}
+
+/// Base32-encode (RFC 4648, lowercase, no padding) then group into 5-char
+/// chunks separated by '-' — the textual principal format.
+String _base32Grouped(List<int> bytes) {
+  final sb = StringBuffer();
+  var buffer = 0;
+  var bits = 0;
+  for (final b in bytes) {
+    buffer = (buffer << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      sb.write(_base32Alphabet[(buffer >>> bits) & 0x1F]);
+    }
+  }
+  if (bits > 0) {
+    sb.write(_base32Alphabet[(buffer << (5 - bits)) & 0x1F]);
+  }
+  final encoded = sb.toString();
+  // Group into chunks of 5, joined by '-' (no trailing padding).
+  final out = StringBuffer();
+  for (var i = 0; i < encoded.length; i += 5) {
+    final end = i + 5 < encoded.length ? i + 5 : encoded.length;
+    if (i > 0) {
+      out.write('-');
+    }
+    out.write(encoded.substring(i, end));
+  }
+  return out.toString();
+}
+
+/// Derive the ICP self-authenticating principal text from a raw Ed25519
+/// 32-byte public key. Pure function — identical output to
+/// `candid::Principal::self_authenticating(der).to_text()`.
+String _principalFromEd25519PublicKey(Uint8List publicKey) {
+  if (publicKey.length != 32) {
+    throw ArgumentError(
+        'Ed25519 public key must be 32 bytes, got ${publicKey.length}');
+  }
+  // 1. SPKI DER (RFC 8410).
+  final der = Uint8List.fromList([..._ed25519DerPrefix, ...publicKey]);
+  // 2. SHA-224 → 28 bytes.
+  final hash = crypto.sha224.convert(der).bytes;
+  // 3. self-auth principal = hash ++ [0x02] (tag APPENDED — matches ic_principal).
+  final principalBytes = Uint8List.fromList([...hash, 0x02]); // 29 bytes
+  // 4. CRC32 over the principal, big-endian.
+  final crc = _crc32(principalBytes);
+  final crcBytes = [
+    (crc >>> 24) & 0xFF,
+    (crc >>> 16) & 0xFF,
+    (crc >>> 8) & 0xFF,
+    crc & 0xFF,
+  ];
+  // 5. checksummed payload.
+  final checksummed = Uint8List.fromList([...crcBytes, ...principalBytes]);
+  // 6. base32 (lowercase) + group.
+  return _base32Grouped(checksummed);
+}
+
+/// Derive the Ed25519 public key (32 bytes) from a 32-byte seed.
+/// Deterministic (RFC 8032) — same seed always yields the same public key,
+/// matching `ed25519_dalek`.
+Uint8List _ed25519PublicKeyFromSeed(Uint8List seed) {
+  if (seed.length != 32) {
+    throw ArgumentError('Ed25519 seed must be 32 bytes, got ${seed.length}');
+  }
+  final priv = ed.newKeyFromSeed(seed); // PrivateKey = seed(32) || pub(32)
+  return Uint8List.fromList(ed.public(priv).bytes);
+}
+
+/// BIP39 `to_seed` — PBKDF2-HMAC-SHA512 over the mnemonic, salt
+/// `"mnemonic" + passphrase`, 2048 iterations, 64-byte output (RFC 2898 /
+/// BIP39). Pure-Dart and synchronous via `package:crypto`.
+///
+/// NOTE: `package:bip39`'s `mnemonicToSeed` produces a DIFFERENT (incorrect)
+/// value for 24-word mnemonics — verified against the Rust reference
+/// (`bip39` v2 crate `Mnemonic::to_seed("")`) and the standard Trezor BIP39
+/// vectors. This manual implementation is bit-for-bit identical to Rust and to
+/// the BIP39 spec (12- and 24-word vectors both match), so keypairs derived
+/// here match the native `libicp_core` exactly.
+Uint8List _bip39MnemonicToSeed(String mnemonic, {String passphrase = ''}) {
+  final password = utf8.encode(mnemonic);
+  final salt = utf8.encode('mnemonic$passphrase');
+  // PBKDF2: dkLen=64 == hlen(64) → a single block T_1 = U_1 ^ U_2 ^ ... ^ U_c.
+  var u = crypto.Hmac(crypto.sha512, password).convert([...salt, 0, 0, 0, 1]).bytes;
+  final result = List<int>.from(u);
+  for (var i = 1; i < 2048; i++) {
+    u = crypto.Hmac(crypto.sha512, password).convert(u).bytes;
+    for (var j = 0; j < result.length; j++) {
+      result[j] ^= u[j];
+    }
+  }
+  return Uint8List.fromList(result);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Argon2id + AES-256-GCM constants — SINGLE source of truth on Web.
+//
+// These MUST match `crates/icp_core/src/vault.rs:18-24` exactly for native ↔
+// web vault interoperability. The Argon2id vector test guarantees this.
+// ─────────────────────────────────────────────────────────────────────────────
+const int _argon2MemoryCost = 65536; // 64 MiB (KiB blocks)
+const int _argon2TimeCost = 3;
+const int _argon2Parallelism = 4;
+const int _argon2HashLength = 32;
+const int _saltLength = 16;
+const int _nonceLength = 12;
+const int _aesGcmTagLength = 16;
+
+/// Lazily-built Argon2id instance with the Bitwarden-level params above.
+/// `DartArgon2id` is a pure-Dart implementation (RFC 9106, version 0x13) —
+/// its `version` getter returns 19, matching Rust's `argon2::Version::V0x13`.
+DartArgon2id _argon2id() => const DartArgon2id(
+      parallelism: _argon2Parallelism,
+      memory: _argon2MemoryCost,
+      iterations: _argon2TimeCost,
+      hashLength: _argon2HashLength,
+    );
+
+/// Derive the 32-byte AES-256 key from `password` and `salt` via Argon2id.
+Future<Uint8List> _deriveVaultKey({
+  required String password,
+  required Uint8List salt,
+}) async {
+  final secret = await _argon2id().deriveKey(
+    secretKey: SecretKey(utf8.encode(password)),
+    nonce: salt,
+  );
+  return Uint8List.fromList(await secret.extractBytes());
+}
 
 class RustBridgeLoader {
   const RustBridgeLoader();
 
-  RustKeypairResult? generateKeypair({required int alg, String? mnemonic}) =>
-      throw UnsupportedError('generateKeypair: $_reason');
+  /// Generate an Ed25519 keypair (alg=0) from a BIP39 mnemonic.
+  ///
+  /// [mnemonic] MUST be a valid BIP39 phrase (the Dart caller
+  /// `KeypairGenerator._resolveMnemonic` always supplies one). The seed is
+  /// `mnemonicToSeed(mnemonic, passphrase='')` and the Ed25519 secret is the
+  /// first 32 bytes — identical to Rust's `generate_ed25519_keypair`.
+  ///
+  /// alg=1 (secp256k1, BIP32 m/44'/223'/0'/0/0) is NOT yet implemented on Web.
+  RustKeypairResult? generateKeypair({required int alg, String? mnemonic}) {
+    if (alg == _algSecp256k1) {
+      throw UnsupportedError(_secpUnsupported('generateKeypair'));
+    }
+    if (alg != _algEd25519) {
+      throw ArgumentError.value(alg, 'alg', 'Unsupported algorithm code');
+    }
+    if (mnemonic == null || mnemonic.trim().isEmpty) {
+      // The Dart caller always resolves a mnemonic first; reaching here is a
+      // programming error. Fail loud rather than inventing entropy.
+      throw ArgumentError(
+          'generateKeypair on Web requires a non-empty BIP39 mnemonic');
+    }
+    // BIP39 mnemonic → 64-byte seed (PBKDF2-HMAC-SHA512, 2048 iters). The
+    // standard derivation is implemented inline (see `_bip39MnemonicToSeed`)
+    // because `package:bip39`'s `mnemonicToSeed` is incorrect for 24-word
+    // mnemonics. Pure Dart — works on VM and Web.
+    final seedFull = _bip39MnemonicToSeed(mnemonic);
+    final seed = Uint8List.fromList(seedFull.sublist(0, 32));
 
-  String? principalFromPublicKey(
-          {required int alg, required String publicKeyB64}) =>
-      throw UnsupportedError('principalFromPublicKey: $_reason');
+    final publicKey = _ed25519PublicKeyFromSeed(seed);
+    final publicKeyB64 = base64.encode(publicKey);
+    final privateKeyB64 = base64.encode(seed); // 32-byte seed (RFC 8032)
+    final principalText = _principalFromEd25519PublicKey(publicKey);
 
+    return RustKeypairResult(
+      publicKeyB64: publicKeyB64,
+      privateKeyB64: privateKeyB64,
+      principalText: principalText,
+    );
+  }
+
+  /// Derive the ICP principal text from a base64-encoded raw public key.
+  ///
+  /// alg=0 (Ed25519): SPKI DER (RFC 8410) → SHA-224 → self-auth principal.
+  /// alg=1 (secp256k1): not yet implemented on Web.
+  String? principalFromPublicKey({required int alg, required String publicKeyB64}) {
+    if (alg == _algSecp256k1) {
+      throw UnsupportedError(_secpUnsupported('principalFromPublicKey'));
+    }
+    if (alg != _algEd25519) {
+      throw ArgumentError.value(alg, 'alg', 'Unsupported algorithm code');
+    }
+    final publicKey = Uint8List.fromList(base64.decode(publicKeyB64));
+    return _principalFromEd25519PublicKey(publicKey);
+  }
+
+  /// Sign `messageB64` (base64 of raw message bytes) with an Ed25519 private
+  /// key (alg=0). The private key is the 32-byte seed (RFC 8032); the public
+  /// key is re-derived deterministically from it.
+  ///
+  /// Returns the SAME JSON envelope the native FFI (`icp_sign_message`)
+  /// returns — `{"ok":true,"signature":"<base64>"}` — so callers
+  /// (`AccountSignatureService` / `ScriptSignatureService`) that `jsonDecode`
+  /// the result work unchanged on Web. alg=1 (secp256k1) is not yet on Web.
   String? signMessage({
     required int alg,
     required String messageB64,
     required String privateKeyB64,
-  }) =>
-      throw UnsupportedError('signMessage: $_reason');
-
-  Future<String?> fetchCandid(
-      {required String canisterId, String? host}) async {
-    throw UnsupportedError('fetchCandid: $_reason');
+  }) {
+    if (alg == _algSecp256k1) {
+      throw UnsupportedError(_secpUnsupported('signMessage'));
+    }
+    if (alg != _algEd25519) {
+      throw ArgumentError.value(alg, 'alg', 'Unsupported algorithm code');
+    }
+    final message = Uint8List.fromList(base64.decode(messageB64));
+    final seed = Uint8List.fromList(base64.decode(privateKeyB64));
+    if (seed.length != 32) {
+      throw ArgumentError(
+          'Ed25519 private key (seed) must be 32 bytes, got ${seed.length}');
+    }
+    final publicKey = _ed25519PublicKeyFromSeed(seed);
+    // ed25519_edwards PrivateKey is seed(32) || pub(32) (Go convention).
+    final signature = ed.sign(
+      ed.PrivateKey(Uint8List.fromList([...seed, ...publicKey])),
+      message,
+    );
+    final sigB64 = base64.encode(signature);
+    // Match the native FFI contract exactly (json!({"ok":true,"signature":..})).
+    return jsonEncode(<String, dynamic>{'ok': true, 'signature': sigB64});
   }
 
-  String? parseCandid({required String candidText}) =>
-      throw UnsupportedError('parseCandid: $_reason');
+  Future<String?> fetchCandid({required String canisterId, String? host}) async {
+    throw UnsupportedError('fetchCandid $_stagedReason');
+  }
+
+  String? parseCandid({required String candidText}) {
+    throw UnsupportedError('parseCandid $_stagedReason');
+  }
 
   String? callAnonymous({
     required String canisterId,
@@ -45,8 +342,9 @@ class RustBridgeLoader {
     required int mode,
     String args = '()',
     String? host,
-  }) =>
-      throw UnsupportedError('callAnonymous: $_reason');
+  }) {
+    throw UnsupportedError('callAnonymous $_stagedReason');
+  }
 
   String? callAuthenticated({
     required String canisterId,
@@ -55,51 +353,123 @@ class RustBridgeLoader {
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) =>
-      throw UnsupportedError('callAuthenticated: $_reason');
+  }) {
+    throw UnsupportedError('callAuthenticated $_stagedReason');
+  }
 
-  String? jsExec({required String script, String? jsonArg}) =>
-      throw UnsupportedError('jsExec: $_reason');
+  String? jsExec({required String script, String? jsonArg}) {
+    throw UnsupportedError('jsExec $_stagedReason');
+  }
 
-  String? jsLint({required String script}) =>
-      throw UnsupportedError('jsLint: $_reason');
+  String? jsLint({required String script}) {
+    throw UnsupportedError('jsLint $_stagedReason');
+  }
 
   String? validateJsComprehensive({
     required String script,
     bool isExample = false,
     bool isTest = false,
     bool isProduction = false,
-  }) =>
-      throw UnsupportedError('validateJsComprehensive: $_reason');
+  }) {
+    throw UnsupportedError('validateJsComprehensive $_stagedReason');
+  }
 
-  String? jsAppInit(
-      {required String script, String? jsonArg, int budgetMs = 50}) =>
-      throw UnsupportedError('jsAppInit: $_reason');
+  String? jsAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
+    throw UnsupportedError('jsAppInit $_stagedReason');
+  }
 
-  String? jsAppView(
-      {required String script, required String stateJson, int budgetMs = 50}) =>
-      throw UnsupportedError('jsAppView: $_reason');
+  String? jsAppView({required String script, required String stateJson, int budgetMs = 50}) {
+    throw UnsupportedError('jsAppView $_stagedReason');
+  }
 
-  String? jsAppUpdate(
-      {required String script,
-      required String msgJson,
-      required String stateJson,
-      int budgetMs = 50}) =>
-      throw UnsupportedError('jsAppUpdate: $_reason');
+  String? jsAppUpdate({
+    required String script,
+    required String msgJson,
+    required String stateJson,
+    int budgetMs = 50,
+  }) {
+    throw UnsupportedError('jsAppUpdate $_stagedReason');
+  }
 
-  EncryptedVaultResult? encryptVault({
+  /// Encrypt `plaintextB64` under `password` (Argon2id KDF + AES-256-GCM).
+  ///
+  /// Produces a blob byte-compatible with `crates/icp_core::encrypt_vault`:
+  /// the AES-GCM authentication tag is APPENDED to the ciphertext (16 bytes),
+  /// matching the `aes-gcm` crate's `Aead::encrypt` layout, so a blob created
+  /// on Web can be decrypted by native and vice-versa.
+  ///
+  /// Async because Argon2id is a cooperatively-scheduled pure-Dart computation.
+  Future<EncryptedVaultResult?> encryptVault({
     required String password,
     required String plaintextB64,
-  }) =>
-      throw UnsupportedError('encryptVault: $_reason');
+  }) async {
+    final plaintext = Uint8List.fromList(base64.decode(plaintextB64));
+    final random = Random.secure();
+    final salt =
+        Uint8List.fromList(List<int>.generate(_saltLength, (_) => random.nextInt(256)));
+    final nonce =
+        Uint8List.fromList(List<int>.generate(_nonceLength, (_) => random.nextInt(256)));
 
-  String? decryptVault({
+    final key = await _deriveVaultKey(password: password, salt: salt);
+
+    final cipher = AesGcm.with256bits();
+    final secretBox = await cipher.encrypt(
+      plaintext,
+      secretKey: SecretKey(key),
+      nonce: nonce,
+    );
+    // ciphertext || tag — native-compatible layout.
+    final ciphertextWithTag = Uint8List.fromList(
+      [...secretBox.cipherText, ...secretBox.mac.bytes],
+    );
+
+    return EncryptedVaultResult(
+      encryptedDataB64: base64.encode(ciphertextWithTag),
+      saltB64: base64.encode(salt),
+      nonceB64: base64.encode(nonce),
+    );
+  }
+
+  /// Decrypt an Argon2id + AES-256-GCM blob. Throws
+  /// [VaultDecryptionException] on a wrong password or tampered ciphertext
+  /// (GCM auth-tag failure) — fail-fast, never returns garbage plaintext.
+  ///
+  /// Async because Argon2id is a cooperatively-scheduled pure-Dart computation.
+  Future<String?> decryptVault({
     required String password,
     required String encryptedDataB64,
     required String saltB64,
     required String nonceB64,
-  }) =>
-      throw UnsupportedError('decryptVault: $_reason');
+  }) async {
+    final encrypted = base64.decode(encryptedDataB64);
+    if (encrypted.length < _aesGcmTagLength) {
+      throw VaultDecryptionException(
+          'Decryption failed: ciphertext too short (${encrypted.length} bytes)');
+    }
+    final salt = Uint8List.fromList(base64.decode(saltB64));
+    final nonce = Uint8List.fromList(base64.decode(nonceB64));
+
+    final key = await _deriveVaultKey(password: password, salt: salt);
+
+    // Split ciphertext || tag (native-compatible layout).
+    final cipherText = encrypted.sublist(0, encrypted.length - _aesGcmTagLength);
+    final mac = encrypted.sublist(encrypted.length - _aesGcmTagLength);
+
+    final cipher = AesGcm.with256bits();
+    try {
+      final plaintext = await cipher.decrypt(
+        SecretBox(cipherText, nonce: nonce, mac: Mac(mac)),
+        secretKey: SecretKey(key),
+      );
+      return base64.encode(plaintext);
+    } on SecretBoxAuthenticationError {
+      // Not a silent swallow: this is the deliberate, loud translation of the
+      // AEAD auth-tag failure into the same VaultDecryptionException the native
+      // FFI throws (vault.rs::decrypt_vault returns the identical message).
+      throw VaultDecryptionException(
+          'Decryption failed: invalid password or corrupted data');
+    }
+  }
 }
 
 class NativeBridge {
@@ -108,12 +478,15 @@ class NativeBridge {
     bool isExample = false,
     bool isTest = false,
     bool isProduction = false,
-  }) =>
-      throw UnsupportedError('validateJsComprehensive: $_reason');
+  }) {
+    throw UnsupportedError('validateJsComprehensive $_stagedReason');
+  }
 
-  String? jsExec({required String script, String? jsonArg}) =>
-      throw UnsupportedError('jsExec: $_reason');
+  String? jsExec({required String script, String? jsonArg}) {
+    throw UnsupportedError('jsExec $_stagedReason');
+  }
 
-  String? jsLint({required String script}) =>
-      throw UnsupportedError('jsLint: $_reason');
+  String? jsLint({required String script}) {
+    throw UnsupportedError('jsLint $_stagedReason');
+  }
 }

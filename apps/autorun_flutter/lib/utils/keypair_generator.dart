@@ -1,6 +1,5 @@
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:uuid/uuid.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../rust/native_bridge.dart' as rust;
 
 import '../models/profile_keypair.dart';
@@ -16,9 +15,9 @@ class KeypairGenerator {
     String? mnemonic,
     int? keypairCount,
   }) async {
-    if (kIsWeb) {
-      throw UnsupportedError('KeypairGenerator does not support web.');
-    }
+    // Web keygen flows through the same RustBridgeLoader (which dispatches to
+    // the pure-Dart Web impl for Ed25519 — R-2). secp256k1 is not yet
+    // implemented on Web (clear UnsupportedError from native_bridge_web.dart).
 
     final String resolvedMnemonic = _resolveMnemonic(mnemonic);
     final String resolvedLabel = _resolveLabel(label, keypairCount);
@@ -33,8 +32,9 @@ class KeypairGenerator {
 
     if (r == null) {
       throw StateError(
-        'Rust FFI failed to generate keypair for $algorithm. '
-        'Ensure native library is loaded.',
+        'Keypair generation failed for $algorithm. '
+        'On native ensure libicp_core is loaded; on Web this indicates an '
+        'internal error (Ed25519 should always succeed — R-2).',
       );
     }
 
