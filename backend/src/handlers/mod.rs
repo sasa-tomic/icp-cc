@@ -8,6 +8,7 @@ pub mod accounts;
 pub mod admin;
 pub mod health;
 pub mod passkey;
+pub mod payments;
 pub mod recovery;
 pub mod reviews;
 pub mod scripts;
@@ -23,6 +24,7 @@ pub use passkey::{
     passkey_authenticate_finish, passkey_authenticate_start, passkey_delete, passkey_list,
     passkey_register_finish, passkey_register_start,
 };
+pub use payments::{download_script, icpay_webhook, payment_config};
 pub use recovery::{recovery_generate, recovery_status, recovery_verify};
 pub use reviews::{create_review, get_reviews};
 pub use scripts::{
