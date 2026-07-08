@@ -689,3 +689,482 @@ brief: one big structural split (TD-1), one canonical robustness fix (TD-2),
 three honest-error/single-source finishes (TD-3/4/6), one Complex heuristic
 (TD-5), focused test work (TQ-1/2), a Round-5 UX review (UX-1), and an
 alignment refresh (AL-1).
+
+---
+
+# Wave-3 (derived from UX-1's Round-5 review + a fresh empirical re-scan)
+
+- **Status:** PLANNING deliverable (no application code changed). Wave-1/2 are
+  **COMPLETE and committed** (TD-1 main.rs 2875→394, TD-2 typed `AccountError`/
+  `ScriptError`, TD-3 honest `candid_service`, TD-4 typed import exceptions,
+  TD-5 `error_categories` type-ladder, TD-6 `ApiRoutes` single-source, TQ-1
+  boundary tests, AL-1 alignment refresh, UXR5-7 runtime `MARKETPLACE_API_PORT`
+  in commit `880351ee`). This section **extends** the plan; it does **not**
+  re-open Wave-1/2.
+- **Date:** 2026-07-08 (Wave-3 scoping).
+- **Scope source:** `docs/specs/2026-07-08-ux-review.md` proposals UXR5-1..6
+  (UXR5-7 is DONE) + TQ-2 (carried from §2) + two **genuinely-new** tech-debt
+  findings surfaced by the Wave-3 re-scan (TD-7, TD-8).
+- **Method:** identical empirical discipline to §0 — every claim below was
+  **re-verified by `rg`/`wc -l`/`read`/`flutter analyze` on 2026-07-08** against
+  the post-Wave-1/2 tree. Stale suspects are dropped with evidence; new
+  findings are added with `file:line`.
+
+---
+
+## W3-0. Wave-3 fresh-scan evidence (re-measured post-Wave-1/2)
+
+| Check | Verdict | Evidence (measured 2026-07-08, post-Wave-1/2) |
+|-------|---------|-----------------------------------------------|
+| Any file > 2 k lines (Rust + Dart)? | **CLEAN — DROP.** | Largest Rust: `backend/src/services/account_service.rs` = **1990** (under 2 k). Largest Dart: `account_profile_screen.dart` = **1919** (under 2 k). `main.rs` now **394** (TD-1 landed). Next: `scripts_screen.dart` 1670, `marketplace_open_api_service.dart` 1500, `script_details_dialog.dart` 1194. None over 2 k — no split WU. |
+| `catch (_)` / empty-catch silent failures in `lib`? | **CLEAN — DROP.** | `rg "catch\s*\(\s*_\s*\)" apps/autorun_flutter/lib` → **0**; `rg -U "catch\s*\([^)]*\)\s*\{\s*\}" lib` → **0**. Backend: **0**. Wave-1 §0 verdict holds. |
+| `.contains(` status-determining heuristics in `lib`? | **ONE LIVE — TD-7 (NEW).** | `marketplace_open_api_service.dart:1275`: `if (e.toString().contains('404')) { return true; }` inside `isUsernameAvailable` — derives "username free" by substring-matching the **exception's English string** for `'404'`. This was **missed by TD-2/TD-5** (both scoped to backend handlers / the categorizer). Root cause: `getAccount` throws a bare `Exception('…(HTTP 404): …')` (`:1271`); availability is then guessed from the string. The robust fix: `getAccount` returns `Account?` (null = not found) or throws a typed `NotFoundException` carrying the status code — `isUsernameAvailable` branches on type/code, never on `.toString()`. |
+| `.contains(` OS-string residuals (uncontrolled source)? | **WATCH — defensible, not a WU.** | `services/secure_storage_readiness.dart:174-178,538-542,557` classify libsecret/keyring `PlatformException` messages by substring (`'libsecret'`, `'keyring'`, `'unlock'`). These are **opaque OS/D-Bus strings we do not control** — the TD-5 policy explicitly permits a minimal, documented residual for uncontrolled sources. Documenting only; no WU (low ROI, the classification drives a helpful install-hint panel, not a security/status decision). |
+| `script_validation_service.dart:87-89` `.contains(` | **NOT a heuristic violation — DROP.** | Classifies the script *content* (JS comment markers `// example|demo|test`) to pick a validation strictness tier — this is **content classification**, not status/error derivation from a string we control. Legitimate. |
+| Other `.contains(` hits in `lib` | **ALL LEGITIMATE — DROP.** | `List.contains` membership checks (`_favoriteScriptIds`, `_downloadingScriptIds`, `allowedKeys`), search filtering (`title.toLowerCase().contains(query)`), principal-format checks. None derive program status from an error string. |
+| `ic_icp` shortcode duplication | **DONE — DROP.** | `rg "ic_icp" apps/autorun_flutter/lib` → **0**. Only backend references remain: the const (`payment_service.rs:42`) + 2 test assertions (`payment_service.rs:467`, `payment_http_tests.rs:515`). TD-6 fully landed on the frontend. |
+| `User-Agent` single-source | **DONE — DROP.** | `AppConfig.userAgent = 'ICP-Autorun-Flutter/1.0'` (`config/app_config.dart:76`) is the single source; `candid_service.dart:142` references it. TD-6 landed. |
+| Route paths single-source | **DONE — DROP.** | `services/api_routes.dart` holds the symbolic names; `marketplace_open_api_service.dart` consumes them (`ApiRoutes.scriptPreview`, `.scriptsFeatured`, `.scriptsTrending`, `.paymentsIcpayConfig`, `.accountByUsername`, …). TD-6 landed. |
+| **I/O without `.timeout(...)`** | **ONE LIVE — TD-8 (NEW).** | `services/icpay_service.dart:86`: `effectiveClient.post(uri, …)` to the **external** ICPay API (`${config.apiUrl}/sdk/public/payments/intents`) has **NO `.timeout()`**. `rg "timeout|Duration" icpay_service.dart` → **empty**. This is the buy-flow's outbound call to ICPay.org — a provider documented as **frequently unreachable** from the dev sandbox (`HUMAN_EXPECTATIONS.md` §4). An unreachable provider → the POST hangs **indefinitely**; the user stares at a spinner with no error. Rule: *"All I/O has timeouts"* (`HUMAN_EXPECTATIONS.md` §2). All other bounded calls confirmed clean: `candid_service.dart:143` (`.timeout(AppDurations.networkRequest)`), `marketplace_open_api_service.dart` (22 sites `.timeout(_timeout)`), `passkey_service.dart:27` (`_timeout=30s`). |
+| Mocks/Fakes/Stubs in `lib` (prod)? | **CLEAN — DROP.** | `rg "\b(Mock|Fake|Stub|stub)\w*" apps/autorun_flutter/lib` (excluding comments) → **0**. |
+| Threads without termination guard? | **CLEAN — DROP.** | All `tokio::spawn` (`main.rs:377` shutdown_on_signal, `cleanup.rs:19,222` cleanup_loop) take a `CancellationToken`; `canister_client.rs:909 std::thread::spawn` is **inside `#[test]`**. Wave-1 §0 verdict holds. |
+| `flutter analyze` baseline | **CLEAN.** | `cd apps/autorun_flutter && flutter analyze` → **"No issues found!" (4.7s)** measured 2026-07-08. Keep it so. |
+
+**Net of the re-scan:** the tree is materially cleaner than at Wave-1 kickoff
+(no >2 k files, no silent catches, no prod mocks, all threads bounded,
+constants single-sourced). The re-scan surfaced exactly **two new TD findings
+(TD-7, TD-8)** plus confirmed the **6 UX proposals (UXR5-1..6)** and refines
+**TQ-2**'s scope. That is the Wave-3 surface — small and sharp.
+
+---
+
+## W3-1. Wave-3 Work Units
+
+> Same conventions as §2: PoC-first (AGENTS.md), one commit per WU, `flutter
+> analyze` clean + cited tests green after each. Priorities: **P1** honesty/
+> high-friction, **P2** polish. Complexity: **S** single file / small;
+> **M** multi-file / cross-layer.
+
+### WU overview
+
+| ID | Title | Priority | Complexity | Primary files |
+|----|-------|----------|------------|---------------|
+| **UXR5-3** | Per-call marketplace timeouts (45 s → ~8 s browse / keep long download) | P1 | S | `marketplace_open_api_service.dart` |
+| **TD-7** | `isUsernameAvailable`: typed not-found, not `.contains('404')` | P1 | S | `marketplace_open_api_service.dart` |
+| **TD-8** | Bound the ICPay intent POST with a timeout | P1 | S | `icpay_service.dart` |
+| **UXR5-4** | Sharpen ICPay-degraded copy ("try again later" → honest, non-transient) | P2 | S | `scripts_screen.dart` |
+| **UXR5-5** | Wizard: connect "Marketplace" label to the username field | P2 | S | `unified_setup_wizard.dart` |
+| **UXR5-6** | Tell a local-only user where/when passkeys appear | P2 | S | `account_profile_screen.dart` |
+| **UXR5-2** | Honest script `language` badge (un-hardcode + detect from bundle) | P1 | M | `script_details_dialog.dart`, backend `/preview`, upload path |
+| **UXR5-1** | Honest marketplace seed (curated TS content + test cleanup), not fixtures | P1 | M | `backend/scripts/add-sample-data.sh`, backend integration tests |
+| **TQ-2** | Test-quality audit of marketplace/dapps/canister_client/vault/web (exclude scripts/) | P2 | M | `test/features/{marketplace,dapps,canister_client,vault,web}/*` |
+
+---
+
+### UXR5-3 — Per-call marketplace timeouts (45 s → ~8 s browse)  [P1, S]
+
+- **Problem (UX — spinner-stall):** `MarketplaceOpenApiService._timeout =
+  Duration(seconds: 45)` (`marketplace_open_api_service.dart:69`) is the
+  **single** budget applied to **every** marketplace call — including
+  browse/trending/search/preview/details, where a 45 s spinner on a briefly-
+  unreachable backend violates the "no spinner > a few seconds" bar.
+- **Grounding (measured):** `rg -c "_timeout" marketplace_open_api_service.dart`
+  → **23** (1 declaration at `:69` + **22** `.timeout(_timeout)` call sites at
+  `:120,167,212,243,266,302,343,458,530,590,623,659,698,789,945,990,1023,1060,
+  1102,1149,1194,1238`). Full-bundle download (`downloadScript` family, the
+  `:458`/`:530` paid-bundle path) legitimately needs the long budget; list/
+  read/preview do not.
+- **Approach (robust, not a heuristic):** introduce **two** named durations on
+  the existing `AppDurations` token (`theme/app_design_system.dart` — already
+  the single source for `ioOperation`/`networkRequest`): e.g.
+  `AppDurations.browseTimeout = Duration(seconds: 8)` and
+  `AppDurations.downloadTimeout = Duration(seconds: 45)`. Migrate the 22 sites
+  by *intent*: list/search/trending/featured/preview/details/versions/account
+  lookups → `browseTimeout`; full-bundle download + paid-bundle fetch →
+  `downloadTimeout`. Delete the `_timeout` field. On timeout, the existing
+  TD-5 categorizer (`error_categories.dart`) already maps a `TimeoutException`
+  to `network` → surfaces `ErrorInfo` promptly (no extra wiring).
+- **Verification:** dead-backend browse errors in **≤10 s** (not 45); downloads
+  keep the long budget. `just test-feature marketplace` green; new test asserts
+  browse uses the short budget (inject a hanging `MockClient`, assert
+  `throwsA(isA<TimeoutException>)` within the short window — mock only at the
+  `http.Client` boundary, per AGENTS.md).
+- **Deps / conflicts:** **same file as TD-7** (`marketplace_open_api_service.dart`) →
+  serialize (do UXR5-3 first, TD-7 rebases on top). Disjoint from all other WUs.
+- **Commit:** `fix(marketplace): UXR5-3 per-call timeouts (browse ~8s, download ~45s)`
+
+### TD-7 — `isUsernameAvailable`: typed not-found, not `.contains('404')`  [P1, S]
+
+- **Problem (heuristic — the directive's class):** `isUsernameAvailable`
+  (`marketplace_open_api_service.dart:1269-1281`) decides "username is free" by
+  catching `getAccount`'s exception and testing `e.toString().contains('404')`.
+  The `'404'` substring is an English artifact of the thrown
+  `Exception('…(HTTP 404): …')`. Rename the message, change phrasing, or route
+  a future `'404'` from an unrelated call through this path and availability is
+  silently wrong — exactly "the wrong strings existing."
+- **Grounding (measured):** `marketplace_open_api_service.dart:1275` —
+  `if (e.toString().contains('404')) { return true; }`. This was **not** covered
+  by TD-2 (backend-only) or TD-5 (the categorizer) — it slipped the net because
+  it lives in the Flutter service layer.
+- **Approach (robust):** eliminate the possibility of the wrong string. Make
+  `getAccount(username)` return `Account?` (`null` ⇒ not found) — it already
+  has a non-throwing `username:` overload shape — OR throw a typed
+  `AccountNotFoundException` carrying `int statusCode` (reuses the TD-2
+  discipline). Then `isUsernameAvailable` becomes
+  `final a = await getAccount(username); return a == null;` (or
+  `on AccountNotFoundException return true; rethrow otherwise`) — **zero
+  `.contains()`**. Verify every other `getAccount` caller still compiles +
+  behaves (the wire body is unchanged).
+- **Verification:** `rg "contains\('404'\)" apps/autorun_flutter/lib` → **0**;
+  `just test-feature profile` + `just test-feature marketplace` green; new test:
+  a real 404 response → `isUsernameAvailable == true`; a 500 → rethrows (not
+  mis-read as available).
+- **Deps / conflicts:** **after UXR5-3** (same file). Disjoint otherwise.
+- **Commit:** `refactor(marketplace): TD-7 typed not-found replaces .contains('404')`
+
+### TD-8 — Bound the ICPay intent POST with a timeout  [P1, S]
+
+- **Problem (rule compliance):** `IcpayService.createPaymentIntent`
+  (`icpay_service.dart:86-93`) `POST`s to the **external** ICPay provider
+  (`${config.apiUrl}/sdk/public/payments/intents`) with **no `.timeout()`**.
+  ICPay.org is documented as frequently unreachable from the dev sandbox
+  (`HUMAN_EXPECTATIONS.md` §4: *"ICPay.org is currently unreachable from the
+  dev sandbox — its wiring degrades LOUDLY"*). An unreachable provider makes
+  this call hang **indefinitely** — the user sees a perpetual spinner with no
+  error, the loudest possible violation of "All I/O has timeouts."
+- **Grounding (measured):** `rg "timeout|Duration" icpay_service.dart` →
+  **empty**. The single external I/O is `:86 .post(...)`. (`loadConfig` at `:45`
+  routes through `api.getIcpayConfig()` which IS bounded, so it is out of scope.)
+- **Approach:** add `.timeout(AppDurations.networkRequest)` (the existing
+  network token used by `candid_service.dart:143`) to the POST. The
+  `PaymentIntentException` path (`:96-99`) already surfaces HTTP errors loudly;
+  a `TimeoutException` propagates to the caller (`scripts_screen._buyScript`),
+  which already has a `catch` that shows a SnackBar — confirm it routes a
+  `TimeoutException` through the TD-5 categorizer (`network`) for an honest
+  *"check your connection"* message rather than a raw dump.
+- **Verification:** `rg "\.post\(" icpay_service.dart` shows the call bounded
+  by `.timeout(...)`; new test: a hanging `MockClient` (smallest boundary) →
+  `throwsA(isA<TimeoutException>)` within the network budget, not infinite.
+- **Deps:** none. Disjoint file. Soft-pairs with UXR5-4 (both polish the buy-
+  flow error UX; TD-8 = the hang, UXR5-4 = the unconfigured copy).
+- **Commit:** `fix(icpay): TD-8 bound payment-intent POST with a timeout`
+
+### UXR5-4 — Sharpen the ICPay-degraded copy  [P2, S]
+
+- **Problem (honesty/copy):** the 503 SnackBar says *"Payments are not
+  configured on this server yet. **Try again later.**"* — "try again later"
+  implies a transient blip, but an unconfigured provider is a server-side gap
+  the user cannot fix by retrying.
+- **Grounding (measured):** `scripts_screen.dart:629` — the exact string in the
+  `on PaymentsNotConfiguredException` arm of `_buyScript` (`:597`, catch at
+  `:625`).
+- **Approach:** reword to honest + non-transient, e.g. *"Paid purchases aren't
+  available in this environment yet. You can still download free scripts."*
+  Drop the "try again later" nudge. (Copy-only; no logic change.)
+- **Verification:** the buy-path test asserting the SnackBar text is updated;
+  `just test-feature marketplace` green.
+- **Deps:** none. **Same file as nothing else in Wave-3** (UXR5-3 touches the
+  service, not `scripts_screen`). Disjoint.
+- **Commit:** `fix(ux): UXR5-4 honest ICPay-degraded copy (drop "try again later")`
+
+### UXR5-5 — Wizard: connect "Marketplace" label to the username field  [P2, S]
+
+- **Problem (clarity):** in `unified_setup_wizard.dart`, a chip labelled
+  **"Marketplace"** (`:416`) floats between the *"Username (optional)"* label
+  (`:402`) and the field; a new user must infer the field *is* the marketplace
+  username.
+- **Grounding (measured):** `unified_setup_wizard.dart:401-422` — the `Row`
+  with `Text('Username (optional)')` + a `Container` chip `Text('Marketplace')`;
+  description at `:427`; the field itself at `:433`.
+- **Approach:** fold the qualifier into the field label, e.g. a single
+  **"Marketplace username (optional)"** label; drop the free-floating
+  "Marketplace" chip (or keep the description line). The field's purpose becomes
+  unambiguous from its label alone.
+- **Verification:** existing wizard/onboarding tests updated for the new label
+  text; `just test-feature onboarding` green.
+- **Deps:** none. Disjoint file.
+- **Commit:** `fix(ux): UXR5-5 wizard label clarifies the marketplace username field`
+
+### UXR5-6 — Tell a local-only user where/when passkeys appear  [P2, S]
+
+- **Problem (discoverability):** a local-only (unregistered) user sees **no**
+  passkey surface and no hint of when/where passkey setup becomes available.
+  `_buildSecuritySection()` (which contains `_buildPasskeysRow()`,
+  `account_profile_screen.dart:1159/1180`) is **only** rendered in
+  `_buildRegisteredBody()` (`:273`, call at `:291`).
+  `_buildLocalOnlyBody()` (`:300-315`) renders identity header + register CTA +
+  local keys — **no passkey mention at all**.
+- **Grounding (measured):** `account_profile_screen.dart:244`
+  (`body: _isLocalOnly ? _buildLocalOnlyBody() : _buildRegisteredBody()`),
+  local body children at `:307-311` (identity / register CTA / local keys — no
+  security/passkey card). The probe-C dump in the Round-5 review confirmed "no
+  passkey tile for `account: null`."
+- **Approach:** add a disabled/hint passkey row to `_buildLocalOnlyBody()`
+  (e.g. a fourth card): *"Passkeys — available after you register an account."*
+  On Linux desktop, reuse the existing honest `PasskeyPlatform` degradation
+  copy (`_buildLinuxPasskeyRow()` at `:1237` already has the "browser only on
+  Linux" wording — extract/ share it). No backend calls; pure UI hint.
+- **Verification:** local-only account screen shows an explanatory passkey hint
+  (not silence); new widget test pumps `AccountProfileScreen(account: null,…)`
+  and asserts the hint text renders.
+- **Deps:** none. Disjoint file.
+- **Commit:** `fix(ux): UXR5-6 passkey hint for local-only users`
+
+### UXR5-2 — Honest script `language` badge (un-hardcode + detect from bundle)  [P1, M]
+
+- **Problem (trust — three layers wrong):** the details dialog shows a
+  **"TypeScript"** badge above **Lua** source. This has **three** compounding
+  causes, all measured:
+  1. **Hardcoded literal:** `script_details_dialog.dart:548` renders
+     `Text('TypeScript')` as a **constant** — it ignores the `ScriptPreview.language`
+     field entirely (`marketplace_open_api_service.dart:1467/1489`).
+  2. **No source of truth:** the `scripts` table has **no `language` column**
+     (`backend/migrations/001_create_scripts.sql` — only `bundle TEXT`), so the
+     `/preview` handler returns the hardcoded default `'typescript'` for every
+     script regardless of bundle syntax.
+  3. **Stale Lua seed:** `backend/scripts/add-sample-data.sh` inserts
+     **Lua-format** bundles (`local scores = {}`, `function addScore(player,
+     score)`, `local data = …`) — so even with a working badge the metadata
+     would lie.
+- **Grounding (measured):** `script_details_dialog.dart:548` (`Text('TypeScript')`,
+  not `_preview.language`); `marketplace_open_api_service.dart:1489`
+  (`language: json['language'] as String? ?? 'typescript'`); `001_create_scripts.sql`
+  (no `language` column); `add-sample-data.sh` (Lua bundles).
+- **Approach (robust, content-based — do NOT trust untrusted metadata):**
+  1. **Detect at the origin** — the backend `/preview` (and `/upload`) handler
+     derives `language` from the **bundle content** with a tiny, deterministic
+     detector (Lua markers: `function … end`, `local x =`, `--` line comments,
+     `return {…}, {…}` multireturn; TS markers: `export`, `: type`, `interface`,
+     `//`/`/* */`, `=>`, `const`/`let`). One function, unit-tested at both
+     markers. This eliminates the "wrong strings existing" class — the badge is
+     always derived from what the bundle actually is, never from a claim.
+  2. **Un-hardcode the dialog** — `script_details_dialog.dart:548` reads
+     `_preview.language` (capitalized for display); if detection is uncertain,
+     show **no badge** (per the review: *"prefer showing no language badge over
+     a wrong one"*).
+  3. **Reject/flag at upload** — `quick_upload_dialog` / backend upload path
+     warns on a declared-vs-detected mismatch (do not silently accept a wrong
+     label).
+- **Verification:** new backend test covers Lua-vs-TS detection (real Lua +
+  real TS sample bundles); new Flutter test asserts the badge matches a known-
+  Lua preview's detected language (or is absent when uncertain). The Round-5
+  probe's Lua-over-"TypeScript" case is resolved.
+- **Deps / conflicts:** **couples with UXR5-1** (the curated seed must ship
+  bundles consistent with their detected language — do UXR5-2's detector first,
+  then UXR5-1's seed passes it). The dialog edit (`:548`) is disjoint from
+  UXR5-3/4 (different file).
+- **Commit:** `fix(marketplace): UXR5-2 honest language badge (detect from bundle, un-hardcode)`
+
+### UXR5-1 — Honest marketplace seed (curated TS content + test cleanup)  [P1, M]
+
+- **Problem (premium-positioning — "no slop shipped as a feature"):** a new
+  user's first browse shows obvious test fixtures (*"Updated Title"*, *"List
+  Test Script 1/2"*, *"My Test Script for Publishing"*) and the **only paid
+  script is named "Updated Title"** with description *"Updated description"*.
+  This undercuts the "premium marketplace" positioning on first contact.
+- **Grounding (measured — TWO distinct sources of slop):**
+  1. **Integration tests leak rows.** The seed SQL
+     (`backend/scripts/add-sample-data.sh`) inserts **clean** titles
+     (*"Hello World Script"*, *"JSON Data Parser"*, *"Game Score Tracker"*)
+     after `DELETE FROM scripts`. But the slop titles the Round-5 review
+     actually saw (*"Updated Title"*, *"List Test Script 1/2"*) originate in
+     the integration tests — `backend/tests/signature_tests.rs`,
+     `apps/autorun_flutter/test/integration/script_upload_api_test.dart`,
+     `poem_repository_test.dart` all create scripts with fixture titles and
+     **do not `tearDown`/delete them** (`rg -c "tearDown|addTearDown"` in those
+     files → sparse). Run the suite against the dev DB and the fixtures
+     persist into `trending`. **This is the dominant slop source.**
+  2. **Seed ships Lua.** Even the clean seed titles carry **Lua bundles** (see
+     UXR5-2 grounding) in a TS/QuickJS product — internally inconsistent.
+- **Approach:**
+  1. **Make integration tests idempotent** — every test that inserts a script
+     uses a `tearDown`/`addTearDown` that deletes the rows it created (by the
+     known test `id`/`slug`, or a test-only account prefix). This is the root
+     fix; without it any curated seed is re-polluted on the next test run.
+     Verify against a fresh dev DB: `just api-dev-up` → `trending` shows **only**
+     seed content, not fixtures.
+  2. **Curate the seed** — replace `add-sample-data.sh`'s Lua bundles with
+     **real, minimal TS/QuickJS bundles** matching the existing examples in
+     `apps/autorun_flutter/lib/examples/` (a "Hello IC" starter, an NNS-balance
+     reader, a ledger-transfer helper) with real titles + descriptions. If full
+     real content isn't ready, mark each row with an explicit **"Demo"** badge
+     (a `tags` entry) so it reads as intentional, not abandoned.
+  3. The seed bundles must **pass UXR5-2's detector** as `typescript` — so the
+     badge and the content agree.
+- **Verification:** `GET /api/v1/scripts/trending?limit=20` against a freshly-
+  seeded, test-run DB returns **zero** fixture titles; ≥5 scripts have real
+  titles + descriptions (or "Demo"-badged); every seed's detected language
+  matches its bundle. `cargo nextest` green (the tearDown additions don't break
+  existing assertions).
+- **Deps:** **after UXR5-2** (uses its detector; seed bundles must satisfy it).
+  Disjoint files otherwise.
+- **Commit:** `fix(seed): UXR5-1 honest marketplace seed + idempotent test cleanup`
+
+### TQ-2 — Test-quality audit (marketplace/dapps/canister_client/vault/web)  [P2, M]
+
+> (Refines the §2 TQ-2 entry with measured scope; same WU.)
+
+- **Problem (signal density):** the post-TQ-1 suite is large (**180** Flutter
+  test files). The **scripts/** area was already pruned in NEXT_PHASE TQ-3
+  (**excluded** — do not re-touch). The areas added since (ICPay entitlement,
+  dapp runner, canister-client, vault-Web) have not had a signal audit.
+- **Grounding (measured):** in-scope feature dirs + counts:
+  `marketplace` **11** (incl. shared `_marketplace_test_harness.dart` — already
+  folded, good), `dapps` **5**, `canister_client` **5**, `vault` **2**, `web`
+  **2** → **25** files. `findsOneWidget`/`pumpAndSettle`-only patterns present
+  across all five dirs (sample scan returned hits in all).
+- **Approach:**
+  1. For each in-scope test: if its only assertion is `findsOneWidget`/
+     `pumpAndSettle` with no interaction or state change → **strengthen** (add
+     the behavior assertion) or **delete** with a commit message naming it +
+     one-line "why redundant." Never delete by size — a tiny test can be high-
+     signal.
+  2. Where a feature has ≥3 repeated `MaterialApp`/`Scaffold`/service setups,
+     fold into the existing harness pattern (`_marketplace_test_harness.dart`
+     is the model).
+  3. **Add boundary coverage** for the Wave-3 typed changes: TD-7 (typed
+     not-found → availability), UXR5-3 (browse short-budget timeout), TD-8
+     (intent-POST timeout), UXR5-2 (Lua-vs-TS detection). Real keypairs; mock
+     only at the `http.Client` boundary.
+  4. Scrutinize any mocked-HTTP test for false confidence (mock asserting the
+     mock).
+- **Verification:** each audited dir: `flutter test test/features/<dir>` green;
+  test count unchanged-or-down only where each deletion is justified in the
+  commit message.
+- **Deps:** soft-after **TD-7, UXR5-3, TD-8, UXR5-2** (so the new boundary tests
+  cover landed behavior). The audit/prune half is independent and can start in
+  parallel. **Exclude `test/features/scripts/`** (pruned already).
+- **Commit:** `refactor(test): TQ-2 prune low-signal + fold harness + boundary coverage`
+
+---
+
+## W3-2. Wave-3 execution order + parallelism (conflict-avoidance)
+
+```
+Track MS  (marketplace service)   UXR5-3 (timeouts) ──► TD-7 (.contains('404'))
+                                   │  same file: serialize, TD-7 rebases on UXR5-3
+Track CP  (copy / single-screen)   UXR5-4 · UXR5-5 · UXR5-6  ── all disjoint, PARALLEL
+Track IO  (timeout bound)          TD-8 (icpay_service)      ── disjoint, PARALLEL
+Track SL  (seed + language)        UXR5-2 (detect+badge) ──► UXR5-1 (curated seed+cleanup)
+                                   │  coupled: detector must exist before seed satisfies it
+Track TQ  (test audit)             TQ-2 (prune half: now)  +  (boundary half: after MS+SL)
+```
+
+| Track | WUs | Primary files | Conflict notes |
+|-------|-----|---------------|----------------|
+| **MS** | UXR5-3 → TD-7 | `marketplace_open_api_service.dart` | **Serialize** — both edit the same file (UXR5-3 the `_timeout` field + 22 sites; TD-7 `isUsernameAvailable` at `:1275`). UXR5-3 first. |
+| **CP** | UXR5-4, UXR5-5, UXR5-6 | `scripts_screen.dart`, `unified_setup_wizard.dart`, `account_profile_screen.dart` | **Fully disjoint** — parallel-safe. (UXR5-4 is in `scripts_screen.dart` but UXR5-3/TD-7 are in the *service*, not this screen — no overlap.) |
+| **IO** | TD-8 | `icpay_service.dart` | Disjoint; parallel-safe. Soft-pairs with UXR5-4 (buy-flow error UX). |
+| **SL** | UXR5-2 → UXR5-1 | `script_details_dialog.dart`, backend `/preview`+upload, `add-sample-data.sh`, integration tests | **Serialize** — UXR5-2 lands the detector + un-hardcodes the badge; UXR5-1's curated seed must pass the detector and the test cleanup must run before claiming "no slop." The dialog edit (`:548`) is disjoint from CP/MS. |
+| **TQ** | TQ-2 | `test/features/{marketplace,dapps,canister_client,vault,web}/*` | **Parallel** (prune half) with everything — disjoint test tree. The **boundary-coverage half** soft-after MS (TD-7/UXR5-3) + IO (TD-8) + SL (UXR5-2) so the new tests assert landed behavior. Exclude `test/features/scripts/`. |
+
+**Recommended launch order (3 sub-waves):**
+
+1. **Wave-3a (parallel — fully disjoint files, start all at once):**
+   - **UXR5-3** (MS, first of its pair), **UXR5-4** · **UXR5-5** · **UXR5-6**
+     (CP, all three), **TD-8** (IO), **UXR5-2** (SL, first of its pair), and
+     the **prune half of TQ-2**. Seven disjoint file-sets — parallel-safe for
+     separate implementers (serialize only at the shared git index per
+     HUMAN_EXPECTATIONS §4).
+2. **Wave-3b (serialized within their track, after 3a):**
+   - **TD-7** (rebases on UXR5-3 in `marketplace_open_api_service.dart`).
+   - **UXR5-1** (after UXR5-2's detector; curated seed + idempotent test
+     cleanup).
+3. **Wave-3c (after MS + IO + SL land):**
+   - The **boundary-coverage half of TQ-2** (tests for TD-7 / UXR5-3 / TD-8 /
+     UXR5-2's detector).
+
+**Hard edges:** UXR5-3 → TD-7 (same file); UXR5-2 → UXR5-1 (detector before
+seed); TQ-2-boundary → TD-7/UXR5-3/TD-8/UXR5-2 (tests assert landed behavior).
+**No edge** between CP/IO and any other track — they are leaf WUs.
+
+---
+
+## W3-3. Wave-3 success criteria (Definition of Done)
+
+A Wave-3 WU is DONE when **all** of:
+
+- [ ] **User-visible** (UXR5-*/TQ-2): the change is reachable from the running
+      app (browse/dialog/wizard/account/buy-flow), verified by re-running the
+      Round-5 probes (or `flutter run -d linux` under the mock keyring).
+- [ ] **PoC demonstrated** before productionizing (esp. UXR5-2 detection against
+      real Lua + TS bundles; UXR5-1 trending-after-test-run shows no fixtures).
+- [ ] **Tests:** the WU's named test + `just test-feature <name>` green; new
+      behavior codified (positive + negative/edge).
+- [ ] **`flutter analyze`** → "No issues found!" (baseline clean — keep it so).
+- [ ] **Rust clean** (UXR5-1/2 backend half): `cargo nextest` + `cargo clippy
+      -- -D warnings` green.
+- [ ] **Rule compliance:** TD-7/TD-8 eliminate the heuristic/unbounded-I/O
+      (re-verify with the §0 commands); UXR5-2 un-hardcodes the badge; UXR5-1
+      ships no slop.
+- [ ] **Minimal diff;** no zombie code.
+- [ ] **Confidence ≥ 8/10.**
+
+### Wave-3 gate commands (additions to §4's set)
+```bash
+# TD-7: zero status-from-string in the Flutter service
+rg "contains\('404'\)" apps/autorun_flutter/lib/services          # → 0
+
+# TD-8: the ICPay POST is bounded
+rg -A1 "\.post\(" apps/autorun_flutter/lib/services/icpay_service.dart | rg "timeout"  # → ≥1
+
+# UXR5-3: per-call timeouts (no single _timeout field)
+rg "final Duration _timeout" apps/autorun_flutter/lib/services/marketplace_open_api_service.dart  # → 0
+
+# UXR5-2: badge is not a hardcoded literal
+rg "Text\('TypeScript'\)" apps/autorun_flutter/lib/widgets/script_details_dialog.dart  # → 0
+
+# UXR5-1: trending shows no fixture slop after a test run
+curl -s "http://127.0.0.1:${MARKETPLACE_API_PORT}/api/v1/scripts/trending?limit=20" \
+  | rg "Updated Title|List Test Script|My Test Script"  # → empty
+```
+
+---
+
+## W3-4. Risk & ROI (Wave-3)
+
+**Do first (highest ROI / lowest risk):**
+- **TD-8** — one-line timeout on an external call to a known-unreachable
+  provider; eliminates an infinite hang. Trivial, high honesty gain.
+- **UXR5-3** — replaces a 45 s spinner with ≤10 s; pure mechanical split with
+  the TD-5 categorizer already wired. High UX gain, low risk.
+- **UXR5-4/5/6** — three small, disjoint, low-risk copy/affordance fixes.
+- **TD-7** — small, completes the typed-error discipline TD-2/TD-5 started.
+
+**Medium ROI / medium risk:**
+- **UXR5-2** — the trust issue (badge lies). M-complexity because it spans
+  detection logic + dialog + upload + seed. The detector is the robust keystone.
+- **UXR5-1** — the "premium feel" issue. M-complexity because the root cause is
+  test cleanup (cross-cutting), not just seed content. Must land after UXR5-2.
+- **TQ-2** — net-positive but judgment-heavy; the worst offenders were already
+  pruned in scripts/, so this is a lighter touch on the newer areas + boundary
+  coverage for the Wave-3 changes.
+
+**Not in Wave-3 (deferred with justification):**
+- Splitting `account_service.rs` (1990) or `account_profile_screen.dart` (1919)
+  — **under** the 2 k rule; revisit only if they cross.
+- The `secure_storage_readiness.dart` OS-string `.contains()` residuals —
+  defensible (uncontrolled source); document only.
+- Promoting Flutter Web to a first-class UX surface (R-3 QuickJS) — separate
+  initiative (`docs/BROWSER_SUPPORT.md`).
+
+---
+
+## W3-5. What Wave-3 changed vs. the prior plan (transparency)
+
+Wave-1/2 are **untouched**. This section only **adds** Wave-3 derived from the
+Round-5 review + a fresh re-scan. Two findings are **genuinely new** (not in
+the review's 7 proposals):
+
+1. **TD-7** — `isUsernameAvailable` `.contains('404')`. The review did not flag
+   it (it's not user-visible friction); the Wave-3 re-scan found it while
+   hunting for residual `.contains(` heuristics that TD-2/TD-5 missed. It is the
+   last status-from-string heuristic in `lib`.
+2. **TD-8** — `icpay_service` unbounded POST. The review noted ICPay degrades
+   *loudly* on the **config** (503) path but did not exercise the **intent**
+   POST (provider unreachable) — the re-scan's I/O-timeout sweep caught it. It
+   is the only unbounded external I/O in `lib`.
+
+Everything else (UXR5-1..6, TQ-2) traces directly to the Round-5 review with
+deepened `file:line` grounding (notably UXR5-2's three-layer root cause and
+UXR5-1's test-leak vs. seed dual sourcing).
