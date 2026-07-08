@@ -626,7 +626,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       messenger.showSnackBar(
         const SnackBar(
           content: Text(
-              'Payments are not configured on this server yet. Try again later.'),
+              "Payments aren't available on this server yet."),
           backgroundColor: AppDesignSystem.errorColor,
         ),
       );
