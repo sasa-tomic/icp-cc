@@ -1,5 +1,5 @@
 use icp_marketplace_api::{
-    auth, cleanup, db, middleware,
+    auth, cleanup, db, handlers, middleware,
     models::{self, *},
     repositories::PurchaseRepository,
     responses::error_response,
@@ -66,25 +66,6 @@ mod admin_token_tests {
 }
 
 /// Builds the canonical payload for script upload signature verification
-#[handler]
-async fn health_check() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "success": true,
-        "message": "ICP Marketplace API is running",
-        "environment": env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    }))
-}
-
-#[handler]
-async fn ping() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "success": true,
-        "message": "pong",
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    }))
-}
-
 #[handler]
 async fn get_scripts(
     Query(params): Query<ScriptsQuery>,
@@ -1822,8 +1803,8 @@ async fn main() -> Result<(), std::io::Error> {
     // ========================================================================
     // Build app
     let app = Route::new()
-        .at("/api/v1/health", get(health_check))
-        .at("/api/v1/ping", get(ping))
+        .at("/api/v1/health", get(handlers::health_check))
+        .at("/api/v1/ping", get(handlers::ping))
         .at("/api/v1/scripts", get(get_scripts).post(create_script))
         .at("/api/v1/scripts/count", get(get_scripts_count))
         .at("/api/v1/scripts/search", post(search_scripts))
