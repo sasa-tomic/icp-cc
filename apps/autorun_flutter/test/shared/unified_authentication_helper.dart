@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'testable_script_repository.dart';
@@ -115,16 +116,36 @@ class AuthenticationMatchers {
 abstract class TestOperation {
   Future<void> execute(TestableScriptRepository repository);
   String get description;
+
+  /// UXR5-1: delete every script `execute` created. Default no-op — only the
+  /// operations that CREATE scripts override this. Called by
+  /// `runTestWithScenario` in its `finally` block so no fixture leaks into the
+  /// dev DB. MUST be idempotent (safe to run when execute failed partway or
+  /// already deleted its rows); cleanup errors are logged, never rethrown, so
+  /// they cannot mask the test's own pass/fail result.
+  Future<void> cleanup(TestableScriptRepository repository) async {}
 }
 
 class CreateScriptOperation extends TestOperation {
   final ScriptRecord script;
+  String? _createdId;
 
   CreateScriptOperation(this.script);
 
   @override
   Future<void> execute(TestableScriptRepository repository) async {
-    await repository.saveScript(script);
+    _createdId = await repository.saveScript(script);
+  }
+
+  @override
+  Future<void> cleanup(TestableScriptRepository repository) async {
+    final id = _createdId;
+    if (id == null) return;
+    try {
+      await repository.deleteScript(id);
+    } catch (e) {
+      debugPrint('CreateScriptOperation cleanup: delete $id failed (ignored): $e');
+    }
   }
 
   @override
@@ -133,12 +154,24 @@ class CreateScriptOperation extends TestOperation {
 
 class UpdateScriptOperation extends TestOperation {
   final ScriptRecord script;
+  String? _createdId;
 
   UpdateScriptOperation(this.script);
 
   @override
   Future<void> execute(TestableScriptRepository repository) async {
-    await repository.saveScript(script);
+    _createdId = await repository.saveScript(script);
+  }
+
+  @override
+  Future<void> cleanup(TestableScriptRepository repository) async {
+    final id = _createdId;
+    if (id == null) return;
+    try {
+      await repository.deleteScript(id);
+    } catch (e) {
+      debugPrint('UpdateScriptOperation cleanup: delete $id failed (ignored): $e');
+    }
   }
 
   @override
@@ -161,16 +194,30 @@ class DeleteScriptOperation extends TestOperation {
 
 class CreateAndUpdateOperation extends TestOperation {
   final ScriptRecord originalScript;
+  String? _createdId;
 
   CreateAndUpdateOperation(this.originalScript);
 
   @override
   Future<void> execute(TestableScriptRepository repository) async {
-    await repository.saveScript(originalScript);
+    _createdId = await repository.saveScript(originalScript);
     final updatedScript = UnifiedScriptTestBuilder.create()
         .forUpdate(originalScript)
         .build();
     await repository.saveScript(updatedScript);
+  }
+
+  @override
+  Future<void> cleanup(TestableScriptRepository repository) async {
+    // The update saves the SAME id (it PUT-updates), so a single delete covers
+    // both the create and the update.
+    final id = _createdId;
+    if (id == null) return;
+    try {
+      await repository.deleteScript(id);
+    } catch (e) {
+      debugPrint('CreateAndUpdateOperation cleanup: delete $id failed (ignored): $e');
+    }
   }
 
   @override
@@ -218,6 +265,9 @@ class UnifiedAuthenticationTestHelper {
         );
       }
     } finally {
+      // UXR5-1: delete every script the operation created so fixtures don't
+      // leak into the dev DB. Cleanup is idempotent + logged (never rethrown).
+      await operation.cleanup(repository);
       repository.dispose();
     }
   }
@@ -248,11 +298,21 @@ class UnifiedAuthenticationTestHelper {
     for (final scenario in scenarios) {
       final repository = TestRepositoryFactory.createForScenario(scenario);
 
+      String? createdId;
       try {
         final script = scriptBuilder(scenario.description);
-        final createdId = await repository.saveScript(script);
+        createdId = await repository.saveScript(script);
         results.add('${scenario.description}: $createdId');
       } finally {
+        // UXR5-1: delete the script this scenario created (idempotent + logged).
+        if (createdId != null) {
+          try {
+            await repository.deleteScript(createdId);
+          } catch (e) {
+            debugPrint('runConsistencyTest cleanup: delete $createdId failed '
+                '(ignored): $e');
+          }
+        }
         repository.dispose();
       }
     }

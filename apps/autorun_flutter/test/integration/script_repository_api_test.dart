@@ -1,6 +1,7 @@
 @Tags(['integration'])
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,16 +13,35 @@ import '../shared/unified_test_builder.dart';
 void main() {
   group('Script Repository API Tests', () {
     late PoemScriptRepository poemRepository;
+    // UXR5-1: every script a test creates is tracked here and deleted in
+    // tearDown so re-running the suite (or browsing the dev DB afterwards)
+    // shows ZERO leftover fixtures ("Updated Title", "List Test Script 1/2",
+    // …). Idempotent: `deleteScript` treats 404 as success, so re-deleting an
+    // already-deleted script is safe.
+    final List<String> createdScriptIds = <String>[];
 
     setUp(() async {
       // Initialize Poem repository
       poemRepository = PoemScriptRepository();
-      
+
       // Mock SharedPreferences for tests
       SharedPreferences.setMockInitialValues({});
     });
 
     tearDown(() async {
+      // UXR5-1: delete every script this test created (idempotent — safe to
+      // run repeatedly and safe if a script was already deleted mid-test).
+      for (final id in createdScriptIds) {
+        try {
+          await poemRepository.deleteScript(id);
+        } catch (e) {
+          // Swallow only here: cleanup MUST NOT mask a test failure. A 404 on
+          // an already-deleted script is the expected idempotent path.
+          debugPrint('tearDown: cleanup delete for $id failed (ignored): $e');
+        }
+      }
+      createdScriptIds.clear();
+
       // Clean up repository
       poemRepository.dispose();
     });
@@ -59,6 +79,7 @@ end''',
 
         // Act - Add script to repository
         final savedScriptId = await poemRepository.saveScript(testScript);
+        createdScriptIds.add(savedScriptId);
 
         // Assert - Verify script was saved
         final savedScripts = await poemRepository.getAllScripts();
@@ -79,6 +100,7 @@ end''',
           bundle: '-- Original source',
         );
         final originalScriptId = await poemRepository.saveScript(originalScript);
+        createdScriptIds.add(originalScriptId);
 
         // Act - Update script using the proper update helper
         final updateData = TestTemplates.createTestUpdateRequest(
@@ -129,6 +151,7 @@ end''',
           bundle: '-- This will be deleted',
         );
         final scriptId = await poemRepository.saveScript(testScript);
+        createdScriptIds.add(scriptId);
 
         // Verify it exists
         var currentScripts = await poemRepository.getAllScripts();
@@ -136,6 +159,8 @@ end''',
 
         // Act - Delete script
         await poemRepository.deleteScript(scriptId);
+        // Already deleted mid-test — tearDown's re-delete is a harmless 404.
+        createdScriptIds.remove(scriptId);
 
         // Assert - Verify it was deleted
         final finalScripts = await poemRepository.getAllScripts();
@@ -165,10 +190,11 @@ end''',
           ),
         ];
 
- final scriptIds = <String>[];
+        final scriptIds = <String>[];
         for (final script in scripts) {
           final savedId = await poemRepository.saveScript(script);
           scriptIds.add(savedId);
+          createdScriptIds.add(savedId);
         }
 
         // Act - Get all scripts
@@ -191,7 +217,9 @@ end''',
           authorName: 'Search Test',
           bundle: '-- Searchable script',
         );
-        await poemRepository.saveScript(searchableScript);
+        final searchableId =
+            await poemRepository.saveScript(searchableScript);
+        createdScriptIds.add(searchableId);
 
         // Act - Search by title
         final titleResults = await poemRepository.searchScripts('Unique Searchable');
@@ -225,8 +253,9 @@ end''',
           bundle: '-- Utility script',
         );
 
-        await poemRepository.saveScript(devScript);
-        await poemRepository.saveScript(utilScript);
+        final devScriptId = await poemRepository.saveScript(devScript);
+        final utilScriptId = await poemRepository.saveScript(utilScript);
+        createdScriptIds.addAll([devScriptId, utilScriptId]);
 
         // Act - Get scripts by category
         final devScripts = await poemRepository.getScriptsByCategory('Development');
@@ -285,8 +314,9 @@ end''',
           updatedAt: DateTime.now(),
         );
 
-        await poemRepository.saveScript(publicScript);
-        await poemRepository.saveScript(privateScript);
+        final publicScriptId = await poemRepository.saveScript(publicScript);
+        final privateScriptId = await poemRepository.saveScript(privateScript);
+        createdScriptIds.addAll([publicScriptId, privateScriptId]);
 
         // Act - Get public scripts
         final publicScripts = await poemRepository.getPublicScripts();
@@ -333,6 +363,7 @@ end''',
           updatedAt: DateTime.now(),
         );
         final savedScriptId = await poemRepository.saveScript(privateScript);
+        createdScriptIds.add(savedScriptId);
 
         // Act - Publish the script using the saved ID
         final scriptToPublish = ScriptRecord(
