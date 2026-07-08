@@ -1,12 +1,14 @@
+#[cfg(test)]
+use icp_marketplace_api::models;
 use icp_marketplace_api::{
     auth, cleanup, db, handlers, middleware,
-    models::{self, *},
+    models::*,
     repositories::PurchaseRepository,
     responses::error_response,
     services::{AccountService, PasskeyService, PaymentService, ReviewService, ScriptService},
     startup_checks::{
-        is_development, verify_script_ownership, warn_if_broken_prod_passkey_rp,
-        warn_if_icpay_unconfigured, warn_if_insecure_prod_admin_token,
+        verify_script_ownership, warn_if_broken_prod_passkey_rp, warn_if_icpay_unconfigured,
+        warn_if_insecure_prod_admin_token,
     },
 };
 use poem::{
@@ -22,47 +24,6 @@ use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 
-#[cfg(test)]
-mod admin_token_tests {
-    use icp_marketplace_api::startup_checks::{
-        is_insecure_admin_token, warn_if_insecure_prod_admin_token,
-    };
-
-    #[test]
-    fn default_token_is_detected() {
-        assert!(is_insecure_admin_token("change-me-in-production"));
-    }
-
-    #[test]
-    fn empty_token_is_detected() {
-        assert!(is_insecure_admin_token(""));
-    }
-
-    #[test]
-    fn real_token_is_not_detected() {
-        assert!(!is_insecure_admin_token(
-            "super-secret-operator-token-9f3a7c1e"
-        ));
-    }
-
-    #[test]
-    fn warning_fires_for_production_insecure_only() {
-        assert!(warn_if_insecure_prod_admin_token(
-            "production",
-            "change-me-in-production"
-        ));
-        assert!(!warn_if_insecure_prod_admin_token(
-            "development",
-            "change-me-in-production"
-        ));
-        assert!(!warn_if_insecure_prod_admin_token(
-            "production",
-            "super-secret-operator-token-9f3a7c1e"
-        ));
-    }
-}
-
-/// Builds the canonical payload for script upload signature verification
 #[handler]
 async fn get_scripts(
     Query(params): Query<ScriptsQuery>,
@@ -488,90 +449,6 @@ async fn remove_account_key(
 }
 
 // Admin Account Operations
-
-#[handler]
-async fn admin_disable_key(
-    Path((username, key_id)): Path<(String, String)>,
-    Json(payload): Json<models::AdminDisableKeyRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .account_service
-        .admin_disable_key(&username, &key_id, &payload.reason)
-        .await
-    {
-        Ok(key) => {
-            tracing::info!(
-                "Admin disabled key {} for account {}: {}",
-                key_id,
-                username,
-                payload.reason
-            );
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "success": true,
-                    "data": key
-                })),
-            )
-                .into_response()
-        }
-        Err(message) => {
-            tracing::warn!("Admin failed to disable key: {}", message);
-            let status = if message.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else if message.contains("Invalid username") {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &message)
-        }
-    }
-}
-
-#[handler]
-async fn admin_add_recovery_key(
-    Path(username): Path<String>,
-    Json(payload): Json<models::AdminAddRecoveryKeyRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .account_service
-        .admin_add_recovery_key(&username, &payload.public_key, &payload.reason)
-        .await
-    {
-        Ok(key) => {
-            tracing::info!(
-                "Admin added recovery key for account {}: {}",
-                username,
-                payload.reason
-            );
-            (
-                StatusCode::CREATED,
-                Json(serde_json::json!({
-                    "success": true,
-                    "data": key
-                })),
-            )
-                .into_response()
-        }
-        Err(message) => {
-            tracing::warn!("Admin failed to add recovery key: {}", message);
-            let status = if message.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else if message.contains("Invalid username")
-                || message.contains("Maximum number")
-                || message.contains("already registered")
-            {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &message)
-        }
-    }
-}
 
 #[handler]
 async fn update_script(
@@ -1136,44 +1013,6 @@ async fn icpay_webhook(
     .into_response()
 }
 
-#[handler]
-async fn reset_database(Data(state): Data<&Arc<AppState>>) -> Response {
-    if !is_development() {
-        return error_response(
-            StatusCode::FORBIDDEN,
-            "Database reset only available in development",
-        );
-    }
-
-    if let Err(e) = sqlx::query("DELETE FROM scripts")
-        .execute(&state.pool)
-        .await
-    {
-        tracing::error!("Failed to reset scripts table: {}", e);
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to reset database",
-        );
-    }
-
-    if let Err(e) = sqlx::query("DELETE FROM reviews")
-        .execute(&state.pool)
-        .await
-    {
-        tracing::error!("Failed to reset reviews table: {}", e);
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to reset database",
-        );
-    }
-
-    Json(serde_json::json!({
-        "success": true,
-        "message": "Database reset successfully"
-    }))
-    .into_response()
-}
-
 /// Wait for a process shutdown signal (ctrl-c and, on Unix, SIGTERM) and then
 /// cancel `shutdown`. Falls back to ctrl-c only if the SIGTERM handler cannot
 /// be installed. Never returns before a signal arrives.
@@ -1433,18 +1272,18 @@ async fn main() -> Result<(), std::io::Error> {
         // Admin Account endpoints (require admin authentication)
         .at(
             "/api/v1/admin/accounts/:username/keys/:key_id/disable",
-            post(admin_disable_key).with(middleware::AdminAuth),
+            post(handlers::admin_disable_key).with(middleware::AdminAuth),
         )
         .at(
             "/api/v1/admin/accounts/:username/recovery-key",
-            post(admin_add_recovery_key).with(middleware::AdminAuth),
+            post(handlers::admin_add_recovery_key).with(middleware::AdminAuth),
         )
         // ICPay payment endpoints (webhook is unauthenticated; HMAC-verified)
         .at("/api/v1/payments/icpay/config", get(payment_config))
         .at("/api/v1/payments/icpay/webhook", post(icpay_webhook))
         .at("/api/v1/marketplace-stats", get(get_marketplace_stats))
         .at("/api/v1/update-script-stats", post(update_script_stats))
-        .at("/api/dev/reset-database", post(reset_database))
+        .at("/api/dev/reset-database", post(handlers::reset_database))
         .with(Cors::new())
         .data(state);
 

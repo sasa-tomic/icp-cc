@@ -4,12 +4,14 @@
 //! `#[handler]` functions live in their own file (`health.rs`, `scripts.rs`,
 //! …) and are re-exported here for the route table in `main`.
 
+pub mod admin;
 pub mod health;
 pub mod passkey;
 pub mod recovery;
 pub mod reviews;
 pub mod vault;
 
+pub use admin::{admin_add_recovery_key, admin_disable_key, reset_database};
 pub use health::{health_check, ping};
 pub use passkey::{
     passkey_authenticate_finish, passkey_authenticate_start, passkey_delete, passkey_list,
