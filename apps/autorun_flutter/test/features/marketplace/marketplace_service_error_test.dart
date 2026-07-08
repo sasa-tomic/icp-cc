@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'package:icp_autorun/theme/app_design_system.dart';
 
 http.Client _statusClient(int status, {String body = ''}) =>
     MockClient((_) async => http.Response(body, status));
@@ -155,33 +156,37 @@ void main() {
     });
   });
 
-  group('timeout (real .timeout wiring, Duration seconds:45)', () {
-    test('searchScripts propagates TimeoutException when request exceeds 45s',
-        () {
+  group('per-call timeouts (UXR5-3: browse vs download budget wiring)', () {
+    // A client that never responds — isolates the `.timeout(...)` budget from
+    // any response handling. Mock lives only at the http.Client boundary.
+    http.Client hangingClient() =>
+        MockClient((_) => Completer<http.Response>().future);
+
+    test('browse reads time out on the short browse budget (searchScripts)', () {
       fakeAsync((async) {
-        final client = MockClient((_) => Completer<http.Response>().future);
-        service.overrideHttpClient(client);
+        service.overrideHttpClient(hangingClient());
 
         Object? captured;
         service.searchScripts().then<void>(
               (_) {},
-              onError: (Object e) {
-                captured = e;
-              },
+              onError: (Object e) => captured = e,
             );
 
         async.flushMicrotasks();
-        async.elapse(const Duration(seconds: 46));
+        // Elapse just past the browse budget but far below the download budget.
+        // If searchScripts were mis-wired to downloadTimeout this would leave
+        // captured null (no timeout yet) and the expectation would fail.
+        async.elapse(AppDurations.browseTimeout + const Duration(seconds: 1));
         async.flushMicrotasks();
 
         expect(captured, isA<TimeoutException>());
       });
     });
 
-    test('uploadScript (POST) propagates TimeoutException on timeout', () {
+    test('mutations outlast the browse window then time out on the download '
+        'budget (uploadScript)', () {
       fakeAsync((async) {
-        final client = MockClient((_) => Completer<http.Response>().future);
-        service.overrideHttpClient(client);
+        service.overrideHttpClient(hangingClient());
 
         Object? captured;
         service
@@ -195,15 +200,52 @@ void main() {
             )
             .then<void>(
               (_) {},
-              onError: (Object e) {
-                captured = e;
-              },
+              onError: (Object e) => captured = e,
             );
 
         async.flushMicrotasks();
-        async.elapse(const Duration(seconds: 46));
+        // Browse budget elapsed: a mutation on the short budget would have
+        // timed out here. uploadScript is on downloadTimeout, so it must hang.
+        async.elapse(AppDurations.browseTimeout + const Duration(seconds: 1));
         async.flushMicrotasks();
+        expect(captured, isNull,
+            reason: 'upload must use the download budget, not the browse one');
 
+        // Past the download budget: now the mutation must time out.
+        async.elapse(AppDurations.downloadTimeout);
+        async.flushMicrotasks();
+        expect(captured, isA<TimeoutException>());
+      });
+    });
+
+    test('paid bundle download uses the download budget, not browse '
+        '(downloadPaidScriptBundle)', () {
+      fakeAsync((async) {
+        service.overrideHttpClient(hangingClient());
+
+        Object? captured;
+        service
+            .downloadPaidScriptBundle(
+          'script-1',
+          accountId: 'a',
+          publicKeyB64: 'dGVzdA==',
+          signatureB64: 'dGVzdA==',
+          timestamp: 'ts',
+          nonce: 'n',
+        )
+            .then<void>(
+              (_) {},
+              onError: (Object e) => captured = e,
+            );
+
+        async.flushMicrotasks();
+        async.elapse(AppDurations.browseTimeout + const Duration(seconds: 1));
+        async.flushMicrotasks();
+        expect(captured, isNull,
+            reason: 'full-bundle download must use the download budget');
+
+        async.elapse(AppDurations.downloadTimeout);
+        async.flushMicrotasks();
         expect(captured, isA<TimeoutException>());
       });
     });

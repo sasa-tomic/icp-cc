@@ -5,6 +5,7 @@ import '../models/marketplace_script.dart';
 import '../models/purchase_record.dart';
 import '../models/account.dart';
 import '../utils/base64_utils.dart';
+import '../theme/app_design_system.dart';
 import 'api_routes.dart';
 
 // Flag to control debug output in tests
@@ -66,7 +67,6 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   factory MarketplaceOpenApiService() => _instance;
   MarketplaceOpenApiService._internal() : _httpClient = http.Client();
 
-  final Duration _timeout = const Duration(seconds: 45);
   http.Client _httpClient;
   static const int defaultSearchLimit = 20;
 
@@ -117,7 +117,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(requestBody),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
         throw Exception(
@@ -164,7 +164,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           : Uri.parse(ApiRoutes.script(scriptId))
               .replace(queryParameters: {'account_id': accountId});
 
-      final response = await _httpClient.get(uri).timeout(_timeout);
+      final response = await _httpClient.get(uri).timeout(AppDurations.browseTimeout);
 
       if (response.statusCode > 299) {
         if (response.statusCode == 404) {
@@ -209,7 +209,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     try {
       final response = await _httpClient
           .get(Uri.parse(ApiRoutes.scriptPreview(scriptId)))
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode == 404) {
         throw Exception('Script not found');
@@ -240,7 +240,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   Future<List<MarketplaceScript>> getFeaturedScripts({int limit = 10}) async {
     final response = await _httpClient
         .get(Uri.parse('${ApiRoutes.scriptsFeatured}?limit=$limit'))
-        .timeout(_timeout);
+        .timeout(AppDurations.browseTimeout);
 
     if (response.statusCode > 299) {
       throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
@@ -263,7 +263,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   Future<List<MarketplaceScript>> getTrendingScripts({int limit = 10}) async {
     final response = await _httpClient
         .get(Uri.parse('${ApiRoutes.scriptsTrending}?limit=$limit'))
-        .timeout(_timeout);
+        .timeout(AppDurations.browseTimeout);
 
     if (response.statusCode > 299) {
       throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
@@ -299,7 +299,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
         'sort_order': sortOrder,
       });
 
-      final response = await _httpClient.get(uri).timeout(_timeout);
+      final response = await _httpClient.get(uri).timeout(AppDurations.browseTimeout);
 
       if (response.statusCode > 299) {
         throw Exception(
@@ -340,7 +340,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
         if (verifiedOnly) 'verified_only': 'true',
       });
 
-      final response = await _httpClient.get(uri).timeout(_timeout);
+      final response = await _httpClient.get(uri).timeout(AppDurations.browseTimeout);
 
       if (response.statusCode > 299) {
         throw Exception(
@@ -455,7 +455,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     try {
       final response = await _httpClient
           .get(Uri.parse(ApiRoutes.paymentsIcpayConfig))
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode == 503) {
         throw const PaymentsNotConfiguredException();
@@ -527,7 +527,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: {'Content-Type': 'application/json'},
             body: body,
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Paid download failed: $e');
       rethrow;
@@ -587,7 +587,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     try {
       final response = await _httpClient
           .get(Uri.parse(ApiRoutes.scriptVersion(scriptId, version)))
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode == 404) {
         throw Exception('Script version $version not found');
@@ -620,7 +620,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     try {
       final response = await _httpClient
           .get(Uri.parse(ApiRoutes.scriptVersions(scriptId)))
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode == 404) {
         return [];
@@ -656,7 +656,8 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
   Future<MarketplaceStats> getMarketplaceStats() async {
     final url = ApiRoutes.marketplaceStats;
     if (!suppressDebugOutput) debugPrint('GET request URL: $url');
-    final response = await _httpClient.get(Uri.parse(url)).timeout(_timeout);
+    final response =
+        await _httpClient.get(Uri.parse(url)).timeout(AppDurations.browseTimeout);
 
     if (response.statusCode > 299) {
       throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
@@ -695,7 +696,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
               'limit': limit,
             }),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode > 299) {
         throw Exception(
@@ -786,7 +787,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: {'Content-Type': 'application/json'},
             body: requestBody,
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
         if (!suppressDebugOutput) {
@@ -942,7 +943,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(body),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
 
       if (response.statusCode > 299) {
         final responseData = jsonDecode(response.body);
@@ -987,7 +988,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(body),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
 
       if (response.statusCode > 299) {
         final responseData = jsonDecode(response.body);
@@ -1020,7 +1021,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
         final String detail = response.body.isNotEmpty
@@ -1057,7 +1058,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       final encodedUsername = Uri.encodeComponent(username);
       final response = await _httpClient
           .get(Uri.parse(ApiRoutes.accountByUsername(encodedUsername)))
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode == 404) {
         return null; // Account not found
@@ -1099,7 +1100,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       final response = await _httpClient
           .get(Uri.parse(
               ApiRoutes.accountByPublicKey(encodedPublicKey)))
-          .timeout(_timeout);
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode == 404) {
         return null; // No account found for this public key
@@ -1146,7 +1147,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
         final String detail = response.body.isNotEmpty
@@ -1191,7 +1192,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
         final String detail = response.body.isNotEmpty
@@ -1235,7 +1236,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
-          .timeout(_timeout);
+          .timeout(AppDurations.downloadTimeout);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
         final String detail = response.body.isNotEmpty

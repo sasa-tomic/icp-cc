@@ -737,4 +737,15 @@ class AppDurations {
   /// calls). Single source — every network `.timeout(...)` should name this,
   /// never re-inline the seconds.
   static const Duration networkRequest = Duration(seconds: 30);
+
+  /// Budget for lightweight marketplace browse reads (search, list, preview,
+  /// details, versions, stats, account lookups). A dead backend must surface
+  /// the TD-5 categorized network error promptly, not spin for the full
+  /// download budget.
+  static const Duration browseTimeout = Duration(seconds: 8);
+
+  /// Budget for full-bundle fetches and marketplace mutations (downloads,
+  /// uploads, updates, deletes, account writes). Transfers a bundle or does
+  /// server-side work that may legitimately exceed the browse budget.
+  static const Duration downloadTimeout = Duration(seconds: 45);
 }
