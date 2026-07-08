@@ -168,19 +168,20 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     setState(() => _errorMessage = null);
   }
 
-  String _friendlyError(dynamic error) {
-    final errStr = error.toString().toLowerCase();
-    if (errStr.contains('not found') || errStr.contains('404')) {
-      return 'Canister not found. Please check the ID.';
+  String _friendlyError(Object error) {
+    // Classify by exception TYPE, not by grepping the message string (TD-9).
+    // A canister-not-found surfaces upstream as a null/empty fetch → the
+    // "Could not load canister interface" path; the throws that reach THIS
+    // catch are interface-decode failures (FormatException) or async
+    // timeouts (TimeoutException). Anything else is genuinely unknown, so we
+    // show the honest generic message rather than risk mis-classifying an
+    // unrelated error as "canister not found" just because its text happens
+    // to contain "404" or "not found".
+    if (error is FormatException) {
+      return 'Could not read the canister interface.';
     }
-    if (errStr.contains('timeout') || errStr.contains('timed out')) {
+    if (error is TimeoutException) {
       return 'Connection timed out. Please try again.';
-    }
-    if (errStr.contains('network') || errStr.contains('connection refused')) {
-      return 'Network error. Please check your connection.';
-    }
-    if (errStr.contains('invalid') && errStr.contains('candid')) {
-      return 'This canister does not expose a public interface.';
     }
     return 'Something went wrong. Please try again.';
   }

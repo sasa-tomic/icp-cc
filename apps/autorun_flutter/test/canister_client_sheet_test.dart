@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,6 +28,19 @@ service: {
     }
     if (canisterId == 'invalid') {
       return null;
+    }
+    // TD-9 fixtures: each throws a distinct typed exception so the sheet's
+    // type-based _friendlyError classifier can be exercised end-to-end.
+    if (canisterId == 'throw-format') {
+      throw FormatException('malformed candid json');
+    }
+    if (canisterId == 'throw-timeout') {
+      throw TimeoutException('fetchCandid', const Duration(seconds: 30));
+    }
+    if (canisterId == 'throw-404-msg') {
+      // Regression guard: an opaque error whose message happens to contain
+      // '404'/'not found' must NOT be mis-classified as "canister not found".
+      throw Exception('HTTP 404: not found');
     }
     throw Exception('Network error');
   }
@@ -373,6 +388,54 @@ void main() {
 
       // Should show form field for text argument
       expect(find.widgetWithText(TextField, 'Arg 1 (text)'), findsOneWidget);
+    });
+  });
+
+  group('friendly error classification (TD-9)', () {
+    // Errors must be classified by TYPE, never by grepping the message string.
+    // A canister-not-found surfaces upstream as a null fetch → the "Could not
+    // load canister interface" path; the throws that reach the catch are typed
+    // (FormatException / TimeoutException). The regression case proves an
+    // opaque error whose message happens to contain '404'/'not found' is no
+    // longer mis-classified as "canister not found".
+
+    Future<void> connectTo(WidgetTester tester, String canisterId) async {
+      await pumpSheet(tester);
+      await tester.enterText(
+        find.byKey(const Key('canisterField')),
+        canisterId,
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('FormatException surfaces an honest decode message',
+        (tester) async {
+      await connectTo(tester, 'throw-format');
+
+      expect(find.text('Could not read the canister interface.'),
+          findsOneWidget);
+    });
+
+    testWidgets('TimeoutException surfaces a timeout message',
+        (tester) async {
+      await connectTo(tester, 'throw-timeout');
+
+      expect(find.text('Connection timed out. Please try again.'),
+          findsOneWidget);
+    });
+
+    testWidgets(
+        'regression: an opaque error containing "404"/"not found" is NOT '
+        'mis-classified as canister-not-found', (tester) async {
+      await connectTo(tester, 'throw-404-msg');
+
+      // Pre-TD-9 this substring-matched and lied "Canister not found".
+      expect(find.text('Canister not found. Please check the ID.'),
+          findsNothing);
+      // Now classified honestly as generic — it's an unknown opaque error.
+      expect(find.text('Something went wrong. Please try again.'),
+          findsOneWidget);
     });
   });
 }
