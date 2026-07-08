@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
+import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/screens/import_keys_dialog.dart';
+import 'package:icp_autorun/utils/profile_errors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../shared/fake_secure_keypair_repository.dart';
@@ -193,4 +195,131 @@ void main() {
       expect(find.text('Import Complete'), findsNothing);
     });
   });
+
+  // TD-4: the dialog branches on TYPE, never on an English substring. Each
+  // typed exception maps to a single, stable user-visible message.
+  group('ImportKeysDialog typed-exception copy (TD-4)', () {
+    testWidgets(
+        'ProfileAlreadyExistsException shows the already-exists message',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+
+      // Inject a ProfileAlreadyExistsException directly — this test validates
+      // the dialog's TYPE -> message mapping (the TD-4 point), not the crypto
+      // path (covered by the wrong-password / invalid-format widget tests).
+      final controller = ProfileController(
+        profileRepository: _TypedThrowingProfileRepository(
+          ProfileAlreadyExistsException('profile_collision'),
+        ),
+      );
+      await controller.ensureLoaded();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Center(
+                child: ElevatedButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => ImportKeysDialog(
+                      profileController: controller,
+                    ),
+                  ),
+                  child: const Text('Show Import Dialog'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Show Import Dialog'));
+      await tester.pumpAndSettle();
+
+      final textFields = find.byType(TextField);
+      await tester.enterText(textFields.at(0), 'any backup blob');
+      await tester.enterText(textFields.at(1), 'testpassword123');
+      await tester.tap(find.widgetWithText(FilledButton, 'Import'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+            'Profile already exists. Delete it first or use a different backup.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an unknown cause shows the generic Import failed message',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+
+      // A repository that injects an arbitrary (non-typed) failure — proves the
+      // dialog's final catch arm surfaces the error honestly instead of
+      // mis-routing it to a typed message.
+      final controller = ProfileController(
+        profileRepository: _TypedThrowingProfileRepository(
+          Exception('unexpected storage failure'),
+        ),
+      );
+      await controller.ensureLoaded();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Center(
+                child: ElevatedButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => ImportKeysDialog(
+                      profileController: controller,
+                    ),
+                  ),
+                  child: const Text('Show Import Dialog'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Show Import Dialog'));
+      await tester.pumpAndSettle();
+
+      final textFields = find.byType(TextField);
+      await tester.enterText(textFields.at(0), 'any backup blob');
+      await tester.enterText(textFields.at(1), 'testpassword123');
+      await tester.tap(find.widgetWithText(FilledButton, 'Import'));
+      await tester.pumpAndSettle();
+
+      // Unknown-cause fallback — must NOT be the decryption/format/exists copy.
+      expect(find.textContaining('Import failed:'), findsOneWidget);
+      expect(
+        find.text('Invalid password or corrupted backup'),
+        findsNothing,
+      );
+    });
+  });
+}
+
+/// Error-injection [FakeProfileRepository] that throws a fixed exception from
+/// `importProfileBackup`, so the dialog's per-type catch arms can be exercised
+/// directly (validating TYPE -> message mapping) without the slow crypto path.
+/// This is a focused test stub (one overridden method), not a duplicate
+/// repository implementation.
+class _TypedThrowingProfileRepository extends FakeProfileRepository {
+  _TypedThrowingProfileRepository(this.error) : super(const []);
+
+  final Object error;
+
+  @override
+  Future<Profile> importProfileBackup(
+    String encryptedJson,
+    String password,
+  ) async {
+    throw error;
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../controllers/profile_controller.dart';
 import '../theme/app_design_system.dart';
+import '../utils/profile_errors.dart';
 
 class ImportKeysDialog extends StatefulWidget {
   const ImportKeysDialog({
@@ -47,24 +48,22 @@ class _ImportKeysDialogState extends State<ImportKeysDialog> {
       if (mounted) {
         setState(() => _importedCount = profile.keypairs.length);
       }
-    } on FormatException catch (e) {
+    } on ProfileAlreadyExistsException {
+      if (mounted) {
+        _showError(
+            'Profile already exists. Delete it first or use a different backup.');
+      }
+    } on BackupDecryptionException {
+      if (mounted) {
+        _showError('Invalid password or corrupted backup');
+      }
+    } on InvalidBackupFormatException catch (e) {
       if (mounted) {
         _showError('Invalid backup format: ${e.message}');
       }
-    } on StateError catch (e) {
-      if (mounted) {
-        if (e.message.contains('already exists')) {
-          _showError(
-              'Profile already exists. Delete it first or use a different backup.');
-        } else if (e.message.contains('Decryption failed')) {
-          _showError('Invalid password or corrupted backup');
-        } else {
-          _showError('Import failed: ${e.message}');
-        }
-      }
     } catch (e) {
       if (mounted) {
-        _showError('Invalid password or corrupted backup');
+        _showError('Import failed: $e');
       }
     } finally {
       if (mounted) {

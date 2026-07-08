@@ -6,6 +6,7 @@ import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'package:icp_autorun/utils/profile_errors.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../shared/fake_secure_keypair_repository.dart';
@@ -1139,7 +1140,15 @@ void main() {
 
       expect(
         () => controller.importProfileBackup(backup, 'test-password'),
-        throwsA(isA<StateError>()),
+        throwsA(
+          allOf(
+            isA<ProfileAlreadyExistsException>(),
+            predicate<ProfileAlreadyExistsException>(
+              (v) => v.profileId == profile.id,
+              'carries the colliding profile id',
+            ),
+          ),
+        ),
       );
     });
 

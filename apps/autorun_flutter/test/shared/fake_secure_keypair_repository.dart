@@ -6,6 +6,7 @@ import 'package:icp_autorun/services/profile_invariants.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/services/secure_keypair_repository.dart';
 import 'package:icp_autorun/utils/encrypted_export.dart';
+import 'package:icp_autorun/utils/profile_errors.dart';
 
 import 'test_keypair_factory.dart';
 
@@ -178,14 +179,33 @@ class FakeProfileRepository implements ProfileRepository {
     String encryptedJson,
     String password,
   ) async {
-    final plainJson = await EncryptedExport.decrypt(encryptedJson, password);
-    final backupData = jsonDecode(plainJson) as Map<String, dynamic>;
+    // Mirror the real ProfileRepository: translate the generic crypto-layer
+    // contract into typed profile-backup exceptions at this boundary so tests
+    // exercising the import path observe the same typed errors as production.
+    final String plainJson;
+    try {
+      plainJson = await EncryptedExport.decrypt(encryptedJson, password);
+    } on FormatException catch (e) {
+      throw InvalidBackupFormatException(e.message);
+    } on StateError {
+      throw BackupDecryptionException();
+    }
+
+    final Map<String, dynamic> backupData;
+    try {
+      backupData = jsonDecode(plainJson) as Map<String, dynamic>;
+    } catch (e) {
+      throw InvalidBackupFormatException(
+          'Backup payload is not valid JSON: $e');
+    }
 
     if (backupData['v'] != 1) {
-      throw FormatException('Unsupported backup version: ${backupData['v']}');
+      throw InvalidBackupFormatException(
+          'Unsupported backup version: ${backupData['v']}');
     }
     if (backupData['type'] != 'profile_backup') {
-      throw FormatException('Invalid backup type: ${backupData['type']}');
+      throw InvalidBackupFormatException(
+          'Invalid backup type: ${backupData['type']}');
     }
 
     final profileMap = backupData['profile'] as Map<String, dynamic>;
@@ -193,7 +213,7 @@ class FakeProfileRepository implements ProfileRepository {
 
     final existingIndex = _profiles.indexWhere((p) => p.id == profile.id);
     if (existingIndex != -1) {
-      throw StateError('Profile with ID ${profile.id} already exists');
+      throw ProfileAlreadyExistsException(profile.id);
     }
 
     // Mirror the real ProfileRepository: guard the cross-profile keypair-

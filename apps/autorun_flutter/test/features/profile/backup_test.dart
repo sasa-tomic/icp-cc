@@ -5,6 +5,7 @@ import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/profile_invariants.dart';
 import 'package:icp_autorun/utils/encrypted_export.dart';
+import 'package:icp_autorun/utils/profile_errors.dart';
 
 import '../../shared/fake_secure_keypair_repository.dart';
 import '../../shared/test_keypair_factory.dart';
@@ -109,7 +110,7 @@ void main() {
 
       await expectLater(
         repo.profileRepository.importProfileBackup(backup, 'wrong-password'),
-        throwsA(isA<StateError>()),
+        throwsA(isA<BackupDecryptionException>()),
       );
     });
 
@@ -137,7 +138,7 @@ void main() {
 
       await expectLater(
         repo.profileRepository.importProfileBackup(corrupted, 'password'),
-        throwsA(isA<StateError>()),
+        throwsA(isA<BackupDecryptionException>()),
       );
     });
 
@@ -299,7 +300,15 @@ void main() {
 
       await expectLater(
         repo.profileRepository.importProfileBackup(backup, 'password'),
-        throwsA(isA<StateError>()),
+        throwsA(
+          allOf(
+            isA<ProfileAlreadyExistsException>(),
+            predicate<ProfileAlreadyExistsException>(
+              (v) => v.profileId == profile.id,
+              'carries the colliding profile id',
+            ),
+          ),
+        ),
       );
     });
 
@@ -430,17 +439,18 @@ void main() {
       expect(restored.keypairs.length, equals(10));
     });
 
-    test('invalid JSON format throws FormatException', () async {
+    test('invalid JSON format throws InvalidBackupFormatException', () async {
       final repo = FakeSecureKeypairRepository([]);
 
       await expectLater(
         repo.profileRepository
             .importProfileBackup('not-valid-json', 'password'),
-        throwsA(isA<FormatException>()),
+        throwsA(isA<InvalidBackupFormatException>()),
       );
     });
 
-    test('unsupported backup version throws FormatException', () async {
+    test('unsupported backup version throws InvalidBackupFormatException',
+        () async {
       final repo = FakeSecureKeypairRepository([]);
 
       final invalidBackup = jsonEncode({
@@ -451,7 +461,7 @@ void main() {
 
       await expectLater(
         repo.profileRepository.importProfileBackup(invalidBackup, 'password'),
-        throwsA(isA<FormatException>()),
+        throwsA(isA<InvalidBackupFormatException>()),
       );
     });
 
@@ -482,7 +492,7 @@ void main() {
 
       await expectLater(
         repo.profileRepository.importProfileBackup(modifiedBackup, 'password'),
-        throwsA(isA<FormatException>()),
+        throwsA(isA<InvalidBackupFormatException>()),
       );
     });
 
@@ -510,7 +520,7 @@ void main() {
 
       await expectLater(
         repo.profileRepository.importProfileBackup(corrupted, 'password'),
-        throwsA(isA<StateError>()),
+        throwsA(isA<BackupDecryptionException>()),
       );
     });
   });

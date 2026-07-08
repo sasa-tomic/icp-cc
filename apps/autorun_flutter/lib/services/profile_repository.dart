@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/profile.dart';
 import '../models/profile_keypair.dart';
+import '../utils/profile_errors.dart';
 import 'file_io.dart';
 import 'profile_invariants.dart';
 
@@ -312,14 +313,35 @@ class ProfileRepository {
 
   Future<Profile> importProfileBackup(
       String encryptedJson, String password) async {
-    final plainJson = await EncryptedExport.decrypt(encryptedJson, password);
-    final backupData = jsonDecode(plainJson) as Map<String, dynamic>;
+    // Translate the generic crypto-layer contract (EncryptedExport throws
+    // FormatException for envelope problems, StateError exclusively for AES-GCM
+    // authentication failure) into typed profile-backup exceptions at the
+    // boundary — the origin of a backup import failure. The UI then branches
+    // on type, never on an English substring (TD-4).
+    final String plainJson;
+    try {
+      plainJson = await EncryptedExport.decrypt(encryptedJson, password);
+    } on FormatException catch (e) {
+      throw InvalidBackupFormatException(e.message);
+    } on StateError {
+      throw BackupDecryptionException();
+    }
+
+    final Map<String, dynamic> backupData;
+    try {
+      backupData = jsonDecode(plainJson) as Map<String, dynamic>;
+    } catch (e) {
+      throw InvalidBackupFormatException(
+          'Backup payload is not valid JSON: $e');
+    }
 
     if (backupData['v'] != 1) {
-      throw FormatException('Unsupported backup version: ${backupData['v']}');
+      throw InvalidBackupFormatException(
+          'Unsupported backup version: ${backupData['v']}');
     }
     if (backupData['type'] != 'profile_backup') {
-      throw FormatException('Invalid backup type: ${backupData['type']}');
+      throw InvalidBackupFormatException(
+          'Invalid backup type: ${backupData['type']}');
     }
 
     final profileMap = backupData['profile'] as Map<String, dynamic>;
@@ -328,7 +350,7 @@ class ProfileRepository {
     final profiles = await loadProfiles();
     final existingIndex = profiles.indexWhere((p) => p.id == profile.id);
     if (existingIndex != -1) {
-      throw StateError('Profile with ID ${profile.id} already exists');
+      throw ProfileAlreadyExistsException(profile.id);
     }
 
     // Guard the cross-profile keypair-ownership invariant BEFORE mutating state.
