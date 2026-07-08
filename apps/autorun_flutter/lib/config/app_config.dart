@@ -17,6 +17,15 @@ class AppConfig {
     if (_isTestMode && _testServiceEndpoint != null) {
       return _testServiceEndpoint!;
     }
+    // Devex: honor `MARKETPLACE_API_PORT` (exported by `just api-dev-up`) at
+    // runtime in debug, so a local backend works without a `--dart-define`
+    // rebuild. The name implies runtime config — make it so.
+    if (kDebugMode) {
+      final port = Platform.environment['MARKETPLACE_API_PORT'];
+      if (port != null && port.isNotEmpty) {
+        return 'http://127.0.0.1:$port';
+      }
+    }
     return _apiEndpoint;
   }
   
