@@ -46,20 +46,19 @@ void main() {
       expect(find.textContaining('scripts'), findsNothing);
     });
 
-    testWidgets('hides banner on error when showError is false',
+    testWidgets('hides all stat content on error (graceful degradation)',
         (tester) async {
       await pumpMarketplaceWidget(
         tester,
         const MarketplaceStatsBanner(hasError: true),
       );
 
-      // On error, banner should not render (returns SizedBox.shrink)
-      expect(find.byType(MarketplaceStatsBanner), findsOneWidget);
-      final banner = tester.widget<MarketplaceStatsBanner>(
-        find.byType(MarketplaceStatsBanner),
-      );
-      // The widget should handle error gracefully
-      expect(banner.hasError, isTrue);
+      // On error the banner returns SizedBox.shrink — NO stat labels render.
+      // This is the actual "graceful degradation" behaviour the widget promises
+      // (build → SizedBox.shrink when hasError), not just the flag echoing back.
+      expect(find.textContaining('scripts'), findsNothing);
+      expect(find.textContaining('authors'), findsNothing);
+      expect(find.textContaining('downloads'), findsNothing);
     });
 
     testWidgets('formats large numbers correctly', (tester) async {
@@ -116,26 +115,6 @@ void main() {
       // Authors count should be displayed
       expect(find.textContaining('25'), findsOneWidget);
       expect(find.textContaining('authors'), findsOneWidget);
-    });
-
-    testWidgets('uses compact layout', (tester) async {
-      final stats = MarketplaceStats(
-        totalScripts: 100,
-        totalAuthors: 25,
-        totalDownloads: 1000,
-        averageRating: 4.2,
-      );
-
-      await pumpMarketplaceWidget(
-        tester,
-        MarketplaceStatsBanner(stats: stats),
-      );
-
-      // Verify it's a thin banner (not a large card)
-      final banner = tester.widget<MarketplaceStatsBanner>(
-        find.byType(MarketplaceStatsBanner),
-      );
-      expect(banner.stats, equals(stats));
     });
   });
 

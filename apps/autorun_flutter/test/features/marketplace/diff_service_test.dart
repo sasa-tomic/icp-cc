@@ -1,8 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/services/diff_service.dart';
-
-import '_marketplace_test_harness.dart';
 
 void main() {
   group('DiffService', () {
@@ -156,61 +153,4 @@ end
       });
     });
   });
-
-  group('DiffViewerDialog integration', () {
-    testWidgets('displays added lines in green', (WidgetTester tester) async {
-      final result = DiffService.compute('', 'local x = 1');
-
-      await pumpMarketplaceWidget(tester, _TestDiffViewer(result: result));
-
-      await tester.pumpAndSettle();
-
-      expect(find.text('+ local x = 1'), findsOneWidget);
-    });
-
-    testWidgets('displays removed lines in red', (WidgetTester tester) async {
-      final result = DiffService.compute('local x = 1', '');
-
-      await pumpMarketplaceWidget(tester, _TestDiffViewer(result: result));
-
-      await tester.pumpAndSettle();
-
-      expect(find.text('- local x = 1'), findsOneWidget);
-    });
-
-    testWidgets('shows line numbers for unchanged lines',
-        (WidgetTester tester) async {
-      final result = DiffService.compute('line1\nline2', 'line1\nline2');
-
-      await pumpMarketplaceWidget(tester, _TestDiffViewer(result: result));
-
-      await tester.pumpAndSettle();
-
-      expect(find.text('1  line1'), findsOneWidget);
-      expect(find.text('2  line2'), findsOneWidget);
-    });
-  });
-}
-
-class _TestDiffViewer extends StatelessWidget {
-  final DiffResult result;
-
-  const _TestDiffViewer({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        children: result.lines.map((line) {
-          final prefix = switch (line.type) {
-            DiffLineType.added => '+ ',
-            DiffLineType.removed => '- ',
-            DiffLineType.unchanged => '${line.oldLineNumber}  ',
-            DiffLineType.header => '',
-          };
-          return Text('$prefix${line.content}');
-        }).toList(),
-      ),
-    );
-  }
 }

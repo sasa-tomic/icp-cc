@@ -134,15 +134,6 @@ void main() {
       );
     }
 
-    testWidgets('shows reviews section for marketplace scripts',
-        (WidgetTester tester) async {
-      await pumpDialog(tester);
-
-      expect(find.text('Reviews'), findsOneWidget);
-      await tester.tap(find.text('Reviews'));
-      await tester.pumpAndSettle();
-    });
-
     testWidgets('displays rating summary with average and count',
         (WidgetTester tester) async {
       final script = testScript.copyWith(rating: 4.2, reviewCount: 15);
@@ -271,7 +262,10 @@ void main() {
       await tester.tap(find.text('Reviews'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('3'), findsWidgets);
+      // The shared `formatDate` helper renders a relative "N days ago" string;
+      // pin the exact formatted value (not just a digit that could appear
+      // anywhere in the tree).
+      expect(find.text('3 days ago'), findsOneWidget);
     });
 
     testWidgets('shows rating distribution breakdown',
@@ -317,8 +311,21 @@ void main() {
       await tester.tap(find.text('Reviews'));
       await tester.pumpAndSettle();
 
-      expect(find.text('5'), findsWidgets);
-      expect(find.text('4'), findsWidgets);
+      // The distribution renders one LinearProgressIndicator bar per tier
+      // [5,4,3,2,1] (in that order). Asserting the bar count proves the section
+      // rendered; asserting the 5-star bar is fuller than the 4-star bar proves
+      // the bars are data-driven (2 of 3 vs 1 of 3), not all-zero placeholders.
+      final bars = find.byType(LinearProgressIndicator);
+      expect(bars, findsNWidgets(5));
+      final fiveStarValue =
+          tester.widget<LinearProgressIndicator>(bars.at(0)).value!;
+      final fourStarValue =
+          tester.widget<LinearProgressIndicator>(bars.at(1)).value!;
+      expect(fiveStarValue, greaterThan(fourStarValue),
+          reason: 'two 5-star reviews vs one 4-star → 5-star bar must be fuller');
+      // Empty tiers (3,2,1) are zeroed.
+      expect(
+          tester.widget<LinearProgressIndicator>(bars.at(2)).value!, equals(0.0));
     });
   });
 }
