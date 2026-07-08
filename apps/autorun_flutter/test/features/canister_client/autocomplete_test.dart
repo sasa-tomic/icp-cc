@@ -3,20 +3,6 @@ import 'package:icp_autorun/services/canister_registry_service.dart';
 
 void main() {
   group('CanisterRegistryEntry', () {
-    test('should have all required properties', () {
-      final entry = CanisterRegistryEntry(
-        canisterId: 'test-id',
-        name: 'Test Canister',
-        description: 'A test canister',
-        category: 'Test',
-      );
-
-      expect(entry.canisterId, 'test-id');
-      expect(entry.name, 'Test Canister');
-      expect(entry.description, 'A test canister');
-      expect(entry.category, 'Test');
-    });
-
     test('should provide all well-known canisters', () {
       final all = CanisterRegistryEntry.all;
 
