@@ -327,8 +327,13 @@ void main() {
         ));
         await tester.pumpAndSettle();
 
-        expect(find.text('Username (optional)'), findsOneWidget);
-        expect(find.text('Marketplace'), findsOneWidget);
+        // UXR5-5: the field's purpose is folded into a single label so it's
+        // unambiguous — no free-floating "Marketplace" chip disconnected from
+        // the input it describes.
+        expect(find.text('Marketplace username (optional)'), findsOneWidget);
+        expect(find.text('Marketplace'), findsNothing,
+            reason: 'The bare Marketplace chip must not float above the field; '
+                'it is now part of the label.');
       });
 
       testWidgets('displays create button', (tester) async {

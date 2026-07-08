@@ -396,31 +396,12 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'Username (optional)',
-              style: AppDesignSystem.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
-                color: context.colors.onSurface,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppDesignSystem.accentLight.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'Marketplace',
-                style: AppDesignSystem.caption.copyWith(
-                  color: AppDesignSystem.accentDark,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
+        Text(
+          'Marketplace username (optional)',
+          style: AppDesignSystem.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+            color: context.colors.onSurface,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
