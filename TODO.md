@@ -41,25 +41,41 @@ Genuinely open items are listed below.
 
 | Issue | Location | Severity | Notes |
 |-------|----------|----------|-------|
-| **Paid-script bundle is not server-side gated** (security) | `backend/src/main.rs::get_script` | HIGH | `GET /api/v1/scripts/:id` returns the full `bundle` for paid scripts with no purchase verification — only the Dart `downloadScript` wrapper checks `price > 0`. A paid script's source is readable by anyone hitting the details endpoint directly. Surfaced while implementing UX-6 (the preview path is now safe; the full-detail path is not). Needs a human decision on the server-side paywall shape. See **Architectural Issues Requiring Review** below. |
-| Web *runtime* features are stubbed (build compiles) | `lib/rust/native_bridge_web.dart` | MEDIUM | R-1 unblocked `flutter build web` (conditional FFI split). Native-only calls throw honest `UnsupportedError`; full Web runtime is R-2..5 (see Future). |
+| **✅ RESOLVED:** paid-script `bundle` is now server-side gated | `backend/src/main.rs::get_script` | ~~HIGH~~ | `GET /scripts/:id` strips `bundle` for paid scripts unless the requester is the owner or holds a purchase record (`?account_id=`); the only paid-bundle path is the authenticated `POST /scripts/:id/download` (Ed25519-signed). See **ICPay / entitlement** below. |
+| Web *runtime* — script execution (R-3) + IC canister calls stubbed | `lib/rust/native_bridge_web.dart` | MEDIUM | `flutter build web` succeeds (R-1). Identity (Ed25519 + ICP principal) and vault crypto (Argon2id + AES-256-GCM) are **real on Web** (pure-Dart, bit-for-bit vs Rust). Stubbed (loud `UnsupportedError`): QuickJS (`jsExec`/`jsApp*`) via quickjs-emscripten, and IC-canister HTTP agent (`fetchCandid`/`callAuthenticated`). secp256k1 (alg=1) also stubbed (Ed25519 is ICP-critical). See `docs/BROWSER_SUPPORT.md`. |
 
-## Architectural Issues Requiring Review
+## ICPay / paid-script entitlement (UX-5) — COMPLETE
 
-> Per AGENTS.md: issues needing a human decision. Do NOT work around these with
-> symptom fixes — the root cause must be addressed.
+Real ICP-token payments via [icpay.org](https://icpay.org), end-to-end:
 
-- **Paid-script bundle is not server-side gated.** `GET /api/v1/scripts/:id`
-  (`backend/src/main.rs::get_script`) returns the full `bundle` for paid scripts
-  with **no purchase verification**. The paywall today exists only in the Dart
-  `downloadScript` wrapper (`price > 0` check), which is trivially bypassed by a
-  direct API call. Surfaced while implementing UX-6 (the new `/preview` path is
-  safe by construction — no `bundle` field; but the existing `/scripts/:id`
-  detail path leaks paid source). **Decision needed:** the shape of server-side
-  purchase verification (signature challenge? purchase-record table? entitlement
-  check at the handler?) and whether to gate the `bundle` field behind it while
-  keeping metadata (title/author/description/stats) public. This intersects
-  UX-5 (real ICP-token payments) — likely the same body of work.
+- **Backend entitlement gate** (`backend/src/main.rs::get_script`): paid scripts
+  return `bundle: null, purchased: false` unless the requester is the script
+  owner or holds a `purchases` row; metadata (title/description/stats) stays
+  public. Closes the HIGH security leak this work surfaced.
+- **`purchases` table** (migration `006_*`): `UNIQUE(account_id, script_id)` →
+  idempotent webhook redelivery. Repo: `purchase_repository.rs`.
+- **Authenticated download** `POST /api/v1/scripts/:id/download` — Ed25519
+  signature over `download:{id}:{ts}:{nonce}`; resolves account from the public
+  key; free or purchased → 200 bundle; else `402 {data:{price}}`.
+- **ICPay webhook** `POST /payments/icpay/webhook` — HMAC-SHA256(raw_body,
+  secret) constant-time verify; inserts the purchase on `completed/succeeded/paid`.
+- **Config** `GET /payments/icpay/config` → `{publishableKey, shortcode:"ic_icp",
+  apiUrl}`; 503 LOUD when unset (marketplace still browses; startup warns).
+- **Frontend**: `IcpayService` creates the intent (`tokenShortcode:"ic_icp"`,
+  `usdAmount: script.price`, `metadata:{account_id,script_id}`) with the
+  browser-safe publishable key; Buy CTA in the script list + details dialog;
+  `url_launcher` hosted checkout; `WidgetsBindingObserver` resume refetches
+  entitlement. Registered in the get_it service locator.
+
+> **⚠️ Verify-live (sandbox was network-blocked):** (1) the ICPay
+> hosted-checkout URL / field name — `PaymentIntent.fromJson` reads
+> `checkoutUrl`/`hosted_url`/`payment_url`/`url` defensively and falls back to
+> `https://app.icpay.org` with a loud warning; (2) webhook signature scheme
+> (hex vs base64, header name, raw-body vs `timestamp.body`) — isolated in
+> `payment_service.rs::verify_webhook`, one-function swap; (3) end-to-end
+> create-intent → pay → webhook → `purchased:true` → download. Backend
+> entitlement/webhook proven by `cargo nextest` (148) + curl PoC; frontend glue
+> unit-tested (mocked HTTP, real crypto).
 
 ## Next Iteration Candidates
 
@@ -102,22 +118,26 @@ Sized **S** ≈ half-day, **M** ≈ 1–2 days.
   radius: models/serializer/generator/controllers/many tests). The `account.dart` FIXMEs
   (L18/L307) were resolved by A-3d (`AddPublicKeyRequest` now takes a `ProfileKeypair`).
 - **R-2..R-5 — full Flutter Web runtime.** R-1 makes Web **build & launch**; the
-  conditional-import scaffolding is in place. Remaining: R-2 WebCrypto Ed25519 keys, R-3
-  WASM QuickJS, R-4 Web secure storage (IndexedDB), R-5 Web passkeys + CORS. A separate
-  multi-day initiative. See `docs/BROWSER_SUPPORT.md`.
+  conditional-import scaffolding is in place. **R-2 (Ed25519 + ICP principal +
+  sign), R-4 (vault crypto: Argon2id + AES-256-GCM), and R-5 (passkeys + CORS)**
+  are **DONE** — pure-Dart crypto, bit-for-bit cross-compatible with the Rust
+  FFI (verified against the `icp_core` reference vectors + native↔web round-trip).
+  `flutter build web` succeeds. **Still staged:** R-3 (QuickJS via
+  quickjs-emscripten — script execution on Web), the IC-canister HTTP agent
+  (`fetchCandid`/`callAuthenticated`), and secp256k1 (alg=1). R-3 is the hardest
+  (multi-day). See `docs/BROWSER_SUPPORT.md`.
 - **UX-5 purchase CTA / UX-6 / UX-8 — remaining Round-4/5 polish.** UX-4
   (collapse inline Add-Bookmark, `98f5a05c`), UX-5 lazy-load Details tabs
   (`448c8fab`), and UX-9 (surface-specific keyboard shortcuts, `97b42da3` +
-  `f54bb58f`) are DONE in the Next-Iteration plan. Still open: **UX-5 paid-script
-  purchase CTA** (deferred — no live paid marketplace listing to exercise it;
-  existing *"Payments Coming Soon"* retained — real ICP-token payments are a
-  separate, larger initiative needing a human decision on the payment
-  integration), **UX-8** (largely resolved by the local-only account body —
-  recommend CLOSE). **UX-6 is ✅ DONE**: `GET /api/v1/scripts/:id/preview`
+  `f54bb58f`) are DONE in the Next-Iteration plan. **UX-5 (paid-script purchase
+  CTA via ICPay) is ✅ DONE** — see **ICPay / paid-script entitlement** above
+  (backend gate + purchases + webhook + Buy CTA; live ICPay checkout shape is a
+  verify-live item). **UX-6 is ✅ DONE**: `GET /api/v1/scripts/:id/preview`
   returns a lightweight payload (no `bundle` field by construction); free scripts
   get a 50-line preview (~51% smaller than the full bundle), paid scripts get a
   20-line teaser and NEVER the full source; the Details dialog no longer
   full-downloads to render 50 lines, and never full-downloads a paid script.
+  **UX-8** (largely resolved by the local-only account body — recommend CLOSE).
   See `docs/specs/NEXT_ITERATION_PLAN.md`.
 - **TD-7 — SQL column list** (`backend/src/models.rs::SCRIPT_COLUMNS_WITH_ACCOUNT`). Already
   guarded by the drift-detection test at `models.rs:418-424`.
