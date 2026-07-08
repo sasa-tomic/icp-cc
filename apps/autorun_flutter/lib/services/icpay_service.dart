@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../theme/app_design_system.dart';
 import 'marketplace_open_api_service.dart';
 
 /// Function type for opening a URL externally. Defaults to [launchUrl] so
@@ -83,14 +84,16 @@ class IcpayService {
         },
       });
 
-      final response = await effectiveClient.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${config.publishableKey}',
-        },
-        body: body,
-      );
+      final response = await effectiveClient
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${config.publishableKey}',
+            },
+            body: body,
+          )
+          .timeout(AppDurations.networkRequest);
 
       if (response.statusCode < 200 || response.statusCode > 299) {
         throw PaymentIntentException(

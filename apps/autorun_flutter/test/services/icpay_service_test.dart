@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/services/icpay_service.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'package:icp_autorun/theme/app_design_system.dart';
 
 /// Coverage for [IcpayService]:
 /// - `loadConfig` caches the result and surfaces [PaymentsNotConfiguredException]
@@ -207,6 +210,46 @@ void main() {
         ),
         throwsA(isA<PaymentIntentException>()),
       );
+    });
+
+    test('bounds the external POST — an unreachable provider times out '
+        '(TD-8: no infinite hang)', () {
+      fakeAsync((async) {
+        // A client that never responds — models ICPay.org being unreachable
+        // from the dev sandbox. Mock lives only at the http.Client boundary.
+        final client =
+            MockClient((_) => Completer<http.Response>().future);
+        final service = IcpayService();
+
+        Object? captured;
+        service
+            .createPaymentIntent(
+          accountId: 'a',
+          scriptId: 's',
+          usdAmount: 1,
+          config: config,
+          client: client,
+          )
+            .then<void>(
+              (_) {},
+              onError: (Object e) => captured = e,
+            );
+
+        async.flushMicrotasks();
+        // One tick before the budget: still hanging (proves the call does not
+        // fail fast / silently swallow).
+        async.elapse(AppDurations.networkRequest - const Duration(seconds: 1));
+        async.flushMicrotasks();
+        expect(captured, isNull,
+            reason: 'must hang until the network budget elapses, not fail fast');
+
+        // Past AppDurations.networkRequest: the POST must time out loudly.
+        async.elapse(const Duration(seconds: 2));
+        async.flushMicrotasks();
+        expect(captured, isA<TimeoutException>(),
+            reason: 'an unreachable provider must surface a TimeoutException, '
+                'not hang forever');
+      });
     });
   });
 
