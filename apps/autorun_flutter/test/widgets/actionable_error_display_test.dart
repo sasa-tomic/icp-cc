@@ -1,70 +1,260 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/widgets/error_display.dart';
+import 'package:http/http.dart' as http;
+import 'package:icp_autorun/services/candid_service.dart';
+import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'package:icp_autorun/services/passkey_service.dart';
 import 'package:icp_autorun/utils/error_categories.dart';
+import 'package:icp_autorun/utils/profile_errors.dart';
+import 'package:icp_autorun/widgets/error_display.dart';
 
 void main() {
   group('ErrorCategory', () {
-    group('categorization', () {
-      test('categorizes network connection errors', () {
-        final category = categorizeError('SocketException: Connection refused');
-        expect(category, equals(ErrorCategoryType.network));
+    group('categorization by typed exception', () {
+      test('null is unknown', () {
+        expect(categorizeError(null), equals(ErrorCategoryType.unknown));
       });
 
-      test('categorizes timeout errors as network', () {
-        final category = categorizeError('TimeoutException after 30s');
-        expect(category, equals(ErrorCategoryType.network));
+      test('SocketException is network', () {
+        expect(
+          categorizeError(SocketException('Connection refused')),
+          equals(ErrorCategoryType.network),
+        );
       });
 
-      test('categorizes 401 unauthorized as authentication', () {
-        final category = categorizeError('HTTP 401: Unauthorized');
-        expect(category, equals(ErrorCategoryType.authentication));
+      test('TimeoutException is network', () {
+        expect(
+          categorizeError(
+              TimeoutException('after 5s', const Duration(seconds: 5))),
+          equals(ErrorCategoryType.network),
+        );
       });
 
-      test('categorizes authentication failed message', () {
-        final category = categorizeError('Authentication failed for user');
-        expect(category, equals(ErrorCategoryType.authentication));
+      test('TlsException is network', () {
+        expect(
+          categorizeError(const TlsException()),
+          equals(ErrorCategoryType.network),
+        );
       });
 
-      test('categorizes 404 as not found', () {
-        final category = categorizeError('HTTP 404: Not Found');
-        expect(category, equals(ErrorCategoryType.notFound));
+      test('HandshakeException (TlsException subclass) is network', () {
+        expect(
+          categorizeError(HandshakeException()),
+          equals(ErrorCategoryType.network),
+        );
       });
 
-      test('categorizes validation errors', () {
-        final category =
-            categorizeError('Validation failed: field is required');
-        expect(category, equals(ErrorCategoryType.validation));
+      test('HttpException is network', () {
+        expect(
+          categorizeError(HttpException('connection closed')),
+          equals(ErrorCategoryType.network),
+        );
       });
 
-      test('categorizes invalid input errors', () {
-        final category = categorizeError('Invalid input provided');
-        expect(category, equals(ErrorCategoryType.validation));
+      test('http.ClientException is network', () {
+        expect(
+          categorizeError(http.ClientException('Failed to fetch')),
+          equals(ErrorCategoryType.network),
+        );
       });
 
-      test('categorizes 500 as server error', () {
-        final category = categorizeError('HTTP 500: Internal Server Error');
-        expect(category, equals(ErrorCategoryType.server));
+      test('DownloadAuthException (HTTP 401) is authentication', () {
+        expect(
+          categorizeError(const DownloadAuthException('bad signature')),
+          equals(ErrorCategoryType.authentication),
+        );
       });
 
-      test('categorizes 503 as server error', () {
-        final category = categorizeError('Service unavailable (503)');
-        expect(category, equals(ErrorCategoryType.server));
+      test('BackupDecryptionException is authentication', () {
+        expect(
+          categorizeError(BackupDecryptionException()),
+          equals(ErrorCategoryType.authentication),
+        );
       });
 
-      test('categorizes rate limit 429', () {
-        final category = categorizeError('HTTP 429: Too Many Requests');
-        expect(category, equals(ErrorCategoryType.rateLimit));
+      test('PasskeyException with 401 is authentication', () {
+        expect(
+          categorizeError(PasskeyException('unauthorized', statusCode: 401)),
+          equals(ErrorCategoryType.authentication),
+        );
       });
 
-      test('categorizes rate limit message', () {
-        final category = categorizeError('Rate limit exceeded');
-        expect(category, equals(ErrorCategoryType.rateLimit));
+      test('PasskeyException with 403 is authentication', () {
+        expect(
+          categorizeError(PasskeyException('forbidden', statusCode: 403)),
+          equals(ErrorCategoryType.authentication),
+        );
       });
 
-      test('categorizes unknown errors', () {
-        final category = categorizeError('Some random error message');
-        expect(category, equals(ErrorCategoryType.unknown));
+      test('PasskeyException with 404 is notFound', () {
+        expect(
+          categorizeError(PasskeyException('gone', statusCode: 404)),
+          equals(ErrorCategoryType.notFound),
+        );
+      });
+
+      test('PasskeyException with 429 is rateLimit', () {
+        expect(
+          categorizeError(PasskeyException('slow down', statusCode: 429)),
+          equals(ErrorCategoryType.rateLimit),
+        );
+      });
+
+      test('PasskeyException with 400 is validation', () {
+        expect(
+          categorizeError(PasskeyException('bad request', statusCode: 400)),
+          equals(ErrorCategoryType.validation),
+        );
+      });
+
+      test('PasskeyException with 402 is validation', () {
+        expect(
+          categorizeError(PasskeyException('payment required', statusCode: 402)),
+          equals(ErrorCategoryType.validation),
+        );
+      });
+
+      test('PasskeyException with 500 is server', () {
+        expect(
+          categorizeError(PasskeyException('boom', statusCode: 500)),
+          equals(ErrorCategoryType.server),
+        );
+      });
+
+      test('PasskeyException with 503 is server', () {
+        expect(
+          categorizeError(PasskeyException('unavailable', statusCode: 503)),
+          equals(ErrorCategoryType.server),
+        );
+      });
+
+      test('PasskeyException without statusCode is unknown', () {
+        expect(
+          categorizeError(PasskeyException('platform unsupported')),
+          equals(ErrorCategoryType.unknown),
+        );
+      });
+
+      test('PurchaseRequiredException (HTTP 402) is validation', () {
+        expect(
+          categorizeError(const PurchaseRequiredException(1.5)),
+          equals(ErrorCategoryType.validation),
+        );
+      });
+
+      test('ProfileAlreadyExistsException is validation (conflict)', () {
+        expect(
+          categorizeError(ProfileAlreadyExistsException('profile-1')),
+          equals(ErrorCategoryType.validation),
+        );
+      });
+
+      test('InvalidBackupFormatException is validation', () {
+        expect(
+          categorizeError(InvalidBackupFormatException('bad envelope')),
+          equals(ErrorCategoryType.validation),
+        );
+      });
+
+      test('FormatException is validation', () {
+        expect(
+          categorizeError(FormatException('not json')),
+          equals(ErrorCategoryType.validation),
+        );
+      });
+
+      test('PaymentsNotConfiguredException (HTTP 503) is server', () {
+        expect(
+          categorizeError(const PaymentsNotConfiguredException()),
+          equals(ErrorCategoryType.server),
+        );
+      });
+
+      test('CandidFetchException network kind is network', () {
+        expect(
+          categorizeError(CandidFetchException(
+            canisterId: 'x',
+            kind: CandidFetchErrorKind.network,
+          )),
+          equals(ErrorCategoryType.network),
+        );
+      });
+
+      test('CandidFetchException non200 kind is server', () {
+        expect(
+          categorizeError(CandidFetchException(
+            canisterId: 'x',
+            kind: CandidFetchErrorKind.non200,
+            statusCode: 500,
+          )),
+          equals(ErrorCategoryType.server),
+        );
+      });
+
+      test('CandidFetchException emptyBody kind is validation', () {
+        expect(
+          categorizeError(CandidFetchException(
+            canisterId: 'x',
+            kind: CandidFetchErrorKind.emptyBody,
+            statusCode: 200,
+          )),
+          equals(ErrorCategoryType.validation),
+        );
+      });
+    });
+
+    group('heuristic failure modes are eliminated', () {
+      // The old classifier substring-matched error.toString(); a message that
+      // happened to contain "404" was misrouted. Type-first classification
+      // makes that impossible.
+      test(
+          'SocketException whose toString contains "404" is network, NOT '
+          'notFound', () {
+        final error = SocketException('cached lookup for resource 404 failed');
+        expect(error.toString().contains('404'), isTrue);
+        expect(
+          categorizeError(error),
+          equals(ErrorCategoryType.network),
+        );
+      });
+
+      test('plain String "HTTP 500" is unknown (no substring matching)', () {
+        expect(
+          categorizeError('HTTP 500: Internal Server Error'),
+          equals(ErrorCategoryType.unknown),
+        );
+      });
+
+      test('plain String "HTTP 404" is unknown (no substring matching)', () {
+        expect(
+          categorizeError('HTTP 404: Not Found'),
+          equals(ErrorCategoryType.unknown),
+        );
+      });
+
+      test('plain String "TimeoutException" is unknown (type wins, not text)',
+          () {
+        expect(
+          categorizeError('TimeoutException after 30s'),
+          equals(ErrorCategoryType.unknown),
+        );
+      });
+
+      test('generic Exception with status-like message is unknown', () {
+        expect(
+          categorizeError(Exception('401 unauthorized 404 500')),
+          equals(ErrorCategoryType.unknown),
+        );
+      });
+
+      test('unrecognized gibberish String is unknown', () {
+        expect(
+          categorizeError('Some random error message'),
+          equals(ErrorCategoryType.unknown),
+        );
       });
     });
 
@@ -160,12 +350,12 @@ void main() {
       });
     });
 
-    group('smart categorization', () {
-      testWidgets('shows network-specific title for network errors',
+    group('smart categorization (by typed errorObject)', () {
+      testWidgets('shows network-specific title for SocketException',
           (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Connection failed',
-          errorObject: 'SocketException: Connection refused',
+          errorObject: SocketException('Connection refused'),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.network);
@@ -175,57 +365,63 @@ void main() {
       testWidgets('shows network-specific suggested action', (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Connection failed',
-          errorObject: 'SocketException: Connection refused',
+          errorObject: SocketException('Connection refused'),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.network);
         expect(find.text(info.suggestedAction), findsOneWidget);
       });
 
-      testWidgets('shows authentication-specific title', (tester) async {
+      testWidgets('shows authentication-specific title for 401 PasskeyException',
+          (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Auth failed',
-          errorObject: 'HTTP 401: Unauthorized',
+          errorObject: PasskeyException('unauthorized', statusCode: 401),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.authentication);
         expect(find.text(info.title), findsOneWidget);
       });
 
-      testWidgets('shows validation-specific title', (tester) async {
+      testWidgets('shows validation-specific title for FormatException',
+          (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Bad input',
-          errorObject: 'Validation failed: required field',
+          errorObject: FormatException('required field'),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.validation);
         expect(find.text(info.title), findsOneWidget);
       });
 
-      testWidgets('shows not found-specific title', (tester) async {
+      testWidgets('shows not found-specific title for 404 PasskeyException',
+          (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Not found',
-          errorObject: 'HTTP 404: Not Found',
+          errorObject: PasskeyException('gone', statusCode: 404),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.notFound);
         expect(find.text(info.title), findsOneWidget);
       });
 
-      testWidgets('shows server error-specific title', (tester) async {
+      testWidgets(
+          'shows server error-specific title for PaymentsNotConfiguredException',
+          (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Server issue',
-          errorObject: 'HTTP 500: Internal Server Error',
+          errorObject: const PaymentsNotConfiguredException(),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.server);
         expect(find.text(info.title), findsOneWidget);
       });
 
-      testWidgets('shows rate limit-specific title', (tester) async {
+      testWidgets('shows rate limit-specific title for 429 PasskeyException',
+          (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Too many',
-          errorObject: 'HTTP 429: Too Many Requests',
+          errorObject: PasskeyException('slow down', statusCode: 429),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.rateLimit);
@@ -270,7 +466,7 @@ void main() {
       testWidgets('shows wifi_off icon for network errors', (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Network error',
-          errorObject: 'SocketException',
+          errorObject: SocketException('down'),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.network);
@@ -280,7 +476,7 @@ void main() {
       testWidgets('shows lock icon for authentication errors', (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'Auth error',
-          errorObject: '401 Unauthorized',
+          errorObject: PasskeyException('no', statusCode: 401),
         ));
 
         final info = getErrorInfo(ErrorCategoryType.authentication);
@@ -288,14 +484,15 @@ void main() {
       });
     });
 
-    group('without errorObject (backward compat)', () {
-      testWidgets('falls back to error text for categorization',
-          (tester) async {
+    group('without errorObject (string-only)', () {
+      testWidgets(
+          'a plain string error without a typed object is unknown '
+          '(no substring guessing)', (tester) async {
         await tester.pumpWidget(createWidget(
           error: 'SocketException: Connection refused',
         ));
 
-        final info = getErrorInfo(ErrorCategoryType.network);
+        final info = getErrorInfo(ErrorCategoryType.unknown);
         expect(find.text(info.title), findsOneWidget);
       });
 

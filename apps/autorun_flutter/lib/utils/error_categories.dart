@@ -1,4 +1,13 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../services/candid_service.dart';
+import '../services/marketplace_open_api_service.dart';
+import '../services/passkey_service.dart';
+import 'profile_errors.dart';
 
 enum ErrorCategoryType {
   network,
@@ -76,105 +85,70 @@ ErrorInfo getErrorInfo(ErrorCategoryType type) {
 ErrorCategoryType categorizeError(Object? error) {
   if (error == null) return ErrorCategoryType.unknown;
 
-  final errorString = error.toString().toLowerCase();
+  // Transport-layer failures — classified by TYPE, never by message string.
+  // TlsException also covers its subclass HandshakeException.
+  if (error is SocketException ||
+      error is TlsException ||
+      error is HttpException ||
+      error is TimeoutException ||
+      error is http.ClientException) {
+    return ErrorCategoryType.network;
+  }
 
-  if (_isNetworkError(errorString)) return ErrorCategoryType.network;
-  if (_isAuthenticationError(errorString)) {
+  if (error is DownloadAuthException) {
     return ErrorCategoryType.authentication;
   }
-  if (_isValidationError(errorString)) return ErrorCategoryType.validation;
-  if (_isNotFoundError(errorString)) return ErrorCategoryType.notFound;
-  if (_isRateLimitError(errorString)) return ErrorCategoryType.rateLimit;
-  if (_isServerError(errorString)) return ErrorCategoryType.server;
+  if (error is BackupDecryptionException) {
+    return ErrorCategoryType.authentication;
+  }
+
+  if (error is PurchaseRequiredException) {
+    return ErrorCategoryType.validation;
+  }
+  if (error is ProfileAlreadyExistsException) {
+    return ErrorCategoryType.validation;
+  }
+  if (error is InvalidBackupFormatException) {
+    return ErrorCategoryType.validation;
+  }
+  if (error is FormatException) return ErrorCategoryType.validation;
+
+  if (error is PaymentsNotConfiguredException) {
+    return ErrorCategoryType.server;
+  }
+
+  if (error is CandidFetchException) {
+    switch (error.kind) {
+      case CandidFetchErrorKind.network:
+        return ErrorCategoryType.network;
+      case CandidFetchErrorKind.non200:
+        return ErrorCategoryType.server;
+      case CandidFetchErrorKind.emptyBody:
+        return ErrorCategoryType.validation;
+    }
+  }
+
+  if (error is PasskeyException) {
+    return _statusCategory(error.statusCode);
+  }
 
   return ErrorCategoryType.unknown;
 }
 
-bool _isNetworkError(String error) {
-  const patterns = [
-    'socketexception',
-    'connection refused',
-    'connection failed',
-    'network unreachable',
-    'timeoutexception',
-    'timed out',
-    'timeout',
-    'connection reset',
-    'connection closed',
-    'no address associated',
-    'failed host lookup',
-    'network error',
-  ];
-  return patterns.any((p) => error.contains(p));
-}
-
-bool _isAuthenticationError(String error) {
-  const patterns = [
-    '401',
-    'unauthorized',
-    'authentication failed',
-    'not authenticated',
-    'invalid token',
-    'token expired',
-    'session expired',
-    'access denied',
-    'forbidden',
-    '403',
-  ];
-  return patterns.any((p) => error.contains(p));
-}
-
-bool _isValidationError(String error) {
-  const patterns = [
-    'validation',
-    'invalid input',
-    'invalid argument',
-    'invalid parameter',
-    'required field',
-    'field is required',
-    'must be',
-    'cannot be empty',
-    'format is invalid',
-  ];
-  return patterns.any((p) => error.contains(p));
-}
-
-bool _isNotFoundError(String error) {
-  const patterns = [
-    '404',
-    'not found',
-    'does not exist',
-    'no such',
-    'could not find',
-    'resource not found',
-    'item not found',
-  ];
-  return patterns.any((p) => error.contains(p));
-}
-
-bool _isRateLimitError(String error) {
-  const patterns = [
-    '429',
-    'too many requests',
-    'rate limit',
-    'rate exceeded',
-    'quota exceeded',
-    'throttl',
-  ];
-  return patterns.any((p) => error.contains(p));
-}
-
-bool _isServerError(String error) {
-  const patterns = [
-    '500',
-    '502',
-    '503',
-    '504',
-    'internal server error',
-    'bad gateway',
-    'service unavailable',
-    'gateway timeout',
-    'server error',
-  ];
-  return patterns.any((p) => error.contains(p));
+ErrorCategoryType _statusCategory(int? statusCode) {
+  if (statusCode == null) return ErrorCategoryType.unknown;
+  switch (statusCode) {
+    case 401:
+    case 403:
+      return ErrorCategoryType.authentication;
+    case 404:
+      return ErrorCategoryType.notFound;
+    case 429:
+      return ErrorCategoryType.rateLimit;
+    case 402:
+      return ErrorCategoryType.validation;
+  }
+  if (statusCode >= 500) return ErrorCategoryType.server;
+  if (statusCode >= 400) return ErrorCategoryType.validation;
+  return ErrorCategoryType.unknown;
 }

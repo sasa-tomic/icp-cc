@@ -46,6 +46,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   bool _isUploading = false;
   double _uploadProgress = 0.0; // Track upload progress 0.0 to 1.0
   String? _error;
+  Object? _errorObject;
   // Sandbox-validation failures are shown verbatim (with the specific
   // rejected primitive) so authors can fix the bundle before publishing.
   String? _validationError;
@@ -228,6 +229,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       _isUploading = true;
       _uploadProgress = 0.0;
       _error = null;
+      _errorObject = null;
       _validationError = null;
     });
 
@@ -310,6 +312,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     } catch (e) {
       setState(() {
         _error = e.toString();
+        _errorObject = e;
       });
 
       if (mounted) {
@@ -413,6 +416,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                       if (_error != null) ...[
                         ErrorDisplay(
                           error: _error!,
+                          errorObject: _errorObject,
                           onRetry: _isUploading ? null : _uploadScript,
                           retryText: 'Retry upload',
                         ),
