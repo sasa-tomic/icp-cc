@@ -3,10 +3,7 @@ use icp_marketplace_api::{
     models::{self, *},
     repositories::PurchaseRepository,
     responses::error_response,
-    services::{
-        AccountService, PasskeyAuthenticationFinish, PasskeyRegistrationFinish, PasskeyService,
-        PaymentService, ReviewService, ScriptService,
-    },
+    services::{AccountService, PasskeyService, PaymentService, ReviewService, ScriptService},
     startup_checks::{
         is_development, verify_script_ownership, warn_if_broken_prod_passkey_rp,
         warn_if_icpay_unconfigured, warn_if_insecure_prod_admin_token,
@@ -572,140 +569,6 @@ async fn admin_add_recovery_key(
                 StatusCode::INTERNAL_SERVER_ERROR
             };
             error_response(status, &message)
-        }
-    }
-}
-
-// ============================================================================
-// Passkey Authentication Handlers
-// ============================================================================
-
-#[derive(Debug, serde::Deserialize)]
-struct PasskeyRegisterStartRequest {
-    account_id: String,
-    username: String,
-}
-
-#[handler]
-async fn passkey_register_start(
-    Json(req): Json<PasskeyRegisterStartRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .passkey_service
-        .start_registration(&req.account_id, &req.username)
-        .await
-    {
-        Ok(result) => Json(serde_json::json!({
-            "success": true,
-            "data": result
-        }))
-        .into_response(),
-        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
-    }
-}
-
-#[handler]
-async fn passkey_register_finish(
-    Json(req): Json<PasskeyRegistrationFinish>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state.passkey_service.finish_registration(req).await {
-        Ok(passkey) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({
-                "success": true,
-                "data": passkey
-            })),
-        )
-            .into_response(),
-        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
-    }
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct PasskeyAuthStartRequest {
-    account_id: String,
-}
-
-#[handler]
-async fn passkey_authenticate_start(
-    Json(req): Json<PasskeyAuthStartRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .passkey_service
-        .start_authentication(&req.account_id)
-        .await
-    {
-        Ok(result) => Json(serde_json::json!({
-            "success": true,
-            "data": result
-        }))
-        .into_response(),
-        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
-    }
-}
-
-#[handler]
-async fn passkey_authenticate_finish(
-    Json(req): Json<PasskeyAuthenticationFinish>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state.passkey_service.finish_authentication(req).await {
-        Ok(account_id) => Json(serde_json::json!({
-            "success": true,
-            "data": { "account_id": account_id }
-        }))
-        .into_response(),
-        Err(e) => error_response(StatusCode::UNAUTHORIZED, &e),
-    }
-}
-
-#[handler]
-async fn passkey_list(
-    Path(account_id): Path<String>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state.passkey_service.list_passkeys(&account_id).await {
-        Ok(passkeys) => Json(serde_json::json!({
-            "success": true,
-            "data": passkeys
-        }))
-        .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
-    }
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct PasskeyDeleteRequest {
-    account_id: String,
-}
-
-#[handler]
-async fn passkey_delete(
-    Path(passkey_id): Path<String>,
-    Json(req): Json<PasskeyDeleteRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .passkey_service
-        .delete_passkey(&passkey_id, &req.account_id)
-        .await
-    {
-        Ok(()) => Json(serde_json::json!({
-            "success": true
-        }))
-        .into_response(),
-        Err(e) => {
-            let status = if e.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else if e.contains("Cannot delete last") {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &e)
         }
     }
 }
@@ -1528,22 +1391,28 @@ async fn main() -> Result<(), std::io::Error> {
         // Passkey Authentication endpoints
         .at(
             "/api/v1/passkey/register/start",
-            post(passkey_register_start),
+            post(handlers::passkey_register_start),
         )
         .at(
             "/api/v1/passkey/register/finish",
-            post(passkey_register_finish),
+            post(handlers::passkey_register_finish),
         )
         .at(
             "/api/v1/passkey/authenticate/start",
-            post(passkey_authenticate_start),
+            post(handlers::passkey_authenticate_start),
         )
         .at(
             "/api/v1/passkey/authenticate/finish",
-            post(passkey_authenticate_finish),
+            post(handlers::passkey_authenticate_finish),
         )
-        .at("/api/v1/passkey/list/:account_id", get(passkey_list))
-        .at("/api/v1/passkey/:passkey_id", delete(passkey_delete))
+        .at(
+            "/api/v1/passkey/list/:account_id",
+            get(handlers::passkey_list),
+        )
+        .at(
+            "/api/v1/passkey/:passkey_id",
+            delete(handlers::passkey_delete),
+        )
         // Vault endpoints
         .at(
             "/api/v1/vault",
