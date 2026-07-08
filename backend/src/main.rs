@@ -882,82 +882,6 @@ async fn vault_update(
 // Recovery Code Handlers
 // ============================================================================
 
-#[derive(Debug, serde::Deserialize)]
-struct RecoveryGenerateRequest {
-    account_id: String,
-}
-
-#[handler]
-async fn recovery_generate(
-    Json(req): Json<RecoveryGenerateRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .passkey_service
-        .generate_recovery_codes_for_account(&req.account_id)
-        .await
-    {
-        Ok(result) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({
-                "success": true,
-                "data": result
-            })),
-        )
-            .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
-    }
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct RecoveryVerifyRequest {
-    account_id: String,
-    code: String,
-}
-
-#[handler]
-async fn recovery_verify(
-    Json(req): Json<RecoveryVerifyRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .passkey_service
-        .verify_recovery_code_for_account(&req.account_id, &req.code)
-        .await
-    {
-        Ok(true) => Json(serde_json::json!({
-            "success": true,
-            "data": { "valid": true }
-        }))
-        .into_response(),
-        Ok(false) => Json(serde_json::json!({
-            "success": true,
-            "data": { "valid": false }
-        }))
-        .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
-    }
-}
-
-#[handler]
-async fn recovery_status(
-    Path(account_id): Path<String>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    match state
-        .passkey_service
-        .get_recovery_code_status(&account_id)
-        .await
-    {
-        Ok(remaining) => Json(serde_json::json!({
-            "success": true,
-            "data": { "remaining_codes": remaining }
-        }))
-        .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
-    }
-}
-
 #[handler]
 async fn update_script(
     Path(script_id): Path<String>,
@@ -1798,9 +1722,15 @@ async fn main() -> Result<(), std::io::Error> {
             post(vault_create).get(vault_get).put(vault_update),
         )
         // Recovery code endpoints
-        .at("/api/v1/recovery/generate", post(recovery_generate))
-        .at("/api/v1/recovery/verify", post(recovery_verify))
-        .at("/api/v1/recovery/status/:account_id", get(recovery_status))
+        .at(
+            "/api/v1/recovery/generate",
+            post(handlers::recovery_generate),
+        )
+        .at("/api/v1/recovery/verify", post(handlers::recovery_verify))
+        .at(
+            "/api/v1/recovery/status/:account_id",
+            get(handlers::recovery_status),
+        )
         // Admin Account endpoints (require admin authentication)
         .at(
             "/api/v1/admin/accounts/:username/keys/:key_id/disable",

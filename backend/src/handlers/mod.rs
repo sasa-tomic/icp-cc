@@ -5,7 +5,9 @@
 //! …) and are re-exported here for the route table in `main`.
 
 pub mod health;
+pub mod recovery;
 pub mod reviews;
 
 pub use health::{health_check, ping};
+pub use recovery::{recovery_generate, recovery_status, recovery_verify};
 pub use reviews::{create_review, get_reviews};
