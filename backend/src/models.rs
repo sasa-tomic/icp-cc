@@ -326,6 +326,11 @@ pub struct ScriptDetailResponse {
     /// Full source. `None` (→ JSON `null`) when the caller is not entitled to a
     /// paid script.
     pub bundle: Option<String>,
+    /// Source language DETECTED from the bundle content (UXR5-2). Single
+    /// source: `ScriptLanguage::detect`. Always present — even for locked
+    /// paid scripts, since detection runs in-process before the bundle is
+    /// gated. `"typescript"` / `"lua"` (stale) / `"unknown"`.
+    pub language: String,
     pub author_principal: Option<String>,
     pub author_public_key: Option<String>,
     pub upload_signature: Option<String>,
@@ -363,6 +368,13 @@ impl ScriptDetailResponse {
     }
 
     fn from_script(script: Script, purchased: bool, include_bundle: bool) -> Self {
+        // UXR5-2: detect the language from the bundle CONTENT before the bundle
+        // is moved/gated. Single source: `ScriptLanguage::detect`. The badge
+        // reflects real content even for locked paid scripts (whose `bundle`
+        // field is dropped below — the language still ships honestly).
+        let language = crate::script_language::ScriptLanguage::detect(&script.bundle)
+            .as_str()
+            .to_string();
         let bundle = if include_bundle {
             Some(script.bundle)
         } else {
@@ -377,6 +389,7 @@ impl ScriptDetailResponse {
             category: script.category,
             tags: script.tags,
             bundle,
+            language,
             author_principal: script.author_principal,
             author_public_key: script.author_public_key,
             upload_signature: script.upload_signature,

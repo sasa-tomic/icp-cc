@@ -41,6 +41,12 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   bool _isLoadingPreview = false;
   String? _scriptPreview;
   String? _previewError;
+  // UXR5-2: the language DETECTED from the bundle by the backend
+  // (`/preview` → `ScriptPreview.language`). Drives the preview-pane badge so
+  // it always reflects real content, never a hardcoded claim. `null` while
+  // loading or when the language is unknown → the badge is hidden (honest:
+  // prefer NO badge over a wrong one).
+  String? _previewLanguage;
   // UX-6: set when the lightweight preview endpoint is unavailable AND the
   // script is paid. In that case we MUST NOT fall back to the full download
   // (that would ship paid source the user hasn't purchased); render the
@@ -152,6 +158,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
       _isLoadingPreview = true;
       _previewError = null;
       _previewGated = false;
+      _previewLanguage = null;
     });
 
     try {
@@ -163,6 +170,8 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
           await _marketplaceService.getScriptPreview(widget.script.id);
       setState(() {
         _scriptPreview = preview.preview;
+        // UXR5-2: badge reflects the backend's content-based detection.
+        _previewLanguage = preview.language;
         _isLoadingPreview = false;
       });
     } catch (error) {
@@ -206,6 +215,48 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
         _previewError = 'Failed to load preview: $e';
         _isLoadingPreview = false;
       });
+    }
+  }
+
+  /// UXR5-2: the preview-pane language badge. Reads the backend-DETECTED
+  /// `language` (single source of truth: `ScriptLanguage::detect` in the
+  /// backend). This method is only the display mapping:
+  ///  - `typescript` → "TypeScript" badge.
+  ///  - `lua` → "Legacy Lua" badge (amber) — stale; cannot run in the
+  ///    TS/QuickJS runtime. Honest about what it is AND that it is unsupported.
+  ///  - unknown / loading → no badge (prefer silence over a wrong claim).
+  ///
+  /// Returns `null` when no badge should render; callers place `null` where a
+  /// `Widget` is expected via `_badgeOrEmpty`.
+  Widget _buildLanguageBadge(BuildContext context) {
+    final label = _languageBadgeLabel(_previewLanguage);
+    if (label == null) {
+      return const SizedBox.shrink();
+    }
+    final isLegacy = _previewLanguage == 'lua';
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: isLegacy
+                ? Theme.of(context).colorScheme.error
+                : null,
+          ),
+    );
+  }
+
+  /// Maps the detected language identifier to a badge label, or `null` when no
+  /// badge should be shown. Kept private + next to [_buildLanguageBadge] so the
+  /// display mapping is the single frontend source (the DETECTION itself is
+  /// single-sourced in the backend).
+  static String? _languageBadgeLabel(String? language) {
+    switch (language) {
+      case 'typescript':
+        return 'TypeScript';
+      case 'lua':
+        return 'Legacy Lua';
+      default:
+        return null;
     }
   }
 
@@ -544,15 +595,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                         ),
                                         child: Row(
                                           children: [
-                                            Text(
-                                              'TypeScript',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelSmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                            ),
+                                            _buildLanguageBadge(context),
                                             const Spacer(),
                                             IconButton(
                                               onPressed: () {
@@ -853,15 +896,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                 ),
                                 child: Row(
                                   children: [
-                                    Text(
-                                      'TypeScript',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
+                                    _buildLanguageBadge(context),
                                     const Spacer(),
                                     IconButton(
                                       onPressed: () {

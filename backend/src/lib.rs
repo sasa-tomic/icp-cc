@@ -6,6 +6,7 @@ pub mod middleware;
 pub mod models;
 pub mod repositories;
 pub mod responses;
+pub mod script_language;
 pub mod services;
 pub mod startup_checks;
 pub mod vault;

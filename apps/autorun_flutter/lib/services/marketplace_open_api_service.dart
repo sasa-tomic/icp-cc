@@ -1479,7 +1479,10 @@ class ScriptPreview {
       description: json['description'] as String? ?? '',
       version: json['version'] as String? ?? '',
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
-      language: json['language'] as String? ?? 'typescript',
+      // UXR5-2: language is DETECTED from the bundle by the backend. Default
+      // to 'unknown' (→ no badge) — NEVER fabricate 'typescript' for content
+      // we haven't inspected.
+      language: json['language'] as String? ?? 'unknown',
       preview: json['preview'] as String? ?? '',
       previewTruncated: json['previewTruncated'] as bool? ?? false,
       totalLines: json['totalLines'] as int? ?? 0,

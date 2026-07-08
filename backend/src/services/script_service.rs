@@ -1,5 +1,6 @@
 use crate::models::{CreateScriptRequest, Script, ScriptPreview, UpdateScriptRequest};
 use crate::repositories::{AccountRepository, ScriptRepository};
+use crate::script_language::ScriptLanguage;
 use crate::services::error::ScriptError;
 use chrono::Utc;
 use sqlx::SqlitePool;
@@ -188,7 +189,9 @@ impl ScriptService {
             description: script.description.clone(),
             version: script.version.clone(),
             price: script.price,
-            language: "typescript".to_string(),
+            // UXR5-2: detected from the bundle CONTENT, not hardcoded. The
+            // detector is the single source of truth — see `script_language`.
+            language: ScriptLanguage::detect(&script.bundle).as_str().to_string(),
             preview,
             preview_truncated,
             total_lines,
@@ -658,7 +661,11 @@ mod tests {
         assert_eq!(preview.description, "Test Description");
         assert_eq!(preview.version, "1.0.0");
         assert_eq!(preview.price, 0.0);
-        assert_eq!(preview.language, "typescript");
+        // UXR5-2: language is now DETECTED from the bundle content. Generic
+        // filler ("line one\nline two") carries no contract markers → Unknown
+        // (the badge shows nothing rather than guess). Dedicated detector
+        // coverage lives in `script_language::tests`.
+        assert_eq!(preview.language, "unknown");
         assert_eq!(preview.preview, "line one\nline two");
         assert!(
             !preview.preview_truncated,
