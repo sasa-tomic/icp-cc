@@ -41,11 +41,6 @@ const _kEd25519Principal =
 const _kZeroPubkeyPrincipal =
     'ukev2-6iweo-izmyj-rdxlb-jun6n-nef5z-gk2lp-fuzke-7ghpu-jecqq-iae';
 
-// RFC 8410 SPKI DER prefix (12 bytes) for an Ed25519 public key.
-// Source: Rust `der_encode_public_key("ed25519", &[0u8;32])` =
-//   302a300506032b6570032100 ++ <32-byte key>.
-const _kDerPrefixHex = '302a300506032b6570032100';
-
 // Ed25519 signature vector. Source: Rust `sign_ed25519(b"hello web", priv)`.
 const _kMessageText = 'hello web';
 const _kExpectedSigB64 =
@@ -87,19 +82,6 @@ void main() {
         publicKeyB64: _kEd25519PublicB64,
       );
       expect(principal, equals(_kEd25519Principal));
-    });
-
-    test('SPKI DER prefix matches RFC 8410 (captured from Rust)', () {
-      // Reconstruct the DER for the zero pubkey and verify the 12-byte prefix.
-      final derHex = _kDerPrefixHex +
-          base64
-              .decode(_kEd25519PublicB64)
-              .map((b) => b.toRadixString(16).padLeft(2, '0'))
-              .join();
-      // The prefix alone (12 bytes) is constant regardless of key:
-      expect(_kDerPrefixHex, equals('302a300506032b6570032100'));
-      // Sanity: 44-byte DER = 12 prefix + 32 key.
-      expect(derHex.length, equals((12 + 32) * 2));
     });
 
     test('matches the native FFI for the same public key (cross-compat)', () {
