@@ -1,5 +1,6 @@
 mod account_service;
 mod passkey_service;
+mod payment_service;
 mod review_service;
 mod script_service;
 
@@ -10,5 +11,6 @@ pub use passkey_service::{
     PasskeyRegistrationFinish, PasskeyRegistrationStart, PasskeyService, RecoveryCodesResponse,
     VaultData,
 };
+pub use payment_service::PaymentService;
 pub use review_service::ReviewService;
 pub use script_service::ScriptService;

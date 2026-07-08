@@ -2,7 +2,10 @@ use icp_marketplace_api::db::initialize_database;
 use icp_marketplace_api::models::{
     AppState, Script, SearchRequest, SearchResultPayload, SCRIPT_COLUMNS_WITH_ACCOUNT,
 };
-use icp_marketplace_api::services::{AccountService, PasskeyService, ReviewService, ScriptService};
+use icp_marketplace_api::repositories::PurchaseRepository;
+use icp_marketplace_api::services::{
+    AccountService, PasskeyService, PaymentService, ReviewService, ScriptService,
+};
 use poem::http::StatusCode;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::sync::Arc;
@@ -266,11 +269,13 @@ async fn setup_search_state() -> Arc<AppState> {
         .expect("Failed to create PasskeyService");
 
     Arc::new(AppState {
+        pool: pool.clone(),
         account_service: AccountService::new(pool.clone()),
         script_service: ScriptService::new(pool.clone()),
         review_service: ReviewService::new(pool.clone()),
         passkey_service,
-        pool,
+        purchase_repo: PurchaseRepository::new(pool.clone()),
+        payment_service: PaymentService::from_env(pool),
     })
 }
 

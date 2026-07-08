@@ -92,7 +92,7 @@ end''',
             'tags': ['updated', 'modified'],
             'authorName': 'Updated Author',
             'authorPublicKey': TestSignatureUtils.getPublicKey(),
-            'price': 1.0,
+            'price': 0.0,
             'isPublic': true,
           },
         );

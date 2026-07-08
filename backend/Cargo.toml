@@ -38,6 +38,11 @@ sha2 = "0.10"
 base64 = "0.22"
 ic-agent = "0.44"
 
+# ICPay webhook verification: HMAC-SHA256 of the raw request body with the
+# shared `ICPAY_WEBHOOK_SECRET`. `hmac` is the standard RustCrypto construction
+# over `sha2` (already a dependency).
+hmac = "0.12"
+
 # Passkey/WebAuthn authentication
 webauthn-rs = { version = "0.5.2", features = ["danger-allow-state-serialisation"] }
 webauthn-rs-proto = "0.5.0"
@@ -51,3 +56,7 @@ rand = "0.8"
 
 [dev-dependencies]
 tokio-test = "0.4"
+# Enable poem's `test` feature (TestClient) for handler-level integration
+# tests in main.rs. The lib already depends on poem; this just turns on the
+# test-only module without adding it to the runtime dep set.
+poem = { version = "3.0", features = ["test"] }

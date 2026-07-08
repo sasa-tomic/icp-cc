@@ -429,6 +429,49 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .execute(pool)
         .await
         .expect("Failed to drop legacy user_vaults principal index");
+
+    // -----------------------------------------------------------------------
+    // Purchases ledger (ICPay payment integration, migration 006).
+    //
+    // One row = one entitlement: a successful ICPay payment that grants
+    // `account_id` access to paid `script_id`'s bundle. The
+    // `UNIQUE(account_id, script_id)` constraint makes ICPay webhook
+    // redelivery idempotent — the repository issues
+    // `INSERT ... ON CONFLICT(account_id, script_id) DO NOTHING` so a
+    // duplicate delivery is a no-op, not an error. This is the table the
+    // entitlement gate in `get_script` / `POST /scripts/:id/download` checks.
+    // See migrations/006_create_purchases_sqlite.sql.
+    // -----------------------------------------------------------------------
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS purchases (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            script_id TEXT NOT NULL,
+            icpay_intent_id TEXT,
+            icpay_transaction_id TEXT,
+            usd_amount REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'USD',
+            status TEXT NOT NULL,
+            paid_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE (account_id, script_id)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create purchases table");
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_purchases_account ON purchases(account_id)")
+        .execute(pool)
+        .await
+        .expect("Failed to create purchases account_id index");
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_purchases_script ON purchases(script_id)")
+        .execute(pool)
+        .await
+        .expect("Failed to create purchases script_id index");
 }
 
 /// Idempotently rename the legacy `user_principal` column to `account_id` on

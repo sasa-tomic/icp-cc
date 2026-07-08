@@ -151,6 +151,8 @@ pub struct AppState {
     pub script_service: crate::services::ScriptService,
     pub review_service: crate::services::ReviewService,
     pub passkey_service: crate::services::PasskeyService,
+    pub purchase_repo: crate::repositories::PurchaseRepository,
+    pub payment_service: crate::services::PaymentService,
 }
 
 #[derive(Debug, Deserialize)]
@@ -187,6 +189,214 @@ pub struct ScriptPreview {
     /// book's page count) that lets the UI show "first 20 of N lines". Never
     /// reveals the source content itself.
     pub total_lines: usize,
+}
+
+// ============================================================================
+// ICPay payment integration + paid-script entitlement gate
+// ============================================================================
+
+/// A row from the `purchases` table — a successful ICPay payment that granted
+/// `account_id` entitlement to `script_id`'s paid bundle. Mirrors the schema in
+/// `migrations/006_create_purchases_sqlite.sql`.
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+pub struct Purchase {
+    pub id: String,
+    pub account_id: String,
+    pub script_id: String,
+    pub icpay_intent_id: Option<String>,
+    pub icpay_transaction_id: Option<String>,
+    pub usd_amount: f64,
+    pub currency: String,
+    pub status: String,
+    pub paid_at: String,
+    pub created_at: String,
+}
+
+/// Insert shape for the purchases table. The repository's `create_or_ignore`
+/// takes this by reference.
+#[derive(Debug, Clone)]
+pub struct NewPurchase {
+    pub id: String,
+    pub account_id: String,
+    pub script_id: String,
+    pub icpay_intent_id: Option<String>,
+    pub icpay_transaction_id: Option<String>,
+    pub usd_amount: f64,
+    pub currency: String,
+    pub status: String,
+    pub paid_at: String,
+    pub created_at: String,
+}
+
+/// Query params for `GET /api/v1/scripts/:id`. The optional `account_id` drives
+/// the paid-script entitlement gate: when present, the server checks the
+/// purchases ledger (and script ownership) to decide whether to ship the full
+/// bundle. Omitting it returns metadata only for paid scripts.
+#[derive(Debug, Deserialize, Default)]
+pub struct ScriptDetailQuery {
+    pub account_id: Option<String>,
+}
+
+/// Public ICPay client config (browser-safe). Returned by
+/// `GET /api/v1/payments/icpay/config`. `publishable_key` ships in the client;
+/// the secret key never leaves the server.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentConfig {
+    pub publishable_key: String,
+    pub shortcode: String,
+    pub api_url: String,
+}
+
+/// Metadata block embedded by the client in the ICPay payment intent. The
+/// webhook uses these fields to credit the right account + script.
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WebhookMetadata {
+    pub account_id: Option<String>,
+    pub script_id: Option<String>,
+    pub intent_id: Option<String>,
+}
+
+/// A parsed ICPay webhook event. Field names accept the camelCase shapes
+/// documented in the ICPay HTTP contract (see `payment_service::verify_webhook`
+/// for the raw-JSON parse; the signature is verified against the raw body
+/// before this struct is deserialised).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebhookEvent {
+    /// ICPay transaction identifier (also accepted as `id` when `transaction_id` is absent).
+    #[serde(default)]
+    pub transaction_id: Option<String>,
+    /// Fallback id field — some ICPay payloads identify the transaction with `id`.
+    #[serde(default, rename = "id")]
+    pub id: Option<String>,
+    /// Payment status from ICPay. The service treats `completed` / `succeeded`
+    /// / `paid` (case-insensitive) as success.
+    #[serde(default)]
+    pub status: Option<String>,
+    /// USD amount paid. Optional: recorded for audit but not gated on.
+    #[serde(default)]
+    pub usd_amount: Option<f64>,
+    /// Embedded client metadata (account_id, script_id, intent_id).
+    #[serde(default)]
+    pub metadata: WebhookMetadata,
+}
+
+impl WebhookEvent {
+    /// Resolves the canonical transaction id for storage. Prefers the explicit
+    /// `transaction_id` field, falling back to the bare `id`.
+    pub fn resolve_transaction_id(&self) -> Option<&str> {
+        self.transaction_id.as_deref().or(self.id.as_deref())
+    }
+}
+
+/// Request body for `POST /api/v1/scripts/:id/download`. The signature is
+/// Ed25519 over the canonical string `download:{script_id}:{timestamp}:{nonce}`
+/// (built in `entitlement::resolve_download`), verified with
+/// `auth::verify_ed25519_signature`. Field names are snake_case on the wire.
+#[derive(Debug, Deserialize)]
+pub struct DownloadRequest {
+    pub public_key: String,
+    pub signature: String,
+    pub timestamp: String,
+    pub nonce: String,
+}
+
+/// The serialisable shape returned by `GET /api/v1/scripts/:id`.
+///
+/// This is the entitlement-gated view of a `Script`. It mirrors `Script`'s
+/// fields but:
+/// - makes `bundle` an `Option<String>` (set to `None` for paid scripts the
+///   caller is not entitled to, so the JSON renders `"bundle": null`);
+/// - adds `purchased: bool` so the UI knows whether to render a Buy CTA.
+///
+/// Field names stay snake_case to match the existing `Script` serialization
+/// (backward-compatible for the free-script case, where `bundle` is `Some(..)`
+/// and `purchased` is `true`).
+#[derive(Debug, Serialize)]
+pub struct ScriptDetailResponse {
+    pub id: String,
+    pub slug: String,
+    pub owner_account_id: Option<String>,
+    pub title: String,
+    pub description: String,
+    pub category: String,
+    pub tags: Option<String>,
+    /// Full source. `None` (→ JSON `null`) when the caller is not entitled to a
+    /// paid script.
+    pub bundle: Option<String>,
+    pub author_principal: Option<String>,
+    pub author_public_key: Option<String>,
+    pub upload_signature: Option<String>,
+    pub canister_ids: Option<String>,
+    pub icon_url: Option<String>,
+    pub screenshots: Option<String>,
+    pub version: String,
+    pub compatibility: Option<String>,
+    pub price: f64,
+    pub is_public: bool,
+    pub downloads: i32,
+    pub rating: f64,
+    pub review_count: i32,
+    pub created_at: String,
+    pub updated_at: String,
+    pub deleted_at: Option<String>,
+    pub author_name: Option<String>,
+    /// `true` when the caller is entitled to the full bundle (free script,
+    /// paid + purchase record, or paid + owner).
+    pub purchased: bool,
+}
+
+impl ScriptDetailResponse {
+    /// Build an *entitled* view: full bundle present, `purchased: true`. Used
+    /// for free scripts, owners, and accounts with a purchase record.
+    pub fn entitled(script: Script) -> Self {
+        Self::from_script(script, true, true)
+    }
+
+    /// Build a *locked* view for a paid script the caller may NOT access:
+    /// bundle set to `None` (→ `null`), `purchased: false`. Metadata (price,
+    /// description, etc.) is preserved so the UI can render the Buy CTA.
+    pub fn locked(script: Script) -> Self {
+        Self::from_script(script, false, false)
+    }
+
+    fn from_script(script: Script, purchased: bool, include_bundle: bool) -> Self {
+        let bundle = if include_bundle {
+            Some(script.bundle)
+        } else {
+            None
+        };
+        Self {
+            id: script.id,
+            slug: script.slug,
+            owner_account_id: script.owner_account_id,
+            title: script.title,
+            description: script.description,
+            category: script.category,
+            tags: script.tags,
+            bundle,
+            author_principal: script.author_principal,
+            author_public_key: script.author_public_key,
+            upload_signature: script.upload_signature,
+            canister_ids: script.canister_ids,
+            icon_url: script.icon_url,
+            screenshots: script.screenshots,
+            version: script.version,
+            compatibility: script.compatibility,
+            price: script.price,
+            is_public: script.is_public,
+            downloads: script.downloads,
+            rating: script.rating,
+            review_count: script.review_count,
+            created_at: script.created_at,
+            updated_at: script.updated_at,
+            deleted_at: script.deleted_at,
+            author_name: script.author_name,
+            purchased,
+        }
+    }
 }
 
 // Account Profiles Models
