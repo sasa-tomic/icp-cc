@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Path, Query},
@@ -214,12 +215,9 @@ pub async fn create_script(
         }
         Err(e) => {
             tracing::error!("Failed to create script: {}", e);
-            let status = if e.contains("owned by another account") {
-                StatusCode::FORBIDDEN
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &e)
+            // Variant decides status (single source of truth): Forbidden for
+            // slug-ownership disputes, Internal for everything else.
+            error_response(e.status(), e.message())
         }
     }
 }

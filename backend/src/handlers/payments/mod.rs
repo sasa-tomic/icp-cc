@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Path},
@@ -217,16 +218,16 @@ pub async fn icpay_webhook(
     // re-serialise and invalidate the signature).
     let event = match state.payment_service.verify_webhook(&body, sig_header) {
         Ok(event) => event,
-        Err(msg) => {
-            // Distinguish bad signature (401) from malformed JSON (400).
-            let status = if msg.contains("signature") {
+        Err(e) => {
+            // Variant decides status (single source of truth): Unauthorized
+            // for signature mismatch, BadRequest for malformed JSON, Internal
+            // for misconfig (replaces the old `.contains("signature")`).
+            if matches!(e, crate::services::PaymentError::Unauthorized(_)) {
                 tracing::warn!("ICPay webhook rejected: bad signature");
-                StatusCode::UNAUTHORIZED
             } else {
-                tracing::warn!("ICPay webhook rejected: {}", msg);
-                StatusCode::BAD_REQUEST
-            };
-            return error_response(status, &msg);
+                tracing::warn!("ICPay webhook rejected: {}", e);
+            }
+            return error_response(e.status(), e.message());
         }
     };
 

@@ -29,6 +29,7 @@
 
 use crate::models::{NewPurchase, PaymentConfig, WebhookEvent};
 use crate::repositories::PurchaseRepository;
+use crate::services::error::PaymentError;
 use chrono::Utc;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -106,32 +107,36 @@ impl PaymentService {
     ///
     /// Returns:
     /// - `Ok(WebhookEvent)` on a valid signature + parseable JSON body;
-    /// - `Err(String)` when the secret is unset (misconfig), the signature
-    ///   mismatches, or the body is not valid JSON. The handler maps each to
-    ///   the appropriate HTTP status (500 / 401 / 400).
+    /// - `Err(PaymentError::Unauthorized)` when the signature mismatches;
+    /// - `Err(PaymentError::BadRequest)` when the body is not valid JSON;
+    /// - `Err(PaymentError::Internal)` for misconfiguration (unset secret or
+    ///   bad secret length). The handler maps each variant to its HTTP status
+    ///   via the single source of truth in the `ResponseError` impl.
     pub fn verify_webhook(
         &self,
         raw_body: &[u8],
         signature_header: &str,
-    ) -> Result<WebhookEvent, String> {
-        let secret = self
-            .webhook_secret
-            .as_deref()
-            .ok_or("ICPAY_WEBHOOK_SECRET not configured")?;
+    ) -> Result<WebhookEvent, PaymentError> {
+        let secret = self.webhook_secret.as_deref().ok_or_else(|| {
+            PaymentError::Internal("ICPAY_WEBHOOK_SECRET not configured".to_string())
+        })?;
 
         // Recompute HMAC-SHA256(raw_body, secret) and constant-time compare.
-        let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-            .map_err(|e| format!("Invalid ICPAY_WEBHOOK_SECRET length: {e}"))?;
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).map_err(|e| {
+            PaymentError::Internal(format!("Invalid ICPAY_WEBHOOK_SECRET length: {e}"))
+        })?;
         mac.update(raw_body);
         let expected_bytes = mac.finalize().into_bytes();
         let expected_hex = hex_encode(&expected_bytes);
 
         if !constant_time_eq(expected_hex.as_bytes(), signature_header.trim().as_bytes()) {
-            return Err("Invalid ICPay webhook signature".to_string());
+            return Err(PaymentError::Unauthorized(
+                "Invalid ICPay webhook signature".to_string(),
+            ));
         }
 
         serde_json::from_slice::<WebhookEvent>(raw_body)
-            .map_err(|e| format!("Invalid ICPay webhook body: {e}"))
+            .map_err(|e| PaymentError::BadRequest(format!("Invalid ICPay webhook body: {e}")))
     }
 
     /// Records an entitlement from a verified webhook event.
@@ -305,7 +310,7 @@ mod tests {
         // Flip the account id in the body AFTER signing.
         let tampered = body.replace("acct-1", "acct-2");
         let err = svc.verify_webhook(tampered.as_bytes(), &sig).unwrap_err();
-        assert!(err.contains("signature"), "got: {err}");
+        assert!(err.message().contains("signature"), "got: {err}");
     }
 
     #[tokio::test]
@@ -315,7 +320,7 @@ mod tests {
         // Sign with a DIFFERENT secret than the service holds.
         let sig = sign("whsec_WRONG", body.as_bytes());
         let err = svc.verify_webhook(body.as_bytes(), &sig).unwrap_err();
-        assert!(err.contains("signature"), "got: {err}");
+        assert!(err.message().contains("signature"), "got: {err}");
     }
 
     #[tokio::test]
@@ -335,7 +340,8 @@ mod tests {
         let sig = sign("whsec_demo", body.as_bytes());
         let err = svc.verify_webhook(body.as_bytes(), &sig).unwrap_err();
         assert!(
-            err.contains("ICPAY_WEBHOOK_SECRET not configured"),
+            err.message()
+                .contains("ICPAY_WEBHOOK_SECRET not configured"),
             "got: {err}"
         );
     }
@@ -346,7 +352,10 @@ mod tests {
         let body = b"{ this is not json ";
         let sig = sign("whsec_demo", body);
         let err = svc.verify_webhook(body, &sig).unwrap_err();
-        assert!(err.contains("Invalid ICPay webhook body"), "got: {err}");
+        assert!(
+            err.message().contains("Invalid ICPay webhook body"),
+            "got: {err}"
+        );
     }
 
     // ---- record_purchase_from_webhook ----

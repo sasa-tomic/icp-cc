@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Path, Query},
@@ -64,18 +65,11 @@ pub async fn create_review(
             )
                 .into_response()
         }
-        Err(err_msg) => {
-            tracing::warn!("Failed to create review: {}", err_msg);
-            let status = if err_msg.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else if err_msg.contains("already reviewed") {
-                StatusCode::CONFLICT
-            } else if err_msg.contains("must be between") {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &err_msg)
+        Err(e) => {
+            tracing::warn!("Failed to create review: {}", e);
+            // Variant decides status (NotFound / Conflict / BadRequest /
+            // Internal) — single source of truth in the ReviewError impl.
+            error_response(e.status(), e.message())
         }
     }
 }

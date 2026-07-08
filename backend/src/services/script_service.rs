@@ -1,5 +1,6 @@
 use crate::models::{CreateScriptRequest, Script, ScriptPreview, UpdateScriptRequest};
 use crate::repositories::{AccountRepository, ScriptRepository};
+use crate::services::error::ScriptError;
 use chrono::Utc;
 use sqlx::SqlitePool;
 
@@ -27,7 +28,7 @@ impl ScriptService {
         }
     }
 
-    pub async fn create_script(&self, req: CreateScriptRequest) -> Result<Script, String> {
+    pub async fn create_script(&self, req: CreateScriptRequest) -> Result<Script, ScriptError> {
         let script_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let version = req.version.as_deref().unwrap_or("1.0.0");
@@ -47,7 +48,9 @@ impl ScriptService {
                 }
                 Err(e) => {
                     tracing::error!("Failed to lookup account for public key: {}", e);
-                    return Err(format!("Failed to lookup account: {}", e));
+                    return Err(ScriptError::Internal(format!(
+                        "Failed to lookup account: {e}"
+                    )));
                 }
             }
         } else {
@@ -55,19 +58,18 @@ impl ScriptService {
         };
 
         // Check slug ownership if script with this slug already exists
-        let existing_scripts = self
-            .repo
-            .find_by_slug(&req.slug)
-            .await
-            .map_err(|e| format!("Failed to check slug ownership: {}", e))?;
+        let existing_scripts =
+            self.repo.find_by_slug(&req.slug).await.map_err(|e| {
+                ScriptError::Internal(format!("Failed to check slug ownership: {e}"))
+            })?;
 
         if let Some(existing) = existing_scripts.first() {
             // Slug exists, verify ownership
             if existing.owner_account_id != owner_account_id {
-                return Err(format!(
+                return Err(ScriptError::Forbidden(format!(
                     "Slug '{}' is owned by another account. Only the owner can upload new versions.",
                     req.slug
-                ));
+                )));
             }
         }
 
@@ -91,13 +93,13 @@ impl ScriptService {
                 &now,
             )
             .await
-            .map_err(|e| format!("Failed to create script: {}", e))?;
+            .map_err(|e| ScriptError::Internal(format!("Failed to create script: {e}")))?;
 
         self.repo
             .find_by_id(&script_id)
             .await
-            .map_err(|e| format!("Failed to retrieve created script: {}", e))?
-            .ok_or_else(|| "Script created but not found".to_string())
+            .map_err(|e| ScriptError::Internal(format!("Failed to retrieve created script: {e}")))?
+            .ok_or_else(|| ScriptError::Internal("Script created but not found".to_string()))
     }
 
     pub async fn update_script(
@@ -259,11 +261,11 @@ impl ScriptService {
         self.repo.count_public().await
     }
 
-    pub async fn increment_downloads(&self, script_id: &str) -> Result<(), String> {
+    pub async fn increment_downloads(&self, script_id: &str) -> Result<(), ScriptError> {
         self.repo
             .increment_downloads(script_id)
             .await
-            .map_err(|e| format!("Failed to increment downloads: {}", e))
+            .map_err(|e| ScriptError::Internal(format!("Failed to increment downloads: {e}")))
     }
 }
 

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Path},
@@ -13,6 +14,7 @@ use crate::{
         UpdateAccountRequest,
     },
     responses::error_response,
+    services::error::AccountError,
 };
 
 // Account profiles Endpoints
@@ -31,23 +33,9 @@ pub async fn register_account(
             })),
         )
             .into_response(),
-        Err(message) => {
-            tracing::warn!("Failed to register account: {}", message);
-            let status =
-                if message.contains("already exists") || message.contains("already registered") {
-                    StatusCode::CONFLICT
-                } else if message.contains("Invalid username")
-                    || message.contains("Timestamp out of range")
-                {
-                    StatusCode::BAD_REQUEST
-                } else if message.contains("Signature verification failed")
-                    || message.contains("replay attack")
-                {
-                    StatusCode::UNAUTHORIZED
-                } else {
-                    StatusCode::INTERNAL_SERVER_ERROR
-                };
-            error_response(status, &message)
+        Err(e) => {
+            tracing::warn!("Failed to register account: {}", e);
+            account_error_response(e)
         }
     }
 }
@@ -67,14 +55,9 @@ pub async fn get_account(
         )
             .into_response(),
         Ok(None) => error_response(StatusCode::NOT_FOUND, "Account not found"),
-        Err(message) => {
-            tracing::error!("Failed to get account: {}", message);
-            let status = if message.contains("Invalid username") {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &message)
+        Err(e) => {
+            tracing::error!("Failed to get account: {}", e);
+            account_error_response(e)
         }
     }
 }
@@ -98,9 +81,10 @@ pub async fn get_account_by_public_key(
         )
             .into_response(),
         Ok(None) => error_response(StatusCode::NOT_FOUND, "Account not found for public key"),
-        Err(message) => {
-            tracing::error!("Failed to get account by public key: {}", message);
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, &message)
+        Err(e) => {
+            tracing::error!("Failed to get account by public key: {}", e);
+            // All failures here are internal (DB) — the typed variant decides.
+            account_error_response(e)
         }
     }
 }
@@ -124,24 +108,9 @@ pub async fn update_account(
             })),
         )
             .into_response(),
-        Err(message) => {
-            tracing::warn!("Failed to update account: {}", message);
-            let status = if message.contains("Account not found") {
-                StatusCode::NOT_FOUND
-            } else if message.contains("Invalid username")
-                || message.contains("Timestamp out of range")
-            {
-                StatusCode::BAD_REQUEST
-            } else if message.contains("Signature verification failed")
-                || message.contains("replay attack")
-                || message.contains("not active")
-                || message.contains("does not belong")
-            {
-                StatusCode::UNAUTHORIZED
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &message)
+        Err(e) => {
+            tracing::warn!("Failed to update account: {}", e);
+            account_error_response(e)
         }
     }
 }
@@ -165,29 +134,9 @@ pub async fn add_account_key(
             })),
         )
             .into_response(),
-        Err(message) => {
-            tracing::warn!("Failed to add public key: {}", message);
-            let status = if message.contains("Account not found")
-                || message.contains("Key not found")
-            {
-                StatusCode::NOT_FOUND
-            } else if message.contains("already registered") || message.contains("Maximum number") {
-                StatusCode::CONFLICT
-            } else if message.contains("Invalid username")
-                || message.contains("Timestamp out of range")
-                || message.contains("last active key")
-            {
-                StatusCode::BAD_REQUEST
-            } else if message.contains("Signature verification failed")
-                || message.contains("replay attack")
-                || message.contains("not active")
-                || message.contains("does not belong")
-            {
-                StatusCode::UNAUTHORIZED
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &message)
+        Err(e) => {
+            tracing::warn!("Failed to add public key: {}", e);
+            account_error_response(e)
         }
     }
 }
@@ -211,26 +160,17 @@ pub async fn remove_account_key(
             })),
         )
             .into_response(),
-        Err(message) => {
-            tracing::warn!("Failed to remove public key: {}", message);
-            let status =
-                if message.contains("Account not found") || message.contains("Key not found") {
-                    StatusCode::NOT_FOUND
-                } else if message.contains("Invalid username")
-                    || message.contains("Timestamp out of range")
-                    || message.contains("last active key")
-                {
-                    StatusCode::BAD_REQUEST
-                } else if message.contains("Signature verification failed")
-                    || message.contains("replay attack")
-                    || message.contains("not active")
-                    || message.contains("does not belong")
-                {
-                    StatusCode::UNAUTHORIZED
-                } else {
-                    StatusCode::INTERNAL_SERVER_ERROR
-                };
-            error_response(status, &message)
+        Err(e) => {
+            tracing::warn!("Failed to remove public key: {}", e);
+            account_error_response(e)
         }
     }
+}
+
+/// Renders an [`AccountError`] into the canonical wire-shape error response.
+/// The variant decides the HTTP status (single source of truth:
+/// [`AccountError`]'s `ResponseError::status`] impl); the message round-trips
+/// verbatim into the JSON body.
+fn account_error_response(e: AccountError) -> Response {
+    error_response(e.status(), e.message())
 }

@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 use crate::repositories::PasskeyRepository;
+use crate::services::error::PasskeyError;
 use crate::vault::{generate_recovery_codes, hash_recovery_code, verify_recovery_code};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -75,18 +76,18 @@ pub struct PasskeyService {
 }
 
 impl PasskeyService {
-    pub fn new(pool: SqlitePool, rp_id: &str, rp_origin: &str) -> Result<Self, String> {
-        let rp_origin =
-            Url::parse(rp_origin).map_err(|e| format!("Invalid RP origin URL: {}", e))?;
+    pub fn new(pool: SqlitePool, rp_id: &str, rp_origin: &str) -> Result<Self, PasskeyError> {
+        let rp_origin = Url::parse(rp_origin)
+            .map_err(|e| PasskeyError::Internal(format!("Invalid RP origin URL: {e}")))?;
 
         let builder = WebauthnBuilder::new(rp_id, &rp_origin)
-            .map_err(|e| format!("WebAuthn builder error: {}", e))?
+            .map_err(|e| PasskeyError::Internal(format!("WebAuthn builder error: {e}")))?
             .rp_name("ICP Script Marketplace");
 
         let webauthn = Arc::new(
             builder
                 .build()
-                .map_err(|e| format!("WebAuthn build error: {}", e))?,
+                .map_err(|e| PasskeyError::Internal(format!("WebAuthn build error: {e}")))?,
         );
 
         Ok(Self {
@@ -105,13 +106,13 @@ impl PasskeyService {
         &self,
         account_id: &str,
         username: &str,
-    ) -> Result<PasskeyRegistrationStart, String> {
+    ) -> Result<PasskeyRegistrationStart, PasskeyError> {
         // Get existing passkeys to exclude from registration
         let existing = self
             .repo
             .list_passkeys_by_account(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("DB error: {e}")))?;
 
         let exclude_credentials: Vec<CredentialID> = existing
             .iter()
@@ -126,7 +127,7 @@ impl PasskeyService {
                 username,
                 Some(exclude_credentials),
             )
-            .map_err(|e| format!("WebAuthn error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("WebAuthn error: {e}")))?;
 
         // Store challenge state
         let challenge_id = uuid::Uuid::new_v4().to_string();
@@ -134,8 +135,8 @@ impl PasskeyService {
         let expires_at = now + Duration::minutes(CHALLENGE_EXPIRY_MINUTES);
 
         // Serialize registration state
-        let state_bytes =
-            serde_json::to_vec(&reg_state).map_err(|e| format!("Serialize error: {}", e))?;
+        let state_bytes = serde_json::to_vec(&reg_state)
+            .map_err(|e| PasskeyError::BadRequest(format!("Serialize error: {e}")))?;
 
         self.repo
             .store_challenge(
@@ -147,7 +148,7 @@ impl PasskeyService {
                 &now.to_rfc3339(),
             )
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("DB error: {e}")))?;
 
         Ok(PasskeyRegistrationStart {
             challenge_id,
@@ -159,47 +160,51 @@ impl PasskeyService {
     pub async fn finish_registration(
         &self,
         req: PasskeyRegistrationFinish,
-    ) -> Result<PasskeyInfo, String> {
+    ) -> Result<PasskeyInfo, PasskeyError> {
         // Retrieve and validate challenge
         let challenge = self
             .repo
             .find_challenge(&req.challenge_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?
-            .ok_or("Challenge not found or expired")?;
+            .map_err(|e| PasskeyError::BadRequest(format!("DB error: {e}")))?
+            .ok_or_else(|| {
+                PasskeyError::BadRequest("Challenge not found or expired".to_string())
+            })?;
 
         if challenge.challenge_type != "registration" {
-            return Err("Invalid challenge type".to_string());
+            return Err(PasskeyError::BadRequest(
+                "Invalid challenge type".to_string(),
+            ));
         }
 
-        let account_id = challenge
-            .account_id
-            .ok_or("Missing account_id in challenge")?;
+        let account_id = challenge.account_id.ok_or_else(|| {
+            PasskeyError::BadRequest("Missing account_id in challenge".to_string())
+        })?;
 
         // Check expiry
         let expires_at = chrono::DateTime::parse_from_rfc3339(&challenge.expires_at)
-            .map_err(|e| format!("Invalid expires_at: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("Invalid expires_at: {e}")))?;
         if Utc::now() > expires_at {
             self.repo.delete_challenge(&req.challenge_id).await.ok();
-            return Err("Challenge expired".to_string());
+            return Err(PasskeyError::BadRequest("Challenge expired".to_string()));
         }
 
         // Deserialize registration state
         let reg_state: PasskeyRegistration = serde_json::from_slice(&challenge.challenge)
-            .map_err(|e| format!("Deserialize error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("Deserialize error: {e}")))?;
 
         // Verify the credential
         let passkey = self
             .webauthn
             .finish_passkey_registration(&req.credential, &reg_state)
-            .map_err(|e| format!("WebAuthn verification failed: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("WebAuthn verification failed: {e}")))?;
 
         // Store the passkey
         let passkey_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let cred_id = passkey.cred_id().to_vec();
-        let public_key =
-            serde_json::to_vec(&passkey).map_err(|e| format!("Serialize error: {}", e))?;
+        let public_key = serde_json::to_vec(&passkey)
+            .map_err(|e| PasskeyError::BadRequest(format!("Serialize error: {e}")))?;
 
         self.repo
             .create_passkey(
@@ -212,7 +217,7 @@ impl PasskeyService {
                 &now,
             )
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("DB error: {e}")))?;
 
         // Clean up challenge
         self.repo.delete_challenge(&req.challenge_id).await.ok();
@@ -234,16 +239,18 @@ impl PasskeyService {
     pub async fn start_authentication(
         &self,
         account_id: &str,
-    ) -> Result<PasskeyAuthenticationStart, String> {
+    ) -> Result<PasskeyAuthenticationStart, PasskeyError> {
         // Get existing passkeys
         let passkeys = self
             .repo
             .list_passkeys_by_account(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("DB error: {e}")))?;
 
         if passkeys.is_empty() {
-            return Err("No passkeys registered for this account".to_string());
+            return Err(PasskeyError::BadRequest(
+                "No passkeys registered for this account".to_string(),
+            ));
         }
 
         // Deserialize passkeys for WebAuthn
@@ -253,21 +260,23 @@ impl PasskeyService {
             .collect();
 
         if allow_credentials.is_empty() {
-            return Err("No valid passkeys found".to_string());
+            return Err(PasskeyError::BadRequest(
+                "No valid passkeys found".to_string(),
+            ));
         }
 
         let (rcr, auth_state) = self
             .webauthn
             .start_passkey_authentication(&allow_credentials)
-            .map_err(|e| format!("WebAuthn error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("WebAuthn error: {e}")))?;
 
         // Store challenge state
         let challenge_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now();
         let expires_at = now + Duration::minutes(CHALLENGE_EXPIRY_MINUTES);
 
-        let state_bytes =
-            serde_json::to_vec(&auth_state).map_err(|e| format!("Serialize error: {}", e))?;
+        let state_bytes = serde_json::to_vec(&auth_state)
+            .map_err(|e| PasskeyError::BadRequest(format!("Serialize error: {e}")))?;
 
         self.repo
             .store_challenge(
@@ -279,7 +288,7 @@ impl PasskeyService {
                 &now.to_rfc3339(),
             )
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::BadRequest(format!("DB error: {e}")))?;
 
         Ok(PasskeyAuthenticationStart {
             challenge_id,
@@ -291,40 +300,46 @@ impl PasskeyService {
     pub async fn finish_authentication(
         &self,
         req: PasskeyAuthenticationFinish,
-    ) -> Result<String, String> {
+    ) -> Result<String, PasskeyError> {
         // Retrieve and validate challenge
         let challenge = self
             .repo
             .find_challenge(&req.challenge_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?
-            .ok_or("Challenge not found or expired")?;
+            .map_err(|e| PasskeyError::Unauthorized(format!("DB error: {e}")))?
+            .ok_or_else(|| {
+                PasskeyError::Unauthorized("Challenge not found or expired".to_string())
+            })?;
 
         if challenge.challenge_type != "authentication" {
-            return Err("Invalid challenge type".to_string());
+            return Err(PasskeyError::Unauthorized(
+                "Invalid challenge type".to_string(),
+            ));
         }
 
-        let account_id = challenge
-            .account_id
-            .ok_or("Missing account_id in challenge")?;
+        let account_id = challenge.account_id.ok_or_else(|| {
+            PasskeyError::Unauthorized("Missing account_id in challenge".to_string())
+        })?;
 
         // Check expiry
         let expires_at = chrono::DateTime::parse_from_rfc3339(&challenge.expires_at)
-            .map_err(|e| format!("Invalid expires_at: {}", e))?;
+            .map_err(|e| PasskeyError::Unauthorized(format!("Invalid expires_at: {e}")))?;
         if Utc::now() > expires_at {
             self.repo.delete_challenge(&req.challenge_id).await.ok();
-            return Err("Challenge expired".to_string());
+            return Err(PasskeyError::Unauthorized("Challenge expired".to_string()));
         }
 
         // Deserialize auth state
         let auth_state: PasskeyAuthentication = serde_json::from_slice(&challenge.challenge)
-            .map_err(|e| format!("Deserialize error: {}", e))?;
+            .map_err(|e| PasskeyError::Unauthorized(format!("Deserialize error: {e}")))?;
 
         // Verify the credential
         let auth_result = self
             .webauthn
             .finish_passkey_authentication(&req.credential, &auth_state)
-            .map_err(|e| format!("WebAuthn verification failed: {}", e))?;
+            .map_err(|e| {
+                PasskeyError::Unauthorized(format!("WebAuthn verification failed: {e}"))
+            })?;
 
         // Update counter for the used passkey
         let cred_id = req.credential.id.as_ref();
@@ -332,13 +347,13 @@ impl PasskeyService {
             .repo
             .find_passkey_by_credential_id(cred_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?
+            .map_err(|e| PasskeyError::Unauthorized(format!("DB error: {e}")))?
         {
             let now = Utc::now().to_rfc3339();
             self.repo
                 .update_passkey_counter(&passkey.id, auth_result.counter() as i64, &now)
                 .await
-                .map_err(|e| format!("DB error: {}", e))?;
+                .map_err(|e| PasskeyError::Unauthorized(format!("DB error: {e}")))?;
         }
 
         // Clean up challenge
@@ -351,12 +366,12 @@ impl PasskeyService {
     // Passkey Management
     // ========================================================================
 
-    pub async fn list_passkeys(&self, account_id: &str) -> Result<Vec<PasskeyInfo>, String> {
+    pub async fn list_passkeys(&self, account_id: &str) -> Result<Vec<PasskeyInfo>, PasskeyError> {
         let passkeys = self
             .repo
             .list_passkeys_by_account(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         Ok(passkeys
             .into_iter()
@@ -370,27 +385,33 @@ impl PasskeyService {
             .collect())
     }
 
-    pub async fn delete_passkey(&self, passkey_id: &str, account_id: &str) -> Result<(), String> {
+    pub async fn delete_passkey(
+        &self,
+        passkey_id: &str,
+        account_id: &str,
+    ) -> Result<(), PasskeyError> {
         // Ensure at least one passkey remains
         let count = self
             .repo
             .list_passkeys_by_account(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?
             .len();
 
         if count <= 1 {
-            return Err("Cannot delete last passkey".to_string());
+            return Err(PasskeyError::BadRequest(
+                "Cannot delete last passkey".to_string(),
+            ));
         }
 
         let deleted = self
             .repo
             .delete_passkey(passkey_id, account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         if !deleted {
-            return Err("Passkey not found".to_string());
+            return Err(PasskeyError::NotFound("Passkey not found".to_string()));
         }
 
         Ok(())
@@ -403,12 +424,12 @@ impl PasskeyService {
     pub async fn generate_recovery_codes_for_account(
         &self,
         account_id: &str,
-    ) -> Result<RecoveryCodesResponse, String> {
+    ) -> Result<RecoveryCodesResponse, PasskeyError> {
         // Delete existing codes
         self.repo
             .delete_recovery_codes(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         // Generate new codes
         let codes = generate_recovery_codes();
@@ -427,7 +448,7 @@ impl PasskeyService {
         self.repo
             .create_recovery_codes(account_id, &code_hashes, &now)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         Ok(RecoveryCodesResponse {
             codes,
@@ -439,24 +460,24 @@ impl PasskeyService {
         &self,
         account_id: &str,
         code: &str,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PasskeyError> {
         let stored_codes = self
             .repo
             .list_recovery_codes(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         for stored in stored_codes {
             if stored.used {
                 continue;
             }
-            if verify_recovery_code(code, &stored.code_hash)? {
+            if verify_recovery_code(code, &stored.code_hash).map_err(PasskeyError::Internal)? {
                 // Mark as used
                 let now = Utc::now().to_rfc3339();
                 self.repo
                     .mark_recovery_code_used(&stored.id, &now)
                     .await
-                    .map_err(|e| format!("DB error: {}", e))?;
+                    .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
                 return Ok(true);
             }
         }
@@ -464,12 +485,12 @@ impl PasskeyService {
         Ok(false)
     }
 
-    pub async fn get_recovery_code_status(&self, account_id: &str) -> Result<usize, String> {
+    pub async fn get_recovery_code_status(&self, account_id: &str) -> Result<usize, PasskeyError> {
         let codes = self
             .repo
             .list_recovery_codes(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         Ok(codes.iter().filter(|c| !c.used).count())
     }
@@ -495,16 +516,16 @@ impl PasskeyService {
         encrypted_data: &[u8],
         salt: &[u8],
         nonce: &[u8],
-    ) -> Result<(), String> {
+    ) -> Result<(), PasskeyError> {
         // Check if vault already exists
         if self
             .repo
             .find_vault(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?
             .is_some()
         {
-            return Err("Vault already exists".to_string());
+            return Err(PasskeyError::Conflict("Vault already exists".to_string()));
         }
 
         let vault_id = uuid::Uuid::new_v4().to_string();
@@ -513,7 +534,9 @@ impl PasskeyService {
         self.repo
             .create_vault(&vault_id, account_id, encrypted_data, salt, nonce, &now)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            // TD-2: DB write failures are server errors (were 400 under the
+            // old fixed-status handler — a DB fault is not a client problem).
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         Ok(())
     }
@@ -522,12 +545,12 @@ impl PasskeyService {
     /// each component base64-encoded for the JSON wire response. The bytes are
     /// returned exactly as the client previously stored them — the server
     /// cannot decrypt them.
-    pub async fn get_vault(&self, account_id: &str) -> Result<Option<VaultData>, String> {
+    pub async fn get_vault(&self, account_id: &str) -> Result<Option<VaultData>, PasskeyError> {
         let vault = self
             .repo
             .find_vault(account_id)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         Ok(vault.map(|v| VaultData {
             encrypted_data: base64::Engine::encode(
@@ -547,27 +570,30 @@ impl PasskeyService {
         encrypted_data: &[u8],
         salt: &[u8],
         nonce: &[u8],
-    ) -> Result<(), String> {
+    ) -> Result<(), PasskeyError> {
         let now = Utc::now().to_rfc3339();
 
         let updated = self
             .repo
             .update_vault(account_id, encrypted_data, salt, nonce, &now)
             .await
-            .map_err(|e| format!("DB error: {}", e))?;
+            // TD-2: DB write failures are server errors (were 400 under the
+            // old `.contains("not found") → else → 400` heuristic; a DB fault
+            // is not a client problem).
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))?;
 
         if !updated {
-            return Err("Vault not found".to_string());
+            return Err(PasskeyError::NotFound("Vault not found".to_string()));
         }
 
         Ok(())
     }
 
     /// Cleanup expired challenges (should be called periodically)
-    pub async fn cleanup_expired_challenges(&self) -> Result<u64, String> {
+    pub async fn cleanup_expired_challenges(&self) -> Result<u64, PasskeyError> {
         self.repo
             .cleanup_expired_challenges()
             .await
-            .map_err(|e| format!("DB error: {}", e))
+            .map_err(|e| PasskeyError::Internal(format!("DB error: {e}")))
     }
 }

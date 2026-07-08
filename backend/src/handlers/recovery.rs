@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Path},
@@ -32,7 +33,7 @@ pub async fn recovery_generate(
             })),
         )
             .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }
 
@@ -62,7 +63,7 @@ pub async fn recovery_verify(
             "data": { "valid": false }
         }))
         .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }
 
@@ -81,6 +82,6 @@ pub async fn recovery_status(
             "data": { "remaining_codes": remaining }
         }))
         .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }

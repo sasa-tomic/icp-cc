@@ -10,6 +10,7 @@ use icp_marketplace_api::{
     db::initialize_database,
     services::{PasskeyService, VaultData},
 };
+use poem::error::ResponseError;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
 const B64: base64::engine::general_purpose::GeneralPurpose =
@@ -175,7 +176,7 @@ async fn create_rejects_duplicate_account() {
         .await
         .expect_err("second create_vault for the same account must fail");
     assert!(
-        err.contains("already exists"),
+        err.message().contains("already exists"),
         "duplicate-create error must explain the conflict, got: {err}"
     );
 }
@@ -192,7 +193,7 @@ async fn update_fails_when_no_vault_exists() {
         .await
         .expect_err("update_vault on a missing vault must fail");
     assert!(
-        err.contains("not found"),
+        err.message().contains("not found"),
         "missing-vault update error must say 'not found', got: {err}"
     );
 }

@@ -1,5 +1,6 @@
 use crate::models::{CreateReviewRequest, Review};
 use crate::repositories::{ReviewRepository, ScriptRepository};
+use crate::services::error::ReviewError;
 use chrono::Utc;
 use sqlx::SqlitePool;
 
@@ -20,16 +21,16 @@ impl ReviewService {
         &self,
         script_id: &str,
         req: CreateReviewRequest,
-    ) -> Result<Review, String> {
+    ) -> Result<Review, ReviewError> {
         // Verify script exists
         let script_count = self
             .script_repo
             .count_by_id(script_id)
             .await
-            .map_err(|e| format!("Failed to verify script: {}", e))?;
+            .map_err(|e| ReviewError::Internal(format!("Failed to verify script: {e}")))?;
 
         if script_count == 0 {
-            return Err("Script not found".to_string());
+            return Err(ReviewError::NotFound("Script not found".to_string()));
         }
 
         // Check if user already reviewed
@@ -37,15 +38,19 @@ impl ReviewService {
             .review_repo
             .count_by_script_and_user(script_id, &req.user_id)
             .await
-            .map_err(|e| format!("Failed to check existing review: {}", e))?;
+            .map_err(|e| ReviewError::Internal(format!("Failed to check existing review: {e}")))?;
 
         if existing_count > 0 {
-            return Err("User has already reviewed this script".to_string());
+            return Err(ReviewError::Conflict(
+                "User has already reviewed this script".to_string(),
+            ));
         }
 
         // Validate rating
         if req.rating < 1 || req.rating > 5 {
-            return Err("Rating must be between 1 and 5".to_string());
+            return Err(ReviewError::BadRequest(
+                "Rating must be between 1 and 5".to_string(),
+            ));
         }
 
         // Create review
@@ -62,26 +67,26 @@ impl ReviewService {
                 &now,
             )
             .await
-            .map_err(|e| format!("Failed to create review: {}", e))?;
+            .map_err(|e| ReviewError::Internal(format!("Failed to create review: {e}")))?;
 
         // Update script stats
         let avg_rating = self
             .review_repo
             .get_average_rating(script_id)
             .await
-            .map_err(|e| format!("Failed to calculate avg rating: {}", e))?
+            .map_err(|e| ReviewError::Internal(format!("Failed to calculate avg rating: {e}")))?
             .unwrap_or(0.0);
 
         let review_count = self
             .review_repo
             .count_by_script(script_id)
             .await
-            .map_err(|e| format!("Failed to count reviews: {}", e))?;
+            .map_err(|e| ReviewError::Internal(format!("Failed to count reviews: {e}")))?;
 
         self.script_repo
             .update_stats(script_id, avg_rating, review_count)
             .await
-            .map_err(|e| format!("Failed to update script stats: {}", e))?;
+            .map_err(|e| ReviewError::Internal(format!("Failed to update script stats: {e}")))?;
 
         Ok(Review {
             id: review_id,
@@ -180,7 +185,10 @@ mod tests {
         let result = service.create_review(&script_id, req).await;
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Rating must be between 1 and 5");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Rating must be between 1 and 5"
+        );
     }
 
     #[tokio::test]
@@ -193,7 +201,10 @@ mod tests {
         let result = service.create_review(&script_id, req).await;
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Rating must be between 1 and 5");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Rating must be between 1 and 5"
+        );
     }
 
     #[tokio::test]
@@ -231,7 +242,7 @@ mod tests {
 
         assert!(result2.is_err());
         assert_eq!(
-            result2.unwrap_err(),
+            result2.unwrap_err().to_string(),
             "User has already reviewed this script"
         );
     }
@@ -245,7 +256,7 @@ mod tests {
         let result = service.create_review("nonexistent-script-id", req).await;
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Script not found");
+        assert_eq!(result.unwrap_err().to_string(), "Script not found");
     }
 
     #[tokio::test]

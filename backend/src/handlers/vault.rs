@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Query},
@@ -104,7 +105,10 @@ pub async fn vault_create(
                 "vault create failed: {}",
                 e
             );
-            error_response(StatusCode::BAD_REQUEST, &e)
+            // Variant decides status (Conflict for duplicate, Internal for DB
+            // errors). TD-2: DB errors were 400 under the old fixed-status
+            // handler; now correctly 500.
+            error_response(e.status(), e.message())
         }
     }
 }
@@ -132,7 +136,7 @@ pub async fn vault_get(
                 "vault get failed: {}",
                 e
             );
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, &e)
+            error_response(e.status(), e.message())
         }
     }
 }
@@ -162,17 +166,16 @@ pub async fn vault_update(
     {
         Ok(()) => Json(serde_json::json!({ "success": true })).into_response(),
         Err(e) => {
-            let status = if e.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else {
-                StatusCode::BAD_REQUEST
-            };
             tracing::error!(
                 account_id = %req.account_id,
                 "vault update failed: {}",
                 e
             );
-            error_response(status, &e)
+            // Variant decides status (NotFound for missing vault, Internal for
+            // DB errors). TD-2: DB errors were 400 under the old
+            // `.contains("not found") → else → 400` heuristic; now correctly
+            // 500.
+            error_response(e.status(), e.message())
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Path},
@@ -10,6 +11,7 @@ use poem::{
 use crate::{
     models::{self, AppState},
     responses::error_response,
+    services::error::AccountError,
     startup_checks::is_development,
 };
 
@@ -42,16 +44,9 @@ pub async fn admin_disable_key(
             )
                 .into_response()
         }
-        Err(message) => {
-            tracing::warn!("Admin failed to disable key: {}", message);
-            let status = if message.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else if message.contains("Invalid username") {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &message)
+        Err(e) => {
+            tracing::warn!("Admin failed to disable key: {}", e);
+            account_error_response(e)
         }
     }
 }
@@ -82,21 +77,17 @@ pub async fn admin_add_recovery_key(
             )
                 .into_response()
         }
-        Err(message) => {
-            tracing::warn!("Admin failed to add recovery key: {}", message);
-            let status = if message.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else if message.contains("Invalid username")
-                || message.contains("Maximum number")
-                || message.contains("already registered")
-            {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &message)
+        Err(e) => {
+            tracing::warn!("Admin failed to add recovery key: {}", e);
+            account_error_response(e)
         }
     }
+}
+
+/// Renders an [`AccountError`] for admin handlers. Same single source of
+/// truth for variant → status as the user-facing account handlers.
+fn account_error_response(e: AccountError) -> Response {
+    error_response(e.status(), e.message())
 }
 
 #[handler]

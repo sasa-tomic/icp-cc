@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use poem::{
+    error::ResponseError,
     handler,
     http::StatusCode,
     web::{Data, Json, Path},
@@ -38,7 +39,7 @@ pub async fn passkey_register_start(
             "data": result
         }))
         .into_response(),
-        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }
 
@@ -56,7 +57,7 @@ pub async fn passkey_register_finish(
             })),
         )
             .into_response(),
-        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }
 
@@ -80,7 +81,7 @@ pub async fn passkey_authenticate_start(
             "data": result
         }))
         .into_response(),
-        Err(e) => error_response(StatusCode::BAD_REQUEST, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }
 
@@ -95,7 +96,7 @@ pub async fn passkey_authenticate_finish(
             "data": { "account_id": account_id }
         }))
         .into_response(),
-        Err(e) => error_response(StatusCode::UNAUTHORIZED, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }
 
@@ -110,7 +111,7 @@ pub async fn passkey_list(
             "data": passkeys
         }))
         .into_response(),
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e),
+        Err(e) => error_response(e.status(), e.message()),
     }
 }
 
@@ -135,14 +136,9 @@ pub async fn passkey_delete(
         }))
         .into_response(),
         Err(e) => {
-            let status = if e.contains("not found") {
-                StatusCode::NOT_FOUND
-            } else if e.contains("Cannot delete last") {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            error_response(status, &e)
+            // Variant decides status (NotFound for unknown passkey,
+            // BadRequest for last-passkey guard, Internal for DB errors).
+            error_response(e.status(), e.message())
         }
     }
 }

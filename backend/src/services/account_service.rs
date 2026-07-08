@@ -1,6 +1,6 @@
 use crate::auth::{
     create_canonical_payload, derive_ic_principal, validate_replay_prevention, validate_username,
-    verify_signature,
+    verify_signature, AuthError,
 };
 use crate::models::{
     AccountPublicKeyResponse, AccountResponse, AddPublicKeyRequest, RegisterAccountRequest,
@@ -9,8 +9,33 @@ use crate::models::{
 use crate::repositories::{
     AccountRepository, CreateAccountParams, SignatureAuditParams, UpdateAccountParams,
 };
+use crate::services::error::AccountError;
 use chrono::Utc;
 use sqlx::SqlitePool;
+
+/// Maps an [`AuthError`] from `validate_replay_prevention` to an
+/// [`AccountError`] while preserving the legacy wrapped message text
+/// (`"Replay prevention failed: <Display>"`) verbatim. The variant decides
+/// the status: timestamp format issues → 400, replay/signature → 401,
+/// everything else → 500.
+fn replay_err(e: AuthError) -> AccountError {
+    let text = e.to_string();
+    let wrapped = format!("Replay prevention failed: {text}");
+    match e {
+        AuthError::InvalidFormat(_) => AccountError::BadRequest(wrapped),
+        AuthError::InvalidSignature(_) => AccountError::Unauthorized(wrapped),
+        AuthError::MissingHeader(_)
+        | AuthError::MissingField(_)
+        | AuthError::InvalidCredentials(_) => AccountError::Internal(wrapped),
+    }
+}
+
+/// Maps an [`AuthError`] from `verify_signature` to an [`AccountError`],
+/// preserving the legacy `"Signature verification failed: <Display>"`
+/// wrapping so the JSON body is byte-identical.
+fn signature_err(e: AuthError) -> AccountError {
+    AccountError::Unauthorized(format!("Signature verification failed: {e}"))
+}
 
 pub struct AccountService {
     repo: AccountRepository,
@@ -29,15 +54,15 @@ impl AccountService {
     pub async fn register_account(
         &self,
         req: RegisterAccountRequest,
-    ) -> Result<AccountResponse, String> {
+    ) -> Result<AccountResponse, AccountError> {
         // 1. Validate username format and check if reserved
-        let normalized_username =
-            validate_username(&req.username).map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username = validate_username(&req.username)
+            .map_err(|e| AccountError::BadRequest(format!("Invalid username: {e}")))?;
 
         // 2. Validate replay prevention (timestamp + nonce)
         validate_replay_prevention(&self.pool, req.timestamp, &req.nonce)
             .await
-            .map_err(|e| format!("Replay prevention failed: {}", e))?;
+            .map_err(replay_err)?;
 
         // 3. Create canonical JSON payload for signature verification
         let payload = serde_json::json!({
@@ -52,18 +77,20 @@ impl AccountService {
         let payload_bytes = canonical_json.as_bytes();
 
         // 4. Verify signature
-        verify_signature(&req.signature, payload_bytes, &req.public_key)
-            .map_err(|e| format!("Signature verification failed: {}", e))?;
+        verify_signature(&req.signature, payload_bytes, &req.public_key).map_err(signature_err)?;
 
         // 5. Check username not already taken
         if self
             .repo
             .find_by_username(&normalized_username)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
             .is_some()
         {
-            return Err(format!("Username '{}' already exists", normalized_username));
+            return Err(AccountError::Conflict(format!(
+                "Username '{}' already exists",
+                normalized_username
+            )));
         }
 
         // 6. Check public key not already registered
@@ -71,15 +98,17 @@ impl AccountService {
             .repo
             .find_public_key_by_value(&req.public_key)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
             .is_some()
         {
-            return Err("Public key already registered".to_string());
+            return Err(AccountError::Conflict(
+                "Public key already registered".to_string(),
+            ));
         }
 
         // 7. Derive IC principal from public key (backend computes, never trusts user input)
         let ic_principal = derive_ic_principal(&req.public_key)
-            .map_err(|e| format!("Failed to derive IC principal: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to derive IC principal: {e}")))?;
 
         // 8. Create account and add first public key
         let account_id = uuid::Uuid::new_v4().to_string();
@@ -101,12 +130,12 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to create account: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to create account: {e}")))?;
 
         self.repo
             .add_public_key(&key_id, &account_id, &req.public_key, &ic_principal, &now)
             .await
-            .map_err(|e| format!("Failed to add public key: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to add public key: {e}")))?;
 
         // 9. Record signature audit
         self.repo
@@ -123,7 +152,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to record audit: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
 
         // 10. Return created account
         Ok(AccountResponse {
@@ -151,17 +180,20 @@ impl AccountService {
     }
 
     /// Gets account by username with all public keys
-    pub async fn get_account(&self, username: &str) -> Result<Option<AccountResponse>, String> {
+    pub async fn get_account(
+        &self,
+        username: &str,
+    ) -> Result<Option<AccountResponse>, AccountError> {
         // Validate and normalize username
-        let normalized_username =
-            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username = validate_username(username)
+            .map_err(|e| AccountError::BadRequest(format!("Invalid username: {e}")))?;
 
         // Find account
         let account = self
             .repo
             .find_by_username(&normalized_username)
             .await
-            .map_err(|e| format!("Database error: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?;
 
         let account = match account {
             Some(acc) => acc,
@@ -173,7 +205,7 @@ impl AccountService {
             .repo
             .get_account_keys(&account.id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?;
 
         let public_keys = keys
             .into_iter()
@@ -211,13 +243,13 @@ impl AccountService {
     pub async fn get_account_by_public_key(
         &self,
         public_key: &str,
-    ) -> Result<Option<AccountResponse>, String> {
+    ) -> Result<Option<AccountResponse>, AccountError> {
         // Find the public key record
         let key_record = self
             .repo
             .find_public_key_by_value(public_key)
             .await
-            .map_err(|e| format!("Database error: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?;
 
         let key_record = match key_record {
             Some(k) => k,
@@ -229,15 +261,17 @@ impl AccountService {
             .repo
             .find_by_id(&key_record.account_id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Account not found for public key".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| {
+                AccountError::Internal("Account not found for public key".to_string())
+            })?;
 
         // Get all public keys for account
         let keys = self
             .repo
             .get_account_keys(&account.id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?;
 
         let public_keys = keys
             .into_iter()
@@ -273,37 +307,46 @@ impl AccountService {
         &self,
         username: &str,
         req: UpdateAccountRequest,
-    ) -> Result<AccountResponse, String> {
+    ) -> Result<AccountResponse, AccountError> {
         // 1. Validate username and get account
-        let normalized_username =
-            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username = validate_username(username)
+            .map_err(|e| AccountError::BadRequest(format!("Invalid username: {e}")))?;
 
         let account = self
             .repo
             .find_by_username(&normalized_username)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Account not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| AccountError::NotFound("Account not found".to_string()))?;
 
         // 2. Validate replay prevention (timestamp + nonce)
         validate_replay_prevention(&self.pool, req.timestamp, &req.nonce)
             .await
-            .map_err(|e| format!("Replay prevention failed: {}", e))?;
+            .map_err(replay_err)?;
 
         // 3. Verify signing public key belongs to account and is active
         let signing_key = self
             .repo
             .find_public_key_by_value(&req.signing_public_key)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Signing public key not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            // Unknown signing credential = auth failure (TD-2: was 500 in the
+            // old substring-match because "Signing public key not found"
+            // didn't match any of the 404/400/401 substrings).
+            .ok_or_else(|| {
+                AccountError::Unauthorized("Signing public key not found".to_string())
+            })?;
 
         if signing_key.account_id != account.id {
-            return Err("Signing public key does not belong to this account".to_string());
+            return Err(AccountError::Unauthorized(
+                "Signing public key does not belong to this account".to_string(),
+            ));
         }
 
         if !signing_key.is_active {
-            return Err("Signing public key is not active".to_string());
+            return Err(AccountError::Unauthorized(
+                "Signing public key is not active".to_string(),
+            ));
         }
 
         // 4. Create canonical JSON payload for signature verification
@@ -338,7 +381,7 @@ impl AccountService {
 
         // 5. Verify signature
         verify_signature(&req.signature, payload_bytes, &req.signing_public_key)
-            .map_err(|e| format!("Signature verification failed: {}", e))?;
+            .map_err(signature_err)?;
 
         // 6. Update account
         let audit_id = uuid::Uuid::new_v4().to_string();
@@ -357,7 +400,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to update account: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to update account: {e}")))?;
 
         // 7. Record signature audit
         self.repo
@@ -374,12 +417,12 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to record audit: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
 
         // 8. Return updated account (fetch fresh from DB)
         self.get_account(&normalized_username)
             .await?
-            .ok_or_else(|| "Failed to fetch updated account".to_string())
+            .ok_or_else(|| AccountError::Internal("Failed to fetch updated account".to_string()))
     }
 
     /// Adds a new public key to an existing account
@@ -387,37 +430,45 @@ impl AccountService {
         &self,
         username: &str,
         req: AddPublicKeyRequest,
-    ) -> Result<AccountPublicKeyResponse, String> {
+    ) -> Result<AccountPublicKeyResponse, AccountError> {
         // 1. Validate username and get account
-        let normalized_username =
-            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username = validate_username(username)
+            .map_err(|e| AccountError::BadRequest(format!("Invalid username: {e}")))?;
 
         let account = self
             .repo
             .find_by_username(&normalized_username)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Account not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| AccountError::NotFound("Account not found".to_string()))?;
 
         // 2. Validate replay prevention (timestamp + nonce)
         validate_replay_prevention(&self.pool, req.timestamp, &req.nonce)
             .await
-            .map_err(|e| format!("Replay prevention failed: {}", e))?;
+            .map_err(replay_err)?;
 
         // 3. Verify signing public key belongs to account and is active
         let signing_key = self
             .repo
             .find_public_key_by_value(&req.signing_public_key)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Signing public key not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            // Unknown signing credential = auth failure (TD-2: was 500 under
+            // the old substring heuristic; now correctly 401).
+            .ok_or_else(|| {
+                AccountError::Unauthorized("Signing public key not found".to_string())
+            })?;
 
         if signing_key.account_id != account.id {
-            return Err("Signing public key does not belong to this account".to_string());
+            return Err(AccountError::Unauthorized(
+                "Signing public key does not belong to this account".to_string(),
+            ));
         }
 
         if !signing_key.is_active {
-            return Err("Signing public key is not active".to_string());
+            return Err(AccountError::Unauthorized(
+                "Signing public key is not active".to_string(),
+            ));
         }
 
         // 4. Create canonical JSON payload for signature verification
@@ -435,17 +486,19 @@ impl AccountService {
 
         // 5. Verify signature
         verify_signature(&req.signature, payload_bytes, &req.signing_public_key)
-            .map_err(|e| format!("Signature verification failed: {}", e))?;
+            .map_err(signature_err)?;
 
         // 6. Check new public key not already registered (anywhere)
         if self
             .repo
             .find_public_key_by_value(&req.new_public_key)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
             .is_some()
         {
-            return Err("Public key already registered".to_string());
+            return Err(AccountError::Conflict(
+                "Public key already registered".to_string(),
+            ));
         }
 
         // 7. Check account has < 10 keys (max limit)
@@ -453,15 +506,17 @@ impl AccountService {
             .repo
             .count_all_keys(&account.id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?;
 
         if total_keys >= 10 {
-            return Err("Maximum number of keys (10) reached for this account".to_string());
+            return Err(AccountError::Conflict(
+                "Maximum number of keys (10) reached for this account".to_string(),
+            ));
         }
 
         // 8. Derive IC principal from new public key
         let ic_principal = derive_ic_principal(&req.new_public_key)
-            .map_err(|e| format!("Failed to derive IC principal: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to derive IC principal: {e}")))?;
 
         // 9. Add new public key to account
         let key_id = uuid::Uuid::new_v4().to_string();
@@ -477,7 +532,7 @@ impl AccountService {
                 &now,
             )
             .await
-            .map_err(|e| format!("Failed to add public key: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to add public key: {e}")))?;
 
         // 10. Record signature audit
         self.repo
@@ -494,7 +549,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to record audit: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
 
         // 11. Return created key
         Ok(AccountPublicKeyResponse {
@@ -514,37 +569,45 @@ impl AccountService {
         username: &str,
         key_id: &str,
         req: RemovePublicKeyRequest,
-    ) -> Result<AccountPublicKeyResponse, String> {
+    ) -> Result<AccountPublicKeyResponse, AccountError> {
         // 1. Validate username and get account
-        let normalized_username =
-            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username = validate_username(username)
+            .map_err(|e| AccountError::BadRequest(format!("Invalid username: {e}")))?;
 
         let account = self
             .repo
             .find_by_username(&normalized_username)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Account not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| AccountError::NotFound("Account not found".to_string()))?;
 
         // 2. Validate replay prevention (timestamp + nonce)
         validate_replay_prevention(&self.pool, req.timestamp, &req.nonce)
             .await
-            .map_err(|e| format!("Replay prevention failed: {}", e))?;
+            .map_err(replay_err)?;
 
         // 3. Verify signing public key belongs to account and is active
         let signing_key = self
             .repo
             .find_public_key_by_value(&req.signing_public_key)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Signing public key not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            // Unknown signing credential = auth failure (TD-2: was 500 under
+            // the old substring heuristic; now correctly 401).
+            .ok_or_else(|| {
+                AccountError::Unauthorized("Signing public key not found".to_string())
+            })?;
 
         if signing_key.account_id != account.id {
-            return Err("Signing public key does not belong to this account".to_string());
+            return Err(AccountError::Unauthorized(
+                "Signing public key does not belong to this account".to_string(),
+            ));
         }
 
         if !signing_key.is_active {
-            return Err("Signing public key is not active".to_string());
+            return Err(AccountError::Unauthorized(
+                "Signing public key is not active".to_string(),
+            ));
         }
 
         // 4. Create canonical JSON payload for signature verification
@@ -562,18 +625,20 @@ impl AccountService {
 
         // 5. Verify signature
         verify_signature(&req.signature, payload_bytes, &req.signing_public_key)
-            .map_err(|e| format!("Signature verification failed: {}", e))?;
+            .map_err(signature_err)?;
 
         // 6. Get key to remove and verify it belongs to account
         let key_to_remove = self
             .repo
             .find_key_by_id(key_id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Key not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| AccountError::NotFound("Key not found".to_string()))?;
 
         if key_to_remove.account_id != account.id {
-            return Err("Key does not belong to this account".to_string());
+            return Err(AccountError::Unauthorized(
+                "Key does not belong to this account".to_string(),
+            ));
         }
 
         // 7. Check we're not removing the last active key
@@ -581,10 +646,12 @@ impl AccountService {
             .repo
             .count_active_keys(&account.id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?;
 
         if active_keys_count <= 1 {
-            return Err("Cannot remove the last active key from account".to_string());
+            return Err(AccountError::BadRequest(
+                "Cannot remove the last active key from account".to_string(),
+            ));
         }
 
         // 8. Disable the key (soft delete)
@@ -594,7 +661,7 @@ impl AccountService {
         self.repo
             .disable_key(key_id, &signing_key.id, &now)
             .await
-            .map_err(|e| format!("Failed to disable key: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to disable key: {e}")))?;
 
         // 9. Record signature audit
         self.repo
@@ -611,7 +678,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to record audit: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
 
         // 10. Return disabled key
         Ok(AccountPublicKeyResponse {
@@ -631,28 +698,33 @@ impl AccountService {
         username: &str,
         key_id: &str,
         reason: &str,
-    ) -> Result<crate::models::AdminKeyResponse, String> {
+    ) -> Result<crate::models::AdminKeyResponse, AccountError> {
         // 1. Validate username and get account
-        let normalized_username =
-            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username = validate_username(username)
+            .map_err(|e| AccountError::BadRequest(format!("Invalid username: {e}")))?;
 
         let account = self
             .repo
             .find_by_username(&normalized_username)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Account not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| AccountError::NotFound("Account not found".to_string()))?;
 
         // 2. Get key to disable and verify it belongs to account
         let key_to_disable = self
             .repo
             .find_key_by_id(key_id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Key not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| AccountError::NotFound("Key not found".to_string()))?;
 
         if key_to_disable.account_id != account.id {
-            return Err("Key does not belong to this account".to_string());
+            // Admin tried to disable a key on the wrong account. The request
+            // params are inconsistent (TD-2: was 500 under the old substring
+            // heuristic; now correctly 400).
+            return Err(AccountError::BadRequest(
+                "Key does not belong to this account".to_string(),
+            ));
         }
 
         // 3. Disable the key (soft delete)
@@ -662,7 +734,7 @@ impl AccountService {
         self.repo
             .disable_key(key_id, key_id, &now)
             .await
-            .map_err(|e| format!("Failed to disable key: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to disable key: {e}")))?;
 
         // 4. Record admin action in audit trail
         let payload = serde_json::json!({
@@ -687,7 +759,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to record audit: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
 
         // 5. Return disabled key
         Ok(crate::models::AdminKeyResponse {
@@ -708,27 +780,33 @@ impl AccountService {
         username: &str,
         public_key: &str,
         reason: &str,
-    ) -> Result<crate::models::AdminKeyResponse, String> {
+    ) -> Result<crate::models::AdminKeyResponse, AccountError> {
         // 1. Validate username and get account
-        let normalized_username =
-            validate_username(username).map_err(|e| format!("Invalid username: {}", e))?;
+        let normalized_username = validate_username(username)
+            .map_err(|e| AccountError::BadRequest(format!("Invalid username: {e}")))?;
 
         let account = self
             .repo
             .find_by_username(&normalized_username)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
-            .ok_or_else(|| "Account not found".to_string())?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
+            .ok_or_else(|| AccountError::NotFound("Account not found".to_string()))?;
 
         // 2. Check new public key not already registered (anywhere)
         if self
             .repo
             .find_public_key_by_value(public_key)
             .await
-            .map_err(|e| format!("Database error: {}", e))?
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?
             .is_some()
         {
-            return Err("Public key already registered".to_string());
+            // State conflict, not a malformed request (TD-2: was 400 under
+            // the old admin substring heuristic because the admin handler
+            // lumped "already registered" with "Invalid username"; the user
+            // add_public_key path already returned 409 — now consistent).
+            return Err(AccountError::Conflict(
+                "Public key already registered".to_string(),
+            ));
         }
 
         // 3. Check account has < 10 keys (max limit)
@@ -736,15 +814,19 @@ impl AccountService {
             .repo
             .count_all_keys(&account.id)
             .await
-            .map_err(|e| format!("Database error: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Database error: {e}")))?;
 
         if total_keys >= 10 {
-            return Err("Maximum number of keys (10) reached for this account".to_string());
+            // State conflict (TD-2: was 400 under the old admin heuristic;
+            // user add_public_key already returned 409 — now consistent).
+            return Err(AccountError::Conflict(
+                "Maximum number of keys (10) reached for this account".to_string(),
+            ));
         }
 
         // 4. Derive IC principal from new public key
         let ic_principal = derive_ic_principal(public_key)
-            .map_err(|e| format!("Failed to derive IC principal: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to derive IC principal: {e}")))?;
 
         // 5. Add new public key to account
         let key_id = uuid::Uuid::new_v4().to_string();
@@ -754,7 +836,7 @@ impl AccountService {
         self.repo
             .add_public_key(&key_id, &account.id, public_key, &ic_principal, &now)
             .await
-            .map_err(|e| format!("Failed to add public key: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to add public key: {e}")))?;
 
         // 6. Record admin action in audit trail
         let payload = serde_json::json!({
@@ -779,7 +861,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| format!("Failed to record audit: {}", e))?;
+            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
 
         // 7. Return created key
         Ok(crate::models::AdminKeyResponse {
@@ -1077,7 +1159,7 @@ mod tests {
 
         let result = ctx.service.register_account(req2).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("already exists"));
+        assert!(result.unwrap_err().to_string().contains("already exists"));
     }
 
     #[tokio::test]
@@ -1100,7 +1182,7 @@ mod tests {
 
         let result = ctx.service.register_account(req).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Invalid username"));
+        assert!(result.unwrap_err().to_string().contains("Invalid username"));
     }
 
     #[tokio::test]
@@ -1216,7 +1298,7 @@ mod tests {
         let result = ctx.service.add_public_key("bob", add_req).await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Maximum number"));
+        assert!(result.unwrap_err().to_string().contains("Maximum number"));
     }
 
     #[tokio::test]
@@ -1245,7 +1327,10 @@ mod tests {
         let result = ctx.service.add_public_key("charlie", add_req).await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("already registered"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("already registered"));
     }
 
     #[tokio::test]
@@ -1306,7 +1391,7 @@ mod tests {
         let result = ctx.service.add_public_key("dave", add_req).await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not active"));
+        assert!(result.unwrap_err().to_string().contains("not active"));
     }
 
     #[tokio::test]
@@ -1408,7 +1493,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("last active key"));
+        assert!(result.unwrap_err().to_string().contains("last active key"));
     }
 
     // Admin Operation Tests
@@ -1480,7 +1565,10 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Account not found"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Account not found"));
     }
 
     #[tokio::test]
@@ -1504,7 +1592,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Key not found"));
+        assert!(result.unwrap_err().to_string().contains("Key not found"));
     }
 
     #[tokio::test]
@@ -1555,7 +1643,10 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Account not found"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Account not found"));
     }
 
     #[tokio::test]
@@ -1579,7 +1670,10 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("already registered"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("already registered"));
     }
 
     #[tokio::test]
@@ -1697,6 +1791,7 @@ mod tests {
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
+            .to_string()
             .contains("Signature verification failed"));
     }
 
@@ -1781,7 +1876,7 @@ mod tests {
 
         let result = ctx.service.update_profile("multikey", update_req).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not active"));
+        assert!(result.unwrap_err().to_string().contains("not active"));
     }
 
     #[tokio::test]
@@ -1800,7 +1895,10 @@ mod tests {
 
         let result = ctx.service.update_profile("nonexistent", update_req).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Account not found"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Account not found"));
     }
 
     #[tokio::test]
@@ -1849,7 +1947,7 @@ mod tests {
 
         let result = ctx.service.update_profile("replay", update_req2).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("replay attack"));
+        assert!(result.unwrap_err().to_string().contains("replay attack"));
     }
 
     #[tokio::test]
@@ -1887,6 +1985,6 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Maximum number"));
+        assert!(result.unwrap_err().to_string().contains("Maximum number"));
     }
 }
