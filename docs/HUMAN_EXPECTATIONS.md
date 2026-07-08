@@ -44,6 +44,10 @@ dapp has ≥2 canisters (frontend + backend). icp-cc drives **BOTH/EITHER**:
 - **All I/O has timeouts.** Threads check termination flags.
 - **Pedagogical value.** Code and examples should teach; a newcomer can follow
   the story end to end.
+- **Empirically grounded planning.** Before planning work on a suspected
+  problem, **verify it exists** (read the code, count, reproduce). Drop stale
+  claims with evidence rather than carrying them forward. A plan that
+  re-checks its premises is smaller and sharper than one built on hearsay.
 - **Iterate until done.** Build a working PoC first, prove it as a user, then
   write failing tests, then productionize. Commit each unit. Below 8/10
   confidence → stop and ask.
@@ -68,9 +72,17 @@ A dapp that drifts from "real + dual-path + teachable" has drifted from intent.
 - **No offline mode / no cached fallbacks.** A failed call fails loudly.
 - **Postgres** if a database is ever needed.
 - **Orchestrate subagent swarms** for plan/build/verify; each unit gets its own
-  commit with a clean message.
+  commit with a clean message. (Subagents share one working tree + `.git` +
+  build caches — so **serialize** top-level implementers; parallel edits/commits
+  race on the index and caches.)
 - **User-facing first.** No backend-only change lands without UI/CLI access and
   updated navigation.
+- **Decouple security from providers.** Entitlement / paywalling must be
+  **provider-agnostic** (server-side ownership + purchase records gate the
+  payload). A nonfunctional or swapped payment provider must never weaken the
+  security gate or require rewiring it. *(ICPay.org is currently unreachable
+  from the dev sandbox — its wiring degrades LOUDLY [503 + startup warn] and is
+  NOT extended until the provider is live; the entitlement gate stays regardless.)*
 
 ## 5. How to keep this doc current
 

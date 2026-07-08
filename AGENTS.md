@@ -193,21 +193,23 @@ cd apps/autorun_flutter && flutter test test/features/marketplace/browse_test.da
 
 ## Passkey Testing on Linux
 
-**Current reality (gap):** there is **no working passkey-authenticator test path
-on a Linux dev box right now.** Both candidate routes are blocked:
+**Current reality:** **Flutter Web now builds and runs** (`flutter build web`
+succeeds; R-1 conditional-import split landed, plus a pure-Dart Web runtime
+foundation — R-2 Ed25519 + ICP principal + sign, R-4 vault crypto, R-5 passkeys
++ CORS). What remains stubbed on Web (loud `UnsupportedError`): QuickJS script
+execution (R-3) and the IC-canister HTTP agent. See `docs/BROWSER_SUPPORT.md`.
+
+On a **headless Linux dev box** the authenticator itself is the gap (not the
+build):
 
 - **Linux desktop** (`flutter run -d linux`) — the app builds and runs, but the
   `passkeys` package does **not** support Linux desktop, so
   `PasskeyPlatform.isSupported` is `false` there. The passkey UI correctly
   reports unsupported; you cannot exercise a real authenticator.
-- **Flutter Web** (`flutter run -d chrome`) — would be the supported target
-  (KeePassXC / Android hybrid / YubiKey / Titan Key via the browser), but the
-  Web build is currently **unbuildable**: `lib/main.dart:11` and
-  `lib/rust/native_bridge.dart:2` import `dart:ffi` unconditionally, so
-  `flutter build web` / `flutter run -d chrome` cannot compile. This is tracked
-  as **R-1 / TODO.md F-0** and requires a conditional-import split
-  (`*_io.dart` FFI impl + `*_web.dart` stub) plus a Web-native strategy for
-  keypair-gen / signing / QuickJS-exec (WASM QuickJS + WebCrypto).
+- **Flutter Web** (`flutter run -d chrome`) — builds and runs; would be the
+  authenticator target (KeePassXC / Android hybrid / YubiKey / Titan Key via the
+  browser). A live WebAuthn round-trip needs a real browser session + display
+  (not exercisable headlessly in CI).
 
 **What you CAN do on Linux desktop today:**
 ```bash
@@ -219,13 +221,13 @@ scripts/run-with-mock-keyring.sh --display :99 flutter run -d linux
 ```
 Launch the app, drive the non-passkey flows, and verify the passkey UI degrades
 gracefully (`PasskeyPlatform.isSupported == false`). Genuine authenticator
-testing (registration / login / hybrid QR) must happen on macOS, Windows, or
-Android — or wait for R-1 to restore the Web target.
+testing (registration / login / hybrid QR) needs a real browser (Web target) or
+macOS/Windows/Android.
 
 **Platform Detection:**
 - `PasskeyPlatform.isSupported` - `false` on Linux desktop; `true` in a browser
 - `PasskeyPlatform.isLinuxDesktop` - `true` on Linux (not web)
-- `PasskeyPlatform.isWeb` - `true` in browser (currently unreachable — see R-1)
+- `PasskeyPlatform.isWeb` - `true` in a browser (reachable: Web builds + runs)
 
 ---
 
