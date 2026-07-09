@@ -40,6 +40,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'quickjs_probe_result.dart';
+import 'js_app_engine_interface.dart';
 
 export 'quickjs_probe_result.dart' show QuickJsLoadException, QuickJsProbeResult;
 
@@ -189,7 +190,7 @@ globalThis.Function = function(){ throw new Error('Function constructor is disab
 /// one loaded [QuickJSWASMModule]; per-call isolation is achieved by creating
 /// a fresh context (matching `runtime.rs`'s fresh `Runtime`/`Context` per
 /// call). WU-2+ extends this with `executeJsJson` / `jsApp*`.
-class WebQuickJsEngine {
+class WebQuickJsEngine implements JsAppEngine {
   WebQuickJsEngine._(this._module, this.version);
 
   final QuickJSWASMModule _module;
@@ -272,12 +273,24 @@ class WebQuickJsEngine {
   JSFunction deadlineInterrupt(Duration budget) {
     final deadlineMs =
         DateTime.now().millisecondsSinceEpoch + budget.inMilliseconds;
+    return _interruptAt(deadlineMs);
+  }
+
+  /// Build an interrupt handler bound to an ABSOLUTE wall-clock deadline
+  /// (ms since epoch). Used by the app-lifecycle methods so the SAME deadline
+  /// drives both the interrupt (`runtime.rs:25`) and the post-error timeout
+  /// classification (`runtime.rs:306-311,356-361,423-429`).
+  JSFunction _interruptAt(int deadlineMs) {
     final global =
         globalContext.getProperty<_QuickJSGlobal>('__quickjsEmscripten'.toJS);
     final fn = global.shouldInterruptAfterDeadline
         .callAsFunction(null, deadlineMs.toJS);
     return fn as JSFunction;
   }
+
+  /// `runtime.rs:30-37` (`deadline_from_budget`): 0 → DEFAULT_BUDGET_MS.
+  int _effectiveBudget(int budgetMs) =>
+      budgetMs == 0 ? _defaultBudgetMs : budgetMs;
 
   // ===========================================================================
   // WU-2 — `jsExec` parity (port of `runtime.rs::execute_js_json`, lines
@@ -419,6 +432,179 @@ class WebQuickJsEngine {
   /// Build a `{"ok":false,"error":...}` envelope string (matches FFI `err_ptr`).
   static String _errEnvelope(String error) =>
       jsonEncode(<String, dynamic>{'ok': false, 'error': error});
+
+  /// serde-equivalent field access: like `JsonValue::get(key).cloned().
+  /// unwrap_or(default)` — returns the value when [v] is a Map containing
+  /// [key] (even if the value is null), else [dflt]. Mirrors
+  /// `runtime.rs:291-295,410-414`.
+  static Object? _fieldOr(dynamic v, String key, Object? dflt) =>
+      v is Map && v.containsKey(key) ? v[key] : dflt;
+
+  // ===========================================================================
+  // WU-3 — init/view/update parity (port of `runtime.rs:269-432`).
+  //
+  // Each method creates a FRESH sandboxed context with a deadline interrupt,
+  // installs the host globals, evals the bundle, calls the exported function
+  // by name, and returns the SAME envelope the native FFI emits:
+  //   init:   {"ok":true,"state":...,"effects":[...]} | {"ok":false,"error":...}
+  //   view:   {"ok":true,"ui":...}                     | {"ok":false,"error":...}
+  //   update: {"ok":true,"state":...,"effects":[...]} | {"ok":false,"error":...}
+  // Effects are descriptors only — the Dart host resolves them OUTSIDE QuickJS
+  // (plan §1.3). The `execution timeout` classification mirrors
+  // `runtime.rs:306-311,356-361,423-429` exactly.
+  // ===========================================================================
+
+  /// Port of `runtime.rs:269-314` (`js_app_init`).
+  @override
+  String jsAppInit(String script, {String? jsonArg, int budgetMs = 50}) {
+    final deadlineMs =
+        DateTime.now().millisecondsSinceEpoch + _effectiveBudget(budgetMs);
+    final ctx = newContext(interruptHandler: _interruptAt(deadlineMs));
+    var evalThrew = false;
+    try {
+      _installHostGlobals(ctx, jsonArg);
+      evalAndDump(ctx, script);
+      if (_globalFnMissing(ctx, 'init')) {
+        return _errEnvelope("Required function 'init' not found");
+      }
+      final rj = _callAndStringify(ctx, 'init(globalThis.arg)');
+      final v = jsonDecode(rj);
+      return jsonEncode(<String, dynamic>{
+        'ok': true,
+        'state': _fieldOr(v, 'state', null),
+        'effects': _fieldOr(v, 'effects', <dynamic>[]),
+      });
+    } on Object catch (e) {
+      evalThrew = true;
+      return _errEnvelope(_timeoutOr(deadlineMs, e));
+    } finally {
+      _disposeContext(ctx, evalThrew: evalThrew);
+    }
+  }
+
+  /// Port of `runtime.rs:316-364` (`js_app_view`).
+  @override
+  String jsAppView(String script,
+      {required String stateJson, int budgetMs = 50}) {
+    // runtime.rs:327-328 — validate state JSON BEFORE eval (the bundle never
+    // runs if the state is malformed).
+    if (!_isValidJson(stateJson)) {
+      return _errEnvelope('invalid state JSON: ${_jsonErr(stateJson)}');
+    }
+    final deadlineMs =
+        DateTime.now().millisecondsSinceEpoch + _effectiveBudget(budgetMs);
+    final ctx = newContext(interruptHandler: _interruptAt(deadlineMs));
+    var evalThrew = false;
+    try {
+      _installHostGlobals(ctx, null);
+      // runtime.rs:329-336 — expose __icp_state__ (parsed inside QuickJS).
+      evalAndDump(
+          ctx, 'globalThis.__icp_state__ = JSON.parse(${jsonEncode(stateJson)});');
+      evalAndDump(ctx, script);
+      if (_globalFnMissing(ctx, 'view')) {
+        return _errEnvelope("Required function 'view' not found");
+      }
+      final rj = _callAndStringify(ctx, 'view(globalThis.__icp_state__)');
+      final v = jsonDecode(rj);
+      return jsonEncode(<String, dynamic>{'ok': true, 'ui': v});
+    } on Object catch (e) {
+      evalThrew = true;
+      return _errEnvelope(_timeoutOr(deadlineMs, e));
+    } finally {
+      _disposeContext(ctx, evalThrew: evalThrew);
+    }
+  }
+
+  /// Port of `runtime.rs:366-432` (`js_app_update`).
+  @override
+  String jsAppUpdate(String script,
+      {required String msgJson,
+      required String stateJson,
+      int budgetMs = 50}) {
+    // runtime.rs:377-380 — validate msg FIRST, then state.
+    if (!_isValidJson(msgJson)) {
+      return _errEnvelope('invalid msg JSON: ${_jsonErr(msgJson)}');
+    }
+    if (!_isValidJson(stateJson)) {
+      return _errEnvelope('invalid state JSON: ${_jsonErr(stateJson)}');
+    }
+    final deadlineMs =
+        DateTime.now().millisecondsSinceEpoch + _effectiveBudget(budgetMs);
+    final ctx = newContext(interruptHandler: _interruptAt(deadlineMs));
+    var evalThrew = false;
+    try {
+      _installHostGlobals(ctx, null);
+      // runtime.rs:381-396 — expose __icp_msg__ + __icp_state__.
+      evalAndDump(
+        ctx,
+        'globalThis.__icp_msg__ = JSON.parse(${jsonEncode(msgJson)}); '
+        'globalThis.__icp_state__ = JSON.parse(${jsonEncode(stateJson)});',
+      );
+      evalAndDump(ctx, script);
+      if (_globalFnMissing(ctx, 'update')) {
+        return _errEnvelope("Required function 'update' not found");
+      }
+      final rj = _callAndStringify(
+          ctx, 'update(globalThis.__icp_msg__, globalThis.__icp_state__)');
+      final v = jsonDecode(rj);
+      return jsonEncode(<String, dynamic>{
+        'ok': true,
+        'state': _fieldOr(v, 'state', null),
+        'effects': _fieldOr(v, 'effects', <dynamic>[]),
+      });
+    } on Object catch (e) {
+      evalThrew = true;
+      return _errEnvelope(_timeoutOr(deadlineMs, e));
+    } finally {
+      _disposeContext(ctx, evalThrew: evalThrew);
+    }
+  }
+
+  /// Returns true when global `name` is NOT a function — mirrors native's
+  /// `globals.get(name)` Function-downcast failure (→ "Required function …").
+  bool _globalFnMissing(QuickJSContext ctx, String name) =>
+      evalAndDump(ctx, "typeof $name === 'function'") != true;
+
+  /// Eval `call` (e.g. `init(globalThis.arg)`), stringify the return value IN
+  /// QuickJS, and return the JSON string. Throws the JS error on failure
+  /// (caller maps it via [_timeoutOr]).
+  String _callAndStringify(QuickJSContext ctx, String call) {
+    final callHandle = ctx.unwrapResult(ctx.evalCode(call.toJS));
+    try {
+      return _stringifyAsGlobal(ctx, callHandle);
+    } finally {
+      callHandle.dispose();
+    }
+  }
+
+  /// `runtime.rs:306-311` — if the wall-clock deadline has elapsed by the time
+  /// the error surfaced, classify it as `execution timeout` (the interrupt
+  /// fired); otherwise surface the underlying error string.
+  String _timeoutOr(int deadlineMs, Object e) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return now > deadlineMs ? 'execution timeout' : _jsErrString(e);
+  }
+
+  /// Validate [s] parses as JSON (mirrors `serde_json::from_str::<JsonValue>`).
+  bool _isValidJson(String s) {
+    try {
+      jsonDecode(s);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// The parse-error detail for a malformed JSON string (best-effort message;
+  /// the host only substring-matches the `invalid … JSON:` prefix).
+  String _jsonErr(String s) {
+    try {
+      jsonDecode(s);
+    } on FormatException catch (e) {
+      return e.message;
+    }
+    return '';
+  }
 
   /// The WU-1 end-to-end probe: proves eval + memory-limit + interrupt-handler
   /// all work through the Dart interop layer. Returns a structured result.

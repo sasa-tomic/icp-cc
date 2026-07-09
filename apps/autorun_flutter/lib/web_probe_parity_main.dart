@@ -24,6 +24,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'rust/web/js_exec_golden_vectors.dart';
+import 'rust/web/js_app_golden_vectors.dart';
 import 'rust/web/quickjs_engine.dart';
 
 Future<void> main() async {
@@ -31,10 +32,11 @@ Future<void> main() async {
   try {
     final engine = await WebQuickJsEngine.bootstrap();
     final jsExecChecks = _runJsExecVectors(engine);
+    final jsAppChecks = _runJsAppVectors(engine);
     result = ParityProbeResult(
       loaded: true,
       version: engine.version,
-      checks: <ParityCheck>[...jsExecChecks],
+      checks: <ParityCheck>[...jsExecChecks, ...jsAppChecks],
     );
   } catch (e) {
     // A bootstrap failure is surfaced loudly (loaded=false, single check) so
@@ -81,6 +83,28 @@ List<ParityCheck> _runJsExecVectors(WebQuickJsEngine engine) {
         detail: 'threw: $e',
       ));
     }
+  }
+  return checks;
+}
+
+List<ParityCheck> _runJsAppVectors(WebQuickJsEngine engine) {
+  final checks = <ParityCheck>[];
+  for (final v in jsAppGoldenVectors) {
+    String detail = '';
+    String out = '';
+    try {
+      final checkpoints = v.run(engine);
+      out = jsonEncode(checkpoints);
+      final fail = v.assertion(checkpoints);
+      detail = fail ?? '';
+    } catch (e) {
+      detail = 'threw: $e';
+    }
+    checks.add(ParityCheck(
+      name: 'jsApp/${v.name}',
+      pass: detail.isEmpty,
+      detail: detail.isEmpty ? out : detail,
+    ));
   }
   return checks;
 }
