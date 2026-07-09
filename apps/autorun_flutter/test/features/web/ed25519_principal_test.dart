@@ -101,13 +101,9 @@ void main() {
       expect(webP, equals(nativeP));
     }, skip: !_nativeAvailable ? 'libicp_core not loaded' : false);
 
-    test('secp256k1 (alg=1) throws a clear staged UnsupportedError', () {
-      expect(
-        () => const web.RustBridgeLoader()
-            .principalFromPublicKey(alg: 1, publicKeyB64: _kEd25519PublicB64),
-        throwsA(isA<UnsupportedError>()),
-      );
-    });
+    // NOTE: secp256k1 (alg=1) is now fully implemented on Web (WU-2) — see
+    // `secp256k1_parity_test.dart` for the cross-compat golden vectors. The
+    // former "throws UnsupportedError" staging tests are removed.
   });
 
   group('R-2 generateKeypair (Ed25519, Web pure-Dart)', () {
@@ -135,14 +131,6 @@ void main() {
       expect(w!.publicKeyB64, equals(_kEd25519PublicB64));
       expect(w.privateKeyB64, equals(_kEd25519PrivateB64));
       expect(w.principalText, equals(_kEd25519Principal));
-    });
-
-    test('secp256k1 (alg=1) throws a clear staged UnsupportedError', () {
-      expect(
-        () => const web.RustBridgeLoader()
-            .generateKeypair(alg: 1, mnemonic: _kTestMnemonic),
-        throwsA(isA<UnsupportedError>()),
-      );
     });
 
     test('empty mnemonic fails loud (caller must resolve one first)', () {
@@ -223,16 +211,5 @@ void main() {
       // Both return the identical JSON envelope (byte-for-byte).
       expect(webResult, equals(nativeResult));
     }, skip: !_nativeAvailable ? 'libicp_core not loaded' : false);
-
-    test('secp256k1 (alg=1) throws a clear staged UnsupportedError', () {
-      expect(
-        () => const web.RustBridgeLoader().signMessage(
-          alg: 1,
-          messageB64: base64.encode([1, 2, 3]),
-          privateKeyB64: _kEd25519PrivateB64,
-        ),
-        throwsA(isA<UnsupportedError>()),
-      );
-    });
   });
 }

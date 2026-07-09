@@ -16,8 +16,8 @@ class KeypairGenerator {
     int? keypairCount,
   }) async {
     // Web keygen flows through the same RustBridgeLoader (which dispatches to
-    // the pure-Dart Web impl for Ed25519 — R-2). secp256k1 is not yet
-    // implemented on Web (clear UnsupportedError from native_bridge_web.dart).
+    // the pure-Dart Web impl for BOTH Ed25519 (R-2) and secp256k1 (WU-2) —
+    // native parity, byte-for-byte).
 
     final String resolvedMnemonic = _resolveMnemonic(mnemonic);
     final String resolvedLabel = _resolveLabel(label, keypairCount);
@@ -34,7 +34,7 @@ class KeypairGenerator {
       throw StateError(
         'Keypair generation failed for $algorithm. '
         'On native ensure libicp_core is loaded; on Web this indicates an '
-        'internal error (Ed25519 should always succeed — R-2).',
+        'internal error (both Ed25519 and secp256k1 should always succeed).',
       );
     }
 

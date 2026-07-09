@@ -8,13 +8,21 @@
 /// `flutter test` AND ship to the browser — there is NO `dart:html` /
 /// `dart:js_interop` dependency here, and NO mock crypto.
 ///
-/// ## What is REAL here (R-2 / R-4 foundation)
+/// ## What is REAL here (R-2 / R-4 + WU-2 foundation)
 /// - **Ed25519 key generation, signing, verification** (R-2): `package:ed25519_edwards`
 ///   (pure-Dart port of Go's `crypto/ed25519`). The seed → keypair → principal
 ///   path is bit-for-bit identical to Rust's `ed25519_dalek` (verified by
 ///   cross-compat tests against the live `libicp_core`).
-/// - **IC self-authenticating principal derivation** (R-2): SPKI DER (RFC 8410)
-///   → SHA-224 → `[0x02]++hash` → CRC32 → base32. Matches `candid::Principal`.
+/// - **secp256k1 key generation, signing, principal** (WU-2): BIP32
+///   `m/44'/223'/0'/0/0` derivation (`package:bip32`) + RFC 6979 deterministic
+///   low-S ECDSA (hand-rolled over `package:elliptic` + `package:crypto` HMAC)
+///   in `web/secp256k1.dart`. Byte-for-byte identical to Rust's
+///   `generate_secp256k1_keypair` / `sign_secp256k1` (verified by golden
+///   vectors). Both alg=0 and alg=1 are fully real on Web.
+/// - **IC self-authenticating principal derivation** (R-2 + WU-2): SPKI DER
+///   (RFC 8410 for Ed25519, RFC 5480 for secp256k1) → SHA-224 → `[0x02]++hash`
+///   → CRC32 → base32. Matches `candid::Principal`. ONE shared
+///   `_selfAuthPrincipalFromDer` algorithm + two DER prefixes (DRY).
 /// - **Vault crypto** (R-4): Argon2id KDF via `package:cryptography`'s
 ///   `DartArgon2id` (pure Dart) + AES-256-GCM. The Argon2id output is
 ///   bit-for-bit identical to Rust's `argon2` crate (verified by a known
@@ -67,6 +75,10 @@ import 'web/js_static_analysis.dart';
 import 'web/ic_agent_engine_web_access.dart'
     if (dart.library.io) 'web/ic_agent_engine_vm_stub.dart' as icagent;
 import 'web/candid_interface_parser.dart';
+// WU-2 — pure-Dart secp256k1 (BIP32 keygen + RFC 6979 deterministic low-S
+// ECDSA + uncompressed pubkey). Pure-Dart → no conditional import; compiles
+// unchanged on VM and Web (VM-testable, mirrors `js_static_analysis.dart`).
+import 'web/secp256k1.dart';
 
 /// Web readiness probe — delegates to the conditionally-selected engine access
 /// module (loads the singleton on Web; [QuickJsReady] on the VM stub).
@@ -83,14 +95,11 @@ Future<QuickJsReadiness> probeQuickJsReadiness() =>
 Future<IcAgentReadiness> probeIcAgentReadiness() =>
     icagent.probeIcAgentReadiness();
 
-/// Algorithm code: 0 = Ed25519 (the ICP-critical path; fully implemented).
-/// 1 = secp256k1 (BIP32 m/44'/223'/... ; best-effort, not yet on Web).
+/// Algorithm code: 0 = Ed25519 (the ICP-critical path).
+/// 1 = secp256k1 (BIP32 m/44'/223'/... ; Bitcoin/Ethereum compatible — both
+///    algorithms are fully implemented on Web as of WU-2, at native parity).
 const int _algEd25519 = 0;
 const int _algSecp256k1 = 1;
-
-String _secpUnsupported(String op) =>
-    '$op for secp256k1 on Web is not yet supported (R-2 follow-up); '
-    'only Ed25519 (alg=0) is implemented. See docs/BROWSER_SUPPORT.md';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Principal derivation helpers (IC self-authenticating principal).
@@ -114,6 +123,23 @@ String _secpUnsupported(String op) =>
 /// `302a300506032b6570032100` ++ 32 zero bytes).
 final List<int> _ed25519DerPrefix = [
   0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
+];
+
+/// RFC 5480 SubjectPublicKeyInfo prefix for an uncompressed secp256k1 public
+/// key. Verified byte-for-byte against Rust's `der_encode_public_key(
+/// "secp256k1", ..)` (probe captured DER =
+/// `3056301006072a8648ce3d020106052b8104000a034200` ++ 65-byte point).
+///
+/// Structure: `SEQUENCE { SEQUENCE { OID ecPublicKey(1.2.840.10045.2.1),
+/// OID secp256k1(1.3.132.0.10) }, BIT STRING <0x00 || point> }`. The trailing
+/// `0x00` is the BIT STRING "unused bits" byte — so appending the 65-byte
+/// uncompressed point (`0x04||X||Y`) yields the complete 88-byte SPKI DER.
+final List<int> _secp256k1DerPrefix = [
+  0x30, 0x56, // outer SEQUENCE, length 86
+  0x30, 0x10, //   algorithm SEQUENCE, length 16
+  0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, // OID 1.2.840.10045.2.1
+  0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x0a, // OID 1.3.132.0.10 (secp256k1)
+  0x03, 0x42, 0x00, // BIT STRING, length 66, 0 unused bits
 ];
 
 /// RFC 4648 base32 alphabet (lowercase, no padding). `ic_principal` encodes
@@ -164,21 +190,25 @@ String _base32Grouped(List<int> bytes) {
   return out.toString();
 }
 
-/// Derive the ICP self-authenticating principal text from a raw Ed25519
-/// 32-byte public key. Pure function — identical output to
+/// Derive the ICP self-authenticating principal text from a DER-encoded
+/// SubjectPublicKeyInfo. Pure function — identical output to
 /// `candid::Principal::self_authenticating(der).to_text()`.
-String _principalFromEd25519PublicKey(Uint8List publicKey) {
-  if (publicKey.length != 32) {
-    throw ArgumentError(
-        'Ed25519 public key must be 32 bytes, got ${publicKey.length}');
-  }
-  // 1. SPKI DER (RFC 8410).
-  final der = Uint8List.fromList([..._ed25519DerPrefix, ...publicKey]);
-  // 2. SHA-224 → 28 bytes.
+///
+/// The algorithm (`ic_principal-0.1.1`):
+///   1. hash = SHA-224(der_bytes)            → 28 bytes
+///   2. principal = hash ++ [0x02]           → 29 bytes  (tag 0x02 is APPENDED)
+///   3. crc = CRC32(principal).to_be_bytes() → 4 bytes  (zlib/IEEE, big-endian)
+///   4. checksummed = crc ++ principal       → 33 bytes
+///   5. base32 (RFC 4648, NO-PAD, then LOWERCASE), grouped 5-chars per '-'.
+///
+/// Shared between Ed25519 (RFC 8410 DER) and secp256k1 (RFC 5480 DER) — only
+/// the DER prefix differs (DRY: one principal algorithm, two prefixes).
+String _selfAuthPrincipalFromDer(List<int> der) {
+  // 1. SHA-224 → 28 bytes.
   final hash = crypto.sha224.convert(der).bytes;
-  // 3. self-auth principal = hash ++ [0x02] (tag APPENDED — matches ic_principal).
+  // 2. self-auth principal = hash ++ [0x02] (tag APPENDED — matches ic_principal).
   final principalBytes = Uint8List.fromList([...hash, 0x02]); // 29 bytes
-  // 4. CRC32 over the principal, big-endian.
+  // 3. CRC32 over the principal, big-endian.
   final crc = _crc32(principalBytes);
   final crcBytes = [
     (crc >>> 24) & 0xFF,
@@ -186,10 +216,46 @@ String _principalFromEd25519PublicKey(Uint8List publicKey) {
     (crc >>> 8) & 0xFF,
     crc & 0xFF,
   ];
-  // 5. checksummed payload.
+  // 4. checksummed payload.
   final checksummed = Uint8List.fromList([...crcBytes, ...principalBytes]);
-  // 6. base32 (lowercase) + group.
+  // 5. base32 (lowercase) + group.
   return _base32Grouped(checksummed);
+}
+
+/// Derive the ICP principal from a raw Ed25519 32-byte public key.
+String _principalFromEd25519PublicKey(Uint8List publicKey) {
+  if (publicKey.length != 32) {
+    throw ArgumentError(
+        'Ed25519 public key must be 32 bytes, got ${publicKey.length}');
+  }
+  // SPKI DER (RFC 8410) = prefix ++ 32-byte pubkey.
+  return _selfAuthPrincipalFromDer([..._ed25519DerPrefix, ...publicKey]);
+}
+
+/// Derive the ICP principal from a secp256k1 public key. Accepts the
+/// uncompressed 65-byte form (`0x04||X||Y`) OR the raw 64-byte form (`X||Y`,
+/// which is normalized by prepending `0x04`) — matching the native
+/// `der_encode_public_key("secp256k1", ..)` (principal.rs:26-41). Mirrors the
+/// native `k256::PublicKey::from_sec1_bytes` → `to_public_key_der()` path.
+String _principalFromSecp256k1PublicKey(Uint8List publicKey) {
+  final List<int> point;
+  if (publicKey.length == 65) {
+    if (publicKey[0] != 0x04) {
+      throw ArgumentError(
+          'A 65-byte secp256k1 public key must start with 0x04 (uncompressed), '
+          'got 0x${publicKey[0].toRadixString(16).padLeft(2, '0')}');
+    }
+    point = publicKey;
+  } else if (publicKey.length == 64) {
+    // Raw X||Y → prepend the uncompressed-point marker.
+    point = [0x04, ...publicKey];
+  } else {
+    throw ArgumentError(
+        'secp256k1 public key must be 65 bytes (0x04||X||Y) or 64 bytes '
+        '(X||Y), got ${publicKey.length}');
+  }
+  // SPKI DER (RFC 5480) = prefix (ends in the BIT STRING 0x00) ++ 65-byte point.
+  return _selfAuthPrincipalFromDer([..._secp256k1DerPrefix, ...point]);
 }
 
 /// Derive the Ed25519 public key (32 bytes) from a 32-byte seed.
@@ -267,19 +333,17 @@ Future<Uint8List> _deriveVaultKey({
 class RustBridgeLoader {
   const RustBridgeLoader();
 
-  /// Generate an Ed25519 keypair (alg=0) from a BIP39 mnemonic.
+  /// Generate a keypair from a BIP39 mnemonic.
   ///
   /// [mnemonic] MUST be a valid BIP39 phrase (the Dart caller
-  /// `KeypairGenerator._resolveMnemonic` always supplies one). The seed is
-  /// `mnemonicToSeed(mnemonic, passphrase='')` and the Ed25519 secret is the
-  /// first 32 bytes — identical to Rust's `generate_ed25519_keypair`.
-  ///
-  /// alg=1 (secp256k1, BIP32 m/44'/223'/0'/0/0) is NOT yet implemented on Web.
+  /// `KeypairGenerator._resolveMnemonic` always supplies one).
+  /// - alg=0 (Ed25519): the Ed25519 secret is the first 32 bytes of the BIP39
+  ///   seed — identical to Rust's `generate_ed25519_keypair`.
+  /// - alg=1 (secp256k1, BIP32 `m/44'/223'/0'/0/0`): 32-byte private key +
+  ///   65-byte uncompressed public key — identical to Rust's
+  ///   `generate_secp256k1_keypair` (WU-2, native parity).
   RustKeypairResult? generateKeypair({required int alg, String? mnemonic}) {
-    if (alg == _algSecp256k1) {
-      throw UnsupportedError(_secpUnsupported('generateKeypair'));
-    }
-    if (alg != _algEd25519) {
+    if (alg != _algEd25519 && alg != _algSecp256k1) {
       throw ArgumentError.value(alg, 'alg', 'Unsupported algorithm code');
     }
     if (mnemonic == null || mnemonic.trim().isEmpty) {
@@ -293,66 +357,80 @@ class RustBridgeLoader {
     // because `package:bip39`'s `mnemonicToSeed` is incorrect for 24-word
     // mnemonics. Pure Dart — works on VM and Web.
     final seedFull = _bip39MnemonicToSeed(mnemonic);
-    final seed = Uint8List.fromList(seedFull.sublist(0, 32));
 
-    final publicKey = _ed25519PublicKeyFromSeed(seed);
-    final publicKeyB64 = base64.encode(publicKey);
-    final privateKeyB64 = base64.encode(seed); // 32-byte seed (RFC 8032)
-    final principalText = _principalFromEd25519PublicKey(publicKey);
-
+    if (alg == _algEd25519) {
+      final seed = Uint8List.fromList(seedFull.sublist(0, 32));
+      final publicKey = _ed25519PublicKeyFromSeed(seed);
+      return RustKeypairResult(
+        publicKeyB64: base64.encode(publicKey),
+        privateKeyB64: base64.encode(seed), // 32-byte seed (RFC 8032)
+        principalText: _principalFromEd25519PublicKey(publicKey),
+      );
+    }
+    // alg == _algSecp256k1: BIP32 m/44'/223'/0'/0/0 (WU-2, native parity).
+    final privateKey = secp256k1DerivePrivateKey(seedFull); // 32 bytes
+    final publicKey = secp256k1UncompressedPublicKey(privateKey); // 65 bytes
     return RustKeypairResult(
-      publicKeyB64: publicKeyB64,
-      privateKeyB64: privateKeyB64,
-      principalText: principalText,
+      publicKeyB64: base64.encode(publicKey),
+      privateKeyB64: base64.encode(privateKey),
+      principalText: _principalFromSecp256k1PublicKey(publicKey),
     );
   }
 
   /// Derive the ICP principal text from a base64-encoded raw public key.
   ///
-  /// alg=0 (Ed25519): SPKI DER (RFC 8410) → SHA-224 → self-auth principal.
-  /// alg=1 (secp256k1): not yet implemented on Web.
+  /// - alg=0 (Ed25519): SPKI DER (RFC 8410) → SHA-224 → self-auth principal.
+  /// - alg=1 (secp256k1): SPKI DER (RFC 5480) → SHA-224 → self-auth principal
+  ///   (WU-2, native parity). Accepts the 65-byte uncompressed key or the
+  ///   64-byte raw X||Y form.
   String? principalFromPublicKey({required int alg, required String publicKeyB64}) {
-    if (alg == _algSecp256k1) {
-      throw UnsupportedError(_secpUnsupported('principalFromPublicKey'));
-    }
-    if (alg != _algEd25519) {
+    if (alg != _algEd25519 && alg != _algSecp256k1) {
       throw ArgumentError.value(alg, 'alg', 'Unsupported algorithm code');
     }
     final publicKey = Uint8List.fromList(base64.decode(publicKeyB64));
+    if (alg == _algSecp256k1) {
+      return _principalFromSecp256k1PublicKey(publicKey);
+    }
     return _principalFromEd25519PublicKey(publicKey);
   }
 
-  /// Sign `messageB64` (base64 of raw message bytes) with an Ed25519 private
-  /// key (alg=0). The private key is the 32-byte seed (RFC 8032); the public
-  /// key is re-derived deterministically from it.
+  /// Sign `messageB64` (base64 of raw message bytes) with a private key.
+  ///
+  /// - alg=0 (Ed25519): signs the message directly (RFC 8032); the private key
+  ///   is the 32-byte seed.
+  /// - alg=1 (secp256k1): SHA-256(message) → RFC 6979 deterministic low-S
+  ///   ECDSA → 64-byte compact signature (WU-2, native parity).
   ///
   /// Returns the SAME JSON envelope the native FFI (`icp_sign_message`)
   /// returns — `{"ok":true,"signature":"<base64>"}` — so callers
   /// (`AccountSignatureService` / `ScriptSignatureService`) that `jsonDecode`
-  /// the result work unchanged on Web. alg=1 (secp256k1) is not yet on Web.
+  /// the result work unchanged on Web.
   String? signMessage({
     required int alg,
     required String messageB64,
     required String privateKeyB64,
   }) {
-    if (alg == _algSecp256k1) {
-      throw UnsupportedError(_secpUnsupported('signMessage'));
-    }
-    if (alg != _algEd25519) {
+    if (alg != _algEd25519 && alg != _algSecp256k1) {
       throw ArgumentError.value(alg, 'alg', 'Unsupported algorithm code');
     }
     final message = Uint8List.fromList(base64.decode(messageB64));
-    final seed = Uint8List.fromList(base64.decode(privateKeyB64));
-    if (seed.length != 32) {
-      throw ArgumentError(
-          'Ed25519 private key (seed) must be 32 bytes, got ${seed.length}');
+    final privateKey = Uint8List.fromList(base64.decode(privateKeyB64));
+
+    final List<int> signature;
+    if (alg == _algSecp256k1) {
+      signature = secp256k1Sign(message, privateKey); // 64 bytes, RFC 6979 low-S
+    } else {
+      if (privateKey.length != 32) {
+        throw ArgumentError(
+            'Ed25519 private key (seed) must be 32 bytes, got ${privateKey.length}');
+      }
+      final publicKey = _ed25519PublicKeyFromSeed(privateKey);
+      // ed25519_edwards PrivateKey is seed(32) || pub(32) (Go convention).
+      signature = ed.sign(
+        ed.PrivateKey(Uint8List.fromList([...privateKey, ...publicKey])),
+        message,
+      );
     }
-    final publicKey = _ed25519PublicKeyFromSeed(seed);
-    // ed25519_edwards PrivateKey is seed(32) || pub(32) (Go convention).
-    final signature = ed.sign(
-      ed.PrivateKey(Uint8List.fromList([...seed, ...publicKey])),
-      message,
-    );
     final sigB64 = base64.encode(signature);
     // Match the native FFI contract exactly (json!({"ok":true,"signature":..})).
     return jsonEncode(<String, dynamic>{'ok': true, 'signature': sigB64});
