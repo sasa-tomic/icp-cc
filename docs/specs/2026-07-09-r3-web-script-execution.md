@@ -1,8 +1,16 @@
 # R-3 — TypeScript/QuickJS Script Execution on Flutter Web
 
-**Status:** Plan (not yet implemented) · **Date:** 2026-07-09 · **Author:** Planner agent
-**Tracks:** R-3a (execution — core), R-3b (IC HTTP agent — follow-up, decision-gated)
+**Status:** COMPLETE — R-3a (execution ✅) + R-3b (IC HTTP agent ✅), live-verified on mainnet · **Date:** 2026-07-09 · **Author:** Planner agent
+**Tracks:** R-3a (execution — core) ✅, R-3b (IC HTTP agent — follow-up) ✅
 **Predecessors:** R-1 (conditional-import split ✅), R-2/R-4/R-5 (pure-Dart Web crypto/vault/passkey ✅) — see `docs/BROWSER_SUPPORT.md`
+
+> **Outcome.** Scripts run on Flutter Web with native parity: `jsExec` /
+> `jsAppInit`/`View`/`Update`, `jsLint`, `validateJsComprehensive` (R-3a —
+> `quickjs-emscripten`, 51 golden vectors), and `fetchCandid`/`parseCandid`/
+> `callAnonymous`/`callAuthenticated` (R-3b — `@dfinity/agent@3.4.3` + backend
+> byte-relay CORS proxy; ICP ledger `symbol() → "ICP"` proven live). Only
+> secp256k1 (alg=1) remains stubbed. Keystones (§1.1) and WU breakdowns below
+> remain the design record.
 
 > **Implementer reading order.** Read §0 → §1.1 (the keystone) → §2 → your assigned WU.
 > Every claim below is cited to `file:line` or a verified external fact. Assumptions that

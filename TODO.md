@@ -42,7 +42,7 @@ Genuinely open items are listed below.
 | Issue | Location | Severity | Notes |
 |-------|----------|----------|-------|
 | **✅ RESOLVED:** paid-script `bundle` is now server-side gated | `backend/src/main.rs::get_script` | ~~HIGH~~ | `GET /scripts/:id` strips `bundle` for paid scripts unless the requester is the owner or holds a purchase record (`?account_id=`); the only paid-bundle path is the authenticated `POST /scripts/:id/download` (Ed25519-signed). See **ICPay / entitlement** below. |
-| Web IC-canister agent (R-3b) + secp256k1 stubbed | `lib/rust/native_bridge_web.dart` | MEDIUM | `flutter build web` succeeds (R-1). **Real on Web:** identity (Ed25519 + ICP principal), vault crypto (Argon2id + AES-256-GCM), AND script execution + lint/validate (R-3a — QuickJS via quickjs-emscripten, 51 golden vectors at native parity). Stubbed (loud `UnsupportedError`): the IC-canister HTTP agent (`fetchCandid`/`callAuthenticated` — R-3b, decision-gated) and secp256k1 (alg=1; Ed25519 is ICP-critical). See `docs/BROWSER_SUPPORT.md`. |
+| secp256k1 (alg=1) stubbed on Web | `lib/rust/native_bridge_web.dart` | LOW | `flutter build web` succeeds (R-1). **The full Web runtime is real:** identity (Ed25519 + ICP principal), vault crypto (Argon2id + AES-256-GCM), script execution + lint/validate (R-3a — QuickJS via quickjs-emscripten, 51 golden vectors at native parity), AND the IC-canister HTTP agent (R-3b — `fetchCandid`/`parseCandid`/`callAnonymous`/`callAuthenticated` via `@dfinity/agent` + backend byte-relay CORS proxy, live-verified against mainnet). Only **secp256k1** (alg=1) remains stubbed (Ed25519 is ICP-critical). See `docs/BROWSER_SUPPORT.md`. |
 
 ## ICPay / paid-script entitlement (UX-5) — COMPLETE
 
@@ -124,9 +124,10 @@ Sized **S** ≈ half-day, **M** ≈ 1–2 days.
   FFI (verified against the `icp_core` reference vectors + native↔web round-trip).
   `flutter build web` succeeds. **R-3a DONE (execution + lint/validate)** —
   scripts run on Web via quickjs-emscripten (51 golden vectors at native parity).
-  **Still staged:** R-3b (IC-canister HTTP agent `fetchCandid`/`callAuthenticated`
-  — decision-gated: agent-js wrap vs from-scratch Dart; likely needs a backend
-  CORS proxy), and secp256k1 (alg=1).
+  **R-3b DONE** — IC-canister HTTP agent (`fetchCandid`/`parseCandid`/
+  `callAnonymous`/`callAuthenticated`) via `@dfinity/agent@3.4.3` + a backend
+  byte-relay CORS proxy; live-verified against mainnet (ICP ledger `symbol()`.
+  **Still staged:** secp256k1 (alg=1) only — Ed25519 is ICP-critical.
 - **UX-5 purchase CTA / UX-6 / UX-8 — remaining Round-4/5 polish.** UX-4
   (collapse inline Add-Bookmark, `98f5a05c`), UX-5 lazy-load Details tabs
   (`448c8fab`), and UX-9 (surface-specific keyboard shortcuts, `97b42da3` +

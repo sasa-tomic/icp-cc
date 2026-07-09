@@ -22,7 +22,7 @@ execution (QuickJS) and direct IC canister calls are deliberately **stubbed**
 | Backend CORS for browser fetch | ✅ Permissive by default (no change needed) |
 | Passkeys (`navigator.credentials`) | ✅ Compiles; WebAuthn E2E needs a real browser session |
 | secp256k1 keypair / signing | ⚠️ Best-effort STUBBED (Ed25519 is the ICP-critical path) |
-| QuickJS script execution / linting (R-3) | 🟢 **R-3a ✅** — execution (init/view/update + jsExec) AND lint/validate run on Web with native parity (51 golden vectors); only IC-agent (R-3b) pending |
+| QuickJS script execution / linting (R-3) | 🟢 **R-3a ✅** — execution (init/view/update + jsExec) AND lint/validate run on Web with native parity (51 golden vectors); **R-3b ✅** — IC-canister HTTP agent (`fetchCandid`/`callAnonymous`/`callAuthenticated`) via `@dfinity/agent` + backend byte-relay CORS proxy, live-verified on mainnet |
 | IC canister calls (`fetchCandid`, `callAuthenticated`, …) | ❌ STUBBED — staged |
 
 ## How to run
@@ -184,8 +184,8 @@ served by `flutter run -d chrome` (e.g. `http://localhost:<port>` in dev).
 - **R-2** ✅ Ed25519 keygen / sign / ICP principal (pure Dart, cross-compatible).
 - **R-4** ✅ Vault crypto — Argon2id + AES-256-GCM (pure Dart, cross-compatible).
 - **R-5** ✅ CORS verified; secure-storage + passkeys wired for Web.
-- **R-3** 🟢 QuickJS-WASM script runtime — **R-3a ✅ (execution + lint/validate)**: jsExec + init/view/update + jsLint/validateJsComprehensive run on Web with native parity (51 golden vectors + production-path probe green); only R-3b (IC HTTP agent) pending.
-- **IC-agent** ⏳ Web-native canister HTTP agent (staged).
+- **R-3** ✅ QuickJS-WASM script runtime — **R-3a ✅ (execution + lint/validate)**: jsExec + init/view/update + jsLint/validateJsComprehensive run on Web with native parity (51 golden vectors + production-path probe green). **R-3b ✅ (IC HTTP agent)**: `fetchCandid`/`parseCandid`/`callAnonymous`/`callAuthenticated` via `@dfinity/agent@3.4.3` + backend byte-relay CORS proxy; ICP ledger `symbol() → "ICP"` proven live.
+- **IC-agent** ✅ Web-native canister HTTP agent — done (R-3b above).
 
 ## See also
 

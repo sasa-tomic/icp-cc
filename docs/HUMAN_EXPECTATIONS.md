@@ -47,6 +47,10 @@ dapp has ≥2 canisters (frontend + backend). icp-cc drives **BOTH/EITHER**:
 - **Derive truth from content, not declared metadata.** When a label could lie
   (e.g. a "TypeScript" badge over a stale Lua bundle), compute it from the
   content at the source (backend), never from a field that can drift stale.
+- **Tests clean up after themselves.** Integration tests that create records
+  must `tearDown` what they create (idempotent delete), so dev/test data never
+  leaks into the marketplace the user sees. Sloppy fixtures ("Updated Title")
+  left behind by tests read as product slop and undercut a premium feel.
 - **Pedagogical value.** Code and examples should teach; a newcomer can follow
   the story end to end.
 - **Empirically grounded planning.** Before planning work on a suspected
