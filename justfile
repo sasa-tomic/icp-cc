@@ -239,6 +239,34 @@ test-watch name="":
     fi
 
 # =============================================================================
+# R-3 WU-1 — QuickJS-on-Web browser verification (headless Chromium)
+# =============================================================================
+#
+# The QuickJS engine (lib/rust/web/quickjs_engine.dart) is browser-only
+# (dart:js_interop can't run in the VM — see plan §2.3). This target is the
+# headless-Chrome test path: it builds the probe entrypoint
+# (lib/web_probe_main.dart), serves build/web, loads it in headless Chromium
+# via Playwright, and asserts eval + memory-limit + interrupt-handler all work
+# through the Dart interop layer. Reused by every R-3a parity WU.
+#
+# Requires: a Playwright Chromium browser (auto-installed by
+# `npx playwright install chromium`, or present in ~/.cache/ms-playwright/).
+verify-quickjs-web:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    probe_dir="{{root}}/scripts/quickjs_web_probe"
+    echo "==> Installing Playwright harness deps (idempotent)..."
+    cd "$probe_dir" && npm install --no-audit --no-fund --omit=dev >/dev/null 2>&1
+    if ! node -e "require('playwright')" 2>/dev/null; then
+        echo "==> Playwright Chromium not found in cache; installing browser..."
+        npx playwright install chromium
+    fi
+    echo "==> Building probe web app (flutter build web --target=lib/web_probe_main.dart)..."
+    cd {{flutter_dir}} && flutter build web --target=lib/web_probe_main.dart
+    echo "==> Running headless-Chromium verification (foreground, timeout-bounded)..."
+    timeout 120 node "$probe_dir/verify.js"
+
+# =============================================================================
 # Integration / E2E (real-app user-flow probes)
 # =============================================================================
 #

@@ -31,6 +31,14 @@
 
   <title>icp_autorun</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- R-3: vendored quickjs-emscripten singlefile-browser build (WASM inlined
+       as base64 — no separate .wasm fetch). Loaded as a module so it can use
+       ESM imports internally; it installs globalThis.__quickjsEmscripten,
+       which lib/rust/web/quickjs_engine.dart reads via dart:js_interop. The
+       WASM instantiate is kicked off here (async), so by the time Dart awaits
+       __quickjsEmscripten.modulePromise, loading is already in flight. -->
+  <script type="module" src="vendor/quickjs/quickjs_emscripten.bundle.js"></script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
