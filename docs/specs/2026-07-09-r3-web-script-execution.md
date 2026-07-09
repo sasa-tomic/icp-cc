@@ -215,3 +215,182 @@ R-3a (WU-1..4) is the valuable core: it makes user scripts *run and render* on W
 3. **Headless-Chrome test runner** — accept the new test-tooling dependency (e.g. `integration_test` driven by headless Chrome, or a Node harness) and where it lives in `just`. (Needed by every parity WU; decide at WU-1.)
 
 Everything else in R-3a is unambiguous and within independent-work authorization.
+
+---
+
+## §7 R-3b — IC HTTP agent on Web (agent-js wrap + backend CORS proxy)
+
+**Status:** Plan (decision resolved: **approach (1) — wrap `@dfinity/agent`**) · **Appended:** 2026-07-09 · **Author:** Planner agent · **Base:** HEAD `6b2b1a1a` (R-3a green + committed)
+**Predecessors:** R-3a (QuickJS execution ✅), R-2 (pure-Dart Web Ed25519 + principal ✅), R-4 (vault ✅).
+**Scope:** implement the 4 IC-agent methods that still throw `UnsupportedError` on Web (`native_bridge_web.dart:349-376`) — `fetchCandid`, `parseCandid`, `callAnonymous`, `callAuthenticated` — at parity with `crates/icp_core/src/canister_client.rs` + `ffi.rs`, so that scripts which emit `action:"call"`/`"batch"` effects (`script_app_host.dart:291-304,406-419`) execute live on Web.
+
+> **Reader's note.** Every claim is cited to `file:line` (repo) or a verified external source. Assumptions that survive review are tagged ✅; the one load-bearing unknown is tagged ⚠️ **PoC-gated**. §7.0 is the methodology; §7.1–§7.6 are the design; §7.7 is the sequenced work; §7.8/§7.9 are risks + decisions.
+
+### §7.0 Methodology
+
+**§7.0.1 — What I read (grounding).**
+- `native_bridge_web.dart` (the 4 stubs at `:349-376`; `_stagedReason` at `:70-72`) + `native_bridge_io.dart` (FFI contract — same 4 methods at `:197-294`) + `native_bridge.dart` (conditional-export facade).
+- `crates/icp_core/src/canister_client.rs` (945 lines, the parity source of truth) + `ffi.rs` (envelope + `kind` discriminator at `:56-95`) + `Cargo.toml:55` (`ic-agent = "0.44.2"`).
+- `script_runner.dart:82-98` (the `ScriptBridge` interface — sync `String?`) + `script_app_host.dart:270-420` (the async effect-resolution loop that calls the bridge) + `candid_service.dart:101-170` (the *separate* Dart-side candid registry fetch over `package:http`) + `widgets/canister_client_sheet.dart:198-321` (UI consumer).
+- The R-3a vendor + interop pattern, in full: `web/index.html:35-42`, `web/vendor/quickjs/quickjs_entry.mjs`, `lib/rust/web/quickjs_engine.dart:55-126`, `lib/rust/web/quickjs_engine_web_access.dart`, `lib/rust/web/quickjs_engine_vm_stub.dart`, the justfile harness `:254-311`.
+- Backend: `backend/src/main.rs:327` (global `Cors::new()`), `:136-326` (route map), `backend/Cargo.toml` (`poem = "3.0"`, `ic-agent = "0.44"`), `Cargo.lock:1953` (`ic-agent 0.44.2`) + `:3387` (`reqwest` — transitively available). `lib/config/app_config.dart:5-29` (single source for the API base URL).
+- **External (verified, not assumed):** the `@dfinity/agent@3.4.3` npm `package.json` (esm `module` field + the maintainers' own `bundle` script); the `dfinity/icp-js-core` repo source for `HttpAgent` (`packages/core/src/agent/agent/http/index.ts`), `fetchCandid` (`…/agent/fetch_candid.ts`), the `Agent` interface (`…/agent/agent/api.ts`), `Ed25519KeyIdentity` (`…/identity/identity/ed25519.ts`), and the candid module (`…/candid/index.ts`); the DFINITY forum CORS thread (`forum.dfinity.org/t/access-control-allow-origin-cors-error/20023`).
+
+**§7.0.2 — Confidence per area.**
+| Area | Conf. | Basis |
+|---|---|---|
+| Native parity contract (the 4 methods + envelopes) | **10/10** | `canister_client.rs` + `ffi.rs` read in full; envelopes pinned by Rust tests (`ffi.rs:584-621`) |
+| CORS makes a proxy mandatory | **10/10** | Forum thread + structural proof: agent-js `fetch`es `ic0.app`/`icp-api.io`, which send no `Access-Control-Allow-Origin` |
+| agent-js host-override + custom-fetch passthrough | **10/10** | `HttpAgentOptions.host`/`.fetch` + `new URL('api/v…', this.host)` read in source |
+| agent-js Ed25519 identity from 32-byte seed | **10/10** | `Ed25519KeyIdentity.fromSecretKey(secretKey)` reads the seed directly |
+| esbuild singlefile browser vendoring (mirror R-3a) | **9/10** | package.json `bundle` script = `esbuild --bundle … --platform=browser`; size/CLI flags ⚠️ PoC-confirmed |
+| ⚠️ did-text → IDL-types arg encoding on Web | **4/10** | `@dfinity/candid@3.4.3` ships **no** `.did` parser (only `IDL.encode/decode`); the typed-JSON-args path needs a PoC decision (§7.5) |
+
+**§7.0.3 — Assumptions that did NOT survive review ❌ DROPPED.**
+- ❌ *"ic0.app sends CORS headers for `/api/v2/*`."* **False.** Non-ICP frontends using `@dfinity/agent` hit CORS errors (DFINITY forum thread above). The native client is unaffected only because it is a native HTTP client. → proxy is mandatory (§7.2).
+- ❌ *"agent-js needs secp256k1 to authenticate."* **False.** `Ed25519KeyIdentity.fromSecretKey(seed)` (`identity/ed25519.ts`) takes the 32-byte Ed25519 seed directly — exact parity with native `BasicIdentity::from_raw_key` (`canister_client.rs:674`). The R-2 secp256k1 Web gap is **not** triggered by R-3b.
+- ❌ *"`@dfinity/candid` can parse a `.did` string into IDL types."* **False.** `candid/index.ts` exports only the `IDL` encode/decode runtime + UI helpers — no grammar/`IDLProg`/`fromText`. Native gets this from `candid_parser` (Rust). → typed-JSON-args encoding is the one open design question (§7.5).
+
+### §7.1 The native parity contract (source of truth) — `canister_client.rs` + `ffi.rs`
+
+| Method | Native impl | FFI envelope (`ffi.rs`) | Dart sig (`native_bridge_web.dart`) |
+|---|---|---|---|
+| **`fetchCandid`** | `Agent::builder().with_url(host).build()` → `agent.fetch_root_key()` → `agent.read_state_canister_metadata(canister, "candid:service")` (`canister_client.rs:530-567`); default host `https://ic0.app` (`:533`); 30 s timeout (`:25-32`) | raw candid **text** on success, **empty string** on error (`null_c_string`, `ffi.rs:228`) — *not* a `{ok,…}` envelope | `Future<String?> fetchCandid({canisterId, host})` (`:349`) — **already async** ✅ |
+| **`parseCandid`** | `parse_candid_interface(did)` (`canister_client.rs:161-201`) — `IDLProg::parse` + `check_prog` → `MethodInfo{name,kind,args,rets}`; **pure compute, no network** | `serde_json::to_string(&ParsedInterface)` = `{"methods":[{"name","kind","args","rets"}]}`, **empty** on error (`ffi.rs:243-247`) | `String? parseCandid({candidText})` (`:353`) — **sync, pure** ✅ |
+| **`callAnonymous`** | JSON/textual/`base64:` arg → `build_args_from_json`/`parse_idl_args_bytes` (`:432-522`) → `agent.query` (mode 0/2) or `agent.update().call_and_wait()` (mode 1) (`:604-623`) → decode via `try_decode_with_types` (fetches candid) ⟶ fallback `IDLArgs::from_bytes` (`:639-645`) | `{"ok":true,"result":<json>}` success / `{"ok":false,"kind":"<invalid_canister_id\|net\|candid>","error":"…"}` error (`canister_err_ptr`, `ffi.rs:78-87,271`) | `String? callAnonymous({canisterId,method,mode,args='()',host})` (`:357`) — **sync → must widen to `Future`** |
+| **`callAuthenticated`** | identical to above but `Agent` built with `BasicIdentity::from_raw_key(&[u8;32])` from the Ed25519 seed (`canister_client.rs:662-680`) | same envelope as `callAnonymous` | `String? callAuthenticated({…,privateKeyB64,args='()',host})` (`:367`) — **sync → must widen to `Future`** |
+
+**`mode` int** (`ffi.rs:89-95`): `0`=Query, `1`=Update, `2`=CompositeQuery.
+
+**`args` formats** the native contract already accepts (`canister_client.rs:586-602, 501-522`):
+1. JSON (`{…}` / `[…]` / scalar: `null`,`true`,`false`,`"…"`, number) → `build_args_from_json` (fetches candid to type the encode).
+2. Textual candid `(42, "hi")` → `parse_idl_args_bytes` (parses arg expressions).
+3. `base64:`-prefixed raw bytes → **passthrough, no parse** (`:508-513`).
+4. `()` / empty → empty args (`:503-506`).
+
+Formats 1 & 2 both lean on a candid grammar parser; format 3 leans on nothing. **This distinction is load-bearing for §7.5.**
+
+### §7.2 The CORS reality → proxy is MANDATORY
+
+The native client hits `https://ic0.app/api/v2/…` directly with a native HTTP client — no CORS concern. **In a browser the same calls are cross-origin and blocked**: `ic0.app`/`icp-api.io` send no `Access-Control-Allow-Origin` for `/api/v2/*` / `/api/v3/*` / `/api/v4/*` (empirically confirmed — non-ICP frontends using `@dfinity/agent` get CORS errors, DFINITY forum thread `…/20023`). **Therefore a backend proxy is a first-class part of R-3b, not an afterthought.**
+
+The proxy is cheap because (a) the backend already mounts a permissive global `Cors::new()` (`main.rs:327`); (b) `ic-agent 0.44` is already a backend dep (`Cargo.toml`) → `reqwest` is transitively available (`Cargo.lock:3387`); (c) agent-js supports a **host override + custom `fetch`**, so the proxy can be a **dumb byte-for-byte relay** — it need not know anything about IC/CBOR/Candid (§7.3.1).
+
+> Note: `candid_service.dart:134-170` (the *separate* Dart-side registry fetch over `package:http` to `https://icp-api.io/api/v2/canister/…/candid`) is ALSO cross-origin and CORS-blocked on Web. R-3b consolidates this: on Web, `CandidService` delegates to `RustBridgeLoader.fetchCandid` (the agent-js path) so **one proxy** serves every IC-bound call.
+
+### §7.3 Approach — wrap `@dfinity/agent` via `dart:js_interop` (the chosen path)
+
+Confirmed feasible by reading the agent-js v3 source. It mirrors the R-3a quickjs vendoring **exactly** (same esbuild singlefile-browser bundle → `<script type=module>` → `globalThis.__…` → `dart:js_interop` facade → conditional-import access module to keep `native_bridge_web.dart` VM-compilable).
+
+#### §7.3.1 The CORS-evading design — host-override + transparent passthrough ✅ VERIFIED
+`HttpAgent` (`agent/http/index.ts`) builds every URL relative to `this.host`:
+```ts
+new URL(`api/v4/canister/${id}/call`,       this.host)   // sync update
+new URL(`api/v2/canister/${id}/call`,       this.host)   // async update
+new URL(`api/v3/canister/${id}/query`,      this.host)   // query
+new URL(`api/v3/canister/${id}/read_state`, this.host)   // read_state (→ fetchCandid)
+```
+and issues them all via `this.#fetch(url, {…body: cbor.encode(…)})`. Both `host` and `fetch` are public `HttpAgentOptions` (`host?: string`, `fetch?: typeof fetch`). So the clean design is:
+
+- Set the agent's **`host`** to the proxy: `${AppConfig.apiEndpoint}/api/v1/ic` (single source, `app_config.dart:5-29`). The agent appends its `api/v{2,3,4}/…` suffix; the proxy strips the `/api/v1/ic` prefix and forwards the remainder verbatim to `${IC_GATEWAY_HOST}` (default `https://ic0.app`).
+- (Optional, not required) pass a custom `fetch` only if we ever need to inject tracing/abort-signals — the default `globalThis.fetch` already works once the URL is same-origin to the proxy.
+
+The agent keeps doing **all** CBOR encode/decode, request-id, signing, nonce, retry/backoff (`retryTimes`, default 3), ingress-expiry, **and certificate/bls verification** (`Certificate.create` with the **hardcoded mainnet `IC_ROOT_KEY`**, `agent/http/index.ts`). For mainnet, `fetchRootKey()` is a no-op (key baked in) — simpler than native, which calls it defensively (`canister_client.rs:542,606,701`). The proxy is provably protocol-blind.
+
+#### §7.3.2 agent-js browser bundling ✅ (size ⚠️ PoC-measured)
+- **Packages to bundle** (resolved from `@dfinity/agent@3.4.3/package.json`): `@dfinity/agent` + `@dfinity/identity` (devDep of agent; needed for `Ed25519KeyIdentity`) + peers `@dfinity/candid`, `@dfinity/principal` + deps `@dfinity/cbor`, `@noble/curves`, `@noble/hashes`. esbuild `--bundle` pulls them all into **one** file.
+- **The vendoring recipe is the maintainers' own**: `@dfinity/agent`'s `package.json` `bundle` script = `esbuild --bundle src/index.ts --outfile=dist/index.js --platform=browser`. We mirror `web/vendor/quickjs/quickjs_entry.mjs`: a small `web/vendor/ic_agent/ic_agent_entry.mjs` that imports `{ HttpAgent }`, `{ fetchCandid }`, `{ Ed25519KeyIdentity }` and installs `globalThis.__icpCcAgent = { createAgent, fetchCandid, fromSecretKey, encode, decode, version }`, bundled via the same esbuild invocation used for quickjs (singlefile, minified). There is **no WASM** to inline here (agent-js is pure JS, unlike quickjs) — so the bundle is plain JS, no base64/.wasm asset.
+- **Approx size**: ⚠️ **PoC-measured** (`ls -la` on the produced bundle; budget the `flutter build web` size delta). The noble-curves + cbor + candid runtime is expected in the low-hundreds-of-KB range (no heavy WASM), but the number must be reported in the WU-PoC before committing.
+- **`<script type=module>`** in `web/index.html` next to the quickjs one, lazy-kicked-off (agent is only needed when a script emits a call/batch effect — load it lazily, behind the readiness gate, §7.6).
+
+#### §7.3.3 The Dart↔JS interop surface (the methods we actually call)
+Mirroring `quickjs_engine.dart`'s `@JS()` extension-type facade. All cross-boundary payloads are **strings + `Uint8List`** (no shared-JS-handle lifetimes — same discipline as R-3a).
+
+| Native method | agent-js call(s) | Notes |
+|---|---|---|
+| `fetchCandid` | `fetchCandid(canisterId, agent)` (`fetch_candid.ts`) → `CanisterStatus.request({agent, canisterId, paths:['candid']})` (read_state) → fallback `__get_candid_interface_tmp_hack` query. Returns the did **string**. | Exact parity with `read_state_canister_metadata(canister,"candid:service")` (`canister_client.rs:545`). Also matches the `__get_candid_interface_tmp` fallback already in `candid_service.dart:101-130`. |
+| `callAnonymous` | `const a = await HttpAgent.create({host, identity:new AnonymousIdentity()});` then `a.query(canisterId,{methodName, arg})` (mode 0/2) or `a.update(canisterId,{methodName, arg})` (mode 1). `arg` is the **encoded `Uint8Array`** (§7.5). Decode `reply.arg` (replied) or map `reject_code`/`reject_message` (rejected) → the native `{ok,result}` / `{ok,kind,error}` envelope. | `query` returns `ApiQueryResponse` (`api.ts`); `update` returns `UpdateResult` with certified `reply` bytes. |
+| `callAuthenticated` | identical, but `identity = Ed25519KeyIdentity.fromSecretKey(base64Decode(privateKeyB64))` (the 32-byte seed, `identity/ed25519.ts`). | The seed is the SAME bytes R-2 derives on Web — no new key material. |
+| `parseCandid` | **Two viable options** (decide in WU-PoC): (a) call into agent-js's `IDL` (already bundled) to walk the service; or (b) pure-Dart port of `parse_candid_interface` (`canister_client.rs:161-201`) like WU-5's static-analysis port — VM-testable, no JS round-trip. | **Recommend (b)** for parity+testability + to drop the candid-parser gap (§7.5); the did text is already in hand from `fetchCandid`. |
+
+**Ed25519 identity — confirmed, no secp256k1 needed.** `Ed25519KeyIdentity.fromSecretKey(secretKey: Uint8Array)` (`identity/ed25519.ts`) derives the public key via `ed25519.getPublicKey` and signs via noble `ed25519.sign` — a pure-JS, browser-safe path. This is byte-parity with native `BasicIdentity::from_raw_key` (Ed25519 seed, `canister_client.rs:674`). The R-2 secp256k1-Web gap is **not** in scope for R-3b.
+
+### §7.4 The backend CORS proxy (Rust / poem) — the keystone of §7.2
+
+A single catch-all route that is a **protocol-blind byte relay** (per §7.3.1 the agent does all CBOR/signing/cert work):
+
+- **Route:** `POST /api/v1/ic/*<rest>` (poem wildcard), where `<rest>` = `api/v2/canister/<id>/call` etc. Registered in `main.rs` alongside the existing routes (`.at("/api/v1/ic/*rest", post(handlers::ic_proxy))`), inheriting the global `Cors::new()` (`main.rs:327`). Supports `POST` (the only verb the agent uses for `call`/`query`/`read_state`) and `GET` (for the `status` endpoint + `candid` registry, used by `candid_service.dart` consolidation).
+- **Behaviour:**
+  1. Read the **raw request body bytes** (`poem::Request` — same pattern as `handlers/payments/mod.rs:189`) + forward `Content-Type: application/cbor` (and any other headers the agent set).
+  2. `reqwest::Client` (rustls; already transitively present — **add an explicit `reqwest` dep** to `backend/Cargo.toml` for single-source clarity, matching the AGENTS.md "fail-fast, no transitive magic" ethos) → `POST ${IC_GATEWAY_HOST}/${rest}` with the verbatim body. `IC_GATEWAY_HOST` env var, default `https://ic0.app` (the native default, `canister_client.rs:533`).
+  3. **Timeout:** every hop bounded — `reqwest` `.timeout(Duration::from_secs(IC_PROXY_TIMEOUT_SECS))`, default **30 s** (matches native `canister_call_timeout`, `canister_client.rs:26`). Configurable via env (the native `ICPCC_CANISTER_TIMEOUT_SECS` already exists — reuse the same name so tests can shrink it, mirroring `call_anonymous_timeout_fires_against_blackhole` at `canister_client.rs:900-944`).
+  4. Return the **upstream body + status verbatim** (200/202 for call/read_state, 200 for query); do NOT interpret CBOR. The global `Cors` adds `Access-Control-Allow-Origin`. Handle the CORS **preflight** `OPTIONS` (poem's `Cors` middleware does this automatically — already proven by the marketplace API).
+- **Anonymous + authenticated both pass through unchanged** — the auth is the agent-js-signed CBOR body itself; the proxy carries it opaquely. The proxy never sees a private key (zero-knowledge, end-to-end — consistent with the vault model).
+- **No new CORS headers to invent** — the existing `Cors::new()` already permits the marketplace frontend's origin; the proxy is same-origin from the browser's POV (the agent points at `${apiEndpoint}/api/v1/ic`).
+- **`fetchCandid`** needs no separate proxy path — it is a `read_state` (`/api/v3/canister/<id>/read_state`) routed through the **same** `/api/v1/ic/*` catch-all.
+- **The `candid_service.dart` registry GET** (`https://icp-api.io/api/v2/canister/<id>/candid`, `:136`) is rerouted through `RustBridgeLoader.fetchCandid` on Web (§7.2 consolidation) — so this third cross-origin call also vanishes behind the single proxy.
+
+### §7.5 The args-encoding gap ⚠️ (the one honest open question)
+
+Native `build_args_from_json` (`canister_client.rs:432-499`) and `parse_idl_args_bytes` (`:501-522`) lean on `candid_parser` (Rust) to turn the did text + the caller's JSON/textual args into typed CBOR. **`@dfinity/candid@3.4.3` ships NO `.did` text parser** (`candid/index.ts` exports only `IDL.encode/decode` + UI helpers — confirmed). So on Web the typed-JSON/textual-candid arg path needs a did-text→IDL-types converter that agent-js does not provide out of the box.
+
+**Resolution options (the WU-PoC picks one — listed best-first):**
+- **(α) Pure-Dart did-text parser (recommended).** Port a minimal subset of `candid_parser`'s grammar (the shapes our marketplace scripts emit: records, variants, vec, opt, the fixed ints/nats, text, principal) to Dart, producing IDL types we feed to `IDL.encode` over the interop boundary. Pure-Dart → VM-testable (like WU-5's `js_static_analysis.dart`), runs on Web unchanged. Smallest dep footprint; highest parity; most test surface.
+- **(β) Add a runtime did-parser JS dep** (e.g. legacy `candid` package or `@icp-sdk/bindgen` if runtime-usable). To be validated in PoC — may not exist as a clean browser-bundleable runtime today.
+- **(γ) Ship v1 supporting only `base64:` raw-bytes args + `()` empty args** (`canister_client.rs:508-513,503-506`), which need NO parser; defer JSON/textual args to a follow-up. Documented scope reduction (not a silent gap) — callers pre-encode args.
+
+**Until (α)/(β) land, Web calls accept `base64:`-prefixed raw bytes** — which the native contract already honours — so end-to-end canister calls work from day one; only the JSON-arg convenience path is gated. This is the single item moved to §7.9 for a human check (recommendation: approve (α)).
+
+### §7.6 Signature widening (sync → Future) + readiness gate
+
+- The agent-js calls are **inherently async** (network). `callAnonymous`/`callAuthenticated` return `String?` synchronously today (`native_bridge_web.dart:357,367`; `ScriptBridge`, `script_runner.dart:82-98`). **Widen `ScriptBridge.callAnonymous`/`callAuthenticated` to `Future<String?>`** and `await` them at the two effect-loop call sites (`script_app_host.dart:291-304,406-419` — already inside an `async` block). Native (`native_bridge_io.dart:238,266`) returns `Future.value(<sync FFI result>)` — greenfield-acceptable per AGENTS.md "no backward-compat". This realises the §4.6 risk noted in R-3a; it is local and mechanical. (`fetchCandid` is already `Future<String?>` on both targets; `parseCandid` stays sync.)
+- **Readiness gate (mirror `SecureStorageReadiness`/`probeQuickJsReadiness`).** A `probeIcAgentReadiness()` loads the agent-js bundle once (lazily — only when a script emits a call/batch effect or the canister-client UI opens) and verifies the proxy is reachable (a cheap `agent.status()` round-trip, or a HEAD on `/api/v1/ic/`). If unavailable (offline backend / bundle failed), surface a loud `IcAgentUnavailable` panel — never a silent degrade. Until the gate is passed, call/batch effects resolve to a typed `"IC agent not available on Web"` descriptor (the R-3a §5 graceful-degrade posture, now made real).
+- **Conditional-import access module** (the hard-won R-3a constraint): the agent-js interop lives in `lib/rust/web/ic_agent_engine_web_access.dart` (Web) with a `ic_agent_engine_vm_stub.dart` (`dart.library.io`) throwing stub, imported into `native_bridge_web.dart` via `import … if (dart.library.io) …`. This keeps `native_bridge_web.dart` VM-compilable so the R-2/R-4 web-crypto VM tests keep importing it directly — **identical** to the `quickjs_engine_web_access.dart`/`_vm_stub.dart` split (`native_bridge_web.dart:48-55`).
+
+### §7.7 Work units (sequenced, PoC-first, one commit each)
+
+> Frontend WUs **depend on the proxy (WU-1)** being live to test against `ic0.app`. PoC (WU-0) is the gate — if agent-js won't bundle or the host-override proxy round-trip fails, STOP and surface the blocker (fall back to approach (2), from-scratch Dart agent, only if (1) is proven infeasible).
+
+**R-3b-WU-0 — PoC: bundle agent-js + one anonymous query through the proxy.** · P0 · Medium · Deps: WU-1.
+- Files: `web/vendor/ic_agent/` (entry `.mjs` + produced `ic_agent.bundle.js`), `web/index.html` (`<script type=module>`), throwaway `lib/rust/web/ic_agent_engine.dart` (`@JS('__icpCcAgent')` facade), `scripts/ic_agent_web_probe/verify.js` (Playwright, mirrors `scripts/quickjs_web_probe/`).
+- Bar: `HttpAgent.create({host: '<proxy>'})` → `agent.query('ryjl3-tyaaa-aaaaa-aaaba-cai', {methodName:'symbol', arg: empty})` returns `'ICP'` through Dart interop. Report bundle size + the `flutter build web` delta. Confidence ≥8/10 or raise the blocker.
+
+**R-3b-WU-1 — Backend CORS proxy.** · P0 · Medium · Deps: none (unblocks WU-0).
+- Files: `backend/src/handlers/ic_proxy.rs` (+ `handlers/mod.rs` export, `main.rs` route), `backend/Cargo.toml` (explicit `reqwest`), env `IC_GATEWAY_HOST`/`IC_PROXY_TIMEOUT_SECS`.
+- Bar: `curl -X POST $API/api/v1/ic/api/v3/canister/<id>/read_state …` relays bytes to `ic0.app` and returns the upstream status+body with CORS headers; a blackhole upstream is killed by the 30 s (shrinkable) timeout — mirror the `call_anonymous_timeout_fires_against_blackhole` test (`canister_client.rs:900-944`) as a Rust unit test against a local blackhole listener.
+
+**R-3b-WU-2 — `fetchCandid` + `parseCandid`.** · P1 · Medium · Deps: WU-0, WU-1.
+- Files: `lib/rust/web/ic_agent_engine.dart` (+ access/stub split), `native_bridge_web.dart:349-355` (replace the 2 stubs), pure-Dart `parse_candid_interface` port (`canister_client.rs:161-201`) — option (α) of §7.5.
+- Bar (golden vectors, captured from native `canister_client.rs` tests): `fetchCandid` against a stable public canister returns byte-identical did text; `parseCandid` of that did returns the identical `{methods:[…]}` JSON shape; `_fetchCandidFromRegistry` in `candid_service.dart` now delegates to `fetchCandid` on Web (parity + the CORS consolidation of §7.2).
+
+**R-3b-WU-3 — `callAnonymous`.** · P1 · Medium-Hard · Deps: WU-2 + the §7.5 decision.
+- Files: `ic_agent_engine.dart` (`query`/`update` wrappers + reply decode → native `{ok,result}`/`{ok,kind,error}` envelope), `native_bridge_web.dart:357-365`.
+- Bar: a query (`mode 0`) and an update (`mode 1`) against a public canister produce JSON-identical `result` to native; a bad canister id → `{ok:false,kind:"invalid_canister_id",…}`; a blackhole → `{ok:false,kind:"net",…}` (the typed `kind` parity, `ffi.rs:68-74`).
+
+**R-3b-WU-4 — `callAuthenticated` + signature widening.** · P2 · Medium · Deps: WU-3.
+- Files: `ic_agent_engine.dart` (`Ed25519KeyIdentity.fromSecretKey` wiring), `native_bridge_web.dart:367-376`, `script_runner.dart:82-98` (`ScriptBridge` → `Future<String?>`), `native_bridge_io.dart:238,266` (`Future.value`), `script_app_host.dart:291-304,406-419` (`await`), `MockCanisterBridge` + any fakes.
+- Bar: an authenticated query/update signed by a known seed produces the same `result` as native `call_authenticated`; the effect loop (`icp_call`/`icp_batch`) executes a real call end-to-end on Web.
+
+**R-3b-WU-5 — Readiness gate + headless-Chromium parity verification.** · P2 · Medium · Deps: WU-4.
+- Files: `lib/services/ic_agent_readiness.dart` (mirror `SecureStorageReadiness`), wire into `script_app_host` boot, `scripts/ic_agent_web_probe/verify_agent.js` + `lib/web_probe_agent_main.dart`, a new `just verify-ic-agent-web` target (extend the `verify-quickjs-web*` recipes, `justfile:254-311`).
+- Bar: golden-vector parity (the WU-2/3/4 captures) passes in headless Chromium; the readiness panel renders when the proxy is unreachable; `flutter analyze` + `just test` clean; the shipped `01_hello_world.js`-style sample that emits an `icp_call` effect runs live on Web.
+
+**Recommended order:** **WU-1 (proxy) ‖ WU-0 (PoC) → WU-2 → WU-3 → WU-4 → WU-5.** WU-1 and WU-0 can proceed in parallel (proxy needs no frontend; PoC can stub the proxy locally until WU-1 lands). The §7.5 args-encoding decision is made inside WU-0/WU-2 — block WU-3 on it.
+
+### §7.8 Risks + unknowns (R-3b only; R-3a's at §4)
+
+| # | Risk / unknown | Severity | Mitigation |
+|---|---|---|---|
+| **7.8.1** | **Bundle size / load latency.** agent-js + noble-curves + cbor adds to the Web bundle; loading it eagerly would bloat first paint. | Med | Lazy-load only when a call/batch effect is first emitted (behind the readiness gate, §7.6). Measure in WU-0; it is pure JS (no WASM inlined, unlike quickjs) so expected low-hundreds-of-KB. |
+| **7.8.2** | **The §7.5 args-encoding gap.** Without a did-text→IDL-types converter, only `base64:`/empty args work on Web. | Med | WU-0/WU-2 pick option (α) pure-Dart parser (recommended) / (β) JS dep / (γ) scope-cut. `base64:` raw bytes ship from day one regardless (`canister_client.rs:508-513`). |
+| **7.8.3** | **`api/v4` sync-call proxy semantics.** agent-js v3 prefers `api/v4/.../call` (sync) and falls back to `api/v2` (async+poll). The proxy is verb/path-blind so both pass, but verify both round-trip in WU-0. | Low | The catch-all `*<rest>` relay forwards any `api/v*` path; WU-0 asserts a sync `update` resolves. |
+| **7.8.4** | **Query-signature verification overhead.** agent-js default `verifyQuerySignatures:true` fetches subnet node keys (extra `read_state`) per subnet (cached in IndexedDB). Native (ic-agent) does its own verification; parity is preserved but with more round-trips. | Low | Keep default (security parity). If latency hurts, expose `verifyQuerySignatures:false` behind an explicit opt-in (document the trade-off). |
+| **7.8.5** | **Proxy as a new trust surface / abuse vector.** An open relay to `ic0.app` could be abused. | Med | Proxy forwards ONLY to `${IC_GATEWAY_HOST}` (default ic0.app) — never to an arbitrary host (the `host` arg from scripts is honoured **inside agent-js by routing**, but the proxy itself is single-upstream). Add a size + rate cap (poem middleware) — same posture as the marketplace API. |
+| **7.8.6** | **`ed25519` between agent-js (noble) and our R-2 keys.** Both must produce identical signatures/principals for the same seed. | Low | R-2 already proved Dart `ed25519_edwards` ≡ Rust `ed25519_dalek`. noble/`@noble/curves` is the JS reference; add a cross-check golden in WU-4 (sign a known blob with both, assert equal). |
+
+### §7.9 Items needing a human decision (R-3b only)
+1. **§7.5 args-encoding approach** — (α) pure-Dart did-text parser **[recommended]** vs (β) a JS parser dep vs (γ) ship `base64:`-only for v1. **Block WU-3 on this.**
+2. **Proxy scope** — confirm the proxy is single-upstream to `ic0.app` only (§7.8.5), and whether a per-tenant rate/size cap is wanted now or deferred. (Recommend: ship the single-upstream relay + a generous size cap now; rate-limit later if abused.)
+3. **`verifyQuerySignatures` default** — keep agent-js's secure default (extra `read_state` per subnet, cached), or ship with it off for latency. (Recommend: keep ON for parity; revisit only if profiling shows pain.)
+
+Everything else in R-3b is unambiguous, empirically grounded above, and within independent-work authorisation. The agent-js wrap is **feasible and recommended**; approach (2) (from-scratch Dart agent) is not needed unless WU-0 proves (1) infeasible.
