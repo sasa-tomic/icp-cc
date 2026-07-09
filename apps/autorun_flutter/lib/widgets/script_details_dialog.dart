@@ -646,91 +646,120 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
         const VerticalDivider(width: 1),
 
         // Right panel - Actions and stats
+        //
+        // NF-1 (Round-6 UX review): the right-panel `Column` historically
+        // overflowed by up to ~92px at small window heights (a non-flex
+        // `Column` doesn't scroll — it clips with the yellow/black stripe).
+        // The wrap below is the standard "scroll when too big, fill when too
+        // small" pattern (same one `_buildPreviewGatedPane` uses):
+        //   LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight)
+        //   → IntrinsicHeight → Column.
+        // At normal window heights the inner `Spacer` still pushes the
+        // "Compatible Canisters" block to the bottom of the panel (visually
+        // identical to before). At small heights the `SingleChildScrollView`
+        // lets the user scroll instead of clipping.
         Expanded(
           flex: 1,
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Primary action: Buy CTA for paid + not-purchased scripts,
-                // Download for free or already-purchased scripts.
-                if (_buildPrimaryAction() case final action?) ...[
-                  action,
-                  const SizedBox(height: 16),
-                ],
-
-                // Stats
-                const Text(
-                  'Statistics',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                _buildStatItem(
-                  context,
-                  'Downloads',
-                  '${widget.script.downloads}',
-                  Icons.download,
-                ),
-
-                _buildStatItem(
-                  context,
-                  'Rating',
-                  widget.script.rating > 0
-                      ? '${widget.script.rating.toStringAsFixed(1)}/5.0'
-                      : 'No rating',
-                  Icons.star,
-                ),
-
-                if (widget.script.version != null)
-                  _buildStatItem(
-                    context,
-                    'Version',
-                    widget.script.version!,
-                    Icons.tag,
-                  ),
-
-                _buildStatItem(
-                  context,
-                  'Updated',
-                  formatDate(widget.script.updatedAt),
-                  Icons.update,
-                ),
-
-                const Spacer(),
-
-                // Additional info
-                if (widget.script.canisterIds.isNotEmpty) ...[
-                  const Text(
-                    'Compatible Canisters',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...widget.script.canisterIds.take(3).map((canisterId) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '• ${canisterId.length > 20 ? '${canisterId.substring(0, 20)}...' : canisterId}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  }),
-                  if (widget.script.canisterIds.length > 3)
-                    Text(
-                      '... and ${widget.script.canisterIds.length - 3} more',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontStyle: FontStyle.italic,
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: [
+                          // Primary action: Buy CTA for paid + not-purchased
+                          // scripts, Download for free or already-purchased
+                          // scripts.
+                          if (_buildPrimaryAction() case final action?) ...[
+                            action,
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Stats
+                          const Text(
+                            'Statistics',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                          const SizedBox(height: 12),
+
+                          _buildStatItem(
+                            context,
+                            'Downloads',
+                            '${widget.script.downloads}',
+                            Icons.download,
+                          ),
+
+                          _buildStatItem(
+                            context,
+                            'Rating',
+                            widget.script.rating > 0
+                                ? '${widget.script.rating.toStringAsFixed(1)}/5.0'
+                                : 'No rating',
+                            Icons.star,
+                          ),
+
+                          if (widget.script.version != null)
+                            _buildStatItem(
+                              context,
+                              'Version',
+                              widget.script.version!,
+                              Icons.tag,
+                            ),
+
+                          _buildStatItem(
+                            context,
+                            'Updated',
+                            formatDate(widget.script.updatedAt),
+                            Icons.update,
+                          ),
+
+                          const Spacer(),
+
+                          // Additional info
+                          if (widget.script.canisterIds.isNotEmpty) ...[
+                            const Text(
+                              'Compatible Canisters',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ...widget.script.canisterIds.take(3).map((canisterId) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text(
+                                  '• ${canisterId.length > 20 ? '${canisterId.substring(0, 20)}...' : canisterId}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }),
+                            if (widget.script.canisterIds.length > 3)
+                              Text(
+                                '... and ${widget.script.canisterIds.length - 3} more',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                              ),
+                          ],
+                        ],
+                      ),
                     ),
-                ],
-              ],
+                  ),
+                );
+              },
             ),
           ),
         ),
