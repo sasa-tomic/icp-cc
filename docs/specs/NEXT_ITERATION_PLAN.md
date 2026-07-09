@@ -1,5 +1,12 @@
 # Next Iteration Plan — Tech Debt · Test Quality · UX (Dapps + Round-5)
 
+> **⚠️ SUPERSEDED re: Flutter Web.** This plan (2026-07-04) states the
+> "R-2..R-5 Flutter Web runtime — deferred". That is **stale**: all of
+> R-1..R-5, R-3a, R-3b, secp256k1-on-Web, and Web local stores are
+> **COMPLETE** now. For current Web status see `docs/BROWSER_SUPPORT.md`
+> and `docs/specs/2026-07-09-web-remaining-gaps.md`. The non-Web portions
+> remain the design record.
+
 - **Status:** ✅ **ALL FOUR WAVES COMPLETE** (Wave 1 incl. UX-10 pulled into
   scope, Wave 2, Wave 3, Wave 4). Per-WU commit hashes in §2; headline outcome
   + deferred follow-ups in §6. Earlier draft of this doc marked only Wave 1

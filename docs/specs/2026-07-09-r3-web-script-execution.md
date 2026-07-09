@@ -209,11 +209,11 @@ R-3a (WU-1..4) is the valuable core: it makes user scripts *run and render* on W
 ---
 
 ## §5 Out of scope / deferred
-- **secp256k1 keypair/signing on Web (R-2 follow-up)** — unrelated; Ed25519 is the ICP-critical path and already done.
+- **secp256k1 keypair/signing on Web (R-2 follow-up)** — ~~unrelated; Ed25519 is the ICP-critical path and already done.~~ **DONE (2026-07-09).** secp256k1 now runs on Web at native parity; see `docs/specs/2026-07-09-web-remaining-gaps.md` WU-2.
 - **Wasm (`--wasm`) Flutter target** — out of scope; `dart:js_interop`/`package:js` can't compile to Wasm today (`BROWSER_SUPPORT.md:36-40`). JS target only.
 - **Per-script persistent state across reloads** — not in the engine contract; `state` is host-managed.
 - **Source-map/TS-authoring UX** — bundles are JS; authoring tooling is a separate concern.
-- **Full R-3b (live IC canister effect resolution)** — deferred per §2.2/§3 until R-3a is green and the agent approach is decided. Until then, scripts that emit `action:"call"/"batch"` effects run but those effects surface as "IC agent not yet available on Web" rather than executing.
+- **Full R-3b (live IC canister effect resolution)** — ~~deferred per §2.2/§3 until R-3a is green and the agent approach is decided.~~ **DONE.** R-3b landed (§7); scripts emitting `action:"call"/"batch"` effects now resolve to live IC calls via the `@dfinity/agent` + backend CORS-proxy path.
 
 ---
 

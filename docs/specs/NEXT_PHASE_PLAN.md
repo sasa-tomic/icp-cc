@@ -1,12 +1,19 @@
 # Next-Phase Plan — Tech Debt · Test Quality · UX Review
 
+> **⚠️ SUPERSEDED re: Flutter Web.** This plan (2026-07-02) predates the
+> 2026-07-09 Web push and states "Flutter Web remains deferred (R-1)". That is
+> **stale**: R-1..R-5, R-3a, R-3b, secp256k1-on-Web, and Web local stores are
+> all **COMPLETE** now. For current Web status see `docs/BROWSER_SUPPORT.md`
+> and `docs/specs/2026-07-09-web-remaining-gaps.md`. The non-Web portions of
+> this plan remain the design record.
+
 - **Status:** PLANNING deliverable (no application code changed). Builds on the
   **COMPLETE** UI Excellence Initiative (`UI_EXCELLENCE_PLAN.md` WU-1..9, WU-S1..3,
   all committed; `UX_REVIEW_ROUND3.md` confirms 9/10 confidence, WU-4 empirically
   verified under the mock Secret Service).
 - **Date:** 2026-07-02
 - **Target:** Linux desktop (`flutter run -d linux`) + backend (Rust/Poem).
-  Flutter Web remains **deferred (R-1)**.
+  Flutter Web ~~remains **deferred (R-1)**~~ → **NOW COMPLETE** (see banner above).
 - **Method:** every claim below was **re-verified by read/grep on 2026-07-02**.
   Several of the brief's pre-supplied "findings" turned out to be **false or
   already-done** (see §0) — they are dropped, not carried forward.

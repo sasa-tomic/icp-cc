@@ -8,22 +8,23 @@ R-4 / R-5) are now in place.
 ## TL;DR
 
 Flutter Web **builds cleanly** (`flutter build web` → exit 0) and runs the
-identity / account / vault / passkey flows in the browser. The browser has no
-`dart:ffi`, so every operation the native core (`libicp_core`) provides is
-re-implemented in **pure Dart** on Web — no JS interop, no mock crypto. Script
-execution (QuickJS) and direct IC canister calls are deliberately **stubbed**
-(staged for a follow-up effort).
+full app — identity / account / vault / passkey / script-execution / IC-canister
+flows — in the browser. The browser has no `dart:ffi`, so every operation the
+native core (`libicp_core`) provides is re-implemented in **pure Dart** on Web
+(crypto) or driven via vendored browser assets (QuickJS WASM, `@dfinity/agent`)
+— no mock crypto. Nothing on the Web path is stubbed.
 
 | Area | Status on Web |
 |------|---------------|
 | Ed25519 keypair generation, signing, ICP principal | ✅ Real (pure Dart) — cross-compatible with native |
+| secp256k1 keypair / signing / principal | ✅ Real (pure Dart) — BIP32 `m/44'/223'/0'/0/0` + RFC 6979 ECDSA + RFC 5480 principal; native-byte-identical (golden vectors) |
 | Vault crypto (Argon2id + AES-256-GCM) | ✅ Real (pure Dart) — blobs round-trip native ↔ Web |
+| Profile + Script repositories (local stores) | ✅ Real — conditional-import JSON store (`FileJsonStore` IO / `WebJsonStore` `shared_preferences`) |
 | Secure storage (`flutter_secure_storage_web`) | ✅ Backend present (IndexedDB + AES) |
-| Backend CORS for browser fetch | ✅ Permissive by default (no change needed) |
+| Backend CORS for browser fetch | ✅ Permissive by default; IC byte-relay proxy for canister calls |
 | Passkeys (`navigator.credentials`) | ✅ Compiles; WebAuthn E2E needs a real browser session |
-| secp256k1 keypair / signing | ⚠️ Best-effort STUBBED (Ed25519 is the ICP-critical path) |
-| QuickJS script execution / linting (R-3) | 🟢 **R-3a ✅** — execution (init/view/update + jsExec) AND lint/validate run on Web with native parity (51 golden vectors); **R-3b ✅** — IC-canister HTTP agent (`fetchCandid`/`callAnonymous`/`callAuthenticated`) via `@dfinity/agent` + backend byte-relay CORS proxy, live-verified on mainnet |
-| IC canister calls (`fetchCandid`, `callAuthenticated`, …) | ❌ STUBBED — staged |
+| QuickJS script execution / linting (R-3a) | ✅ Real — execution (init/view/update + jsExec) AND lint/validate run on Web with native parity (51 golden vectors) |
+| IC canister calls (R-3b) | ✅ Real — `fetchCandid`/`parseCandid`/`callAnonymous`/`callAuthenticated` via `@dfinity/agent` + backend byte-relay CORS proxy, live-verified on mainnet (`symbol() → "ICP"`) |
 
 ## How to run
 
@@ -82,10 +83,11 @@ native core and the Web runtime. This is verified by:
 
 See `apps/autorun_flutter/test/features/web/` for the cross-compat suites.
 
-## What is still stubbed (fail-fast)
+## What used to be stubbed (now ALL done — nothing is stubbed)
 
-The following throw a loud `UnsupportedError` on Web. They are **staged** for a
-separate effort (R-3 / IC HTTP-agent) and are NOT regressions:
+Historically the following threw a loud `UnsupportedError` on Web. Each has since
+been implemented at native parity; none remain. (See the Track items below for the
+work that landed each.)
 
 - `jsExec`, `jsAppInit`, `jsAppView`, `jsAppUpdate` — **DONE (R-3a).** These
   now run on Web via the vendored `quickjs-emscripten` WASM
@@ -95,13 +97,18 @@ separate effort (R-3 / IC HTTP-agent) and are NOT regressions:
   before the sync eval calls; loading/unavailable states surface honestly.
   `jsLint` + `validateJsComprehensive` are **DONE (WU-5)** — a pure-Dart port of
   the `static_analysis` mod (no QuickJS needed for the static stages), VM-tested.
-- `fetchCandid`, `parseCandid`, `callAnonymous`, `callAuthenticated` — need a
-  Web-native IC HTTP agent (R-3b follow-up). Scripts that emit `action:"call"`/
-  `"batch"` *effects* run and surface the descriptors; resolving them to live
-  IC calls is what R-3b adds.
-- `secp256k1` keygen / signing (`alg=1`) — best-effort; Ed25519 (`alg=0`) is the
-  ICP-critical path and is fully implemented. secp256k1 requires BIP32
-  derivation (`m/44'/223'/0'/0/0`) on top of ECDSA, staged as an R-2 follow-up.
+- `fetchCandid`, `parseCandid`, `callAnonymous`, `callAuthenticated` — **DONE
+  (R-3b).** A web-native IC HTTP agent drives `@dfinity/agent` through the backend
+  byte-relay CORS proxy (`/api/v1/ic/*`). Scripts that emit `action:"call"`/
+  `"batch"` *effects* now resolve to live IC calls.
+- `secp256k1` keygen / signing / principal (`alg=1`) — **DONE.** Pure-Dart BIP32
+  derivation (`m/44'/223'/0'/0/0`) + RFC 6979 deterministic ECDSA + RFC 5480 SPKI
+  principal, in `lib/rust/web/secp256k1.dart`. Ed25519 (`alg=0`) and secp256k1
+  (`alg=1`) are both fully implemented and native-byte-identical.
+- `ProfileRepository` / `ScriptRepository` local stores — **DONE.** Were
+  `dart:io` File-backed and crashed at boot on Web; now delegate to a
+  conditional-import JSON store (`lib/services/json_store.dart` → `FileJsonStore`
+  on IO, `WebJsonStore` on Web via `shared_preferences`).
 
 ## QuickJS-on-Web (R-3)
 
@@ -135,8 +142,8 @@ standard QuickJS-WASM library — its runtime API is a near-1:1 match for
     `lint_js` Rust test) on headless Chromium — identical envelopes. `just verify-quickjs-web-app` runs the SAME
     bundle through the REAL production stack (`probeQuickJsReadiness →
     RustScriptBridge → ScriptAppRuntime`).
-  - **R-3a complete (execution + lint/validate) ✅.** Only R-3b (IC HTTP agent)
-    pending.
+  - **R-3a complete (execution + lint/validate) ✅.** R-3b (IC HTTP agent) is
+    also ✅ (see below / the CORS section).
 - **Testing posture:** the engine is browser-only (`dart:js_interop` can't be
   imported in `flutter test` VM). The headless-Chrome harness
   (`scripts/quickjs_web_probe/` — `verify.js`, `verify_parity.js`,
@@ -186,6 +193,8 @@ served by `flutter run -d chrome` (e.g. `http://localhost:<port>` in dev).
 - **R-5** ✅ CORS verified; secure-storage + passkeys wired for Web.
 - **R-3** ✅ QuickJS-WASM script runtime — **R-3a ✅ (execution + lint/validate)**: jsExec + init/view/update + jsLint/validateJsComprehensive run on Web with native parity (51 golden vectors + production-path probe green). **R-3b ✅ (IC HTTP agent)**: `fetchCandid`/`parseCandid`/`callAnonymous`/`callAuthenticated` via `@dfinity/agent@3.4.3` + backend byte-relay CORS proxy; ICP ledger `symbol() → "ICP"` proven live.
 - **IC-agent** ✅ Web-native canister HTTP agent — done (R-3b above).
+- **secp256k1-on-Web** ✅ Pure-Dart BIP32 + RFC 6979 ECDSA + RFC 5480 principal — native-byte-identical (`lib/rust/web/secp256k1.dart`).
+- **Web local stores** ✅ `ProfileRepository` / `ScriptRepository` no longer `dart:io`-only — conditional-import JSON store (`lib/services/json_store.dart`).
 
 ## See also
 
