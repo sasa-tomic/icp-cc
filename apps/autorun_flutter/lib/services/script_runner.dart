@@ -454,6 +454,15 @@ class ScriptRunner {
       return ScriptRunResult(ok: false, error: readiness.reason);
     }
 
+    // R-3b (Web): await the agent-js IC-agent bundle load before any canister
+    // call. Immediate no-op on native (IcAgentReady — the Rust FFI is the
+    // production path; agent-js is Web-only). A load failure surfaces as an
+    // honest error result rather than a silent no-op.
+    final icReadiness = await probeIcAgentReadiness();
+    if (icReadiness is IcAgentUnavailable) {
+      return ScriptRunResult(ok: false, error: icReadiness.reason);
+    }
+
     // Collect call outputs as decoded JSON values
     final Map<String, dynamic> callOutputs = <String, dynamic>{};
     for (final CanisterCallSpec spec in plan.calls) {

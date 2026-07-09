@@ -11,6 +11,7 @@
 // the access path is exercised end-to-end (not just the raw engine).
 library;
 
+import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
@@ -84,10 +85,24 @@ WebIcAgent _requireAgent() {
 /// [proxyOrigin], resolves it via [_resolveProxyOrigin]. [IcAgentReady] once
 /// created; [IcAgentUnavailable] (friendly reason) if the bundle failed to load
 /// — the host renders a panel rather than throwing.
+///
+/// The whole bundle-load + HttpAgent-creation path is bounded by
+/// [_probeTimeout]. The bootstrap's own 15s timeout only covers waiting for
+/// `globalThis.__icpCcAgent`; the HttpAgent creation (which fetches the mainnet
+/// root key via the proxy) is bounded here so a dead/unreachable backend
+/// surfaces as `IcAgentUnavailable` rather than hanging the boot indefinitely.
 Future<IcAgentReadiness> probeIcAgentReadiness({String? proxyOrigin}) async {
   try {
-    final agent = await _sharedAgent(proxyOrigin: proxyOrigin);
+    final agent = await _sharedAgent(proxyOrigin: proxyOrigin)
+        .timeout(_probeTimeout);
     return IcAgentReady(version: agent.version);
+  } on TimeoutException {
+    return const IcAgentUnavailable(
+      reason: 'IC agent unavailable',
+      detail: 'The agent-js bundle or backend CORS proxy did not respond in '
+          'time (30s). Check the backend is running and reachable, then reload '
+          'the page to try again.',
+    );
   } catch (e) {
     return IcAgentUnavailable(
       reason: 'IC agent unavailable',
@@ -97,6 +112,14 @@ Future<IcAgentReadiness> probeIcAgentReadiness({String? proxyOrigin}) async {
     );
   }
 }
+
+/// Bounded wait for the agent-js bundle load + HttpAgent creation. Mirrors
+/// `AppDurations.networkRequest` (30s) — the single source for network
+/// timeouts. Defined locally (not imported) because this module is
+/// Flutter-free (browser-only, `dart:js_interop`) and `app_design_system.dart`
+/// pulls in Flutter Material — importing it here would break VM-compilability of
+/// `native_bridge_web.dart` (the R-2/R-4 web-crypto tests import it directly).
+const Duration _probeTimeout = Duration(seconds: 30);
 
 /// `fetchCandid` (WU-2) — fetch a canister's `.did` via agent-js's
 /// `fetchCandid` (certified `read_state` for `candid:service` + the

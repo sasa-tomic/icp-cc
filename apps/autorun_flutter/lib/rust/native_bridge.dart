@@ -10,6 +10,15 @@ library;
 
 export 'native_bridge_io.dart' if (dart.library.html) 'native_bridge_web.dart';
 
+// R-3b WU-5 — IC-agent-on-Web readiness types (pure-Dart, VM-compilable).
+// Re-exported here so consumers (ScriptAppHost, ScriptRunner) get the probe +
+// its result type from the single facade import — exactly like QuickJsReadiness
+// above. The types themselves live in `ic_agent_types.dart` because they are
+// shared between the Web engine (`ic_agent_engine.dart`, browser-only) and the
+// VM stub (`ic_agent_engine_vm_stub.dart`), both of which must stay pure-Dart.
+export 'web/ic_agent_types.dart'
+    show IcAgentReadiness, IcAgentReady, IcAgentUnavailable;
+
 /// Keypair material returned by `RustBridgeLoader.generateKeypair`.
 class RustKeypairResult {
   RustKeypairResult({
@@ -89,4 +98,21 @@ final class QuickJsUnavailable extends QuickJsReadiness {
 // `probeQuickJsReadiness()` is defined per-platform in
 // `native_bridge_io.dart` (always [QuickJsReady]) and `native_bridge_web.dart`
 // (loads the singleton engine), and re-exported to consumers via the
+// conditional export at the top of this file.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// R-3b WU-5 — IC-agent-on-Web readiness.
+//
+// The agent-js bundle must be LOADED (async — fetch the vendored JS, create the
+// HttpAgent, fetch the mainnet root key via the CORS proxy) before any canister
+// call can run. On IO/native the probe is an immediate [IcAgentReady] (the Rust
+// FFI is the production path; agent-js is Web-only). On Web it loads the
+// process-wide singleton agent and surfaces a friendly [IcAgentUnavailable]
+// panel on failure — never a raw exception, never a silent no-op later. Mirrors
+// the QuickJsReadiness gate above; awaited at the same boot sites.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// `probeIcAgentReadiness()` is defined per-platform in
+// `native_bridge_io.dart` (always [IcAgentReady]) and `native_bridge_web.dart`
+// (loads the singleton agent), and re-exported to consumers via the
 // conditional export at the top of this file.

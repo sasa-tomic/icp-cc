@@ -19,11 +19,18 @@ import 'ic_agent_types.dart';
 
 export 'ic_agent_types.dart';
 
-Future<IcAgentReadiness> probeIcAgentReadiness({
-  required String proxyOrigin,
-}) async =>
-    throw UnsupportedError(
-        'IC agent probe requires the Web runtime; the VM uses native_bridge_io');
+/// On the VM there is no agent-js bundle to load — the native Rust FFI
+/// (`native_bridge_io.dart`) is the production path for canister calls, and
+/// agent-js is Web-only. Return [IcAgentReady] immediately so any incidental
+/// probe resolves (mirrors `probeWebQuickJsReadiness` on the VM stub). The
+/// [proxyOrigin] param is accepted for signature parity with the Web access
+/// module and ignored.
+Future<IcAgentReadiness> probeIcAgentReadiness({String? proxyOrigin}) async =>
+    const IcAgentReady(version: _icAgentNativeVersion);
+
+/// Sentinel version reported by the VM stub — makes clear the readiness came
+/// from the native FFI path, not an agent-js bundle (which only exists on Web).
+const String _icAgentNativeVersion = 'native-ffi';
 
 Future<IcAgentQueryResult> webQueryAnonymous({
   required String canisterId,

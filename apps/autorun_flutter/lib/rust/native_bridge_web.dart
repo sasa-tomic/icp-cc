@@ -73,6 +73,16 @@ import 'web/candid_interface_parser.dart';
 Future<QuickJsReadiness> probeQuickJsReadiness() =>
     qjs.probeWebQuickJsReadiness();
 
+/// R-3b WU-5 — IC-agent readiness probe. Delegates to the conditionally-selected
+/// IC-agent access module: on Web it lazily loads + awaits the singleton
+/// agent-js bundle (bounded by a 30s timeout) and returns [IcAgentReady] /
+/// [IcAgentUnavailable]; on the VM stub it returns [IcAgentReady] immediately
+/// (the Rust FFI is the production path; agent-js is Web-only). Awaited
+/// alongside [probeQuickJsReadiness] at boot so a failed Web load surfaces
+/// honestly via the existing busy/error UI (never a silent no-op later).
+Future<IcAgentReadiness> probeIcAgentReadiness() =>
+    icagent.probeIcAgentReadiness();
+
 /// Algorithm code: 0 = Ed25519 (the ICP-critical path; fully implemented).
 /// 1 = secp256k1 (BIP32 m/44'/223'/... ; best-effort, not yet on Web).
 const int _algEd25519 = 0;

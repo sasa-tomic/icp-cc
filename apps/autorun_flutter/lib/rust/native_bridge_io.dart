@@ -21,6 +21,20 @@ import 'native_bridge.dart';
 /// loads the singleton engine instead.
 Future<QuickJsReadiness> probeQuickJsReadiness() async => const QuickJsReady();
 
+/// R-3b WU-5 — On IO/native the IC-agent is the in-process Rust FFI
+/// (`call_anonymous` / `call_authenticated`); agent-js is Web-only. There is no
+/// async bundle to load, so the probe is immediately [IcAgentReady]. The Web
+/// counterpart (in `native_bridge_web.dart`) loads the singleton agent-js
+/// bundle instead. Awaited alongside [probeQuickJsReadiness] at boot so a
+/// failed Web load surfaces honestly via the existing busy/error UI.
+Future<IcAgentReadiness> probeIcAgentReadiness() async =>
+    const IcAgentReady(version: _icAgentNativeVersion);
+
+/// Sentinel version reported on native — makes clear readiness came from the
+/// Rust FFI path, not an agent-js bundle (which only exists on Web). Mirrors the
+/// VM stub's constant in `ic_agent_engine_vm_stub.dart`.
+const String _icAgentNativeVersion = 'native-ffi';
+
 class _Symbols {
   static const String generate = 'icp_generate_keypair';
   static const String principalFromPublicKey = 'icp_principal_from_public_key';

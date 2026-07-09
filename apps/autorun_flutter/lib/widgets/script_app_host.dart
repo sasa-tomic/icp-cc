@@ -177,6 +177,16 @@ class ScriptAppHostState extends State<ScriptAppHost> {
       if (readiness is QuickJsUnavailable) {
         throw StateError(readiness.reason);
       }
+      // R-3b (Web): the agent-js IC-agent bundle must be LOADED before any
+      // canister call (callAnonymous / callAuthenticated / fetchCandid). On
+      // native this is an immediate no-op (IcAgentReady — the Rust FFI is the
+      // production path; agent-js is Web-only). On Web it loads + awaits the
+      // singleton agent (bounded by a 30s timeout); a load failure surfaces as
+      // _error via the existing busy/error path — never a silent no-op later.
+      final icReadiness = await probeIcAgentReadiness();
+      if (icReadiness is IcAgentUnavailable) {
+        throw StateError(icReadiness.reason);
+      }
       final initOut = await widget.runtime
           .init(script: widget.script, initialArg: widget.initialArg);
       if (_cancelled) return;
