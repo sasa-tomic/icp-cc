@@ -81,3 +81,10 @@ String webJsAppUpdate(String script,
         int budgetMs = 50}) =>
     _requireEngine().jsAppUpdate(script,
         msgJson: msgJson, stateJson: stateJson, budgetMs: budgetMs);
+
+/// validate-runtime-stage parity (WU-5) — delegates to
+/// [WebQuickJsEngine.validateRuntimeStage]. Returns the list of syntax_errors
+/// the native runtime stage would push (empty = valid). Only invoked when the
+/// pure-Dart static stages (in `js_static_analysis.dart`) already passed.
+List<String> webJsValidateRuntimeStage(String script) =>
+    _requireEngine().validateRuntimeStage(script);

@@ -560,6 +560,89 @@ class WebQuickJsEngine implements JsAppEngine {
     }
   }
 
+  // ===========================================================================
+  // WU-5 — validate runtime stage parity (port of `runtime.rs:169-178,188-255`).
+  //
+  // The static (text-only) stages live in pure-Dart `js_static_analysis.dart`
+  // and run on both VM and Web. When they PASS, `validate_js_comprehensive`
+  // then runs this RUNTIME stage: a parse/eval check + a required-exports
+  // (init/view/update) check. This is browser-only (it evals the bundle), so
+  // it rides on the same Dart→JS interop as WU-1..WU-3.
+  //
+  // Returns a list of `syntax_errors` (empty = valid runtime stage), matching
+  // the exact messages the native engine pushes (`runtime.rs:198,209,228,233,
+  // 246-250`):
+  //   - "Syntax error: <detail>"          (parse / top-level throw)
+  //   - "Failed to execute script: <d>"   (re-eval threw)
+  //   - "Export check failed: <d>"        (global lookup threw)
+  //   - "Required function '<n>' not found - script will not execute properly"
+  //     (pushed for ALL of init/view/update when any is missing — runtime.rs:245)
+  // ===========================================================================
+
+  /// Port of `runtime.rs:188-255` runtime stage. Caller MUST have already run
+  /// the static stages and only invoke this when they were clean (mirrors the
+  /// native early-return at `runtime.rs:193-195`).
+  List<String> validateRuntimeStage(String script) {
+    final errors = <String>[];
+
+    // Phase 1 — syntax/parse check (`runtime.rs:169-178,197-201`). A fresh,
+    // bare context (NO host globals — matching `check_js_syntax`). rquickjs
+    // evals the script; any throw (parse error OR top-level runtime throw) is
+    // classified as "Syntax error: <detail>".
+    {
+      final ctx = newContext();
+      var threw = false;
+      try {
+        evalAndDump(ctx, script);
+      } on Object catch (e) {
+        threw = true;
+        errors.add('Syntax error: ${_jsErrString(e)}');
+      } finally {
+        _disposeContext(ctx, evalThrew: threw);
+      }
+    }
+    if (errors.isNotEmpty) return errors;
+
+    // Phase 2 — re-eval + required-exports (`runtime.rs:203-251`). A second
+    // fresh context evals the bundle, then checks `init`/`view`/`update` exist
+    // as globals (`check_js_required_exports` uses `globals.contains_key`,
+    // i.e. property existence — `runtime.rs:180-186`). The re-eval will not
+    // throw if phase 1 passed, but the branch is kept for faithful parity.
+    {
+      final ctx = newContext();
+      var threw = false;
+      try {
+        evalAndDump(ctx, script);
+        // Probe existence of all three globals in ONE eval (cheap, isolated).
+        // Mirrors `contains_key("init"|"view"|"update")`.
+        final probe = evalAndDump(
+          ctx,
+          "String(('init' in globalThis)?1:0)"
+          "+','+String(('view' in globalThis)?1:0)"
+          "+','+String(('update' in globalThis)?1:0)",
+        );
+        final parts = probe.toString().split(',');
+        final hasInit = parts.isNotEmpty && parts[0] == '1';
+        final hasView = parts.length > 1 && parts[1] == '1';
+        final hasUpdate = parts.length > 2 && parts[2] == '1';
+        if (!(hasInit && hasView && hasUpdate)) {
+          // Native pushes ALL THREE regardless of which is missing
+          // (`runtime.rs:245-250`).
+          for (final name in <String>['init', 'view', 'update']) {
+            errors.add(
+                "Required function '$name' not found - script will not execute properly");
+          }
+        }
+      } on Object catch (e) {
+        threw = true;
+        errors.add('Failed to execute script: ${_jsErrString(e)}');
+      } finally {
+        _disposeContext(ctx, evalThrew: threw);
+      }
+    }
+    return errors;
+  }
+
   /// Returns true when global `name` is NOT a function — mirrors native's
   /// `globals.get(name)` Function-downcast failure (→ "Required function …").
   bool _globalFnMissing(QuickJSContext ctx, String name) =>

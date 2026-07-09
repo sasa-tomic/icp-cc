@@ -38,3 +38,10 @@ String webJsAppUpdate(String script,
         int budgetMs = 50}) =>
     throw UnsupportedError(
         'QuickJS jsAppUpdate requires the Web runtime; the VM uses native_bridge_io');
+
+/// WU-5 validate-runtime-stage — VM stub. The static (pure-Dart) stages run on
+/// the VM, but the runtime syntax/exports check needs the browser engine.
+List<String> webJsValidateRuntimeStage(String script) =>
+    throw UnsupportedError(
+        'QuickJS validateRuntimeStage requires the Web runtime; the VM uses '
+        'native_bridge_io');

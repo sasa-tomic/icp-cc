@@ -25,6 +25,8 @@ import 'dart:js_interop_unsafe';
 
 import 'rust/web/js_exec_golden_vectors.dart';
 import 'rust/web/js_app_golden_vectors.dart';
+import 'rust/web/js_validation_golden_vectors.dart';
+import 'rust/web/js_static_analysis.dart';
 import 'rust/web/quickjs_engine.dart';
 
 Future<void> main() async {
@@ -33,10 +35,11 @@ Future<void> main() async {
     final engine = await WebQuickJsEngine.bootstrap();
     final jsExecChecks = _runJsExecVectors(engine);
     final jsAppChecks = _runJsAppVectors(engine);
+    final jsValidationChecks = _runJsValidationVectors(engine);
     result = ParityProbeResult(
       loaded: true,
       version: engine.version,
-      checks: <ParityCheck>[...jsExecChecks, ...jsAppChecks],
+      checks: <ParityCheck>[...jsExecChecks, ...jsAppChecks, ...jsValidationChecks],
     );
   } catch (e) {
     // A bootstrap failure is surfaced loudly (loaded=false, single check) so
@@ -108,6 +111,82 @@ List<ParityCheck> _runJsAppVectors(WebQuickJsEngine engine) {
   }
   return checks;
 }
+
+// R-3 WU-5 — runs each validate/lint vector through the FULL Web pipeline
+// (pure-Dart static stages + the engine runtime stage), then asserts the
+// resulting JsValidationResult + the lint envelope shape (the
+// `lint_js_returns_json_shape` parity bar).
+List<ParityCheck> _runJsValidationVectors(WebQuickJsEngine engine) {
+  final checks = <ParityCheck>[];
+  for (final v in jsValidationGoldenVectors) {
+    String detail = '';
+    try {
+      final context = v.context ?? defaultContext(v.script);
+      final result = runStaticStages(v.script, context);
+      // runtime.rs:193-195 — only run the engine stage when static passes.
+      if (result.isValid) {
+        result.syntaxErrors.addAll(engine.validateRuntimeStage(v.script));
+        result.isValid = result.syntaxErrors.isEmpty;
+      }
+      if (result.isValid != v.expectValid) {
+        detail = 'isValid(${result.isValid}) != expected(${v.expectValid}); '
+            'errors=${result.syntaxErrors}';
+      } else {
+        detail = v.assertion(result) ?? '';
+      }
+      // Also assert the lint envelope shape (`lint_js` keys present) — mirrors
+      // the native `lint_js_returns_json_shape` test for every vector.
+      if (detail.isEmpty) {
+        final lintEnv = _lintEnvelope(result);
+        for (final key in <String>['ok', 'errors', 'warnings', 'line_count']) {
+          if (!lintEnv.containsKey(key)) {
+            detail = 'lint envelope missing key "$key": $lintEnv';
+            break;
+          }
+        }
+        if (detail.isEmpty &&
+            (lintEnv['line_count'] is! int ||
+                lintEnv['character_count'] is! int)) {
+          detail = 'lint envelope counts not ints: $lintEnv';
+        }
+      }
+      checks.add(ParityCheck(
+        name: 'jsValidation/${v.name}',
+        pass: detail.isEmpty,
+        detail: detail.isEmpty ? jsonEncode(_validateEnvelope(result)) : detail,
+      ));
+    } catch (e) {
+      checks.add(ParityCheck(
+        name: 'jsValidation/${v.name}',
+        pass: false,
+        detail: 'threw: $e',
+      ));
+    }
+  }
+  return checks;
+}
+
+/// The `icp_js_validate_comprehensive` FFI envelope (`ffi.rs:366-373`).
+Map<String, Object?> _validateEnvelope(JsValidationResult r) =>
+    <String, Object?>{
+      'is_valid': r.isValid,
+      'syntax_errors': r.syntaxErrors,
+      'warnings': r.warnings,
+      'line_count': r.lineCount,
+      'character_count': r.characterCount,
+    };
+
+/// The `lint_js` envelope (`runtime.rs:257-267`).
+Map<String, Object?> _lintEnvelope(JsValidationResult r) =>
+    <String, Object?>{
+      'ok': r.isValid,
+      'errors': r.syntaxErrors
+          .map((e) => <String, Object?>{'message': e})
+          .toList(growable: false),
+      'warnings': r.warnings,
+      'line_count': r.lineCount,
+      'character_count': r.characterCount,
+    };
 
 void _publish(String json, ParityProbeResult r) {
   final doc = globalContext.getProperty<JSObject>('document'.toJS);

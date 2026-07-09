@@ -21,9 +21,9 @@
 ///   vector), so vault blobs round-trip across native ↔ web.
 ///
 /// ## What is still STUBBED (fail-fast, staged)
-/// - **QuickJS script execution / linting** (R-3): `jsExec`, `jsLint`,
-///   `validateJsComprehensive`, `jsAppInit/View/Update`. These need a
-///   QuickJS-WASM runtime (planned R-3 follow-up).
+/// - **QuickJS script execution / linting** (R-3): `jsExec`, `jsAppInit/View/
+///   Update`, `jsLint`, and `validateJsComprehensive` are ALL REAL on Web
+///   (WU-1..WU-5). R-3 static analysis + execution are at parity with native.
 /// - **IC canister calls**: `fetchCandid`, `parseCandid`, `callAnonymous`,
 ///   `callAuthenticated`. These need a web HTTP agent (planned follow-up).
 ///
@@ -53,6 +53,11 @@ import 'native_bridge.dart';
 // `native_bridge_io.dart`'s FFI; the web-crypto tests never call these).
 import 'web/quickjs_engine_web_access.dart'
     if (dart.library.io) 'web/quickjs_engine_vm_stub.dart' as qjs;
+// R-3 WU-5: the JS static-analysis rules (pure-Dart port of the native
+// `static_analysis` mod). Pure-Dart → no conditional import needed; compiles
+// unchanged on VM and Web. The runtime syntax/exports check rides on the
+// `qjs` engine access module above (browser-only).
+import 'web/js_static_analysis.dart';
 
 /// Web readiness probe — delegates to the conditionally-selected engine access
 /// module (loads the singleton on Web; [QuickJsReady] on the VM stub).
@@ -378,7 +383,19 @@ class RustBridgeLoader {
   }
 
   String? jsLint({required String script}) {
-    throw UnsupportedError('jsLint $_stagedReason');
+    // `lint_js` (`runtime.rs:257-267`): auto-detects context (context=None →
+    // default_context) and wraps `validate_js_comprehensive`. Envelope:
+    //   {ok, errors:[{message}], warnings:[string], line_count, character_count}
+    final result = _validateComprehensive(script, defaultContext(script));
+    return jsonEncode(<String, dynamic>{
+      'ok': result.isValid,
+      'errors': result.syntaxErrors
+          .map((e) => <String, dynamic>{'message': e})
+          .toList(growable: false),
+      'warnings': result.warnings,
+      'line_count': result.lineCount,
+      'character_count': result.characterCount,
+    });
   }
 
   String? validateJsComprehensive({
@@ -387,7 +404,37 @@ class RustBridgeLoader {
     bool isTest = false,
     bool isProduction = false,
   }) {
-    throw UnsupportedError('validateJsComprehensive $_stagedReason');
+    // `icp_js_validate_comprehensive` (`ffi.rs:348-376`): context built
+    // DIRECTLY from the caller's flags (no auto-detect). Envelope:
+    //   {is_valid, syntax_errors:[string], warnings, line_count, character_count}
+    final context = JsValidationContext(
+      isExample: isExample,
+      isTest: isTest,
+      isProduction: isProduction,
+    );
+    final result = _validateComprehensive(script, context);
+    return jsonEncode(<String, dynamic>{
+      'is_valid': result.isValid,
+      'syntax_errors': result.syntaxErrors,
+      'warnings': result.warnings,
+      'line_count': result.lineCount,
+      'character_count': result.characterCount,
+    });
+  }
+
+  /// Port of `validate_js_comprehensive` (`runtime.rs:188-255`): run the
+  /// pure-Dart static stages; if they pass, run the runtime stage (syntax +
+  /// required-exports) via the loaded Web engine. The static stages are
+  /// VM-testable; the runtime stage is browser-only (rides on the `qjs` access
+  /// module) — the early-return when static stages fail keeps the common
+  /// negative cases VM-testable end-to-end.
+  JsValidationResult _validateComprehensive(
+      String script, JsValidationContext context) {
+    final result = runStaticStages(script, context);
+    if (!result.isValid) return result; // runtime.rs:193-195
+    result.syntaxErrors.addAll(qjs.webJsValidateRuntimeStage(script));
+    result.isValid = result.syntaxErrors.isEmpty;
+    return result;
   }
 
   /// R-3: app lifecycle — `init(arg)→{state,effects}` (mirrors native
@@ -496,20 +543,28 @@ class RustBridgeLoader {
 }
 
 class NativeBridge {
+  final RustBridgeLoader _loader = const RustBridgeLoader();
+
   String validateJsComprehensive({
     required String script,
     bool isExample = false,
     bool isTest = false,
     bool isProduction = false,
   }) {
-    throw UnsupportedError('validateJsComprehensive $_stagedReason');
+    return _loader.validateJsComprehensive(
+          script: script,
+          isExample: isExample,
+          isTest: isTest,
+          isProduction: isProduction,
+        ) ??
+        '';
   }
 
   String? jsExec({required String script, String? jsonArg}) {
-    throw UnsupportedError('jsExec $_stagedReason');
+    return _loader.jsExec(script: script, jsonArg: jsonArg);
   }
 
   String? jsLint({required String script}) {
-    throw UnsupportedError('jsLint $_stagedReason');
+    return _loader.jsLint(script: script);
   }
 }
