@@ -22,7 +22,7 @@ execution (QuickJS) and direct IC canister calls are deliberately **stubbed**
 | Backend CORS for browser fetch | ✅ Permissive by default (no change needed) |
 | Passkeys (`navigator.credentials`) | ✅ Compiles; WebAuthn E2E needs a real browser session |
 | secp256k1 keypair / signing | ⚠️ Best-effort STUBBED (Ed25519 is the ICP-critical path) |
-| QuickJS script execution / linting (R-3) | 🟢 Execution (R-3a) ✅ — init/view/update + jsExec run on Web; lint/validate (WU-5) + IC-agent (R-3b) pending |
+| QuickJS script execution / linting (R-3) | 🟢 **R-3a ✅** — execution (init/view/update + jsExec) AND lint/validate run on Web with native parity (51 golden vectors); only IC-agent (R-3b) pending |
 | IC canister calls (`fetchCandid`, `callAuthenticated`, …) | ❌ STUBBED — staged |
 
 ## How to run
@@ -93,8 +93,8 @@ separate effort (R-3 / IC HTTP-agent) and are NOT regressions:
   producing the same `{state, effects}` / `{result, messages}` envelopes as the
   native engine. A readiness gate (`probeQuickJsReadiness()`) loads the engine
   before the sync eval calls; loading/unavailable states surface honestly.
-  `jsLint` + `validateJsComprehensive` remain stubbed (WU-5 — static-analysis
-  port) — script *execution* works without them.
+  `jsLint` + `validateJsComprehensive` are **DONE (WU-5)** — a pure-Dart port of
+  the `static_analysis` mod (no QuickJS needed for the static stages), VM-tested.
 - `fetchCandid`, `parseCandid`, `callAnonymous`, `callAuthenticated` — need a
   Web-native IC HTTP agent (R-3b follow-up). Scripts that emit `action:"call"`/
   `"batch"` *effects* run and surface the descriptors; resolving them to live
@@ -129,13 +129,14 @@ standard QuickJS-WASM library — its runtime API is a near-1:1 match for
     unavailable states surface honestly via the busy/error UI. `native_bridge_web.dart`
     routes through a conditional-import access module (VM-pure stub on IO) so the
     R-2/R-4 web-crypto VM tests keep passing.
-  - **Parity evidence:** `just verify-quickjs-web-parity` runs 32 golden vectors
-    (every `execute_js_json` + `js_app_*` Rust test, plus the shipped
-    `01_hello_world.js`) on headless Chromium — identical `{state, effects}` /
-    `{result, messages}` envelopes. `just verify-quickjs-web-app` runs the SAME
+  - **Parity evidence:** `just verify-quickjs-web-parity` runs **51 golden vectors**
+    (32 execution: every `execute_js_json` + `js_app_*` Rust test, plus the shipped
+    `01_hello_world.js`; 19 validation/lint: every `validate_js_comprehensive`/
+    `lint_js` Rust test) on headless Chromium — identical envelopes. `just verify-quickjs-web-app` runs the SAME
     bundle through the REAL production stack (`probeQuickJsReadiness →
     RustScriptBridge → ScriptAppRuntime`).
-  - WU-5 (lint/validate static-analysis port) + R-3b (IC HTTP agent) pending.
+  - **R-3a complete (execution + lint/validate) ✅.** Only R-3b (IC HTTP agent)
+    pending.
 - **Testing posture:** the engine is browser-only (`dart:js_interop` can't be
   imported in `flutter test` VM). The headless-Chrome harness
   (`scripts/quickjs_web_probe/` — `verify.js`, `verify_parity.js`,
@@ -183,7 +184,7 @@ served by `flutter run -d chrome` (e.g. `http://localhost:<port>` in dev).
 - **R-2** ✅ Ed25519 keygen / sign / ICP principal (pure Dart, cross-compatible).
 - **R-4** ✅ Vault crypto — Argon2id + AES-256-GCM (pure Dart, cross-compatible).
 - **R-5** ✅ CORS verified; secure-storage + passkeys wired for Web.
-- **R-3** 🟢 QuickJS-WASM script runtime — R-3a (execution) ✅: jsExec + init/view/update run on Web with native parity (32 golden vectors + production-path probe green); WU-5 (lint/validate) + R-3b (IC-agent) pending.
+- **R-3** 🟢 QuickJS-WASM script runtime — **R-3a ✅ (execution + lint/validate)**: jsExec + init/view/update + jsLint/validateJsComprehensive run on Web with native parity (51 golden vectors + production-path probe green); only R-3b (IC HTTP agent) pending.
 - **IC-agent** ⏳ Web-native canister HTTP agent (staged).
 
 ## See also
