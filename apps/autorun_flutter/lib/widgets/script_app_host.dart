@@ -168,6 +168,15 @@ class ScriptAppHostState extends State<ScriptAppHost> {
       _error = null;
     });
     try {
+      // R-3 (Web): the QuickJS-WASM engine must be LOADED before any sync eval.
+      // On native this is an immediate no-op (QuickJsReady). On Web it kicks off
+      // + awaits the singleton engine load; while loading the existing _busy
+      // progress indicator shows, and a load failure surfaces as _error (never
+      // a silent no-op). Evaluated before init() so the loading state is honest.
+      final readiness = await probeQuickJsReadiness();
+      if (readiness is QuickJsUnavailable) {
+        throw StateError(readiness.reason);
+      }
       final initOut = await widget.runtime
           .init(script: widget.script, initialArg: widget.initialArg);
       if (_cancelled) return;

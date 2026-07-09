@@ -49,3 +49,44 @@ class VaultDecryptionException implements Exception {
   @override
   String toString() => 'VaultDecryptionException: $message';
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// R-3 WU-4 — QuickJS-on-Web readiness.
+//
+// The QuickJS-WASM engine must be LOADED (async, ~1–2 s on first run) before
+// any script can execute. These sealed types let the UI render an honest
+// loading / unavailable state instead of a raw exception or a silent no-op
+// (mirrors the SecureStorageReadiness pattern). On IO/native the probe returns
+// [QuickJsReady] immediately (the FFI is always available); on Web it loads
+// the process-wide singleton engine.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Result of [probeQuickJsReadiness]. Sealed so callers handle both states.
+sealed class QuickJsReadiness {
+  const QuickJsReadiness();
+  bool get isReady;
+}
+
+/// The QuickJS engine is loaded (Web) or the FFI is available (native) —
+/// scripts can execute.
+final class QuickJsReady extends QuickJsReadiness {
+  const QuickJsReady();
+  @override
+  bool get isReady => true;
+}
+
+/// The QuickJS-WASM engine could not be loaded (Web only). Render an actionable
+/// panel — never a raw exception, never a silent no-op. [reason] is user-facing;
+/// [detail] is for an optional "show details" affordance.
+final class QuickJsUnavailable extends QuickJsReadiness {
+  const QuickJsUnavailable({required this.reason, this.detail});
+  final String reason;
+  final String? detail;
+  @override
+  bool get isReady => false;
+}
+
+// `probeQuickJsReadiness()` is defined per-platform in
+// `native_bridge_io.dart` (always [QuickJsReady]) and `native_bridge_web.dart`
+// (loads the singleton engine), and re-exported to consumers via the
+// conditional export at the top of this file.

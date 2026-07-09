@@ -14,6 +14,13 @@ import 'package:flutter/foundation.dart';
 
 import 'native_bridge.dart';
 
+/// On IO/native the QuickJS engine is the in-process rquickjs FFI — always
+/// available (or surfaced as a per-call `null`/error by [RustBridgeLoader] when
+/// `libicp_core` is missing). There is no async WASM load to await, so the probe
+/// is immediately [QuickJsReady]. The Web counterpart (in `native_bridge_web.dart`)
+/// loads the singleton engine instead.
+Future<QuickJsReadiness> probeQuickJsReadiness() async => const QuickJsReady();
+
 class _Symbols {
   static const String generate = 'icp_generate_keypair';
   static const String principalFromPublicKey = 'icp_principal_from_public_key';

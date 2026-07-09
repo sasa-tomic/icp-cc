@@ -443,6 +443,14 @@ class ScriptRunner {
       return ScriptRunResult(ok: false, error: 'bundle is empty');
     }
 
+    // R-3 (Web): await the QuickJS-WASM engine load before the sync jsExec.
+    // Immediate no-op on native (QuickJsReady). A load failure surfaces as an
+    // honest error result rather than a silent no-op.
+    final readiness = await probeQuickJsReadiness();
+    if (readiness is QuickJsUnavailable) {
+      return ScriptRunResult(ok: false, error: readiness.reason);
+    }
+
     // Collect call outputs as decoded JSON values
     final Map<String, dynamic> callOutputs = <String, dynamic>{};
     for (final CanisterCallSpec spec in plan.calls) {

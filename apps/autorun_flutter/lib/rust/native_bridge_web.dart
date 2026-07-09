@@ -45,6 +45,19 @@ import 'package:cryptography/dart.dart';
 import 'package:ed25519_edwards/ed25519_edwards.dart' as ed;
 
 import 'native_bridge.dart';
+// R-3 WU-4: the QuickJS-WASM engine is browser-only (`dart:js_interop`). This
+// file is imported DIRECTLY by the R-2/R-4 web-crypto VM tests, so it must stay
+// pure-Dart (VM-compilable). The engine singleton + exec wrappers live in the
+// conditionally-selected access module: on Web → the real engine, on VM
+// (`dart.library.io`) → a throwing stub (the VM production path uses
+// `native_bridge_io.dart`'s FFI; the web-crypto tests never call these).
+import 'web/quickjs_engine_web_access.dart'
+    if (dart.library.io) 'web/quickjs_engine_vm_stub.dart' as qjs;
+
+/// Web readiness probe — delegates to the conditionally-selected engine access
+/// module (loads the singleton on Web; [QuickJsReady] on the VM stub).
+Future<QuickJsReadiness> probeQuickJsReadiness() =>
+    qjs.probeWebQuickJsReadiness();
 
 /// Reason used by every STUBBED method below (R-3 / IC-agent — staged for a
 /// separate effort). Kept loud (UnsupportedError) so any accidental call from
@@ -357,8 +370,11 @@ class RustBridgeLoader {
     throw UnsupportedError('callAuthenticated $_stagedReason');
   }
 
+  /// R-3: execute a JS bundle and return the `{ok,result,messages}` /
+  /// `{ok,error}` envelope (mirrors the native FFI `icp_js_exec`). The engine
+  /// MUST be loaded first — see [probeQuickJsReadiness] / the readiness gate.
   String? jsExec({required String script, String? jsonArg}) {
-    throw UnsupportedError('jsExec $_stagedReason');
+    return qjs.execWebJs(script, jsonArg: jsonArg);
   }
 
   String? jsLint({required String script}) {
@@ -374,21 +390,28 @@ class RustBridgeLoader {
     throw UnsupportedError('validateJsComprehensive $_stagedReason');
   }
 
+  /// R-3: app lifecycle — `init(arg)→{state,effects}` (mirrors native
+  /// `icp_js_app_init`). Engine must be loaded (readiness gate).
   String? jsAppInit({required String script, String? jsonArg, int budgetMs = 50}) {
-    throw UnsupportedError('jsAppInit $_stagedReason');
+    return qjs.webJsAppInit(script, jsonArg: jsonArg, budgetMs: budgetMs);
   }
 
+  /// R-3: app lifecycle — `view(state)→{ok,ui}` (mirrors native
+  /// `icp_js_app_view`).
   String? jsAppView({required String script, required String stateJson, int budgetMs = 50}) {
-    throw UnsupportedError('jsAppView $_stagedReason');
+    return qjs.webJsAppView(script, stateJson: stateJson, budgetMs: budgetMs);
   }
 
+  /// R-3: app lifecycle — `update(msg,state)→{state,effects}` (mirrors native
+  /// `icp_js_app_update`).
   String? jsAppUpdate({
     required String script,
     required String msgJson,
     required String stateJson,
     int budgetMs = 50,
   }) {
-    throw UnsupportedError('jsAppUpdate $_stagedReason');
+    return qjs.webJsAppUpdate(script,
+        msgJson: msgJson, stateJson: stateJson, budgetMs: budgetMs);
   }
 
   /// Encrypt `plaintextB64` under `password` (Argon2id KDF + AES-256-GCM).

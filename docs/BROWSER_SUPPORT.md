@@ -22,7 +22,7 @@ execution (QuickJS) and direct IC canister calls are deliberately **stubbed**
 | Backend CORS for browser fetch | ✅ Permissive by default (no change needed) |
 | Passkeys (`navigator.credentials`) | ✅ Compiles; WebAuthn E2E needs a real browser session |
 | secp256k1 keypair / signing | ⚠️ Best-effort STUBBED (Ed25519 is the ICP-critical path) |
-| QuickJS script execution / linting (R-3) | 🟡 WU-1 PoC proven; parity (WU-2..5) in progress |
+| QuickJS script execution / linting (R-3) | 🟢 Execution (R-3a) ✅ — init/view/update + jsExec run on Web; lint/validate (WU-5) + IC-agent (R-3b) pending |
 | IC canister calls (`fetchCandid`, `callAuthenticated`, …) | ❌ STUBBED — staged |
 
 ## How to run
@@ -87,14 +87,18 @@ See `apps/autorun_flutter/test/features/web/` for the cross-compat suites.
 The following throw a loud `UnsupportedError` on Web. They are **staged** for a
 separate effort (R-3 / IC HTTP-agent) and are NOT regressions:
 
-- `jsExec`, `jsLint`, `validateJsComprehensive`, `jsAppInit`, `jsAppView`,
-  `jsAppUpdate` — need a QuickJS-WASM runtime (R-3 follow-up). **WU-1 of R-3
-  is done**: the `quickjs-emscripten` singlefile-browser WASM build is vendored
-  at `web/vendor/quickjs/` and proven to load + eval + enforce memory/interrupt
-  limits from Dart via `dart:js_interop` (`lib/rust/web/quickjs_engine.dart`).
-  The execution-parity port (WU-2..5) wires these stubs to that engine.
+- `jsExec`, `jsAppInit`, `jsAppView`, `jsAppUpdate` — **DONE (R-3a).** These
+  now run on Web via the vendored `quickjs-emscripten` WASM
+  (`web/vendor/quickjs/`) driven from Dart (`lib/rust/web/quickjs_engine.dart`),
+  producing the same `{state, effects}` / `{result, messages}` envelopes as the
+  native engine. A readiness gate (`probeQuickJsReadiness()`) loads the engine
+  before the sync eval calls; loading/unavailable states surface honestly.
+  `jsLint` + `validateJsComprehensive` remain stubbed (WU-5 — static-analysis
+  port) — script *execution* works without them.
 - `fetchCandid`, `parseCandid`, `callAnonymous`, `callAuthenticated` — need a
-  Web-native IC HTTP agent (follow-up).
+  Web-native IC HTTP agent (R-3b follow-up). Scripts that emit `action:"call"`/
+  `"batch"` *effects* run and surface the descriptors; resolving them to live
+  IC calls is what R-3b adds.
 - `secp256k1` keygen / signing (`alg=1`) — best-effort; Ed25519 (`alg=0`) is the
   ICP-critical path and is fully implemented. secp256k1 requires BIP32
   derivation (`m/44'/223'/0'/0/0`) on top of ECDSA, staged as an R-2 follow-up.
@@ -113,16 +117,31 @@ standard QuickJS-WASM library — its runtime API is a near-1:1 match for
   by a `<script type="module">` in `web/index.html`; it installs
   `globalThis.__quickjsEmscripten`, which `lib/rust/web/quickjs_engine.dart`
   drives via `dart:js_interop`.
-- **Status:** WU-1 (PoC) ✅ — `flutter build web` clean; headless-Chromium
-  harness (`just verify-quickjs-web`) proves `evalCode("1+2")===3`,
-  `setMemoryLimit` aborts OOM (`InternalError: out of memory`), and
-  `setInterruptHandler` halts `while(true){}` at the wall-clock deadline
-  (`InternalError: interrupted`, ~100ms — mirroring `runtime.rs:25,30-37`).
-  WU-2..5 (execution parity + lint + wire-in) in progress.
+- **Status:**
+  - WU-1 (PoC) ✅ — `flutter build web` clean; `just verify-quickjs-web` proves
+    `evalCode("1+2")===3`, `setMemoryLimit` aborts OOM (`InternalError: out of
+    memory`), and `setInterruptHandler` halts `while(true){}` at the wall-clock
+    deadline (`InternalError: interrupted`, ~100ms — mirroring `runtime.rs:25,30-37`).
+  - **R-3a (execution) ✅** — `jsExec` + `jsAppInit/View/Update` ported to
+    `WebQuickJsEngine` (byte-for-byte host globals + envelopes). A process-wide
+    singleton engine + `probeQuickJsReadiness()` readiness gate (awaited in
+    `ScriptAppHost._boot` / `ScriptRunner.run`) loads the WASM once; loading /
+    unavailable states surface honestly via the busy/error UI. `native_bridge_web.dart`
+    routes through a conditional-import access module (VM-pure stub on IO) so the
+    R-2/R-4 web-crypto VM tests keep passing.
+  - **Parity evidence:** `just verify-quickjs-web-parity` runs 32 golden vectors
+    (every `execute_js_json` + `js_app_*` Rust test, plus the shipped
+    `01_hello_world.js`) on headless Chromium — identical `{state, effects}` /
+    `{result, messages}` envelopes. `just verify-quickjs-web-app` runs the SAME
+    bundle through the REAL production stack (`probeQuickJsReadiness →
+    RustScriptBridge → ScriptAppRuntime`).
+  - WU-5 (lint/validate static-analysis port) + R-3b (IC HTTP agent) pending.
 - **Testing posture:** the engine is browser-only (`dart:js_interop` can't be
   imported in `flutter test` VM). The headless-Chrome harness
-  (`scripts/quickjs_web_probe/`) is the parity test path, reused by WU-2..5.
-  See `docs/specs/2026-07-09-r3-web-script-execution.md` §2.3.
+  (`scripts/quickjs_web_probe/` — `verify.js`, `verify_parity.js`,
+  `verify_app.js`) is the parity test path. Pure-Dart logic (golden-vector
+  catalogues, the readiness types) is VM-tested. See
+  `docs/specs/2026-07-09-r3-web-script-execution.md` §2.3.
 
 ## CORS
 
@@ -164,7 +183,7 @@ served by `flutter run -d chrome` (e.g. `http://localhost:<port>` in dev).
 - **R-2** ✅ Ed25519 keygen / sign / ICP principal (pure Dart, cross-compatible).
 - **R-4** ✅ Vault crypto — Argon2id + AES-256-GCM (pure Dart, cross-compatible).
 - **R-5** ✅ CORS verified; secure-storage + passkeys wired for Web.
-- **R-3** 🟡 QuickJS-WASM script runtime — WU-1 (PoC) ✅, parity (WU-2..5) in progress.
+- **R-3** 🟢 QuickJS-WASM script runtime — R-3a (execution) ✅: jsExec + init/view/update run on Web with native parity (32 golden vectors + production-path probe green); WU-5 (lint/validate) + R-3b (IC-agent) pending.
 - **IC-agent** ⏳ Web-native canister HTTP agent (staged).
 
 ## See also
