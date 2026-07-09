@@ -311,6 +311,47 @@ verify-quickjs-web-app:
     timeout 180 node "$probe_dir/verify_app.js"
 
 # =============================================================================
+# R-3b WU-0 — agent-js IC-agent browser PoC (headless Chromium, REAL IC query)
+# =============================================================================
+#
+# Proves the browser→backend-proxy→IC-boundary-node path end-to-end with ONE
+# real anonymous canister query (ICP ledger `symbol` → "ICP"). Starts the
+# backend (for the /api/v1/ic CORS byte-relay proxy, WU-1), builds the
+# Flutter-free probe entrypoint (lib/web_probe_agent_main.dart) pointed at the
+# proxy, serves build/web, loads it in headless Chromium, and asserts the
+# agent-js round-trip succeeded. The agent routes through the proxy because
+# ic0.app sends no CORS headers for /api/v2/* (plan §7.2).
+#
+# Requires: the backend proxy (WU-1, committed) + a Playwright Chromium browser
+# (auto-installed, or present in ~/.cache/ms-playwright/) + outbound network
+# to ic0.app (the box reaches it — verified during WU-1).
+verify-ic-agent-web:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    probe_dir="{{root}}/scripts/ic_agent_web_probe"
+    echo "==> Starting backend API server (for the IC CORS proxy)..."
+    just api-dev-up
+    api_port=$(just _api-dev-port)
+    proxy_host="http://127.0.0.1:${api_port}"
+    echo "==> IC proxy at ${proxy_host}/api/v1/ic"
+    echo "==> Installing Playwright harness deps (idempotent)..."
+    cd "$probe_dir" && npm install --no-audit --no-fund --omit=dev >/dev/null 2>&1
+    if ! node -e "require('playwright')" 2>/dev/null; then
+      echo "==> Playwright Chromium not found in cache; installing browser..."
+      npx playwright install chromium
+    fi
+    echo "==> Building agent probe web app (flutter build web --target=lib/web_probe_agent_main.dart)..."
+    cd {{flutter_dir}} && flutter build web --target=lib/web_probe_agent_main.dart --dart-define=IC_AGENT_PROXY_HOST="${proxy_host}"
+    echo "==> Running headless-Chromium agent PoC (foreground, timeout-bounded)..."
+    set +e
+    timeout 180 node "$probe_dir/verify_agent.js"
+    probe_exit=$?
+    set -e
+    just api-dev-down >/dev/null 2>&1 || true
+    if [ "$probe_exit" -ne 0 ]; then echo "❌ IC-agent web probe FAILED (exit $probe_exit)"; exit 1; fi
+    echo "✅ IC-agent web probe PASSED"
+
+# =============================================================================
 # Integration / E2E (real-app user-flow probes)
 # =============================================================================
 #

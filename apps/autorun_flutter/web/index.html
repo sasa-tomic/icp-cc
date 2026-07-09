@@ -39,6 +39,13 @@
        WASM instantiate is kicked off here (async), so by the time Dart awaits
        __quickjsEmscripten.modulePromise, loading is already in flight. -->
   <script type="module" src="vendor/quickjs/quickjs_emscripten.bundle.js"></script>
+  <!-- R-3b: vendored agent-js (pure JS, no WASM) for browser-side IC canister
+       calls. Installs globalThis.__icpCcAgent (createAnonymousAgent / query /
+       decodeText), read by lib/rust/web/ic_agent_engine.dart. Lazily kicked
+       off here (async); Dart awaits the global in WebIcAgent.bootstrap(). The
+       agent routes through the backend CORS proxy (/api/v1/ic) so the browser
+       never calls ic0.app directly (no CORS). -->
+  <script type="module" src="vendor/ic_agent/ic_agent.bundle.js"></script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
