@@ -266,6 +266,29 @@ verify-quickjs-web:
     echo "==> Running headless-Chromium verification (foreground, timeout-bounded)..."
     timeout 120 node "$probe_dir/verify.js"
 
+# R-3 WU-2/WU-3 — QuickJS-on-Web PARITY verification (golden vectors).
+#
+# Builds the parity-suite probe entrypoint
+# (lib/web_probe_parity_main.dart), serves build/web, loads it in headless
+# Chromium via Playwright, and asserts the WebQuickJsEngine produces the SAME
+# envelopes as the native engine for the full jsExec + jsApp golden-vector
+# catalogue (the parity bar — plan §3 WU-2/WU-3). Reuses the same
+# quickjs_web_probe harness deps as verify-quickjs-web.
+verify-quickjs-web-parity:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    probe_dir="{{root}}/scripts/quickjs_web_probe"
+    echo "==> Installing Playwright harness deps (idempotent)..."
+    cd "$probe_dir" && npm install --no-audit --no-fund --omit=dev >/dev/null 2>&1
+    if ! node -e "require('playwright')" 2>/dev/null; then
+        echo "==> Playwright Chromium not found in cache; installing browser..."
+        npx playwright install chromium
+    fi
+    echo "==> Building parity probe web app (flutter build web --target=lib/web_probe_parity_main.dart)..."
+    cd {{flutter_dir}} && flutter build web --target=lib/web_probe_parity_main.dart
+    echo "==> Running headless-Chromium parity verification (foreground, timeout-bounded)..."
+    timeout 180 node "$probe_dir/verify_parity.js"
+
 # =============================================================================
 # Integration / E2E (real-app user-flow probes)
 # =============================================================================

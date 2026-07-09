@@ -35,6 +35,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
@@ -124,12 +125,65 @@ extension type QuickJSContext._(JSObject _) implements JSObject {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WebQuickJsEngine — loads the module once, then exposes the primitive.
+// Native-parity constants + host globals — verbatim port of
+// `crates/icp_core/src/js_engine/runtime.rs:7-9, 64-90`.
+//
+// These MUST stay byte-for-byte identical to the Rust reference so that a
+// bundle produces the SAME `{state, effects}` / `{result, messages}` on Web as
+// on native. The host helpers only BUILD descriptor objects (no JS→Dart
+// callback channel — see plan §1.3); the Dart host resolves effects outside
+// QuickJS (`script_runner.dart`).
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// `runtime.rs:7` — JS heap memory limit (64 MiB).
+const int _memLimit = 64 * 1024 * 1024;
+
+/// `runtime.rs:8` — max stack size (512 KiB).
+const int _stackLimit = 512 * 1024;
+
+/// `runtime.rs:9` — default execution budget when the caller passes 0/omits.
+const int _defaultBudgetMs = 100;
+
+/// `runtime.rs:64-85` — host bootstrap globals injected before every bundle.
+/// Defines `__icp_messages`, `icp_log`, `get_arg`, and the `icp_*` descriptor
+/// builders / formatters. Identical JS to the Rust constant.
+const String _hostBootstrapJs = r'''
+var __icp_messages = [];
+function icp_log(msg){ __icp_messages.push(String(msg)); }
+function get_arg(){ return arg; }
+
+function icp_call(spec){ spec = spec || {}; spec.action = "call"; return spec; }
+function icp_batch(calls){ return { action: "batch", calls: calls || [] }; }
+function icp_message(spec){ spec = spec || {}; return { action: "message", text: String((spec && spec.text != null) ? spec.text : ""), type: String((spec && spec.type != null) ? spec.type : "info") }; }
+function icp_ui_list(spec){ spec = spec || {}; return { action: "ui", ui: { type: "list", items: (spec && spec.items) || [], buttons: (spec && spec.buttons) || [] } }; }
+function icp_result_display(spec){ return { action: "ui", ui: { type: "result_display", props: spec } }; }
+function icp_searchable_list(spec){ spec = spec || {}; return { action: "ui", ui: { type: "list", props: { searchable: !spec || spec.searchable !== false, items: (spec && spec.items) || [], title: (spec && spec.title) || "Results" } } }; }
+function icp_section(spec){ spec = spec || {}; return { action: "ui", ui: { type: "section", props: { title: (spec && spec.title) || "", content: (spec && spec.content) || "" } } }; }
+function icp_table(data){ return { action: "ui", ui: { type: "table", props: data } }; }
+function icp_format_number(value, decimals){ return String(Number(value) || 0); }
+function icp_format_icp(value, decimals){ var d = (decimals == null) ? 8 : decimals; return String((Number(value) || 0) / Math.pow(10, d)); }
+function icp_format_timestamp(value){ return String(Number(value) || 0); }
+function icp_format_bytes(value){ return String(Number(value) || 0); }
+function icp_truncate(text, maxLen){ return String(text); }
+function icp_filter_items(items, field, value){ return (items || []).filter(function(it){ return String((it && it[field] != null) ? it[field] : "").indexOf(String(value)) !== -1; }); }
+function icp_sort_items(items, field, ascending){ return (items || []).slice().sort(function(a, b){ var av = String((a && a[field] != null) ? a[field] : ""); var bv = String((b && b[field] != null) ? b[field] : ""); if (ascending) { return av < bv ? -1 : (av > bv ? 1 : 0); } return av > bv ? -1 : (av < bv ? 1 : 0); }); }
+function icp_group_by(items, field){ return (items || []).reduce(function(g, it){ var k = String((it && it[field] != null) ? it[field] : "unknown"); if (!g[k]) { g[k] = []; } g[k].push(it); return g; }, {}); }
+''';
+
+/// `runtime.rs:87-90` — defence-in-depth: neutralise `eval` + `Function`
+/// constructor inside the sandbox.
+const String _neutralizeEvalJs = r'''
+globalThis.eval = function(){ throw new Error('eval is disabled in sandbox'); };
+globalThis.Function = function(){ throw new Error('Function constructor is disabled in sandbox'); };
+''';
 
 /// The result of [WebQuickJsEngine.runProbe] — the WU-1 end-to-end proof.
 /// (Type + `QuickJsLoadException` live in `quickjs_probe_result.dart` so the
 /// contract is VM-testable without importing `dart:js_interop`.)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WebQuickJsEngine — loads the module once, then exposes the primitive.
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Drives the vendored `quickjs-emscripten` WASM from Dart. One instance owns
 /// one loaded [QuickJSWASMModule]; per-call isolation is achieved by creating
@@ -183,8 +237,8 @@ class WebQuickJsEngine {
   /// applied. Caller MUST [QuickJSContext.dispose] it (prefer
   /// [evalAndDump] / a `try/finally`).
   QuickJSContext newContext({
-    int memoryLimitBytes = 64 * 1024 * 1024, // MEM_LIMIT (runtime.rs:7)
-    int stackLimitBytes = 512 * 1024, // STACK_LIMIT (runtime.rs:8)
+    int memoryLimitBytes = _memLimit,
+    int stackLimitBytes = _stackLimit,
     JSFunction? interruptHandler,
   }) {
     final ctx = _module.newContext();
@@ -224,6 +278,147 @@ class WebQuickJsEngine {
         .callAsFunction(null, deadlineMs.toJS);
     return fn as JSFunction;
   }
+
+  // ===========================================================================
+  // WU-2 — `jsExec` parity (port of `runtime.rs::execute_js_json`, lines
+  // 122-167, plus the helpers `set_arg_global`/`install_host_globals`/
+  // `js_value_to_json_string`/`messages_to_json`).
+  //
+  // Returns the SAME JSON envelope the native FFI (`icp_js_exec`) emits:
+  //   success: {"ok":true,"result":<value>,"messages":[...]}
+  //   failure: {"ok":false,"error":"js error: <detail>"}
+  //            {"ok":false,"error":"json error: <detail>"}  (bad jsonArg)
+  // so [RustBridgeLoader.jsExec] on Web is a drop-in for the native path.
+  //
+  // Documented behavioural difference: the native engine reports a JS
+  // exception as the generic "JavaScript exception" (rquickjs's
+  // `Error::Exception` Display); quickjs-emscripten surfaces the actual
+  // QuickJS message (e.g. "SyntaxError: ..."). The envelope SHAPE is identical
+  // (`ok:false` + `error` string with the same `js error: `/`json error: `
+  // prefix); the detail is strictly MORE informative on Web.
+  // ===========================================================================
+
+  /// Port of `runtime.rs:122-167` (`execute_js_json`).
+  ///
+  /// [script] is evaluated verbatim (no transpiler — see plan §1.1); the
+  /// completion value is JSON-marshalled. [jsonArg], when provided, is parsed
+  /// and exposed as `globalThis.arg` (the `get_arg()` host helper returns it).
+  /// Returns the JSON envelope string (success or failure).
+  String executeJsJson(String script, {String? jsonArg}) {
+    // runtime.rs:126-132 — validate jsonArg up front (Json error variant).
+    String? argStr;
+    if (jsonArg != null) {
+      try {
+        jsonDecode(jsonArg);
+      } on FormatException catch (e) {
+        return _errEnvelope('json error: ${e.message}');
+      }
+      argStr = jsonArg;
+    }
+
+    // runtime.rs:134-137 — fresh sandboxed runtime, DEFAULT_BUDGET_MS deadline.
+    final ctx = newContext(
+      interruptHandler:
+          deadlineInterrupt(const Duration(milliseconds: _defaultBudgetMs)),
+    );
+    var evalThrew = false;
+    try {
+      _installHostGlobals(ctx, argStr);
+      // runtime.rs:142-144 — eval the user script; capture completion handle.
+      final resultContainer = ctx.evalCode(script.toJS);
+      final resultHandle = ctx.unwrapResult(resultContainer); // throws on error
+      String resultJson;
+      try {
+        resultJson = _stringifyAsGlobal(ctx, resultHandle);
+      } finally {
+        resultHandle.dispose();
+      }
+      // runtime.rs:147-148 — collect icp_log messages.
+      final messagesJson =
+          evalAndDump(ctx, 'JSON.stringify(__icp_messages)') as String;
+      // runtime.rs:157-166 — parse both, build the success envelope.
+      final dynamic resultValue = jsonDecode(resultJson);
+      final List<dynamic> messages =
+          jsonDecode(messagesJson) as List<dynamic>;
+      return jsonEncode(<String, dynamic>{
+        'ok': true,
+        'result': resultValue,
+        'messages': messages,
+      });
+    } on Object catch (e) {
+      // Map every JS/eval failure to the `Js` error envelope (matches FFI
+      // `err_ptr(JsExecError::Js(...))` → "js error: ...").
+      evalThrew = true;
+      return _errEnvelope('js error: ${_jsErrString(e)}');
+    } finally {
+      _disposeContext(ctx, evalThrew: evalThrew);
+    }
+  }
+
+  /// Port of `runtime.rs:39-62, 92-102` (`set_arg_global` +
+  /// `install_host_globals`). Exposes `globalThis.arg`, then injects the host
+  /// bootstrap + eval/Function neutralisation.
+  void _installHostGlobals(QuickJSContext ctx, String? argStr) {
+    if (argStr == null) {
+      evalAndDump(ctx, 'globalThis.arg = null;');
+    } else {
+      // Embed the (already-validated) JSON as a JS string literal, then parse
+      // it inside QuickJS — equivalent to the native raw-global two-step
+      // (`__icp_arg_raw__` = s; JSON.parse(...)) but needs no handle juggling.
+      evalAndDump(ctx, 'globalThis.arg = JSON.parse(${jsonEncode(argStr)});');
+    }
+    evalAndDump(ctx, _hostBootstrapJs);
+    evalAndDump(ctx, _neutralizeEvalJs);
+  }
+
+  /// Port of `runtime.rs:104-115` (`js_value_to_json_string`). Assigns [handle]
+  /// to `globalThis.__icp_res__`, stringifies it IN QuickJS (the canonical
+  // serialiser — `JSON.stringify` matches native rquickjs byte-for-byte for
+  // every value our bundles produce), with the `undefined`/`null` → `'null'`
+  // guard. Returns the JSON string.
+  String _stringifyAsGlobal(QuickJSContext ctx, QuickJSHandle handle) {
+    // `ctx.global` is cached by the bundle (a long-lived handle freed with the
+    // context) — safe to reuse without per-call disposal.
+    ctx.setProp(ctx.global, '__icp_res__'.toJS, handle);
+    final container = ctx.evalCode(
+      "(typeof __icp_res__ === 'undefined' || __icp_res__ === null) ? 'null' : JSON.stringify(__icp_res__)"
+          .toJS,
+    );
+    final strHandle = ctx.unwrapResult(container);
+    try {
+      return ctx.getString(strHandle).toDart;
+    } finally {
+      strHandle.dispose();
+    }
+  }
+
+  /// Dispose a per-call context. After an OOM / interrupt abort the GC-list
+  /// assertion in this assertions-enabled QuickJS build can fire on dispose —
+  /// the eval itself already threw the correct error (`out of memory` /
+  /// `interrupted`), which is the proof that holds. We LOUDLY log the
+  /// secondary dispose failure (never silently swallow) and let the primary
+  /// error — already returned to the caller — stand. This is the documented
+  /// WU-1 decision formalised for the production paths.
+  void _disposeContext(QuickJSContext ctx, {required bool evalThrew}) {
+    if (!evalThrew) {
+      ctx.dispose();
+      return;
+    }
+    try {
+      ctx.dispose();
+    } catch (e) {
+      // Not a silent swallow: the primary eval error was already surfaced to
+      // the caller as the `{"ok":false,...}` envelope; this is a contained,
+      // loudly-logged secondary effect on a context being discarded.
+      // ignore: avoid_print
+      print('[WebQuickJsEngine] secondary context-dispose failure after an '
+          'eval abort (contained — primary error already returned): $e');
+    }
+  }
+
+  /// Build a `{"ok":false,"error":...}` envelope string (matches FFI `err_ptr`).
+  static String _errEnvelope(String error) =>
+      jsonEncode(<String, dynamic>{'ok': false, 'error': error});
 
   /// The WU-1 end-to-end probe: proves eval + memory-limit + interrupt-handler
   /// all work through the Dart interop layer. Returns a structured result.
