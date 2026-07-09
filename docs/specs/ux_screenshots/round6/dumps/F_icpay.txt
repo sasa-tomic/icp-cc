@@ -1,0 +1,4 @@
+=== UXR5-4 ICPay-degraded (live 503) ===
+call=IcpayService.loadConfig(MarketplaceOpenApiService())
+backend=/api/v1/payments/icpay/config -> HTTP 503 (ICPay not configured)
+thrown=PaymentsNotConfiguredException: ICPay publishable key not set on server

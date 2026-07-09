@@ -1,0 +1,6 @@
+=== UXR5-3 browse timeout (live tarpit) ===
+endpoint=http://127.0.0.1:35001 (TCP tarpit: accept, never reply)
+call=getTrendingScripts(limit=5)
+elapsed_seconds=8.01
+error=TimeoutException after 0:00:08.000000: Future not completed
+verdict=PASS (<=~12s window, well under 45s)

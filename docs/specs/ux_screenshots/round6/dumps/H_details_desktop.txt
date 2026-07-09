@@ -1,0 +1,57 @@
+=== Details dialog @1440x900 (interactive-counter) ===
+overflow_count=0
+overflows=NONE
+
+Open
+Interactive Counter
+by GameDev Pro
+utility
+$4.99
+4.2
+Details
+Reviews
+Versions
+Description
+A stateful counter with increment and reset. The simplest end-to-end demonstration of the init/view/update contract — mirrors examples/05_typescript_counter.js.
+Tags
+counter
+state
+interactive
+demo
+Code Preview
+TypeScript
+Buy for $4.99
+Statistics
+Downloads
+256
+Rating
+4.2/5.0
+Version
+1.0.0
+Updated
+12 hours ago
+Compatible Canisters
+• ryjl3-tyaaa-aaaaa-aa...
+// TypeScript/QuickJS bundle: a stateful counter.
+"use strict";
+(() => {
+  function init() {
+    return { state: { count: 0 }, effects: [] };
+  }
+
+  function view(state) {
+    return {
+      type: "column",
+      children: [
+        { type: "text", props: { text: "Count: " + (state.count || 0) } },
+        { type: "button", props: { label: "Increment", on_press: { type: "inc" } } },
+        { type: "button", props: { label: "Reset", on_press: { type: "reset" } } }
+      ]
+    };
+  }
+
+  function update(msg, state) {
+    if (msg.type === "inc") {
+tooltip:Close (Esc)
+tooltip:Switch tabs with ← / → arrows
+tooltip:Copy preview

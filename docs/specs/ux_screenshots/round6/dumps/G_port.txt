@@ -1,0 +1,5 @@
+=== UXR5-7 runtime port honoring (debug) ===
+MARKETPLACE_API_PORT env = 35799
+kDebugMode = true
+AppConfig.apiEndpoint = http://127.0.0.1:35799
+isLocalDevelopment = true

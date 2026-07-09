@@ -1,0 +1,79 @@
+=== Script details dialog (live backend) ===
+slug=hello-ic-starter title=Hello IC Starter price=0.0 hasBundle=true
+
+Open
+Hello IC Starter
+by Alice Developer
+utility
+FREE
+4.5
+Details
+Reviews
+Versions
+Description
+A minimal starter: greeting, counter, and text field. The canonical first ICP script — mirrors examples/01_hello_world.js.
+Tags
+hello
+starter
+beginner
+counter
+Code Preview
+TypeScript
+Statistics
+Downloads
+42
+Rating
+4.5/5.0
+Version
+1.0.0
+Updated
+7 days ago
+Compatible Canisters
+• rrkah-fqaaa-aaaaa-aa...
+// Minimal TypeScript/QuickJS bundle: a greeting + counter.
+// Contract: expose globalThis.init / view / update.
+"use strict";
+(() => {
+  function init() {
+    return { state: { count: 0, name: "" }, effects: [] };
+  }
+
+  function view(state) {
+    var count = state.count || 0;
+    var name = typeof state.name === "string" ? state.name : "";
+    var greeting = name.length > 0 ? "Hello, " + name + "!" : "Hello, IC!";
+    return {
+      type: "column",
+      children: [
+        { type: "text", props: { text: greeting } },
+        { type: "text", props: { text: "Count: " + count } },
+        {
+          type: "row",
+          children: [
+            { type: "button", props: { label: "Increment", on_press: { type: "inc" } } },
+            { type: "button", props: { label: "Reset", on_press: { type: "reset" } } }
+          ]
+        },
+        {
+          type: "text_field",
+          props: { label: "Your name", placeholder: "Enter your name", value: name, on_change: { type: "set_name" } }
+        }
+      ]
+    };
+  }
+
+  function update(msg, state) {
+    var t = (msg && msg.type) || "";
+    if (t === "inc") { return { state: { ...state, count: (state.count || 0) + 1 }, effects: [] }; }
+    if (t === "reset") { return { state: { ...state, count: 0 }, effects: [] }; }
+    if (t === "set_name") { return { state: { ...state, name: typeof msg.value === "string" ? msg.value : "" }, effects: [] }; }
+    return { state: state, effects: [] };
+  }
+
+  globalThis.init = init;
+  globalThis.view = view;
+  globalThis.update = update;
+})();
+tooltip:Close (Esc)
+tooltip:Switch tabs with ← / → arrows
+tooltip:Copy preview

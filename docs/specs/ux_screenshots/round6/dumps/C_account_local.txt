@@ -1,0 +1,26 @@
+=== Account screen (local-only, real Ed25519 key) ===
+
+Alice Liddell
+Local profile — not registered
+Created yesterday
+Register an account
+Get an @username, publish scripts to the marketplace, and sync your public keys across devices. Your local keys keep working either way.
+YOUR KEYS
+1/10
+Import Keys
+Export Keys
+Local key
+SIGNING KEY
+Test Ed25519 Keypair
+Public Key
+HeNS5E...KWE=
+IC Principal
+yhnve-5y5qy-svqjc-aiobw-3a53m-n2gzt-xlrvn-s7kld-r5xid-td2ef-iae
+Created today
+Passkeys
+Available after you register a marketplace account. On Linux, passkeys need a browser (macOS, Windows, or Android).
+My Identity
+Add Key
+tooltip:A keypair is a public/private key pair used to sign transactions and authenticate. Your private key signs messages, while your public key verifies them. Never share your private key.
+tooltip:Copy
+tooltip:A principal is your unique account identifier on the Internet Computer. It's derived from your public key and looks like: 2vxsx-fae. Principals identify who is making a call.

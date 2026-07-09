@@ -1,0 +1,56 @@
+=== Script details dialog (live backend) ===
+slug=icp-balance-reader title=ICP Balance Reader price=1.99 hasBundle=true
+
+Open
+ICP Balance Reader
+by Bob Coder
+data-processing
+$1.99
+4.8
+Details
+Reviews
+Versions
+Description
+Query the ICP ledger canister and display a formatted balance. Demonstrates the effect flow: update() emits an icp_call, the host executes it, then delivers the result — mirrors examples/02_canister_query.js.
+Tags
+icp
+ledger
+balance
+canister
+Code Preview
+TypeScript
+Buy for $1.99
+Statistics
+Downloads
+128
+Rating
+4.8/5.0
+Version
+1.2.0
+Updated
+1 day ago
+Compatible Canisters
+• ryjl3-tyaaa-aaaaa-aa...
+// TypeScript/QuickJS bundle: query an ICP canister and format the result.
+// Demonstrates the effect flow (icp_call -> effect/result).
+"use strict";
+(() => {
+  var LEDGER = "ryjl3-tyaaa-aaaaa-aaaba-cai";
+
+  function init() {
+    return { state: { loading: false, balanceE8s: null, error: "" }, effects: [] };
+  }
+
+  function view(state) {
+    var children = [];
+    children.push({ type: "text", props: { text: "ICP Ledger balance lookup" } });
+    children.push({ type: "button", props: { label: state.loading ? "Loading..." : "Fetch balance", on_press: { type: "fetch" } } });
+    if (state.error && state.error.length > 0) {
+      children.push({ type: "text", props: { text: "Error: " + state.error } });
+    }
+    if (state.balanceE8s !== null && state.balanceE8s !== undefined) {
+      var formatted = icp_format_icp(state.balanceE8s, 8);
+      children.push({ type: "section", props: { title: "Balance", content: formatted + " ICP (" + state.balanceE8s + " e8s)" } });
+tooltip:Close (Esc)
+tooltip:Switch tabs with ← / → arrows
+tooltip:Copy preview

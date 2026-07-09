@@ -1,0 +1,14 @@
+=== First-run wizard (new user, StorageReady) ===
+
+Create Your Profile
+Set up your profile to start creating and running scripts.
+Display Name
+How should we call you?
+Marketplace username (optional)
+Create a marketplace account to share scripts and interact with the community
+alice_dev
+Username requirements:
+3-32 chars
+Lowercase
+a-z, 0-9, _, -
+Get Started
