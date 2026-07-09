@@ -41,7 +41,12 @@ dapp has ≥2 canisters (frontend + backend). icp-cc drives **BOTH/EITHER**:
 - **Minimal clicks; keyboard-first.** Operable from the keyboard alone.
 - **DRY/KISS/YAGNI to the radical extreme.** A single constant lives in ONE
   place; everywhere else references the symbolic name.
-- **All I/O has timeouts.** Threads check termination flags.
+- **All I/O has timeouts, budgeted by intent.** A browse/list call fails fast
+  (short budget) so the user isn't stuck on a spinner; a full-bundle download
+  keeps a generous budget. No single one-size-fits-all timeout.
+- **Derive truth from content, not declared metadata.** When a label could lie
+  (e.g. a "TypeScript" badge over a stale Lua bundle), compute it from the
+  content at the source (backend), never from a field that can drift stale.
 - **Pedagogical value.** Code and examples should teach; a newcomer can follow
   the story end to end.
 - **Empirically grounded planning.** Before planning work on a suspected
