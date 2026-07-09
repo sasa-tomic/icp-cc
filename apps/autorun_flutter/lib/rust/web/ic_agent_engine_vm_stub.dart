@@ -33,5 +33,13 @@ Future<IcAgentQueryResult> webQueryAnonymous({
     throw UnsupportedError(
         'IC agent query requires the Web runtime; the VM uses native_bridge_io');
 
+/// `fetchCandid` — Web-only (agent-js network I/O via the CORS proxy). The VM
+/// production path uses `native_bridge_io.dart`'s FFI; this stub is never
+/// reached in practice. Mirrors [webQueryAnonymous]'s contract.
+Future<String?> webFetchCandid({required String canisterId}) =>
+    throw UnsupportedError(
+        'IC agent fetchCandid requires the Web runtime; the VM uses '
+        'native_bridge_io');
+
 String webDecodeText(String replyBase64) => throw UnsupportedError(
     'IC agent decode requires the Web runtime; the VM uses native_bridge_io');

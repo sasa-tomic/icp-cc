@@ -143,10 +143,32 @@ function staticHandler(req, res) {
       result.version === "3.4.3",
       `version === 3.4.3 (got ${result.version})`
     );
+    // R-3b WU-2 — fetchCandid through the proxy returns the real ledger .did.
+    assert(
+      result.candidFetched === true,
+      `candidFetched === true (got ${result.candidFetched})`
+    );
+    // R-3b WU-2 — parseCandid (pure-Dart port) of the REAL ledger .did locates
+    // the `symbol` method — parity with native on live metadata, not just the
+    // synthetic VM golden vectors.
+    assert(
+      result.candidParsed === true,
+      `candidParsed === true (got ${result.candidParsed})`
+    );
+    // R-3b WU-2 — the parsed `symbol` return type matches the native
+    // `parse_candid_interface` output for the live ledger .did (byte-identical).
+    // This is the typed-decode link: the parsed type identifies the reply shape
+    // the decode then uses.
+    assert(
+      result.symbolRetType === "record { symbol : text }",
+      `symbolRetType === "record { symbol : text }" (got ${JSON.stringify(result.symbolRetType)})`
+    );
     assert(
       result.queryOk === true,
       `queryOk === true (got ${result.queryOk}${result.error ? ", error=" + result.error : ""})`
     );
+    // The typed decode: the reply decodes to "ICP" via the `record { symbol :
+    // text }` type parseCandid identified.
     assert(
       result.symbol === "ICP",
       `symbol === "ICP" (got ${JSON.stringify(result.symbol)})`
@@ -157,7 +179,7 @@ function staticHandler(req, res) {
       console.error(`\n${failures.length} assertion(s) FAILED`);
       process.exit(1);
     }
-    console.log("\nALL ASSERTIONS PASSED — real anonymous canister query round-tripped browser→proxy→IC");
+    console.log("\nALL ASSERTIONS PASSED — fetchCandid + parseCandid + typed symbol decode round-tripped browser→proxy→IC");
   } finally {
     if (browser) await browser.close().catch(() => {});
     server.close();

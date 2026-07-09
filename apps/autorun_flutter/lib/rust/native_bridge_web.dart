@@ -58,6 +58,15 @@ import 'web/quickjs_engine_web_access.dart'
 // unchanged on VM and Web. The runtime syntax/exports check rides on the
 // `qjs` engine access module above (browser-only).
 import 'web/js_static_analysis.dart';
+// R-3b WU-2: the IC-agent bridge. `fetchCandid` is browser-only (agent-js
+// network I/O via the CORS proxy) → routed through the conditionally-selected
+// access module (mirrors `qjs` above) so this file stays VM-compilable.
+// `parseCandid` is a PURE-Dart port (`candid_interface_parser.dart`) → no
+// conditional import, runs unchanged on VM and Web (VM-testable, mirrors
+// `js_static_analysis.dart`).
+import 'web/ic_agent_engine_web_access.dart'
+    if (dart.library.io) 'web/ic_agent_engine_vm_stub.dart' as icagent;
+import 'web/candid_interface_parser.dart';
 
 /// Web readiness probe — delegates to the conditionally-selected engine access
 /// module (loads the singleton on Web; [QuickJsReady] on the VM stub).
@@ -346,12 +355,42 @@ class RustBridgeLoader {
     return jsonEncode(<String, dynamic>{'ok': true, 'signature': sigB64});
   }
 
+  /// R-3b WU-2 — fetch a canister's Candid `.did` interface (mainnet parity
+  /// with native `fetch_candid`, `canister_client.rs:529`). On Web this drives
+  /// the vendored `@dfinity/agent` bundle's `fetchCandid` (a certified
+  /// `read_state` for the `candid:service` metadata, with the
+  /// `__get_candid_interface_tmp_hack` query fallback — the SAME two sources
+  /// agent-js + the native client consult). The agent is routed through the
+  /// backend CORS byte-relay proxy (`/api/v1/ic`, plan §7.2) because `ic0.app`
+  /// sends no CORS headers for `/api/v2/*`.
+  ///
+  /// [host] is IGNORED on Web — the agent's `host` is fixed to `https://ic0.app`
+  /// (so the mainnet root key is baked in + `verifyQuerySignatures` works) and
+  /// the proxy is single-upstream (§7.8.5). The native `host` override (used to
+  /// point at a testnet) has no Web equivalent; this is a documented, scoped
+  /// deviation (R-3b decisions locked: proxy single-upstream).
+  ///
+  /// Returns the raw candid TEXT (byte-identical to native) or `null` on any
+  /// failure (network / canister not found / no candid metadata) — parity with
+  /// the native FFI (`null_c_string` on `Err`, `ffi.rs:228`). The agent-js
+  /// bundle must have loaded first (`probeIcAgentReadiness`); if not, this
+  /// throws a loud `StateError` (never silently no-ops).
   Future<String?> fetchCandid({required String canisterId, String? host}) async {
-    throw UnsupportedError('fetchCandid $_stagedReason');
+    return icagent.webFetchCandid(canisterId: canisterId);
   }
 
+  /// R-3b WU-2 — parse a Candid `.did` interface into the
+  /// `{"methods":[{"name","kind","args","rets"}]}` JSON shape (pure-Dart port
+  /// of native `parse_candid_interface`, `canister_client.rs:161-201`). Pure
+  /// compute — no network, no `dart:js_interop` — so this is SYNCHRONOUS on Web
+  /// exactly as on native (`String? parseCandid`, not `Future`). Runs unchanged
+  /// on the VM (VM-testable via `candid_parse_golden_vectors_test.dart`).
+  ///
+  /// Returns the compact JSON string (byte-identical to the native FFI's
+  /// `serde_json::to_string` output) or `null` on any parse error (parity:
+  /// native returns `null_c_string` on `Err`, `ffi.rs:243-247`).
   String? parseCandid({required String candidText}) {
-    throw UnsupportedError('parseCandid $_stagedReason');
+    return parseCandidInterface(candidText);
   }
 
   String? callAnonymous({

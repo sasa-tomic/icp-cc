@@ -33,7 +33,7 @@
 // replyBase64) — no shared-JS-handle lifetime across calls. This mirrors the
 // R-3a discipline ("all cross-boundary payloads are strings") and keeps the
 // interop surface trivially VM-testable with a stubbed global.
-import { HttpAgent } from "@dfinity/agent";
+import { HttpAgent, fetchCandid as agentFetchCandid } from "@dfinity/agent";
 import { IDL } from "@dfinity/candid";
 
 globalThis.__icpCcAgent = {
@@ -42,7 +42,7 @@ globalThis.__icpCcAgent = {
 
   // Create an anonymous HttpAgent routed through the backend CORS proxy.
   // `proxyOrigin` is the backend origin, e.g. "http://127.0.0.1:58000".
-  // Returns the agent (an opaque JS object — pass it to `query`).
+  // Returns the agent (an opaque JS object — pass it to `query`/`fetchCandid`).
   async createAnonymousAgent(proxyOrigin) {
     const IC_HOST = "https://ic0.app";
     const origin = String(proxyOrigin).replace(/\/$/, "");
@@ -60,6 +60,34 @@ globalThis.__icpCcAgent = {
       },
     });
     return agent;
+  },
+
+  // R-3b WU-2 — fetch a canister's `.did` interface. Delegates to agent-js's
+  // `fetchCandid(canisterId, agent)` (`fetch_candid.ts`): a certified
+  // `read_state` for the `candid:service` metadata, with the
+  // `__get_candid_interface_tmp_hack` query fallback. EXACT parity with native
+  // `fetch_candid` (`canister_client.rs:529-567`) — both consult the same
+  // certified metadata path against the SAME mainnet root key.
+  //
+  // Returns:
+  //   string  — the raw candid `.did` text (the `candid:service` metadata).
+  //   null    — the canister exposes no candid interface (neither metadata nor
+  //             the tmp hack). The Dart caller maps `null` to a friendly
+  //             "could not load interface" message (parity with native's
+  //             `null_c_string` on error).
+  // Throws on network/proxy failure (the Dart access module maps that to `null`
+  // too, with a loud log).
+  async fetchCandid(agent, canisterId) {
+    try {
+      const did = await agentFetchCandid(String(canisterId), agent);
+      // agent-js returns `undefined` (not a string) if both metadata + tmp hack
+      // miss; normalise to `null` for a clean cross-boundary contract.
+      return typeof did === "string" ? did : null;
+    } catch (e) {
+      // Re-throw with a clean message — the Dart side maps any throw to `null`
+      // (parity with native) but logs the cause loudly.
+      throw new Error("agent-js fetchCandid failed: " + _err(e));
+    }
   },
 
   // Perform an anonymous query.
