@@ -51,7 +51,7 @@ void main() {
       expect(probe, isNotNull, reason: 'libicp_core.so did not load');
     });
 
-    test('captured JSON shapes: listPolls, getTally, whoami', () {
+    test('captured JSON shapes: listPolls, getTally, whoami', () async {
       if (!_liveEnvAvailable()) {
         stdout.writeln('SKIP: ICPCC_LIVE_CANISTER env var not set');
         return;
@@ -61,7 +61,7 @@ void main() {
           ? Platform.environment['ICPCC_LIVE_HOST']!.trim()
           : null;
 
-      final listOut = loader.callAnonymous(
+      final listOut = await loader.callAnonymous(
         canisterId: canister,
         method: 'listPolls',
         mode: 0,
@@ -91,7 +91,7 @@ void main() {
       }
     });
 
-    test('authenticated whoami returns a NON-anonymous principal', () {
+    test('authenticated whoami returns a NON-anonymous principal', () async {
       if (!_liveEnvAvailable()) {
         stdout.writeln('SKIP: ICPCC_LIVE_CANISTER env var not set');
         return;
@@ -105,7 +105,7 @@ void main() {
       final kp = _freshKeypair(loader);
       stdout.writeln('AUTH identity principal => ${kp.principalText}');
 
-      final out = loader.callAuthenticated(
+      final out = await loader.callAuthenticated(
         canisterId: canister,
         method: 'whoami',
         mode: 0, // query
@@ -130,7 +130,7 @@ void main() {
       expect(caller, kp.principalText);
     });
 
-    test('authenticated vote changes getTally', () {
+    test('authenticated vote changes getTally', () async {
       if (!_liveEnvAvailable()) {
         stdout.writeln('SKIP: ICPCC_LIVE_CANISTER env var not set');
         return;
@@ -143,7 +143,7 @@ void main() {
       final kp = _freshKeypair(loader);
 
       // Discover a poll id to vote on.
-      final listOut = loader.callAnonymous(
+      final listOut = await loader.callAnonymous(
         canisterId: canister,
         method: 'listPolls',
         mode: 0,
@@ -157,7 +157,7 @@ void main() {
       final pollId = poll['id'] as String;
 
       // getTally before vote. vec nat -> array of numeric strings.
-      final beforeOut = loader.callAnonymous(
+      final beforeOut = await loader.callAnonymous(
         canisterId: canister,
         method: 'getTally',
         mode: 0,
@@ -172,7 +172,7 @@ void main() {
       // Vote for option index 0 via an authenticated UPDATE call.
       // `0 : nat` annotation is required — the candid parser otherwise infers a
       // type the canister rejects with "unexpected IDL type when parsing Nat".
-      final voteOut = loader.callAuthenticated(
+      final voteOut = await loader.callAuthenticated(
         canisterId: canister,
         method: 'vote',
         mode: 1, // update
@@ -187,7 +187,7 @@ void main() {
           reason: 'authenticated vote failed: $voteOut');
 
       // getTally after vote — option 0 must have increased by 1.
-      final afterOut = loader.callAnonymous(
+      final afterOut = await loader.callAnonymous(
         canisterId: canister,
         method: 'getTally',
         mode: 0,

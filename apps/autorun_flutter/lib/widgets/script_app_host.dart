@@ -288,14 +288,14 @@ class ScriptAppHostState extends State<ScriptAppHost> {
         final ScriptBridge bridge = _bridge();
         String? out;
         if (!authenticated) {
-          out = bridge.callAnonymous(
+          out = await bridge.callAnonymous(
               canisterId: canisterId,
               method: method,
               mode: mode,
               args: args,
               host: host);
         } else {
-          out = bridge.callAuthenticated(
+          out = await bridge.callAuthenticated(
               canisterId: canisterId,
               method: method,
               mode: mode,
@@ -403,14 +403,14 @@ class ScriptAppHostState extends State<ScriptAppHost> {
           }
           String? out;
           if (!authenticated) {
-            out = bridge.callAnonymous(
+            out = await bridge.callAnonymous(
                 canisterId: canisterId,
                 method: method,
                 mode: mode,
                 args: args,
                 host: host);
           } else {
-            out = bridge.callAuthenticated(
+            out = await bridge.callAuthenticated(
                 canisterId: canisterId,
                 method: method,
                 mode: mode,

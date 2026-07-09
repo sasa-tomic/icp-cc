@@ -23,27 +23,27 @@ class _RecordingBridge implements ScriptBridge {
   int anonymousCalls = 0;
 
   @override
-  String? callAnonymous({
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     anonymousCalls++;
     lastAnonymousCanisterId = canisterId;
     return '{"ok":true,"result":[]}';
   }
 
   @override
-  String? callAuthenticated({
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     authenticatedCalls++;
     lastPrivateKeyB64 = privateKeyB64;
     return '{"ok":true,"result":"recorded-caller"}';

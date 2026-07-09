@@ -78,12 +78,12 @@ class MockCanisterBridge implements ScriptBridge {
   };
 
   @override
-  String? callAnonymous(
+  Future<String?> callAnonymous(
       {required String canisterId,
       required String method,
       required int mode,
       String args = '()',
-      String? host}) {
+      String? host}) async {
     // Simulate different canister responses based on ID and method
     if (canisterId == 'rrkah-fqaaa-aaaaa-aaaaq-cai' &&
         method == 'get_pending_proposals') {
@@ -115,15 +115,14 @@ class MockCanisterBridge implements ScriptBridge {
   }
 
   @override
-  String? callAuthenticated(
+  Future<String?> callAuthenticated(
       {required String canisterId,
       required String method,
       required int mode,
-      String? keypairId,
-      String? privateKeyB64,
+      required String privateKeyB64,
       String args = '()',
-      String? host}) {
-    return callAnonymous(
+      String? host}) async {
+    return await callAnonymous(
         canisterId: canisterId,
         method: method,
         mode: mode,

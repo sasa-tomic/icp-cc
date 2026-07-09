@@ -73,13 +73,6 @@ import 'web/candid_interface_parser.dart';
 Future<QuickJsReadiness> probeQuickJsReadiness() =>
     qjs.probeWebQuickJsReadiness();
 
-/// Reason used by every STUBBED method below (R-3 / IC-agent — staged for a
-/// separate effort). Kept loud (UnsupportedError) so any accidental call from
-/// the browser fails immediately rather than silently degrading.
-const String _stagedReason =
-    'is staged for the Web runtime (R-3 QuickJS-WASM / IC HTTP-agent follow-up) '
-    'and is not yet available on Web — see docs/BROWSER_SUPPORT.md';
-
 /// Algorithm code: 0 = Ed25519 (the ICP-critical path; fully implemented).
 /// 1 = secp256k1 (BIP32 m/44'/223'/... ; best-effort, not yet on Web).
 const int _algEd25519 = 0;
@@ -393,26 +386,59 @@ class RustBridgeLoader {
     return parseCandidInterface(candidText);
   }
 
-  String? callAnonymous({
+  /// R-3b WU-3 — anonymous canister call. Mirrors native `call_anonymous`
+  /// (`canister_client.rs:569-651`) via agent-js routed through the CORS proxy.
+  ///
+  /// Returns the JSON envelope:
+  /// - `{"ok":true,"result":<json>}` on success
+  /// - `{"ok":false,"kind":"invalid_canister_id"|"net"|"candid","error":"…"}`
+  ///   on failure (parity with the native FFI `canister_err_ptr`, `ffi.rs:78-87`)
+  ///
+  /// [args] supports `()` / `base64:` raw bytes / JSON (`build_args_from_json`
+  /// parity via the pure-Dart candid parser). Textual candid arg expressions
+  /// are an honest deviation (typed `candid` error — see plan §7.5).
+  ///
+  /// Async (WU-4 signature widening) — the agent-js calls are inherently async
+  /// (network). The native FFI is sync but returns `Future.value(...)` for
+  /// facade uniformity (greenfield, no back-compat — plan §7.6).
+  ///
+  /// [host] is IGNORED on Web (the agent's host is fixed to `https://ic0.app`
+  /// so the mainnet root key is baked in; the proxy is single-upstream — plan
+  /// §7.2/§7.8.5). Documented, scoped deviation.
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) {
-    throw UnsupportedError('callAnonymous $_stagedReason');
-  }
+  }) =>
+      icagent.webCallAnonymous(
+        canisterId: canisterId,
+        method: method,
+        mode: mode,
+        args: args,
+      );
 
-  String? callAuthenticated({
+  /// R-3b WU-4 — authenticated canister call with an Ed25519 identity.
+  /// Mirrors native `call_authenticated` (`canister_client.rs:653-746`).
+  /// [privateKeyB64] is the base64 32-byte Ed25519 seed — `Ed25519KeyIdentity
+  /// .fromSecretKey(seed)` ≡ native `BasicIdentity::from_raw_key` (byte-parity,
+  /// plan §7.3.3). Same envelope + args contract as [callAnonymous].
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) {
-    throw UnsupportedError('callAuthenticated $_stagedReason');
-  }
+  }) =>
+      icagent.webCallAuthenticated(
+        canisterId: canisterId,
+        method: method,
+        mode: mode,
+        privateKeyB64: privateKeyB64,
+        args: args,
+      );
 
   /// R-3: execute a JS bundle and return the `{ok,result,messages}` /
   /// `{ok,error}` envelope (mirrors the native FFI `icp_js_exec`). The engine

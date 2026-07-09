@@ -175,11 +175,35 @@ function staticHandler(req, res) {
     );
     assert(result.error == null, `no top-level error (got ${result.error})`);
 
+    // R-3b WU-3 — callAnonymous full flow: validate → fetchCandid → encode
+    // args → query → typed reply decode → {ok,result} envelope. The typed
+    // decode (via the fetched candid's ret types) must yield {"symbol":"ICP"}.
+    assert(
+      result.callAnonOk === true,
+      `callAnonOk === true (got ${result.callAnonOk}${result.callAnonError ? ", error=" + result.callAnonError : ""})`
+    );
+    assert(
+      result.callAnonSymbol === "ICP",
+      `callAnonSymbol === "ICP" (got ${JSON.stringify(result.callAnonSymbol)})`
+    );
+
+    // R-3b WU-4 — callAuthenticated with an Ed25519 identity: same flow but
+    // the query is signed. `symbol()` doesn't require auth, so the result
+    // matches the anonymous call — proving the agent creation + signing path.
+    assert(
+      result.callAuthOk === true,
+      `callAuthOk === true (got ${result.callAuthOk}${result.callAuthError ? ", error=" + result.callAuthError : ""})`
+    );
+    assert(
+      result.callAuthSymbol === "ICP",
+      `callAuthSymbol === "ICP" (got ${JSON.stringify(result.callAuthSymbol)})`
+    );
+
     if (failures.length) {
       console.error(`\n${failures.length} assertion(s) FAILED`);
       process.exit(1);
     }
-    console.log("\nALL ASSERTIONS PASSED — fetchCandid + parseCandid + typed symbol decode round-tripped browser→proxy→IC");
+    console.log("\nALL ASSERTIONS PASSED — fetchCandid + parseCandid + typed symbol decode + callAnonymous + callAuthenticated round-tripped browser→proxy→IC");
   } finally {
     if (browser) await browser.close().catch(() => {});
     server.close();

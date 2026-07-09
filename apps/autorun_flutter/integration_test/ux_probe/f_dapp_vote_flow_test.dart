@@ -386,13 +386,13 @@ class _PollCannedBridge implements ScriptBridge {
   bool _voted = false;
 
   @override
-  String? callAnonymous({
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     switch (method) {
       case 'listPolls':
         return json.encode(<String, dynamic>{
@@ -424,14 +424,14 @@ class _PollCannedBridge implements ScriptBridge {
   }
 
   @override
-  String? callAuthenticated({
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     switch (method) {
       case 'whoami':
         // Returns the real principal of the signing keypair (query, auth).

@@ -95,6 +95,136 @@ String? parseCandidInterface(String candidText) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// R-3b WU-3 — Type descriptors for IDL encode/decode (build_args_from_json +
+// try_decode_with_types parity). The pure-Dart parser resolves type aliases
+// (the TypeEnv / check_prog work native does in candid_parser) and emits a
+// JSON-serializable type descriptor the JS bundle converts to agent-js IDL
+// type objects (IDL.Text, IDL.Record({...}), etc.). Pure-Dart → VM-testable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Extract a method's arg + ret type descriptors from a `.did` interface, for
+/// IDL encode/decode parity with native `build_args_from_json` /
+/// `try_decode_with_types` (`canister_client.rs:432-499, 135-159`).
+///
+/// Resolves type aliases (e.g. `type ListNeurons = record {…}`) transitively —
+/// the TypeEnv / `check_prog` work native does. Returns a JSON string:
+/// ```
+/// {"args":[<descriptor>...],"rets":[<descriptor>...]}
+/// ```
+/// where each `<descriptor>` is one of:
+/// - `{"t":"text"}`, `{"t":"nat"}`, `{"t":"nat8"}`, … `{"t":"bool"}`,
+///   `{"t":"null"}`, `{"t":"reserved"}`, `{"t":"empty"}`, `{"t":"principal"}`
+/// - `{"t":"opt","inner":<desc>}`
+/// - `{"t":"vec","inner":<desc>}`
+/// - `{"t":"record","fields":[{"n":"name","t":<desc>} | {"i":0,"t":<desc>}, …]}`
+/// - `{"t":"variant","fields":[{"n":"name","t":<desc>} | {"i":0,"t":<desc>}, …]}`
+/// - `{"t":"func","args":[<desc>…],"rets":[<desc>…],"modes":["query",…]}`
+/// - `{"t":"service","methods":[{"n":"name","t":<func_desc>},…]}`
+///
+/// Returns `null` on any parse error or if the method is not found (parity:
+/// native `build_args_from_json` returns `CanisterClientError::CandidParse`).
+String? methodTypeDescriptors(String did, String methodName) {
+  try {
+    final parsed = _Parser(_CandidLexer(did).tokenize()).parseFullProgram();
+    if (parsed == null || parsed.service == null) return null;
+    for (final m in parsed.service!.methods) {
+      if (m.name == methodName && m.type is _FuncType) {
+        final f = m.type as _FuncType;
+        return jsonEncode(<String, dynamic>{
+          'args': f.args
+              .map((t) => _typeDescriptor(t, parsed.typeEnv, <String>{}))
+              .toList(growable: false),
+          'rets': f.rets
+              .map((t) => _typeDescriptor(t, parsed.typeEnv, <String>{}))
+              .toList(growable: false),
+        });
+      }
+    }
+    return null; // method not found
+  } on _CandidParseException {
+    return null;
+  }
+}
+
+/// Convert a `_CandType` AST node to a JSON-serializable type descriptor,
+/// resolving Var aliases via [env] (transitively, with cycle detection).
+Object _typeDescriptor(_CandType t, _TypeEnv env, Set<String> visiting) {
+  switch (t) {
+    case _PrimType(:final name):
+      return <String, dynamic>{'t': name};
+    case _VarType(:final name):
+      if (visiting.contains(name)) {
+        throw _CandidParseException('recursive type alias not supported: $name');
+      }
+      final resolved = env.lookup(name);
+      if (resolved == null) {
+        throw _CandidParseException('unbound type alias: $name');
+      }
+      visiting.add(name);
+      final desc = _typeDescriptor(resolved, env, visiting);
+      visiting.remove(name);
+      return desc;
+    case _OptType(:final inner):
+      return <String, dynamic>{
+        't': 'opt',
+        'inner': _typeDescriptor(inner, env, visiting),
+      };
+    case _VecType(:final inner):
+      return <String, dynamic>{
+        't': 'vec',
+        'inner': _typeDescriptor(inner, env, visiting),
+      };
+    case _RecordType(:final fields):
+      return <String, dynamic>{
+        't': 'record',
+        'fields': fields
+            .map((f) => _fieldDescriptor(f, env, visiting))
+            .toList(growable: false),
+      };
+    case _VariantType(:final fields):
+      return <String, dynamic>{
+        't': 'variant',
+        'fields': fields
+            .map((f) => _fieldDescriptor(f, env, visiting))
+            .toList(growable: false),
+      };
+    case _FuncType(:final args, :final rets, :final modes):
+      return <String, dynamic>{
+        't': 'func',
+        'args': args
+            .map((t) => _typeDescriptor(t, env, visiting))
+            .toList(growable: false),
+        'rets': rets
+            .map((t) => _typeDescriptor(t, env, visiting))
+            .toList(growable: false),
+        'modes': modes,
+      };
+    case _ServiceType(:final methods):
+      return <String, dynamic>{
+        't': 'service',
+        'methods': methods
+            .map((m) => <String, dynamic>{
+                  'n': m.name,
+                  't': _typeDescriptor(m.type, env, visiting),
+                })
+            .toList(growable: false),
+      };
+    case _ClassType():
+      throw _CandidParseException(
+          'service class type in arg/ret position is not supported');
+  }
+}
+
+Map<String, dynamic> _fieldDescriptor(
+    _Field f, _TypeEnv env, Set<String> visiting) {
+  final desc = _typeDescriptor(f.type, env, visiting);
+  if (f.label.named) {
+    return <String, dynamic>{'n': f.label.name, 't': desc};
+  }
+  return <String, dynamic>{'i': f.label.id, 't': desc};
+}
+
 /// Render a candid type to its `Display` string — a faithful port of
 /// `candid::pretty::candid::pp_ty` (flat, line width 80). Every type a method
 /// arg/ret can be is covered.
@@ -315,6 +445,25 @@ class _Method {
   _Method(this.name, this.type);
   final String name;
   final _CandType type;
+}
+
+/// Type-environment for alias resolution (mirrors candid's `TypeEnv` /
+/// `check_prog`). Maps `type X = <type>` declarations so Var references can be
+/// resolved transitively during descriptor emission.
+class _TypeEnv {
+  final Map<String, _CandType> _types = <String, _CandType>{};
+  void add(String name, _CandType t) => _types[name] = t;
+  _CandType? lookup(String name) => _types[name];
+}
+
+/// A fully-parsed candid program: the type environment (alias decls) + the
+/// optional service/actor. Used by both `parseCandidInterface` (which only
+/// needs the service methods) and `methodTypeDescriptors` (which needs the
+/// type env for alias resolution).
+class _ParsedProgram {
+  _ParsedProgram(this.typeEnv, this.service);
+  final _TypeEnv typeEnv;
+  final _ServiceType? service;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -610,18 +759,28 @@ class _Parser {
   /// Parse the full program; returns the service methods (the actor's service).
   /// Returns `null` if there is no service/actor declaration.
   List<_Method>? parseProgram() {
+    final full = parseFullProgram();
+    return full?.service?.methods;
+  }
+
+  /// Parse the full program keeping type declarations in a [_TypeEnv] (for
+  /// alias resolution by `methodTypeDescriptors`). Returns `null` if there is
+  /// no service/actor declaration. Mirrors `parseProgram` but retains the type
+  /// env instead of discarding it.
+  _ParsedProgram? parseFullProgram() {
     // Top-level: a sequence of `type X = ...;` / `import "...";` declarations,
-    // followed by an optional `service : {...}` actor. Type decls are parsed
-    // (and discarded — `parse_candid_interface` renders Vars as names, so the
-    // env is not needed for the method-signature output).
+    // followed by an optional `service : {...}` actor. Type decls are kept in
+    // the type env (for Var resolution); imports are discarded.
+    final env = _TypeEnv();
     _ServiceType? service;
     while (_kind != _TokKind.eof) {
       if (_kind == _TokKind.ident) {
         if (_val == 'type') {
           _i++;
-          _expect(_TokKind.ident, 'type name');
+          final name = _parseName();
           _expect(_TokKind.equals);
-          _parseType(); // parsed + discarded (Var names render as-is)
+          final t = _parseType();
+          env.add(name, t);
           _accept(_TokKind.semi);
           continue;
         }
@@ -649,7 +808,7 @@ class _Parser {
     if (_kind != _TokKind.eof) {
       throw _CandidParseException('unexpected trailing tokens after service: $_cur');
     }
-    return service?.methods;
+    return _ParsedProgram(env, service);
   }
 
   /// `service [: Name] : <ActorTyp>` — the candid actor declaration. The

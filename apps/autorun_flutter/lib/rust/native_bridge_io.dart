@@ -235,13 +235,18 @@ class RustBridgeLoader {
     } finally {}
   }
 
-  String? callAnonymous({
+  /// R-3b WU-4 — widened to `Future<String?>` for facade uniformity with the
+  /// Web target (agent-js calls are inherently async). The FFI call itself
+  /// remains synchronous; `async` auto-wraps the result (no isolate overhead —
+  /// the ~ms-scale FFI call doesn't warrant `Isolate.run`). Greenfield, no
+  /// back-compat (plan §7.6).
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     final lib = _open();
     if (lib == null) return null;
     final cid = canisterId.toNativeUtf8().cast<ffi.Int8>();
@@ -263,14 +268,15 @@ class RustBridgeLoader {
     } finally {}
   }
 
-  String? callAuthenticated({
+  /// R-3b WU-4 — widened to `Future<String?>` (see [callAnonymous]).
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     final lib = _open();
     if (lib == null) return null;
     final cid = canisterId.toNativeUtf8().cast<ffi.Int8>();

@@ -49,25 +49,25 @@ class _LargeFakeBridge extends RustBridgeLoader {
   }
 
   @override
-  String? callAnonymous({
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     return '{"ok":true}';
   }
 
   @override
-  String? callAuthenticated({
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     return '{"ok":true}';
   }
 }
@@ -265,23 +265,23 @@ class _SmallFakeBridge extends RustBridgeLoader {
   }
 
   @override
-  String? callAnonymous({
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) =>
+  }) async =>
       '{"ok":true}';
 
   @override
-  String? callAuthenticated({
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) =>
+  }) async =>
       '{"ok":true}';
 }

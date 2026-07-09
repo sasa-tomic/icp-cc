@@ -122,6 +122,53 @@ Future<String?> webFetchCandid({required String canisterId}) async {
   }
 }
 
+/// callAnonymous parity (WU-3) — anonymous canister call via the singleton
+/// agent. Returns the native `{ok,result}` / `{ok,kind,error}` envelope string
+/// (never throws — errors surface as the typed `kind` envelope, parity with
+/// native's `canister_err_ptr`, `ffi.rs:78-87`).
+///
+/// [args] supports:
+/// - `()` / empty → empty args
+/// - `base64:` prefix → raw bytes passthrough (plan §7.5 (γ))
+/// - JSON → `build_args_from_json` parity (fetch candid → type descriptors →
+///   agent-js IDL.encode)
+/// - Textual candid `(42, "hi")` → honest deviation (typed `candid` error)
+Future<String> webCallAnonymous({
+  required String canisterId,
+  required String method,
+  required int mode,
+  String args = '()',
+}) async {
+  final agent = await _sharedAgent(proxyOrigin: null);
+  return agent.callAnonymous(
+    canisterId: canisterId,
+    method: method,
+    mode: mode,
+    args: args,
+  );
+}
+
+/// callAuthenticated parity (WU-4) — authenticated canister call with an
+/// Ed25519 identity. [privateKeyB64] is the base64 32-byte seed. Same envelope
+/// as [webCallAnonymous]. The agent is created + cached per key (byte-parity
+/// with native `BasicIdentity::from_raw_key`).
+Future<String> webCallAuthenticated({
+  required String canisterId,
+  required String method,
+  required int mode,
+  required String privateKeyB64,
+  String args = '()',
+}) async {
+  final agent = await _sharedAgent(proxyOrigin: null);
+  return agent.callAuthenticated(
+    canisterId: canisterId,
+    method: method,
+    mode: mode,
+    privateKeyB64: privateKeyB64,
+    args: args,
+  );
+}
+
 /// callAnonymous parity (WU-3 will wire the envelope) — anonymous query via the
 /// singleton agent. [argBase64] = pre-encoded candid args (empty = no args).
 Future<IcAgentQueryResult> webQueryAnonymous({

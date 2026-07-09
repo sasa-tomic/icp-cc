@@ -80,7 +80,10 @@ class ScriptRunResult {
 
 /// Abstraction over the Rust FFI bridge to allow fakes in tests.
 abstract class ScriptBridge {
-  String? callAnonymous({
+  /// R-3b WU-4 — widened to `Future<String?>` for Web parity (agent-js calls
+  /// are async). Native wraps the sync FFI in `Future.value` (greenfield, plan
+  /// §7.6).
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
@@ -88,7 +91,7 @@ abstract class ScriptBridge {
     String? host,
   });
 
-  String? callAuthenticated({
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
@@ -115,7 +118,7 @@ class RustScriptBridge implements ScriptBridge {
   final RustBridgeLoader _bridge;
 
   @override
-  String? callAnonymous(
+  Future<String?> callAnonymous(
       {required String canisterId,
       required String method,
       required int mode,
@@ -130,7 +133,7 @@ class RustScriptBridge implements ScriptBridge {
   }
 
   @override
-  String? callAuthenticated(
+  Future<String?> callAuthenticated(
       {required String canisterId,
       required String method,
       required int mode,
@@ -138,12 +141,12 @@ class RustScriptBridge implements ScriptBridge {
       String args = '()',
       String? host}) {
     return _bridge.callAuthenticated(
-      canisterId: canisterId,
-      method: method,
-      mode: mode,
-      privateKeyB64: privateKeyB64,
-      args: args,
-      host: host,
+        canisterId: canisterId,
+        method: method,
+        mode: mode,
+        privateKeyB64: privateKeyB64,
+        args: args,
+        host: host,
     );
   }
 
@@ -348,7 +351,7 @@ class ScriptRunner {
     );
   }
 
-  String? _dispatchCall(CanisterCallSpec spec, String? privateKey) {
+  Future<String?> _dispatchCall(CanisterCallSpec spec, String? privateKey) async {
     if (privateKey == null || privateKey.isEmpty) {
       return _bridge.callAnonymous(
         canisterId: spec.canisterId,
@@ -385,7 +388,7 @@ class ScriptRunner {
           ok: false, error: 'Failed to resolve keypair for $resolveContext: $e');
     }
 
-    final String? callOut = _dispatchCall(spec, privateKey);
+    final String? callOut = await _dispatchCall(spec, privateKey);
 
     if (callOut == null || callOut.trim().isEmpty) {
       return ScriptRunResult(ok: false, error: emptyError);
@@ -463,7 +466,7 @@ class ScriptRunner {
             error: 'Failed to resolve keypair for ${spec.label}: $e');
       }
 
-      final String? raw = _dispatchCall(spec, privateKey);
+      final String? raw = await _dispatchCall(spec, privateKey);
       if (raw == null || raw.trim().isEmpty) {
         return ScriptRunResult(
             ok: false, error: 'Empty response from ${spec.label}');

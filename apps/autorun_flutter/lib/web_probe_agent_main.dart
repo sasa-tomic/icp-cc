@@ -30,6 +30,7 @@
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:typed_data';
 
 import 'rust/web/candid_interface_parser.dart';
 import 'rust/web/ic_agent_engine_web_access.dart';
@@ -67,6 +68,12 @@ Future<void> main() async {
         candidFetched: false,
         candidParsed: false,
         symbolRetType: null,
+        callAnonOk: false,
+        callAnonSymbol: null,
+        callAnonError: null,
+        callAuthOk: false,
+        callAuthSymbol: null,
+        callAuthError: null,
         error: '${unavail.reason}: ${unavail.detail ?? ''}',
       );
       _publishResult(jsonEncode(result.toJson()), result);
@@ -86,6 +93,12 @@ Future<void> main() async {
         candidFetched: false,
         candidParsed: false,
         symbolRetType: null,
+        callAnonOk: false,
+        callAnonSymbol: null,
+        callAnonError: null,
+        callAuthOk: false,
+        callAuthSymbol: null,
+        callAuthError: null,
         error: 'fetchCandid returned no candid interface for $_ledgerCanister',
       );
       _publishResult(jsonEncode(result.toJson()), result);
@@ -127,6 +140,12 @@ Future<void> main() async {
         candidFetched: true,
         candidParsed: candidParsed,
         symbolRetType: symbolRetType,
+        callAnonOk: false,
+        callAnonSymbol: null,
+        callAnonError: null,
+        callAuthOk: false,
+        callAuthSymbol: null,
+        callAuthError: null,
         error: 'query failed (${query.kind}): ${query.error}',
       );
       _publishResult(jsonEncode(result.toJson()), result);
@@ -141,6 +160,68 @@ Future<void> main() async {
     // arbitrary methods is WU-3's §7.5 concern; for `symbol` the literal ret
     // type needs no Var resolution.)
     final symbol = webDecodeText(query.replyBase64!);
+
+    // 5. (WU-3) callAnonymous — the FULL native-parity flow: validate canister
+    //    ID → fetch candid → encode args (`()` → empty) → query → typed reply
+    //    decode → `{"ok":true,"result":<json>}` envelope. The `result` should
+    //    be `{"symbol":"ICP"}` (the typed decode via the fetched candid's ret
+    //    types, NOT the WU-0 `decodeText` heuristic).
+    String? callAnonEnvelope;
+    bool callAnonOk = false;
+    String? callAnonSymbol;
+    String? callAnonError;
+    try {
+      callAnonEnvelope = await webCallAnonymous(
+        canisterId: _ledgerCanister,
+        method: _ledgerMethod,
+        mode: 0, // query
+        args: '()',
+      );
+      final envelope = jsonDecode(callAnonEnvelope) as Map<String, dynamic>;
+      if (envelope['ok'] == true) {
+        callAnonOk = true;
+        final result = envelope['result'] as Map<String, dynamic>;
+        callAnonSymbol = result['symbol'] as String?;
+      } else {
+        callAnonError =
+            '${envelope['kind'] ?? 'unknown'}: ${envelope['error'] ?? ''}';
+      }
+    } catch (e) {
+      callAnonError = e.toString();
+    }
+
+    // 6. (WU-4) callAuthenticated — same flow but with an Ed25519 identity
+    //    (Ed25519KeyIdentity.fromSecretKey(seed)). A zero seed is a valid
+    //    32-byte Ed25519 seed — the query is signed but `symbol()` doesn't
+    //    require authentication, so the result should be the same. Proves the
+    //    authenticated agent creation + signing path works end-to-end.
+    final testSeed = Uint8List(32); // 32 zero bytes — a valid Ed25519 seed
+    final testSeedB64 = base64.encode(testSeed);
+    String? callAuthEnvelope;
+    bool callAuthOk = false;
+    String? callAuthSymbol;
+    String? callAuthError;
+    try {
+      callAuthEnvelope = await webCallAuthenticated(
+        canisterId: _ledgerCanister,
+        method: _ledgerMethod,
+        mode: 0, // query
+        privateKeyB64: testSeedB64,
+        args: '()',
+      );
+      final envelope = jsonDecode(callAuthEnvelope) as Map<String, dynamic>;
+      if (envelope['ok'] == true) {
+        callAuthOk = true;
+        final result = envelope['result'] as Map<String, dynamic>;
+        callAuthSymbol = result['symbol'] as String?;
+      } else {
+        callAuthError =
+            '${envelope['kind'] ?? 'unknown'}: ${envelope['error'] ?? ''}';
+      }
+    } catch (e) {
+      callAuthError = e.toString();
+    }
+
     result = AgentProbeResult(
       loaded: true,
       version: readiness.version,
@@ -151,6 +232,12 @@ Future<void> main() async {
       candidFetched: true,
       candidParsed: candidParsed,
       symbolRetType: symbolRetType,
+      callAnonOk: callAnonOk,
+      callAnonSymbol: callAnonSymbol,
+      callAnonError: callAnonError,
+      callAuthOk: callAuthOk,
+      callAuthSymbol: callAuthSymbol,
+      callAuthError: callAuthError,
       error: null,
     );
   } catch (e) {
@@ -164,6 +251,12 @@ Future<void> main() async {
       candidFetched: false,
       candidParsed: false,
       symbolRetType: null,
+      callAnonOk: false,
+      callAnonSymbol: null,
+      callAnonError: null,
+      callAuthOk: false,
+      callAuthSymbol: null,
+      callAuthError: null,
       error: e.toString(),
     );
   }
@@ -185,7 +278,11 @@ void _publishResult(String json, AgentProbeResult r) {
     ..writeln('fetchCandid: ${r.candidFetched}  parseCandid: ${r.candidParsed}')
     ..writeln('symbol ret type (parsed): ${r.symbolRetType ?? "<not found>"}')
     ..writeln('query: $_ledgerCanister.$_ledgerMethod()')
-    ..writeln('queryOk: ${r.queryOk}  symbol: ${r.symbol}');
+    ..writeln('queryOk: ${r.queryOk}  symbol: ${r.symbol}')
+    ..writeln('callAnonymous: ok=${r.callAnonOk} symbol=${r.callAnonSymbol ?? "<n/a>"}');
+    if (r.callAnonError != null) summary.writeln('  callAnon ERROR: ${r.callAnonError}');
+    summary.writeln('callAuthenticated: ok=${r.callAuthOk} symbol=${r.callAuthSymbol ?? "<n/a>"}');
+    if (r.callAuthError != null) summary.writeln('  callAuth ERROR: ${r.callAuthError}');
   if (r.replyBase64 != null) summary.writeln('reply (base64): ${r.replyBase64}');
   if (r.error != null) summary.writeln('ERROR: ${r.error}');
   div.setProperty('innerText'.toJS, summary.toString().toJS);
@@ -204,6 +301,12 @@ class AgentProbeResult {
     required this.candidFetched,
     required this.candidParsed,
     required this.symbolRetType,
+    required this.callAnonOk,
+    required this.callAnonSymbol,
+    required this.callAnonError,
+    required this.callAuthOk,
+    required this.callAuthSymbol,
+    required this.callAuthError,
     required this.error,
   });
 
@@ -221,6 +324,14 @@ class AgentProbeResult {
   /// by the harness to equal `record { symbol : text }` (native parity on real
   /// metadata). Drives the typed decode of the reply.
   final String? symbolRetType;
+  /// (WU-3) `callAnonymous` full-flow envelope: `{"ok":true,"result":{...}}`.
+  final bool callAnonOk;
+  final String? callAnonSymbol;
+  final String? callAnonError;
+  /// (WU-4) `callAuthenticated` full-flow envelope (Ed25519 identity).
+  final bool callAuthOk;
+  final String? callAuthSymbol;
+  final String? callAuthError;
   final String? error;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -233,6 +344,12 @@ class AgentProbeResult {
         'candidFetched': candidFetched,
         'candidParsed': candidParsed,
         'symbolRetType': symbolRetType,
+        'callAnonOk': callAnonOk,
+        if (callAnonSymbol != null) 'callAnonSymbol': callAnonSymbol,
+        if (callAnonError != null) 'callAnonError': callAnonError,
+        'callAuthOk': callAuthOk,
+        if (callAuthSymbol != null) 'callAuthSymbol': callAuthSymbol,
+        if (callAuthError != null) 'callAuthError': callAuthError,
         'error': error,
       };
 }

@@ -88,7 +88,7 @@ class CandidService {
   ///      authoritative source `dfx` uses. Failures here surface as
   ///      [CandidFetchException].
   Future<String> _getCandidInterface(String canisterId, [String? host]) async {
-    final direct = _probeDirectCandid(canisterId, host);
+    final direct = await _probeDirectCandid(canisterId, host);
     if (direct != null) {
       return direct;
     }
@@ -98,9 +98,9 @@ class CandidService {
   /// Best-effort probe of the canister's temporary Candid hook. Returns `null`
   /// when the canister does not expose the hook (or the FFI bridge is absent);
   /// in either case the registry is the authoritative fallback source.
-  String? _probeDirectCandid(String canisterId, [String? host]) {
+  Future<String?> _probeDirectCandid(String canisterId, [String? host]) async {
     try {
-      final response = _bridge.callAnonymous(
+      final response = await _bridge.callAnonymous(
         canisterId: canisterId,
         method: '__get_candid_interface_tmp',
         mode: 0, // query

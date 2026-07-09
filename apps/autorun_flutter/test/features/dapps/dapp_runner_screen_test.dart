@@ -822,26 +822,26 @@ class _CannedBridge implements ScriptBridge {
   int authenticatedCalls = 0;
 
   @override
-  String? callAnonymous({
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     anonymousCalls++;
     return anonymous;
   }
 
   @override
-  String? callAuthenticated({
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     authenticatedCalls++;
     return anonymous;
   }

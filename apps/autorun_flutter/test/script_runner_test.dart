@@ -24,13 +24,13 @@ class _FakeBridge implements ScriptBridge {
   final List<Map<String, dynamic>> callLog = [];
 
   @override
-  String? callAnonymous({
+  Future<String?> callAnonymous({
     required String canisterId,
     required String method,
     required int mode,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     callLog.add({
       'type': 'anonymous',
       'canisterId': canisterId,
@@ -43,14 +43,14 @@ class _FakeBridge implements ScriptBridge {
   }
 
   @override
-  String? callAuthenticated({
+  Future<String?> callAuthenticated({
     required String canisterId,
     required String method,
     required int mode,
     required String privateKeyB64,
     String args = '()',
     String? host,
-  }) {
+  }) async {
     callLog.add({
       'type': 'authenticated',
       'canisterId': canisterId,

@@ -33,6 +33,32 @@ Future<IcAgentQueryResult> webQueryAnonymous({
     throw UnsupportedError(
         'IC agent query requires the Web runtime; the VM uses native_bridge_io');
 
+/// callAnonymous — Web-only (agent-js network I/O via the CORS proxy). The VM
+/// production path uses `native_bridge_io.dart`'s FFI; this stub is never
+/// reached in practice. Mirrors [webQueryAnonymous]'s contract.
+Future<String> webCallAnonymous({
+  required String canisterId,
+  required String method,
+  required int mode,
+  String args = '()',
+}) =>
+    throw UnsupportedError(
+        'IC agent callAnonymous requires the Web runtime; the VM uses '
+        'native_bridge_io');
+
+/// callAuthenticated — Web-only. Same contract as [webCallAnonymous] plus an
+/// Ed25519 identity.
+Future<String> webCallAuthenticated({
+  required String canisterId,
+  required String method,
+  required int mode,
+  required String privateKeyB64,
+  String args = '()',
+}) =>
+    throw UnsupportedError(
+        'IC agent callAuthenticated requires the Web runtime; the VM uses '
+        'native_bridge_io');
+
 /// `fetchCandid` — Web-only (agent-js network I/O via the CORS proxy). The VM
 /// production path uses `native_bridge_io.dart`'s FFI; this stub is never
 /// reached in practice. Mirrors [webQueryAnonymous]'s contract.

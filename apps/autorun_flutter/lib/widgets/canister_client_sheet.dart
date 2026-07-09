@@ -318,7 +318,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         ? CallType.update
         : (_selectedMode == 2 ? CallType.compositeQuery : CallType.query);
     try {
-      final String? out = widget.bridge.callAnonymous(
+      final String? out = await widget.bridge.callAnonymous(
         canisterId: cid,
         method: method,
         mode: _selectedMode,
