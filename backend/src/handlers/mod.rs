@@ -7,6 +7,7 @@
 pub mod accounts;
 pub mod admin;
 pub mod health;
+pub mod ic_proxy;
 pub mod passkey;
 pub mod payments;
 pub mod recovery;
@@ -20,6 +21,8 @@ pub use accounts::{
 };
 pub use admin::{admin_add_recovery_key, admin_disable_key, reset_database};
 pub use health::{health_check, ping};
+// `ic_proxy` is both the module and the handler name; main.rs references it
+// fully-qualified as `handlers::ic_proxy::ic_proxy` to avoid the name clash.
 pub use passkey::{
     passkey_authenticate_finish, passkey_authenticate_start, passkey_delete, passkey_list,
     passkey_register_finish, passkey_register_start,

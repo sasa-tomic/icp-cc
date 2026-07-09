@@ -117,6 +117,17 @@ async fn main() -> Result<(), std::io::Error> {
     // themselves 5xx/503 when invoked without config (LOUD-misconfig policy).
     warn_if_icpay_unconfigured();
 
+    // R-3b WU-1: log the IC gateway host the CORS byte-relay proxy forwards
+    // to. Defaults to mainnet (https://ic0.app); unset just means "use the
+    // default" — the marketplace still boots and browses either way. Surfaced
+    // at boot so a misconfigured/overridden host is visible in logs.
+    let ic_gateway_host =
+        env::var("IC_GATEWAY_HOST").unwrap_or_else(|_| "https://ic0.app".to_string());
+    tracing::info!(
+        "IC CORS proxy forwarding to IC_GATEWAY_HOST={} (route /api/v1/ic/*)",
+        ic_gateway_host
+    );
+
     let passkey_service = PasskeyService::new(pool.clone(), &rp_id, &rp_origin)
         .expect("Failed to create PasskeyService");
 
@@ -186,8 +197,10 @@ async fn main() -> Result<(), std::io::Error> {
     //   POST   /api/v1/admin/accounts/:username/keys/:key_id/disable -> admin_disable_key
     //   POST   /api/v1/admin/accounts/:username/recovery-key         -> admin_add_recovery_key
     // Payments (ICPay)
-    //   GET    /api/v1/payments/icpay/config          -> payment_config (public; 503 if unset)
-    //   POST   /api/v1/payments/icpay/webhook         -> icpay_webhook (unauthenticated; HMAC-verified)
+    //   GET  /api/v1/payments/icpay/config          -> payment_config (public; 503 if unset)
+    //   POST /api/v1/payments/icpay/webhook         -> icpay_webhook (unauthenticated; HMAC-verified)
+    // IC byte-relay CORS proxy (R-3b WU-1)
+    //   GET|POST /api/v1/ic/*<rest>                 -> ic_proxy (forwards to ${IC_GATEWAY_HOST})
     // ========================================================================
     // Build app
     let app = Route::new()
@@ -324,6 +337,16 @@ async fn main() -> Result<(), std::io::Error> {
             post(handlers::update_script_stats),
         )
         .at("/api/dev/reset-database", post(handlers::reset_database))
+        // R-3b WU-1: IC byte-relay CORS proxy. A protocol-blind catch-all that
+        // forwards /api/v1/ic/*<rest> to ${IC_GATEWAY_HOST} (default ic0.app)
+        // so the browser-side agent-js can reach IC boundary nodes (browsers
+        // cannot call ic0.app directly — no CORS headers). Supports GET (status
+        // / candid registry) + POST (query/call/read_state). The global
+        // `Cors::new()` below adds CORS headers; the proxy never sees a key.
+        .at(
+            "/api/v1/ic/*rest",
+            get(handlers::ic_proxy::ic_proxy).post(handlers::ic_proxy::ic_proxy),
+        )
         .with(Cors::new())
         .data(state);
 

@@ -10,7 +10,6 @@ use icp_marketplace_api::{
     db::initialize_database,
     services::{PasskeyService, VaultData},
 };
-use poem::error::ResponseError;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
 const B64: base64::engine::general_purpose::GeneralPurpose =

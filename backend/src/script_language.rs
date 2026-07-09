@@ -210,7 +210,10 @@ end";
 
     #[test]
     fn detects_real_typescript_contract_bundle() {
-        assert_eq!(ScriptLanguage::detect(TS_BUNDLE), ScriptLanguage::TypeScript);
+        assert_eq!(
+            ScriptLanguage::detect(TS_BUNDLE),
+            ScriptLanguage::TypeScript
+        );
         assert_eq!(ScriptLanguage::detect(TS_BUNDLE).as_str(), "typescript");
     }
 
@@ -227,7 +230,8 @@ end";
     #[test]
     fn detects_minimal_ts_bundle_with_globalthis_contract() {
         // Even a tiny TS bundle is recognized via the globalThis export marker.
-        let minimal = "function init() { return { state: {}, effects: [] }; }\nglobalThis.init = init;";
+        let minimal =
+            "function init() { return { state: {}, effects: [] }; }\nglobalThis.init = init;";
         assert_eq!(ScriptLanguage::detect(minimal), ScriptLanguage::TypeScript);
     }
 
@@ -243,7 +247,10 @@ end";
         // `print(...)` is valid in BOTH Lua and JS — no contract markers →
         // Unknown. The badge shows NOTHING rather than guess. (This is the
         // old seed's `print(\"Hello, World!\")` filler — now honestly unknown.)
-        assert_eq!(ScriptLanguage::detect("print('hello')"), ScriptLanguage::Unknown);
+        assert_eq!(
+            ScriptLanguage::detect("print('hello')"),
+            ScriptLanguage::Unknown
+        );
         assert_eq!(
             ScriptLanguage::detect("line one\nline two"),
             ScriptLanguage::Unknown
