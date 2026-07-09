@@ -1,15 +1,14 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show Directory;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:icp_autorun/utils/encrypted_export.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/profile.dart';
 import '../models/profile_keypair.dart';
 import '../utils/profile_errors.dart';
-import 'file_io.dart';
+import 'json_store.dart';
 import 'profile_invariants.dart';
 
 /// ProfileRepository manages secure storage of user profiles
@@ -18,11 +17,13 @@ import 'profile_invariants.dart';
 /// - Stores Profile objects (not individual keypairs)
 /// - Each Profile contains 1-10 keypairs
 /// - Sensitive data (private keys, mnemonics) stored in platform secure storage
-/// - Non-sensitive data (public keys, metadata) stored in regular file storage
+/// - Non-sensitive data (public keys, metadata) stored in a JSON document store
 ///
 /// Storage Strategy:
-/// - profiles.json: Profile metadata + keypair public data
-/// - Secure Storage: Private keys and mnemonics (per-keypair)
+/// - JSON store key `'profiles'` (file on IO, localStorage on Web — see
+///   [JsonDocumentStore]): Profile metadata + keypair public data.
+/// - Secure Storage: Private keys and mnemonics (per-keypair). Unchanged by
+///   WU-1 — `flutter_secure_storage` already works on Web (IndexedDB + AES).
 class ProfileRepository {
   ProfileRepository({Directory? overrideDirectory})
       : _overrideDirectory = overrideDirectory,
@@ -35,69 +36,45 @@ class ProfileRepository {
           ),
         );
 
+  /// The IO test-injection directory (see [openJsonDocumentStore]). On Web this
+  /// is always `null` — no caller can supply a `Directory` in the browser.
   final Directory? _overrideDirectory;
   final FlutterSecureStorage _secureStorage;
-  bool _initialized = false;
-  File? _storeFile;
+
+  JsonDocumentStore? _store;
+
+  /// Lazily resolves the JSON document store for this repository. The store is
+  /// built once from [_overrideDirectory] (test injection) or the
+  /// platform-default location, then cached.
+  JsonDocumentStore get _docStore =>
+      _store ??= openJsonDocumentStore(overrideDirectory: _overrideDirectory);
+
+  /// Single source for this repository's JSON-store key name.
+  static const String _storeKey = 'profiles';
 
   // Key prefixes for secure storage
   static const String _privateKeyPrefix = 'keypair_private_key_';
   static const String _mnemonicPrefix = 'keypair_mnemonic_';
 
-  Future<void> _ensureInitialized() async {
-    if (_initialized) {
-      return;
-    }
-
-    if (kIsWeb) {
-      throw UnsupportedError('ProfileRepository does not support web yet.');
-    }
-
-    Directory directory;
-    final Directory? override = _overrideDirectory;
-    if (override != null) {
-      directory = override;
-    } else {
-      try {
-        directory = await getApplicationSupportDirectory();
-      } catch (e, st) {
-        debugPrint('ProfileRepository: path_provider unavailable, '
-            'falling back to temp dir: $e\n$st');
-        // In test or restricted environments, fall back to temporary directory
-        directory = await Directory.systemTemp.createTemp('icp_autorun_test_');
-      }
-    }
-
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-
-    final File file = File('${directory.path}/profiles.json');
-    if (!await file.exists()) {
-      await writeJson(
-        file,
-        jsonEncode(<String, dynamic>{
+  /// The empty-store payload written on first run and after corruption reset.
+  /// Kept schema-identical to the original `profiles.json` so existing data and
+  /// tests are unaffected.
+  static String _encodeEmptyStore() => jsonEncode(
+        <String, dynamic>{
           'version': 1,
           'profiles': <Map<String, dynamic>>[],
-        }),
+        },
       );
-    }
-
-    _storeFile = file;
-    _initialized = true;
-  }
 
   /// Load all profiles from storage
   Future<List<Profile>> loadProfiles() async {
-    await _ensureInitialized();
-    final File file = _storeFile!;
+    final String? content = await _docStore.read(_storeKey);
+    // Absent or whitespace-only key → fresh store → no profiles (no error).
+    if (content == null) {
+      return <Profile>[];
+    }
 
     try {
-      final String content = await readJson(file);
-      if (content.trim().isEmpty) {
-        return <Profile>[];
-      }
-
       final dynamic decoded = jsonDecode(content);
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Invalid profile store format.');
@@ -148,47 +125,38 @@ class ProfileRepository {
       // Fail loud if the decoded state already violates the keypair-ownership
       // invariant (a keypair claimed by >1 profile). Never silently dedupe —
       // that would mask permanent key loss. Mirrors the FormatException
-      // corrupt-file recovery below, but throws so the app surfaces the error.
+      // corrupt-store recovery below, but throws so the app surfaces the error.
       assertUniqueKeypairOwnership(result);
 
       return result;
     } on FormatException {
-      // If parsing fails, back up the corrupted file and start fresh
-      final String backupPath = '${file.path}.bak';
-      await file.copy(backupPath);
-      await writeJson(
-        file,
-        jsonEncode(<String, dynamic>{
-          'version': 1,
-          'profiles': <Map<String, dynamic>>[],
-        }),
-      );
+      // Parsing failed: back up the corrupt payload (portably — into a sibling
+      // store key, so this works on IO AND Web), reset to a safe empty state,
+      // and surface the incident loudly. Never silently drop user data.
+      debugPrint('ProfileRepository: corrupt `$_storeKey` store detected; '
+          'backing up to `${_storeKey}_bak` and resetting.');
+      await _docStore.write('${_storeKey}_bak', content);
+      await _docStore.write(_storeKey, _encodeEmptyStore());
       return <Profile>[];
     } on KeypairOwnershipViolation {
-      // Back the corrupt file aside (as `.corrupt`) for inspection/recovery,
-      // reset the store to a safe empty state, then rethrow so the violation
-      // is surfaced loudly — never silently dedupe or delete.
-      final String corruptPath = '${file.path}.corrupt';
-      await file.copy(corruptPath);
-      await writeJson(
-        file,
-        jsonEncode(<String, dynamic>{
-          'version': 1,
-          'profiles': <Map<String, dynamic>>[],
-        }),
-      );
+      // Back the corrupt payload aside (as `<key>_corrupt`) for inspection /
+      // recovery, reset the store to a safe empty state, then rethrow so the
+      // violation is surfaced loudly — never silently dedupe or delete.
+      debugPrint('ProfileRepository: keypair-ownership violation in '
+          '`$_storeKey` store; backing up to `${_storeKey}_corrupt` and '
+          'resetting.');
+      await _docStore.write('${_storeKey}_corrupt', content);
+      await _docStore.write(_storeKey, _encodeEmptyStore());
       rethrow;
     }
   }
 
   /// Persist profiles to storage
   Future<void> persistProfiles(List<Profile> profiles) async {
-    await _ensureInitialized();
     // Fail loud BEFORE any write: refuse to persist state that violates the
     // keypair-ownership invariant (a keypair must belong to exactly ONE
     // profile). See profile_invariants.dart.
     assertUniqueKeypairOwnership(profiles);
-    final File file = _storeFile!;
 
     // Store sensitive data in secure storage for all keypairs
     for (final Profile profile in profiles) {
@@ -204,7 +172,7 @@ class ProfileRepository {
       }
     }
 
-    // Store non-sensitive data in regular file
+    // Store non-sensitive data in the JSON document store
     final List<Map<String, dynamic>> publicProfiles = profiles
         .map((Profile profile) => <String, dynamic>{
               'id': profile.id,
@@ -232,7 +200,7 @@ class ProfileRepository {
       'profiles': publicProfiles,
     };
 
-    await writeJson(file, jsonEncode(payload));
+    await _docStore.write(_storeKey, jsonEncode(payload));
   }
 
   /// Delete secure data for a specific keypair

@@ -218,11 +218,13 @@ void main() {
         throwsA(isA<KeypairOwnershipViolation>()),
       );
 
-      // Nothing corrupt should have been written — the store stays empty.
-      final file = File('${tempDir.path}/profiles.json');
-      final content =
-          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-      expect(content['profiles'] as List, isEmpty);
+      // Nothing corrupt should have been written — a fresh load returns no
+      // profiles. (WU-1: the JSON store is created lazily on first successful
+      // write, so after a refused persist the `profiles` key is simply absent
+      // rather than holding an empty placeholder file. Asserting via the public
+      // contract keeps this resilient to the storage substrate.)
+      final reloaded = await newRepo().loadProfiles();
+      expect(reloaded, isEmpty);
     });
 
     test('persistProfiles refuses to write a shared publicKey', () async {
@@ -243,8 +245,8 @@ void main() {
     });
 
     test(
-        'loadProfiles fails loud on a corrupt file and backs it up as .corrupt',
-        () async {
+        'loadProfiles fails loud on a corrupt store and backs it up '
+        'under profiles_corrupt', () async {
       final kp = await TestKeypairFactory.fromSeed(7);
 
       // Pre-populate secure storage for the shared keypair id, so loadProfiles
@@ -307,9 +309,11 @@ void main() {
         throwsA(isA<KeypairOwnershipViolation>()),
       );
 
-      // The corrupt content must be preserved aside as `.corrupt` (not
-      // deleted, not silently rewritten) so the dev can inspect/recover.
-      final corruptBackup = File('${tempDir.path}/profiles.json.corrupt');
+      // The corrupt content must be preserved aside (not deleted, not silently
+      // rewritten) so the dev can inspect/recover. WU-1: the backup is written
+      // to a portable sibling store key (`profiles_corrupt`) so recovery works
+      // on IO (→ `profiles_corrupt.json` here) AND on Web (→ localStorage).
+      final corruptBackup = File('${tempDir.path}/profiles_corrupt.json');
       expect(await corruptBackup.exists(), isTrue);
       final backedUp =
           jsonDecode(await corruptBackup.readAsString()) as Map<String, dynamic>;

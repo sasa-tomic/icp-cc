@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show Directory;
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/script_record.dart';
-import 'file_io.dart';
+import 'json_store.dart';
 
 class ScriptRepository {
   // Singleton pattern
@@ -24,11 +23,32 @@ class ScriptRepository {
     return instance;
   }
 
-  ScriptRepository.internal({Directory? overrideDirectory}) : _overrideDirectory = overrideDirectory;
+  ScriptRepository.internal({Directory? overrideDirectory})
+      : _overrideDirectory = overrideDirectory;
 
+  /// The IO test-injection directory (see [openJsonDocumentStore]). On Web this
+  /// is always `null` — no caller can supply a `Directory` in the browser.
   final Directory? _overrideDirectory;
-  bool _initialized = false;
-  File? _storeFile;
+
+  JsonDocumentStore? _store;
+
+  /// Lazily resolves the JSON document store for this repository. The store is
+  /// built once from [_overrideDirectory] (test injection) or the
+  /// platform-default location, then cached.
+  JsonDocumentStore get _docStore =>
+      _store ??= openJsonDocumentStore(overrideDirectory: _overrideDirectory);
+
+  /// Single source for this repository's JSON-store key name.
+  static const String _storeKey = 'scripts';
+
+  /// The empty-store payload written after a corruption reset. Schema-identical
+  /// to the original `scripts.json`.
+  static String _encodeEmptyStore() => jsonEncode(
+        <String, dynamic>{
+          'version': 1,
+          'scripts': <Map<String, dynamic>>[],
+        },
+      );
 
   // Broadcast stream for script changes
   final StreamController<List<ScriptRecord>> _scriptsController =
@@ -36,75 +56,39 @@ class ScriptRepository {
 
   Stream<List<ScriptRecord>> get scriptsStream => _scriptsController.stream;
 
-  Future<void> _ensureInitialized() async {
-    if (_initialized) return;
-
-    if (kIsWeb) {
-      throw UnsupportedError('ScriptRepository does not support web yet.');
-    }
-
-    Directory directory;
-    final Directory? override = _overrideDirectory;
-    if (override != null) {
-      directory = override;
-    } else {
-      try {
-        directory = await getApplicationSupportDirectory();
-      } catch (e, st) {
-        debugPrint('ScriptRepository: path_provider unavailable, '
-            'falling back to temp dir: $e\n$st');
-        directory = await Directory.systemTemp.createTemp('icp_scripts_test_');
-      }
-    }
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-
-    final File file = File('${directory.path}/scripts.json');
-    if (!await file.exists()) {
-      await writeJson(file, jsonEncode(<String, dynamic>{
-        'version': 1,
-        'scripts': <Map<String, dynamic>>[],
-      }));
-    }
-
-    _storeFile = file;
-    _initialized = true;
-  }
-
   Future<List<ScriptRecord>> loadScripts() async {
-    await _ensureInitialized();
-    final File file = _storeFile!;
+    final String? content = await _docStore.read(_storeKey);
+    // Absent or whitespace-only key → fresh store → no scripts (no error).
+    if (content == null) return <ScriptRecord>[];
     try {
-      final String content = await readJson(file);
-      if (content.trim().isEmpty) return <ScriptRecord>[];
       final dynamic decoded = jsonDecode(content);
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Invalid scripts store format.');
       }
-      final List<dynamic> arr = decoded['scripts'] as List<dynamic>? ?? <dynamic>[];
+      final List<dynamic> arr =
+          decoded['scripts'] as List<dynamic>? ?? <dynamic>[];
       return arr
-          .map((dynamic item) => ScriptRecord.fromJson(item as Map<String, dynamic>))
+          .map((dynamic item) =>
+              ScriptRecord.fromJson(item as Map<String, dynamic>))
           .toList(growable: false);
     } on FormatException {
-      final String backupPath = '${file.path}.bak';
-      await file.copy(backupPath);
-      await writeJson(file, jsonEncode(<String, dynamic>{
-        'version': 1,
-        'scripts': <Map<String, dynamic>>[],
-      }));
+      // Parsing failed: back up the corrupt payload (portably — into a sibling
+      // store key, so this works on IO AND Web), reset to a safe empty state,
+      // and surface the incident loudly. Never silently drop user data.
+      debugPrint('ScriptRepository: corrupt `$_storeKey` store detected; '
+          'backing up to `${_storeKey}_bak` and resetting.');
+      await _docStore.write('${_storeKey}_bak', content);
+      await _docStore.write(_storeKey, _encodeEmptyStore());
       return <ScriptRecord>[];
     }
   }
 
   Future<void> persistScripts(List<ScriptRecord> scripts) async {
-    await _ensureInitialized();
-    final File file = _storeFile!;
     final Map<String, dynamic> payload = <String, dynamic>{
       'version': 1,
       'scripts': scripts.map((ScriptRecord s) => s.toJson()).toList(),
     };
-    await writeJson(file, jsonEncode(payload));
+    await _docStore.write(_storeKey, jsonEncode(payload));
 
     // Notify all listeners about the change
     _scriptsController.add(List<ScriptRecord>.unmodifiable(scripts));
