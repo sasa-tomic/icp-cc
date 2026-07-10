@@ -162,11 +162,13 @@ pub fn verify_signature(
     payload: &[u8],
     public_key: &str,
 ) -> Result<(), AuthError> {
-    // Check for invalid patterns that should be rejected
-    if signature.is_empty() || signature == "invalid-auth-token" || signature == "invalid-signature"
-    {
+    // Structural sanity check only: a real signature can never be empty.
+    // All other rejection MUST come from real crypto verification below —
+    // never from substring/word-list heuristics that could wrongly reject a
+    // valid base64 value (W6-2).
+    if signature.is_empty() {
         return Err(AuthError::InvalidSignature(
-            "Invalid signature pattern".to_string(),
+            "Signature must not be empty".to_string(),
         ));
     }
 
@@ -190,22 +192,29 @@ pub fn verify_signature(
 }
 
 /// Validates principal and public key fields for authentication
+///
+/// Performs only a minimal structural sanity check (non-empty). It MUST NOT
+/// reject values based on substrings like "invalid" — a real base64 Ed25519
+/// public key or IC principal can legitimately contain that run. Genuine
+/// validation happens downstream via real parsing / crypto
+/// (`derive_ic_principal`, `verify_ed25519_signature`, etc.), which fail loudly
+/// on malformed input. (W6-2: dropped the substring heuristic.)
 pub fn validate_credentials(
     author_principal: Option<&str>,
     author_public_key: Option<&str>,
 ) -> Result<(), AuthError> {
     if let Some(principal) = author_principal {
-        if principal == "invalid-principal" || principal.contains("invalid") {
+        if principal.is_empty() {
             return Err(AuthError::InvalidCredentials(
-                "Invalid principal pattern detected".to_string(),
+                "Principal must not be empty".to_string(),
             ));
         }
     }
 
     if let Some(public_key) = author_public_key {
-        if public_key == "invalid-public-key" || public_key.contains("invalid") {
+        if public_key.is_empty() {
             return Err(AuthError::InvalidCredentials(
-                "Invalid public key pattern detected".to_string(),
+                "Public key must not be empty".to_string(),
             ));
         }
     }
@@ -395,18 +404,65 @@ mod tests {
     #[test]
     fn test_reject_invalid_signature_patterns() {
         let payload = b"test payload";
-        let public_key = "dGVzdC1wdWJsaWMta2V5"; // base64 encoded
+        let public_key = B64.encode([1u8; 32]);
 
-        assert!(verify_signature("", payload, public_key).is_err());
-        assert!(verify_signature("invalid-auth-token", payload, public_key).is_err());
-        assert!(verify_signature("invalid-signature", payload, public_key).is_err());
+        // Empty signature is structurally invalid.
+        assert!(verify_signature("", payload, &public_key).is_err());
+
+        // Not-valid base64 -> rejected by real decoding (not a substring heuristic).
+        assert!(verify_signature("not-valid-base64!!!", payload, &public_key).is_err());
+
+        // Well-formed 64-byte signature with wrong bytes -> rejected by real crypto.
+        let wrong_signature = B64.encode([0u8; 64]);
+        assert!(verify_signature(&wrong_signature, payload, &public_key).is_err());
     }
 
     #[test]
     fn test_reject_invalid_credentials() {
-        assert!(validate_credentials(Some("invalid-principal"), Some("test-key")).is_err());
-        assert!(validate_credentials(Some("test-principal"), Some("invalid-public-key")).is_err());
+        // Empty values are structurally invalid.
+        assert!(validate_credentials(Some(""), Some("valid-key")).is_err());
+        assert!(validate_credentials(Some("valid-principal"), Some("")).is_err());
+
+        // Valid values are accepted.
         assert!(validate_credentials(Some("valid-principal"), Some("valid-key")).is_ok());
+
+        // Values containing the substring "invalid" must be accepted (W6-2):
+        // real base64 public keys / principals can legitimately contain it.
+        assert!(validate_credentials(
+            Some("abc-invalid-suffix"),
+            Some("invalidAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+        )
+        .is_ok());
+
+        // Missing (None) values are accepted.
+        assert!(validate_credentials(None, None).is_ok());
+    }
+
+    #[test]
+    fn test_validate_credentials_accepts_values_containing_invalid_substring() {
+        // RED for W6-2: a real base64 Ed25519 public key or a real principal can
+        // legitimately contain the run "invalid". Such values must NOT be
+        // rejected by a substring heuristic — only real crypto/parse validation
+        // may reject them downstream.
+        let principal = "abc-invalid-suffix";
+        let public_key = "invalidAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        assert!(
+            validate_credentials(Some(principal), Some(public_key)).is_ok(),
+            "values containing the substring 'invalid' must be accepted"
+        );
+    }
+
+    #[test]
+    fn test_verify_signature_rejects_genuinely_invalid_signature() {
+        // A well-formed-but-wrong signature must be rejected by real crypto,
+        // NOT by a substring/substring heuristic.
+        let payload = b"test payload";
+        let public_key = B64.encode([1u8; 32]);
+        let wrong_signature = B64.encode([0u8; 64]); // valid 64-byte length, wrong bytes
+        assert!(
+            verify_signature(&wrong_signature, payload, &public_key).is_err(),
+            "genuinely invalid signature must be rejected by real crypto"
+        );
     }
 
     #[test]
