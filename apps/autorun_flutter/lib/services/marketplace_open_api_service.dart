@@ -678,17 +678,18 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     return MarketplaceStats.fromJson(data);
   }
 
-  // Get canister compatibility info
+  // Get canister compatibility info.
+  //
+  // The Cloudflare endpoint accepts exactly one canister id per request, so
+  // the API takes a single [canisterId] rather than a list — this makes it
+  // impossible for a caller to (mis)believe >1 id is honoured.
   Future<List<MarketplaceScript>> getCompatibleScripts(
-    List<String> canisterIds, {
+    String canisterId, {
     int limit = 50,
   }) async {
     try {
-      // Validate all canister IDs
-      for (final canisterId in canisterIds) {
-        if (!_isValidCanisterId(canisterId)) {
-          throw Exception('Invalid canister ID format: $canisterId');
-        }
+      if (!_isValidCanisterId(canisterId)) {
+        throw Exception('Invalid canister ID format: $canisterId');
       }
 
       final response = await _httpClient
@@ -696,8 +697,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             Uri.parse(ApiRoutes.scriptsCompatible),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'canisterId': canisterIds
-                  .first, // Cloudflare endpoint expects single canister ID
+              'canisterId': canisterId,
               'limit': limit,
             }),
           )

@@ -401,6 +401,76 @@ void main() {
     });
   });
 
+  group('getCompatibleScripts (W6-4: single canisterId, not a List)', () {
+    // Regression: the old signature took List<String> canisterIds, validated
+    // *every* id, then silently sent only canisterIds.first — callers passing
+    // >1 id got compatibility for just the first with no warning. The endpoint
+    // is single-canister, so the API now takes a single String up front and
+    // cannot mislead a caller into thinking >1 id is honoured.
+    const validId = 'aaaaa-bbbbb-ccccc-ddddd-eee';
+
+    test('sends exactly the canister id passed, as a single string value',
+        () async {
+      String? capturedBody;
+      service.overrideHttpClient(MockClient((req) async {
+        capturedBody = req.body;
+        return http.Response(
+          jsonEncode({'success': true, 'data': <Map<String, dynamic>>[]}),
+          200,
+        );
+      }));
+
+      await service.getCompatibleScripts(validId);
+
+      final decoded = jsonDecode(capturedBody!) as Map<String, dynamic>;
+      expect(decoded['canisterId'], validId);
+      expect(decoded['canisterId'], isA<String>(),
+          reason: 'endpoint gets one id, never the .first of a list');
+      expect(decoded['limit'], 50);
+    });
+
+    test('rejects an invalid canister id before any network call', () async {
+      // No client override: if validation leaked a request, the default client
+      // would hit a real host. We assert the validation Exception fires first.
+      expect(
+        service.getCompatibleScripts('not-a-valid-id'),
+        _exceptionMessageContaining('Invalid canister ID format'),
+      );
+    });
+
+    test('forwards the limit override into the request body', () async {
+      String? capturedBody;
+      service.overrideHttpClient(MockClient((req) async {
+        capturedBody = req.body;
+        return http.Response(
+          jsonEncode({'success': true, 'data': <Map<String, dynamic>>[]}),
+          200,
+        );
+      }));
+
+      await service.getCompatibleScripts(validId, limit: 5);
+
+      expect((jsonDecode(capturedBody!) as Map<String, dynamic>)['limit'], 5);
+    });
+
+    test('returns parsed scripts on a successful 200 envelope', () async {
+      service.overrideHttpClient(MockClient((_) async => http.Response(
+            jsonEncode({
+              'success': true,
+              'data': [
+                {'id': 'script-1', 'title': 'Script One'},
+              ],
+            }),
+            200,
+          )));
+
+      final result = await service.getCompatibleScripts(validId);
+      expect(result, hasLength(1));
+      expect(result.first.id, 'script-1');
+      expect(result.first.title, 'Script One');
+    });
+  });
+
   group('response-shape edge cases', () {
     test('getScriptDetails throws when data field is null', () {
       service.overrideHttpClient(_statusClient(
