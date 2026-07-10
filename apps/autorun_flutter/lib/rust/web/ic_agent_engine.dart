@@ -243,8 +243,10 @@ class WebIcAgent {
           .query(agent, canisterId.toJS, method.toJS, argBase64.toJS)
           .toDart;
     } catch (e) {
+      // W6-1 Bug 2: a fetch() rejection may carry a raw HTTP response. Sanitize
+      // so the envelope's `error` never leaks server banners / HTML bodies.
       return IcAgentQueryResult(
-          ok: false, kind: 'net', error: _jsErrString(e));
+          ok: false, kind: 'net', error: friendlyIcErrorMessage(_jsErrString(e)));
     }
     return _parseQueryResult(res);
   }
@@ -257,8 +259,9 @@ class WebIcAgent {
           .update(agent, canisterId.toJS, method.toJS, argBase64.toJS)
           .toDart;
     } catch (e) {
+      // W6-1 Bug 2: same sanitization as _queryWith.
       return IcAgentQueryResult(
-          ok: false, kind: 'net', error: _jsErrString(e));
+          ok: false, kind: 'net', error: friendlyIcErrorMessage(_jsErrString(e)));
     }
     return _parseQueryResult(res);
   }
@@ -368,7 +371,8 @@ class WebIcAgent {
           ? await _updateWith(agent, canisterId, method, argBase64)
           : await _queryWith(agent, canisterId, method, argBase64);
       if (!result.ok) {
-        return _errEnvelope(result.kind ?? 'net', result.error ?? 'unknown');
+        return _errEnvelope(
+            result.kind ?? 'net', friendlyIcErrorMessage(result.error ?? 'unknown'));
       }
 
       // 5. Decode reply (typed decode via fetched candid).
@@ -376,10 +380,15 @@ class WebIcAgent {
           _decodeReply(method, result.replyBase64!, did);
       return jsonEncode(<String, dynamic>{'ok': true, 'result': jsonResult});
     } on _CallError catch (e) {
-      return _errEnvelope(e.kind, e.message);
+      // W6-1 Bug 2: a 'net' _CallError may carry a raw HTTP/HTML dump captured
+      // by _jsErrString (e.g. an authenticated-agent creation failure). Map raw
+      // dumps to the friendly message; typed Candid messages pass through.
+      return _errEnvelope(e.kind, friendlyIcErrorMessage(e.message));
     } catch (e) {
-      // Unexpected — surface loudly (never silent).
-      return _errEnvelope('net', e.toString());
+      // Unexpected — surface loudly (never silent). W6-1 Bug 2: this is the
+      // path an IcAgentLoadException (fetchCandid failure) takes — sanitize so
+      // raw HTTP headers / HTML bodies never leak into the result text.
+      return _errEnvelope('net', friendlyIcErrorMessage(e.toString()));
     }
   }
 

@@ -57,30 +57,36 @@ void main() {
   });
 
   // ─────────────── Keyless-user CTA (HUMAN_EXPECTATIONS §3) ───────────────
-  // A keyless user can view the dapp but can't vote. They get a one-tap
-  // "Create a profile to vote" CTA inline (no hunting the profile menu), which
+  // A keyless user can view the dapp but can't take signed actions. They get a
+  // one-tap "Create a profile" CTA inline (no hunting the profile menu), which
   // deep-links into the same wizard used at first run. The CTA disappears once
-  // a profile exists (no slop for profiled users).
+  // a profile exists (no slop for profiled users). The copy is DAPP-AGNOSTIC
+  // (W6-1 Bug 3): no poll-specific "vote" language — every dapp gets the same
+  // generic "take signed actions" hint unless its descriptor overrides it.
   testWidgets(
-      'keyless user sees an obvious Create-profile-to-vote CTA '
-      '(dual-path teaching)', (tester) async {
+      'keyless user sees an obvious Create-profile CTA with generic copy '
+      '(dual-path teaching, dapp-agnostic)', (tester) async {
     final runtime = _RecordingRuntime();
     await _pumpRunner(tester, descriptor, runtime: runtime);
     await tester.pumpAndSettle();
 
-    // The CTA is present with a stable key + honest copy. This is the
-    // pedagogical bridge from "I can see polls" → "I can vote".
+    // The CTA is present with a stable key + honest, dapp-agnostic copy. This
+    // is the pedagogical bridge from "I can browse" → "I can take signed
+    // actions".
     final cta = find.byKey(const Key('dappCreateProfileToVoteCta'));
     expect(cta, findsOneWidget,
         reason: 'A keyless user must see an obvious create-profile CTA inline, '
             'not a passive hint buried in a chip.');
-    expect(find.text('Create a profile to vote'), findsOneWidget);
+    expect(find.text('Create a profile'), findsOneWidget);
 
-    // The hint teaches the dual-path model: view anonymously, act with identity.
-    expect(find.textContaining('read polls anonymously'),
-        findsOneWidget);
-    expect(find.textContaining('Creating a profile lets you vote'),
-        findsOneWidget);
+    // The hint teaches the dual-path model: browse anonymously, act with
+    // identity. Dapp-agnostic — never poll-specific "vote" language.
+    expect(find.textContaining('browsing anonymously'), findsOneWidget);
+    expect(find.textContaining('signed actions'), findsOneWidget);
+    // Regression guard (W6-1 Bug 3): poll-specific copy must NOT leak into the
+    // ICP Ledger runner (or any non-poll dapp).
+    expect(find.textContaining('read polls'), findsNothing);
+    expect(find.textContaining('lets you vote'), findsNothing);
   });
 
   testWidgets(
@@ -117,11 +123,41 @@ void main() {
     // Slop guard: the CTA is for keyless users only. A profiled user must not
     // see a useless "create a profile" button.
     expect(find.byKey(const Key('dappCreateProfileToVoteCta')), findsNothing);
-    expect(find.text('Create a profile to vote'), findsNothing);
+    expect(find.text('Create a profile'), findsNothing);
 
     // The success chip replaces the warning chip — the user sees they're signed.
     expect(find.textContaining('No active profile'), findsNothing);
     expect(find.textContaining('Signed'), findsOneWidget);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // W6-1 Bug 3: a descriptor MAY carry a custom keyless hint; when it does,
+  // that copy is preferred over the generic default. This lets a poll dapp say
+  // "vote" while a ledger dapp says "take signed actions" — without the generic
+  // default being poll-specific.
+  // ─────────────────────────────────────────────────────────────────────────
+  testWidgets(
+      'a descriptor with a custom keylessHint shows it instead of the generic '
+      'copy', (tester) async {
+    final custom = DappDescriptor(
+      id: 'w6_custom_hint',
+      title: 'Custom Hint Dapp',
+      description: 'd',
+      emoji: '🧪',
+      backendCanisterId: 'aaaaa-aa',
+      host: 'https://ic0.app',
+      frontendUrl: '',
+      bundleAssetPath: 'lib/examples/07_icp_ledger.js',
+      keylessHint: 'Sign transactions as your identity to send ICP.',
+    );
+    await _pumpRunner(tester, custom, runtime: _RecordingRuntime());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create a profile'), findsOneWidget);
+    expect(find.textContaining('Sign transactions as your identity'),
+        findsOneWidget);
+    // The generic default must NOT show when a custom hint is set.
+    expect(find.textContaining('browsing anonymously'), findsNothing);
   });
 
   testWidgets('mounts ScriptAppHost with the descriptor initialArg', (tester) async {

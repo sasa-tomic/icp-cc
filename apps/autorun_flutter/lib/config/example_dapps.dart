@@ -46,6 +46,7 @@ class DappDescriptor {
       DappPath.backendDirect,
       DappPath.frontendBrowser,
     ],
+    this.keylessHint,
   });
 
   /// Stable identifier used to key per-dapp persisted overrides.
@@ -71,6 +72,14 @@ class DappDescriptor {
   final String bundleAssetPath;
 
   final List<DappPath> paths;
+
+  /// Optional dapp-specific hint shown to keyless (no-profile) users in the
+  /// runner (W6-1 Bug 3). When null the runner uses a generic dapp-agnostic
+  /// hint. Set this only when a dapp has a more specific "what signing
+  /// unlocks" message (e.g. a poll dapp: "vote"); otherwise the generic copy
+  /// avoids polluting unrelated dapps (e.g. the ICP Ledger) with misleading
+  /// language.
+  final String? keylessHint;
 
   bool get hasBackendDirect => paths.contains(DappPath.backendDirect);
   bool get hasFrontendBrowser => paths.contains(DappPath.frontendBrowser);

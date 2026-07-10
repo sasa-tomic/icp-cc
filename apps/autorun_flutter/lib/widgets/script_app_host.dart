@@ -73,6 +73,10 @@ class ScriptAppHost extends StatefulWidget {
 class ScriptAppHostState extends State<ScriptAppHost> {
   bool _busy = true;
   String? _error;
+  /// Raw error detail backing the collapsible "Details" section (W6-1 Bug 2).
+  /// [_error] holds the friendly (primary) text; this holds the verbatim
+  /// exception for advanced users. Only meaningful while [_error] is non-null.
+  String? _errorDetail;
   Map<String, dynamic>? _state;
   Map<String, dynamic>? _ui;
   final List<StreamSubscription<void>> _subs = <StreamSubscription<void>>[];
@@ -166,6 +170,7 @@ class ScriptAppHostState extends State<ScriptAppHost> {
     setState(() {
       _busy = true;
       _error = null;
+      _errorDetail = null;
     });
     try {
       // R-3 (Web): the QuickJS-WASM engine must be LOADED before any sync eval.
@@ -212,9 +217,13 @@ class ScriptAppHostState extends State<ScriptAppHost> {
     } catch (e, st) {
       debugPrint('boot failed: $e\n$st');
       if (!mounted) return;
+      // W6-1 Bug 2: map raw exception dumps (HTTP headers / HTML bodies from a
+      // misconfigured proxy, or an IcAgentLoadException) to a friendly primary
+      // message; keep the verbatim text for the collapsible Details section.
       _updateProgress(ScriptExecutionProgress.error(e.toString()));
       setState(() {
-        _error = '$e';
+        _error = friendlyIcErrorMessage('$e');
+        _errorDetail = '$e';
       });
     } finally {
       if (mounted) {
@@ -460,11 +469,14 @@ class ScriptAppHostState extends State<ScriptAppHost> {
         'error': 'unsupported effect'
       });
     } catch (e) {
+      // W6-1 Bug 2: a thrown IcAgentLoadException (e.g. the singleton agent's
+      // bootstrap failed) carries raw HTTP headers / HTML bodies. Map raw dumps
+      // to the friendly message so they never render verbatim as result text.
       _enqueueMsg(<String, dynamic>{
         'type': 'effect/result',
         'id': id,
         'ok': false,
-        'error': '$e'
+        'error': friendlyIcErrorMessage('$e')
       });
     }
   }
@@ -756,8 +768,10 @@ class ScriptAppHostState extends State<ScriptAppHost> {
     } catch (e, st) {
       debugPrint('dispatch failed: $e\n$st');
       if (!mounted) return;
+      // W6-1 Bug 2: same friendly-error + raw-Detail treatment as _boot.
       setState(() {
-        _error = '$e';
+        _error = friendlyIcErrorMessage('$e');
+        _errorDetail = '$e';
       });
     } finally {
       if (mounted) {
@@ -772,12 +786,20 @@ class ScriptAppHostState extends State<ScriptAppHost> {
     unawaited(_dispatch(msg));
   }
 
+  /// W6-1 Bug 2: re-attempts the failed boot. Clears the error and re-runs
+  /// `_boot` (which re-evaluates the readiness gates + init). For a transient
+  /// failure (a backend that came back up, a fixed proxy origin) this recovers
+  /// without forcing the user to leave and re-open the dapp.
+  void _retry() => _boot();
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      return Center(
-          child: Text(_error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error)));
+      return _DappErrorView(
+        message: _error!,
+        detail: _errorDetail,
+        onRetry: _retry,
+      );
     }
     if (_busy && _ui == null) {
       return ScriptExecutionProgressIndicator(
@@ -793,6 +815,108 @@ class ScriptAppHostState extends State<ScriptAppHost> {
       child: UiV1Renderer(
         ui: ui,
         onEvent: (msg) => _enqueueMsg(msg),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// W6-1 Bug 2 — friendly dapp error view.
+// Replaces the raw `Text(_error)` dump with a concise friendly message + a
+// Retry affordance, keeping the verbatim exception in a collapsible "Details"
+// section (never the primary text). Raw IcAgentLoadException dumps (HTTP
+// status lines, server banners, HTML bodies) are sanitized BEFORE reaching
+// here (friendlyIcErrorMessage in _boot/_dispatch/_runEffect), so the primary
+// text is always actionable; Details is for advanced users / bug reports.
+// =============================================================================
+
+class _DappErrorView extends StatefulWidget {
+  const _DappErrorView({
+    required this.message,
+    required this.detail,
+    required this.onRetry,
+  });
+
+  /// The friendly primary message (already sanitized).
+  final String message;
+  /// The verbatim exception text (nullable — hidden when absent/identical).
+  final String? detail;
+  /// Re-attempts the failed boot.
+  final VoidCallback onRetry;
+
+  @override
+  State<_DappErrorView> createState() => _DappErrorViewState();
+}
+
+class _DappErrorViewState extends State<_DappErrorView> {
+  bool _detailsExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasDetail = widget.detail != null &&
+        widget.detail!.isNotEmpty &&
+        widget.detail != widget.message;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(Icons.cloud_off_rounded,
+                size: 40, color: theme.colorScheme.error),
+            const SizedBox(height: 12),
+            Text(
+              widget.message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(color: theme.colorScheme.error),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              key: const Key('dappErrorRetry'),
+              onPressed: widget.onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+            if (hasDetail) ...<Widget>[
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('dappErrorDetailsToggle'),
+                  onPressed: () =>
+                      setState(() => _detailsExpanded = !_detailsExpanded),
+                  icon: Icon(_detailsExpanded
+                      ? Icons.expand_less
+                      : Icons.expand_more),
+                  label: Text(_detailsExpanded
+                      ? 'Hide details'
+                      : 'Show details'),
+                ),
+              ),
+              if (_detailsExpanded)
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.5),
+                    border: Border.all(color: theme.dividerColor),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      widget.detail!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(fontFamily: 'monospace'),
+                    ),
+                  ),
+                ),
+            ],
+          ],
+        ),
       ),
     );
   }

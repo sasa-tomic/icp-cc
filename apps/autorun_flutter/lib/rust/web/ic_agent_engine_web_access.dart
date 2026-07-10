@@ -27,24 +27,39 @@ String? _lastProxyOrigin;
 /// Resolve the backend CORS-proxy origin (the agent routes every IC request
 /// through `${proxyOrigin}/api/v1/ic/...`, plan §7.3.1).
 ///
-/// Single source of truth on Web, mirroring the PoC pattern (the
-/// `IC_AGENT_PROXY_HOST` dart-define, used by `just verify-ic-agent-web`):
+/// Single source of truth on Web. The DECISION (priority order) is the pure
+/// [resolveProxyOrigin] in `ic_agent_types.dart` (VM-testable); this wrapper
+/// reads the real inputs and delegates. Priority:
 ///   1. `IC_AGENT_PROXY_HOST` dart-define (explicit override — used by the
 ///      probe + dev `flutter run web` against a local backend).
-///   2. Fallback: the page's own origin (`window.location.origin`). In
-///      production the backend proxy is reverse-proxied at the SAME origin as
-///      the frontend (`${origin}/api/v1/ic`), so this is correct without any
-///      configuration.
+///   2. `PUBLIC_API_ENDPOINT` dart-define — the backend that hosts
+///      `/api/v1/ic/relay`. CORRECT for split-origin deploys (frontend
+///      :8099 + backend :37245). W6-1 Bug 1: the previous fallback was
+///      `window.location.origin`, which pointed at the STATIC file server on a
+///      split-origin deploy → `fetchCandid` POSTed to the Python server →
+///      HTTP 501 → raw exception dumped at the user. The comment claiming
+///      `AppConfig.apiEndpoint` is "VM-only" was wrong — it is
+///      `String.fromEnvironment`, which IS available on Web; we read the same
+///      dart-define key directly here (mirrors `IC_AGENT_PROXY_HOST` and keeps
+///      this module Flutter-free).
+///   3. The page's own origin (`window.location.origin`). Only correct for
+///      same-origin reverse-proxy production deploys (last resort).
 ///
 /// Resolved lazily (never at top-level `const` evaluation — `window` is only
 /// available at runtime). Pure web: no `dart:io` / `Platform.environment`
-/// (which is unavailable / empty on Web), so this does NOT consult
-/// `AppConfig.apiEndpoint` (that path is VM-only).
+/// (which is unavailable / empty on Web).
 String _resolveProxyOrigin() {
   const override = String.fromEnvironment('IC_AGENT_PROXY_HOST');
-  if (override.isNotEmpty) return override;
+  const apiEndpoint = String.fromEnvironment(
+    'PUBLIC_API_ENDPOINT',
+    defaultValue: kIcAgentDefaultApiEndpoint,
+  );
   final loc = globalContext.getProperty<JSObject>('location'.toJS);
-  return loc.getProperty<JSString>('origin'.toJS).toDart;
+  return resolveProxyOrigin(
+    override: override,
+    apiEndpoint: apiEndpoint,
+    locationOrigin: loc.getProperty<JSString>('origin'.toJS).toDart,
+  );
 }
 
 /// Lazily create + cache the singleton anonymous agent for [proxyOrigin].

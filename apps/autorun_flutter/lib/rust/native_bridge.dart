@@ -16,8 +16,16 @@ export 'native_bridge_io.dart' if (dart.library.html) 'native_bridge_web.dart';
 // above. The types themselves live in `ic_agent_types.dart` because they are
 // shared between the Web engine (`ic_agent_engine.dart`, browser-only) and the
 // VM stub (`ic_agent_engine_vm_stub.dart`), both of which must stay pure-Dart.
+// W6-1: `friendlyIcErrorMessage` + `kIcReachabilityMessage` are also re-exported
+// so the dapp runner's result view can map raw IC error dumps to friendly text
+// from the single facade import.
 export 'web/ic_agent_types.dart'
-    show IcAgentReadiness, IcAgentReady, IcAgentUnavailable;
+    show
+        IcAgentReadiness,
+        IcAgentReady,
+        IcAgentUnavailable,
+        friendlyIcErrorMessage,
+        kIcReachabilityMessage;
 
 /// Keypair material returned by `RustBridgeLoader.generateKeypair`.
 class RustKeypairResult {

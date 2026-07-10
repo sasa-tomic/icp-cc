@@ -72,15 +72,21 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
 
   // ─────────────────────────────────────────────────────────────────────────
   // Single source of truth for the keyless-user CTA copy. Pedagogically frames
-  // HUMAN_EXPECTATIONS §3: view anonymously, act with identity. Every label on
+  // HUMAN_EXPECTATIONS §3: browse anonymously, act with identity. Every label on
   // this screen that mentions the keyless state or the create-profile action
   // references these symbolic names — never re-spell the literals inline.
+  //
+  // W6-1 Bug 3: the copy is DAPP-AGNOSTIC (no poll-specific "vote" language).
+  // A dapp MAY override the hint via [DappDescriptor.keylessHint]; otherwise
+  // this generic default is used so unrelated dapps (e.g. the ICP Ledger)
+  // don't show misleading "vote"/"polls" text.
   // ─────────────────────────────────────────────────────────────────────────
   static const String _kKeylessStatusText =
       'No active profile — viewing only';
-  static const String _kKeylessStatusHint =
-      'You can read polls anonymously. Creating a profile lets you vote.';
-  static const String _kCreateProfileToVoteLabel = 'Create a profile to vote';
+  static const String _kKeylessStatusHintDefault =
+      "You're browsing anonymously. Creating a profile lets you take signed "
+      'actions.';
+  static const String _kCreateProfileLabel = 'Create a profile';
   static const String _kUnreachableHintTitle = 'Canister unreachable';
   static const String _kUnreachableHintBody =
       'The dapp couldn\'t reach the canister at the configured id/host. '
@@ -525,16 +531,16 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Keyless-user CTA (HUMAN_EXPECTATIONS §3: teach the dual-path model — view
+  // Keyless-user CTA (HUMAN_EXPECTATIONS §3: teach the dual-path model — browse
   // anonymously, act with identity). The dapp runs view-only without a profile;
   // this gives a keyless user a one-tap path into the profile-creation wizard
-  // so they can vote, instead of hunting the profile menu (top-right).
+  // so they can take signed actions, instead of hunting the profile menu.
   // ─────────────────────────────────────────────────────────────────────────
 
   /// Deep-links a keyless user into the [UnifiedSetupWizard] so they can create
-  /// a profile in one tap and start voting. Mirrors the re-open-wizard path in
-  /// `scripts_screen.dart` without introducing a circular import on the app
-  /// entry point.
+  /// a profile in one tap and take signed actions. Mirrors the re-open-wizard
+  /// path in `scripts_screen.dart` without introducing a circular import on the
+  /// app entry point.
   ///
   /// The wizard itself probes [SecureStorageReadiness] (WU-S2 / AGENTS.md) and
   /// renders an actionable panel if secrets can't be persisted — that handling
@@ -757,7 +763,9 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     }
     // Keyless user: show the view-only status (teaches the dual-path model)
     // PLUS a prominent one-tap CTA into the profile-creation wizard. The chip
-    // explains "what is"; the button is the "do this" path to voting.
+    // explains "what is"; the button is the "do this" path to signed actions.
+    // The hint prefers the dapp's own [DappDescriptor.keylessHint] when set,
+    // otherwise the dapp-agnostic default (W6-1 Bug 3).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -765,7 +773,7 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
         _StatusChip(
           icon: Icons.warning_amber_rounded,
           text: _kKeylessStatusText,
-          hint: _kKeylessStatusHint,
+          hint: widget.descriptor.keylessHint ?? _kKeylessStatusHintDefault,
           color: AppDesignSystem.warningColor,
         ),
         const SizedBox(height: AppDesignSystem.spacing8),
@@ -773,7 +781,7 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
           key: const Key('dappCreateProfileToVoteCta'),
           onPressed: _openCreateProfileWizard,
           icon: const Icon(Icons.person_add_rounded),
-          label: const Text(_kCreateProfileToVoteLabel),
+          label: const Text(_kCreateProfileLabel),
         ),
       ],
     );
