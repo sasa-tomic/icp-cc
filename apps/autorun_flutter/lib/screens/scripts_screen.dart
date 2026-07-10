@@ -100,6 +100,12 @@ class ScriptsScreenState extends State<ScriptsScreen>
   int _offset = 0;
   bool _hasMore = true;
 
+  /// Non-null when the last marketplace browse load FAILED. Drives the inline
+  /// "Couldn't load the marketplace — Retry" panel in place of the misleading
+  /// "Your library is empty" state (UXR-5 / AUD-1). Cleared at the start of
+  /// every (re)load and never set on load-more failures (the list stays as-is).
+  _MarketplaceLoadError? _marketplaceLoadError;
+
   String _selectedCategory = 'All';
   final String _sortBy = 'createdAt';
   final String _sortOrder = 'desc';
@@ -347,6 +353,9 @@ class ScriptsScreenState extends State<ScriptsScreen>
         _isMarketplaceLoading = true;
         _offset = 0;
         _marketplaceScripts.clear();
+        // Reset the error state for this attempt; it's re-set in the catch on
+        // failure. Cleared here (not on success) so a single source drives it.
+        _marketplaceLoadError = null;
       }
     });
 
@@ -370,7 +379,15 @@ class ScriptsScreenState extends State<ScriptsScreen>
         _offset += result.scripts.length;
       });
     } catch (e) {
+      // LOUD failure: log the full cause for debugging, and surface a typed
+      // error state to the UI so the user gets "Couldn't load the marketplace
+      // — Retry" instead of a silent, misleading empty library (UXR-5/AUD-1).
+      // Load-more failures leave the existing list intact (the user already
+      // has items to look at).
       debugPrint('Failed to load marketplace scripts: $e');
+      if (!isLoadMore) {
+        _marketplaceLoadError = _MarketplaceLoadError(_toShortReason(e));
+      }
     } finally {
       setState(() {
         if (isLoadMore) {
@@ -393,6 +410,15 @@ class ScriptsScreenState extends State<ScriptsScreen>
 
   Future<void> _refreshMarketplaceScripts() async {
     await _loadMarketplaceScripts();
+  }
+
+  /// Short, user-readable rendering of a marketplace-load error. Strips the
+  /// noisy `Exception:` prefix and caps the length so the panel subtitle stays
+  /// scannable while still being honest about the cause (no silent masking).
+  static String _toShortReason(Object e) {
+    final cleaned = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+    const max = 140;
+    return cleaned.length > max ? '${cleaned.substring(0, max)}…' : cleaned;
   }
 
   void _onSearchChanged(String query) {
@@ -1259,6 +1285,19 @@ class ScriptsScreenState extends State<ScriptsScreen>
               : _showFavoritesOnly
                   ? ScriptsEmptyStateKind.favoritesFilter
                   : ScriptsEmptyStateKind.library;
+          // A marketplace browse-load failure is the ROOT CAUSE of an empty
+          // library view when the backend is unreachable. Surface the error +
+          // Retry panel instead of the misleading "Your library is empty —
+          // create a script" copy, which says the opposite of what happened
+          // (UXR-5 / AUD-1). Filtered views keep their own empty copy: there
+          // the failure is incidental and the filter message is more useful.
+          if (kind == ScriptsEmptyStateKind.library &&
+              _marketplaceLoadError != null) {
+            return _MarketplaceLoadErrorPanel(
+              message: _marketplaceLoadError!.message,
+              onRetry: _refreshMarketplaceScripts,
+            );
+          }
           return ScriptsEmptyState(
             kind: kind,
             hasProfile: hasProfile,
@@ -1650,4 +1689,90 @@ class _ActiveAccount {
     required this.keypair,
     required this.account,
   });
+}
+
+/// Typed marketplace browse-load failure (UXR-5 / AUD-1). Carries a single
+/// user-readable [message] derived from the underlying error so the load-error
+/// panel can render an honest, actionable reason alongside the Retry button.
+@immutable
+class _MarketplaceLoadError {
+  const _MarketplaceLoadError(this.message);
+
+  final String message;
+
+  @override
+  String toString() => '_MarketplaceLoadError: $message';
+}
+
+/// Inline error + Retry panel shown in place of the library empty-state when a
+/// marketplace browse load failed. Mirrors the app's design language (circular
+/// gradient-tinted icon, title + subtitle, modern button) but is error-themed
+/// so it reads as a failure, not as "you have no scripts".
+///
+/// Distinguished from [ScriptsEmptyState] (genuine empty result) by the
+/// presence of a [_MarketplaceLoadError] on the screen state — the two never
+/// render at the same time.
+class _MarketplaceLoadErrorPanel extends StatelessWidget {
+  const _MarketplaceLoadErrorPanel({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppDesignSystem.spacing32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colorScheme.error.withValues(alpha: 0.1),
+                border: Border.all(
+                  color: colorScheme.error.withValues(alpha: 0.3),
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                Icons.cloud_off_rounded,
+                size: 44,
+                color: colorScheme.error,
+              ),
+            ),
+            const SizedBox(height: AppDesignSystem.spacing24),
+            Text(
+              "Couldn't load the marketplace",
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppDesignSystem.spacing8),
+            Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppDesignSystem.spacing24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
