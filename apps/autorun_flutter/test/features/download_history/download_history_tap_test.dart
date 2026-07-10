@@ -71,8 +71,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    // Still on the Download Library screen before tapping.
-    expect(find.text('Download Library'), findsOneWidget);
+    // Still on the Download History screen before tapping.
+    expect(find.text('Download History'), findsOneWidget);
 
     await tester.tap(find.text('Ghost Script'));
     await tester.pump();
@@ -81,8 +81,8 @@ void main() {
     expect(find.text('Script not found. It may have been deleted.'),
         findsOneWidget);
     // Old behaviour popped back; the new behaviour keeps the user on the
-    // library screen (no execution sheet, no navigation away).
-    expect(find.text('Download Library'), findsOneWidget);
+    // history screen (no execution sheet, no navigation away).
+    expect(find.text('Download History'), findsOneWidget);
     expect(find.byType(ScriptExecutionBottomSheet), findsNothing);
   });
 }

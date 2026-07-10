@@ -8,13 +8,24 @@ import '../widgets/modern_empty_state.dart';
 import '../widgets/script_execution_bottom_sheet.dart';
 
 class DownloadHistoryScreen extends StatefulWidget {
-  const DownloadHistoryScreen({super.key, this.scriptController});
+  const DownloadHistoryScreen({
+    super.key,
+    this.scriptController,
+    this.onBrowseMarketplace,
+  });
 
   /// Optional [ScriptController] used to resolve a downloaded script to its
   /// local [ScriptRecord] and run it. Tests inject a controller backed by a
   /// fake repository; production omits it and the screen binds its own
   /// controller to [ScriptRepository.instance].
   final ScriptController? scriptController;
+
+  /// Invoked by the empty-state "Browse Marketplace" CTA (UXR7-6). Production
+  /// wires this so the CTA actually returns to the Scripts tab and refreshes
+  /// the marketplace browse view, instead of just popping and telling the user
+  /// to switch tabs manually. When null (e.g. tests), the CTA pops this
+  /// screen only.
+  final VoidCallback? onBrowseMarketplace;
 
   @override
   State<DownloadHistoryScreen> createState() => _DownloadHistoryScreenState();
@@ -84,9 +95,9 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Remove from library'),
+          title: const Text('Remove from history'),
           content: Text(
-              'Remove "${record.title}" from your download library? This will not delete the local script.'),
+              'Remove "${record.title}" from your download history? This will not delete the local script.'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -108,7 +119,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
         await _loadDownloadHistory();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from library')),
+          const SnackBar(content: Text('Removed from history')),
         );
       } catch (e) {
         if (mounted) {
@@ -125,9 +136,9 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Clear Library'),
+          title: const Text('Clear Download History'),
           content: const Text(
-              'Clear your entire download library? This will not delete any local scripts.'),
+              'Clear your entire download history? This will not delete any local scripts.'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -152,7 +163,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
         await _loadDownloadHistory();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Library cleared')),
+          const SnackBar(content: Text('History cleared')),
         );
       } catch (e) {
         if (mounted) {
@@ -168,14 +179,14 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Download Library'),
+        title: const Text('Download History'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         actions: [
           if (_downloadHistory.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear_all),
               onPressed: _clearHistory,
-              tooltip: 'Clear library',
+              tooltip: 'Clear history',
             ),
         ],
       ),
@@ -200,7 +211,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Failed to load library',
+              'Failed to load history',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
@@ -228,13 +239,12 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
         title: 'No Download History',
         subtitle: 'Scripts you download from the marketplace will appear here',
         action: () {
+          // UXR7-6: actually navigate to the marketplace browse view instead
+          // of popping and leaving the user to switch tabs manually. This
+          // screen is a pushed route, so first pop back to the Scripts tab,
+          // then let the caller refresh the marketplace browse section.
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Select the Marketplace tab to browse scripts'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          widget.onBrowseMarketplace?.call();
         },
         actionLabel: 'Browse Marketplace',
       );
@@ -335,7 +345,7 @@ class _DownloadHistoryTile extends StatelessWidget {
               children: [
                 Icon(Icons.remove_circle_outline),
                 SizedBox(width: 8),
-                Text('Remove from library'),
+                Text('Remove from history'),
               ],
             ),
           ),

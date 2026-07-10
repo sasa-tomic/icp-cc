@@ -1112,7 +1112,12 @@ class ScriptsScreenState extends State<ScriptsScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const DownloadHistoryScreen(),
+                    builder: (context) => DownloadHistoryScreen(
+                      // UXR7-6: the empty-state CTA returns to this tab and
+                      // refreshes the marketplace browse view instead of
+                      // telling the user to switch tabs manually.
+                      onBrowseMarketplace: _browseMarketplaceFromEmptyState,
+                    ),
                   ),
                 );
               } else if (value == 'clear_search_history') {
