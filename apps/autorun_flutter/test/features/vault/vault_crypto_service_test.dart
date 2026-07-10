@@ -96,11 +96,6 @@ void main() {
         throwsA(isA<VaultDecryptionException>()),
       );
     });
-
-    test('nativeLibAvailable() matches a direct loader probe', () {
-      // Smoke-check the test's own skip guard.
-      expect(VaultCryptoService.nativeLibAvailable(), isA<bool>());
-    });
   });
 }
 

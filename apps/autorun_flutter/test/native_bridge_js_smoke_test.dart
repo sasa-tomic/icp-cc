@@ -2,7 +2,6 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
@@ -14,6 +13,21 @@ import 'shared/ts_bundle_fixtures.dart';
 void main() {
   final RustBridgeLoader loader = const RustBridgeLoader();
   final String pilotBundle = loadPilotBundle();
+
+  // FAIL FAST (TQ-W6-4): every test in this file drives the real libicp_core
+  // FFI. If the lib did not load, the suite must FAIL — never silently report
+  // green via a per-test `if (out == null) return;` early-exit. The helpers'
+  // AGENTS.md mandates this ("Tests MUST fail immediately when infrastructure
+  // isn't available"). Build the Rust core first:
+  //   cargo build   (→ crates/icp_core → build/linux/x64/.../libicp_core.so)
+  setUpAll(() {
+    expect(
+      nativeLibAvailable(loader),
+      isTrue,
+      reason: 'libicp_core.so did not load. Build the Rust core '
+          '(cargo build) before running these FFI smoke tests.',
+    );
+  });
 
   const String kMinimalBundle = '''
 "use strict";
@@ -32,12 +46,9 @@ void main() {
   group('native QuickJS FFI (real lib)', () {
     test('jsExec evaluates a JS expression and returns ok JSON', () {
       final String? out = loader.jsExec(script: '1 + 2', jsonArg: null);
-      if (out == null) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
+      expect(out, isNotNull);
       final Map<String, dynamic> obj =
-          json.decode(out) as Map<String, dynamic>;
+          json.decode(out!) as Map<String, dynamic>;
       expect(obj['ok'], true);
       expect(obj['result'], 3);
     });
@@ -45,12 +56,9 @@ void main() {
     test('jsExec returns ok:false for a script that throws', () {
       final String? out = loader.jsExec(
           script: 'throw new Error("boom")', jsonArg: null);
-      if (out == null) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
+      expect(out, isNotNull);
       final Map<String, dynamic> obj =
-          json.decode(out) as Map<String, dynamic>;
+          json.decode(out!) as Map<String, dynamic>;
       expect(obj['ok'], false);
       expect(obj['error'], 'js error: JavaScript exception',
           reason: 'rquickjs surfaces a thrown JS value as a generic exception');
@@ -58,12 +66,9 @@ void main() {
 
     test('jsLint flags a script missing the init/view/update contract', () {
       final String? out = loader.jsLint(script: 'var x = 1;');
-      if (out == null) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
+      expect(out, isNotNull);
       final Map<String, dynamic> obj =
-          json.decode(out) as Map<String, dynamic>;
+          json.decode(out!) as Map<String, dynamic>;
       expect(obj['ok'], false);
       final errors = (obj['errors'] as List)
           .map((e) => (e as Map<String, dynamic>)['message'] as String)
@@ -74,11 +79,6 @@ void main() {
     });
 
     test('jsLint accepts a bundle exposing the init/view/update contract', () {
-      final String? probe = loader.jsExec(script: '1', jsonArg: null);
-      if (probe == null) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.jsLint(script: pilotBundle);
       expect(out, isNotNull);
       final Map<String, dynamic> obj =
@@ -88,11 +88,6 @@ void main() {
     });
 
     test('validateJsComprehensive accepts a valid TS bundle', () {
-      final String? probe = loader.jsExec(script: '1', jsonArg: null);
-      if (probe == null) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.validateJsComprehensive(
         script: kMinimalBundle,
         isExample: false,
@@ -109,11 +104,6 @@ void main() {
     });
 
     test('validateJsComprehensive rejects a sandbox escape (eval)', () {
-      final String? probe = loader.jsExec(script: '1', jsonArg: null);
-      if (probe == null) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.validateJsComprehensive(
         script:
             "globalThis.init = () => ({ state: {}, effects: [] }); eval('1+1');",
@@ -133,11 +123,6 @@ void main() {
     });
 
     test('validateJsComprehensive rejects Intl.* (no ICU in runtime)', () {
-      final String? probe = loader.jsExec(script: '1', jsonArg: null);
-      if (probe == null) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.validateJsComprehensive(
         script:
             'function init(){return{state:{},effects:[]};} new Intl.NumberFormat("de").format(1);',
@@ -155,10 +140,6 @@ void main() {
     });
 
     test('jsAppInit runs the pilot bundle and yields the initial state', () {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.jsAppInit(
           script: pilotBundle, jsonArg: null, budgetMs: 1000);
       expect(out, isNotNull);
@@ -171,10 +152,6 @@ void main() {
     });
 
     test('jsAppInit returns ok:false for a malformed bundle', () {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.jsAppInit(
           script: kMalformedBundle, jsonArg: null, budgetMs: 1000);
       expect(out, isNotNull);
@@ -185,10 +162,6 @@ void main() {
     });
 
     test('jsAppView renders the pilot state into a column UI tree', () {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String state = json.encode({
         'count': 7,
         'items': <dynamic>[],
@@ -209,10 +182,6 @@ void main() {
     });
 
     test('jsAppView returns ok:false for a malformed bundle', () {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.jsAppView(
           script: kMalformedBundle,
           stateJson: '{"count":0}',
@@ -225,10 +194,6 @@ void main() {
     });
 
     test('jsAppUpdate applies an inc message and bumps state.count', () {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String state = json.encode({'count': 41, 'items': <dynamic>[]});
       final String? out = loader.jsAppUpdate(
           script: pilotBundle,
@@ -243,10 +208,6 @@ void main() {
     });
 
     test('jsAppUpdate returns ok:false for a malformed bundle', () {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final String? out = loader.jsAppUpdate(
           script: kMalformedBundle,
           msgJson: '{"type":"inc"}',
@@ -263,11 +224,6 @@ void main() {
   group('ScriptAppRuntime TS lifecycle (real lib)', () {
     test('init→view→update runs the pilot bundle through the abstraction stack',
         () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
-
       final runtime = ScriptAppRuntime(RustScriptBridge(loader));
 
       final Map<String, dynamic> initObj =
@@ -294,11 +250,6 @@ void main() {
     });
 
     test('update emits an icp_batch effect for load_sample', () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
-
       final runtime = ScriptAppRuntime(RustScriptBridge(loader));
       final Map<String, dynamic> initObj =
           await runtime.init(script: pilotBundle, budgetMs: 1000);
@@ -322,11 +273,6 @@ void main() {
     });
 
     test('ScriptRunner.run executes the pilot bundle via jsExec', () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
-
       final wrapped =
           '$pilotBundle\nJSON.stringify({ ok: true, result: { ran: true } });';
       final runner = ScriptRunner(RustScriptBridge(loader));
@@ -337,10 +283,6 @@ void main() {
 
   group('ScriptValidationService over FFI (real lib)', () {
     test('validates the pilot bundle as a contract guard', () async {
-      if (!nativeLibAvailable(loader)) {
-        stdout.writeln('SKIP: libicp_core.so did not load in this environment');
-        return;
-      }
       final result = await ScriptValidationService().validateScript(pilotBundle);
       expect(result.isValid, true,
           reason: 'pilot bundle must pass the authoritative validator');

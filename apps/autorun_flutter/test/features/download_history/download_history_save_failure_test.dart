@@ -75,9 +75,17 @@ void main() {
       SharedPreferencesStorePlatform.instance =
           _FailingWriteSharedPreferencesStore();
 
+      // The mutation must propagate the save error instead of swallowing it —
+      // same concrete message as addToHistory above (TQ-W6-3).
       await expectLater(
         DownloadHistoryService().removeFromHistory('script-1'),
-        throwsA(isA<Exception>()),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Failed to save download history'),
+          ),
+        ),
       );
     });
 
@@ -88,7 +96,13 @@ void main() {
 
       await expectLater(
         DownloadHistoryService().clearHistory(),
-        throwsA(isA<Exception>()),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Failed to save download history'),
+          ),
+        ),
       );
     });
   });

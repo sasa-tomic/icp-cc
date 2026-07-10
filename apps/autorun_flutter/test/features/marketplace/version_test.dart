@@ -260,9 +260,16 @@ void main() {
       service.overrideHttpClient(client);
       addTearDown(client.close);
 
+      // A 5xx must surface the status code in the message — never a
+      // FormatException that masks it. Asserting 'HTTP 500' pins the status
+      // (a generic isA<Exception>() would pass for the wrong error too).
       expect(
         () => service.getScriptVersions('script-123'),
-        throwsA(isA<Exception>()),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'carries status',
+          contains('HTTP 500'),
+        )),
       );
     });
   });

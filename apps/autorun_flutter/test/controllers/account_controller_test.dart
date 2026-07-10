@@ -90,13 +90,21 @@ void main() {
       mockService = MarketplaceOpenApiService();
       controller = AccountController(marketplaceService: mockService);
 
+      // 'invalid username!' fails the charset rule (space + '!'), so the
+      // controller surfaces the validator's specific message — not a generic
+      // Exception. Asserting the concrete message proves the validation path
+      // ran (a stray network/format error would not contain it).
       expect(
         () => controller.registerAccount(
           keypair: keypair,
           username: 'invalid username!',
           displayName: 'Test User',
         ),
-        throwsA(isA<Exception>()),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'validation message',
+          contains('Username can only contain'),
+        )),
       );
     });
 
@@ -121,13 +129,20 @@ void main() {
       mockService.overrideHttpClient(mockClient);
       controller = AccountController(marketplaceService: mockService);
 
+      // The 409 envelope's `error` field is carried verbatim into the thrown
+      // message, prefixed with the endpoint's status banner — assert both the
+      // status and the server detail so a different failure mode can't pass.
       expect(
         () => controller.registerAccount(
           keypair: keypair,
           username: username,
           displayName: 'Test User',
         ),
-        throwsA(isA<Exception>()),
+        throwsA(isA<Exception>()
+            .having((e) => e.toString(), 'status banner',
+                contains('Account registration failed (HTTP 409)'))
+            .having((e) => e.toString(), 'server detail',
+                contains('Username already taken'))),
       );
     });
 
@@ -300,9 +315,15 @@ void main() {
       mockService.overrideHttpClient(mockClient);
       controller = AccountController(marketplaceService: mockService);
 
+      // The transport error propagates verbatim — assert the concrete message
+      // so a different exception type/message cannot satisfy the test.
       expect(
         () => controller.fetchAccount(username),
-        throwsA(isA<Exception>()),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'network error message',
+          contains('Network error'),
+        )),
       );
     });
   });
@@ -859,14 +880,20 @@ void main() {
       mockService.overrideHttpClient(mockClient);
       controller = AccountController(marketplaceService: mockService);
 
-      // Act & Assert: Should throw error
+      // Act & Assert: The 400 envelope's `error` field surfaces with the
+      // endpoint status banner — assert both so the failure is pinned to the
+      // "cannot remove last key" path, not any generic exception.
       expect(
         () => controller.removePublicKey(
           username: username,
           keyId: keyToRemove,
           signingKeypair: signingKeypair,
         ),
-        throwsA(isA<Exception>()),
+        throwsA(isA<Exception>()
+            .having((e) => e.toString(), 'status banner',
+                contains('Remove key failed (HTTP 400)'))
+            .having((e) => e.toString(), 'server detail',
+                contains('Cannot remove last active key'))),
       );
     });
   });

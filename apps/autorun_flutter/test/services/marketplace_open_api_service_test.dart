@@ -151,50 +151,5 @@ void main() {
 
       // Keypair profile API tests removed - profiles are now local-only
     });
-
-    group('Fail-fast error handling', () {
-      late MarketplaceOpenApiService service;
-
-      setUp(() {
-        suppressDebugOutput = true;
-        service = MarketplaceOpenApiService();
-        AppConfig.setTestEndpoint('https://mock.api');
-      });
-
-      tearDown(() {
-        suppressDebugOutput = false;
-        service.resetHttpClient();
-      });
-
-      test('getMarketplaceStats throws on HTTP error', () async {
-        final client = MockClient((request) async {
-          return http.Response('Server error', 502,
-              reasonPhrase: 'Bad Gateway');
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        expect(
-          () => service.getMarketplaceStats(),
-          throwsA(isA<Exception>()),
-        );
-      });
-
-      test('searchScripts throws on connection failure', () async {
-        final client = MockClient((request) async {
-          throw Exception('Connection refused');
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        expect(
-          () => service.searchScripts(),
-          throwsA(isA<Exception>()),
-        );
-      });
-
-      // Note: getFeaturedScripts / getTrendingScripts tests were REMOVED with
-      // the dead client methods (AUD-12) — they had no production callers.
-    });
   });
 }

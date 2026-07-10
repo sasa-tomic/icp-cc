@@ -404,10 +404,6 @@ void main() {
       platform: TargetPlatform.android,
     );
 
-    test('isDesktop returns a bool', () {
-      expect(DesktopShortcuts.isDesktop, isA<bool>());
-    });
-
     test('getShortcutLabel returns the live binding tokens', () {
       expect(DesktopShortcuts.getShortcutLabel('new'), equals('N'));
       expect(DesktopShortcuts.getShortcutLabel('search'), equals('/'));

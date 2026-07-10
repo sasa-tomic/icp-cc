@@ -924,7 +924,13 @@ void main() {
           profileId: profile.id,
           algorithm: KeyAlgorithm.ed25519,
         ),
-        throwsA(isA<Exception>()),
+        // The marketplace error propagates verbatim through the controller —
+        // assert the concrete message so a different failure can't satisfy it.
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'propagated marketplace error',
+          contains('Marketplace error'),
+        )),
       );
     });
   });
