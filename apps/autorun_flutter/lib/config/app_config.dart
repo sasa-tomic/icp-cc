@@ -19,8 +19,10 @@ class AppConfig {
     }
     // Devex: honor `MARKETPLACE_API_PORT` (exported by `just api-dev-up`) at
     // runtime in debug, so a local backend works without a `--dart-define`
-    // rebuild. The name implies runtime config — make it so.
-    if (kDebugMode) {
+    // rebuild. The name implies runtime config — make it so. Web has no process
+    // environment (`Platform.environment` throws there); the `PUBLIC_API_ENDPOINT`
+    // dart-define covers Web instead.
+    if (kDebugMode && !kIsWeb) {
       final port = Platform.environment['MARKETPLACE_API_PORT'];
       if (port != null && port.isNotEmpty) {
         return 'http://127.0.0.1:$port';
@@ -33,8 +35,11 @@ class AppConfig {
 
   static String get marketplaceWebUrl => _marketplaceWebUrl;
 
-  // Check if we're in test mode by looking for test environment indicators
+  // Check if we're in test mode by looking for test environment indicators.
+  // Web has no process environment and no script path (`Platform.environment`
+  // / `Platform.script` throw there), so test mode is native-only.
   static bool get _isTestMode {
+    if (kIsWeb) return false;
     return Platform.environment.containsKey('FLUTTER_TEST') ||
            kDebugMode && Platform.script.path.contains('test');
   }

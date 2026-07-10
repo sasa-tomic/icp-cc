@@ -46,6 +46,14 @@
        agent routes through the backend CORS proxy (/api/v1/ic) so the browser
        never calls ic0.app directly (no CORS). -->
   <script type="module" src="vendor/ic_agent/ic_agent.bundle.js"></script>
+  <!-- Passkeys Web SDK (Corbado flutter-passkeys). Installs the global
+       `PasskeyAuthenticator` object that the `passkeys` package's web plugin
+       (PasskeysWeb.registerWith) probes for at boot. Without this script the
+       plugin throws at boot and the app never renders. Built as an IIFE (NOT a
+       module) so the `var PasskeyAuthenticator` assignment lands on the global
+       scope where dart:js_interop can reach it. Built from the exact source
+       shipped in passkeys_web-2.9.1 (javascript/src/, rollup → IIFE). -->
+  <script src="vendor/passkeys/passkeys.bundle.js"></script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
