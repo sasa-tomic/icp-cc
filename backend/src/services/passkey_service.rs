@@ -341,8 +341,15 @@ impl PasskeyService {
                 PasskeyError::Unauthorized(format!("WebAuthn verification failed: {e}"))
             })?;
 
-        // Update counter for the used passkey
-        let cred_id = req.credential.id.as_ref();
+        // Update counter for the used passkey.
+        //
+        // NOTE: look up by `raw_id` (the raw credential-id bytes the authenticator
+        // produced and the server stored), NOT `id` (the base64url *string* of
+        // that id). `id.as_ref()` previously resolved to the UTF-8 bytes of the
+        // base64url string via `String: AsRef<[u8]>`, so the lookup always
+        // missed and the counter/last_used_at were silently never advanced.
+        // (Surfaced by the W6-13 real-crypto auth round-trip test.)
+        let cred_id = req.credential.get_credential_id();
         if let Some(passkey) = self
             .repo
             .find_passkey_by_credential_id(cred_id)

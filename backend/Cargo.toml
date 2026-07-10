@@ -72,3 +72,11 @@ tokio-test = "0.4"
 # tests in main.rs. The lib already depends on poem; this just turns on the
 # test-only module without adding it to the runtime dep set.
 poem = { version = "3.0", features = ["test"] }
+# W6-13: a software WebAuthn authenticator so the passkey registration +
+# authentication round-trip is exercised with REAL P-256 crypto against the
+# REAL `webauthn-rs` verifier (no mocking of verification). `p256` produces
+# the ES256 signature + COSE key; `ciborium` encodes the CBOR attestation
+# object / COSE key. Both are already in the dependency tree (transitive via
+# webauthn-rs); naming them here lets test code reference them directly.
+p256 = { version = "0.13", features = ["ecdsa"] }
+ciborium = "0.2"

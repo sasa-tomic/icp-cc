@@ -298,12 +298,22 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .await
     .expect("Failed to create keypair_profiles index");
 
-    // Passkeys table for WebAuthn credentials
+    // Passkeys table for WebAuthn credentials.
+    //
+    // The owning-account column is `account_id` (a keypair principal — see the
+    // FK target), consistent with the sibling `recovery_codes` / `user_vaults`
+    // tables AND every query in `passkey_repository.rs` (which all use
+    // `account_id`) + the `PasskeyRow` FromRow struct. A previous scaffold of
+    // this table used `user_principal`; the rename below upgrades any
+    // pre-existing dev DB in place. (Same QS-1b-class gap the A-4 rename fixed
+    // for recovery_codes/user_vaults — passkeys was simply missed there.)
+    rename_legacy_user_principal_column(pool, "passkeys").await;
+
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS passkeys (
             id TEXT PRIMARY KEY,
-            user_principal TEXT NOT NULL,
+            account_id TEXT NOT NULL,
             credential_id BLOB NOT NULL UNIQUE,
             public_key BLOB NOT NULL,
             counter INTEGER NOT NULL DEFAULT 0,
@@ -311,7 +321,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             device_type TEXT,
             created_at TEXT NOT NULL,
             last_used_at TEXT,
-            FOREIGN KEY (user_principal) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (account_id) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
         )
         "#,
     )
@@ -320,16 +330,49 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .expect("Failed to create passkeys table");
 
     sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_passkeys_user_principal ON passkeys(user_principal)",
+        "CREATE INDEX IF NOT EXISTS idx_passkeys_account_id ON passkeys(account_id)",
     )
     .execute(pool)
     .await
-    .expect("Failed to create passkeys user_principal index");
+    .expect("Failed to create passkeys account_id index");
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_passkeys_credential_id ON passkeys(credential_id)")
         .execute(pool)
         .await
         .expect("Failed to create passkeys credential_id index");
+
+    // WebAuthn challenge store (registration + authentication anti-replay
+    // tokens). Each row is a short-lived, single-use challenge bound (via
+    // `account_id`, a keypair principal) to the account that requested it; it
+    // is deleted on successful finish or by `cleanup_expired_challenges`. The
+    // column set matches `PasskeyRepository::{store,find,delete}_challenge` +
+    // the `ChallengeRow` FromRow struct exactly. (This table was missing from
+    // the schema entirely — every challenge op failed at runtime with "no such
+    // table: webauthn_challenges"; surfaced by the W6-13 real-schema tests.)
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS webauthn_challenges (
+            id TEXT PRIMARY KEY,
+            account_id TEXT,
+            challenge BLOB NOT NULL,
+            challenge_type TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create webauthn_challenges table");
+
+    // Index for the periodic expiry sweep:
+    //   DELETE FROM webauthn_challenges WHERE datetime(expires_at) < datetime('now')
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_webauthn_challenges_expires_at ON webauthn_challenges(expires_at)",
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create webauthn_challenges expires_at index");
 
     // -----------------------------------------------------------------------
     // Legacy-column migration: rename `user_principal` → `account_id` on
@@ -429,6 +472,10 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .execute(pool)
         .await
         .expect("Failed to drop legacy user_vaults principal index");
+    sqlx::query("DROP INDEX IF EXISTS idx_passkeys_user_principal")
+        .execute(pool)
+        .await
+        .expect("Failed to drop legacy passkeys user_principal index");
 
     // -----------------------------------------------------------------------
     // Purchases ledger (ICPay payment integration, migration 006).
