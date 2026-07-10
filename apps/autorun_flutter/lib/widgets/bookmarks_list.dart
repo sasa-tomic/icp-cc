@@ -23,6 +23,7 @@ class BookmarksList extends StatefulWidget {
 
 class _BookmarksListState extends State<BookmarksList> {
   List<BookmarkEntry> _entries = const <BookmarkEntry>[];
+  String? _loadError;
   late final VoidCallback _listener;
 
   @override
@@ -45,13 +46,18 @@ class _BookmarksListState extends State<BookmarksList> {
       if (mounted) {
         setState(() {
           _entries = entries;
+          _loadError = null;
         });
       }
     } catch (e) {
-      // If loading fails, show empty list
+      // Surface the load failure LOUDLY instead of silently rendering an empty
+      // list. An empty list would read as "no bookmarks" to the user, who could
+      // then add one — triggering a save that overwrites the corrupt file and
+      // permanently destroys the (partially recoverable) data. Showing an
+      // explicit error + retry blocks that path. See F-3 / QS-3.
       if (mounted) {
         setState(() {
-          _entries = [];
+          _loadError = e.toString();
         });
       }
     }
@@ -59,6 +65,10 @@ class _BookmarksListState extends State<BookmarksList> {
 
   @override
   Widget build(BuildContext context) {
+    final error = _loadError;
+    if (error != null) {
+      return _buildLoadError(context, error);
+    }
     if (_entries.isEmpty) {
       return ModernEmptyState(
         icon: Icons.bookmark_border_rounded,
@@ -212,6 +222,77 @@ class _BookmarksListState extends State<BookmarksList> {
           ),
         );
       },
+    );
+  }
+
+  /// Surfaces a corrupt-load failure loudly (F-3 / QS-3). Distinct from the
+  /// empty state: the message tells the user the file is damaged and was NOT
+  /// overwritten, and offers a retry. This blocks the data-loss path where a
+  /// user mistaking the empty list for "no bookmarks" adds one and clobbers
+  /// the corrupt-but-recoverable file.
+  Widget _buildLoadError(BuildContext context, String error) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: theme.colorScheme.error.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      color: theme.colorScheme.error),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Could not load bookmarks',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Your bookmarks file is damaged and wasn't loaded — this "
+                'protects it from being overwritten. Restore a backup if you '
+                'have one, then retry.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                error,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  onPressed: _reload,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try Again'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

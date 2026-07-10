@@ -46,7 +46,25 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
 
   Future<void> _refreshContent() async {
     BookmarksService.invalidateCache();
-    await BookmarksService.list();
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColor = Theme.of(context).colorScheme.error;
+    try {
+      await BookmarksService.list();
+    } catch (e) {
+      // A corrupt bookmarks file now throws BookmarksLoadException rather than
+      // silently returning [] (F-3/QS-3). Surface it on pull-to-refresh instead
+      // of letting it escape as an unhandled async error; the BookmarksList
+      // widget also re-runs its own load below and renders its inline
+      // error/retry state.
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not load bookmarks: $e'),
+          backgroundColor: errorColor,
+        ),
+      );
+    }
+    // Always notify so the list widget re-runs its own load (and shows its
+    // inline error/retry state on failure rather than a stale empty view).
     BookmarksEvents.notifyChanged();
   }
 
