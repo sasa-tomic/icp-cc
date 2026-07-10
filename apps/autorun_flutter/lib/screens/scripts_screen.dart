@@ -860,32 +860,10 @@ class ScriptsScreenState extends State<ScriptsScreen>
   }
 
   Future<void> _runScript(ScriptRecord record) async {
-    final checksum = record.metadata['sha256_checksum'] as String?;
-    if (checksum != null) {
-      final integrityService = ScriptIntegrityService();
-      try {
-        integrityService.verifyChecksum(record.bundle, checksum,
-            scriptId: record.id);
-      } on ScriptIntegrityException catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Script integrity check failed: ${e.message}'),
-            backgroundColor: AppDesignSystem.errorColor,
-          ),
-        );
-        return;
-      }
-    }
-
-    await _controller.recordScriptRun(record.id);
-
-    await OnboardingProgressService().recordFirstScriptInteraction();
-
-    if (!mounted) return;
-    await showScriptExecutionBottomSheet(
-      context: context,
+    await runLocalScript(
+      context,
       script: record,
+      scriptController: _controller,
       runtime: _runtimeFor(record),
       onExpand: () => _expandScriptToFullScreen(record),
     );

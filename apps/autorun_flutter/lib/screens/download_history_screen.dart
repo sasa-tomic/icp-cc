@@ -5,9 +5,16 @@ import '../services/script_repository.dart';
 import '../theme/app_design_system.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/modern_empty_state.dart';
+import '../widgets/script_execution_bottom_sheet.dart';
 
 class DownloadHistoryScreen extends StatefulWidget {
-  const DownloadHistoryScreen({super.key});
+  const DownloadHistoryScreen({super.key, this.scriptController});
+
+  /// Optional [ScriptController] used to resolve a downloaded script to its
+  /// local [ScriptRecord] and run it. Tests inject a controller backed by a
+  /// fake repository; production omits it and the screen binds its own
+  /// controller to [ScriptRepository.instance].
+  final ScriptController? scriptController;
 
   @override
   State<DownloadHistoryScreen> createState() => _DownloadHistoryScreenState();
@@ -17,6 +24,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
   final DownloadHistoryService _downloadHistoryService =
       DownloadHistoryService();
   late final ScriptController _scriptController;
+  late final bool _ownsScriptController;
 
   List<DownloadRecord> _downloadHistory = [];
   bool _isLoading = true;
@@ -25,16 +33,24 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _scriptController = ScriptController(ScriptRepository.instance)
-      ..addListener(_onChanged);
+    final injected = widget.scriptController;
+    if (injected != null) {
+      _scriptController = injected..addListener(_onChanged);
+      _ownsScriptController = false;
+    } else {
+      _scriptController = ScriptController(ScriptRepository.instance)
+        ..addListener(_onChanged);
+      _ownsScriptController = true;
+    }
     _loadDownloadHistory();
   }
 
   @override
   void dispose() {
-    _scriptController
-      ..removeListener(_onChanged)
-      ..dispose();
+    _scriptController.removeListener(_onChanged);
+    if (_ownsScriptController) {
+      _scriptController.dispose();
+    }
     super.dispose();
   }
 
@@ -326,9 +342,11 @@ class _DownloadHistoryTile extends StatelessWidget {
         ],
       ),
       onTap: () async {
-        // Navigate to the local script
+        // Open the downloaded script via the same run flow used everywhere
+        // else (scripts list one-tap run): resolve the local ScriptRecord,
+        // then hand off to [runLocalScript] (integrity check → record run →
+        // execution bottom sheet).
         try {
-          // Find the script by ID from the controller's scripts list
           await scriptController.ensureLoaded();
           final script = scriptController.scripts
               .where((s) => s.id == record.localScriptId)
@@ -346,11 +364,12 @@ class _DownloadHistoryTile extends StatelessWidget {
             return;
           }
 
-          // Navigate to scripts screen and pass the script ID to highlight
-          if (context.mounted) {
-            Navigator.pop(context); // Go back from history screen
-            // The scripts screen should handle highlighting the script
-          }
+          if (!context.mounted) return;
+          await runLocalScript(
+            context,
+            script: script,
+            scriptController: scriptController,
+          );
         } catch (e) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

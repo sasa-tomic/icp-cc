@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../controllers/script_controller.dart';
 import '../models/script_record.dart';
 import '../rust/native_bridge.dart';
+import '../services/onboarding_progress_service.dart';
+import '../services/script_integrity_service.dart';
 import '../services/script_runner.dart';
 import '../theme/app_design_system.dart';
 import 'script_app_host.dart';
@@ -134,5 +137,55 @@ Future<void> showScriptExecutionBottomSheet({
       runtime: effectiveRuntime,
       onExpand: onExpand,
     ),
+  );
+}
+
+/// Runs a local [script] end-to-end and shows its output — the single shared
+/// implementation behind every "open a local script" entry point (the scripts
+/// list one-tap run, and the download library tap).
+///
+/// 1. Verifies the SHA-256 checksum when the script carries one. Every
+///    downloaded marketplace script does, so a corrupted or tampered bundle is
+///    rejected *before* execution.
+/// 2. Records the run (drives the run-count badge) and marks the first-script
+///    onboarding step complete.
+/// 3. Opens the shared [ScriptExecutionBottomSheet] (with [onExpand] wired to
+///    the expand-to-full-screen action when supplied).
+Future<void> runLocalScript(
+  BuildContext context, {
+  required ScriptRecord script,
+  required ScriptController scriptController,
+  IScriptAppRuntime? runtime,
+  VoidCallback? onExpand,
+}) async {
+  final checksum = script.metadata['sha256_checksum'] as String?;
+  if (checksum != null) {
+    try {
+      ScriptIntegrityService().verifyChecksum(
+        script.bundle,
+        checksum,
+        scriptId: script.id,
+      );
+    } on ScriptIntegrityException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Script integrity check failed: ${e.message}'),
+          backgroundColor: AppDesignSystem.errorColor,
+        ),
+      );
+      return;
+    }
+  }
+
+  await scriptController.recordScriptRun(script.id);
+  await OnboardingProgressService().recordFirstScriptInteraction();
+
+  if (!context.mounted) return;
+  await showScriptExecutionBottomSheet(
+    context: context,
+    script: script,
+    runtime: runtime,
+    onExpand: onExpand,
   );
 }
