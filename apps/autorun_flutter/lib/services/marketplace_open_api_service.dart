@@ -43,6 +43,17 @@ class PaymentsNotConfiguredException implements Exception {
       'PaymentsNotConfiguredException: ICPay publishable key not set on server';
 }
 
+/// Thrown by `GET /api/v1/scripts/:id/reviews` when the response `data` does
+/// not match the backend contract `{reviews: [...], total: int, hasMore: bool}`.
+/// Surfaced loudly (and rethrown) so the UI shows a real error instead of
+/// silently rendering an empty Reviews tab — see UXR7-1 / QS-1.
+class MalformedReviewsResponseException implements Exception {
+  final String detail;
+  const MalformedReviewsResponseException(this.detail);
+  @override
+  String toString() => 'MalformedReviewsResponseException: $detail';
+}
+
 abstract class MarketplaceOpenApi {
   Future<MarketplaceSearchResult> searchScripts({
     String? query,
@@ -353,8 +364,25 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
             responseData['error'] ?? 'Failed to get script reviews');
       }
 
-      final data = responseData['data'] as List;
-      return data
+      // The backend returns data as a Map: {reviews: [...], total: int,
+      // hasMore: bool} (backend/src/handlers/reviews.rs). A bare-array cast
+      // crashes on every Reviews-tab open (UXR7-1). Read it as a Map and
+      // extract the reviews list; surface a LOUD typed error if the contract
+      // ever drifts rather than silently returning an empty list.
+      final data = responseData['data'];
+      if (data is! Map<String, dynamic>) {
+        throw MalformedReviewsResponseException(
+          'expected data to be a Map with a "reviews" list, '
+          'got ${data.runtimeType}',
+        );
+      }
+      final reviewsList = data['reviews'];
+      if (reviewsList is! List) {
+        throw MalformedReviewsResponseException(
+          'expected "reviews" to be a list, got ${reviewsList.runtimeType}',
+        );
+      }
+      return reviewsList
           .whereType<Map<String, dynamic>>()
           .map((review) => ScriptReview.fromJson(review))
           .toList();

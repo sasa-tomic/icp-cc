@@ -60,19 +60,27 @@ void main() {
           return http.Response(
             jsonEncode({
               'success': true,
-              'data': effectiveReviews
-                  .map((r) => {
-                        'id': r.id,
-                        'userId': r.userId,
-                        'scriptId': r.scriptId,
-                        'rating': r.rating,
-                        'comment': r.comment,
-                        'isVerifiedPurchase': r.isVerifiedPurchase,
-                        'status': r.status,
-                        'createdAt': r.createdAt.toIso8601String(),
-                        'updatedAt': r.updatedAt.toIso8601String(),
-                      })
-                  .toList(),
+              'data': {
+                // Real backend contract — see
+                // backend/src/handlers/reviews.rs::get_reviews. `data` is a
+                // Map, NOT a bare array. The previous mock returned a bare
+                // array, masking the production cast crash (UXR7-1 / QS-1).
+                'reviews': effectiveReviews
+                    .map((r) => {
+                          'id': r.id,
+                          'userId': r.userId,
+                          'scriptId': r.scriptId,
+                          'rating': r.rating,
+                          'comment': r.comment,
+                          'isVerifiedPurchase': r.isVerifiedPurchase,
+                          'status': r.status,
+                          'createdAt': r.createdAt.toIso8601String(),
+                          'updatedAt': r.updatedAt.toIso8601String(),
+                        })
+                    .toList(),
+                'total': effectiveReviews.length,
+                'hasMore': false,
+              },
             }),
             effectiveStatusCode,
             headers: {'Content-Type': 'application/json'},
@@ -326,6 +334,92 @@ void main() {
       // Empty tiers (3,2,1) are zeroed.
       expect(
           tester.widget<LinearProgressIndicator>(bars.at(2)).value!, equals(0.0));
+    });
+  });
+
+  // Service-level contract tests for getScriptReviews. These pin the EXACT
+  // backend shape ({data: {reviews:[...], total:int, hasMore:bool}}) so a cast
+  // regression like UXR7-1 can never ship green again.
+  group('MarketplaceOpenApiService.getScriptReviews contract', () {
+    late MarketplaceOpenApiService service;
+
+    setUp(() {
+      suppressDebugOutput = true;
+      service = MarketplaceOpenApiService();
+      AppConfig.setTestEndpoint('https://mock.api');
+    });
+
+    tearDown(() {
+      suppressDebugOutput = false;
+      service.resetHttpClient();
+    });
+
+    http.Response reviewsResponse(Map<String, dynamic> data, {int status = 200}) {
+      return http.Response(
+        jsonEncode({'success': true, 'data': data}),
+        status,
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    test('parses reviews from the real backend Map shape', () async {
+      final client = MockClient((_) async => reviewsResponse({
+            'reviews': [
+              {
+                'id': 'r1',
+                'userId': 'u1',
+                'scriptId': 's1',
+                'rating': 5,
+                'comment': 'great',
+                'isVerifiedPurchase': true,
+                'status': 'approved',
+                'createdAt': '2025-01-01T00:00:00.000',
+                'updatedAt': '2025-01-01T00:00:00.000',
+              }
+            ],
+            'total': 1,
+            'hasMore': false,
+          }));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      final reviews = await service.getScriptReviews('s1');
+
+      expect(reviews, hasLength(1));
+      expect(reviews.first.id, 'r1');
+      expect(reviews.first.rating, 5);
+    });
+
+    test('throws MalformedReviewsResponseException on a bare-array data shape',
+        () async {
+      // This is the shape the OLD (broken) code assumed — and the shape the
+      // old mock returned. The service must reject it loudly now.
+      final client = MockClient(
+          (_) async => http.Response(jsonEncode({'success': true, 'data': []}),
+              200, headers: {'Content-Type': 'application/json'}));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      expect(
+        () => service.getScriptReviews('s1'),
+        throwsA(isA<MalformedReviewsResponseException>()),
+      );
+    });
+
+    test('throws MalformedReviewsResponseException when reviews is not a list',
+        () async {
+      final client = MockClient((_) async => reviewsResponse({
+            'reviews': 'not-a-list',
+            'total': 0,
+            'hasMore': false,
+          }));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      expect(
+        () => service.getScriptReviews('s1'),
+        throwsA(isA<MalformedReviewsResponseException>()),
+      );
     });
   });
 }
