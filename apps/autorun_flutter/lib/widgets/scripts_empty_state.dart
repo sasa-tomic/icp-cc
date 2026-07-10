@@ -11,6 +11,12 @@ enum ScriptsEmptyStateKind {
 
   /// "Favorites only" filter is active but the user has no favorites.
   favoritesFilter,
+
+  /// A search query is active but matched nothing. Distinct from [library]
+  /// so the user is told "no results" (with a Clear-search affordance) rather
+  /// than the misleading "Your library is empty" when scripts ARE installed
+  /// (W6-8 / UX finding W6-6). The query string is passed via [searchQuery].
+  searchNoResults,
 }
 
 /// Empty-state widget for the Scripts screen.
@@ -27,11 +33,13 @@ class ScriptsEmptyState extends StatelessWidget {
     super.key,
     required this.kind,
     this.hasProfile = true,
+    this.searchQuery,
     this.onCreateScript,
     this.onBrowseMarketplace,
     this.onSetupProfile,
     this.onClearDownloadedFilter,
     this.onClearFavoritesFilter,
+    this.onClearSearch,
   });
 
   final ScriptsEmptyStateKind kind;
@@ -43,11 +51,19 @@ class ScriptsEmptyState extends StatelessWidget {
   /// `true` so call sites that don't supply it keep the legacy behavior.
   final bool hasProfile;
 
+  /// The active search query. Only consulted by the [searchNoResults] variant,
+  /// which echoes it back so the user sees *which* term found nothing.
+  final String? searchQuery;
+
   final VoidCallback? onCreateScript;
   final VoidCallback? onBrowseMarketplace;
   final VoidCallback? onSetupProfile;
   final VoidCallback? onClearDownloadedFilter;
   final VoidCallback? onClearFavoritesFilter;
+
+  /// Clears the active search query. The primary action of the
+  /// [searchNoResults] variant.
+  final VoidCallback? onClearSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +83,18 @@ class ScriptsEmptyState extends StatelessWidget {
           subtitle: 'Tap the star icon on scripts to add them to favorites',
           action: onClearFavoritesFilter,
           actionLabel: 'Browse Scripts',
+        );
+      case ScriptsEmptyStateKind.searchNoResults:
+        // Echo the query so the user can see *which* term found nothing. The
+        // primary action clears the search rather than nudging them to create
+        // a script — the library isn't empty, the search just had no hits.
+        final query = searchQuery ?? '';
+        return ModernEmptyState(
+          icon: Icons.search_off_rounded,
+          title: "No scripts match '$query'",
+          subtitle: 'Try a different search term, or clear the search.',
+          action: onClearSearch,
+          actionLabel: 'Clear search',
         );
       case ScriptsEmptyStateKind.library:
         if (!hasProfile) {

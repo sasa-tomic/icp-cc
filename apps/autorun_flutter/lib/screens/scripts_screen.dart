@@ -1280,6 +1280,19 @@ class ScriptsScreenState extends State<ScriptsScreen>
         }
 
         if (displayedItems.isEmpty && !isLoadingAnything) {
+          // W6-8: a non-empty search that matched nothing is NOT a "your
+          // library is empty" situation (scripts may well be installed). Show
+          // a distinct "No scripts match '<query>'" state with a Clear-search
+          // affordance so the user understands the search came up empty.
+          // Takes precedence over the filter/library kinds because the active
+          // query is the most salient cause of the empty result.
+          if (_searchQuery.isNotEmpty) {
+            return ScriptsEmptyState(
+              kind: ScriptsEmptyStateKind.searchNoResults,
+              searchQuery: _searchQuery,
+              onClearSearch: _clearSearch,
+            );
+          }
           final kind = _showDownloadedOnly
               ? ScriptsEmptyStateKind.downloadedFilter
               : _showFavoritesOnly
@@ -1539,6 +1552,19 @@ class ScriptsScreenState extends State<ScriptsScreen>
     setState(() {
       _showFavoritesOnly = false;
     });
+  }
+
+  /// Clears the active search query (W6-8). The primary action of the
+  /// search-no-results empty state: resets the query, clears the search field,
+  /// re-runs the local filter + marketplace browse so the user is back to the
+  /// full list.
+  void _clearSearch() {
+    setState(() {
+      _searchQuery = '';
+      _searchController.clear();
+      _filteredLocalScripts = _controller.scripts;
+    });
+    _loadMarketplaceScripts();
   }
 
   /// Toggles the favorite status of a script.
