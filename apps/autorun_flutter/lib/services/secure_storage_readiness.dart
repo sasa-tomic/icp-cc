@@ -27,12 +27,14 @@
 library;
 
 import 'dart:convert' show utf8;
+import 'dart:async' show TimeoutException;
 import 'dart:io' show File, Platform, Process, ProcessResult;
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart' show MissingPluginException, PlatformException;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../theme/app_design_system.dart' show AppDurations;
 import '../rust/libc_setenv.dart';
 
 /// Single source of truth for "how do I get a Secret Service on Linux".
@@ -310,7 +312,9 @@ typedef ProcessRunner = Future<ProcessResult> Function(
   bool runInShell,
 });
 
-/// Default [ProcessRunner] — delegates to [Process.run].
+/// Default [ProcessRunner] — delegates to [Process.run]. (The per-call I/O
+/// budget is enforced inside [LinuxSecretServiceAutostart._run], NOT here, so
+/// the bound applies uniformly to injected runners in tests too.)
 ProcessRunner _defaultProcessRunner = (
   String executable,
   List<String> arguments, {
@@ -351,11 +355,26 @@ class LinuxSecretServiceAutostart implements SecretServiceAutostart {
   LinuxSecretServiceAutostart({
     ProcessRunner? runner,
     EnvSetter? envSetter,
+    /// Per-spawn I/O budget. Every `Process.run` the strategy issues (which /
+    /// dbus-launch / gnome-keyring-daemon) is bounded by this — a hung daemon
+    /// (e.g. gnome-keyring-daemon stuck on a missing D-Bus) cannot block the
+    /// readiness probe indefinitely (AUD-6). Injectable so the timeout path is
+    /// unit-testable with a tight budget.
+    Duration? ioBudget,
   })  : _runner = runner ?? _defaultProcessRunner,
-        _envSetter = envSetter ?? _defaultEnvSetter;
+        _envSetter = envSetter ?? _defaultEnvSetter,
+        _ioBudget = ioBudget ?? AppDurations.ioOperation;
 
   final ProcessRunner _runner;
   final EnvSetter _envSetter;
+  final Duration _ioBudget;
+
+  /// Runs [executable] via the injected runner, bounded by [_ioBudget]. Throws
+  /// [TimeoutException] on overrun so call sites can map it to a clear
+  /// [AutostartResult] instead of hanging.
+  Future<ProcessResult> _run(String executable, List<String> arguments) {
+    return _runner(executable, arguments).timeout(_ioBudget);
+  }
 
   @override
   Future<AutostartResult> attempt({
@@ -382,7 +401,17 @@ class LinuxSecretServiceAutostart implements SecretServiceAutostart {
           detail: 'dbus-launch is not installed; cannot start a D-Bus session.',
         );
       }
-      final res = await _runner(dbusLaunch, ['--sh-syntax']);
+      final ProcessResult res;
+      try {
+        res = await _run(dbusLaunch, ['--sh-syntax']);
+      } on TimeoutException {
+        return AutostartResult(
+          attempted: true,
+          succeeded: false,
+          detail: 'dbus-launch did not respond within ${_ioBudget.inSeconds}s '
+              '— a D-Bus session could not be started.',
+        );
+      }
       if (res.exitCode != 0) {
         return AutostartResult(
           attempted: true,
@@ -409,8 +438,18 @@ class LinuxSecretServiceAutostart implements SecretServiceAutostart {
     }
 
     // 3) Start the secrets component of gnome-keyring.
-    final startRes =
-        await _runner(daemonPath, ['--start', '--components=secrets']);
+    final ProcessResult startRes;
+    try {
+      startRes = await _run(daemonPath, ['--start', '--components=secrets']);
+    } on TimeoutException {
+      return AutostartResult(
+        attempted: true,
+        succeeded: false,
+        detail: 'gnome-keyring-daemon did not respond within '
+            '${_ioBudget.inSeconds}s — it may be prompting or stuck on a '
+            'missing D-Bus.',
+      );
+    }
     if (startRes.exitCode != 0) {
       return AutostartResult(
         attempted: true,
@@ -434,7 +473,7 @@ class LinuxSecretServiceAutostart implements SecretServiceAutostart {
 
   Future<String?> _which(String name) async {
     try {
-      final res = await _runner('which', [name]);
+      final res = await _run('which', [name]);
       if (res.exitCode != 0) return null;
       final out = res.stdout.toString().trim();
       return out.isEmpty ? null : out;

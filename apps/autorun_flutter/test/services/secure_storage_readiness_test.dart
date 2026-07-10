@@ -8,6 +8,7 @@
 // Written failing-first against the public contract of
 // lib/services/secure_storage_readiness.dart.
 
+import 'dart:async' show Completer;
 import 'dart:io' show ProcessResult;
 
 import 'package:flutter/services.dart' show PlatformException;
@@ -268,6 +269,59 @@ DBUS_SESSION_BUS_PID=4242;
       expect(capturedBus, 'unix:abstract=/tmp/dbus-AAA,guid=abc');
       expect(capturedOk, isTrue, reason: 'retry probe must run after start');
       expect(result.succeeded, isTrue);
+    });
+
+    test('bounds a hung gnome-keyring-daemon instead of hanging (AUD-6)',
+        () async {
+      // A hung daemon returns a Future that NEVER completes. With no budget
+      // this would block the readiness probe forever; the injected ioBudget
+      // must abort it and report a clear failure.
+      final autostart = LinuxSecretServiceAutostart(
+        runner: (executable, arguments, {bool runInShell = false}) {
+          if (executable == 'which') {
+            return Future.value(_ok('/usr/bin/${arguments.first}'));
+          }
+          // DBUS_SESSION_BUS_ADDRESS is unset in the test env, so dbus-launch
+          // runs first and completes; the keyring daemon then HANGS.
+          if (executable == '/usr/bin/dbus-launch') {
+            return Future.value(_ok(
+              "DBUS_SESSION_BUS_ADDRESS='unix:abstract=/tmp/dbus-FAKE,guid=x';\n",
+            ));
+          }
+          // gnome-keyring-daemon — never resolves.
+          return Completer<ProcessResult>().future;
+        },
+        envSetter: (_, __) => true,
+        ioBudget: const Duration(milliseconds: 50),
+      );
+
+      final result = await autostart.attempt(retryProbe: () async => true);
+
+      expect(result.attempted, isTrue);
+      expect(result.succeeded, isFalse);
+      expect(result.detail, contains('gnome-keyring-daemon'));
+      expect(result.detail, contains('did not respond'));
+    });
+
+    test('bounds a hung dbus-launch instead of hanging (AUD-6)', () async {
+      final autostart = LinuxSecretServiceAutostart(
+        runner: (executable, arguments, {bool runInShell = false}) {
+          if (executable == 'which') {
+            return Future.value(_ok('/usr/bin/${arguments.first}'));
+          }
+          // dbus-launch hangs.
+          return Completer<ProcessResult>().future;
+        },
+        envSetter: (_, __) => true,
+        ioBudget: const Duration(milliseconds: 50),
+      );
+
+      final result = await autostart.attempt(retryProbe: () async => true);
+
+      expect(result.attempted, isTrue);
+      expect(result.succeeded, isFalse);
+      expect(result.detail, contains('dbus-launch'));
+      expect(result.detail, contains('did not respond'));
     });
   });
 

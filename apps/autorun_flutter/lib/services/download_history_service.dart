@@ -135,13 +135,13 @@ class DownloadHistoryService {
 
   Future<DownloadRecord?> getDownloadRecord(String marketplaceScriptId) async {
     await _loadHistory();
-    try {
-      return _downloadHistory.firstWhere(
-        (record) => record.marketplaceScriptId == marketplaceScriptId,
-      );
-    } catch (e) {
-      return null;
+    // Explicit not-found check (AUD-3): no generic try/catch around
+    // firstWhere — a missing record is the expected "absent" outcome, returned
+    // as null. A for-loop keeps this honest (no StateError to swallow).
+    for (final record in _downloadHistory) {
+      if (record.marketplaceScriptId == marketplaceScriptId) return record;
     }
+    return null;
   }
 
   Future<void> removeFromHistory(String marketplaceScriptId) async {

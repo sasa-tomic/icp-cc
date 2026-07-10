@@ -183,11 +183,13 @@ class ScriptTemplates {
 
   static ScriptTemplate? getById(String id) {
     _assertInitialized();
-    try {
-      return templates.firstWhere((template) => template.id == id);
-    } catch (e) {
-      return null;
+    // Explicit not-found check (AUD-3): no generic try/catch around
+    // firstWhere — a missing id is the expected "absent" outcome, returned as
+    // null. A for-loop keeps this honest (no StateError to swallow).
+    for (final template in templates) {
+      if (template.id == id) return template;
     }
+    return null;
   }
 
   static List<ScriptTemplate> getByLevel(String level) {

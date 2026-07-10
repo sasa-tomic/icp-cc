@@ -504,6 +504,22 @@ fn build_args_from_json(
         .map_err(|e| CanisterClientError::CandidParse(format!("encode args: {e}")))
 }
 
+/// Structurally classify a raw argument string as textual Candid (IDL) vs JSON.
+///
+/// IDL textual args are ALWAYS wrapped in `(...)` (the candid grammar requires
+/// it for a non-empty argument list; `()` is the empty-args form). `base64:`
+/// is an explicit IDL escape hatch (raw bytes) handled by
+/// [`parse_idl_args_bytes`], and a blank string means "no args" (also IDL).
+/// Everything else is treated as JSON and left to the JSON parser to validate
+/// — replacing the fragile first-character prefix list that previously tried to
+/// enumerate every JSON-leading char (`[`/`{`/`n`/`"`/`t`/`f`/digit/`-`).
+///
+/// AUD-10: derive truth from structure, not a heuristic prefix list.
+fn looks_like_textual_idl(arg: &str) -> bool {
+    let t = arg.trim_start();
+    t.is_empty() || t.starts_with('(') || t.starts_with("base64:")
+}
+
 fn parse_idl_args_bytes(arg_candid: &str) -> Result<Vec<u8>, CanisterClientError> {
     let s = arg_candid.trim();
     if s.is_empty() || s == "()" {
@@ -588,23 +604,12 @@ pub fn call_anonymous(
         .with_url(host_url)
         .build()
         .map_err(|e| CanisterClientError::Net(format!("build agent: {e}")))?;
-    // Accept either textual candid or JSON (when starts with '[' or '{' or 'null' or scalar JSON)
-    let arg_bytes = if arg_candid.trim_start().starts_with('[')
-        || arg_candid.trim_start().starts_with('{')
-        || arg_candid.trim_start().starts_with('n')
-        || arg_candid.trim_start().starts_with('"')
-        || arg_candid.trim_start().starts_with('t')
-        || arg_candid.trim_start().starts_with('f')
-        || arg_candid
-            .trim_start()
-            .chars()
-            .next()
-            .map(|c| c.is_ascii_digit() || c == '-')
-            .unwrap_or(false)
-    {
-        build_args_from_json(canister_id, method, host, arg_candid)?
-    } else {
+    // Classify the arg structurally: textual candid `(…)` (or `base64:`/empty)
+    // → IDL; anything else → JSON and let the parser validate (AUD-10).
+    let arg_bytes = if looks_like_textual_idl(arg_candid) {
         parse_idl_args_bytes(arg_candid)?
+    } else {
+        build_args_from_json(canister_id, method, host, arg_candid)?
     };
 
     let fut = async {
@@ -685,22 +690,12 @@ pub fn call_authenticated(
         .build()
         .map_err(|e| CanisterClientError::Net(format!("build agent: {e}")))?;
 
-    let arg_bytes = if arg_candid.trim_start().starts_with('[')
-        || arg_candid.trim_start().starts_with('{')
-        || arg_candid.trim_start().starts_with('n')
-        || arg_candid.trim_start().starts_with('"')
-        || arg_candid.trim_start().starts_with('t')
-        || arg_candid.trim_start().starts_with('f')
-        || arg_candid
-            .trim_start()
-            .chars()
-            .next()
-            .map(|c| c.is_ascii_digit() || c == '-')
-            .unwrap_or(false)
-    {
-        build_args_from_json(canister_id, method, host, arg_candid)?
-    } else {
+    // Classify the arg structurally: textual candid `(…)` (or `base64:`/empty)
+    // → IDL; anything else → JSON and let the parser validate (AUD-10).
+    let arg_bytes = if looks_like_textual_idl(arg_candid) {
         parse_idl_args_bytes(arg_candid)?
+    } else {
+        build_args_from_json(canister_id, method, host, arg_candid)?
     };
     let fut = async {
         // Ensure root key is fetched before making certified requests.
@@ -754,6 +749,32 @@ pub fn call_authenticated(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn looks_like_textual_idl_classifies_idl_shapes() {
+        // IDL textual args are always wrapped in `(...)`.
+        assert!(looks_like_textual_idl("(42)"));
+        assert!(looks_like_textual_idl("(42, \"hi\", opt null)"));
+        assert!(looks_like_textual_idl("  (\n record { foo = 1 })")); // leading whitespace
+        assert!(looks_like_textual_idl("()")); // empty args
+        assert!(looks_like_textual_idl(" base64:AAAA")); // explicit raw-bytes escape
+        assert!(looks_like_textual_idl("")); // blank = no args
+        assert!(looks_like_textual_idl("   ")); // whitespace-only = no args
+    }
+
+    #[test]
+    fn looks_like_textual_idl_rejects_json_shapes() {
+        // JSON values route to the JSON path — the parser validates them.
+        assert!(!looks_like_textual_idl("[1, 2, 3]")); // array
+        assert!(!looks_like_textual_idl("{\"a\": 1}")); // object
+        assert!(!looks_like_textual_idl("null")); // null
+        assert!(!looks_like_textual_idl("true"));
+        assert!(!looks_like_textual_idl("false"));
+        assert!(!looks_like_textual_idl("\"hello\"")); // string
+        assert!(!looks_like_textual_idl("42")); // number
+        assert!(!looks_like_textual_idl("-7")); // negative number
+        assert!(!looks_like_textual_idl("  3.14")); // leading whitespace + number
+    }
 
     #[test]
     fn parse_args_empty_and_textual() {
