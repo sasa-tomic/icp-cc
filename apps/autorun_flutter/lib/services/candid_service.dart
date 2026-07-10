@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/canister_method.dart';
 import '../rust/native_bridge.dart';
+import '../rust/web/candid_interface_parser.dart';
 import '../theme/app_design_system.dart';
 
 /// Why a Candid interface could not be loaded for a canister.
@@ -58,6 +59,34 @@ class CandidFetchException implements Exception {
   String toString() => "Couldn't load Candid for $canisterId: $_reason";
 }
 
+/// Why a fetched Candid interface could not be parsed into methods.
+///
+/// The robust parser (`parseCandidInterface`) returns `null` on any parse
+/// failure — parity with the native FFI's `null_c_string` on `Err`. Rather than
+/// swallow that into a silent empty list (the forbidden F-2 pattern), it is
+/// surfaced as this typed error so the caller (the canister-call builder UI)
+/// shows *why* parsing failed instead of an empty method dropdown.
+enum CandidParseErrorKind {
+  /// The Candid text is malformed / not a valid `.did` interface (syntax error,
+  /// no service actor, empty, garbage).
+  malformed,
+}
+
+/// Typed failure produced by [CandidService._parseCandidMethods].
+///
+/// `toString()` renders the user-visible message:
+/// `"Couldn't parse Candid interface: malformed (<cause>)"`.
+class CandidParseException implements Exception {
+  CandidParseException({required this.kind, this.cause});
+
+  final CandidParseErrorKind kind;
+  final Object? cause;
+
+  @override
+  String toString() =>
+      "Couldn't parse Candid interface: ${kind.name} ($cause)";
+}
+
 /// Service for fetching and parsing Candid interfaces.
 class CandidService {
   CandidService({http.Client? httpClient})
@@ -69,7 +98,9 @@ class CandidService {
   /// Fetch methods for a canister by parsing its Candid interface.
   ///
   /// Throws [CandidFetchException] when the Candid registry cannot supply the
-  /// interface — never returns a stale/hardcoded fallback.
+  /// interface, and [CandidParseException] when the fetched interface text is
+  /// malformed — never returns a stale/hardcoded fallback, never swallows a
+  /// parse failure into an empty list.
   Future<List<CanisterMethod>> fetchCanisterMethods(
       String canisterId, [String? host]) async {
     final candidString = await _getCandidInterface(canisterId, host);
@@ -169,99 +200,67 @@ class CandidService {
     return response.body;
   }
 
-  /// Parse Candid interface to extract method information
+  /// Parse a Candid interface into [CanisterMethod]s using the robust
+  /// pure-Dart parser (`parseCandidInterface`) — the single source of truth.
+  ///
+  /// The query/update mode comes from the ACTUAL Candid annotation
+  /// (`query`/`composite_query`/`oneway`/none), never from a name-prefix
+  /// heuristic (the old `_inferMethodMode` was deleted: it mis-classified ICRC
+  /// read methods like `symbol`/`decimals`/`balance_of` as updates — F-1).
+  ///
+  /// Throws [CandidParseException] loudly on malformed/empty/garbage input —
+  /// never swallows the failure into an empty list (the forbidden F-2 pattern).
   List<CanisterMethod> _parseCandidMethods(String candidString) {
-    final methods = <CanisterMethod>[];
-
-    try {
-      // Simple Candid parser - this is a basic implementation
-      // In a production system, you'd want a more robust parser
-      final lines = candidString.split('\n');
-
-      for (final line in lines) {
-        final trimmedLine = line.trim();
-
-        // Skip comments, empty lines, and service declarations
-        if (trimmedLine.isEmpty ||
-            trimmedLine.startsWith('//') ||
-            trimmedLine.startsWith('type ') ||
-            trimmedLine.startsWith('service ')) {
-          continue;
-        }
-
-        // Parse method definitions like:
-        // method_name : (arg1: type1, arg2: type2) -> (return_type);
-        final methodMatch = RegExp(
-                r'^\s*(\w+)\s*:\s*\(([^)]*)\)\s*(?:->\s*\(([^)]*)\))?;?')
-            .firstMatch(trimmedLine);
-
-        if (methodMatch != null) {
-          final methodName = methodMatch.group(1)!;
-          final argsString = methodMatch.group(2) ?? '';
-          final returnString = methodMatch.group(3);
-
-          final args = _parseArgsString(argsString);
-          final mode = _inferMethodMode(methodName, returnString);
-
-          methods.add(CanisterMethod(
-            name: methodName,
-            mode: mode,
-            args: args,
-            returnType: returnString?.trim(),
-          ));
-        }
-      }
-    } catch (e) {
-      // If parsing fails, return empty list
-      return [];
+    // `parseCandidInterface` returns null on ANY parse error (parity with the
+    // native FFI's null_c_string on Err) — surface it as a typed error.
+    final json = parseCandidInterface(candidString);
+    if (json == null) {
+      throw CandidParseException(
+        kind: CandidParseErrorKind.malformed,
+        cause: 'unparseable Candid interface',
+      );
     }
 
-    return methods;
+    final decoded = jsonDecode(json) as Map<String, dynamic>;
+    final rawMethods =
+        (decoded['methods'] as List<dynamic>).cast<Map<String, dynamic>>();
+    return rawMethods.map(_methodFromCandid).toList(growable: false);
   }
 
-  /// Parse argument string from Candid method signature
-  List<CanisterArg> _parseArgsString(String argsString) {
-    if (argsString.trim().isEmpty) return [];
-
-    final args = <CanisterArg>[];
-    final parts = argsString.split(',');
-
-    for (final part in parts) {
-      final trimmedPart = part.trim();
-      if (trimmedPart.isEmpty) continue;
-
-      // Parse arg name and type like "name : type"
-      final argMatch = RegExp(r'^(\w+)\s*:\s*([^)]+)$').firstMatch(trimmedPart);
-      if (argMatch != null) {
-        final argName = argMatch.group(1)!;
-        final argType = argMatch.group(2)!.trim();
-
-        args.add(CanisterArg(
-          name: argName,
-          type: argType,
-        ));
-      }
-    }
-
-    return args;
-  }
-
-  /// Infer method mode (0=query, 1=update) based on name and return type
-  int _inferMethodMode(String methodName, String? returnType) {
-    // Query methods are typically read-only and don't modify state
-    final queryPatterns = [
-      'get_', 'query_', 'list_', 'fetch_', 'read_', 'find_',
-      'account_balance', 'canister_status', 'tip_of_chain',
-      'raw_rand', 'http_request'
+  /// Map one robust-parser method record to a [CanisterMethod].
+  ///
+  /// `kind` is the serde enum name (`"Query"`/`"Update"`/`"CompositeQuery"`)
+  /// derived from the Candid annotation; it becomes the integer `mode` the
+  /// canister-call builder consumes (0=query, 1=update, 2=composite).
+  CanisterMethod _methodFromCandid(Map<String, dynamic> m) {
+    final kind = m['kind'] as String? ?? 'Update';
+    final argTypes = (m['args'] as List<dynamic>).cast<String>();
+    final rets = (m['rets'] as List<dynamic>).cast<String>();
+    // Candid args are positional on the wire; arg names are non-canonical and
+    // intentionally dropped by the parser. Render them as positional labels
+    // (`arg0`, `arg1`, …) for the builder UI, preserving the real type.
+    final args = <CanisterArg>[
+      for (var i = 0; i < argTypes.length; i++)
+        CanisterArg(name: 'arg$i', type: argTypes[i]),
     ];
+    return CanisterMethod(
+      name: m['name'] as String? ?? '',
+      mode: _modeFromKind(kind),
+      args: args,
+      returnType: rets.isEmpty ? null : rets.join(', '),
+    );
+  }
 
-    for (final pattern in queryPatterns) {
-      if (methodName.startsWith(pattern)) {
-        return 0; // query
-      }
+  /// Candid annotation → integer mode the builder uses.
+  /// `query` → 0 (query); `composite_query` → 2 (composite); else → 1 (update).
+  int _modeFromKind(String kind) {
+    switch (kind) {
+      case 'Query':
+        return 0;
+      case 'CompositeQuery':
+        return 2;
+      default: // "Update" (no mode / oneway)
+        return 1;
     }
-
-    // Default to update for safety
-    return 1; // update
   }
 }
