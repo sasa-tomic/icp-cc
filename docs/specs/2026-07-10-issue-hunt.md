@@ -1,6 +1,6 @@
 # Issue Hunt — Functional, Visual & Tech-Debt Sweep (Wave-5)
 
-- **Status:** 🚧 IN PROGRESS
+- **Status:** ✅ COMPLETE (all 14 WUs committed + verified)
 - **Date:** 2026-07-10
 - **Scope:** Whole app (Linux desktop + Flutter Web + backend).
 - **Method:** empirically grounded (every claim cited to `file:line` or a live
@@ -131,3 +131,33 @@ P1 first (IH-1, IH-2, IH-3, IH-13), then P2 (IH-4..IH-9, IH-14), then P3
 
 | WU | Commit | Summary |
 |----|--------|---------|
+| plan | `43f2fe8e` | Wave-5 plan committed |
+| IH-1 | `3b5faa57` | Connectivity web-aware (conditional export) + probe actual backend /health; deterministic tests (UXR-2/AUD-4/AUD-11/TQ-4) |
+| IH-2 | `ca248d02` | Marketplace load error surfaced as typed `_MarketplaceLoadError` + inline Retry panel (UXR-5/AUD-1) |
+| IH-3 | `38bf8c94` | Dapps: real mainnet ICP Ledger example (live-verified) + `DappEnvironment` badges + honest local-replica banner (UXR-6) |
+| IH-13 | `ffcdc9a6` | Dropped 37 false-confidence tests (mock-the-mock + expect(true)); +6 real favorites tests (TQ-1/2/3) |
+| IH-4 | `0c3f3ca9` | Bookmarks via JsonDocumentStore (no dart:io); corrupt-load safety preserved; WebJsonStore whitespace contract fix (AUD-5/AUD-9) |
+| IH-5 | `01bfeca2` | Backend omits bundle from all list endpoints (`scripts_to_list_json`); paid gate intact (UXR-3) |
+| IH-7 | `6c4c7b0e` | Deleted orphaned script_card.dart + "Payments Coming Soon" stub (UXR-7) |
+| IH-6 | `3583a2d2` | Tiles render CachedNetworkImage(iconUrl) with emoji fallback (UXR-4) |
+| IH-8 | `0e73d064` | Validation errors → typed `ScriptValidationException` (AUD-2) |
+| IH-9 | `fa6a7817` | Wizard close tooltip + dismissal remembered + persistent `ProfileSetupChip` (UXR-8) |
+| IH-10 | `9cb5eb7b` | Single-source `DEFAULT_IC_GATEWAY` const; client requires apiUrl from backend (AUD-7/AUD-8) |
+| IH-11 | `8c5d52d1` | `/scripts/categories` routed before `:id`; deleted dead featured/trending client (UXR-9/AUD-12) |
+| IH-12 | `49d57681` | Typed not-found + bounded gnome-keyring process + structural IDL detection (AUD-3/6/10) |
+| IH-14 | `8657d97f` | Neutral fake hosts; deleted zombie mock_marketplace_service; +9 offline-banner-dismiss tests (TQ-5/6) |
+| test-fix | `128fc029` | Aligned repo-API integration test with IH-5 bundle-omission contract |
+
+## §5. Verification (final)
+
+- **flutter analyze:** CLEAN (No issues found).
+- **Rust:** `cargo nextest` 292/292 PASS; `cargo clippy -- -D warnings` clean (backend + icp_core).
+- **flutter test:** 1911 passed / 11 skipped (env-gated) / **0 failed** (non-integration). Integration suite green with `MARKETPLACE_API_PORT` set.
+- **flutter build web:** SUCCEEDS (~117s).
+- **Live UX review (real running web app, no mocks):** ALL P1 + P2 fixes PASS with objective evidence. **Zero Wave-5 regressions.**
+- **Confidence:** 9-10/10 across units.
+
+### Follow-ups (out of Wave-5 scope, not blockers)
+- Frontend category list still hardcoded; could consume the new `/scripts/categories` endpoint.
+- Pre-existing (NOT Wave-5): shell profile avatar overlaps ScriptsScreen AppBar `more_vert` on wide desktop layouts (cosmetic).
+- Deployment: ICP Ledger mainnet example needs same-origin `/api/v1/ic/*` reverse proxy (production only).
