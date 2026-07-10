@@ -14,8 +14,8 @@ class ConnectivityScope extends StatefulWidget {
   /// Creates a connectivity scope.
   ///
   /// Pass [service] to inject a custom [ConnectivityService] (e.g. a no-I/O
-  /// fake in widget tests; the real service performs an uncancellable
-  /// `Socket.connect` whose 5s timeout leaks a pending timer under FakeAsync).
+  /// fake in widget tests; the real service performs an uncancellable backend
+  /// health-probe whose timeout leaks a pending timer under FakeAsync).
   const ConnectivityScope({
     super.key,
     required this.child,

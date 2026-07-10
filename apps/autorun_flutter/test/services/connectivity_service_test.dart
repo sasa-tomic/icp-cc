@@ -1,205 +1,210 @@
 import 'dart:async';
-import 'dart:io';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:icp_autorun/services/connectivity_service.dart';
 
+/// Deterministic unit tests for [ConnectivityService].
+///
+/// These replace the old tautological suite (TQ-4): no `isA<bool>()`
+/// placeholders, no `onTimeout: () => true` escape hatches, no dependence on the
+/// host network. The reachability probe is injected via the constructor seam
+/// (`ConnectivityProbe`), so every outcome is asserted exactly. Periodic
+/// behaviour is driven by `package:fake_async` instead of real wall-clock waits.
 void main() {
   group('ConnectivityService', () {
     late ConnectivityService service;
 
-    setUp(() {
-      service = ConnectivityService();
-    });
+    tearDown(() async => service.dispose());
 
-    tearDown(() async {
-      await service.dispose();
-    });
-
-    group('initialization', () {
-      test('isOnline stream is broadcast', () {
-        // A broadcast stream allows multiple listeners
+    group('isOnline stream', () {
+      test('is a broadcast stream allowing multiple listeners', () {
+        service = ConnectivityService(probe: () async => true);
         expect(service.isOnline.isBroadcast, isTrue);
       });
-
-      test('initial isOnline value is true (optimistic default)', () async {
-        // Start with optimistic online assumption
-        final initialValue = await service.isOnline.first
-            .timeout(const Duration(seconds: 1), onTimeout: () => true);
-
-        // After initial check, value should be determined
-        // Default is true (optimistic) before first check completes
-        expect(initialValue, isA<bool>());
-      });
     });
 
-    group('connectivity check', () {
-      test('checkConnectivity returns a boolean', () async {
+    group('checkConnectivity (probe seam)', () {
+      test('probe reports online → isOnline true, no offline transition', () async {
+        service = ConnectivityService(probe: () async => true);
+
+        final events = <bool>[];
+        final sub = service.isOnline.listen(events.add);
+
         final result = await service.checkConnectivity();
 
-        expect(result, isA<bool>());
+        expect(result, isTrue);
+        expect(service.currentStatus, isTrue);
+
+        // Optimistic default is already true; a true probe means no transition.
+        await _pump();
+        expect(events, isEmpty);
+        await sub.cancel();
       });
 
-      test('checkConnectivity attempts to connect to a reliable host',
+      test('probe reports refused/offline → isOnline false + one transition',
           () async {
-        // This test verifies the service doesn't throw during check
-        // Actual connectivity depends on the test environment
-        bool result;
-        try {
-          result = await service.checkConnectivity();
-        } catch (e) {
-          // Should not throw, should return false on failure
-          fail('checkConnectivity should not throw: $e');
-        }
+        service = ConnectivityService(probe: () async => false);
 
-        expect(result, isA<bool>());
+        final events = <bool>[];
+        final sub = service.isOnline.listen(events.add);
+
+        final result = await service.checkConnectivity();
+
+        expect(result, isFalse);
+        expect(service.currentStatus, isFalse);
+
+        await _pump();
+        // The optimistic-true → false transition must be emitted exactly once.
+        expect(events, [false]);
+        await sub.cancel();
       });
 
-      test('isOnline emits value after checkConnectivity is called', () async {
-        final completer = Completer<bool>();
+      test('transition emitted only on status change, not on every probe',
+          () async {
+        var online = false;
+        service = ConnectivityService(probe: () async => online);
 
-        // Subscribe to stream
-        service.isOnline.listen((isOnline) {
-          if (!completer.isCompleted) {
-            completer.complete(isOnline);
-          }
-        });
+        final events = <bool>[];
+        final sub = service.isOnline.listen(events.add);
 
-        // Trigger check
-        await service.checkConnectivity();
+        await service.checkConnectivity(); // true → false
+        await service.checkConnectivity(); // still false: no event
+        online = true;
+        await service.checkConnectivity(); // false → true
+        await service.checkConnectivity(); // still true: no event
 
-        // Should have received a value
-        final value = await completer.future.timeout(
-          const Duration(seconds: 2),
-          onTimeout: () => true,
-        );
-        expect(value, isA<bool>());
-      });
-    });
-
-    group('periodic checking', () {
-      test('startPeriodicCheck emits initial status immediately', () async {
-        final values = <bool>[];
-
-        // Subscribe to collect values
-        final subscription = service.isOnline.listen((isOnline) {
-          values.add(isOnline);
-        });
-
-        // Start periodic check - should emit initial status right away
-        service.startPeriodicCheck(interval: const Duration(milliseconds: 100));
-
-        // Wait a short time for the initial emission
-        await Future.delayed(const Duration(milliseconds: 50));
-
-        service.stopPeriodicCheck();
-        await subscription.cancel();
-
-        // Should have at least 1 value (the initial status)
-        expect(values.length, greaterThanOrEqualTo(1));
-        expect(values.first, isA<bool>());
-      });
-
-      test('stopPeriodicCheck stops emissions', () async {
-        final values = <bool>[];
-
-        service.isOnline.listen((isOnline) {
-          values.add(isOnline);
-        });
-
-        // Start and then stop immediately
-        service.startPeriodicCheck(interval: const Duration(milliseconds: 100));
-        await Future.delayed(const Duration(milliseconds: 150));
-        service.stopPeriodicCheck();
-
-        final countAfterStop = values.length;
-
-        // Wait a bit more
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        // Should not have significantly more values after stopping
-        expect(values.length - countAfterStop, lessThan(3));
+        await _pump();
+        expect(events, [false, true]);
+        await sub.cancel();
       });
     });
 
     group('dispose', () {
-      test('dispose closes the stream controller and stops emissions',
+      test('after dispose, checkConnectivity reports false and emits nothing',
           () async {
-        final values = <bool>[];
+        service = ConnectivityService(probe: () async => true);
 
-        // Subscribe before dispose
-        final subscription = service.isOnline.listen((isOnline) {
-          values.add(isOnline);
-        });
-
-        // Trigger a check
+        final events = <bool>[];
+        final sub = service.isOnline.listen(events.add);
         await service.checkConnectivity();
-        await Future.delayed(const Duration(milliseconds: 50));
+        await _pump();
+        events.clear();
 
-        final countBeforeDispose = values.length;
-
-        // Dispose
         await service.dispose();
 
-        // After dispose, the stream should not emit new values
-        // Try to check again - should not emit
-        final result = await service.checkConnectivity();
-        expect(result, isFalse); // Returns false when disposed
+        expect(await service.checkConnectivity(), isFalse);
 
-        await Future.delayed(const Duration(milliseconds: 50));
-
-        // Should not have received more values after dispose
-        expect(values.length, equals(countBeforeDispose));
-
-        await subscription.cancel();
-      });
-
-      test('stopPeriodicCheck is called on dispose', () async {
-        service.startPeriodicCheck(interval: const Duration(seconds: 1));
-
-        // Dispose should not throw
-        await expectLater(service.dispose(), completes);
+        await _pump();
+        expect(events, isEmpty);
+        await sub.cancel();
       });
     });
 
-    group('Socket connectivity (integration)', () {
-      test('can reach google.com:80 when network is available', () async {
-        // Skip if no network - this is an integration test
-        bool canConnect = false;
-        try {
-          final socket = await Socket.connect(
-            'google.com',
-            80,
-            timeout: const Duration(seconds: 5),
-          );
-          await socket.close();
-          canConnect = true;
-        } catch (e) {
-          // Network not available in test environment
-          canConnect = false;
-        }
+    group('periodic checking (fake_async)', () {
+      test('periodic timer re-probes and emits transitions without real I/O', () {
+        FakeAsync().run((fake) {
+          var online = true;
+          final svc = ConnectivityService(probe: () async => online);
+          final events = <bool>[];
+          final sub = svc.isOnline.listen(events.add);
 
-        final serviceResult = await service.checkConnectivity();
+          svc.startPeriodicCheck(interval: const Duration(seconds: 30));
 
-        // If Socket could connect, service should return true
-        // If Socket couldn't connect, service should return false
-        // This validates the service logic matches direct Socket behavior
-        if (canConnect) {
-          expect(serviceResult, isTrue);
-        } else {
-          expect(serviceResult, isFalse);
-        }
+          // startPeriodicCheck emits the optimistic current status (true) then
+          // kicks the immediate probe (still true) → no transition.
+          fake.flushMicrotasks();
+          expect(events, [true]);
+
+          // Go offline; advance one interval → periodic probe → transition.
+          online = false;
+          fake.elapse(const Duration(seconds: 30));
+          fake.flushMicrotasks();
+          expect(events, [true, false]);
+
+          // Another interval, still offline → no new event.
+          fake.elapse(const Duration(seconds: 30));
+          fake.flushMicrotasks();
+          expect(events, [true, false]);
+
+          // Back online → transition.
+          online = true;
+          fake.elapse(const Duration(seconds: 30));
+          fake.flushMicrotasks();
+          expect(events, [true, false, true]);
+
+          svc.stopPeriodicCheck();
+          sub.cancel();
+          svc.dispose();
+          fake.flushMicrotasks();
+        });
       });
 
-      test('handles SocketException gracefully', () async {
-        // The service should handle SocketException internally and return false
-        // This is implicitly tested by the connectivity check
-        final result = await service.checkConnectivity();
+      test('stopPeriodicCheck cancels the periodic timer', () {
+        FakeAsync().run((fake) {
+          var online = true;
+          final svc = ConnectivityService(probe: () async => online);
+          final events = <bool>[];
+          final sub = svc.isOnline.listen(events.add);
 
-        // Should return a boolean, never throw
-        expect(result, isA<bool>());
+          svc.startPeriodicCheck(interval: const Duration(seconds: 30));
+          fake.flushMicrotasks();
+          expect(events, [true]);
+
+          svc.stopPeriodicCheck();
+
+          // Flip + advance well past the interval: with the timer cancelled,
+          // no probe runs and no event is emitted.
+          online = false;
+          fake.elapse(const Duration(seconds: 90));
+          fake.flushMicrotasks();
+          expect(events, [true]);
+
+          sub.cancel();
+          svc.dispose();
+          fake.flushMicrotasks();
+        });
+      });
+
+      test('onChange signal triggers an immediate re-probe ahead of the timer',
+          () {
+        FakeAsync().run((fake) {
+          var online = true;
+          final changeController = StreamController<void>.broadcast();
+          final svc = ConnectivityService(
+            probe: () async => online,
+            onChange: changeController.stream,
+          );
+          final events = <bool>[];
+          final sub = svc.isOnline.listen(events.add);
+
+          svc.startPeriodicCheck(interval: const Duration(seconds: 30));
+          fake.flushMicrotasks();
+          expect(events, [true]);
+
+          // A browser online/offline event fires well before the 30s interval.
+          online = false;
+          changeController.add(null);
+          fake.flushMicrotasks();
+          expect(events, [true, false]);
+
+          // Still no interval elapsed, but another event arrives:
+          online = true;
+          changeController.add(null);
+          fake.flushMicrotasks();
+          expect(events, [true, false, true]);
+
+          svc.stopPeriodicCheck();
+          changeController.close();
+          sub.cancel();
+          svc.dispose();
+          fake.flushMicrotasks();
+        });
       });
     });
   });
 }
+
+/// Flushes any pending microtasks so stream emissions become observable.
+Future<void> _pump() => Future<void>.delayed(Duration.zero);
