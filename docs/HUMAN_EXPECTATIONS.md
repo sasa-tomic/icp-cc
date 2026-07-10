@@ -8,7 +8,7 @@
 
 ## 1. What icp-cc is for (product vision)
 
-A **premium Flutter desktop/mobile app** that lets a user:
+A **premium Flutter desktop/mobile/web app** that lets a user:
 
 - Hold **profiles** + owned **keypairs** (1–10 per profile; never shared across profiles).
 - Run **signed TypeScript/QuickJS scripts** against **REAL Internet Computer
@@ -22,6 +22,12 @@ A **premium Flutter desktop/mobile app** that lets a user:
   > (it stores ciphertext + salt + nonce and returns them verbatim — it cannot
   > decrypt). Proven end-to-end by the W5 round-trip test. See
   > `docs/specs/A4_VAULT_ZK_MIGRATION_PLAN.md`.)*
+- **Run in a browser** (Flutter Web) with the **same** identity/account/vault/
+  passkey/script/IC-canister flows as native — no stubs, no mock crypto. The
+  browser has no `dart:ffi`, so the native core is re-implemented in pure Dart
+  (Ed25519, secp256k1, Argon2id, AES-GCM, ICP principal) or driven via vendored
+  browser assets (QuickJS WASM, `@dfinity/agent`); everything is
+  native-byte-compatible. See `docs/BROWSER_SUPPORT.md`.
 
 **Now also:** interface with **full dapps**, not just raw scripts. Each example
 dapp has ≥2 canisters (frontend + backend). icp-cc drives **BOTH/EITHER**:

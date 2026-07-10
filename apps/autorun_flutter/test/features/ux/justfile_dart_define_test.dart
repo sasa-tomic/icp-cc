@@ -43,10 +43,15 @@ void main() {
           reason: 'app_config.dart must define the API endpoint env key');
     });
 
-    test('every justfile --dart-define uses a key app_config.dart reads', () {
-      final canonical = _readAppConfigEnvKeys(appConfig);
+    test('every justfile --dart-define uses a key the app reads', () {
+      // The canonical key set is every `String.fromEnvironment('KEY')` the
+      // *compiled app* actually reads — scanned across all of `lib/`, not just
+      // `app_config.dart`, because config defines live in multiple modules
+      // (e.g. `IC_AGENT_PROXY_HOST` in the IC-agent web-access module).
+      final libDir = Directory('${appConfig.parent.parent.parent.path}/lib');
+      final canonical = _readAppEnvKeys(libDir);
       expect(canonical, isNotEmpty,
-          reason: 'no String.fromEnvironment keys found in app_config.dart');
+          reason: 'no String.fromEnvironment keys found under lib/');
 
       final source = justfile.readAsStringSync();
       final dartDefinePattern = RegExp(r'--dart-define=([A-Za-z_][A-Za-z0-9_]*)=');
@@ -64,7 +69,7 @@ void main() {
         isEmpty,
         reason:
             'justfile defines keys the app never reads: $unknown. '
-            'app_config.dart reads only: $canonical. '
+            'The app reads: $canonical. '
             'This is the NEW-1 bug class: the app silently ignores the '
             'misnamed define and falls back to its baked-in default.',
       );
@@ -74,7 +79,8 @@ void main() {
       // The specific failure mode NEW-1 reported: `flutter-dev-local` used a
       // mismatched key, silently routing to production. Pin the recipe name +
       // the correct key so a regression here cannot slip past code review.
-      final canonical = _readAppConfigEnvKeys(appConfig);
+      final libDir = Directory('${appConfig.parent.parent.parent.path}/lib');
+      final canonical = _readAppEnvKeys(libDir);
       final source = justfile.readAsStringSync();
       final recipeBlock = _extractRecipeBlock(source, 'flutter-dev-local');
 
@@ -91,16 +97,22 @@ void main() {
   });
 }
 
-/// Extracts every `String.fromEnvironment('<KEY>', ...)` key from
-/// `app_config.dart` — the single source of truth for what env vars the app
-/// actually consumes at compile time.
-Set<String> _readAppConfigEnvKeys(File appConfig) {
-  final source = appConfig.readAsStringSync();
+/// Extracts every `String.fromEnvironment('<KEY>', ...)` key across all Dart
+/// files under `lib/` — the single source of truth for what env vars the
+/// compiled app actually consumes at compile time. (Scanning the whole tree,
+/// not just `app_config.dart`, keeps this honest as config defines spread
+/// across modules — e.g. `IC_AGENT_PROXY_HOST` in the web-access module.)
+Set<String> _readAppEnvKeys(Directory libDir) {
   final pattern = RegExp(r"String\.fromEnvironment\(\s*'([^']+)'\s*,");
-  return pattern
-      .allMatches(source)
-      .map((m) => m.group(1)!)
-      .toSet();
+  final keys = <String>{};
+  for (final entity in libDir.listSync(recursive: true)) {
+    if (entity is! File || !entity.path.endsWith('.dart')) continue;
+    final source = entity.readAsStringSync();
+    for (final match in pattern.allMatches(source)) {
+      keys.add(match.group(1)!);
+    }
+  }
+  return keys;
 }
 
 /// Returns the body (recipe name line through the next blank-line / next
