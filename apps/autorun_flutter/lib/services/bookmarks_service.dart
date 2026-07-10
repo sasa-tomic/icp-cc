@@ -1,34 +1,36 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 
-import 'file_io.dart';
+import 'json_store.dart';
 
-/// Thrown when the on-disk bookmarks file EXISTS but cannot be read or parsed
-/// (partial/truncated write, disk error, bad encoding, malformed JSON, or an
-/// empty/whitespace file — a legitimately-empty store is the 2-byte `"[]"`,
-/// never 0 bytes).
+/// Thrown when the bookmarks document EXISTS but cannot be parsed (partial/
+/// truncated write, malformed JSON, a JSON value of the wrong shape, etc.).
 ///
 /// This is surfaced LOUDLY instead of being swallowed: silently resetting the
 /// in-memory cache to `[]` here would let the next `add`/`remove` overwrite the
-/// corrupt-but-partially-recoverable file with empty (or single-entry) data —
-/// permanent, silent bookmark loss. The corrupt file is left untouched on disk
-/// so the caller (UI) can offer recovery. See F-3 / QS-3.
+/// corrupt-but-partially-recoverable document with empty (or single-entry) data
+/// — permanent, silent bookmark loss. The corrupt document is left untouched in
+/// its store so the caller (UI) can offer recovery. See F-3 / QS-3.
+///
+/// Storage is platform-abstracted via [JsonDocumentStore] (a file on native, a
+/// localStorage slot on Web), so [path] carries a best-effort identifier (the
+/// store key) and may be `null` when no path concept applies (e.g. Web).
 class BookmarksLoadException implements Exception {
   BookmarksLoadException(this.cause, {this.path});
 
-  /// The underlying error (FormatException, FileSystemException, …).
+  /// The underlying error (FormatException, …).
   final Object cause;
 
-  /// Path of the file that failed to load, when known.
+  /// Best-effort identifier of the store/document that failed to load, when
+  /// known. May be `null` (e.g. on Web there is no filesystem path).
   final String? path;
 
   @override
   String toString() {
     final where = path == null ? '' : ' ($path)';
-    return 'BookmarksLoadException: could not read bookmarks file$where: $cause';
+    return 'BookmarksLoadException: could not read bookmarks$where: $cause';
   }
 }
 
@@ -71,10 +73,38 @@ class BookmarkEntry {
   int get hashCode => canisterId.hashCode ^ method.hashCode;
 }
 
+/// Manages the user's saved canister/method bookmarks.
+///
+/// Persistence is routed through the web-aware [JsonDocumentStore] (one file on
+/// native, a `localStorage` slot on Web) — so bookmarks work on Flutter Web,
+/// which direct filesystem `File` access never could. The store key is
+/// [_storeKey]; the persisted shape is a bare JSON array of [BookmarkEntry].
 class BookmarksService {
-  static const String _fileName = 'icp_bookmarks.json';
+  /// Single source for this service's [JsonDocumentStore] key name. Mirrors the
+  /// short-key convention used by the sibling repositories (`'profiles'`,
+  /// `'scripts'`).
+  static const String _storeKey = 'bookmarks';
+
   static List<BookmarkEntry> _cachedBookmarks = [];
   static bool _isCacheDirty = true;
+
+  /// Test-only injected store. When `null`, the platform-default store is built
+  /// lazily via [openJsonDocumentStore] (a [FileJsonStore] on native, a
+  /// [WebJsonStore] in the browser). Production code MUST NOT touch this.
+  static JsonDocumentStore? _injectedStore;
+
+  static JsonDocumentStore get _docStore =>
+      _injectedStore ?? openJsonDocumentStore();
+
+  /// Test-only seam: back the service with a specific [JsonDocumentStore] (e.g.
+  /// a [FileJsonStore] rooted at a temp dir). Pass `null` to restore the
+  /// platform-default store. Also drops the in-memory cache so the next read
+  /// hits the freshly-injected store. Production code MUST NOT call this.
+  @visibleForTesting
+  static void overrideStoreForTesting(JsonDocumentStore? store) {
+    _injectedStore = store;
+    invalidateCache();
+  }
 
   static Future<List<BookmarkEntry>> list() async {
     await _ensureLoaded();
@@ -82,8 +112,8 @@ class BookmarksService {
   }
 
   /// Loads from storage on demand. Throws [BookmarksLoadException] (rethrown
-  /// to the caller) if the file is corrupt — the cache is left UNTOUCHED in
-  /// that case so a later save cannot poison/overwrite the corrupt file.
+  /// to the caller) if the document is corrupt — the cache is left UNTOUCHED in
+  /// that case so a later save cannot poison/overwrite the corrupt document.
   static Future<void> _ensureLoaded() async {
     if (_isCacheDirty) {
       await _loadFromStorage();
@@ -96,10 +126,10 @@ class BookmarksService {
     required String method,
     String? label,
   }) async {
-    // Never mutate+save unless the on-disk file has been successfully read:
-    // if the file is corrupt, _ensureLoaded throws and we abort BEFORE touching
-    // the cache or writing — preventing a poisoned save from clobbering the
-    // corrupt-but-partially-recoverable file. See F-3 / QS-3.
+    // Never mutate+save unless the stored document has been successfully read:
+    // if it is corrupt, _ensureLoaded throws and we abort BEFORE touching the
+    // cache or writing — preventing a poisoned save from clobbering the
+    // corrupt-but-partially-recoverable document. See F-3 / QS-3.
     await _ensureLoaded();
 
     final newEntry = BookmarkEntry(
@@ -134,28 +164,31 @@ class BookmarksService {
   }
 
   static Future<void> _loadFromStorage() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/$_fileName');
+    final JsonDocumentStore store = _docStore;
 
-    // A genuinely MISSING file is a first run (or a clean wipe): empty is the
-    // correct, expected state and must NOT raise — otherwise first launch
-    // would show a scary error. Only an existing-but-unreadable or
-    // existing-but-unparseable file is corruption.
-    if (!await file.exists()) {
-      _cachedBookmarks = [];
-      return;
-    }
-
-    final String jsonString;
+    // The store returns null for an ABSENT key OR a whitespace-only value
+    // (documented [JsonDocumentStore] contract: callers can rely on
+    // `null` ⇔ "no data" regardless of platform). Either way this is the
+    // legitimate first-run / clean-wipe state → empty is correct and must NOT
+    // raise. Only an existing-but-unparseable or wrong-shape document is
+    // corruption. (An empty/whitespace value carries no recoverable entries, so
+    // normalizing it to "absent" cannot lose data — unlike genuinely malformed
+    // JSON, which still throws loudly below.)
+    final String? jsonString;
     try {
-      jsonString = await readJson(file);
+      jsonString = await store.read(_storeKey);
     } on TimeoutException {
       rethrow;
     } catch (e) {
-      // File exists but the bytes can't be read (permissions, disk error, …).
-      // Surface loudly; leave the cache + the file untouched so the caller can
-      // recover and the next save cannot overwrite this file.
-      throw BookmarksLoadException(e, path: file.path);
+      // Document exists but the bytes can't be read (permissions, disk error,
+      // …). Surface loudly; leave the cache untouched so the caller can recover
+      // and the next save cannot overwrite this document.
+      throw BookmarksLoadException(e, path: _storeKey);
+    }
+
+    if (jsonString == null) {
+      _cachedBookmarks = [];
+      return;
     }
 
     try {
@@ -167,26 +200,22 @@ class BookmarksService {
     } on TimeoutException {
       rethrow;
     } catch (e) {
-      // Malformed JSON — including an empty/whitespace file, since a valid
-      // empty store is the 2-byte "[]", never 0 bytes. (An empty file can
-      // only result from a truncated write or external tampering.) DO NOT
-      // reset the cache to [] here: that would let the next save clobber this
-      // corrupt-but-partially-recoverable file → silent data loss (F-3/QS-3).
-      throw BookmarksLoadException(e, path: file.path);
+      // Malformed JSON or a non-array / bad-entry document. DO NOT reset the
+      // cache to [] here: that would let the next save clobber this
+      // corrupt-but-partially-recoverable document → silent data loss
+      // (F-3 / QS-3).
+      throw BookmarksLoadException(e, path: _storeKey);
     }
   }
 
   static Future<void> _saveToStorage() async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/$_fileName');
-
       final jsonString = json.encode(
         _cachedBookmarks.map((entry) => entry.toJson()).toList(),
       );
-      await writeJson(file, jsonString);
+      await _docStore.write(_storeKey, jsonString);
     } catch (e) {
-      // Fail-fast: rethrow the error to make it visible
+      // Fail-fast: rethrow the error to make it visible.
       throw Exception('Failed to save bookmarks: $e');
     }
   }

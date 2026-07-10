@@ -39,7 +39,15 @@ class WebJsonStore implements JsonDocumentStore {
   @override
   Future<String?> read(String key) async {
     final SharedPreferences prefs = await _prefs();
-    return prefs.getString('$_prefix$key');
+    final String? value = prefs.getString('$_prefix$key');
+    // Honour the JsonDocumentStore contract: whitespace-only ⇔ absent, so
+    // callers get a uniform `null` ⇔ "no data" on every platform. The file
+    // impl already normalizes this; without it here, a corrupt/empty web value
+    // would be handed back raw and parsed as garbage downstream.
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
+    return value;
   }
 
   @override
