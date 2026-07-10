@@ -33,6 +33,7 @@ pub struct Script {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Review {
     pub id: String,
     pub script_id: String,
@@ -686,5 +687,67 @@ mod tests {
             column_field_name("accounts.display_name as author_name"),
             "author_name"
         );
+    }
+
+    /// Locks the `Review` JSON contract to camelCase (QS-1b, UXR7-1 regression).
+    ///
+    /// The Flutter `ScriptReview.fromJson` reads camelCase keys (`userId`,
+    /// `scriptId`, `createdAt`, `updatedAt`). When `Review` lacked
+    /// `#[serde(rename_all = "camelCase")]`, serde emitted snake_case, so
+    /// `json['userId']` was `null` and the Reviews tab crashed with
+    /// `type 'Null' is not a subtype of type 'String' in type cast`. This test
+    /// pins EVERY serialized key so the contract can never silently drift again.
+    #[test]
+    fn review_serializes_to_camel_case_keys() {
+        let review = Review {
+            id: "rev-1".to_string(),
+            script_id: "script-1".to_string(),
+            user_id: "user-1".to_string(),
+            rating: 5,
+            comment: Some("great".to_string()),
+            created_at: "2025-01-01T00:00:00Z".to_string(),
+            updated_at: "2025-01-02T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_value(&review).expect("Review must serialize");
+        let obj = json.as_object().expect("Review must serialize to an object");
+
+        // Every key the Flutter frontend reads must be present and camelCase.
+        for key in ["id", "userId", "scriptId", "rating", "comment", "createdAt", "updatedAt"] {
+            assert!(
+                obj.contains_key(key),
+                "Review JSON missing camelCase key `{key}` — got keys: {:?}",
+                obj.keys().collect::<Vec<_>>()
+            );
+        }
+        // And the snake_case shapes that caused the crash must NOT leak out.
+        for stale in ["script_id", "user_id", "created_at", "updated_at"] {
+            assert!(
+                !obj.contains_key(stale),
+                "Review JSON leaked snake_case key `{stale}` (frontend reads camelCase)"
+            );
+        }
+        // Round-trip: the camelCase payload must deserialize back into a Review.
+        let round_trip: Review =
+            serde_json::from_value(json).expect("camelCase Review JSON must round-trip");
+        assert_eq!(round_trip.id, "rev-1");
+        assert_eq!(round_trip.user_id, "user-1");
+    }
+
+    /// `comment: None` must render as JSON `null` (not be skipped) — the Flutter
+    /// model reads it as `String?` and tolerates null. This pins the null shape.
+    #[test]
+    fn review_serializes_null_comment() {
+        let review = Review {
+            id: "rev-2".to_string(),
+            script_id: "script-1".to_string(),
+            user_id: "user-1".to_string(),
+            rating: 4,
+            comment: None,
+            created_at: "2025-01-01T00:00:00Z".to_string(),
+            updated_at: "2025-01-02T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_value(&review).unwrap();
+        assert!(json.get("comment").is_some(), "comment key must be present");
+        assert!(json["comment"].is_null(), "None comment must serialize to null");
     }
 }

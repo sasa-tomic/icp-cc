@@ -12,6 +12,44 @@ import 'package:icp_autorun/widgets/script_details_dialog.dart';
 
 import '_marketplace_test_harness.dart';
 
+/// Builds a single review's JSON using the EXACT field names the backend
+/// serializes.
+///
+/// Contract source of truth: `backend/src/models.rs::Review`, which carries
+/// `#[serde(rename_all = "camelCase")]`. That attribute is what makes this
+/// test honest: the keys below (`userId`, `scriptId`, `createdAt`,
+/// `updatedAt`, ...) are what the backend ACTUALLY emits on the wire. Before
+/// QS-1b the struct lacked `rename_all`, so the backend emitted snake_case
+/// (`user_id`, `script_id`, ...) while `ScriptReview.fromJson` read camelCase
+/// — every Reviews-tab open crashed with
+/// `type 'Null' is not a subtype of type 'String' in type cast`.
+///
+/// The backend `Review` has exactly these 7 fields — it does NOT carry
+/// `isVerifiedPurchase` or `status` (Flutter-only concepts that default to
+/// `false` / `'pending'` in `ScriptReview.fromJson`). Pass [extra] to enrich
+/// the payload with such client-only fields for UI tests that exercise them.
+Map<String, dynamic> backendReviewJson({
+  required String id,
+  required String userId,
+  required String scriptId,
+  required int rating,
+  String? comment,
+  DateTime? createdAt,
+  DateTime? updatedAt,
+  Map<String, dynamic>? extra,
+}) {
+  return <String, dynamic>{
+    'id': id,
+    'userId': userId,
+    'scriptId': scriptId,
+    'rating': rating,
+    'comment': comment,
+    'createdAt': (createdAt ?? DateTime.now()).toIso8601String(),
+    'updatedAt': (updatedAt ?? DateTime.now()).toIso8601String(),
+    if (extra != null) ...extra,
+  };
+}
+
 void main() {
   group('ScriptDetailsDialog Reviews', () {
     late MarketplaceOpenApiService service;
@@ -63,20 +101,27 @@ void main() {
               'data': {
                 // Real backend contract — see
                 // backend/src/handlers/reviews.rs::get_reviews. `data` is a
-                // Map, NOT a bare array. The previous mock returned a bare
-                // array, masking the production cast crash (UXR7-1 / QS-1).
+                // Map, NOT a bare array. Each review object's field names come
+                // from `backendReviewJson` (mirrors the backend serde model —
+                // camelCase, see QS-1b).
                 'reviews': effectiveReviews
-                    .map((r) => {
-                          'id': r.id,
-                          'userId': r.userId,
-                          'scriptId': r.scriptId,
-                          'rating': r.rating,
-                          'comment': r.comment,
-                          'isVerifiedPurchase': r.isVerifiedPurchase,
-                          'status': r.status,
-                          'createdAt': r.createdAt.toIso8601String(),
-                          'updatedAt': r.updatedAt.toIso8601String(),
-                        })
+                    .map((r) => backendReviewJson(
+                          id: r.id,
+                          userId: r.userId,
+                          scriptId: r.scriptId,
+                          rating: r.rating,
+                          comment: r.comment,
+                          createdAt: r.createdAt,
+                          updatedAt: r.updatedAt,
+                          // Flutter-only enrichment: the backend `Review` does
+                          // not serialize these, so the badge UI test below
+                          // exercises client-side defaults/logic only.
+                          extra: {
+                            if (r.isVerifiedPurchase)
+                              'isVerifiedPurchase': r.isVerifiedPurchase,
+                            'status': r.status,
+                          },
+                        ))
                     .toList(),
                 'total': effectiveReviews.length,
                 'hasMore': false,
@@ -339,7 +384,10 @@ void main() {
 
   // Service-level contract tests for getScriptReviews. These pin the EXACT
   // backend shape ({data: {reviews:[...], total:int, hasMore:bool}}) so a cast
-  // regression like UXR7-1 can never ship green again.
+  // regression like UXR7-1 can never ship green again, AND pin every review
+  // field name to the camelCase contract from `backend/src/models.rs::Review`
+  // (#[serde(rename_all = "camelCase")]) so the QS-1b snake_case crash can
+  // never recur.
   group('MarketplaceOpenApiService.getScriptReviews contract', () {
     late MarketplaceOpenApiService service;
 
@@ -365,17 +413,13 @@ void main() {
     test('parses reviews from the real backend Map shape', () async {
       final client = MockClient((_) async => reviewsResponse({
             'reviews': [
-              {
-                'id': 'r1',
-                'userId': 'u1',
-                'scriptId': 's1',
-                'rating': 5,
-                'comment': 'great',
-                'isVerifiedPurchase': true,
-                'status': 'approved',
-                'createdAt': '2025-01-01T00:00:00.000',
-                'updatedAt': '2025-01-01T00:00:00.000',
-              }
+              backendReviewJson(
+                id: 'r1',
+                userId: 'u1',
+                scriptId: 's1',
+                rating: 5,
+                comment: 'great',
+              ),
             ],
             'total': 1,
             'hasMore': false,
@@ -388,6 +432,96 @@ void main() {
       expect(reviews, hasLength(1));
       expect(reviews.first.id, 'r1');
       expect(reviews.first.rating, 5);
+    });
+
+    // REGRESSION (QS-1b / UXR7-1): the backend `Review` struct must emit
+    // camelCase keys. Before the fix it emitted snake_case (`user_id`,
+    // `script_id`, `created_at`, `updated_at`), so `ScriptReview.fromJson`
+    // did `json['userId'] as String` → `null as String` → threw
+    // `type 'Null' is not a subtype of type 'String' in type cast`. This test
+    // feeds the EXACT backend payload and asserts EVERY field round-trips, so
+    // any future drift (e.g. dropping `rename_all`) turns this red.
+    test('round-trips every backend camelCase field name (QS-1b regression)',
+        () async {
+      final payload = backendReviewJson(
+        id: 'rev-pin',
+        userId: 'user-pin',
+        scriptId: 'script-pin',
+        rating: 4,
+        comment: 'pinned comment',
+        createdAt: DateTime.parse('2025-03-01T10:00:00.000'),
+        updatedAt: DateTime.parse('2025-03-02T11:00:00.000'),
+      );
+      final client = MockClient(
+          (_) async => reviewsResponse({'reviews': [payload], 'total': 1, 'hasMore': false}));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      final reviews = await service.getScriptReviews('script-pin');
+
+      expect(reviews, hasLength(1));
+      final r = reviews.single;
+      expect(r.id, 'rev-pin', reason: 'id field');
+      expect(r.userId, 'user-pin', reason: 'userId field (was snake_case user_id)');
+      expect(r.scriptId, 'script-pin', reason: 'scriptId field (was snake_case script_id)');
+      expect(r.rating, 4, reason: 'rating field');
+      expect(r.comment, 'pinned comment', reason: 'comment field');
+      expect(r.createdAt, DateTime.parse('2025-03-01T10:00:00.000'),
+          reason: 'createdAt field (was snake_case created_at)');
+      expect(r.updatedAt, DateTime.parse('2025-03-02T11:00:00.000'),
+          reason: 'updatedAt field (was snake_case updated_at)');
+    });
+
+    // The negative half of the regression: if the backend ever reverts to
+    // snake_case, fromJson must NOT silently produce a half-populated object —
+    // it throws. This documents the failure mode so it's caught immediately.
+    test('throws on snake_case payload (documents the QS-1b failure mode)',
+        () async {
+      final snakeCasePayload = <String, dynamic>{
+        'id': 'rev-bad',
+        // snake_case — the pre-QS-1b backend shape.
+        'script_id': 'script-pin',
+        'user_id': 'user-pin',
+        'rating': 4,
+        'comment': null,
+        'created_at': '2025-03-01T10:00:00.000',
+        'updated_at': '2025-03-02T11:00:00.000',
+      };
+      final client = MockClient((_) async => reviewsResponse(
+            {'reviews': [snakeCasePayload], 'total': 1, 'hasMore': false},
+          ));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      // `json['userId'] as String` → `null as String` → TypeError. The service
+      // rethrows it (no silent empty-list fallback).
+      expect(
+        () => service.getScriptReviews('script-pin'),
+        throwsA(isA<TypeError>()),
+      );
+    });
+
+    test('tolerates a null comment (backend serializes Option<String> as null)',
+        () async {
+      final client = MockClient((_) async => reviewsResponse({
+            'reviews': [
+              backendReviewJson(
+                id: 'r2',
+                userId: 'u2',
+                scriptId: 's2',
+                rating: 3,
+                comment: null,
+              ),
+            ],
+            'total': 1,
+            'hasMore': false,
+          }));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      final reviews = await service.getScriptReviews('s2');
+      expect(reviews, hasLength(1));
+      expect(reviews.single.comment, isNull);
     });
 
     test('throws MalformedReviewsResponseException on a bare-array data shape',
