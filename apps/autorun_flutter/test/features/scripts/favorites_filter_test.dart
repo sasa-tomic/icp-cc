@@ -1,58 +1,131 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:icp_autorun/models/script_list_item.dart';
+import 'package:icp_autorun/screens/script_filter_sheet.dart';
 import 'package:icp_autorun/services/favorites_service.dart';
+import 'package:icp_autorun/widgets/scripts_empty_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '_scripts_test_harness.dart';
+
+/// Favorites filter behaviour.
+///
+/// The previous version of this file was almost entirely
+/// `expect(true, isTrue)` "verified by code inspection" placeholders — nine
+/// tests that could never fail and so masked the missing real coverage (the
+/// sibling `active_filter_chips_test.dart` was already cleaned up from the same
+/// antipattern). These tests drive the real widgets ([FilterBottomSheet]
+/// Favorites chip + [ScriptsEmptyState] favorites variant) and the real
+/// [FavoritesService]; every assertion below can go red on a real regression.
 void main() {
-  group('Favorites filter chip', () {
-    setUp(() async {
-      SharedPreferences.setMockInitialValues({});
+  group('FilterBottomSheet Favorites chip', () {
+    FilterBottomSheet buildSheet({
+      required bool showFavoritesOnly,
+      ValueChanged<bool>? onFavoritesFilterChanged,
+    }) {
+      return FilterBottomSheet(
+        categories: const ['All'],
+        selectedCategory: 'All',
+        sortOption: ScriptSortOption.updatedAt,
+        sortAscending: false,
+        showDownloadedOnly: false,
+        showFavoritesOnly: showFavoritesOnly,
+        onCategoryChanged: (_) {},
+        onSortChanged: (_, __) {},
+        onDownloadedFilterChanged: (_) {},
+        onFavoritesFilterChanged: onFavoritesFilterChanged ?? (_) {},
+        onReset: () {},
+      );
+    }
+
+    Finder favoritesChip() => find.ancestor(
+          of: find.text('Favorites'),
+          matching: find.byType(FilterChip),
+        );
+
+    testWidgets('renders a FilterChip labelled "Favorites"', (tester) async {
+      await pumpInScaffold(tester, buildSheet(showFavoritesOnly: false));
+
+      expect(favoritesChip(), findsOneWidget);
     });
 
-    // Note: Due to ConnectivityScope timer issues in widget tests,
-    // we verify the implementation through unit tests and code inspection.
-    // The Favorites chip is added to the _FilterBottomSheet widget
-    // alongside the Downloaded chip in the Source section.
+    testWidgets('is unselected when the filter is inactive', (tester) async {
+      await pumpInScaffold(tester, buildSheet(showFavoritesOnly: false));
 
-    test('Favorites filter state variable exists in ScriptsScreenState', () {
-      // This verifies the _showFavoritesOnly state variable is defined
-      // and defaults to false.
-      expect(true, isTrue); // Verified in implementation
+      expect(
+        tester.widget<FilterChip>(favoritesChip()).selected,
+        isFalse,
+      );
     });
 
-    test('Favorites filter chip is defined in _FilterBottomSheet', () {
-      // The _FilterBottomSheet class now includes:
-      // - showFavoritesOnly parameter
-      // - onFavoritesFilterChanged callback
-      // - Favorites FilterChip widget
-      expect(true, isTrue); // Verified in implementation
+    testWidgets('is selected when the filter is active', (tester) async {
+      await pumpInScaffold(tester, buildSheet(showFavoritesOnly: true));
+
+      expect(
+        tester.widget<FilterChip>(favoritesChip()).selected,
+        isTrue,
+      );
     });
 
-    test('Favorites filter chip label is "Favorites"', () {
-      // The FilterChip label is set to 'Favorites'
-      expect('Favorites', 'Favorites');
+    testWidgets('tapping the chip fires onFavoritesFilterChanged(true)',
+        (tester) async {
+      bool? captured;
+      await pumpInScaffold(
+        tester,
+        buildSheet(
+          showFavoritesOnly: false,
+          onFavoritesFilterChanged: (value) => captured = value,
+        ),
+      );
+
+      await tester.tap(find.text('Favorites'));
+      await tester.pump();
+
+      expect(captured, isTrue);
     });
   });
 
   group('Favorites filter empty state', () {
-    setUp(() async {
-      SharedPreferences.setMockInitialValues({});
+    testWidgets('shows favorites-specific copy when the filter is active',
+        (tester) async {
+      await pumpInScaffold(
+        tester,
+        const ScriptsEmptyState(kind: ScriptsEmptyStateKind.favoritesFilter),
+      );
+      // ModernEmptyState schedules staggered entrance animations via
+      // Future.delayed; pumpAndSettle flushes those timers (otherwise the test
+      // framework fails on a pending timer) and finishes the fade-in.
+      await tester.pumpAndSettle();
+
+      expect(find.text("You haven't favorited any scripts yet"), findsOneWidget);
+      expect(
+        find.text('Tap the star icon on scripts to add them to favorites'),
+        findsOneWidget,
+      );
     });
 
-    test('favorites filter specific empty state text is defined in code',
-        () async {
-      // This test verifies that the specific empty state text is defined.
-      // When the Favorites filter is active with no favorites, users see:
-      // - Title: "You haven't favorited any scripts yet"
-      // - Subtitle: "Tap the star icon on scripts to add them to favorites"
-      // - Action button: "Browse Scripts" that clears the filter
+    testWidgets('Browse Scripts action clears the favorites filter',
+        (tester) async {
+      var clearCalls = 0;
+      await pumpInScaffold(
+        tester,
+        ScriptsEmptyState(
+          kind: ScriptsEmptyStateKind.favoritesFilter,
+          onClearFavoritesFilter: () => clearCalls++,
+        ),
+      );
+      // Settle the entrance animations so the action button is rendered and
+      // hittable (it starts at opacity 0).
+      await tester.pumpAndSettle();
 
-      // The implementation in _buildUnifiedListView checks:
-      // if (_showFavoritesOnly) { ... specific empty state ... }
-      expect(true, isTrue);
+      await tester.tap(find.text('Browse Scripts'));
+      await tester.pump();
+
+      expect(clearCalls, 1);
     });
   });
 
-  group('FavoritesService integration', () {
+  group('FavoritesService', () {
     late FavoritesService service;
 
     setUp(() async {
@@ -64,57 +137,16 @@ void main() {
       await service.clearFavorites();
     });
 
-    test('Favorites filter count is updated in _getActiveFilterCount',
-        () async {
-      // The _getActiveFilterCount method includes:
-      // if (_showFavoritesOnly) count++;
-      // This is verified by the implementation
-      expect(true, isTrue);
-    });
-
-    test('FavoritesService can be instantiated', () async {
+    test('can be instantiated', () {
       expect(service, isNotNull);
     });
 
-    test('FavoritesService starts with empty favorites', () async {
-      final favorites = await service.getAllFavorites();
-      expect(favorites, isEmpty);
-    });
-  });
-
-  group('Favorites filter behavior', () {
-    test('Reset clears favorites filter - verified in code', () async {
-      // The onReset callback in _showFilterPopover sets:
-      // _showFavoritesOnly = false
-      expect(true, isTrue);
+    test('starts with empty favorites', () async {
+      expect(await service.getAllFavorites(), isEmpty);
     });
 
-    test('Favorites and Downloaded filters can both be active', () async {
-      // Both _showFavoritesOnly and _showDownloadedOnly can be true
-      // simultaneously. The filter logic applies both filters.
-      expect(true, isTrue);
-    });
-  });
-
-  group('Favorites filter logic', () {
-    test('Favorites filter logic filters by script ID', () async {
-      // The filter logic in _buildUnifiedListView checks:
-      // For local scripts: _favoriteScriptIds.contains(item.localScript!.id)
-      // For marketplace scripts: _favoriteScriptIds.contains(item.marketplaceScript!.id)
-      expect(true, isTrue);
-    });
-
-    test('Favorites filter uses _favoriteScriptIds set', () async {
-      // The _favoriteScriptIds set is loaded from FavoritesService
-      // and updated via the favoritesStream
-      expect(true, isTrue);
-    });
-  });
-
-  group('_clearFavoritesFilter method', () {
-    test('_clearFavoritesFilter method exists', () async {
-      // The _clearFavoritesFilter method sets _showFavoritesOnly = false
-      expect(true, isTrue);
-    });
+    // Comprehensive FavoritesService coverage (toggle / isFavorite / stream /
+    // persistence / edge cases) lives in test/services/favorites_service_test.dart;
+    // this group is intentionally just a colocated smoke check for the filter.
   });
 }
