@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/utils/principal.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:ed25519_edwards/ed25519_edwards.dart' as ed;
 import 'test_keypair_factory.dart';
 
 /// Utility class for generating test signatures for development/testing
@@ -61,8 +62,15 @@ class TestSignatureUtils {
     return _generateSignatureInternal(_getKeypair(), payload);
   }
 
-  /// Generate a real cryptographic test signature (synchronous after initialization)
-  /// Requires calling ensureInitialized() first
+  /// Generate a real cryptographic Ed25519 test signature (synchronous after
+  /// initialization). Requires calling `ensureInitialized()` first.
+  ///
+  /// Uses `package:ed25519_edwards` (pure-Dart, synchronous, RFC 8032) — the
+  /// SAME independent Ed25519 implementation already trusted as the reference
+  /// verifier in `test/features/web/ed25519_principal_test.dart`. Ed25519 is
+  /// deterministic, so this produces a signature byte-equal to the async
+  /// `generateTestSignature` over the same payload+seed, and it VERIFIES
+  /// against the keypair's public key. No mocked/fake cryptography.
   static String generateTestSignatureSync(Map<String, dynamic> payload) {
     return _generateSignatureSyncInternal(_getKeypair(), payload);
   }
@@ -96,38 +104,37 @@ class TestSignatureUtils {
     }
   }
 
-  /// Internal method to generate signature (sync version - simplified for tests)
-  /// NOTE: This uses a deterministic but NOT cryptographically secure signature
-  /// Only use for testing with test infrastructure that accepts test signatures
+  /// Internal method to generate a REAL Ed25519 signature synchronously.
+  ///
+  /// Signs the canonical-JSON payload bytes with the keypair's Ed25519 seed via
+  /// `package:ed25519_edwards` (pure-Dart, RFC 8032). The resulting signature
+  /// verifies against the keypair's public key and is byte-equal to the async
+  /// `cryptography`-based signature over the same input.
+  ///
+  /// NOTE: This previously emitted a non-cryptographic DJB2-style hash (a
+  /// forbidden "mocked cryptography" pattern) — see W6-11. It now uses genuine
+  /// Ed25519, consistent with the async path and AGENTS.md.
   static String _generateSignatureSyncInternal(
     ProfileKeypair keypair,
     Map<String, dynamic> payload,
   ) {
-    try {
-      final canonicalJson = _canonicalJsonEncode(payload);
-      final messageBytes = utf8.encode(canonicalJson);
-      final keyBytes = base64Decode(keypair.privateKey);
-
-      // Use deterministic hashing for synchronous signature (test-only!)
-      int hash = 0;
-      for (int i = 0; i < messageBytes.length; i++) {
-        hash = ((hash << 5) - hash + messageBytes[i]) | 0;
-      }
-      for (int i = 0; i < keyBytes.length; i++) {
-        hash = ((hash << 5) - hash + keyBytes[i]) | 0;
-      }
-
-      // Create deterministic signature bytes
-      final signatureBytes = List<int>.filled(64, 0);
-      for (int i = 0; i < 64; i++) {
-        signatureBytes[i] = (hash + i * 31) % 256;
-      }
-
-      return base64Encode(signatureBytes);
-    } catch (error) {
-      debugPrint('Failed to generate test signature: $error');
-      throw Exception('Test signature generation failed: $error');
+    if (keypair.algorithm != KeyAlgorithm.ed25519) {
+      throw UnimplementedError(
+          'Only Ed25519 is supported for sync test signatures');
     }
+
+    final canonicalJson = _canonicalJsonEncode(payload);
+    final payloadBytes = Uint8List.fromList(utf8.encode(canonicalJson));
+    final seedBytes = Uint8List.fromList(base64Decode(keypair.privateKey));
+
+    // ed25519_edwards PrivateKey is seed(32) || pub(32) (Go convention) — see
+    // lib/rust/native_bridge_web.dart:_ed25519PublicKeyFromSeed. We derive the
+    // full private key from the seed so the public-key half is correct and the
+    // signature matches the keypair's stored public key.
+    final privateKey = ed.newKeyFromSeed(seedBytes);
+    final signature = ed.sign(privateKey, payloadBytes);
+
+    return base64Encode(signature);
   }
 
   /// Encode JSON with deterministic sorting for consistent signatures
