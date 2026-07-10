@@ -26,6 +26,13 @@ class SettingsScreen extends StatefulWidget {
   final SettingsService settingsService;
   final VoidCallback? onThemeChanged;
 
+  /// Public source repository. Hoisted to a public static const so the
+  /// dead-link regression is guarded by a unit test (W6-7) and the URL is
+  /// reusable across the app. The issues tracker lives at [reportIssueUrl].
+  static const String documentationUrl = 'https://github.com/sasa-tomic/icp-cc';
+  static const String reportIssueUrl =
+      'https://github.com/sasa-tomic/icp-cc/issues';
+
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -44,9 +51,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // External links (the marketplace URL is sourced from AppConfig so a single
   // dart-define `MARKETPLACE_WEB_URL` drives every reference — UXR7-3).
-  static const String _documentationUrl = 'https://github.com/kalaj01/icp-cc';
-  static const String _reportIssueUrl =
-      'https://github.com/kalaj01/icp-cc/issues';
+  // The Documentation + Report Issue URLs live as public static consts on
+  // [SettingsScreen] (W6-7).
 
   @override
   void initState() {
@@ -366,13 +372,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.menu_book_outlined,
           label: 'Documentation',
           subtitle: 'View guides and API reference',
-          onTap: () => _launchUrl(_documentationUrl),
+          onTap: () => _launchUrl(SettingsScreen.documentationUrl),
         ),
         _SettingsListTile(
           icon: Icons.bug_report_outlined,
           label: 'Report Issue',
           subtitle: 'Submit a bug report or feature request',
-          onTap: () => _launchUrl(_reportIssueUrl),
+          onTap: () => _launchUrl(SettingsScreen.reportIssueUrl),
         ),
         _SettingsListTile(
           icon: Icons.store_outlined,

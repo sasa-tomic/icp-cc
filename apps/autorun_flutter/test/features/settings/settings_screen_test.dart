@@ -373,5 +373,39 @@ void main() {
             findsOneWidget);
       });
     });
+
+    // W6-7: the Documentation + Report Issue links must point at the real
+    // public repo (sasa-tomic/icp-cc). The previous values (kalaj01/icp-cc)
+    // resolved to HTTP 404 — a dead link shipped to users. These constants
+    // are asserted directly (no mocks) so the regression can't recur.
+    group('external links (W6-7)', () {
+      test('documentation URL points at the real public repo', () {
+        expect(
+          SettingsScreen.documentationUrl,
+          equals('https://github.com/sasa-tomic/icp-cc'),
+        );
+      });
+
+      test('report-issue URL points at the real issues tracker', () {
+        expect(
+          SettingsScreen.reportIssueUrl,
+          equals('https://github.com/sasa-tomic/icp-cc/issues'),
+        );
+      });
+
+      test('links never regress to the dead kalaj01 org', () {
+        expect(
+          SettingsScreen.documentationUrl.contains('kalaj01'),
+          isFalse,
+          reason: 'kalaj01/icp-cc is a 404 — must stay sasa-tomic/icp-cc',
+        );
+        expect(
+          SettingsScreen.reportIssueUrl.contains('kalaj01'),
+          isFalse,
+          reason:
+              'kalaj01/icp-cc/issues is a 404 — must stay sasa-tomic/icp-cc',
+        );
+      });
+    });
   });
 }
