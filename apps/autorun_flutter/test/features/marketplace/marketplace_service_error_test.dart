@@ -509,4 +509,133 @@ void main() {
       );
     });
   });
+
+  // W6-3: the service must decode every envelope through one robust path. These
+  // tests reproduce the exact failure modes the old per-method copy-paste had:
+  //   * `!responseData['success']` crashes with a TypeError when `success` is
+  //     omitted / null / a non-bool (string) instead of throwing a typed
+  //     Exception carrying the status.
+  //   * `getMarketplaceStats` passed unchecked `data` to `MarketplaceStats
+  //     .fromJson`, so `data:null` → TypeError instead of a clear error.
+  //   * `updateScript` / `deleteScript` did `jsonDecode(response.body)` inside
+  //     the non-2xx branch, so a non-JSON 502 (HTML / empty) surfaced as a
+  //     FormatException ("Unexpected end of input") that masked the status.
+  group('W6-3: robust success / status / data decoding', () {
+    group('fragile success flag (typed Exception, never a TypeError)', () {
+      test('searchScripts with success omitted', () {
+        service.overrideHttpClient(_statusClient(200,
+            body: jsonEncode({
+          'data': {'scripts': <Object>[], 'total': 0, 'hasMore': false}
+        })));
+        expect(service.searchScripts(), throwsA(isA<Exception>()));
+      });
+
+      test('searchScripts with success:null', () {
+        service.overrideHttpClient(_statusClient(200,
+            body: jsonEncode({
+          'success': null,
+          'data': {'scripts': <Object>[], 'total': 0, 'hasMore': false}
+        })));
+        expect(service.searchScripts(), throwsA(isA<Exception>()));
+      });
+
+      test('searchScripts with success:"true" (string, not bool)', () {
+        service.overrideHttpClient(_statusClient(200,
+            body: jsonEncode({
+          'success': 'true',
+          'data': {'scripts': <Object>[], 'total': 0, 'hasMore': false}
+        })));
+        expect(service.searchScripts(), throwsA(isA<Exception>()));
+      });
+
+      test('getMarketplaceStats with success omitted (no try/catch wrapper)',
+          () {
+        service.overrideHttpClient(_statusClient(200,
+            body: jsonEncode({
+          'data': {'totalScripts': 1}
+        })));
+        expect(service.getMarketplaceStats(), throwsA(isA<Exception>()));
+      });
+
+      test('uploadScript with success omitted surfaces Upload failed prefix',
+          () {
+        service.overrideHttpClient(_statusClient(200,
+            body: jsonEncode({
+          'data': {'id': 'x'}
+        })));
+        expect(
+          service.uploadScript(
+            slug: 's',
+            title: 't',
+            description: 'd',
+            category: 'Utilities',
+            tags: const [],
+            bundle: 'print(1)',
+          ),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'upload prefix',
+                  contains('Upload failed'))),
+        );
+      });
+    });
+
+    group('getMarketplaceStats data field', () {
+      // data:null must throw a clear Exception — not a TypeError from
+      // MarketplaceStats.fromJson(null)['totalScripts'].
+      test('throws a clear Exception (not TypeError) when data is null', () {
+        service.overrideHttpClient(_statusClient(
+            200,
+            body: jsonEncode({'success': true, 'data': null})));
+        expect(
+          service.getMarketplaceStats(),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'mentions data',
+                  contains('data'))),
+        );
+      });
+
+      test('throws when data is present but not an object', () {
+        service.overrideHttpClient(_statusClient(
+            200,
+            body: jsonEncode({'success': true, 'data': [1, 2, 3]})));
+        expect(
+          service.getMarketplaceStats(),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'mentions data',
+                  contains('data'))),
+        );
+      });
+    });
+
+    group(
+        'non-JSON error bodies must not mask the HTTP status (no FormatException)',
+        () {
+      test('updateScript surfaces HTTP 502 on a non-JSON (HTML) error body',
+          () {
+        service.overrideHttpClient(_statusClient(
+            502,
+            body: '<html><body>502 Bad Gateway</body></html>'));
+        expect(
+          service.updateScript('script-1', title: 'new'),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'carries status',
+                  contains('HTTP 502'))
+              .having((e) => e.toString(), 'not a decode error',
+                  isNot(contains('FormatException')))),
+        );
+      });
+
+      test('deleteScript surfaces HTTP 502 on an empty error body', () {
+        service.overrideHttpClient(_statusClient(502, body: ''));
+        expect(
+          service.deleteScript('script-1'),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'carries status',
+                  contains('HTTP 502'))
+              .having((e) => e.toString(), 'not a decode error',
+                  isNot(contains('Unexpected end of input')))),
+        );
+      });
+    });
+  });
 }

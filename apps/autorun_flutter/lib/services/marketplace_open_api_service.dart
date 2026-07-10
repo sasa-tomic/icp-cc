@@ -145,15 +145,7 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.browseTimeout);
 
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Search failed');
-      }
+      final responseData = _decodeSuccessResponse(response, label: 'Search');
 
       final data = responseData['data'];
       final scripts = (data['scripts'] as List)
@@ -192,27 +184,13 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
       final response = await _httpClient.get(uri).timeout(AppDurations.browseTimeout);
 
-      if (response.statusCode > 299) {
-        if (response.statusCode == 404) {
-          throw Exception('Script not found');
-        }
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      if (response.statusCode == 404) {
+        throw Exception('Script not found');
       }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(
-            responseData['error'] ?? 'Failed to get script details');
-      }
-
-      final data = responseData['data'];
-      if (data == null) {
-        throw Exception('Script details response missing data field');
-      }
-      if (data is! Map<String, dynamic>) {
-        throw Exception('Script details response data is not a valid object');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Get script details');
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Script details');
       return MarketplaceScript.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get script details failed: $e');
@@ -240,21 +218,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (response.statusCode == 404) {
         throw Exception('Script not found');
       }
-      if (response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(
-            responseData['error'] ?? 'Failed to get script preview');
-      }
-
-      final data = responseData['data'];
-      if (data == null || data is! Map<String, dynamic>) {
-        throw Exception('Script preview response missing data field');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Get script preview');
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Script preview');
       return ScriptPreview.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get script preview failed: $e');
@@ -287,16 +254,8 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
       final response = await _httpClient.get(uri).timeout(AppDurations.browseTimeout);
 
-      if (response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(
-            responseData['error'] ?? 'Failed to get scripts by category');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Get scripts by category');
 
       final data = responseData['data'] as List;
       return data
@@ -328,16 +287,8 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
       final response = await _httpClient.get(uri).timeout(AppDurations.browseTimeout);
 
-      if (response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(
-            responseData['error'] ?? 'Failed to get script reviews');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Get script reviews');
 
       // The backend returns data as a Map: {reviews: [...], total: int,
       // hasMore: bool} (backend/src/handlers/reviews.rs). A bare-array cast
@@ -463,20 +414,11 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (response.statusCode == 503) {
         throw const PaymentsNotConfiguredException();
       }
-      if (response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
 
-      final responseData = jsonDecode(response.body);
-      if (responseData is! Map<String, dynamic> ||
-          responseData['success'] != true) {
-        throw Exception(responseData['error'] ?? 'Failed to load ICPay config');
-      }
-      final data = responseData['data'];
-      if (data is! Map<String, dynamic>) {
-        throw Exception('ICPay config response missing data field');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'ICPay config');
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'ICPay config');
       return IcpayClientConfig.fromJson(data, rawBody: response.body);
     } on PaymentsNotConfiguredException {
       rethrow;
@@ -597,21 +539,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (response.statusCode == 404) {
         throw Exception('Script version $version not found');
       }
-      if (response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(
-            responseData['error'] ?? 'Failed to get script version');
-      }
-
-      final data = responseData['data'];
-      if (data == null || data is! Map<String, dynamic>) {
-        throw Exception('Script version response missing data field');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Get script version');
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Script version');
       return MarketplaceScript.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) {
@@ -630,16 +561,8 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (response.statusCode == 404) {
         return [];
       }
-      if (response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(
-            responseData['error'] ?? 'Failed to get script versions');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Get script versions');
 
       final data = responseData['data'];
       if (data == null || data is! List) {
@@ -664,17 +587,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     final response =
         await _httpClient.get(Uri.parse(url)).timeout(AppDurations.browseTimeout);
 
-    if (response.statusCode > 299) {
-      throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
-    }
-
-    final responseData = jsonDecode(response.body);
-    if (!responseData['success']) {
-      throw Exception(
-          responseData['error'] ?? 'Failed to get marketplace stats');
-    }
-
-    final data = responseData['data'];
+    final responseData =
+        _decodeSuccessResponse(response, label: 'Get marketplace stats');
+    final data = _decodeDataField<Map<String, dynamic>>(responseData,
+        label: 'Marketplace stats');
     return MarketplaceStats.fromJson(data);
   }
 
@@ -814,13 +730,12 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       }
 
       final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        final errorDetail = responseData['error']?.toString();
+      if (responseData['success'] != true) {
         throw Exception(
           _buildUploadErrorMessage(
             statusCode: response.statusCode,
             reasonPhrase: response.reasonPhrase,
-            serverError: errorDetail,
+            serverError: responseData['error']?.toString(),
           ),
         );
       }
@@ -872,40 +787,13 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     String? responseBody,
     Object? serverError,
   }) {
-    String? detail;
-
-    if (serverError != null) {
-      final serverText = serverError.toString().trim();
-      if (serverText.isNotEmpty) {
-        detail = serverText;
-      }
-    }
-
-    if (detail == null && responseBody != null) {
-      final bodyText = responseBody.trim();
-      if (bodyText.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(bodyText);
-          if (decoded is Map<String, dynamic>) {
-            final errorValue = decoded['error']?.toString().trim();
-            if (errorValue != null && errorValue.isNotEmpty) {
-              detail = errorValue;
-            }
-          }
-        } on FormatException catch (e) {
-          debugPrint('MarketplaceOpenApi error-body JSON decode failed: $e');
-        }
-
-        detail ??= bodyText.length > 200
-            ? '${bodyText.substring(0, 200)}...'
-            : bodyText;
-      }
-    }
-
-    detail ??= reasonPhrase?.trim().isNotEmpty == true
-        ? reasonPhrase!.trim()
-        : 'Unknown error from server';
-
+    // Prefer an already-extracted server `error` string; otherwise tolerate
+    // whatever the body contains via the shared extractor (never a
+    // FormatException).
+    final serverText = serverError?.toString().trim();
+    final detail = (serverText != null && serverText.isNotEmpty)
+        ? serverText
+        : _extractServerError(statusCode, reasonPhrase, responseBody ?? '');
     return 'Upload failed (HTTP $statusCode): $detail';
   }
 
@@ -950,24 +838,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.downloadTimeout);
 
-      if (response.statusCode > 299) {
-        final responseData = jsonDecode(response.body);
-        throw Exception(
-            responseData['error'] ?? 'Update failed: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Update failed');
-      }
-
-      final data = responseData['data'];
-      if (data == null) {
-        throw Exception('Update script response missing data field');
-      }
-      if (data is! Map<String, dynamic>) {
-        throw Exception('Update script response data is not a valid object');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Update');
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Update script');
       return MarketplaceScript.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Update script failed: $e');
@@ -995,16 +869,9 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.downloadTimeout);
 
-      if (response.statusCode > 299) {
-        final responseData = jsonDecode(response.body);
-        throw Exception(
-            responseData['error'] ?? 'Delete failed: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(responseData['error'] ?? 'Delete failed');
-      }
+      // Status + success contract enforced once, tolerantly (a non-JSON 502
+      // body surfaces "HTTP 502: ..." rather than a FormatException).
+      _decodeSuccessResponse(response, label: 'Delete');
 
       return true;
     } catch (e) {
@@ -1028,26 +895,14 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.downloadTimeout);
 
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        final String detail = response.body.isNotEmpty
-            ? _extractErrorMessage(response.body)
-            : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception(
-            'Account registration failed (HTTP ${response.statusCode}): $detail');
-      }
-
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Account registration response malformed');
-      }
-      if (decoded['success'] != true) {
-        throw Exception(decoded['error'] ?? 'Failed to register account');
-      }
-      final Map<String, dynamic>? data =
-          decoded['data'] as Map<String, dynamic>?;
-      if (data == null) {
-        throw Exception('Account registration response missing data');
-      }
+      final responseData = _decodeSuccessResponse(
+        response,
+        label: 'Account registration',
+        statusErrorPrefix: 'Account registration failed',
+        failureFallback: 'Failed to register account',
+      );
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Account registration');
       return Account.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Register account failed: $e');
@@ -1068,23 +923,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (response.statusCode == 404) {
         return null; // Account not found
       }
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Account response malformed');
-      }
-      if (decoded['success'] != true) {
-        throw Exception(decoded['error'] ?? 'Failed to load account');
-      }
-      final Map<String, dynamic>? data =
-          decoded['data'] as Map<String, dynamic>?;
-      if (data == null) {
-        throw Exception('Account response missing data field');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Account');
+      final data =
+          _decodeDataField<Map<String, dynamic>>(responseData, label: 'Account');
       return Account.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get account failed: $e');
@@ -1110,24 +952,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (response.statusCode == 404) {
         return null; // No account found for this public key
       }
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Account by public key response malformed');
-      }
-      if (decoded['success'] != true) {
-        throw Exception(
-            decoded['error'] ?? 'Failed to load account by public key');
-      }
-      final Map<String, dynamic>? data =
-          decoded['data'] as Map<String, dynamic>?;
-      if (data == null) {
-        throw Exception('Account by public key response missing data field');
-      }
+      final responseData =
+          _decodeSuccessResponse(response, label: 'Account by public key');
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Account by public key');
       return Account.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) {
@@ -1154,26 +982,14 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.downloadTimeout);
 
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        final String detail = response.body.isNotEmpty
-            ? _extractErrorMessage(response.body)
-            : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception(
-            'Add key failed (HTTP ${response.statusCode}): $detail');
-      }
-
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Add key response malformed');
-      }
-      if (decoded['success'] != true) {
-        throw Exception(decoded['error'] ?? 'Failed to add key');
-      }
-      final Map<String, dynamic>? data =
-          decoded['data'] as Map<String, dynamic>?;
-      if (data == null) {
-        throw Exception('Add key response missing data');
-      }
+      final responseData = _decodeSuccessResponse(
+        response,
+        label: 'Add key',
+        statusErrorPrefix: 'Add key failed',
+        failureFallback: 'Failed to add key',
+      );
+      final data =
+          _decodeDataField<Map<String, dynamic>>(responseData, label: 'Add key');
       return AccountPublicKey.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Add public key failed: $e');
@@ -1199,26 +1015,14 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.downloadTimeout);
 
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        final String detail = response.body.isNotEmpty
-            ? _extractErrorMessage(response.body)
-            : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception(
-            'Remove key failed (HTTP ${response.statusCode}): $detail');
-      }
-
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Remove key response malformed');
-      }
-      if (decoded['success'] != true) {
-        throw Exception(decoded['error'] ?? 'Failed to remove key');
-      }
-      final Map<String, dynamic>? data =
-          decoded['data'] as Map<String, dynamic>?;
-      if (data == null) {
-        throw Exception('Remove key response missing data');
-      }
+      final responseData = _decodeSuccessResponse(
+        response,
+        label: 'Remove key',
+        statusErrorPrefix: 'Remove key failed',
+        failureFallback: 'Failed to remove key',
+      );
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Remove key');
       return AccountPublicKey.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Remove public key failed: $e');
@@ -1243,26 +1047,14 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.downloadTimeout);
 
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        final String detail = response.body.isNotEmpty
-            ? _extractErrorMessage(response.body)
-            : response.reasonPhrase ?? 'Unknown failure';
-        throw Exception(
-            'Update account failed (HTTP ${response.statusCode}): $detail');
-      }
-
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Update account response malformed');
-      }
-      if (decoded['success'] != true) {
-        throw Exception(decoded['error'] ?? 'Failed to update account');
-      }
-      final Map<String, dynamic>? data =
-          decoded['data'] as Map<String, dynamic>?;
-      if (data == null) {
-        throw Exception('Update account response missing data');
-      }
+      final responseData = _decodeSuccessResponse(
+        response,
+        label: 'Update account',
+        statusErrorPrefix: 'Update account failed',
+        failureFallback: 'Failed to update account',
+      );
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Update account');
       return Account.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Update account failed: $e');
@@ -1278,18 +1070,106 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     return account == null;
   }
 
-  /// Extract error message from response body
-  String _extractErrorMessage(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic> && decoded.containsKey('error')) {
-        return decoded['error'] as String;
+  /// Tolerantly extracts a human-readable error detail from an HTTP *error*
+  /// response body (non-2xx). Used only from error branches, where masking the
+  /// status with a [FormatException] ("Unexpected end of input") would be
+  /// strictly worse than a generic message. **Never throws.**
+  ///
+  /// Resolution order:
+  ///   1. JSON `{"error": "..."}` → its (stringified) value;
+  ///   2. otherwise the raw body, truncated to 200 chars so a 502 HTML page
+  ///      cannot flood the UI;
+  ///   3. otherwise the HTTP reason phrase;
+  ///   4. otherwise a generic placeholder.
+  String _extractServerError(int status, String? reasonPhrase, String body) {
+    final bodyText = body.trim();
+    if (bodyText.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(bodyText);
+        if (decoded is Map<String, dynamic>) {
+          final errorValue = decoded['error']?.toString().trim();
+          if (errorValue != null && errorValue.isNotEmpty) {
+            return errorValue;
+          }
+        }
+      } on FormatException catch (e) {
+        debugPrint('MarketplaceOpenApi error-body JSON decode failed: $e');
       }
-      return body;
-    } on FormatException catch (e) {
-      debugPrint('MarketplaceOpenApi._extractErrorMessage decode failed: $e');
-      return body;
+      return bodyText.length > 200
+          ? '${bodyText.substring(0, 200)}...'
+          : bodyText;
     }
+    final reason = reasonPhrase?.trim();
+    if (reason != null && reason.isNotEmpty) return reason;
+    return 'Unknown error from server';
+  }
+
+  /// Decodes a marketplace envelope `{success, data, error}` response,
+  /// enforcing the wire contract uniformly across every endpoint (W6-3).
+  ///
+  /// Pipeline:
+  ///   1. non-2xx → throws [Exception] carrying `HTTP {status}` + a tolerantly
+  ///      extracted server error (non-JSON / empty bodies handled — never a
+  ///      [FormatException] that masks the status). When [statusErrorPrefix] is
+  ///      given the message is `"$prefix (HTTP $status): $detail"` to preserve
+  ///      endpoint-specific messaging (upload / account CRUD).
+  ///   2. 2xx → `jsonDecode`s the body. A non-JSON 2xx body propagates as a
+  ///      [FormatException] (the caller's "the server sent garbage on a success
+  ///      code" signal — intentionally NOT swallowed).
+  ///   3. decoded but `success != true` (including omitted / null / non-bool)
+  ///      → throws [Exception] with the envelope `error`, never a [TypeError].
+  ///   4. `success: true` → returns the decoded envelope map.
+  ///
+  /// [label] seeds the fallback messages (e.g. "Search failed").
+  /// [failureFallback] overrides the success:`false` fallback verbatim when an
+  /// endpoint has its own canonical wording.
+  Map<String, dynamic> _decodeSuccessResponse(
+    http.Response response, {
+    String? label,
+    String? statusErrorPrefix,
+    String? failureFallback,
+  }) {
+    final status = response.statusCode;
+    if (status < 200 || status > 299) {
+      final detail =
+          _extractServerError(status, response.reasonPhrase, response.body);
+      throw Exception(statusErrorPrefix != null
+          ? '$statusErrorPrefix (HTTP $status): $detail'
+          : 'HTTP $status: $detail');
+    }
+    final dynamic decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('${label ?? 'Response'} is not a valid JSON object');
+    }
+    if (decoded['success'] != true) {
+      final error = decoded['error']?.toString();
+      final message = (error != null && error.isNotEmpty)
+          ? error
+          : (failureFallback ??
+              (label != null ? '$label failed' : 'Request failed'));
+      throw Exception(message);
+    }
+    return decoded;
+  }
+
+  /// Extracts and type-checks the `data` field of a decoded envelope (W6-3).
+  /// Throws a clear [Exception] (not a silent [TypeError]) when `data` is
+  /// absent or the wrong shape. [T] is the expected runtime type —
+  /// `Map<String, dynamic>` (→ "object") or `List` (→ "list").
+  T _decodeDataField<T>(Map<String, dynamic> envelope, {required String label}) {
+    final data = envelope['data'];
+    if (data is T) return data;
+    // Derive a human-readable kind without comparing generic type literals
+    // (which the parser would misread). Sentinel instances + `is T` is
+    // unambiguous.
+    final kind = <dynamic>[] is T
+        ? 'list'
+        : <String, dynamic>{} is T
+            ? 'object'
+            : 'value';
+    throw Exception(data == null
+        ? '$label response missing data field'
+        : '$label response data is not a valid $kind');
   }
 }
 
