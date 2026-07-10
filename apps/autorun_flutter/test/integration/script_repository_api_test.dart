@@ -85,7 +85,12 @@ end''',
         final savedScripts = await poemRepository.getAllScripts();
         final savedScript = savedScripts.firstWhere((s) => s.id == savedScriptId);
         expect(savedScript.title, testScript.title);
-        expect(savedScript.bundle, testScript.bundle);
+        // IH-5: list endpoints intentionally omit the full `bundle` (metadata
+        // only); verify round-trip integrity via the single-fetch path instead.
+        expect(savedScript.bundle, isEmpty);
+        final fetchedScript = await poemRepository.getScriptById(savedScriptId);
+        expect(fetchedScript, isNotNull);
+        expect(fetchedScript!.bundle, testScript.bundle);
       });
 
       test('should update existing script', () async {
