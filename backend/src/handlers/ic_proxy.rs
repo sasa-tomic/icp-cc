@@ -164,7 +164,21 @@ pub async fn ic_proxy(req: &Request, Path(rest): Path<String>, body: Vec<u8>) ->
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
-    let bytes = upstream.bytes().await.unwrap_or_default();
+    let bytes = match upstream.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            // LOUD, no silent swallow: if the upstream connection drops
+            // mid-body, `unwrap_or_default()` would return `[]` under the
+            // (possibly 200) status — feeding corrupt/truncated CBOR to
+            // agent-js and surfacing as a confusing certificate error
+            // downstream instead of "gateway unreachable". Surface a 502.
+            tracing::warn!("IC proxy body read failed: {e}");
+            return error_response(
+                StatusCode::BAD_GATEWAY,
+                "IC gateway truncated response",
+            );
+        }
+    };
 
     tracing::debug!(
         "IC proxy relayed: {} {} -> {} ({} bytes)",

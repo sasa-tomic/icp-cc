@@ -178,7 +178,7 @@ void main() {
     });
 
     group('Principal Formatting', () {
-      test('formatPrincipal with valid principal', () {
+      test('formatPrincipal lowercases a canonical textual principal', () {
         expect(DataTransformer.formatPrincipal('aaaaa-aa'), equals('aaaaa-aa'));
         expect(DataTransformer.formatPrincipal('RRKAH-FQAAA-AAAAA-AAAAQ-CAI'),
             equals('rrkah-fqaaa-aaaaa-aaaaq-cai'));
@@ -188,11 +188,19 @@ void main() {
         expect(DataTransformer.formatPrincipal(''), equals(''));
       });
 
-      test('formatPrincipal throws on invalid format', () {
-        expect(() => DataTransformer.formatPrincipal('invalid@principal'),
-            throwsFormatException);
-        expect(() => DataTransformer.formatPrincipal('ABC123'),
-            throwsFormatException);
+      // A-W6-12: the old heuristic (`^[a-zA-Z0-9-]+$` + `contains('-')`)
+      // PRETENDED to validate but actually accepted any hyphenated garbage as
+      // a "principal" while rejecting unrelated inputs arbitrarily. It has
+      // been reduced to what it truly is: a display-only case normaliser.
+      // These inputs must NOT throw — there is no validation pretence left.
+      test('formatPrincipal is a display-only normaliser, no fake validation',
+          () {
+        expect(DataTransformer.formatPrincipal('a-b-c'), equals('a-b-c'));
+        expect(DataTransformer.formatPrincipal('ABC123'), equals('abc123'));
+        expect(
+          DataTransformer.formatPrincipal('invalid@principal'),
+          equals('invalid@principal'),
+        );
       });
     });
 

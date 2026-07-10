@@ -53,10 +53,20 @@ class AppConfig {
     }
   }
 
+  /// Hostnames that unambiguously identify a local dev backend. Kept as an
+  /// explicit set (NOT a substring match) so a prod host containing a `.local`
+  /// fragment — e.g. `api.localtest.com`, `myapp.localtunnel.me` — is never
+  /// mis-classified as dev. Add a host here only when it is a genuine dev
+  /// loopback address. (A-W6-9: replaces the `.contains('.local')` heuristic.)
+  static const Set<String> _localDevHosts = {'localhost', '127.0.0.1'};
+
   static bool get isLocalDevelopment {
-    return apiEndpoint.contains('localhost') || 
-           apiEndpoint.contains('127.0.0.1') ||
-           apiEndpoint.contains('.local');
+    // Parse the host from the resolved endpoint and compare against the
+    // explicit dev-host set. `Uri.tryParse` returns null for a malformed
+    // endpoint; an empty/missing host is conservatively treated as production.
+    final host = Uri.tryParse(apiEndpoint)?.host;
+    if (host == null || host.isEmpty) return false;
+    return _localDevHosts.contains(host);
   }
 
   static bool get isProduction {

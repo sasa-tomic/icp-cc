@@ -330,3 +330,51 @@ async fn timeout_fires_against_blackhole_upstream() {
 
     blackhole.abort();
 }
+
+/// Upstream responds 200 + a `Content-Length` larger than the body actually
+/// sent, then closes the connection — a truncated body. reqwest's `.bytes()`
+/// must surface this as an error; the proxy must turn that into a LOUD 502,
+/// NOT a 200 with an empty/partial body (which would feed corrupt CBOR to
+/// agent-js and surface as a confusing certificate error downstream).
+async fn truncated_body_upstream(listener: TcpListener) {
+    let (mut sock, _) = listener.accept().await.unwrap();
+    // Drain the request (best-effort) so the client doesn't see a reset.
+    let mut tmp = [0u8; 1024];
+    let _ = sock.read(&mut tmp).await;
+    // Headers say 100 bytes are coming; only "abc" (3) arrive before close.
+    let http = "HTTP/1.1 200 OK\r\nContent-Type: application/cbor\r\nContent-Length: 100\r\nConnection: close\r\n\r\nabc";
+    let _ = sock.write_all(http.as_bytes()).await;
+    let _ = sock.flush().await;
+    let _ = sock.shutdown().await;
+}
+
+#[tokio::test]
+async fn truncated_upstream_body_returns_bad_gateway_not_200_empty() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let upstream = format!("http://{}", addr);
+    let truncated = tokio::spawn(truncated_body_upstream(listener));
+
+    let _gw = GatewayHostGuard::set(&upstream);
+    let client = TestClient::new(build_app());
+
+    let resp = client
+        .post("/api/v1/ic/api/v3/canister/x/query")
+        .header("Content-Type", "application/cbor")
+        .body(b"hi".to_vec())
+        .send()
+        .await;
+
+    // LOUD: must surface as 502, NOT a 200 with an empty/truncated body. On
+    // the old `unwrap_or_default()` code this returned 200 + b"" — a silent
+    // swallow of a mid-body connection drop.
+    resp.assert_status(StatusCode::BAD_GATEWAY);
+    let json = json_value(resp).await;
+    assert_eq!(json["success"], false);
+    assert!(
+        json["error"].as_str().unwrap().contains("truncated"),
+        "error must name the truncation cause, got: {json}"
+    );
+
+    truncated.abort();
+}

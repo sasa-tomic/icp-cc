@@ -8,6 +8,12 @@ import '../rust/native_bridge.dart';
 import '../rust/web/candid_interface_parser.dart';
 import '../theme/app_design_system.dart';
 
+/// The canonical Candid registry host — the authoritative source `dfx` uses
+/// (`icp-api.io/api/v2/canister/…/candid`). Single source of truth for this
+/// host so the literal cannot drift inline. (A-W6-11: was an inline magic
+/// string at the call site.)
+const String kCandidRegistryHost = 'https://icp-api.io';
+
 /// Why a Candid interface could not be loaded for a canister.
 ///
 /// Surfaced loudly to the caller (the canister-call builder UI) so the user
@@ -164,7 +170,7 @@ class CandidService {
   /// any failure — no swallow, no null, no hardcoded fallback.
   Future<String> _fetchCandidFromRegistry(String canisterId,
       [String? host]) async {
-    final baseUrl = host ?? 'https://icp-api.io';
+    final baseUrl = host ?? kCandidRegistryHost;
     final url = Uri.parse('$baseUrl/api/v2/canister/$canisterId/candid');
 
     final http.Response response;

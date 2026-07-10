@@ -159,4 +159,32 @@ void main() {
       expect(captured.kind, CandidFetchErrorKind.network);
     });
   });
+
+  // A-W6-11: the Candid registry host must be a single named constant, not an
+  // inline magic literal. These tests pin the const value + that requests hit
+  // that exact host (so the literal cannot silently drift back inline).
+  group('CandidService registry host (A-W6-11)', () {
+    test('kCandidRegistryHost is the canonical Candid registry value', () {
+      expect(kCandidRegistryHost, 'https://icp-api.io');
+    });
+
+    test('fetch targets the canonical host when no host override is given',
+        () async {
+      String? requestedUrl;
+      const candid = 'service : {\n  hello : () -> ();\n}';
+      final client = MockClient((request) async {
+        requestedUrl = request.url.toString();
+        return http.Response(candid, 200);
+      });
+      final service = CandidService(httpClient: client);
+
+      await service.fetchCanisterMethods(_canisterId);
+
+      // The host portion must be the named const, not an inline literal.
+      expect(
+        requestedUrl,
+        '$kCandidRegistryHost/api/v2/canister/$_canisterId/candid',
+      );
+    });
+  });
 }

@@ -173,17 +173,19 @@ class DataTransformer {
     return urlPattern.allMatches(text).map((match) => match.group(0)!).toList();
   }
 
-  /// Validate and format principal IDs
+  /// Normalise a principal string for DISPLAY.
+  ///
+  /// This is a display-only case normaliser — it lowercases the canonical
+  /// textual principal form. It deliberately performs NO validation: the old
+  /// `^[a-zA-Z0-9-]+$` + `contains('-')` heuristic *pretended* to validate
+  /// while actually accepting any hyphenated garbage (`a-b-c`) and rejecting
+  /// unrelated inputs arbitrarily. Real principal validation belongs in the
+  /// FFI (`principalFromPublicKey`) / a proper principal parser, not a
+  /// substring guess here. KISS: do only what the function truly does.
+  /// (A-W6-12.)
   static String formatPrincipal(String principal) {
     if (principal.isEmpty) return principal;
-
-    // ICP principals should contain hyphens and be alphanumeric
-    if (RegExp(r'^[a-zA-Z0-9-]+$').hasMatch(principal) &&
-        principal.contains('-')) {
-      return principal.toLowerCase();
-    }
-
-    throw FormatException('Invalid principal format: $principal');
+    return principal.toLowerCase();
   }
 
   /// Filter and sort a list of items
