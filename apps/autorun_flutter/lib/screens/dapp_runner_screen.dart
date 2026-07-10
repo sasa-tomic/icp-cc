@@ -85,6 +85,23 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
   static const String _kUnreachableHintBody =
       'The dapp couldn\'t reach the canister at the configured id/host. '
       'Check the canister id and host below, then Apply.';
+  static const String _kLocalReplicaBannerTitle =
+      'Developer example — needs a local replica';
+  static const String _kLocalReplicaBannerBody =
+      'This dapp runs against a replica you start yourself. Bring it up with: '
+      '`cd examples/icp_poll_dapp && dfx start --clean && dfx deploy`, then '
+      'copy the printed backend canister id into Connection below. (Until then '
+      'the canister is unreachable — that\'s expected.)';
+  // Environment-aware Connection panel one-liners. The dfx setup commands live
+  // ONLY in the local-replica banner (DRY); this panel hint explains how to use
+  // the editable fields below — generic for mainnet (works as-is), tailored for
+  // a local replica (ids change across replica restarts).
+  static const String _kConnectionHintMainnet =
+      'The defaults point at the real mainnet canister — no change needed. '
+      'Edit below only to point at a different network.';
+  static const String _kConnectionHintLocalReplica =
+      'Replica restarts regenerate canister ids. If the dapp can\'t connect, '
+      'paste the new id from your latest deploy output and Apply.';
 
   /// Effective connection values currently driving the [ScriptAppHost].
   String _backendId = '';
@@ -260,6 +277,55 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
   /// UX-9: bound to `Esc`. Pops the runner back to the catalog.
   void _handleBack() {
     Navigator.of(context).maybePop();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Honest empty-state for local-replica examples (UXR-6). The Poll dapp needs
+  // a replica the USER starts; without one the tab is non-functional. This
+  // banner states that requirement up front — and the exact commands to bring
+  // it up — instead of letting a first-time user stare at a "Canister
+  // unreachable" error with no context. The runner's existing UX-12(b)
+  // auto-expand still fires on an actual reachability failure.
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildLocalReplicaBanner(ThemeData theme) {
+    final Color warn = AppDesignSystem.warningColor;
+    return Container(
+      key: const ValueKey<String>('dappLocalReplicaBanner'),
+      margin: const EdgeInsets.fromLTRB(
+          AppDesignSystem.spacing12, AppDesignSystem.spacing12, 12, 0),
+      padding: const EdgeInsets.all(AppDesignSystem.spacing12),
+      decoration: BoxDecoration(
+        color: warn.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppDesignSystem.radius12),
+        border: Border.all(color: warn.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.construction_rounded, color: warn, size: 20),
+          const SizedBox(width: AppDesignSystem.spacing8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  _kLocalReplicaBannerTitle,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600, color: warn),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _kLocalReplicaBannerBody,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -538,6 +604,8 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
           // would overflow the host's internal progress indicator.
           child: CustomScrollView(
             slivers: [
+              if (widget.descriptor.isLocalReplica)
+                SliverToBoxAdapter(child: _buildLocalReplicaBanner(theme)),
               SliverToBoxAdapter(child: _buildConnectionPanel(theme)),
               SliverToBoxAdapter(
                 child: Padding(
@@ -621,9 +689,9 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
                       const SizedBox(width: AppDesignSystem.spacing8),
                       Expanded(
                         child: Text(
-                          '`dfx start --clean` regenerates canister ids. '
-                          'If the dapp can\'t connect, paste the new id '
-                          'from `dfx deploy` output and Apply.',
+                          widget.descriptor.isLocalReplica
+                              ? _kConnectionHintLocalReplica
+                              : _kConnectionHintMainnet,
                           style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant),
                         ),

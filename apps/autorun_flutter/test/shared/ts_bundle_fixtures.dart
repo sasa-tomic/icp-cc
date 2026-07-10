@@ -44,6 +44,26 @@ String loadPollBundle() {
       '${_pollBundleCandidates.join("\n")}');
 }
 
+const List<String> _ledgerBundleCandidates = <String>[
+  'lib/examples/07_icp_ledger.js',
+  'apps/autorun_flutter/lib/examples/07_icp_ledger.js',
+  '/code/icp-cc/apps/autorun_flutter/lib/examples/07_icp_ledger.js',
+];
+
+/// Loads the ICP Ledger mainnet app-lifecycle bundle (07_icp_ledger.js). The
+/// always-working counterpart to [loadPollBundle] — read-only queries against
+/// the real public mainnet ICP ledger.
+String loadLedgerBundle() {
+  for (final String path in _ledgerBundleCandidates) {
+    final File f = File(path);
+    if (f.existsSync()) {
+      return f.readAsStringSync();
+    }
+  }
+  fail('07_icp_ledger.js not found in any candidate location:\n'
+      '${_ledgerBundleCandidates.join("\n")}');
+}
+
 bool nativeLibAvailable(RustBridgeLoader loader) {
   final String? probe = loader.jsExec(script: '1', jsonArg: null);
   return probe != null;

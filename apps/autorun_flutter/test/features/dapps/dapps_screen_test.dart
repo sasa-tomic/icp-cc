@@ -10,13 +10,16 @@ import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 
 /// Widget coverage for the Dapps catalog tab:
-///   (a) the shipped poll dapp renders as a card,
-///   (b) tapping the card pushes [DappRunnerScreen].
+///   (a) every shipped example renders as a card,
+///   (b) tapping a card pushes [DappRunnerScreen],
+///   (c) the catalog is HONEST about which examples work out of the box
+///       (mainnet) vs need a local replica (developer) — UXR-6: never ship a
+///       silently-dead tab.
 ///
 /// ProfileScope is wrapped ABOVE MaterialApp (as in production main.dart) so
 /// the pushed runner route can resolve the active profile.
 void main() {
-  testWidgets('renders the on-chain poll card', (tester) async {
+  testWidgets('renders a card for every shipped example', (tester) async {
     await _pumpDapps(tester);
 
     for (final d in exampleDapps) {
@@ -31,8 +34,8 @@ void main() {
 
     expect(find.byType(DappRunnerScreen), findsNothing);
 
-    // Tap the poll card (its title text is unique).
-    await tester.tap(find.text('On-chain Polls'));
+    // Tap the ICP Ledger card (its title text is unique).
+    await tester.tap(find.text('ICP Ledger'));
     // One frame is enough for the route to land; avoid pumpAndSettle so the
     // test never blocks on the runner's async bundle/network work.
     await tester.pump(const Duration(milliseconds: 50));
@@ -42,9 +45,26 @@ void main() {
         reason: 'Tapping the card should push DappRunnerScreen');
   });
 
-  testWidgets('poll card advertises both access-path badges', (tester) async {
+  testWidgets('catalog is HONEST: mainnet vs local-replica badges (UXR-6)',
+      (tester) async {
     await _pumpDapps(tester);
-    expect(find.text('Backend direct'), findsOneWidget);
+
+    // The always-working mainnet example advertises that it works now.
+    expect(find.text('Works now · Mainnet'), findsOneWidget,
+        reason: 'The mainnet example must be clearly marked as working now');
+    // The developer example is honestly flagged as needing a local replica.
+    expect(find.text('Local replica'), findsOneWidget,
+        reason: 'The local-replica example must not masquerade as working');
+  });
+
+  testWidgets(
+      'every shipped example advertises the Backend-direct path; the poll '
+      'dapp also advertises Frontend-in-browser', (tester) async {
+    await _pumpDapps(tester);
+
+    // Every example supports Backend direct → one badge per card.
+    expect(find.text('Backend direct'), findsNWidgets(exampleDapps.length));
+    // Only the poll dapp exposes the frontend-browser path.
     expect(find.text('Frontend in browser'), findsOneWidget);
   });
 }

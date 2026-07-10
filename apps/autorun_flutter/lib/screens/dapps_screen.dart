@@ -148,7 +148,7 @@ class _DappCard extends StatelessWidget {
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
-                        maxLines: 3,
+                        maxLines: 4,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: AppDesignSystem.spacing12),
@@ -156,6 +156,7 @@ class _DappCard extends StatelessWidget {
                         spacing: AppDesignSystem.spacing8,
                         runSpacing: AppDesignSystem.spacing4,
                         children: [
+                          _EnvironmentBadge(descriptor: descriptor),
                           if (descriptor.hasBackendDirect)
                             _PathBadge(
                               icon: Icons.cable_rounded,
@@ -240,6 +241,28 @@ class _PathBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Distinguishes a real-mainnet example ("Works now") from a local-replica
+/// developer example ("Local replica"). Makes the catalog HONEST at a glance —
+/// a user instantly sees which examples need their own replica vs which work the
+/// moment they tap in. (UXR-6: never ship a silently-dead tab.)
+class _EnvironmentBadge extends StatelessWidget {
+  const _EnvironmentBadge({required this.descriptor});
+  final DappDescriptor descriptor;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool mainnet = descriptor.isMainnet;
+    final Color color = mainnet
+        ? AppDesignSystem.successColor
+        : AppDesignSystem.warningColor;
+    return _PathBadge(
+      icon: mainnet ? Icons.cloud_done_rounded : Icons.developer_mode_rounded,
+      label: mainnet ? 'Works now · Mainnet' : 'Local replica',
+      color: color,
     );
   }
 }

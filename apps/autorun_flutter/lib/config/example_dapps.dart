@@ -1,5 +1,18 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Where a shipped example's default canister LIVES. Drives the catalog badge
+/// + the runner's honest empty-state so a user never opens a silently-dead tab.
+enum DappEnvironment {
+  /// Points at a real PUBLIC mainnet canister — works for every user out of the
+  /// box, no setup. (HUMAN_EXPECTATIONS §3: talk to a REAL canister.)
+  mainnet,
+
+  /// Needs a LOCAL replica the user starts themselves (`dfx start --clean` +
+  /// `dfx deploy` from `examples/icp_poll_dapp`). A developer/teaching example;
+  /// the runner shows the exact commands to bring it up.
+  localReplica,
+}
+
 /// Access paths a dapp exposes. Each card in the Dapps catalog advertises the
 /// paths it supports so the runner knows which affordances to show.
 enum DappPath {
@@ -13,9 +26,11 @@ enum DappPath {
 
 /// Immutable descriptor for a shipped example dapp.
 ///
-/// The local-replica connection values ([backendCanisterId], [host]) are
-/// defaults only — they are NOT stable across a fresh `dfx start --clean`, so
-/// the runner UI lets users override them via [DappRuntimeConfig].
+/// The connection values ([backendCanisterId], [host]) are defaults only.
+/// For [DappEnvironment.localReplica] examples they are NOT stable across a
+/// fresh `dfx start --clean`, so the runner UI lets users override them via
+/// [DappRuntimeConfig]; for [DappEnvironment.mainnet] examples they are the
+/// real public values and need no override.
 class DappDescriptor {
   const DappDescriptor({
     required this.id,
@@ -26,6 +41,7 @@ class DappDescriptor {
     required this.host,
     required this.frontendUrl,
     required this.bundleAssetPath,
+    this.environment = DappEnvironment.mainnet,
     this.paths = const <DappPath>[
       DappPath.backendDirect,
       DappPath.frontendBrowser,
@@ -38,10 +54,14 @@ class DappDescriptor {
   final String description;
   final String emoji;
 
-  /// Default backend canister id for the local replica.
+  /// Where the default canister lives — drives the catalog badge + the
+  /// runner's empty-state copy.
+  final DappEnvironment environment;
+
+  /// Default backend canister id (mainnet public id, or a local-replica id).
   final String backendCanisterId;
 
-  /// Default replica host.
+  /// Default canister host (mainnet gateway, or a local-replica host).
   final String host;
 
   /// Hosted frontend URL (Path A: opened in the system browser).
@@ -54,15 +74,23 @@ class DappDescriptor {
 
   bool get hasBackendDirect => paths.contains(DappPath.backendDirect);
   bool get hasFrontendBrowser => paths.contains(DappPath.frontendBrowser);
+  bool get isMainnet => environment == DappEnvironment.mainnet;
+  bool get isLocalReplica => environment == DappEnvironment.localReplica;
 }
 
 // =============================================================================
-// Single source of truth for the local-replica connection defaults.
+// Single source of truth for the connection defaults shipped with each example.
 // =============================================================================
-// These match a replica deployed from examples/icp_poll_dapp. A fresh
-// `dfx start --clean` + `dfx deploy` regenerates different ids, which is
-// exactly why the runner exposes editable Connection fields. Reference these
-// constants symbolically rather than re-spelling the literals.
+// MAINNET examples reference real public canisters every user can reach — no
+// setup. The ICP ledger id is the well-known mainnet ICP ledger (verified live:
+// `symbol() → "ICP"`, `name() → "Internet Computer"`, `decimals() → 8`).
+const String kMainnetIcGateway = 'https://ic0.app';
+const String kMainnetIcpLedgerCanisterId = 'ryjl3-tyaaa-aaaaa-aaaba-cai';
+
+// LOCAL-REPLICA example: these match a replica deployed from
+// examples/icp_poll_dapp. A fresh `dfx start --clean` + `dfx deploy` regenerates
+// different ids, which is exactly why the runner exposes editable Connection
+// fields. Reference these constants symbolically rather than re-spelling them.
 const String kLocalPollBackendCanisterId = 'uxrrr-q7777-77774-qaaaq-cai';
 const String kLocalPollHost = 'http://127.0.0.1:4943';
 const String kLocalPollFrontendUrl =
@@ -70,18 +98,43 @@ const String kLocalPollFrontendUrl =
 
 /// Every example dapp shipped with the app. Add new entries here (and only
 /// here) — the catalog screen and runner both read from this list.
+///
+/// Order matters for UX: the always-working [DappEnvironment.mainnet] example
+/// is listed FIRST so a brand-new user lands on a tab that works out of the box,
+/// followed by the [DappEnvironment.localReplica] developer example.
 const List<DappDescriptor> exampleDapps = <DappDescriptor>[
+  // ── Always works: real mainnet canister, read-only ──────────────────────
+  DappDescriptor(
+    id: 'icp_ledger',
+    title: 'ICP Ledger',
+    emoji: '🪙',
+    description: 'Read the ICP token metadata (symbol, name, decimals) '
+        'straight from the live Internet Computer ledger on mainnet. '
+        'Works out of the box — no setup, no signing, read-only.',
+    backendCanisterId: kMainnetIcpLedgerCanisterId,
+    host: kMainnetIcGateway,
+    frontendUrl: '',
+    bundleAssetPath: 'lib/examples/07_icp_ledger.js',
+    environment: DappEnvironment.mainnet,
+    // The ledger is a backend-only canister (no hosted frontend UI).
+    paths: <DappPath>[DappPath.backendDirect],
+  ),
+
+  // ── Developer example: needs a local replica ────────────────────────────
   DappDescriptor(
     id: 'icp_poll',
     title: 'On-chain Polls',
     emoji: '🗳️',
-    description:
-        'Create polls and vote live on the Internet Computer. Authenticated '
+    description: 'Create polls and vote live on the Internet Computer. A '
+        'DEVELOPER example — start a local replica '
+        '(`cd examples/icp_poll_dapp && dfx start --clean && dfx deploy`), '
+        'then paste the backend canister id into Connection. Authenticated '
         'effects sign as your active profile — the bundle never holds keys.',
     backendCanisterId: kLocalPollBackendCanisterId,
     host: kLocalPollHost,
     frontendUrl: kLocalPollFrontendUrl,
     bundleAssetPath: 'lib/examples/06_icp_poll.js',
+    environment: DappEnvironment.localReplica,
   ),
 ];
 

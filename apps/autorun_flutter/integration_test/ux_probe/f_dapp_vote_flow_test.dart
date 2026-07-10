@@ -86,9 +86,12 @@ import 'r3_helpers.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  // The shipped poll dapp's stable id (single source of truth:
-  // exampleDapps.first.id). Keyed everywhere trust/config persist.
-  final String dappId = exampleDapps.first.id;
+  // The shipped poll dapp (referenced by stable id, NOT `.first` — the catalog
+  // intentionally lists the mainnet example first now, so registry order is not
+  // a test contract). Keyed everywhere trust/config persist.
+  final DappDescriptor pollDescriptor =
+      exampleDapps.firstWhere((d) => d.id == 'icp_poll');
+  final String dappId = pollDescriptor.id;
 
   // ===========================================================================
   // F — ONE through-the-catalog headline flow: real boot → catalog → runner →
@@ -142,7 +145,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
-      final pollCard = find.text(exampleDapps.first.title); // 'On-chain Polls'
+      final pollCard = find.text(pollDescriptor.title); // 'On-chain Polls'
       expect(presentR3(pollCard, tester), isTrue,
           reason: 'The "On-chain Polls" example dapp card must be in the '
               'catalog.');

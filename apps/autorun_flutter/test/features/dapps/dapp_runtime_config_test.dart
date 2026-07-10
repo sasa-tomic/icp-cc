@@ -89,18 +89,39 @@ void main() {
   });
 
   group('exampleDapps registry', () {
-    test('ships the on-chain poll dapp with the documented defaults', () {
+    test('ships the on-chain poll dapp (local-replica developer example)', () {
       expect(exampleDapps, isNotEmpty);
       final poll =
           exampleDapps.firstWhere((d) => d.id == 'icp_poll');
       expect(poll.title, 'On-chain Polls');
       expect(poll.bundleAssetPath, 'lib/examples/06_icp_poll.js');
-      // Defaults must reference the single source of truth constants.
+      // Defaults reference the single source of truth constants.
       expect(poll.backendCanisterId, kLocalPollBackendCanisterId);
       expect(poll.host, kLocalPollHost);
       expect(poll.frontendUrl, kLocalPollFrontendUrl);
+      expect(poll.isLocalReplica, isTrue,
+          reason: 'The poll dapp needs a local replica — must be flagged so');
       expect(poll.hasBackendDirect, isTrue);
       expect(poll.hasFrontendBrowser, isTrue);
+    });
+
+    // UXR-6: the registry must ship an always-working mainnet example so the
+    // Dapps tab is genuinely useful out of the box — never a silently-dead tab.
+    test('ships an always-working ICP Ledger mainnet example (UXR-6)', () {
+      final ledger =
+          exampleDapps.firstWhere((d) => d.id == 'icp_ledger');
+      expect(ledger.title, 'ICP Ledger');
+      expect(ledger.bundleAssetPath, 'lib/examples/07_icp_ledger.js');
+      // The real well-known mainnet ICP ledger id + gateway.
+      expect(ledger.backendCanisterId, kMainnetIcpLedgerCanisterId);
+      expect(ledger.backendCanisterId, 'ryjl3-tyaaa-aaaaa-aaaba-cai');
+      expect(ledger.host, kMainnetIcGateway);
+      expect(ledger.host, 'https://ic0.app');
+      expect(ledger.isMainnet, isTrue,
+          reason: 'The ledger example must be flagged as mainnet (works now)');
+      expect(ledger.hasBackendDirect, isTrue);
+      // The ledger is backend-only (no hosted frontend UI canister).
+      expect(ledger.hasFrontendBrowser, isFalse);
     });
   });
 }

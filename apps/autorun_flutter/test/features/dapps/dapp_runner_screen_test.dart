@@ -30,7 +30,13 @@ const MethodChannel _kUrlLauncherChannel =
 /// runtime captures that `initialArg` so the test asserts the plumbing
 /// directly, without executing the bundle or touching the network.
 void main() {
-  final DappDescriptor descriptor = exampleDapps.first;
+  // These tests exercise the runner via the shipped poll dapp (it advertises
+  // BOTH paths, including the frontend-browser affordance, and is the
+  // local-replica example whose Connection panel + unreachable hint they
+  // assert on). `exampleDapps.first` is NOT used because the registry order is
+  // intentional UX (mainnet example first), not a test contract.
+  final DappDescriptor descriptor =
+      exampleDapps.firstWhere((d) => d.id == 'icp_poll');
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -500,7 +506,8 @@ void main() {
   // failures (permission denial, Candid decode) leave it collapsed.
   // ─────────────────────────────────────────────────────────────────────────
   group('UX-12(b) Connection panel auto-expand', () {
-    final DappDescriptor dapp = exampleDapps.first;
+    final DappDescriptor dapp =
+        exampleDapps.firstWhere((d) => d.id == 'icp_poll');
 
     // The Connection panel is collapsed iff its editable fields are NOT in the
     // tree (the ExpansionTile lazy-builds its children only when expanded).
@@ -614,6 +621,45 @@ void main() {
       expect(find.text('Canister unreachable'), findsNothing);
       // The bridge was never called: denial is host-side.
       expect(bridge.anonymousCalls, 0);
+    });
+  });
+
+  // ===========================================================================
+  // UXR-6: honest empty-state for local-replica examples. The poll dapp needs a
+  // replica the USER starts; without one the tab is non-functional. The runner
+  // must state that requirement up front (banner naming the exact dfx commands)
+  // for the local-replica example, and must NOT show it for the mainnet example
+  // (which works out of the box — no setup needed).
+  // ===========================================================================
+  group('UXR-6 honest empty-state', () {
+    testWidgets(
+        'local-replica example shows a banner naming the dfx commands to start '
+        'a replica', (tester) async {
+      final dapp = exampleDapps.firstWhere((d) => d.id == 'icp_poll');
+      await _pumpRunner(tester, dapp, runtime: _RecordingRuntime());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey<String>('dappLocalReplicaBanner')),
+          findsOneWidget,
+          reason: 'A local-replica example must explain the setup requirement');
+      expect(find.text('Developer example — needs a local replica'),
+          findsOneWidget);
+      expect(find.textContaining('dfx start --clean'), findsOneWidget,
+          reason: 'The banner must name the exact command to start a replica');
+      expect(find.textContaining('dfx deploy'), findsOneWidget);
+    });
+
+    testWidgets(
+        'mainnet example shows NO local-replica banner (it works now)',
+        (tester) async {
+      final dapp = exampleDapps.firstWhere((d) => d.id == 'icp_ledger');
+      await _pumpRunner(tester, dapp, runtime: _RecordingRuntime());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey<String>('dappLocalReplicaBanner')),
+          findsNothing,
+          reason: 'A mainnet example needs no setup — no warning banner');
+      expect(find.textContaining('needs a local replica'), findsNothing);
     });
   });
 }
