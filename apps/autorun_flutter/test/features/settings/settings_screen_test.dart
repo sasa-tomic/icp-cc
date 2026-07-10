@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
 import 'package:icp_autorun/services/settings_service.dart';
@@ -11,6 +12,16 @@ void main() {
     setUp(() {
       SharedPreferences.setMockInitialValues({});
       settingsService = SettingsService();
+      // UXR7-5: pin the package info so the dynamic version string is
+      // deterministic in tests (default platform values vary by host).
+      PackageInfo.setMockInitialValues(
+        appName: 'icp_autorun',
+        packageName: 'icp_autorun',
+        version: '1.0.0',
+        buildNumber: '1',
+        buildSignature: '',
+        installerStore: null,
+      );
     });
 
     tearDown(() async {
@@ -163,6 +174,27 @@ void main() {
         expect(find.text('ABOUT'), findsOneWidget);
         expect(find.text('ICP Autorun'), findsOneWidget);
         expect(find.textContaining('Version'), findsOneWidget);
+      });
+
+      testWidgets(
+          'UXR7-5: version string is read dynamically from package info',
+          (WidgetTester tester) async {
+        // Reflect a release-style version + build number.
+        PackageInfo.setMockInitialValues(
+          appName: 'icp_autorun',
+          packageName: 'icp_autorun',
+          version: '2.3.4',
+          buildNumber: '42',
+          buildSignature: '',
+          installerStore: null,
+        );
+
+        await pumpSettingsScreen(tester);
+
+        // Rendered as "Version {version} ({buildNumber})", sourced from the
+        // platform rather than a hardcoded literal.
+        expect(find.text('Version 2.3.4 (42)'), findsOneWidget);
+        expect(find.text('Version 1.0.0 (1)'), findsNothing);
       });
 
       testWidgets(

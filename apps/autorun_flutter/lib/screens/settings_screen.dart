@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
@@ -35,16 +36,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _developerOptionsEnabled = false;
   int _versionTapCount = 0;
 
-  // App version info - can be updated via package_info_plus if needed
-  static const String _appVersion = '1.0.0';
-  static const String _buildNumber = '1';
+  // App version info — read dynamically from the platform via
+  // package_info_plus (UXR7-5). Populated in [_loadSettings].
+  String _appVersion = '';
+  String _buildNumber = '';
   static const int _tapsRequiredToUnlock = 7;
 
-  // External links
+  // External links (the marketplace URL is sourced from AppConfig so a single
+  // dart-define `MARKETPLACE_WEB_URL` drives every reference — UXR7-3).
   static const String _documentationUrl = 'https://github.com/kalaj01/icp-cc';
   static const String _reportIssueUrl =
       'https://github.com/kalaj01/icp-cc/issues';
-  static const String _marketplaceWebUrl = 'https://icp-mp.kalaj.org';
 
   @override
   void initState() {
@@ -56,10 +58,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeMode = await widget.settingsService.getThemeMode();
     final developerOptionsEnabled =
         await widget.settingsService.isDeveloperOptionsEnabled();
+    // UXR7-5: read the real version + build number instead of a hardcoded
+    // literal so releases reflect pubspec.yaml's `version: <x>+<y>`.
+    final info = await PackageInfo.fromPlatform();
     if (mounted) {
       setState(() {
         _themeMode = themeMode;
         _developerOptionsEnabled = developerOptionsEnabled;
+        _appVersion = info.version;
+        _buildNumber = info.buildNumber;
         _isLoading = false;
       });
     }
@@ -371,7 +378,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.store_outlined,
           label: 'Marketplace Website',
           subtitle: 'Browse scripts on the web',
-          onTap: () => _launchUrl(_marketplaceWebUrl),
+          onTap: () => _launchUrl(AppConfig.marketplaceWebUrl),
         ),
       ],
     );
