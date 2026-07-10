@@ -13,6 +13,7 @@ use crate::{
     models::{
         AppState, CreateScriptRequest, DeleteScriptRequest, ScriptDetailQuery,
         ScriptDetailResponse, ScriptsQuery, SearchRequest, UpdateScriptRequest, UpdateStatsRequest,
+        scripts_to_list_json,
     },
     responses::error_response,
     startup_checks::verify_script_ownership,
@@ -35,7 +36,7 @@ pub async fn get_scripts(
         Ok((scripts, total)) => Json(serde_json::json!({
             "success": true,
             "data": {
-                "scripts": scripts,
+                "scripts": scripts_to_list_json(&scripts),
                 "total": total,
                 "hasMore": (offset + limit) < total as i32
             }
@@ -351,7 +352,7 @@ pub async fn search_scripts(
             Json(serde_json::json!({
                 "success": true,
                 "data": {
-                    "scripts": result.scripts,
+                    "scripts": scripts_to_list_json(&result.scripts),
                     "total": result.total,
                     "hasMore": has_more,
                     "offset": result.offset,
@@ -381,7 +382,7 @@ pub async fn get_scripts_by_category(
             tracing::debug!("Category '{}' has {} scripts", category, scripts.len());
             Json(serde_json::json!({
                 "success": true,
-                "data": scripts
+                "data": scripts_to_list_json(&scripts)
             }))
             .into_response()
         }
@@ -440,7 +441,7 @@ pub async fn get_trending_scripts(Data(state): Data<&Arc<AppState>>) -> Response
     match state.script_service.get_trending(20).await {
         Ok(scripts) => Json(serde_json::json!({
             "success": true,
-            "data": scripts
+            "data": scripts_to_list_json(&scripts)
         }))
         .into_response(),
         Err(e) => {
@@ -458,7 +459,7 @@ pub async fn get_featured_scripts(Data(state): Data<&Arc<AppState>>) -> Response
     match state.script_service.get_featured(4.5, 10, 10).await {
         Ok(scripts) => Json(serde_json::json!({
             "success": true,
-            "data": scripts
+            "data": scripts_to_list_json(&scripts)
         }))
         .into_response(),
         Err(e) => {
@@ -480,7 +481,7 @@ pub async fn get_compatible_scripts(
     match state.script_service.get_compatible("all", 20).await {
         Ok(scripts) => Json(serde_json::json!({
             "success": true,
-            "data": scripts
+            "data": scripts_to_list_json(&scripts)
         }))
         .into_response(),
         Err(e) => {

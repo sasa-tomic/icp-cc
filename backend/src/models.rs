@@ -32,6 +32,37 @@ pub struct Script {
     pub author_name: Option<String>,
 }
 
+/// Browse-list serialization of `&[Script]` that OMITS the heavyweight
+/// `bundle` field from every item (IH-5, UXR-3).
+///
+/// The marketplace LIST endpoints (`/scripts`, `/scripts/featured`,
+/// `/scripts/trending`, `/scripts/category/:c`, `/scripts/compatible`,
+/// `/scripts/search`) only need metadata to render browse tiles; the full
+/// source ships separately via `GET /scripts/:id`, the capped `/preview`, or
+/// the signed `/download`.
+///
+/// This does NOT weaken the paid-script entitlement gate: those LIST endpoints
+/// never carried an entitlement decision in the first place (they returned the
+/// full bundle to EVERY caller), so dropping it entirely only tightens the
+/// contract. The gate itself still lives in `GET /scripts/:id` via
+/// `ScriptDetailResponse::entitled` / `::locked`.
+///
+/// Every non-`bundle` field is preserved verbatim — adding a column to
+/// `Script` flows through automatically, so this view can never drift from
+/// the model.
+pub fn scripts_to_list_json(scripts: &[Script]) -> serde_json::Value {
+    let mut value = serde_json::to_value(scripts)
+        .expect("Script derives Serialize over plain JSON scalars; serialization is infallible");
+    if let Some(arr) = value.as_array_mut() {
+        for item in arr.iter_mut() {
+            if let Some(obj) = item.as_object_mut() {
+                obj.remove("bundle");
+            }
+        }
+    }
+    value
+}
+
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Review {
