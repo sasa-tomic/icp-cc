@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DownloadRecord {
@@ -46,18 +47,28 @@ class DownloadHistoryService {
   List<DownloadRecord> _downloadHistory = [];
 
   Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final historyJson = prefs.getString(_downloadHistoryKey);
+
+    // No stored key yet (first run / cleared history) is the ONLY legitimate
+    // "empty" case — it is not an error.
+    if (historyJson == null) {
+      _downloadHistory = [];
+      return;
+    }
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final historyJson = prefs.getString(_downloadHistoryKey);
-      
-      if (historyJson != null) {
-        final List<dynamic> historyList = jsonDecode(historyJson);
-        _downloadHistory = historyList
-            .map((item) => DownloadRecord.fromJson(item as Map<String, dynamic>))
-            .toList();
-      }
-    } catch (e) {
-      // If loading fails, start with empty history
+      final List<dynamic> historyList = jsonDecode(historyJson);
+      _downloadHistory = historyList
+          .map((item) => DownloadRecord.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } on FormatException catch (e) {
+      // Stored history is unparseable JSON (e.g. a truncated/partial write).
+      // Discard it but surface the loss loudly (AGENTS.md: no silent failures)
+      // instead of swallowing every possible error as "empty". Unexpected
+      // errors — a structural/type mismatch in a stored record — propagate to
+      // the caller rather than being masked.
+      debugPrint('DownloadHistoryService: discarding unparseable history: $e');
       _downloadHistory = [];
     }
   }

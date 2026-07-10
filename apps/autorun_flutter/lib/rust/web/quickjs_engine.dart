@@ -782,7 +782,9 @@ class WebQuickJsEngine implements JsAppEngine {
         try {
           evalAndDump(ctx, 'while(true){}');
         } catch (_) {
-          // expected
+          // Expected: the Dart-closure interrupt handler halts the infinite
+          // loop by throwing. The proof of correctness is in `finally` — the
+          // closure must have fired enough times to set dartClosureFired.
         } finally {
           dartClosureFired = count > 50;
           ctx.dispose();
@@ -851,8 +853,12 @@ String? _jsonStringify(JSObject o) {
 /// Interrupted eval throws a JS `InternalError` with `message: "interrupted"`;
 /// OOM throws `InternalError: out of memory`.
 String _jsErrString(Object e) {
-  // `unwrapResult` throws a native JS Error; cast (not `is`-check) to read its
-  // name/message, falling back to toString() for non-JS values.
+  // Best-effort: render a thrown JS error's `name`/`message`. `e` may be any
+  // Dart value (a non-JSObject thrown by the runtime, or a JS object whose
+  // `name`/`message` properties have an unexpected type). The cast + read is
+  // wrapped because an ERROR RENDERER MUST NEVER THROW while rendering — this
+  // is not a silent swallow: it falls through to a deterministic `toString()`
+  // below.
   try {
     final obj = e as JSObject;
     if (obj.typeofEquals('object')) {
@@ -863,7 +869,7 @@ String _jsErrString(Object e) {
       }
     }
   } catch (_) {
-    // e was not a JSObject — fall through.
+    // `e` was not a JSObject, or a property had an unexpected type — fall back.
   }
   return e.toString();
 }

@@ -492,6 +492,12 @@ bool _looksLikeJson(String s) {
 /// Render a thrown JS error to a string (name + message, like the quickjs
 /// helper). agent-js errors carry a `message` (and sometimes `name`).
 String _jsErrString(Object e) {
+  // Best-effort: render a thrown JS error's `name`/`message`. `e` may be any
+  // Dart value (a non-JSObject thrown by the runtime, or a JS object whose
+  // `name`/`message` properties have an unexpected type). The cast + read is
+  // wrapped because an ERROR RENDERER MUST NEVER THROW while rendering — this
+  // is not a silent swallow: it falls through to a deterministic `toString()`
+  // below.
   try {
     final obj = e as JSObject;
     if (obj.typeofEquals('object')) {
@@ -502,7 +508,7 @@ String _jsErrString(Object e) {
       }
     }
   } catch (_) {
-    // e was not a JSObject — fall through.
+    // `e` was not a JSObject, or a property had an unexpected type — fall back.
   }
   return e.toString();
 }

@@ -26,6 +26,7 @@
 ///   Service"; the single source for that guidance is [LinuxSecretServiceHelp].
 library;
 
+import 'dart:convert' show utf8;
 import 'dart:io' show File, Platform, Process, ProcessResult;
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
@@ -101,7 +102,19 @@ class LinuxSecretServiceHelp {
     try {
       final file = File('/etc/os-release');
       if (!file.existsSync()) return '';
-      final lines = file.readAsLinesSync();
+      // Bound the read so a pathological/huge file can never stall readiness
+      // probing (AGENTS.md: all I/O must be bounded). 8 KiB dwarfs any real
+      // os-release (typically <1 KiB), and `ID=`/`ID_LIKE=` are always near
+      // the top of the file, so a truncated tail is harmless.
+      const int maxBytes = 8 * 1024;
+      String contents;
+      final handle = file.openSync();
+      try {
+        contents = utf8.decode(handle.readSync(maxBytes), allowMalformed: true);
+      } finally {
+        handle.closeSync();
+      }
+      final lines = contents.split('\n');
       String id = '';
       String idLike = '';
       for (final line in lines) {
