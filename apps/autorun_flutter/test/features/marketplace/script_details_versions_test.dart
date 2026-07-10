@@ -351,6 +351,28 @@ void main() {
       expect(find.text('Only one version available'), findsOneWidget);
     });
 
+    // W6-6: the REAL backend currently answers GET /scripts/:id/versions with
+    // 404 (endpoint not deployed). `getScriptVersions` maps that to `[]`
+    // (contract preserved — do NOT change), so the Versions tab MUST fall into
+    // its empty-state branch and render the heading + "No version history"
+    // message — NOT a blank panel. This pins the 404 path explicitly (the
+    // sibling test above only covers 200 + empty `data`, which is the same `[]`
+    // downstream but a different wire shape).
+    testWidgets(
+        'shows heading + empty state when the versions endpoint returns 404 '
+        '(W6-6)', (WidgetTester tester) async {
+      await pumpDialog(tester, versions: [], versionsStatusCode: 404);
+
+      await tester.tap(find.text('Versions'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Version History'), findsOneWidget,
+          reason: 'heading must render even when the backend 404s');
+      expect(find.text('No version history'), findsOneWidget,
+          reason: '404 → [] → empty-state branch must render');
+      expect(find.text('Only one version available'), findsOneWidget);
+    });
+
     testWidgets('displays version download count', (WidgetTester tester) async {
       final versions = [
         ScriptVersion(
