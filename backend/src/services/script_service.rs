@@ -233,6 +233,12 @@ impl ScriptService {
         self.repo.get_by_category(category, limit).await
     }
 
+    /// Distinct public categories — content-derived (HUMAN_EXPECTATIONS §2:
+    /// derive truth from content, not a hardcoded list).
+    pub async fn get_categories(&self) -> Result<Vec<String>, sqlx::Error> {
+        self.repo.distinct_categories().await
+    }
+
     pub async fn get_trending(&self, limit: i32) -> Result<Vec<Script>, sqlx::Error> {
         self.repo.get_trending(limit).await
     }

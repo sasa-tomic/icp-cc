@@ -166,34 +166,6 @@ void main() {
         service.resetHttpClient();
       });
 
-      test('getFeaturedScripts throws on HTTP error', () async {
-        final client = MockClient((request) async {
-          return http.Response('Server error', 500,
-              reasonPhrase: 'Internal Server Error');
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        expect(
-          () => service.getFeaturedScripts(),
-          throwsA(isA<Exception>()),
-        );
-      });
-
-      test('getTrendingScripts throws on HTTP error', () async {
-        final client = MockClient((request) async {
-          return http.Response('Server error', 503,
-              reasonPhrase: 'Service Unavailable');
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        expect(
-          () => service.getTrendingScripts(),
-          throwsA(isA<Exception>()),
-        );
-      });
-
       test('getMarketplaceStats throws on HTTP error', () async {
         final client = MockClient((request) async {
           return http.Response('Server error', 502,
@@ -221,22 +193,8 @@ void main() {
         );
       });
 
-      test('getFeaturedScripts throws on API error response', () async {
-        final client = MockClient((request) async {
-          return http.Response(
-            jsonEncode({'success': false, 'error': 'Database unavailable'}),
-            200,
-          );
-        });
-        service.overrideHttpClient(client);
-        addTearDown(client.close);
-
-        expect(
-          () => service.getFeaturedScripts(),
-          throwsA(isA<Exception>().having((e) => e.toString(), 'message',
-              contains('Database unavailable'))),
-        );
-      });
+      // Note: getFeaturedScripts / getTrendingScripts tests were REMOVED with
+      // the dead client methods (AUD-12) — they had no production callers.
     });
   });
 }

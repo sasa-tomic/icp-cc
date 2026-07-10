@@ -262,51 +262,11 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     }
   }
 
-  // Get featured scripts
-  Future<List<MarketplaceScript>> getFeaturedScripts({int limit = 10}) async {
-    final response = await _httpClient
-        .get(Uri.parse('${ApiRoutes.scriptsFeatured}?limit=$limit'))
-        .timeout(AppDurations.browseTimeout);
-
-    if (response.statusCode > 299) {
-      throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
-    }
-
-    final responseData = jsonDecode(response.body);
-    if (!responseData['success']) {
-      throw Exception(
-          responseData['error'] ?? 'Failed to get featured scripts');
-    }
-
-    final data = responseData['data'] as List;
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map((script) => MarketplaceScript.fromJson(script))
-        .toList();
-  }
-
-  // Get trending scripts
-  Future<List<MarketplaceScript>> getTrendingScripts({int limit = 10}) async {
-    final response = await _httpClient
-        .get(Uri.parse('${ApiRoutes.scriptsTrending}?limit=$limit'))
-        .timeout(AppDurations.browseTimeout);
-
-    if (response.statusCode > 299) {
-      throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
-    }
-
-    final responseData = jsonDecode(response.body);
-    if (!responseData['success']) {
-      throw Exception(
-          responseData['error'] ?? 'Failed to get trending scripts');
-    }
-
-    final data = responseData['data'] as List;
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map((script) => MarketplaceScript.fromJson(script))
-        .toList();
-  }
+  // Note: getFeaturedScripts / getTrendingScripts client methods were REMOVED
+  // (AUD-12): they had no production callers (only their own self-tests) —
+  // YAGNI. The backend `/scripts/featured` + `/scripts/trending` endpoints
+  // remain (covered by `list_bundle_omission_tests`); re-add a typed client
+  // method only when a screen actually consumes them.
 
   // Get scripts by category
   Future<List<MarketplaceScript>> getScriptsByCategory(

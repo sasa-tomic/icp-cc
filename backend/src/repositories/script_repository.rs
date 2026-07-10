@@ -405,6 +405,20 @@ impl ScriptRepository {
             .await
     }
 
+    /// The distinct, non-empty categories among PUBLIC, non-deleted scripts —
+    /// the content-derived source of truth for the `/scripts/categories`
+    /// endpoint (single source, vs a hardcoded client list). Ordered
+    /// alphabetically for stable UX.
+    pub async fn distinct_categories(&self) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT DISTINCT category FROM scripts \
+             WHERE is_public = 1 AND deleted_at IS NULL AND category != '' \
+             ORDER BY category",
+        )
+        .fetch_all(&self.pool)
+        .await
+    }
+
     pub async fn get_trending(&self, limit: i32) -> Result<Vec<Script>, sqlx::Error> {
         let sql = format!(
             "SELECT {} FROM scripts LEFT JOIN accounts ON scripts.owner_account_id = accounts.id WHERE scripts.is_public = 1 AND scripts.deleted_at IS NULL ORDER BY scripts.downloads DESC, rating DESC LIMIT ?1",

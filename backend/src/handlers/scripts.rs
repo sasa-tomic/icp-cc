@@ -368,6 +368,28 @@ pub async fn search_scripts(
     }
 }
 
+/// `GET /api/v1/scripts/categories` — distinct, content-derived categories
+/// among public scripts. Fixes UXR-9: registered BEFORE `/scripts/:id` so the
+/// literal path `categories` is no longer shadowed by the `:id` capture (which
+/// previously returned the misleading "Script not found" for this route).
+#[handler]
+pub async fn get_script_categories(Data(state): Data<&Arc<AppState>>) -> Response {
+    match state.script_service.get_categories().await {
+        Ok(categories) => Json(serde_json::json!({
+            "success": true,
+            "data": { "categories": categories }
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to get script categories: {}", e);
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get script categories",
+            )
+        }
+    }
+}
+
 #[handler]
 pub async fn get_scripts_by_category(
     Path(category): Path<String>,

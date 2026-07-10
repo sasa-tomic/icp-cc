@@ -164,6 +164,7 @@ async fn main() -> Result<(), std::io::Error> {
     //   GET    /api/v1/scripts/featured               -> get_featured_scripts
     //   GET    /api/v1/scripts/compatible             -> get_compatible_scripts
     //   GET    /api/v1/scripts/category/:category     -> get_scripts_by_category
+    //   GET    /api/v1/scripts/categories             -> get_script_categories (BEFORE /:id)
     //   GET    /api/v1/scripts/:id                    -> get_script
     //   PUT    /api/v1/scripts/:id                    -> update_script
     //   DELETE /api/v1/scripts/:id                    -> delete_script
@@ -228,6 +229,10 @@ async fn main() -> Result<(), std::io::Error> {
         .at(
             "/api/v1/scripts/category/:category",
             get(handlers::get_scripts_by_category),
+        )
+        .at(
+            "/api/v1/scripts/categories",
+            get(handlers::get_script_categories),
         )
         .at(
             "/api/v1/scripts/:id",

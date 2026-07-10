@@ -29,8 +29,6 @@ abstract final class ApiRoutes {
   static String scriptVersion(String id, String version) =>
       '$base/scripts/$id/versions/$version';
   static String scriptDelete(String id) => '$base/scripts/$id/delete';
-  static String get scriptsFeatured => '$base/scripts/featured';
-  static String get scriptsTrending => '$base/scripts/trending';
   static String scriptsByCategory(String category) =>
       '$base/scripts/category/$category';
   static String get scriptsCompatible => '$base/scripts/compatible';
