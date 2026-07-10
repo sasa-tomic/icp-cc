@@ -286,7 +286,34 @@ void main() {
 
       await expectLater(
         service.getIcpayConfig(),
-        throwsA(isA<FormatException>()),
+        throwsA(isA<PaymentsConfigMalformedException>()
+            .having((e) => e.detail, 'detail', contains('shortcode'))),
+      );
+    });
+
+    test('throws when the 200 config omits apiUrl (NO silent client fallback)',
+        () async {
+      // AUD-8: the client must not carry a duplicated api.icpay.org literal.
+      // A missing apiUrl is a malformed server config — fail loudly with a typed
+      // error carrying the raw body, never a silent fallback to a stale host.
+      final client = MockClient((request) async {
+        return ok(jsonEncode({
+          'success': true,
+          'data': {
+            'publishableKey': 'pk_test_abc',
+            'shortcode': 'ic_icp',
+            // apiUrl intentionally missing — must NOT fall back to a literal.
+          },
+        }));
+      });
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      await expectLater(
+        service.getIcpayConfig(),
+        throwsA(isA<PaymentsConfigMalformedException>()
+            .having((e) => e.detail, 'detail', contains('apiUrl'))
+            .having((e) => e.rawBody, 'rawBody', contains('shortcode'))),
       );
     });
 

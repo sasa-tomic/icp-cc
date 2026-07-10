@@ -43,6 +43,21 @@ class PaymentsNotConfiguredException implements Exception {
       'PaymentsNotConfiguredException: ICPay publishable key not set on server';
 }
 
+/// Thrown when the ICPay config payload is structurally incomplete — i.e. the
+/// backend returned 200 `success:true` but a required field (`shortcode` or
+/// `apiUrl`) is missing/empty. Carries the raw body so the caller can surface
+/// exactly what the server sent. This is a LOUD failure: the client must NOT
+/// silently substitute a duplicated literal for the missing value (AUD-8 — the
+/// backend is the single source for the ICPay API host).
+class PaymentsConfigMalformedException implements Exception {
+  final String detail;
+  final String rawBody;
+  const PaymentsConfigMalformedException(this.detail, this.rawBody);
+  @override
+  String toString() =>
+      'PaymentsConfigMalformedException: $detail (raw body: $rawBody)';
+}
+
 /// Thrown by `GET /api/v1/scripts/:id/reviews` when the response `data` does
 /// not match the backend contract `{reviews: [...], total: int, hasMore: bool}`.
 /// Surfaced loudly (and rethrown) so the UI shows a real error instead of
@@ -502,8 +517,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (data is! Map<String, dynamic>) {
         throw Exception('ICPay config response missing data field');
       }
-      return IcpayClientConfig.fromJson(data);
+      return IcpayClientConfig.fromJson(data, rawBody: response.body);
     } on PaymentsNotConfiguredException {
+      rethrow;
+    } on PaymentsConfigMalformedException {
       rethrow;
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get ICPay config failed: $e');
@@ -1448,7 +1465,8 @@ class IcpayClientConfig {
     required this.apiUrl,
   });
 
-  factory IcpayClientConfig.fromJson(Map<String, dynamic> json) {
+  factory IcpayClientConfig.fromJson(Map<String, dynamic> json,
+      {required String rawBody}) {
     // The token shortcode is the canonical token id used to charge callers.
     // It MUST come from the backend payments config (single source: the
     // server's ICPAY_TOKEN_SHORTCODE); never silently shadowed by a client-side
@@ -1457,15 +1475,27 @@ class IcpayClientConfig {
     // getIcpayConfig).
     final shortcode = json['shortcode'] as String?;
     if (shortcode == null || shortcode.isEmpty) {
-      throw FormatException(
+      throw PaymentsConfigMalformedException(
         'ICPay config is missing the required "shortcode" field — the backend '
-        'payments config is incomplete.',
+            'payments config is incomplete',
+        rawBody,
+      );
+    }
+    // The ICPay API host MUST come from the backend (AUD-8: no duplicated
+    // client-side literal fallback). If absent the server config is incomplete
+    // — fail loudly rather than silently pointing at a stale host.
+    final apiUrl = json['apiUrl'] as String?;
+    if (apiUrl == null || apiUrl.isEmpty) {
+      throw PaymentsConfigMalformedException(
+        'ICPay config is missing the required "apiUrl" field — the backend '
+            'payments config is incomplete',
+        rawBody,
       );
     }
     return IcpayClientConfig(
       publishableKey: json['publishableKey'] as String? ?? '',
       shortcode: shortcode,
-      apiUrl: json['apiUrl'] as String? ?? 'https://api.icpay.org',
+      apiUrl: apiUrl,
     );
   }
 

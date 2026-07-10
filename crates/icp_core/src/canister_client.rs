@@ -13,6 +13,12 @@ use std::vec::Vec as StdVec;
 use thiserror::Error;
 use tokio::time::timeout;
 
+/// The default IC mainnet gateway. Single source of truth across the native
+/// core AND the backend IC CORS proxy — the backend references this via
+/// `icp_core::DEFAULT_IC_GATEWAY` (re-exported in `lib.rs`). Override at runtime
+/// with the `IC_GATEWAY_HOST` env var (backend) or the `host` argument (core).
+pub const DEFAULT_IC_GATEWAY: &str = "https://ic0.app";
+
 /// Maximum wall-clock time for a single synchronous canister FFI call before it
 /// is aborted. These calls run on a `tokio::runtime::Runtime::block_on(...)` and
 /// are invoked synchronously from the Flutter UI thread via FFI, so without a
@@ -530,7 +536,7 @@ pub fn fetch_candid(canister_id: &str, host: Option<&str>) -> Result<String, Can
     use ic_agent::Agent;
 
     let canister = parse_principal(canister_id)?;
-    let host = host.unwrap_or("https://ic0.app");
+    let host = host.unwrap_or(DEFAULT_IC_GATEWAY);
 
     let agent = Agent::builder()
         .with_url(host)
@@ -577,7 +583,7 @@ pub fn call_anonymous(
 
     let canister = Principal::from_text(canister_id)
         .map_err(|_| CanisterClientError::InvalidCanisterId(canister_id.to_string()))?;
-    let host_url = host.unwrap_or("https://ic0.app");
+    let host_url = host.unwrap_or(DEFAULT_IC_GATEWAY);
     let agent = Agent::builder()
         .with_url(host_url)
         .build()
@@ -663,7 +669,7 @@ pub fn call_authenticated(
 
     let canister = Principal::from_text(canister_id)
         .map_err(|_| CanisterClientError::InvalidCanisterId(canister_id.to_string()))?;
-    let host_url = host.unwrap_or("https://ic0.app");
+    let host_url = host.unwrap_or(DEFAULT_IC_GATEWAY);
 
     let priv_bytes = base64::engine::general_purpose::STANDARD
         .decode(ed25519_private_key_b64)

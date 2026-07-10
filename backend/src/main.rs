@@ -118,11 +118,12 @@ async fn main() -> Result<(), std::io::Error> {
     warn_if_icpay_unconfigured();
 
     // R-3b WU-1: log the IC gateway host the CORS byte-relay proxy forwards
-    // to. Defaults to mainnet (https://ic0.app); unset just means "use the
-    // default" — the marketplace still boots and browses either way. Surfaced
-    // at boot so a misconfigured/overridden host is visible in logs.
+    // to. Defaults to mainnet (the shared `icp_core::DEFAULT_IC_GATEWAY` const,
+    // single source across core + backend); unset just means "use the default"
+    // — the marketplace still boots and browses either way. Surfaced at boot so
+    // a misconfigured/overridden host is visible in logs.
     let ic_gateway_host =
-        env::var("IC_GATEWAY_HOST").unwrap_or_else(|_| "https://ic0.app".to_string());
+        env::var("IC_GATEWAY_HOST").unwrap_or_else(|_| icp_core::DEFAULT_IC_GATEWAY.to_string());
     tracing::info!(
         "IC CORS proxy forwarding to IC_GATEWAY_HOST={} (route /api/v1/ic/*)",
         ic_gateway_host

@@ -52,13 +52,14 @@ fn shared_client() -> &'static reqwest::Client {
     })
 }
 
-/// The single upstream IC gateway host. Default `https://ic0.app` (the native
-/// default, `canister_client.rs:533`). Overridable via `IC_GATEWAY_HOST` for
-/// testing against a local mock or a different network. When the default is in
-/// use (var unset) the marketplace still boots and browses — the proxy simply
-/// relays to mainnet.
+/// The single upstream IC gateway host. Defaults to the shared native const
+/// `icp_core::DEFAULT_IC_GATEWAY` (single source of truth across core + backend
+/// — see `canister_client.rs`). Overridable via `IC_GATEWAY_HOST` for testing
+/// against a local mock or a different network. When the default is in use (var
+/// unset) the marketplace still boots and browses — the proxy simply relays to
+/// mainnet.
 fn gateway_host() -> String {
-    std::env::var("IC_GATEWAY_HOST").unwrap_or_else(|_| "https://ic0.app".to_string())
+    std::env::var("IC_GATEWAY_HOST").unwrap_or_else(|_| icp_core::DEFAULT_IC_GATEWAY.to_string())
 }
 
 /// Per-request network budget. Reuses the native `ICPCC_CANISTER_TIMEOUT_SECS`

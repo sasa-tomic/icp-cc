@@ -38,6 +38,12 @@ sha2 = "0.10"
 base64 = "0.22"
 ic-agent = "0.44"
 
+# Shared workspace core: the single source of truth for the IC mainnet gateway
+# default (`DEFAULT_IC_GATEWAY`), referenced by the IC CORS proxy + boot log so
+# the backend and native FFI core can never diverge on the gateway literal.
+# Reuses the workspace's already-compiled rlib (no extra build cost).
+icp_core = { path = "../crates/icp_core" }
+
 # R-3b WU-1: IC byte-relay CORS proxy. reqwest is the HTTP client that forwards
 # browser agent-js requests to ${IC_GATEWAY_HOST} (default ic0.app). rustls-tls
 # matches the rest of the stack (sqlx uses runtime-tokio-rustls). Explicit dep
