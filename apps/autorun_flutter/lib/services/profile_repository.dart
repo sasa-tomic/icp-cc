@@ -89,9 +89,13 @@ class ProfileRepository {
           final Map<String, dynamic> profileData =
               Map<String, dynamic>.from(item);
 
-          // Load keypairs with sensitive data from secure storage
+          // Load keypairs with sensitive data from secure storage. W6-5: use
+          // the nullable form (mirroring the `profiles` read above) so an
+          // old/malformed profile object omitting `keypairs` (or carrying it as
+          // null) is treated as an empty list — never a TypeError that would
+          // escape the FormatException corruption-recovery handler below.
           final List<dynamic> keypairsJson =
-              profileData['keypairs'] as List<dynamic>;
+              profileData['keypairs'] as List<dynamic>? ?? <dynamic>[];
           final List<ProfileKeypair> keypairs = [];
 
           for (final dynamic keypairItem in keypairsJson) {
