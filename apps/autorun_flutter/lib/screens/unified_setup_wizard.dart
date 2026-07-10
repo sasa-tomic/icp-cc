@@ -123,6 +123,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         backgroundColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.close),
+          tooltip: 'Close setup',
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -155,6 +156,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         backgroundColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.close),
+          tooltip: 'Close setup',
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -308,6 +310,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         backgroundColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.close),
+          tooltip: 'Close setup',
           onPressed: _isCreating ? null : () => Navigator.pop(context),
         ),
         title: Text(

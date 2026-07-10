@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:app_links/app_links.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'config/app_config.dart';
 import 'controllers/account_controller.dart';
@@ -27,6 +28,7 @@ import 'widgets/connectivity_scope.dart';
 import 'widgets/keyboard_shortcuts.dart';
 import 'widgets/profile_scope.dart';
 import 'widgets/profile_menu.dart';
+import 'widgets/profile_setup_chip.dart';
 import 'widgets/shortcuts_help_sheet.dart';
 import 'widgets/spotlight_overlay.dart';
 import 'widgets/script_details_dialog.dart';
@@ -386,6 +388,22 @@ class _MainHomePageState extends State<MainHomePage> {
     });
   }
 
+  /// Re-opens the [UnifiedSetupWizard] from the persistent "Set up profile"
+  /// affordance (IH-9 / UXR-8). This is the always-reachable path back to
+  /// profile creation after a user dismissed the first-run wizard. Mirrors the
+  /// first-run gate without forcing it — the user explicitly opted in by
+  /// tapping the chip.
+  void _reopenSetupWizard() {
+    presentSetupWizard(
+      context: context,
+      profileController: ProfileScope.of(context, listen: false),
+      accountController: _getAccountController(),
+      secureStorageReadiness: SecureStorageReadiness(),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   Future<void> _reloadTheme() async {
     final themeMode = await widget.settingsService.getThemeMode();
     widget.themeModeNotifier.value = themeMode;
@@ -396,6 +414,13 @@ class _MainHomePageState extends State<MainHomePage> {
     final profileController = ProfileScope.of(context);
     final activeProfile = profileController.activeProfile;
     final displayName = activeProfile?.name ?? 'Guest';
+    // IH-9 / UXR-8: when there is no profile at all, surface a persistent,
+    // always-visible "Set up profile" affordance in the top-right cluster so
+    // profile creation is reachable on every tab (the empty-state CTA is
+    // off-screen as soon as the user has any content). The wizard's own
+    // first-run gate separately remembers a deliberate dismissal, so this never
+    // forces a recurring wizard — it only gives a one-tap path back.
+    final needsProfileSetup = activeProfile == null;
 
     return DesktopShortcuts(
       onCreateScript: _handleCreateScript,
@@ -457,6 +482,13 @@ class _MainHomePageState extends State<MainHomePage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (needsProfileSetup)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ProfileSetupChip(
+                              onSetUp: _reopenSetupWizard,
+                            ),
+                          ),
                         if (DesktopShortcuts.isDesktop)
                           const Padding(
                             padding: EdgeInsets.only(right: 8),
@@ -466,6 +498,10 @@ class _MainHomePageState extends State<MainHomePage> {
                           key: _profileMenuKey,
                           displayName: displayName,
                           hasAccount: activeProfile?.username != null,
+                          // When setup is pending, the chip is the clear
+                          // primary CTA; keep the avatar compact to avoid a
+                          // redundant "No account" label next to it.
+                          showLabel: !needsProfileSetup,
                           onTap: _showProfileMenu,
                         ),
                       ],
@@ -509,10 +545,57 @@ class _MainHomePageState extends State<MainHomePage> {
   }
 }
 
-/// First-run gate. When the user has no profile yet, present the
-/// [UnifiedSetupWizard] so onboarding is guided (one form + success screen)
-/// instead of a dead-end empty Scripts screen. Returns whether the wizard was
-/// shown. Top-level so the first-run decision is unit-testable in isolation.
+/// SharedPreferences key recording that the user explicitly dismissed the
+/// first-run wizard without creating a profile (IH-9 / UXR-8). Honored by
+/// [showFirstRunSetupIfNeeded] so a deliberate dismissal is respected across
+/// restarts (no wizard loop), while [presentSetupWizard] (the persistent
+/// "Set up profile" affordance) stays reachable to re-enter setup at any time.
+const String _firstRunWizardDismissedKey = 'first_run_wizard_dismissed';
+
+/// Presents the [UnifiedSetupWizard] modally and records a dismissal when the
+/// user closes it without creating a profile ([result] is `null`). This is the
+/// single shared entry point for both the first-run gate and the persistent
+/// "Set up profile" affordance (DRY). Returns the wizard result (null =
+/// dismissed, non-null = profile created).
+Future<UnifiedSetupResult?> presentSetupWizard({
+  required BuildContext context,
+  required ProfileController profileController,
+  required AccountController accountController,
+  SecureStorageReadiness? secureStorageReadiness,
+}) async {
+  final result = await Navigator.of(context).push<UnifiedSetupResult>(
+    MaterialPageRoute<UnifiedSetupResult>(
+      fullscreenDialog: true,
+      builder: (_) => UnifiedSetupWizard(
+        profileController: profileController,
+        accountController: accountController,
+        // WU-S2: gate profile creation on secure-storage readiness so the
+        // wizard can complete on Linux (and surface an actionable panel +
+        // attempt gnome-keyring auto-start when the keyring is down). When
+        // null (unit tests), the gate is skipped.
+        secureStorageReadiness: secureStorageReadiness,
+      ),
+    ),
+  );
+  if (result == null) {
+    // The user chose to browse as a guest. Remember that choice so the wizard
+    // does NOT force-reappear on every restart; the persistent "Set up profile"
+    // affordance keeps profile creation one tap away instead.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_firstRunWizardDismissedKey, true);
+  }
+  return result;
+}
+
+/// First-run gate. When the user has no profile yet AND has not previously
+/// dismissed the wizard, present the [UnifiedSetupWizard] so onboarding is
+/// guided (one form + success screen) instead of a dead-end empty Scripts
+/// screen. Returns whether the wizard was shown. Top-level so the first-run
+/// decision is unit-testable in isolation.
+///
+/// A deliberate dismissal is remembered (IH-9 / UXR-8): the wizard never
+/// loops on restart. Profile creation stays reachable via the persistent
+/// "Set up profile" affordance in the shell (see [presentSetupWizard]).
 Future<bool> showFirstRunSetupIfNeeded({
   required BuildContext context,
   required ProfileController profileController,
@@ -522,19 +605,23 @@ Future<bool> showFirstRunSetupIfNeeded({
   if (profileController.profiles.isNotEmpty) {
     return false;
   }
-  await Navigator.of(context).push<UnifiedSetupResult>(
-    MaterialPageRoute<UnifiedSetupResult>(
-      fullscreenDialog: true,
-      builder: (_) => UnifiedSetupWizard(
-        profileController: profileController,
-        accountController: accountController,
-        // WU-S2: gate profile creation on secure-storage readiness so the
-        // wizard can complete on Linux (and surface an actionable panel +
-        // attempt gnome-keyring auto-start when the keyring is down). When
-        // null (unit tests of the gate), the gate is skipped.
-        secureStorageReadiness: secureStorageReadiness,
-      ),
-    ),
+  final prefs = await SharedPreferences.getInstance();
+  if (prefs.getBool(_firstRunWizardDismissedKey) ?? false) {
+    // The user previously dismissed the wizard; respect that choice rather
+    // than nagging them on every launch. The persistent shell affordance is
+    // the path back.
+    return false;
+  }
+  await presentSetupWizard(
+    // The await on SharedPreferences above spans an async gap, but the only
+    // caller (MainHomePage._checkAndShowOnboarding) guards with `mounted`
+    // before invoking the gate, so the context is still valid. Mirrors the
+    // ignore pattern used throughout this deep-link/gate file.
+    // ignore: use_build_context_synchronously
+    context: context,
+    profileController: profileController,
+    accountController: accountController,
+    secureStorageReadiness: secureStorageReadiness,
   );
   return true;
 }
