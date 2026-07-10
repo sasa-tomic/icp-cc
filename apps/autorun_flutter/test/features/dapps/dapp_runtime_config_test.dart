@@ -35,12 +35,12 @@ void main() {
       await DappRuntimeConfig.save(
         descriptor.id,
         backendCanisterId: 'my-replica-canister',
-        host: 'http://192.168.1.5:8080',
+        host: 'https://replica.example',
       );
 
       final cfg = await DappRuntimeConfig.load(descriptor);
       expect(cfg.backendCanisterId, 'my-replica-canister');
-      expect(cfg.host, 'http://192.168.1.5:8080');
+      expect(cfg.host, 'https://replica.example');
     });
 
     test('an empty-string override falls back to the default', () async {

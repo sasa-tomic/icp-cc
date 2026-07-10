@@ -154,7 +154,7 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('dappBackendIdField')), 'my-custom-canister-id');
     await tester.enterText(
-        find.byKey(const Key('dappHostField')), 'http://10.0.0.9:8000');
+        find.byKey(const Key('dappHostField')), 'https://replica.example');
     await tester.pump();
 
     await tester.tap(find.text('Apply'));
@@ -163,11 +163,11 @@ void main() {
     // Persisted: a fresh load now returns the overridden values.
     final persisted = await DappRuntimeConfig.load(descriptor);
     expect(persisted.backendCanisterId, 'my-custom-canister-id');
-    expect(persisted.host, 'http://10.0.0.9:8000');
+    expect(persisted.host, 'https://replica.example');
 
     // Remounted: the host re-booted with the NEW initialArg.
     expect(runtime.lastInitialArg!['backend_id'], 'my-custom-canister-id');
-    expect(runtime.lastInitialArg!['host'], 'http://10.0.0.9:8000');
+    expect(runtime.lastInitialArg!['host'], 'https://replica.example');
   });
 
   testWidgets('Apply with an empty canister id is rejected (no persistence)',
