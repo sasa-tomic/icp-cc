@@ -80,8 +80,17 @@ class DownloadHistoryService {
         _downloadHistory.map((record) => record.toJson()).toList(),
       );
       await prefs.setString(_downloadHistoryKey, historyJson);
-    } catch (e) {
-      // Silently fail for now - in production, you'd want to log this
+    } catch (e, st) {
+      // A swallowed write error would silently drop the user's download
+      // history on the next load. Fail loudly instead: log the body +
+      // context, then rethrow so callers (addToHistory/removeFromHistory/
+      // clearHistory) can surface a SnackBar. See AGENTS.md: no silent
+      // failures; matches BookmarksService._saveToStorage (QS-10).
+      debugPrint(
+        'DownloadHistoryService: failed to persist download history '
+        '(${_downloadHistory.length} records): $e\n$st',
+      );
+      throw Exception('Failed to save download history: $e');
     }
   }
 
