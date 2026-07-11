@@ -239,11 +239,13 @@ Suggested sequence: P1 first (W6-1, W6-2, W6-11, W6-13), then P2, then P3.
 
 ## §7. Follow-ups (surfaced by Wave-6, not blockers)
 
-- **Slow recovery test** (`generate_returns_twelve_unique_codes_and_status_reflects_them`, ~60s — Argon2id ×12): tune/batch or `#[ignore]`-by-default. Dev-cycle concern.
-- **webauthn-rs in-blob counter-replay gap:** `passkey_service` never re-serialises the `Passkey` blob → monotonic-counter enforcement never fires (primary single-use-challenge guard IS tested). Deeper service-design fix.
-- **Async test consumers** `script_repository_api_test.dart:299,348` call `generateTestSignature` without `await` (latent — stores Future in metadata; harmless since backend doesn't strictly verify there).
-- **TQ-W6-2e:** dedicated repository unit tests (account/passkey/script/review_repository) — P2.
-- **Split candidates** (at but not over the 2k-line threshold): `account_profile_screen.dart` (1977), `account_service.rs` (1990), `marketplace_open_api_service.dart` (1514, now refactored with helper).
-- **`web_probe_*_main.dart`** (4 dev-only harnesses, ~31KB) live in `lib/` — consider relocating to `tool/`.
-- **Narrow mobile-width dialog:** pre-existing `RenderFlex` overflow in script-details header badges (out of scope; tolerated by W6-10 narrow test).
-- **Frontend category list** still hardcoded (could consume `/scripts/categories` — Wave-5 follow-up, still open).
+All resolved 2026-07-11 except split-candidates (deferred).
+
+- ✅ **Slow recovery test** — `#[ignore]`-by-default with run instructions.
+- ✅ **webauthn-rs in-blob counter-replay gap** — `passkey_service` now re-serialises the `Passkey` blob via `update_credential` after each auth + persists via `update_passkey_public_key`; regression test covers non-monotonic assertion rejection.
+- ✅ **Async test consumers** — `script_repository_api_test.dart:299,348` now `await` `generateTestSignature`.
+- ✅ **TQ-W6-2e:** `backend/tests/repository_tests.rs` — 50 dedicated repo unit tests (account 18, script 23, review 6). Passkey repo already covered by `passkey_tests.rs`.
+- ⏸️ **Split candidates** (all under 2k threshold — deferred per KISS/YAGNI): `account_profile_screen.dart` (1977), `account_service.rs` (1990), `marketplace_open_api_service.dart` (~1442).
+- ✅ **`web_probe_*_main.dart`** — relocated from `lib/` to `tool/` with `package:` imports.
+- ✅ **Narrow mobile-width dialog** — header badges `Row`→`Wrap` in `script_details_dialog.dart`.
+- ✅ **Frontend category list** — now consumes `/scripts/categories` via `fetchCategories()` with static fallback.
