@@ -19,17 +19,18 @@
 //! - Replay guard: a consumed challenge id cannot be reused.
 //! - Counter advancement: a successful assertion advances the stored counter.
 //! - Origin binding: an assertion with a mismatched origin fails verification.
+//! - In-blob counter-replay: the serialised `Passkey` blob is re-persisted after
+//!   each auth, so a non-monotonic counter (replayed assertion) is rejected on
+//!   the NEXT authentication.
 //!
-//! ## Honest scope note — the WebAuthn counter-replay gap
+//! ## In-blob counter-replay (closed)
 //! `webauthn-rs` guards against cloned authenticators by rejecting a
 //! non-monotonic counter. That check compares the assertion counter against the
-//! counter captured in the `Passkey` *serialised blob* (the credential stored
-//! at registration time carries counter 0). The service updates only a SEPARATE
-//! DB `counter` column after each auth — it never re-serialises the blob — so
-//! the in-blob counter stays 0 and `webauthn-rs` treats it as
-//! "counter-not-supported" (no enforcement). That is a latent service-level gap
-//! (the blob counter is never advanced) and is therefore not unit-testable at
-//! this boundary; it is flagged here rather than papered over with a mock.
+//! counter captured in the `Passkey` *serialised blob*. The service now
+//! re-serialises + re-persists the blob after each successful auth (via
+//! `Passkey::update_credential`) so the in-blob counter advances and the
+//! monotonic-enforcement check actually fires. Proven by
+//! `in_blob_counter_replay_rejects_non_monotonic_assertion`.
 
 use icp_marketplace_api::{
     db::initialize_database,
@@ -449,6 +450,78 @@ async fn finish_authentication_rejects_wrong_origin() {
 // ============================================================================
 // Passkey management: list + delete (business rules)
 // ============================================================================
+
+#[tokio::test]
+async fn in_blob_counter_replay_rejects_non_monotonic_assertion() {
+    // Regression test for the in-blob counter-replay gap. The service must
+    // re-serialise the `Passkey` blob after each auth so webauthn-rs's
+    // monotonic-counter check fires on the NEXT authentication. Before the
+    // fix the blob counter stayed at 0 forever, so a replayed (non-increasing)
+    // counter was never rejected at this boundary.
+    let (service, pool) = setup().await;
+    let account_id = "principal-counter-replay";
+    seed_principal(&pool, account_id).await;
+    let auth = register_one(&service, account_id).await.0;
+
+    // First authentication with counter 1 — must succeed (blob starts at 0).
+    let start1 = service
+        .start_authentication(account_id)
+        .await
+        .expect("first start must succeed");
+    let cred1 = auth
+        .authenticate_response(&start1.options, RP_ORIGIN, 1)
+        .expect("soft authenticator must build assertion");
+    service
+        .finish_authentication(PasskeyAuthenticationFinish {
+            challenge_id: start1.challenge_id.clone(),
+            credential: cred1,
+        })
+        .await
+        .expect("first auth (counter 1 > blob 0) must succeed");
+
+    // Sanity: the blob MUST now carry counter 1, not the registration-time 0.
+    // We verify behaviourally — a fresh auth with the SAME counter (1) must be
+    // rejected because it is not strictly greater than the stored 1.
+    let start2 = service
+        .start_authentication(account_id)
+        .await
+        .expect("second start must succeed");
+    let replay_cred = auth
+        .authenticate_response(&start2.options, RP_ORIGIN, 1)
+        .expect("soft authenticator must build replay assertion");
+    let err = service
+        .finish_authentication(PasskeyAuthenticationFinish {
+            challenge_id: start2.challenge_id.clone(),
+            credential: replay_cred,
+        })
+        .await
+        .expect_err("non-monotonic counter (1, not > stored 1) must be rejected");
+
+    assert_eq!(err.status(), poem::http::StatusCode::UNAUTHORIZED);
+    assert!(
+        err.message().contains("WebAuthn verification failed"),
+        "replayed counter must fail verification, got: {}",
+        err.message(),
+    );
+
+    // And a genuinely-higher counter (2 > 1) must succeed on the next attempt —
+    // proving the guard is monotonic, not "always reject".
+    let start3 = service
+        .start_authentication(account_id)
+        .await
+        .expect("third start must succeed");
+    let cred3 = auth
+        .authenticate_response(&start3.options, RP_ORIGIN, 2)
+        .expect("soft authenticator must build assertion");
+    let resolved = service
+        .finish_authentication(PasskeyAuthenticationFinish {
+            challenge_id: start3.challenge_id.clone(),
+            credential: cred3,
+        })
+        .await
+        .expect("higher counter (2 > stored 1) must succeed");
+    assert_eq!(resolved, account_id);
+}
 
 #[tokio::test]
 async fn list_passkeys_is_empty_for_unknown_account() {

@@ -125,6 +125,25 @@ impl PasskeyRepository {
         Ok(())
     }
 
+    /// Re-persists the serialized `Passkey` blob (which embeds the monotonic
+    /// counter + backup-eligibility flags). MUST be called after a successful
+    /// authentication when `Passkey::update_credential` reports a change,
+    /// otherwise the counter inside the blob never advances and
+    /// `webauthn-rs`'s in-blob replay protection can never fire (each
+    /// `start_authentication` deserialises the stale blob).
+    pub async fn update_passkey_public_key(
+        &self,
+        id: &str,
+        public_key: &[u8],
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE passkeys SET public_key = ? WHERE id = ?")
+            .bind(public_key)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete_passkey(&self, id: &str, account_id: &str) -> Result<bool, sqlx::Error> {
         let result = sqlx::query("DELETE FROM passkeys WHERE id = ? AND account_id = ?")
             .bind(id)

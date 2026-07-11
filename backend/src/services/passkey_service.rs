@@ -350,7 +350,7 @@ impl PasskeyService {
         // missed and the counter/last_used_at were silently never advanced.
         // (Surfaced by the W6-13 real-crypto auth round-trip test.)
         let cred_id = req.credential.get_credential_id();
-        if let Some(passkey) = self
+        if let Some(passkey_row) = self
             .repo
             .find_passkey_by_credential_id(cred_id)
             .await
@@ -358,9 +358,28 @@ impl PasskeyService {
         {
             let now = Utc::now().to_rfc3339();
             self.repo
-                .update_passkey_counter(&passkey.id, auth_result.counter() as i64, &now)
+                .update_passkey_counter(&passkey_row.id, auth_result.counter() as i64, &now)
                 .await
                 .map_err(|e| PasskeyError::Unauthorized(format!("DB error: {e}")))?;
+
+            // Re-serialise the Passkey blob so the monotonic counter (and backup
+            // flags) advance in persistent storage. Without this,
+            // `start_authentication` always deserialises the stale blob and
+            // webauthn-rs's in-blob counter-replay protection never fires — a
+            // captured assertion could be replayed indefinitely. `update_credential`
+            // returns `Some(true)` only when the counter/flags actually changed.
+            if let Ok(mut stored_passkey) =
+                serde_json::from_slice::<Passkey>(&passkey_row.public_key)
+            {
+                if stored_passkey.update_credential(&auth_result) == Some(true) {
+                    let updated_blob = serde_json::to_vec(&stored_passkey)
+                        .map_err(|e| PasskeyError::Internal(format!("Serialize error: {e}")))?;
+                    self.repo
+                        .update_passkey_public_key(&passkey_row.id, &updated_blob)
+                        .await
+                        .map_err(|e| PasskeyError::Unauthorized(format!("DB error: {e}")))?;
+                }
+            }
         }
 
         // Clean up challenge
