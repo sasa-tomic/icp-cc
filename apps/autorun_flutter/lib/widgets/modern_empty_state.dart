@@ -200,28 +200,27 @@ class _ModernEmptyStateState extends State<ModernEmptyState>
                     opacity: _contentFadeAnimation,
                     child: Column(
                       children: [
-                        Semantics(
-                          label: widget.title,
-                          child: Text(
-                            widget.title,
-                            style: context.textStyles.heading3.copyWith(
-                              color: context.colors.onSurface,
-                            ),
-                            textAlign: TextAlign.center,
+                        // W6-7: the `Text` already exposes its string to the
+                        // semantics tree, so a `Semantics(label: title)` wrapper
+                        // here would make screen readers announce each phrase
+                        // TWICE ("No Bookmarks Yet No Bookmarks Yet"). The bare
+                        // `Text` announces the title exactly once.
+                        Text(
+                          widget.title,
+                          style: context.textStyles.heading3.copyWith(
+                            color: context.colors.onSurface,
                           ),
+                          textAlign: TextAlign.center,
                         ),
-                        
+
                         const SizedBox(height: AppDesignSystem.spacing12),
-                        
-                        Semantics(
-                          label: widget.subtitle,
-                          child: Text(
-                            widget.subtitle,
-                            style: context.textStyles.bodyLarge.copyWith(
-                              color: context.colors.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
+
+                        Text(
+                          widget.subtitle,
+                          style: context.textStyles.bodyLarge.copyWith(
+                            color: context.colors.onSurfaceVariant,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
@@ -243,15 +242,25 @@ class _ModernEmptyStateState extends State<ModernEmptyState>
                       scale: _actionScaleAnimation,
                       child: Column(
                         children: [
+                          // W6-7: `container: true` makes this its own semantics
+                          // node so the button's label is NOT merged into the
+                          // surrounding content. We intentionally do NOT set a
+                          // `label` here: the inner `Text` exposes the action
+                          // string once, and setting `label` too would announce
+                          // it twice. `button: true` keeps the role
+                          // announcement (ModernButton is a GestureDetector, so
+                          // it doesn't set the button flag itself); the tap
+                          // action still flows up from the GestureDetector.
                           Semantics(
-                            label: widget.actionLabel!,
                             button: true,
+                            container: true,
                             child: ModernButton(
                               onPressed: widget.action,
                               variant: ModernButtonVariant.primary,
                               size: ModernButtonSize.large,
                               fullWidth: false,
-                              icon: const Icon(Icons.add_rounded, color: Colors.white),
+                              icon: const Icon(Icons.add_rounded,
+                                  color: Colors.white),
                               child: Text(widget.actionLabel!),
                             ),
                           ),

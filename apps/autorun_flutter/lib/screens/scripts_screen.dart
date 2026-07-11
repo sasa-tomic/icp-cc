@@ -521,6 +521,10 @@ class ScriptsScreenState extends State<ScriptsScreen>
 
       final createdScript = await _controller.createScript(
         title: '${script.title}$titleSuffix',
+        // W6-9: persist the marketplace artwork (iconUrl) so the installed
+        // tile keeps its icon instead of reverting to the generic 📦. The 📦
+        // emoji stays as the fallback shown when the image fails to load.
+        imageUrl: script.iconUrl,
         emoji: '📦',
         bundleOverride: bundle,
         metadata: {
@@ -830,6 +834,9 @@ class ScriptsScreenState extends State<ScriptsScreen>
     final effectiveVersion = script.version ?? '1.0.0';
     final createdScript = await _controller.createScript(
       title: '${script.title} (Marketplace)',
+      // W6-9: persist the marketplace artwork so the installed tile keeps its
+      // icon. 📦 remains the image-load-failure fallback.
+      imageUrl: script.iconUrl,
       emoji: '📦',
       bundleOverride: bundle,
       metadata: {

@@ -120,63 +120,98 @@ class _DappCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // W6-10 (b): the ENTIRE card used to be one giant button with a huge
+    // concatenated label (title + description + every badge merged together)
+    // so sub-actions weren't individually focusable. Now the primary "Open"
+    // action is a clean `Semantics(button:)` node labelled only with the
+    // title; the description and each path badge live in their OWN containers
+    // so screen-reader users can focus them individually. The whole card stays
+    // tappable (InkWell) for mouse/touch + keyboard (`_KeyboardActivable`).
     return Card(
       clipBehavior: Clip.antiAlias,
       child: _KeyboardActivable(
         onActivate: () => _open(context),
-        child: InkWell(
-          onTap: () => _open(context),
-          child: Padding(
-            padding: const EdgeInsets.all(AppDesignSystem.spacing16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _DappEmoji(emoji: descriptor.emoji),
-                const SizedBox(width: AppDesignSystem.spacing16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        descriptor.title,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: AppDesignSystem.spacing4),
-                      Text(
-                        descriptor.description,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+        child: Semantics(
+          button: true,
+          container: true,
+          label: 'Open ${descriptor.title}',
+          child: InkWell(
+            onTap: () => _open(context),
+            child: Padding(
+              padding: const EdgeInsets.all(AppDesignSystem.spacing16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Decorative emoji — exclude from semantics (the title is
+                  // already in the button label above).
+                  ExcludeSemantics(child: _DappEmoji(emoji: descriptor.emoji)),
+                  const SizedBox(width: AppDesignSystem.spacing16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title already announced via the button label.
+                        ExcludeSemantics(
+                          child: Text(
+                            descriptor.title,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
                         ),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: AppDesignSystem.spacing12),
-                      Wrap(
-                        spacing: AppDesignSystem.spacing8,
-                        runSpacing: AppDesignSystem.spacing4,
-                        children: [
-                          _EnvironmentBadge(descriptor: descriptor),
-                          if (descriptor.hasBackendDirect)
-                            _PathBadge(
-                              icon: Icons.cable_rounded,
-                              label: 'Backend direct',
-                              color: theme.colorScheme.primary,
+                        const SizedBox(height: AppDesignSystem.spacing4),
+                        // Description = its own focusable node.
+                        Semantics(
+                          container: true,
+                          child: Text(
+                            descriptor.description,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
-                          if (descriptor.hasFrontendBrowser)
-                            _PathBadge(
-                              icon: Icons.open_in_new_rounded,
-                              label: 'Frontend in browser',
-                              color: theme.colorScheme.tertiary,
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(height: AppDesignSystem.spacing12),
+                        // Each path/environment badge = its own focusable
+                        // node so they're announced individually (W6-10 b).
+                        Wrap(
+                          spacing: AppDesignSystem.spacing8,
+                          runSpacing: AppDesignSystem.spacing4,
+                          children: [
+                            Semantics(
+                              container: true,
+                              child:
+                                  _EnvironmentBadge(descriptor: descriptor),
                             ),
-                        ],
-                      ),
-                    ],
+                            if (descriptor.hasBackendDirect)
+                              Semantics(
+                                container: true,
+                                child: _PathBadge(
+                                  icon: Icons.cable_rounded,
+                                  label: 'Backend direct',
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            if (descriptor.hasFrontendBrowser)
+                              Semantics(
+                                container: true,
+                                child: _PathBadge(
+                                  icon: Icons.open_in_new_rounded,
+                                  label: 'Frontend in browser',
+                                  color: theme.colorScheme.tertiary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Icon(Icons.chevron_right_rounded,
-                    color: theme.colorScheme.onSurfaceVariant),
-              ],
+                  ExcludeSemantics(
+                    child: Icon(Icons.chevron_right_rounded,
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -734,14 +734,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                             ),
                             const SizedBox(height: 8),
                             ...widget.script.canisterIds.take(3).map((canisterId) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Text(
-                                  '• ${canisterId.length > 20 ? '${canisterId.substring(0, 20)}...' : canisterId}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
+                              return _buildCanisterIdRow(canisterId);
                             }),
                             if (widget.script.canisterIds.length > 3)
                               Text(
@@ -977,14 +970,7 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             ),
             const SizedBox(height: 8),
             ...widget.script.canisterIds.take(3).map((canisterId) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '• ${canisterId.length > 20 ? '${canisterId.substring(0, 20)}...' : canisterId}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
+              return _buildCanisterIdRow(canisterId);
             }),
             if (widget.script.canisterIds.length > 3)
               Text(
@@ -1196,6 +1182,43 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// W6-8: a "Compatible Canisters" id row. The OLD code clipped ids to
+  /// `• ryjl3-tyaaa-aaaaa-aa…` so the user could neither read nor copy the full
+  /// id. Now the FULL id is shown in a monospace font (wrapping when needed),
+  /// and tapping the row copies it to the clipboard with a "Copied" SnackBar —
+  /// mirroring the copy affordances on the Account screen. A small copy icon
+  /// signals the row is actionable.
+  Widget _buildCanisterIdRow(String canisterId) {
+    return InkWell(
+      key: ValueKey('canister_id_$canisterId'),
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: canisterId));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Canister ID copied to clipboard')),
+        );
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            Icon(Icons.copy_rounded,
+                size: 12, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                canisterId,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
