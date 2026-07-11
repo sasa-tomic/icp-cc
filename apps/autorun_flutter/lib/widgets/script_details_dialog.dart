@@ -346,7 +346,9 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                     ),
                               ),
                               const SizedBox(height: 8),
-                              Row(
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
                                 children: [
                                   // Category badge
                                   Container(
@@ -368,7 +370,6 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
 
                                   // Price
                                   if (widget.script.price > 0)
@@ -406,8 +407,6 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                         ),
                                       ),
                                     ),
-
-                                  const SizedBox(width: 8),
 
                                   // Rating
                                   Row(
