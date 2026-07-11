@@ -84,6 +84,13 @@ abstract class MarketplaceOpenApi {
 
   List<String> getCategories();
 
+  /// Fetches the live, content-derived category list from
+  /// `GET /api/v1/scripts/categories` (distinct categories among public scripts).
+  /// Falls back to the static [getCategories] defaults on error with a loud
+  /// warning — categories are UI metadata, not security-critical, so a stale
+  /// chip list is preferable to blocking the whole browse screen.
+  Future<List<String>> fetchCategories();
+
   Future<String> downloadScript(String scriptId, {String? version});
 }
 
@@ -335,6 +342,41 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       'Entertainment',
       'Business',
     ];
+  }
+
+  @override
+  Future<List<String>> fetchCategories() async {
+    try {
+      final response = await _httpClient
+          .get(
+            Uri.parse(ApiRoutes.scriptsCategories),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(AppDurations.browseTimeout);
+
+      final responseData = _decodeSuccessResponse(response, label: 'Categories');
+      final data = responseData['data'];
+      final categories = data['categories'];
+      if (categories is! List) {
+        throw FormatException(
+          "categories response 'data.categories' is not a List: $categories",
+        );
+      }
+      final result = categories.whereType<String>().toList();
+      if (result.isEmpty) {
+        // An empty live list is suspicious (backend always seeds defaults);
+        // keep the static fallback rather than rendering zero chips.
+        debugPrint('fetchCategories: backend returned empty list; '
+            'using static defaults');
+        return getCategories();
+      }
+      return result;
+    } catch (e) {
+      // Categories are UI metadata — never block the browse screen on them.
+      // Log loudly (per AGENTS.md) and degrade to the static defaults.
+      debugPrint('fetchCategories failed, using static defaults: $e');
+      return getCategories();
+    }
   }
 
   // Validate ICP canister ID format

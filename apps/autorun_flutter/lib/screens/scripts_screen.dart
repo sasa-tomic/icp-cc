@@ -401,9 +401,11 @@ class ScriptsScreenState extends State<ScriptsScreen>
 
   Future<void> _loadCategories() async {
     try {
-      _categories = ['All', ..._marketplaceService.getCategories()];
+      _categories = ['All', ...await _marketplaceService.fetchCategories()];
       if (mounted) setState(() {});
     } catch (e) {
+      // fetchCategories already degrades to static defaults internally, so this
+      // is a last-resort guard (e.g. the static call itself threw).
       debugPrint('Failed to load categories: $e');
     }
   }

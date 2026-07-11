@@ -17,6 +17,7 @@ abstract final class ApiRoutes {
 
   // ---- Scripts -------------------------------------------------------------
   static String get scriptsSearch => '$base/scripts/search';
+  static String get scriptsCategories => '$base/scripts/categories';
 
   /// Create a script (POST) — also the upload URL.
   static String get scriptsCreate => '$base/scripts';

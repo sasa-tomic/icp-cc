@@ -46,6 +46,9 @@ class FakeMarketplaceOpenApi implements MarketplaceOpenApi {
   List<String> getCategories() => const ['All'];
 
   @override
+  Future<List<String>> fetchCategories() async => getCategories();
+
+  @override
   Future<String> downloadScript(String scriptId, {String? version}) async {
     downloadCalls++;
     final script = _scripts[scriptId];
