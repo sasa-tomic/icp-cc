@@ -2,7 +2,7 @@
 //
 // This is NOT the production app entry (`lib/main.dart`). It is built ONLY for
 // the WU-4 verification step:
-//   flutter build web --target=lib/web_probe_app_main.dart
+//   flutter build web --target=tool/web_probe_app_main.dart
 //
 // Unlike the parity probe (WU-2/WU-3, which drives the raw WebQuickJsEngine),
 // THIS probe exercises the REAL production script-execution stack end-to-end:
@@ -20,9 +20,9 @@ import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
-import 'rust/native_bridge.dart';
-import 'rust/web/js_app_golden_vectors.dart' show ScriptLifecycles;
-import 'services/script_runner.dart';
+import 'package:icp_autorun/rust/native_bridge.dart';
+import 'package:icp_autorun/rust/web/js_app_golden_vectors.dart' show ScriptLifecycles;
+import 'package:icp_autorun/services/script_runner.dart';
 
 Future<void> main() async {
   final checks = <_AppCheck>[];

@@ -12,7 +12,7 @@
 //
 //   just verify-quickjs-web
 //
-// which builds `flutter build web --target=lib/web_probe_main.dart`, serves it,
+// which builds `flutter build web --target=tool/web_probe_main.dart`, serves it,
 // loads it in headless Chromium, and asserts on `document.title` (the probe's
 // JSON output). The vector below is the exact JSON that harness asserts.
 
@@ -25,7 +25,7 @@ void main() {
   group('QuickJsProbeResult contract (WU-1 browser-harness vector)', () {
     test('toJson() produces the exact shape the browser harness asserts', () {
       // The passing vector captured from the Playwright run
-      // (apps/autorun_flutter built with --target=lib/web_probe_main.dart).
+      // (apps/autorun_flutter built with --target=tool/web_probe_main.dart).
       final result = QuickJsProbeResult(
         loaded: true,
         version: '0.32.0',

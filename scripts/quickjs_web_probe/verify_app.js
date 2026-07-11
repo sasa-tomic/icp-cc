@@ -2,7 +2,7 @@
 // R-3 WU-4 — production-path browser verification harness.
 //
 // Loads the Flutter-built production-path probe
-// (`flutter build web --target=lib/web_probe_app_main.dart`), which runs the
+// (`flutter build web --target=tool/web_probe_app_main.dart`), which runs the
 // shipped 01_hello_world.js through the REAL production stack
 // (probeQuickJsReadiness -> RustScriptBridge -> ScriptAppRuntime) and asserts
 // the full init->view->update lifecycle works on Web.

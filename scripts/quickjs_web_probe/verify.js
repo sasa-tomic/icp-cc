@@ -2,7 +2,7 @@
 // R-3 WU-1 browser verification harness.
 //
 // Loads the Flutter-built web app (probe entrypoint:
-// `flutter build web --target=lib/web_probe_main.dart`), waits for the probe
+// `flutter build web --target=tool/web_probe_main.dart`), waits for the probe
 // to publish its JSON result to `document.title`, parses it, and asserts.
 //
 // Run via:  just verify-quickjs-web
@@ -59,7 +59,7 @@ function staticHandler(req, res) {
 (async () => {
   if (!fs.existsSync(path.join(BUILD_DIR, "index.html"))) {
     console.error(
-      `FAIL: ${BUILD_DIR}/index.html not found. Run \`flutter build web --target=lib/web_probe_main.dart\` first.`
+      `FAIL: ${BUILD_DIR}/index.html not found. Run \`flutter build web --target=tool/web_probe_main.dart\` first.`
     );
     process.exit(2);
   }

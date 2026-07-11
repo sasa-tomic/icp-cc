@@ -17,7 +17,7 @@ class QuickJsLoadException implements Exception {
 
 /// The result of `WebQuickJsEngine.runProbe` — the WU-1 end-to-end proof.
 ///
-/// Serialised to JSON by the probe entrypoint (`lib/web_probe_main.dart`) and
+/// Serialised to JSON by the probe entrypoint (`tool/web_probe_main.dart`) and
 /// asserted by the Playwright harness (`scripts/quickjs_web_probe/verify.js`).
 /// The passing vector is codified in
 /// `test/features/web/quickjs_smoke_test.dart`.

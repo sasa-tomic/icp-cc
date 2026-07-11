@@ -2,7 +2,7 @@
 //
 // This is NOT the production app entry (`lib/main.dart`). It is built ONLY for
 // the WU-1 verification step:
-//   flutter build web --target lib/web_probe_main.dart
+//   flutter build web --target tool/web_probe_main.dart
 //
 // It is intentionally FLUTTER-FREE (no `WidgetsFlutterBinding` / `runApp`):
 // the point of WU-1 is to prove the Dart→JS interop primitive, not to render
@@ -23,7 +23,7 @@ import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
-import 'rust/web/quickjs_engine.dart';
+import 'package:icp_autorun/rust/web/quickjs_engine.dart';
 
 Future<void> main() async {
   QuickJsProbeResult result;

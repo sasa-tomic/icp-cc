@@ -2,7 +2,7 @@
 // R-3 WU-2/WU-3 — parity-suite browser verification harness.
 //
 // Loads the Flutter-built parity probe
-// (`flutter build web --target=lib/web_probe_parity_main.dart`), waits for it
+// (`flutter build web --target=tool/web_probe_parity_main.dart`), waits for it
 // to publish its combined JSON result to `document.title`, parses it, and
 // asserts EVERY golden vector passed (loaded + allPassed).
 //

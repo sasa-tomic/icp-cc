@@ -2,7 +2,7 @@
 //
 // This is NOT the production app entry (`lib/main.dart`). It is built ONLY for
 // the verification step:
-//   flutter build web --target=lib/web_probe_agent_main.dart \
+//   flutter build web --target=tool/web_probe_agent_main.dart \
 //       --dart-define=IC_AGENT_PROXY_HOST=http://127.0.0.1:<api-port>
 //
 // It is intentionally FLUTTER-FREE (no `WidgetsFlutterBinding` / `runApp`):
@@ -32,8 +32,8 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
-import 'rust/web/candid_interface_parser.dart';
-import 'rust/web/ic_agent_engine_web_access.dart';
+import 'package:icp_autorun/rust/web/candid_interface_parser.dart';
+import 'package:icp_autorun/rust/web/ic_agent_engine_web_access.dart';
 
 /// The proxy origin (backend), e.g. `http://127.0.0.1:58000`. Supplied via
 /// `--dart-define=IC_AGENT_PROXY_HOST=...` by the `just verify-ic-agent-web`

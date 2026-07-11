@@ -2,7 +2,7 @@
 // R-3b WU-0 — browser verification harness for the agent-js IC-agent PoC.
 //
 // Loads the Flutter-built probe
-// (`flutter build web --target=lib/web_probe_agent_main.dart
+// (`flutter build web --target=tool/web_probe_agent_main.dart
 //   --dart-define=IC_AGENT_PROXY_HOST=http://127.0.0.1:<api-port>`), waits for
 // it to publish its JSON result to `document.title`, parses it, and asserts
 // ONE real anonymous canister query round-tripped:
@@ -57,7 +57,7 @@ function staticHandler(req, res) {
 (async () => {
   if (!fs.existsSync(path.join(BUILD_DIR, "index.html"))) {
     console.error(
-      `FAIL: ${BUILD_DIR}/index.html not found. Run \`flutter build web --target=lib/web_probe_agent_main.dart\` first.`
+      `FAIL: ${BUILD_DIR}/index.html not found. Run \`flutter build web --target=tool/web_probe_agent_main.dart\` first.`
     );
     process.exit(2);
   }

@@ -2,7 +2,7 @@
 //
 // This is NOT the production app entry (`lib/main.dart`). It is built ONLY for
 // the parity verification step:
-//   flutter build web --target=lib/web_probe_parity_main.dart
+//   flutter build web --target=tool/web_probe_parity_main.dart
 //
 // It is Flutter-free (see `web_probe_main.dart` for the rationale): the point
 // is to prove the Dart→JS engine primitive produces the SAME envelopes the
@@ -23,11 +23,11 @@ import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
-import 'rust/web/js_exec_golden_vectors.dart';
-import 'rust/web/js_app_golden_vectors.dart';
-import 'rust/web/js_validation_golden_vectors.dart';
-import 'rust/web/js_static_analysis.dart';
-import 'rust/web/quickjs_engine.dart';
+import 'package:icp_autorun/rust/web/js_exec_golden_vectors.dart';
+import 'package:icp_autorun/rust/web/js_app_golden_vectors.dart';
+import 'package:icp_autorun/rust/web/js_validation_golden_vectors.dart';
+import 'package:icp_autorun/rust/web/js_static_analysis.dart';
+import 'package:icp_autorun/rust/web/quickjs_engine.dart';
 
 Future<void> main() async {
   ParityProbeResult result;

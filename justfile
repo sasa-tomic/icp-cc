@@ -245,7 +245,7 @@ test-watch name="":
 # The QuickJS engine (lib/rust/web/quickjs_engine.dart) is browser-only
 # (dart:js_interop can't run in the VM — see plan §2.3). This target is the
 # headless-Chrome test path: it builds the probe entrypoint
-# (lib/web_probe_main.dart), serves build/web, loads it in headless Chromium
+# (tool/web_probe_main.dart), serves build/web, loads it in headless Chromium
 # via Playwright, and asserts eval + memory-limit + interrupt-handler all work
 # through the Dart interop layer. Reused by every R-3a parity WU.
 #
@@ -261,15 +261,15 @@ verify-quickjs-web:
         echo "==> Playwright Chromium not found in cache; installing browser..."
         npx playwright install chromium
     fi
-    echo "==> Building probe web app (flutter build web --target=lib/web_probe_main.dart)..."
-    cd {{flutter_dir}} && flutter build web --target=lib/web_probe_main.dart
+    echo "==> Building probe web app (flutter build web --target=tool/web_probe_main.dart)..."
+    cd {{flutter_dir}} && flutter build web --target=tool/web_probe_main.dart
     echo "==> Running headless-Chromium verification (foreground, timeout-bounded)..."
     timeout 120 node "$probe_dir/verify.js"
 
 # R-3 WU-2/WU-3 — QuickJS-on-Web PARITY verification (golden vectors).
 #
 # Builds the parity-suite probe entrypoint
-# (lib/web_probe_parity_main.dart), serves build/web, loads it in headless
+# (tool/web_probe_parity_main.dart), serves build/web, loads it in headless
 # Chromium via Playwright, and asserts the WebQuickJsEngine produces the SAME
 # envelopes as the native engine for the full jsExec + jsApp golden-vector
 # catalogue (the parity bar — plan §3 WU-2/WU-3). Reuses the same
@@ -284,14 +284,14 @@ verify-quickjs-web-parity:
         echo "==> Playwright Chromium not found in cache; installing browser..."
         npx playwright install chromium
     fi
-    echo "==> Building parity probe web app (flutter build web --target=lib/web_probe_parity_main.dart)..."
-    cd {{flutter_dir}} && flutter build web --target=lib/web_probe_parity_main.dart
+    echo "==> Building parity probe web app (flutter build web --target=tool/web_probe_parity_main.dart)..."
+    cd {{flutter_dir}} && flutter build web --target=tool/web_probe_parity_main.dart
     echo "==> Running headless-Chromium parity verification (foreground, timeout-bounded)..."
     timeout 180 node "$probe_dir/verify_parity.js"
 
 # R-3 WU-4 — QuickJS-on-Web PRODUCTION-PATH verification.
 #
-# Builds the production-path probe (lib/web_probe_app_main.dart), which runs the
+# Builds the production-path probe (tool/web_probe_app_main.dart), which runs the
 # shipped 01_hello_world.js through the REAL stack (probeQuickJsReadiness ->
 # RustScriptBridge -> ScriptAppRuntime) and asserts init/view/update work on
 # Web. This is the WU-4 bar: "a real script actually runs in the built web app".
@@ -305,8 +305,8 @@ verify-quickjs-web-app:
         echo "==> Playwright Chromium not found in cache; installing browser..."
         npx playwright install chromium
     fi
-    echo "==> Building production-path probe web app (flutter build web --target=lib/web_probe_app_main.dart)..."
-    cd {{flutter_dir}} && flutter build web --target=lib/web_probe_app_main.dart
+    echo "==> Building production-path probe web app (flutter build web --target=tool/web_probe_app_main.dart)..."
+    cd {{flutter_dir}} && flutter build web --target=tool/web_probe_app_main.dart
     echo "==> Running headless-Chromium production-path verification (foreground, timeout-bounded)..."
     timeout 180 node "$probe_dir/verify_app.js"
 
@@ -317,7 +317,7 @@ verify-quickjs-web-app:
 # Proves the browser→backend-proxy→IC-boundary-node path end-to-end with ONE
 # real anonymous canister query (ICP ledger `symbol` → "ICP"). Starts the
 # backend (for the /api/v1/ic CORS byte-relay proxy, WU-1), builds the
-# Flutter-free probe entrypoint (lib/web_probe_agent_main.dart) pointed at the
+# Flutter-free probe entrypoint (tool/web_probe_agent_main.dart) pointed at the
 # proxy, serves build/web, loads it in headless Chromium, and asserts the
 # agent-js round-trip succeeded. The agent routes through the proxy because
 # ic0.app sends no CORS headers for /api/v2/* (plan §7.2).
@@ -340,8 +340,8 @@ verify-ic-agent-web:
       echo "==> Playwright Chromium not found in cache; installing browser..."
       npx playwright install chromium
     fi
-    echo "==> Building agent probe web app (flutter build web --target=lib/web_probe_agent_main.dart)..."
-    cd {{flutter_dir}} && flutter build web --target=lib/web_probe_agent_main.dart --dart-define=IC_AGENT_PROXY_HOST="${proxy_host}"
+    echo "==> Building agent probe web app (flutter build web --target=tool/web_probe_agent_main.dart)..."
+    cd {{flutter_dir}} && flutter build web --target=tool/web_probe_agent_main.dart --dart-define=IC_AGENT_PROXY_HOST="${proxy_host}"
     echo "==> Running headless-Chromium agent PoC (foreground, timeout-bounded)..."
     set +e
     timeout 180 node "$probe_dir/verify_agent.js"
