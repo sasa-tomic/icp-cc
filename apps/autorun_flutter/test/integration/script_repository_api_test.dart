@@ -296,7 +296,8 @@ end''',
           'author_principal': TestSignatureUtils.getPrincipal(),
           'timestamp': privateTimestamp,
         };
-        final privateSignature = TestSignatureUtils.generateTestSignature(privateSignaturePayload);
+        final privateSignature =
+            await TestSignatureUtils.generateTestSignature(privateSignaturePayload);
 
         final privateScript = ScriptRecord(
           id: 'private-script',
@@ -345,7 +346,8 @@ end''',
           'author_principal': TestSignatureUtils.getPrincipal(),
           'timestamp': privateTimestamp,
         };
-        final privateSignature = TestSignatureUtils.generateTestSignature(privateSignaturePayload);
+        final privateSignature =
+            await TestSignatureUtils.generateTestSignature(privateSignaturePayload);
 
         final privateScript = ScriptRecord(
           id: 'script-to-publish',
