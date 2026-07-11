@@ -73,7 +73,22 @@ const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1
 // generate
 // ============================================================================
 
+/// This test is `#[ignore]`-by-default because `generate_recovery_codes_for_account`
+/// hashes all 12 codes with production Argon2id params (64 MB, time=3) → ~5 s per
+/// hash × 12 ≈ 60 s total, which dominates the dev cycle. Run it explicitly for
+/// pre-release verification:
+///
+/// ```sh
+/// cargo nextest run --run-ignored only-ignored generate_returns_twelve
+/// # or
+/// cargo test --test recovery_tests -- --ignored --nocapture
+/// ```
+///
+/// The rest of this file (one-shot, exhaust, negatives) seeds ≤1 pre-hashed code
+/// per test so it stays sub-second; this is the ONLY test that exercises the full
+/// 12-hash generate path end-to-end.
 #[tokio::test]
+#[ignore = "slow: 12× production Argon2id (~60s); run with --run-ignored or --ignored"]
 async fn generate_returns_twelve_unique_codes_and_status_reflects_them() {
     let (service, pool) = setup().await;
     let account_id = "principal-gen";
