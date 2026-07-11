@@ -12,6 +12,20 @@ Phase 4 done). There is no active scripting work.
 
 Genuinely open items are listed below.
 
+> **Wave-6 functional/visual/tech-debt sweep: COMPLETE (2026-07-11, confidence 9/10).** See
+> `docs/specs/2026-07-10-wave6-issues.md` (W6-1..W6-13, 14 commits). 13 work units:
+> IC-agent proxy origin fix + friendly dapp errors + generic copy (W6-1), auth.rs
+> substring-heuristic removal (W6-2, security), marketplace service `_decode` helper +
+> fragile-status/status-bound/null-data/error-mask fixes (W6-3), `getCompatibleScripts`
+> signature tightening (W6-4), profile_repository null-safe cast (W6-5), Versions-tab
+> regression tests (W6-6), dead settings links fixed (W6-7), search no-match distinct
+> empty state (W6-8), misc robustness (W6-9), a11y + icon polish (W6-10), REAL test
+> signatures (W6-11), loud test guards + tautology/throwsA cleanup (W6-12), backend
+> passkey/recovery/auth-middleware tests (W6-13 — surfaced+fixed **3 production passkey
+> bugs**: wrong column name, missing `webauthn_challenges` table, string-vs-bytes
+> credential lookup). Verify: `flutter analyze` clean; 1988 tests passed / 0 failed /
+> 11 skipped; backend 224/224; clippy clean; live UX re-review PASS.
+
 > **Next-phase tech-debt / test-quality / UX initiative: COMPLETE.** See
 > `docs/specs/NEXT_PHASE_PLAN.md` (TD-1..5, TQ-1..3, UX-1) and
 > `docs/specs/UX_REVIEW_ROUND4.md` (UX-2/3/7/9). Highlights: all local file I/O now
@@ -151,6 +165,17 @@ Not started; pulled from the migration spec's open questions (`docs/specs/SCRIPT
 - **G2** — Android NDK cross-compile of the QuickJS/rquickjs cdylib (NDK is not present in the current environment).
 - **G8** — `qjsc` bytecode precompilation for faster cold start (optional).
 - **G12** — Resource-limit (memory/time) tuning against a real pilot-script load test.
+
+### Wave-6 follow-ups (surfaced 2026-07-11, not blockers)
+
+- **Slow recovery test** (`generate_returns_twelve_unique_codes_and_status_reflects_them`, ~60s — Argon2id ×12): tune/batch or `#[ignore]`-by-default. Dev-cycle concern.
+- **webauthn-rs in-blob counter-replay gap:** `passkey_service` never re-serialises the `Passkey` blob → monotonic-counter enforcement never fires (primary single-use-challenge guard IS tested). Deeper service-design fix.
+- **Async test consumers** `script_repository_api_test.dart:299,348` call `generateTestSignature` without `await` (latent — stores Future in metadata).
+- **TQ-W6-2e:** dedicated repository unit tests (account/passkey/script/review_repository) — P2.
+- **Split candidates** (at but not over the 2k-line threshold): `account_profile_screen.dart` (1977), `account_service.rs` (1990), `marketplace_open_api_service.dart` (1514).
+- **`web_probe_*_main.dart`** (4 dev-only harnesses, ~31KB) live in `lib/` — consider relocating to `tool/`.
+- **Narrow mobile-width dialog:** pre-existing `RenderFlex` overflow in script-details header badges.
+- **Frontend category list** still hardcoded (could consume `/scripts/categories` — Wave-5 follow-up, still open).
 
 ## Architecture Reference
 

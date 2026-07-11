@@ -1,6 +1,6 @@
 # Wave 6 — Functional, Visual & Tech-Debt Sweep
 
-- **Status:** 🔧 IN PROGRESS
+- **Status:** ✅ COMPLETE (2026-07-11) — confidence 9/10
 - **Date:** 2026-07-10
 - **Scope:** Whole app (Flutter Web + Linux desktop + backend).
 - **Method:** empirically grounded (every claim cited to `file:line` or a live
@@ -202,4 +202,48 @@ Suggested sequence: P1 first (W6-1, W6-2, W6-11, W6-13), then P2, then P3.
 ## §5. Change log
 | WU | Commit | Summary |
 |----|--------|---------|
-| plan | `<tbd>` | Wave-6 plan committed |
+| plan | `12fdcdb5` | Wave-6 plan committed |
+| W6-1 | `d1ae2a4e` | IC agent proxy origin: fall back to `PUBLIC_API_ENDPOINT` dart-define (not `window.location.origin`); friendly `_DappErrorView` (Retry + collapsible Details); generic dapp keyless copy; extracted `resolveProxyOrigin()`/`friendlyIcErrorMessage()` seams. Live-verified: relay returns 200 at backend (was 501 at Python server) |
+| W6-2 | `565706d1` | `auth.rs`: dropped substring `"invalid"` heuristic + sentinels in `verify_signature`/`validate_credentials` (security: valid base64 key containing "invalid" was wrongly rejected). 192 backend tests green |
+| W6-3 | `1f892548` | Marketplace service: extracted `_decodeSuccessResponse`/`_decodeDataField`/`_extractServerError` helpers; fixed fragile `!success` (12→`!= true`), `>299` (→`<200||>299`), `getMarketplaceStats` null-data, error-branch `jsonDecode` masking. 17 methods routed through helpers |
+| W6-4 | `62e16e4f` | `getCompatibleScripts(List<String>)` → single `String canisterId` (zero callers existed) |
+| W6-5 | `9c3bbafb` | `profile_repository.dart:94` `as List<dynamic>` → `as List<dynamic>? ?? <dynamic>[]` (null keypairs no longer TypeError-escapes corruption handler) |
+| W6-6 | `20a66c25` | Versions-tab-blank did NOT reproduce (already fixed by prior refactors; structurally identical to working Reviews tab). Added regression tests (404→[]→empty-state) honestly, no prod change |
+| W6-7 | `d8128926` | Settings links `kalaj01/icp-cc` (404) → `sasa-tomic/icp-cc` (verified 200). Hoisted consts to public static |
+| W6-8 | `f0448cef` | Scripts screen no-match search → distinct "No scripts match '<query>'" + Clear search (not "library empty"). New `ScriptsEmptyStateKind.searchNoResults` |
+| W6-9 | `ba0a9781` | `isLocalDevelopment` → dev-host set `{localhost,127.0.0.1}`; `ic_proxy.rs` → loud `BAD_GATEWAY` on truncated body; `kCandidRegistryHost` const; `formatPrincipal` dropped fake `contains('-')` validation |
+| W6-10 | `a9d0250f` | a11y: `ModernEmptyState` dropped redundant `Semantics(label:)` (was double-announcing); canister id full monospace + tap-to-copy; download persists `imageUrl`; canister/dapp cards `Semantics(button:true)` |
+| W6-11 | `614756ef` | `generateTestSignatureSync` was a FAKE DJB2 hash (docstring lied); now REAL Ed25519 via pure-Dart `ed25519_edwards`. Sync==async byte-equal. 7 new verify-tests |
+| W6-12 | `b92ea799` | `native_bridge_js_smoke_test.dart` 17 silent SKIP guards → ONE fail-loud `setUpAll`; dropped 2 `isA<bool>()` tautologies + 2 overlapping error tests; trimmed `fake_passkey_authenticator_test` ~22→3; rewrote 7 generic `throwsA(isA<Exception>())` → specific messages |
+| W6-13 | `50a1ca15` | Backend passkey/recovery/auth-middleware tests (31 new). Real software P-256 authenticator + in-memory SQLite — NO service mocks. **Surfaced+fixed 3 PRODUCTION PASSKEY BUGS**: (1) `db.rs` `passkeys` table `user_principal`→`account_id` column; (2) missing `webauthn_challenges` table; (3) `finish_authentication` lookup by base64url string vs raw bytes |
+
+## §6. Verification (2026-07-11)
+
+**Verdict: ✅ APPROVED — confidence 9/10, no regressions.** (Report: `.tmp/wave6-verification.md`; screenshots: `.tmp/screenshots/wave6-verify/`.)
+
+| Check | Result |
+|-------|--------|
+| `flutter analyze` | **CLEAN** |
+| `flutter test` | **1988 passed / 0 failed / 11 skipped** (26 transient "Connection refused" failures were backend SIGTERM'd mid-run; re-ran with backend up → all pass). vs Wave-5 baseline 1911 passed (+77) |
+| `cargo nextest run` | **224/224 passed** (1 slow: Argon2id recovery-code generate ~60s — noted follow-up) |
+| `cargo clippy --tests -D warnings` | **CLEAN** |
+
+**Live UX re-review (rebuilt web, real backend, NO mocks):**
+- W6-1 ✅ ICP Ledger dapp works on Web (real "ICP/Internet Computer/8 decimals" via relay); failing canister → friendly "Canister unreachable" (no raw HTTP/stack/HTML)
+- W6-1/W6-3 ✅ generic "browsing anonymously… take signed actions" copy (no "read polls"/"vote")
+- W6-7 ✅ Settings links live-verified → `sasa-tomic/icp-cc`
+- W6-8 ✅ no-match search → "No scripts match '<query>'" + Clear search
+- W6-10 ✅ empty-state strings announced once; canister id copyable; cards exposed as buttons
+
+**Production bugs found & fixed by the test WUs:** W6-13's real-schema tests surfaced 3 latent passkey-runtime defects (wrong column name, missing table, string-vs-bytes credential lookup) — exactly the value of no-mock testing. All fixed in the same commit.
+
+## §7. Follow-ups (surfaced by Wave-6, not blockers)
+
+- **Slow recovery test** (`generate_returns_twelve_unique_codes_and_status_reflects_them`, ~60s — Argon2id ×12): tune/batch or `#[ignore]`-by-default. Dev-cycle concern.
+- **webauthn-rs in-blob counter-replay gap:** `passkey_service` never re-serialises the `Passkey` blob → monotonic-counter enforcement never fires (primary single-use-challenge guard IS tested). Deeper service-design fix.
+- **Async test consumers** `script_repository_api_test.dart:299,348` call `generateTestSignature` without `await` (latent — stores Future in metadata; harmless since backend doesn't strictly verify there).
+- **TQ-W6-2e:** dedicated repository unit tests (account/passkey/script/review_repository) — P2.
+- **Split candidates** (at but not over the 2k-line threshold): `account_profile_screen.dart` (1977), `account_service.rs` (1990), `marketplace_open_api_service.dart` (1514, now refactored with helper).
+- **`web_probe_*_main.dart`** (4 dev-only harnesses, ~31KB) live in `lib/` — consider relocating to `tool/`.
+- **Narrow mobile-width dialog:** pre-existing `RenderFlex` overflow in script-details header badges (out of scope; tolerated by W6-10 narrow test).
+- **Frontend category list** still hardcoded (could consume `/scripts/categories` — Wave-5 follow-up, still open).
