@@ -156,22 +156,16 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    // The narrow dialog header has a PRE-EXISTING RenderFlex overflow on the
-    // badges Row (line ~349, unrelated to W6-8) at mobile widths. Capture
-    // FlutterErrors so that known header overflow doesn't mask the W6-8
-    // assertions, then fail loudly on anything else.
+    // The narrow dialog header previously had a RenderFlex overflow on the
+    // badges Row at mobile widths. That was fixed (badges Row → Wrap), so the
+    // narrow layout must now render with NO layout errors at all. Capture any
+    // FlutterErrors and fail loudly on all of them.
     final errors = <FlutterErrorDetails>[];
     final originalOnError = FlutterError.onError;
     FlutterError.onError = errors.add;
     addTearDown(() => FlutterError.onError = originalOnError);
 
     await openDialog(tester, buildScript());
-
-    final headerOverflow = errors.where((e) =>
-        e.exceptionAsString().contains('RenderFlex overflowed'));
-    // Tolerate only the pre-existing header overflow; anything else is a bug.
-    final unexpected = errors.where((e) =>
-        !e.exceptionAsString().contains('RenderFlex overflowed')).toList();
 
     expect(find.text(canisterId), findsOneWidget);
     final row = find.byKey(const ValueKey('canister_id_$canisterId'));
@@ -183,15 +177,12 @@ void main() {
     expect(_lastCopiedText, canisterId);
     expect(find.textContaining('copied'), findsOneWidget);
 
-    // Flush any deferred overflow errors before asserting.
+    // Flush any deferred layout errors before asserting.
     await tester.pump();
     FlutterError.onError = originalOnError;
-    expect(unexpected, isEmpty,
-        reason: 'unexpected error(s): '
-            '${unexpected.map((e) => e.exceptionAsString()).join('\n')}');
-    expect(headerOverflow, isNotEmpty,
-        reason: 'sanity: if this pre-existing header overflow is ever fixed, '
-            'drop the tolerance above');
+    expect(errors, isEmpty,
+        reason: 'the narrow dialog must render with no layout errors; got: '
+            '${errors.map((e) => e.exceptionAsString()).join('\n')}');
   });
 }
 
