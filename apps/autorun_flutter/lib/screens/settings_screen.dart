@@ -49,10 +49,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _buildNumber = '';
   static const int _tapsRequiredToUnlock = 7;
 
-  // External links (the marketplace URL is sourced from AppConfig so a single
-  // dart-define `MARKETPLACE_WEB_URL` drives every reference — UXR7-3).
-  // The Documentation + Report Issue URLs live as public static consts on
-  // [SettingsScreen] (W6-7).
+  // External links. The Documentation + Report Issue URLs live as public
+  // static consts on [SettingsScreen] (W6-7), each verified live (HTTP 200).
+  // (W7-9: a third "Marketplace Website" entry was removed — no real
+  // marketplace UI is deployed. `AppConfig.marketplaceWebUrl` is retained
+  // for the share-link path in scripts_screen.dart.)
 
   @override
   void initState() {
@@ -380,12 +381,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: 'Submit a bug report or feature request',
           onTap: () => _launchUrl(SettingsScreen.reportIssueUrl),
         ),
-        _SettingsListTile(
-          icon: Icons.store_outlined,
-          label: 'Marketplace Website',
-          subtitle: 'Browse scripts on the web',
-          onTap: () => _launchUrl(AppConfig.marketplaceWebUrl),
-        ),
+        // W7-9: a "Marketplace Website" entry that pointed at
+        // `AppConfig.marketplaceWebUrl` used to live here. It was dead in
+        // every configuration — the prod default `https://icp-mp.kalaj.org`
+        // returns HTTP 530 (Cloudflare origin unreachable), and the dev
+        // build's local API backend returns 404 at `/` (the backend serves
+        // `/api/v1/*`, no UI). No marketplace UI is deployed anywhere; the
+        // API endpoint itself is already exposed honestly as the "API
+        // Endpoint" developer-option row. Removed rather than relabelled
+        // (relabel → duplicate developer-option row; API root isn't
+        // user-browsable). Restore this entry together with a real deployed
+        // marketplace UI.
       ],
     );
   }

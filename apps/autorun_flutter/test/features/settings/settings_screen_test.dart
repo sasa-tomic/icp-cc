@@ -164,7 +164,11 @@ void main() {
         expect(find.text('LINKS'), findsOneWidget);
         expect(find.text('Documentation'), findsOneWidget);
         expect(find.text('Report Issue'), findsOneWidget);
-        expect(find.text('Marketplace Website'), findsOneWidget);
+        // W7-9: the "Marketplace Website" entry was removed — no real
+        // marketplace UI is deployed (the prod default icp-mp.kalaj.org
+        // returns HTTP 530; the dev backend's root returns 404). Don't ship
+        // a dead link.
+        expect(find.text('Marketplace Website'), findsNothing);
       });
 
       testWidgets('displays about section with version info',
@@ -405,6 +409,44 @@ void main() {
           reason:
               'kalaj01/icp-cc/issues is a 404 — must stay sasa-tomic/icp-cc',
         );
+      });
+    });
+
+    // W7-9: the Settings → "Marketplace Website" link was dead in every
+    // configuration. The prod default (`MARKETPLACE_WEB_URL` unset) was
+    // `https://icp-mp.kalaj.org` → HTTP 530 (Cloudflare 1033, origin
+    // unreachable); the dev build embeds the local API endpoint, whose root
+    // returns HTTP 404 (the backend serves `/api/v1/*`, no UI). No
+    // marketplace UI is deployed anywhere — only the backend API exists (and
+    // it's already surfaced honestly as the "API Endpoint" developer-option
+    // row). The dead "Browse scripts on the web" entry was removed rather
+    // than relabelled: relabelling to "API endpoint" would have duplicated
+    // the existing developer-option row, and the API root is not a thing a
+    // user can browse. Restore this entry together with a real deployed UI.
+    group('marketplace website link removed (W7-9)', () {
+      testWidgets(
+          'the LINKS section does NOT advertise a dead "Marketplace Website" '
+          'entry', (WidgetTester tester) async {
+        await pumpSettingsScreen(tester);
+
+        // Scroll the LINKS card into view in case the surface is short.
+        await tester.ensureVisible(find.text('LINKS'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Marketplace Website'), findsNothing,
+            reason: 'no real marketplace UI is deployed; the entry was a '
+                'dead link (404 in dev, 530 in prod). YAGNI — restore it '
+                'together with a deployed UI.');
+        expect(find.text('Browse scripts on the web'), findsNothing,
+            reason: 'the dead-link subtitle must also be gone');
+      });
+
+      testWidgets('Documentation + Report Issue remain (the live links)',
+          (WidgetTester tester) async {
+        await pumpSettingsScreen(tester);
+
+        expect(find.text('Documentation'), findsOneWidget);
+        expect(find.text('Report Issue'), findsOneWidget);
       });
     });
   });
