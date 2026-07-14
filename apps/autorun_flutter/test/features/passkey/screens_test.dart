@@ -4,12 +4,14 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'dart:convert';
 
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
 import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
 import 'package:icp_autorun/screens/recovery_codes_screen.dart';
 import 'package:icp_autorun/screens/vault_unlock_screen.dart';
 import 'package:icp_autorun/services/passkey_service.dart';
 import 'package:icp_autorun/services/vault_crypto_service.dart';
+import '../../shared/test_keypair_factory.dart';
 
 /// Deterministic fake VaultCryptoService for widget tests. The real FFI crypto
 /// is unit-tested separately in vault_crypto_service_test.dart; widget tests
@@ -48,11 +50,19 @@ class _FakeVaultCrypto extends VaultCryptoService {
 
 /// Widget tests for passkey-related screens
 void main() {
+  // W7-12: the vault screens now carry the active ProfileKeypair (used to sign
+  // the signature-gated vault request). One real Ed25519 keypair for all tests.
+  late ProfileKeypair keypair;
+
+  setUpAll(() async {
+    keypair = await TestKeypairFactory.getEd25519Keypair();
+  });
+
   group('VaultPasswordSetupScreen', () {
     testWidgets('displays password requirements', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultPasswordSetupScreen(accountId: 'test-account'),
+          home: VaultPasswordSetupScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -66,7 +76,7 @@ void main() {
     testWidgets('shows error on weak password', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultPasswordSetupScreen(accountId: 'test-account'),
+          home: VaultPasswordSetupScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -87,7 +97,7 @@ void main() {
     testWidgets('shows error when passwords do not match', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultPasswordSetupScreen(accountId: 'test-account'),
+          home: VaultPasswordSetupScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -108,7 +118,7 @@ void main() {
     testWidgets('disables button until form is valid', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultPasswordSetupScreen(accountId: 'test-account'),
+          home: VaultPasswordSetupScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -212,7 +222,7 @@ void main() {
     testWidgets('displays lock icon and password field', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultUnlockScreen(accountId: 'test-account'),
+          home: VaultUnlockScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -223,7 +233,7 @@ void main() {
     testWidgets('disables unlock button with empty password', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultUnlockScreen(accountId: 'test-account'),
+          home: VaultUnlockScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -234,7 +244,7 @@ void main() {
     testWidgets('enables unlock button with password', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultUnlockScreen(accountId: 'test-account'),
+          home: VaultUnlockScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -251,7 +261,7 @@ void main() {
     testWidgets('shows recovery code link', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: VaultUnlockScreen(accountId: 'test-account'),
+          home: VaultUnlockScreen(accountId: 'test-account', keypair: keypair),
         ),
       );
 
@@ -289,6 +299,7 @@ void main() {
         MaterialApp(
           home: VaultPasswordSetupScreen(
             accountId: 'acct-w3-setup',
+            keypair: keypair,
             onVaultCreated: () => onVaultCreatedCalled = true,
             vaultCrypto:
                 _FakeVaultCrypto(password: fakePassword, plaintext: '{}'),
@@ -313,11 +324,23 @@ void main() {
           reason: 'onVaultCreated must fire on success');
       expect(capturedBody, isNotNull,
           reason: 'a POST must have been made');
+      // W7-12: body now carries auth fields + opaque blob (NO account_id —
+      // resolved server-side).
       expect(capturedBody!.keys,
-          equals(<String>{'account_id', 'encrypted_data', 'salt', 'nonce'}));
+          equals(<String>{
+            'signature',
+            'author_public_key',
+            'author_principal',
+            'timestamp',
+            'nonce',
+            'encrypted_data',
+            'salt',
+            'blob_nonce',
+          }));
       expect(capturedBody!.containsKey('password'), isFalse,
           reason: 'password must never be in the wire body');
-      expect(capturedBody!['account_id'], equals('acct-w3-setup'));
+      expect(capturedBody!.containsKey('account_id'), isFalse,
+          reason: 'account_id must NOT be in the body (server-resolved)');
     });
   });
 
@@ -349,6 +372,7 @@ void main() {
         MaterialApp(
           home: VaultUnlockScreen(
             accountId: 'acct-w3-unlock',
+            keypair: keypair,
             onUnlocked: (decrypted) => unlockedContents = decrypted,
             vaultCrypto:
                 _FakeVaultCrypto(password: correctPassword, plaintext: plaintext),
@@ -394,6 +418,7 @@ void main() {
         MaterialApp(
           home: VaultUnlockScreen(
             accountId: 'acct-w3-unlock-wrong',
+            keypair: keypair,
             onUnlocked: (_) => onUnlockedCalled = true,
             vaultCrypto:
                 _FakeVaultCrypto(password: correctPassword, plaintext: plaintext),
@@ -429,6 +454,7 @@ void main() {
         MaterialApp(
           home: VaultUnlockScreen(
             accountId: 'acct-w3-no-vault',
+            keypair: keypair,
             onUnlocked: (_) => onUnlockedCalled = true,
             vaultCrypto:
                 _FakeVaultCrypto(password: correctPassword, plaintext: '{}'),

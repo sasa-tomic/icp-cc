@@ -4,11 +4,15 @@ use poem::{
     error::ResponseError,
     handler,
     http::StatusCode,
-    web::{Data, Json, Query},
+    web::{Data, Json},
     IntoResponse, Response,
 };
 
-use crate::{models::AppState, responses::error_response};
+use crate::{
+    models::AppState,
+    responses::error_response,
+    signature_gate::{verify_signed_account_request, SignedAuthFields},
+};
 
 // ============================================================================
 // Vault Handlers
@@ -22,46 +26,62 @@ use crate::{models::AppState, responses::error_response};
 // stores and returns the bytes verbatim — it never sees the password or the
 // plaintext and has no decryption code path.
 //
-// ### Single source of truth for field names
+// ## W7-12 — signature-gated (closes W7-003 IDOR)
 //
-// The wire field names are defined ONLY by the serde struct field names below
-// (`account_id`, `encrypted_data`, `salt`, `nonce`). The Dart client (W2)
-// MUST match these exactly.
+// Every vault route is now signature-gated. The caller proves ownership of an
+// account keypair (Ed25519 over `{action, account_id, nonce, ts}`); the server
+// resolves `account_id` SERVER-SIDE from the verified public key and operates
+// on THAT account — never the request body's value. This closes the
+// overwrite-anyone's-vault / read-anyone's-ciphertext exploit (account_id was a
+// public identifier trusted verbatim).
+//
+// ### Field-name note
+//
+// The request struct carries TWO nonces:
+//   - `nonce`  — the replay-prevention UUID (single-use, signed). Part of the
+//                auth fields shared by every gated route.
+//   - `blob_nonce` — the AES-GCM 12-byte nonce embedded inside the opaque blob.
+//                Renamed on the WIRE (was `nonce`) to avoid clashing with the
+//                replay nonce. The DB column stays `nonce` (unchanged).
 //
 // ### Shapes
 //
-// POST /api/v1/vault           (create)
-// PUT  /api/v1/vault           (update)
+// POST /api/v1/vault          (create)  → 201
+// PUT  /api/v1/vault          (update)  → 200
+// POST /api/v1/vault/get      (read)    → 200 / 404
 //   Request body:
 //     {
-//       "account_id":     String,   // keypair principal that owns the vault
-//       "encrypted_data": String,   // base64 of the AES-256-GCM ciphertext
-//       "salt":           String,   // base64 of the Argon2id salt (16 bytes)
-//       "nonce":          String    // base64 of the AES-GCM nonce (12 bytes)
+//       "signature":         String,   // Ed25519 over the canonical payload
+//       "author_public_key": String,   // base64 — resolves account_id server-side
+//       "author_principal":  String,   // IC principal
+//       "timestamp":         i64,      // unix seconds (±5 min window)
+//       "nonce":             String,   // replay-prevention UUID (single-use)
+//       "encrypted_data":    String,   // base64 of the AES-256-GCM ciphertext
+//       "salt":              String,   // base64 of the Argon2id salt (16 bytes)
+//       "blob_nonce":        String    // base64 of the AES-GCM nonce (12 bytes)
 //     }
-//   Success response: 201 (POST) / 200 (PUT)
-//     { "success": true }
-//
-// GET /api/v1/vault?account_id=...
-//   Success response (200):
-//     {
-//       "success": true,
-//       "data": {
-//         "encrypted_data": String,  // base64 — identical bytes to what was POSTed
-//         "salt":           String,
-//         "nonce":          String
-//       }
-//     }
-//   Not found (404): { "success": false, "error": "Vault not found" }
+//   Success: { "success": true }  (+ "data" blob for get)
 
-/// Base64-encoded opaque vault blob + owning account. See the wire-contract
-/// doc above. Used for both POST (create) and PUT (update).
+/// Single source of truth for the signed vault action names. The frontend
+/// `PasskeyService` mirrors these EXACT strings inside the canonical payload.
+const VAULT_CREATE_ACTION: &str = "vault:create";
+const VAULT_UPDATE_ACTION: &str = "vault:update";
+const VAULT_GET_ACTION: &str = "vault:get";
+
+/// Base64-encoded opaque vault blob + the auth fields. See the wire-contract
+/// doc above. Used for POST (create) and PUT (update).
 #[derive(Debug, serde::Deserialize)]
 struct VaultBlobRequest {
-    account_id: String,
+    // --- auth fields (resolve account_id server-side) ---
+    signature: String,
+    author_public_key: String,
+    author_principal: String,
+    timestamp: i64,
+    nonce: String,
+    // --- opaque blob (zero-knowledge; server stores verbatim) ---
     encrypted_data: String, // base64
     salt: String,           // base64
-    nonce: String,          // base64
+    blob_nonce: String,     // base64 (AES-GCM nonce — renamed from `nonce`)
 }
 
 /// Decodes a base64 field from a [`VaultBlobRequest`]. Returns the decoded
@@ -71,27 +91,70 @@ fn decode_blob_field(field: &'static str, encoded: &str) -> Result<Vec<u8>, Stri
         .map_err(|e| format!("Invalid base64 for '{}': {}", field, e))
 }
 
+/// Decoded opaque-blob fields (base64 → bytes).
+struct DecodedBlob {
+    encrypted_data: Vec<u8>,
+    salt: Vec<u8>,
+    nonce: Vec<u8>,
+}
+
+/// Extracts + validates the base64 blob fields, or returns a `(status,
+/// message)` pair the caller renders.
+fn decode_blob_fields(req: &VaultBlobRequest) -> Result<DecodedBlob, (StatusCode, String)> {
+    let encrypted_data =
+        decode_blob_field("encrypted_data", &req.encrypted_data).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let salt = decode_blob_field("salt", &req.salt).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let nonce =
+        decode_blob_field("blob_nonce", &req.blob_nonce).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    Ok(DecodedBlob {
+        encrypted_data,
+        salt,
+        nonce,
+    })
+}
+
+/// Runs the signature gate for a vault route and returns the resolved
+/// account_id or the rejection response. The payload binds the resolved
+/// account_id so a non-owner signature cannot target another account's vault.
+fn vault_auth_fields<'a>(req: &'a VaultBlobRequest) -> SignedAuthFields<'a> {
+    SignedAuthFields {
+        signature: &req.signature,
+        author_public_key: &req.author_public_key,
+        author_principal: &req.author_principal,
+        timestamp: req.timestamp,
+        nonce: &req.nonce,
+    }
+}
+
 #[handler]
 pub async fn vault_create(
     Json(req): Json<VaultBlobRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    let encrypted_data = match decode_blob_field("encrypted_data", &req.encrypted_data) {
+    let blob = match decode_blob_fields(&req) {
         Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e),
+        Err((status, msg)) => return error_response(status, &msg),
     };
-    let salt = match decode_blob_field("salt", &req.salt) {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e),
-    };
-    let nonce = match decode_blob_field("nonce", &req.nonce) {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e),
-    };
+
+    let account_repo = &state.script_service.account_repo;
+    let account_id =
+        match verify_signed_account_request(account_repo, &state.pool, VAULT_CREATE_ACTION, &vault_auth_fields(&req), |resolved| {
+            serde_json::json!({
+                "action": VAULT_CREATE_ACTION,
+                "account_id": resolved,
+                "nonce": req.nonce,
+                "ts": req.timestamp,
+            })
+        })
+        .await
+        {
+            Ok(id) => id,
+            Err(r) => return error_response(r.status, r.message),
+        };
 
     match state
         .passkey_service
-        .create_vault(&req.account_id, &encrypted_data, &salt, &nonce)
+        .create_vault(&account_id, &blob.encrypted_data, &blob.salt, &blob.nonce)
         .await
     {
         Ok(()) => (
@@ -101,29 +164,60 @@ pub async fn vault_create(
             .into_response(),
         Err(e) => {
             tracing::error!(
-                account_id = %req.account_id,
+                account_id = %account_id,
                 "vault create failed: {}",
                 e
             );
-            // Variant decides status (Conflict for duplicate, Internal for DB
-            // errors). TD-2: DB errors were 400 under the old fixed-status
-            // handler; now correctly 500.
             error_response(e.status(), e.message())
         }
     }
 }
 
+/// `POST /api/v1/vault/get` — signature-gated read (W7-12).
+///
+/// Converted from `GET /vault?account_id=` (which trusted the query param) to a
+/// signed POST: signing a GET cleanly is awkward (base64 signatures do not
+/// belong in URL query params), and the read is called at login when the
+/// keypair IS available. The vault blob is ciphertext-only (zero-knowledge),
+/// so a read leaks nothing usable — but defense-in-depth + uniformity with the
+/// other vault routes justify the gate.
 #[derive(Debug, serde::Deserialize)]
-struct VaultGetQuery {
-    account_id: String,
+struct VaultGetRequest {
+    signature: String,
+    author_public_key: String,
+    author_principal: String,
+    timestamp: i64,
+    nonce: String,
 }
 
 #[handler]
 pub async fn vault_get(
-    Query(query): Query<VaultGetQuery>,
+    Json(req): Json<VaultGetRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    match state.passkey_service.get_vault(&query.account_id).await {
+    let account_repo = &state.script_service.account_repo;
+    let account_id =
+        match verify_signed_account_request(account_repo, &state.pool, VAULT_GET_ACTION, &SignedAuthFields {
+            signature: &req.signature,
+            author_public_key: &req.author_public_key,
+            author_principal: &req.author_principal,
+            timestamp: req.timestamp,
+            nonce: &req.nonce,
+        }, |resolved| {
+            serde_json::json!({
+                "action": VAULT_GET_ACTION,
+                "account_id": resolved,
+                "nonce": req.nonce,
+                "ts": req.timestamp,
+            })
+        })
+        .await
+        {
+            Ok(id) => id,
+            Err(r) => return error_response(r.status, r.message),
+        };
+
+    match state.passkey_service.get_vault(&account_id).await {
         Ok(Some(vault)) => Json(serde_json::json!({
             "success": true,
             "data": vault
@@ -132,7 +226,7 @@ pub async fn vault_get(
         Ok(None) => error_response(StatusCode::NOT_FOUND, "Vault not found"),
         Err(e) => {
             tracing::error!(
-                account_id = %query.account_id,
+                account_id = %account_id,
                 "vault get failed: {}",
                 e
             );
@@ -146,35 +240,39 @@ pub async fn vault_update(
     Json(req): Json<VaultBlobRequest>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    let encrypted_data = match decode_blob_field("encrypted_data", &req.encrypted_data) {
+    let blob = match decode_blob_fields(&req) {
         Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e),
+        Err((status, msg)) => return error_response(status, &msg),
     };
-    let salt = match decode_blob_field("salt", &req.salt) {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e),
-    };
-    let nonce = match decode_blob_field("nonce", &req.nonce) {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e),
-    };
+
+    let account_repo = &state.script_service.account_repo;
+    let account_id =
+        match verify_signed_account_request(account_repo, &state.pool, VAULT_UPDATE_ACTION, &vault_auth_fields(&req), |resolved| {
+            serde_json::json!({
+                "action": VAULT_UPDATE_ACTION,
+                "account_id": resolved,
+                "nonce": req.nonce,
+                "ts": req.timestamp,
+            })
+        })
+        .await
+        {
+            Ok(id) => id,
+            Err(r) => return error_response(r.status, r.message),
+        };
 
     match state
         .passkey_service
-        .update_vault(&req.account_id, &encrypted_data, &salt, &nonce)
+        .update_vault(&account_id, &blob.encrypted_data, &blob.salt, &blob.nonce)
         .await
     {
         Ok(()) => Json(serde_json::json!({ "success": true })).into_response(),
         Err(e) => {
             tracing::error!(
-                account_id = %req.account_id,
+                account_id = %account_id,
                 "vault update failed: {}",
                 e
             );
-            // Variant decides status (NotFound for missing vault, Internal for
-            // DB errors). TD-2: DB errors were 400 under the old
-            // `.contains("not found") → else → 400` heuristic; now correctly
-            // 500.
             error_response(e.status(), e.message())
         }
     }

@@ -1,22 +1,38 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
+import 'account_signature_service.dart';
 import 'passkey_authenticator.dart';
 import 'vault_crypto_service.dart';
 import 'api_routes.dart';
+import '../models/profile_keypair.dart';
 import '../utils/passkey_platform.dart';
+import '../utils/principal.dart';
 import '../rust/native_bridge.dart';
 
 // ─── A-4 vault wire-contract field names (single-source-of-truth) ───────────
 // These are the JSON keys for /api/v1/vault, byte-identical to the W4 backend
-// handlers in backend/src/main.rs. Defined ONCE here; both createVault and
-// updateVault build their bodies via _vaultRequestBody below. The password is
+// handlers in backend/src/handlers/vault.rs. Defined ONCE here; both createVault
+// and updateVault build their bodies via _vaultRequestBody below. The password is
 // intentionally NOT in this list — A-4 zero-knowledge: the server never sees
 // the password (it stays on-device, consumed only by VaultCryptoService FFI).
-const String kVaultFieldAccountId = 'account_id';
+//
+// W7-12: the AES-GCM nonce field is `blob_nonce` on the wire (renamed from
+// `nonce` to avoid clashing with the replay-prevention `nonce` auth field).
 const String kVaultFieldEncryptedData = 'encrypted_data';
 const String kVaultFieldSalt = 'salt';
-const String kVaultFieldNonce = 'nonce';
+const String kVaultFieldBlobNonce = 'blob_nonce';
+
+// ─── W7-12..14 signature-gate action names (single-source-of-truth) ─────────
+// Mirrored EXACTLY by the backend consts in each handler. Both sides bake this
+// string into the canonical payload; a mismatch → 401.
+const String kVaultCreateAction = 'vault:create';
+const String kVaultUpdateAction = 'vault:update';
+const String kVaultGetAction = 'vault:get';
+const String kPasskeyRegisterAction = 'passkey:register';
+const String kPasskeyDeleteAction = 'passkey:delete';
+const String kRecoveryGenerateAction = 'recovery:generate';
 
 class PasskeyService {
   static final PasskeyService _instance = PasskeyService._internal();
@@ -31,6 +47,47 @@ class PasskeyService {
 
   @visibleForTesting
   void overrideHttpClient(http.Client client) => _httpClient = client;
+
+  static const _uuid = Uuid();
+
+  /// Builds the five signature-gate fields for an account-scoped request
+  /// (W7-12..14), signing the canonical payload `{action, account_id, ...extra,
+  /// nonce, ts}` with the caller's Ed25519 keypair. The backend resolves
+  /// `account_id` SERVER-SIDE from [keypair.publicKey] and verifies the
+  /// signature over the identical canonical bytes.
+  ///
+  /// [action] MUST be one of the `k*Action` consts above (single source shared
+  /// with the backend). [extraFields] carries any business fields bound into
+  /// the signature (none for vault; the wire body carries the opaque blob
+  /// separately).
+  static Future<_SignedAccountFields> _signAccountRequest({
+    required ProfileKeypair keypair,
+    required String action,
+    Map<String, dynamic> extraFields = const {},
+    int? timestamp,
+    String? nonce,
+  }) async {
+    final ts = timestamp ??
+        DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    final resolvedNonce = nonce ?? _uuid.v4();
+    final payload = <String, dynamic>{
+      'action': action,
+      ...extraFields,
+      'nonce': resolvedNonce,
+      'ts': ts,
+    };
+    final signature = await AccountSignatureService.signCanonicalPayload(
+      keypair: keypair,
+      payload: payload,
+    );
+    return _SignedAccountFields(
+      signature: signature,
+      authorPublicKey: keypair.publicKey,
+      authorPrincipal: PrincipalUtils.textFromRecord(keypair),
+      timestamp: ts,
+      nonce: resolvedNonce,
+    );
+  }
 
   Future<PasskeyRegistrationResult> registerPasskey({
     required String accountId,
@@ -129,12 +186,15 @@ class PasskeyService {
   /// [plaintext] is encrypted locally via [VaultCryptoService] BEFORE the
   /// network call; [password] is consumed only by the local FFI and is NEVER
   /// serialised into the request body (the server cannot decrypt — it just
-  /// stores the opaque `encrypted_data`/`salt`/`nonce` triple).
+  /// stores the opaque `encrypted_data`/`salt`/`blob_nonce` triple).
   ///
-  /// Wire contract (matches W4 backend `vault_create`):
-  ///   POST /api/v1/vault  { account_id, encrypted_data, salt, nonce }  (b64)
-  ///   → { "success": true }
+  /// W7-12: signature-gated. [keypair] proves ownership of the account; the
+  /// backend resolves `accountId` from its public key (the body's id is
+  /// ignored) and verifies an Ed25519 signature over the canonical
+  /// `{action:"vault:create", account_id, nonce, ts}` payload. Closes the
+  /// overwrite-anyone's-vault IDOR (W7-003).
   Future<void> createVault({
+    required ProfileKeypair keypair,
     required String accountId,
     required String password,
     required String plaintext,
@@ -144,12 +204,30 @@ class PasskeyService {
       password: password,
       plaintext: plaintext,
     );
-    await _post('/vault', _vaultRequestBody(accountId, blob));
+    final auth = await _signAccountRequest(
+      keypair: keypair,
+      action: kVaultCreateAction,
+      extraFields: {'account_id': accountId},
+    );
+    await _post('/vault', _vaultRequestBody(auth, blob));
   }
 
-  Future<VaultData?> getVault(String accountId) async {
+  /// Signature-gated vault read (W7-12). Returns the opaque blob for the
+  /// account bound to [keypair], or `null` if no vault exists yet (backend 404
+  /// → typed `PasskeyException.statusCode == 404`). The blob is ciphertext-only
+  /// (zero-knowledge); the gate is defense-in-depth + uniformity with the other
+  /// vault routes.
+  Future<VaultData?> getVault({
+    required ProfileKeypair keypair,
+    required String accountId,
+  }) async {
     try {
-      final response = await _get('/vault?account_id=$accountId');
+      final auth = await _signAccountRequest(
+        keypair: keypair,
+        action: kVaultGetAction,
+        extraFields: {'account_id': accountId},
+      );
+      final response = await _post('/vault/get', _vaultGetRequestBody(auth));
       return VaultData.fromJson(response['data']);
     } on PasskeyException catch (e) {
       // Typed status-code check (not string-matching the message): the vault
@@ -161,8 +239,10 @@ class PasskeyService {
   }
 
   /// Updates the server-side vault blob (A-4 zero-knowledge). Same contract
-  /// as [createVault] but PUT; the password again never leaves the device.
+  /// as [createVault] but PUT; signature-gated (W7-12). The password again
+  /// never leaves the device.
   Future<void> updateVault({
+    required ProfileKeypair keypair,
     required String accountId,
     required String password,
     required String plaintext,
@@ -172,20 +252,40 @@ class PasskeyService {
       password: password,
       plaintext: plaintext,
     );
-    await _put('/vault', _vaultRequestBody(accountId, blob));
+    final auth = await _signAccountRequest(
+      keypair: keypair,
+      action: kVaultUpdateAction,
+      extraFields: {'account_id': accountId},
+    );
+    await _put('/vault', _vaultRequestBody(auth, blob));
   }
 
-  /// Builds the opaque-blob request body for createVault/updateVault.
-  /// Defined ONCE so the wire shape can drift in exactly one place.
+  /// Builds the opaque-blob request body for createVault/updateVault (auth
+  /// fields + the opaque blob). Defined ONCE so the wire shape drifts in one
+  /// place.
   static Map<String, String> _vaultRequestBody(
-    String accountId,
+    _SignedAccountFields auth,
     EncryptedVaultResult blob,
   ) {
     return <String, String>{
-      kVaultFieldAccountId: accountId,
+      'signature': auth.signature,
+      'author_public_key': auth.authorPublicKey,
+      'author_principal': auth.authorPrincipal,
+      'timestamp': auth.timestamp.toString(),
+      'nonce': auth.nonce,
       kVaultFieldEncryptedData: blob.encryptedDataB64,
       kVaultFieldSalt: blob.saltB64,
-      kVaultFieldNonce: blob.nonceB64,
+      kVaultFieldBlobNonce: blob.nonceB64,
+    };
+  }
+
+  static Map<String, String> _vaultGetRequestBody(_SignedAccountFields auth) {
+    return <String, String>{
+      'signature': auth.signature,
+      'author_public_key': auth.authorPublicKey,
+      'author_principal': auth.authorPrincipal,
+      'timestamp': auth.timestamp.toString(),
+      'nonce': auth.nonce,
     };
   }
 
@@ -355,4 +455,25 @@ class VaultData {
       nonce: json['nonce'] as String,
     );
   }
+}
+
+/// The five signature-gate fields produced by `PasskeyService._signAccountRequest`
+/// (W7-12..14). Mirrors the backend `EntitlementRequest` / `VaultGetRequest`
+/// shape (snake_case on the wire). Built once per request from a fresh
+/// `timestamp` (unix seconds) + UUID `nonce` (replay protection is enforced
+/// server-side).
+class _SignedAccountFields {
+  final String signature;
+  final String authorPublicKey;
+  final String authorPrincipal;
+  final int timestamp;
+  final String nonce;
+
+  const _SignedAccountFields({
+    required this.signature,
+    required this.authorPublicKey,
+    required this.authorPrincipal,
+    required this.timestamp,
+    required this.nonce,
+  });
 }

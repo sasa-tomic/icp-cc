@@ -28,10 +28,15 @@ class MockAccountController extends Mock implements AccountController {}
 /// [Profile] (e.g. `getAccountForProfile`).
 class FakeProfile extends Fake implements Profile {}
 
-/// Registers the [Profile] fallback required by [MockAccountController] stubs.
-/// Call once per test file from `setUpAll`.
+/// mocktail fallback for the signature-gated PasskeyService methods that take
+/// a [ProfileKeypair] (W7-12: `getVault(keypair: any(named: 'keypair'), …)`).
+class FakeProfileKeypair extends Fake implements ProfileKeypair {}
+
+/// Registers the [Profile] / [ProfileKeypair] fallbacks required by the mock
+/// stubs. Call once per test file from `setUpAll`.
 void registerProfileMenuFallbacks() {
   registerFallbackValue(FakeProfile());
+  registerFallbackValue(FakeProfileKeypair());
 }
 
 /// Builds a [ProfileController] backed by an in-memory repository seeded with

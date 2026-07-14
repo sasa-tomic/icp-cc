@@ -108,8 +108,11 @@ void main() {
         'no vault → tapping Vault routes to VaultPasswordSetupScreen, probing '
         'with the backend account id', (tester) async {
       String? probedAccountId;
-      when(() => mockPasskeyService.getVault(any())).thenAnswer((invocation) {
-        probedAccountId = invocation.positionalArguments.first as String;
+      when(() => mockPasskeyService.getVault(
+              keypair: any(named: 'keypair'),
+              accountId: any(named: 'accountId'))).thenAnswer((invocation) {
+        probedAccountId =
+            invocation.namedArguments[#accountId] as String;
         return Future<VaultData?>.value(); // null → 404 / not-yet-created
       });
 
@@ -130,7 +133,9 @@ void main() {
 
     testWidgets('vault exists → tapping Vault routes to VaultUnlockScreen',
         (tester) async {
-      when(() => mockPasskeyService.getVault(any())).thenAnswer((_) async =>
+      when(() => mockPasskeyService.getVault(
+              keypair: any(named: 'keypair'),
+              accountId: any(named: 'accountId'))).thenAnswer((_) async =>
           VaultData(
               encryptedData: 'ZW5j', salt: 'c2FsdA==', nonce: 'bm9uY2U='));
 
@@ -147,7 +152,9 @@ void main() {
     testWidgets(
         'probe failure is surfaced loudly and routes to NEITHER screen '
         '(no silent fallthrough to setup)', (tester) async {
-      when(() => mockPasskeyService.getVault(any()))
+      when(() => mockPasskeyService.getVault(
+              keypair: any(named: 'keypair'),
+              accountId: any(named: 'accountId')))
           .thenThrow(PasskeyException('HTTP 500: internal', statusCode: 500));
 
       await pumpMenu(tester);

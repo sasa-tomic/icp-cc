@@ -207,6 +207,20 @@ class AccountSignatureService {
   ///    - Ed25519: Sign message directly (standard RFC 8032)
   ///    - secp256k1: SHA-256 hash then sign (ECDSA requirement)
   /// 4. Base64 encode the signature
+  ///
+  /// Public so other services that share the SAME canonical-JSON signing
+  /// convention (e.g. `PasskeyService` for the signature-gated vault / passkey
+  /// / recovery routes, Wave-7 Phase 2) reuse ONE signer — the canonical bytes
+  /// MUST be byte-identical to what the backend's
+  /// `auth::create_canonical_payload` produces, and this method is the single
+  /// Dart home for that contract.
+  static Future<String> signCanonicalPayload({
+    required ProfileKeypair keypair,
+    required Map<String, dynamic> payload,
+  }) {
+    return _signPayload(keypair: keypair, payload: payload);
+  }
+
   static Future<String> _signPayload({
     required ProfileKeypair keypair,
     required Map<String, dynamic> payload,

@@ -128,14 +128,20 @@ const String _kWrongPassword = 'WrongVault999!';
 // Hardcoded by VaultPasswordSetupScreen._createVault (it encrypts '{}').
 const String _kSetupPlaintext = '{}';
 
-/// The W4 wire-contract field names (mirror of the production `kVaultField*`
-/// constants; re-declared so a prod copy/paste drift is caught here, per the
-/// zk_integration_test.dart convention).
+/// The W7-12 wire-contract field names (auth fields + opaque-blob fields).
+/// Mirror of the production `kVaultField*` / action consts; re-declared so a
+/// prod copy/paste drift is caught here, per the zk_integration_test.dart
+/// convention. Note: NO `account_id` (resolved server-side from the verified
+/// public key as of W7-12).
 const Set<String> _kExpectedBodyKeys = <String>{
-  'account_id',
+  'signature',
+  'author_public_key',
+  'author_principal',
+  'timestamp',
+  'nonce',
   'encrypted_data',
   'salt',
-  'nonce',
+  'blob_nonce',
 };
 
 void main() {
@@ -172,6 +178,7 @@ void main() {
     final profileController =
         ProfileController(profileRepository: ProfileRepository());
     late String accountId;
+    late ProfileKeypair keypair;
     await tester.runAsync(() async {
       final profile = await profileController.createProfile(
         profileName: 'H Vault Owner',
@@ -179,6 +186,7 @@ void main() {
         setAsActive: true,
       );
       accountId = profile.id;
+      keypair = profileController.activeKeypair!;
     });
     await tester.pump(const Duration(seconds: 1));
     expect(accountId, isNotEmpty,
@@ -209,6 +217,7 @@ void main() {
           key: const Key('vault-phase-a'),
           screen: VaultPasswordSetupScreen(
             accountId: accountId,
+            keypair: keypair,
             onVaultCreated: () => setupCreated = true,
             // DEFAULT VaultCryptoService → REAL FFI (NOT the widget-test fake).
           ),
@@ -251,8 +260,10 @@ void main() {
     );
     expect(setupBody.containsKey('password'), isFalse,
         reason: 'SETUP ZK: the password MUST NOT be in the wire body.');
-    expect(setupBody['account_id'], equals(accountId));
-    expect(store.hasRow(accountId), isTrue,
+    expect(setupBody.containsKey('account_id'), isFalse,
+        reason: 'SETUP W7-12: account_id must NOT be in the body (server-resolved).');
+    expect(setupBody['author_public_key'], equals(keypair.publicKey));
+    expect(store.hasRow(keypair.publicKey), isTrue,
         reason: 'SETUP: the opaque blob must be persisted server-side.');
 
     // =========================================================================
@@ -267,6 +278,7 @@ void main() {
           key: const Key('vault-phase-b'),
           screen: VaultUnlockScreen(
             accountId: accountId,
+            keypair: keypair,
             onUnlocked: (plaintext) {
               unlockedPlaintext = plaintext;
               unlockAOk = true;
@@ -313,6 +325,7 @@ void main() {
           key: const Key('vault-phase-c'),
           screen: VaultUnlockScreen(
             accountId: accountId,
+            keypair: keypair,
             onUnlocked: (_) => wrongUnlockFired = true,
           ),
         ),
@@ -497,26 +510,29 @@ class _VaultBlobStore {
   /// Most-recent serialised POST/PUT body captured (for contract-shape asserts).
   Map<String, dynamic>? lastRequestBody;
 
-  bool hasRow(String accountId) => _rows.containsKey(accountId);
+  // Keyed by author_public_key (the server-resolved account identity as of
+  // W7-12).
+  bool hasRow(String publicKey) => _rows.containsKey(publicKey);
 
   http.Client toClient() => MockClient((request) async {
-        if (!request.url.path.endsWith('/api/v1/vault')) {
-          return _resp(404, {'success': false, 'error': 'Not found'});
-        }
-        if (request.method == 'POST' || request.method == 'PUT') {
+        final path = request.url.path;
+        if (path.endsWith('/api/v1/vault') &&
+            (request.method == 'POST' || request.method == 'PUT')) {
           final body =
               (jsonDecode(request.body) as Map).cast<String, dynamic>();
           lastRequestBody = body;
-          _rows[body['account_id'] as String] = _StoredRow(
+          _rows[body['author_public_key'] as String] = _StoredRow(
             encryptedData: body['encrypted_data'] as String,
             salt: body['salt'] as String,
-            nonce: body['nonce'] as String,
+            nonce: body['blob_nonce'] as String,
           );
           return _resp(200, {'success': true});
         }
-        if (request.method == 'GET') {
-          final id = request.url.queryParameters['account_id'];
-          final row = id == null ? null : _rows[id];
+        // W7-12: GET became POST /vault/get with a signed body.
+        if (path.endsWith('/api/v1/vault/get') && request.method == 'POST') {
+          final body =
+              (jsonDecode(request.body) as Map).cast<String, dynamic>();
+          final row = _rows[body['author_public_key'] as String];
           if (row == null) {
             return _resp(404, {'success': false, 'error': 'Vault not found'});
           }

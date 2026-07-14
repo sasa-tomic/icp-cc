@@ -446,12 +446,25 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       );
       return;
     }
+    // The signature-gated vault routes (W7-12) need the active keypair to sign
+    // the request. Keypairs live in local secure storage (independent of the
+    // vault blob), so this is available without first unlocking the vault.
+    final keypair = widget.profileController.activeKeypair;
+    if (keypair == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active keypair — cannot authenticate vault access.'),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isProbingVault = true);
     final service = widget.passkeyService ?? PasskeyService();
     bool vaultExists;
     try {
-      final vault = await service.getVault(account.id);
+      final vault = await service.getVault(keypair: keypair, accountId: account.id);
       vaultExists = vault != null;
     } on PasskeyException catch (e) {
       // LOUD: a failed probe must NOT silently fall through to setup/unlock.
@@ -479,8 +492,8 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     widget.onNavigate?.call();
     Navigator.of(context).pop();
     final screen = vaultExists
-        ? VaultUnlockScreen(accountId: account.id)
-        : VaultPasswordSetupScreen(accountId: account.id);
+        ? VaultUnlockScreen(accountId: account.id, keypair: keypair)
+        : VaultPasswordSetupScreen(accountId: account.id, keypair: keypair);
     await Navigator.push<void>(
       context,
       MaterialPageRoute(builder: (context) => screen),

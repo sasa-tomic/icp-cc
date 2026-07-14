@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/profile_keypair.dart';
 import '../services/passkey_service.dart';
 import '../services/vault_crypto_service.dart';
 import '../rust/native_bridge.dart';
@@ -12,6 +13,7 @@ typedef VaultUnlockedCallback = void Function(String decryptedVaultContents);
 class VaultUnlockScreen extends StatefulWidget {
   const VaultUnlockScreen({
     required this.accountId,
+    required this.keypair,
     this.onUnlocked,
     this.onUseRecoveryCode,
     this.vaultCrypto = const VaultCryptoService(),
@@ -19,6 +21,12 @@ class VaultUnlockScreen extends StatefulWidget {
   });
 
   final String accountId;
+
+  /// The active profile keypair — used to sign the signature-gated vault read
+  /// (W7-12). Keypairs live in local secure storage (independent of the vault
+  /// blob), so this is available at unlock time. The backend resolves
+  /// `accountId` from its public key.
+  final ProfileKeypair keypair;
   final VaultUnlockedCallback? onUnlocked;
   final VoidCallback? onUseRecoveryCode;
 
@@ -69,7 +77,10 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
     });
 
     try {
-      final vaultData = await PasskeyService().getVault(widget.accountId);
+      final vaultData = await PasskeyService().getVault(
+        keypair: widget.keypair,
+        accountId: widget.accountId,
+      );
       if (vaultData == null) {
         throw PasskeyException('Vault not found');
       }

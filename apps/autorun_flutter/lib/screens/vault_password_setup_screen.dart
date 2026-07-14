@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/profile_keypair.dart';
 import '../services/passkey_service.dart';
 import '../services/vault_crypto_service.dart';
 import '../theme/app_design_system.dart';
@@ -8,12 +9,17 @@ typedef VaultCreatedCallback = void Function();
 class VaultPasswordSetupScreen extends StatefulWidget {
   const VaultPasswordSetupScreen({
     required this.accountId,
+    required this.keypair,
     this.onVaultCreated,
     this.vaultCrypto = const VaultCryptoService(),
     super.key,
   });
 
   final String accountId;
+
+  /// The active profile keypair — used to sign the signature-gated vault
+  /// request (W7-12). The backend resolves `accountId` from its public key.
+  final ProfileKeypair keypair;
   final VaultCreatedCallback? onVaultCreated;
 
   /// Vault crypto service used to encrypt locally before POSTing. Injected so
@@ -98,6 +104,7 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
       // never leaves the device; the heavy Argon2id runs off the UI isolate
       // (compute()) so the _isCreating spinner animates honestly.
       await PasskeyService().createVault(
+        keypair: widget.keypair,
         accountId: widget.accountId,
         password: _passwordController.text,
         plaintext: '{}',

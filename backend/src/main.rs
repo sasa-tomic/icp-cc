@@ -187,10 +187,10 @@ async fn main() -> Result<(), std::io::Error> {
     //   POST   /api/v1/passkey/authenticate/finish    -> passkey_authenticate_finish
     //   GET    /api/v1/passkey/list/:account_id       -> passkey_list
     //   DELETE /api/v1/passkey/:passkey_id            -> passkey_delete
-    // Vault
-    //   POST   /api/v1/vault                          -> vault_create
-    //   GET    /api/v1/vault                          -> vault_get
-    //   PUT    /api/v1/vault                          -> vault_update
+    // Vault (signature-gated; W7-12)
+    //   POST   /api/v1/vault          -> vault_create
+    //   POST   /api/v1/vault/get      -> vault_get
+    //   PUT    /api/v1/vault          -> vault_update
     // Recovery codes
     //   POST   /api/v1/recovery/generate              -> recovery_generate
     //   POST   /api/v1/recovery/verify                -> recovery_verify
@@ -303,13 +303,12 @@ async fn main() -> Result<(), std::io::Error> {
             "/api/v1/passkey/:passkey_id",
             delete(handlers::passkey_delete),
         )
-        // Vault endpoints
+        // Vault endpoints (signature-gated; W7-12)
         .at(
             "/api/v1/vault",
-            post(handlers::vault_create)
-                .get(handlers::vault_get)
-                .put(handlers::vault_update),
+            post(handlers::vault_create).put(handlers::vault_update),
         )
+        .at("/api/v1/vault/get", post(handlers::vault_get))
         // Recovery code endpoints
         .at(
             "/api/v1/recovery/generate",

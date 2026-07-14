@@ -58,31 +58,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
 import 'package:icp_autorun/services/passkey_service.dart';
 import 'package:icp_autorun/services/vault_crypto_service.dart';
+import '../../shared/test_keypair_factory.dart';
 
 const String _password = 'correct horse battery staple';
 const String _plaintext = '{"secret":"vault-data","n":42,"note":"ZK"}';
 const String _accountId = 'zk-integration-acct';
 const Duration _cryptoTimeout = Duration(seconds: 30);
 
-/// The four W4 wire-contract field names. Mirror of the production constants
-/// `kVaultField*` in passkey_service.dart. Re-declared here (NOT imported) so
-/// a copy/paste drift in production code is caught by THIS test failing,
-/// rather than both sides drifting together.
+/// The full W7-12 wire-contract body key set for POST/PUT: 5 signature-gate
+/// fields + 3 opaque-blob fields. Critically NO `account_id` (resolved
+/// server-side from the verified public key). Re-declared here (NOT imported)
+/// so a drift in production code is caught by THIS test failing.
 const Set<String> _kExpectedBodyKeys = <String>{
-  'account_id',
+  'signature',
+  'author_public_key',
+  'author_principal',
+  'timestamp',
+  'nonce', // replay-prevention nonce
   'encrypted_data',
   'salt',
-  'nonce',
+  'blob_nonce', // AES-GCM nonce (renamed from `nonce` in W7-12)
 };
 
-/// A faithful emulation of the W4 backend as an opaque-blob store: stores the
-/// four-tuple from POST/PUT and returns those EXACT bytes from GET. Performs
-/// NO crypto, holds NO password field (there is no password field in the W4
-/// contract to hold). See the file header for the honesty rationale.
+/// A faithful emulation of the W7-12 backend as an opaque-blob store: stores
+/// the blob from POST/PUT (keyed by the caller's `author_public_key`, exactly
+/// as the real backend resolves account_id from the verified public key) and
+/// returns those EXACT bytes from POST /vault/get. Performs NO crypto, holds NO
+/// password field. See the file header for the honesty rationale.
 class _VaultBlobStore {
+  // Keyed by author_public_key (the server-resolved account identity).
   final Map<String, _StoredRow> _rows = <String, _StoredRow>{};
 
   /// Most-recent serialised request body captured (for contract-shape asserts).
@@ -90,17 +98,13 @@ class _VaultBlobStore {
 
   http.Client toClient() => MockClient((request) async {
         final method = request.method;
-        if (!request.url.path.endsWith('/api/v1/vault')) {
-          return _resp(404, {'success': false, 'error': 'Not found'});
-        }
+        final path = request.url.path;
 
-        if (method == 'POST' || method == 'PUT') {
+        if (path.endsWith('/api/v1/vault') && (method == 'POST' || method == 'PUT')) {
           final body =
               (jsonDecode(request.body) as Map).cast<String, dynamic>();
           lastRequestBody = body;
-          // Strict shape check — mirrors the W4 contract; rejects drift loudly.
-          // (NOTE: Dart `Set` does NOT override `==`, so we use length+every
-          // rather than `!=` to compare contents.)
+          // Strict shape check — mirrors the W7-12 contract; rejects drift loudly.
           final bodyKeys = body.keys.toSet();
           final shapeOk = bodyKeys.length == _kExpectedBodyKeys.length &&
               bodyKeys.every(_kExpectedBodyKeys.contains);
@@ -110,17 +114,22 @@ class _VaultBlobStore {
               'error': 'bad body shape: ${body.keys.toList()}',
             });
           }
-          _rows[body['account_id'] as String] = _StoredRow(
+          _rows[body['author_public_key'] as String] = _StoredRow(
             encryptedData: body['encrypted_data'] as String,
             salt: body['salt'] as String,
-            nonce: body['nonce'] as String,
+            nonce: body['blob_nonce'] as String,
           );
           return _resp(200, {'success': true});
         }
 
-        if (method == 'GET') {
-          final accountId = request.url.queryParameters['account_id'];
-          final row = accountId == null ? null : _rows[accountId];
+        // W7-12: GET became POST /vault/get with a signed body. The caller's
+        // identity is the author_public_key in the body (server-side resolution
+        // emulated).
+        if (path.endsWith('/api/v1/vault/get') && method == 'POST') {
+          final body =
+              (jsonDecode(request.body) as Map).cast<String, dynamic>();
+          final publicKey = body['author_public_key'] as String;
+          final row = _rows[publicKey];
           if (row == null) {
             return _resp(404, {
               'success': false,
@@ -140,13 +149,13 @@ class _VaultBlobStore {
         return _resp(405, {'success': false, 'error': 'method not allowed'});
       });
 
-  /// The opaque bytes the "server" is currently holding for [accountId],
+  /// The opaque bytes the "server" is currently holding for [publicKey],
   /// decoded from base64 and concatenated. This is the lens through which the
   /// server "sees" the vault. Used by the server-blindness assertions.
-  List<int> storedBlobBytesFor(String accountId) {
-    final row = _rows[accountId];
+  List<int> storedBlobBytesFor(String publicKey) {
+    final row = _rows[publicKey];
     if (row == null) {
-      throw StateError('no stored row for $accountId');
+      throw StateError('no stored row for $publicKey');
     }
     return <int>[
       ...base64.decode(row.encryptedData),
@@ -157,14 +166,14 @@ class _VaultBlobStore {
 
   /// Mutate the first byte of the stored ciphertext (simulates a tampered or
   /// corrupted server-side store). Decryption's GCM auth-tag MUST then reject.
-  void tamperEncryptedData(String accountId) {
-    final row = _rows[accountId];
+  void tamperEncryptedData(String publicKey) {
+    final row = _rows[publicKey];
     if (row == null) {
-      throw StateError('no stored row for $accountId');
+      throw StateError('no stored row for $publicKey');
     }
     final bytes = base64.decode(row.encryptedData);
     bytes[0] = bytes[0] ^ 0xFF;
-    _rows[accountId] = _StoredRow(
+    _rows[publicKey] = _StoredRow(
       encryptedData: base64.encode(bytes),
       salt: row.salt,
       nonce: row.nonce,
@@ -211,6 +220,14 @@ void main() {
   // integration claim has NO honest fallback when the FFI is unavailable.
   final bool nativeAvailable = VaultCryptoService.nativeLibAvailable();
   late _VaultBlobStore store;
+  // W7-12: the signature-gated vault routes sign with the active keypair. One
+  // real Ed25519 keypair for the whole file (the mock store keys by its
+  // publicKey, mirroring the backend's server-side account resolution).
+  late ProfileKeypair keypair;
+
+  setUpAll(() async {
+    keypair = await TestKeypairFactory.getEd25519Keypair();
+  });
 
   setUp(() {
     store = _VaultBlobStore();
@@ -236,6 +253,7 @@ void main() {
       // the mock transport, not pre-computed — so this test proves the
       // production service body builder produces a round-trippable blob.
       await PasskeyService().createVault(
+        keypair: keypair,
         accountId: _accountId,
         password: _password,
         plaintext: _plaintext,
@@ -246,11 +264,11 @@ void main() {
       final wireBlob = EncryptedVaultResult(
         encryptedDataB64: postedBody!['encrypted_data'] as String,
         saltB64: postedBody['salt'] as String,
-        nonceB64: postedBody['nonce'] as String,
+        nonceB64: postedBody['blob_nonce'] as String,
       );
 
       // Real PasskeyService.getVault retrieves the stored opaque blob back.
-      final retrieved = await PasskeyService().getVault(_accountId);
+      final retrieved = await PasskeyService().getVault(keypair: keypair, accountId: _accountId);
       expect(retrieved, isNotNull, reason: 'GET must return the stored row');
 
       // Server returned byte-identical blob fields — the W4 opaque-blob
@@ -279,6 +297,7 @@ void main() {
       }
 
       await PasskeyService().createVault(
+        keypair: keypair,
         accountId: _accountId,
         password: _password,
         plaintext: _plaintext,
@@ -287,13 +306,18 @@ void main() {
       final body = store.lastRequestBody;
       expect(body, isNotNull, reason: 'createVault must POST a JSON body');
 
-      // THE contract: exactly these four keys, nothing else.
+      // THE contract: exactly the W7-12 auth + opaque-blob key set.
       expect(
         body!.keys.toSet(),
         equals(_kExpectedBodyKeys),
-        reason: 'wire body MUST be exactly the W4 opaque-blob four-tuple',
+        reason: 'wire body MUST be exactly the W7-12 auth + opaque-blob keys',
       );
-      expect(body['account_id'], equals(_accountId));
+      // W7-12: account_id is NO LONGER in the body (resolved server-side from
+      // the verified public key) — the IDOR fix. The caller's public key IS
+      // present so the server can resolve the account.
+      expect(body.containsKey('account_id'), isFalse,
+          reason: 'account_id must NOT be a body field (resolved server-side)');
+      expect(body['author_public_key'], equals(keypair.publicKey));
 
       // Explicit ZK assertions — neither a `password` NOR any plaintext-bearing
       // key may appear in the body's key set.
@@ -321,6 +345,7 @@ void main() {
       }
 
       await PasskeyService().createVault(
+        keypair: keypair,
         accountId: _accountId,
         password: _password,
         plaintext: _plaintext,
@@ -328,7 +353,7 @@ void main() {
 
       // The lens through which the server "sees" the vault: the decoded,
       // concatenated opaque bytes it is storing (ciphertext || salt || nonce).
-      final blobBytes = store.storedBlobBytesFor(_accountId);
+      final blobBytes = store.storedBlobBytesFor(keypair.publicKey);
       expect(blobBytes, isNotEmpty);
 
       // THE ZK PROPERTY: NONE of the password, the plaintext, or a
@@ -376,6 +401,7 @@ void main() {
       }
 
       await PasskeyService().createVault(
+        keypair: keypair,
         accountId: _accountId,
         password: _password,
         plaintext: _plaintext,
@@ -383,7 +409,7 @@ void main() {
 
       // Reconstruct the blob exactly as the production unlock screen would:
       // straight from getVault's bytes.
-      final retrieved = await PasskeyService().getVault(_accountId);
+      final retrieved = await PasskeyService().getVault(keypair: keypair, accountId: _accountId);
       final originalBlob = EncryptedVaultResult(
         encryptedDataB64: retrieved!.encryptedData,
         saltB64: retrieved.salt,
@@ -401,8 +427,8 @@ void main() {
       // fail loud. Proves the GCM integrity property survives the full
       // client→server→client round-trip (complements W1's raw-crypto tamper
       // test, which never crosses the wire).
-      store.tamperEncryptedData(_accountId);
-      final tamperedRetrieved = await PasskeyService().getVault(_accountId);
+      store.tamperEncryptedData(keypair.publicKey);
+      final tamperedRetrieved = await PasskeyService().getVault(keypair: keypair, accountId: _accountId);
       final tamperedBlob = EncryptedVaultResult(
         encryptedDataB64: tamperedRetrieved!.encryptedData,
         saltB64: tamperedRetrieved.salt,
@@ -419,7 +445,7 @@ void main() {
       // No crypto needed — purely the W4 404 contract branch which the unlock
       // screen's "first-run, no vault yet" UX relies on. Documents that path
       // at the integration level.
-      final retrieved = await PasskeyService().getVault('never-created-acct');
+      final retrieved = await PasskeyService().getVault(keypair: keypair, accountId: 'never-created-acct');
       expect(retrieved, isNull);
     });
   });
