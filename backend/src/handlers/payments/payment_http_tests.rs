@@ -658,13 +658,27 @@ async fn config_with_publishable_key_returns_200() {
 
 #[tokio::test]
 async fn config_without_publishable_key_returns_503() {
+    // W7-6 follow-up: the config endpoint is called by the FRONTEND (public,
+    // unauthenticated) to learn whether ICPay is configured. When it is not,
+    // the 503 body MUST NOT echo the internal config variable name
+    // (`ICPAY_PUBLISHABLE_KEY`) — same leak class W7-6 just closed for the
+    // webhook (which is called by an untrusted external ICPay). The detail
+    // stays in the server log only.
     let state = build_state(None, Some("whsec_xyz")).await;
     let client = TestClient::new(build_app(state));
     let resp = client.get("/api/v1/payments/icpay/config").send().await;
     resp.assert_status(StatusCode::SERVICE_UNAVAILABLE);
     let json = json_value(resp).await;
     assert_eq!(json["success"], false);
-    assert_eq!(json["error"], "ICPAY_PUBLISHABLE_KEY not configured");
+    let err = json["error"].as_str().expect("error must be a string");
+    assert!(
+        !err.contains("ICPAY_PUBLISHABLE_KEY"),
+        "config error must not leak the config var name, got: {err}"
+    );
+    assert!(
+        !err.is_empty(),
+        "config error must carry a generic external message"
+    );
 }
 
 // ========================================================================

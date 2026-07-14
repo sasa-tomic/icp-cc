@@ -236,7 +236,11 @@ pub async fn download_script(
 /// Returns the browser-safe publishable key + token shortcode + API URL. The
 /// secret key never leaves the server. 503 (LOUD) when the publishable key is
 /// unset so the client can distinguish "payments not configured" from a
-/// transient error.
+/// transient error. The 503 body uses a GENERIC external message — this
+/// endpoint is called by the FRONTEND over an unauthenticated channel, so the
+/// internal config variable name (`ICPAY_PUBLISHABLE_KEY`) MUST NOT be echoed
+/// back. The detail is kept in the server log only (mirrors the W7-6 fix
+/// applied to the webhook handler).
 #[handler]
 pub async fn payment_config(Data(state): Data<&Arc<AppState>>) -> Response {
     match state.payment_service.get_publishable_config() {
@@ -245,10 +249,15 @@ pub async fn payment_config(Data(state): Data<&Arc<AppState>>) -> Response {
             "data": cfg
         }))
         .into_response(),
-        None => error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "ICPAY_PUBLISHABLE_KEY not configured",
-        ),
+        None => {
+            tracing::error!(
+                "Payment config requested but ICPAY_PUBLISHABLE_KEY is not configured"
+            );
+            error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Payment provider not configured",
+            )
+        }
     }
 }
 
