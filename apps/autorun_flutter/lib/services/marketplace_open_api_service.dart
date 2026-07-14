@@ -70,19 +70,6 @@ class MalformedReviewsResponseException implements Exception {
   String toString() => 'MalformedReviewsResponseException: $detail';
 }
 
-/// Thrown by `GET /api/v1/scripts/:id/versions` when the response `data` does
-/// not match the backend contract `[{version, ...}, ...]` (W7-7c). Surfaced
-/// loudly so the UI shows a real error instead of silently masking a server
-/// contract violation as "no versions" (`return []`). A *genuine* empty list
-/// (`{success:true, data:[]}`) still returns `[]` — only MALFORMED data (null
-/// / non-List `data`) throws.
-class MalformedVersionsResponseException implements Exception {
-  final String detail;
-  const MalformedVersionsResponseException(this.detail);
-  @override
-  String toString() => 'MalformedVersionsResponseException: $detail';
-}
-
 abstract class MarketplaceOpenApi {
   Future<MarketplaceSearchResult> searchScripts({
     String? query,
@@ -660,41 +647,6 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
     } catch (e) {
       if (!suppressDebugOutput) {
         debugPrint('Get script version failed: $e');
-      }
-      rethrow;
-    }
-  }
-
-  Future<List<ScriptVersion>> getScriptVersions(String scriptId) async {
-    try {
-      final response = await _httpClient
-          .get(Uri.parse(ApiRoutes.scriptVersions(scriptId)))
-          .timeout(AppDurations.browseTimeout);
-
-      if (response.statusCode == 404) {
-        return [];
-      }
-      final responseData =
-          _decodeSuccessResponse(response, label: 'Get script versions');
-
-      final data = responseData['data'];
-      // W7-7c: a MALFORMED payload (data is null / not a List) is a server
-      // contract violation — surface it loudly as a typed exception, NOT a
-      // silent `return []` that masks the bug as "no versions". A GENUINE
-      // empty list (`{success:true, data:[]}`) still flows through and returns
-      // `[]` — only the wrong shape throws. (404 → [] is handled above.)
-      if (data is! List) {
-        throw MalformedVersionsResponseException(
-          'expected data to be a list, got ${data.runtimeType}',
-        );
-      }
-      return data
-          .whereType<Map<String, dynamic>>()
-          .map((v) => ScriptVersion.fromJson(v))
-          .toList();
-    } catch (e) {
-      if (!suppressDebugOutput) {
-        debugPrint('Get script versions failed: $e');
       }
       rethrow;
     }
@@ -1326,57 +1278,6 @@ class ScriptValidationResult {
       warnings: List<String>.from(json['warnings'] ?? []),
     );
   }
-}
-
-class ScriptVersion {
-  final String version;
-  final String? changelog;
-  final DateTime createdAt;
-  final int downloads;
-  final bool isLatest;
-
-  const ScriptVersion({
-    required this.version,
-    this.changelog,
-    required this.createdAt,
-    this.downloads = 0,
-    this.isLatest = false,
-  });
-
-  factory ScriptVersion.fromJson(Map<String, dynamic> json) {
-    return ScriptVersion(
-      version: json['version'] as String? ?? '',
-      changelog: json['changelog'] as String?,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ??
-              json['created_at'] as String? ??
-              '') ??
-          DateTime.now(),
-      downloads: json['downloads'] as int? ?? 0,
-      isLatest:
-          json['isLatest'] as bool? ?? json['is_latest'] as bool? ?? false,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'version': version,
-        'changelog': changelog,
-        'createdAt': createdAt.toIso8601String(),
-        'downloads': downloads,
-        'isLatest': isLatest,
-      };
-
-  @override
-  String toString() => 'ScriptVersion{version: $version, latest: $isLatest}';
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ScriptVersion &&
-          runtimeType == other.runtimeType &&
-          version == other.version;
-
-  @override
-  int get hashCode => version.hashCode;
 }
 
 /// Public ICPay client config (browser-safe). Mirrors the backend

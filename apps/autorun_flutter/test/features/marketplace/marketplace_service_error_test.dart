@@ -644,10 +644,15 @@ void main() {
   //       server omits the `success` flag (was in getCompatibleScripts).
   //   (b) 3 success-path sites bypassed `_decodeSuccessResponse` (hand-rolled
   //       jsonDecode + success check) — the duplication is what bred (a).
-  //   (c) getScriptVersions masked malformed data as `return []`.
   //   (d) unguarded `as List` casts → raw CastError.
   //   (e) one-sided `> 299` status bound let 1xx through as "success".
-  group('W7-7: null-safe success + typed versions/cast errors', () {
+  //
+  // (W7-7c — getScriptVersions malformed-data — was retired in W7-8: the
+  // Versions tab was removed because the backend ships no /versions route, so
+  // the method, the ScriptVersion model, and MalformedVersionsResponseException
+  // were deleted alongside the tab. The malformed-data contract is still
+  // covered for sibling methods via the getCompatibleScripts tests below.)
+  group('W7-7: null-safe success + typed cast errors', () {
     const validCanisterId = 'aaaaa-bbbbb-ccccc-ddddd-eee';
 
     group('getCompatibleScripts (was null-unsafe !responseData[success])', () {
@@ -694,48 +699,6 @@ void main() {
               .having((e) => e.toString(), 'carries status',
                   contains('HTTP 100'))),
         );
-      });
-    });
-
-    group('getScriptVersions (was return [] on malformed data)', () {
-      test(
-          'throws MalformedVersionsResponseException when data is null '
-          '(W7-7c)', () {
-        // Old code: `if (data == null || data is! List) return []` → silently
-        // masks a server contract violation as "no versions". Must throw.
-        service.overrideHttpClient(_statusClient(
-          200,
-          body: jsonEncode({'success': true, 'data': null}),
-        ));
-        expect(
-          () => service.getScriptVersions('script-1'),
-          throwsA(isA<MalformedVersionsResponseException>()),
-        );
-      });
-
-      test(
-          'throws MalformedVersionsResponseException when data is a String '
-          '(W7-7c)', () {
-        service.overrideHttpClient(_statusClient(
-          200,
-          body: jsonEncode({'success': true, 'data': 'wrong-shape'}),
-        ));
-        expect(
-          () => service.getScriptVersions('script-1'),
-          throwsA(isA<MalformedVersionsResponseException>()),
-        );
-      });
-
-      test(
-          'returns [] for a genuine empty list ({success:true, data:[]}) — '
-          'only MALFORMED data throws', () async {
-        // A valid empty list from the server is NOT malformed — it must still
-        // return [] (the 404 → [] contract is preserved separately).
-        service.overrideHttpClient(_statusClient(
-          200,
-          body: jsonEncode({'success': true, 'data': <Object>[]}),
-        ));
-        expect(await service.getScriptVersions('script-1'), isEmpty);
       });
     });
 

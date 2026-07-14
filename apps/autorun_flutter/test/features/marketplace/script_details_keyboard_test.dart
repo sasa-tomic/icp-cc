@@ -13,7 +13,6 @@ import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
 import 'package:icp_autorun/widgets/script_details_reviews_tab.dart';
-import 'package:icp_autorun/widgets/script_details_versions_tab.dart';
 
 import '_marketplace_test_harness.dart';
 
@@ -23,9 +22,10 @@ import '_marketplace_test_harness.dart';
 ///  1. **Esc** closes the dialog. This is Flutter's dialog-route default
 ///     (Escape → DismissIntent → maybePop), NOT a custom handler — the test
 ///     pins the behaviour so a future refactor cannot silently regress it.
-///  2. **→ / ←** switch tabs (Details → Reviews → Versions and back), going
-///     through the dialog's `_selectTab` so lazy-load (UX-5) fires exactly as
-///     it does for a mouse tap on the tab.
+///  2. **→ / ←** switch tabs (Details ↔ Reviews), going through the dialog's
+///     `_selectTab` so lazy-load (UX-5) fires exactly as it does for a mouse
+///     tap on the tab. (W7-8: the Versions tab was removed — the strip is now
+///     Details (0) + Reviews (1).)
 ///  3. **←/→ stay inert** while the code-preview `SelectableText` has focus,
 ///     so the user can move the selection cursor without hijacking tabs.
 ///
@@ -152,8 +152,8 @@ void main() {
     }
 
     testWidgets(
-        '→ traverses Details → Reviews → Versions, lazy-loading each tab once',
-        (tester) async {
+        '→ traverses Details → Reviews, lazy-loading Reviews once (W7-8: '
+        'Versions tab removed)', (tester) async {
       final previous = debugDefaultTargetPlatformOverride;
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       try {
@@ -166,9 +166,8 @@ void main() {
         addTearDown(client.close);
         await pumpDialog(tester, client: client);
 
-        // Start: Details tab (neither Reviews nor Versions mounted or fetched).
+        // Start: Details tab (Reviews not mounted or fetched).
         expect(find.byType(ScriptDetailsReviewsTab), findsNothing);
-        expect(find.byType(ScriptDetailsVersionsTab), findsNothing);
         expect(reviewsFetches, 0);
         expect(versionsFetches, 0);
 
@@ -180,26 +179,20 @@ void main() {
         expect(reviewsFetches, 1,
             reason: 'selecting Reviews via → must lazy-load it (UX-5)');
 
-        // → : Reviews → Versions (lazy-loads Versions once).
+        // → at the last tab is a no-op (clamp): stays on Reviews, no re-fetch.
+        // (W7-8: with Versions gone, Reviews is now the right edge.)
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pumpAndSettle();
-        expect(find.byType(ScriptDetailsVersionsTab), findsOneWidget,
-            reason: '→ must move from Reviews to Versions');
-        expect(versionsFetches, 1,
-            reason: 'selecting Versions via → must lazy-load it (UX-5)');
-
-        // → at the last tab is a no-op (clamp): stays on Versions, no re-fetch.
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-        await tester.pumpAndSettle();
-        expect(find.byType(ScriptDetailsVersionsTab), findsOneWidget);
-        expect(versionsFetches, 1,
-            reason: '→ at Versions must clamp (no wrap)');
+        expect(find.byType(ScriptDetailsReviewsTab), findsOneWidget);
+        expect(reviewsFetches, 1, reason: '→ at Reviews must clamp (no wrap)');
+        expect(versionsFetches, 0,
+            reason: 'no /versions fetch — Versions tab is hidden (W7-8)');
       } finally {
         debugDefaultTargetPlatformOverride = previous;
       }
     });
 
-    testWidgets('← traverses back Versions → Reviews → Details',
+    testWidgets('← traverses back Reviews → Details (W7-8: 2-tab strip)',
         (tester) async {
       final previous = debugDefaultTargetPlatformOverride;
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
@@ -213,24 +206,15 @@ void main() {
         addTearDown(client.close);
         await pumpDialog(tester, client: client);
 
-        // Walk to Versions first (→ →), then walk back with ←.
+        // Walk to Reviews first (→), then walk back with ←.
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pumpAndSettle();
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-        await tester.pumpAndSettle();
-        expect(find.byType(ScriptDetailsVersionsTab), findsOneWidget);
+        expect(find.byType(ScriptDetailsReviewsTab), findsOneWidget);
 
-        // ← : Versions → Reviews.
+        // ← : Reviews → Details.
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
         await tester.pumpAndSettle();
-        expect(find.byType(ScriptDetailsReviewsTab), findsOneWidget,
-            reason: '← must move from Versions back to Reviews');
-
-        // ← : Reviews → Details (neither tab widget mounted on Details).
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-        await tester.pumpAndSettle();
-        expect(find.byType(ScriptDetailsReviewsTab), findsNothing);
-        expect(find.byType(ScriptDetailsVersionsTab), findsNothing,
+        expect(find.byType(ScriptDetailsReviewsTab), findsNothing,
             reason: '← must move from Reviews back to Details');
 
         // ← at the first tab is a no-op (clamp): stays on Details.
@@ -238,9 +222,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(ScriptDetailsReviewsTab), findsNothing);
 
-        // No re-fetches from the back-tour (cache holds, per UX-5).
+        // No re-fetches from the back-tour (cache holds, per UX-5). And no
+        // /versions fetch ever (W7-8: Versions tab is hidden).
         expect(reviewsFetches, 1);
-        expect(versionsFetches, 1);
+        expect(versionsFetches, 0);
       } finally {
         debugDefaultTargetPlatformOverride = previous;
       }
@@ -306,8 +291,8 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
         await tester.pumpAndSettle();
         expect(find.byType(ScriptDetailsReviewsTab), findsNothing);
-        expect(find.byType(ScriptDetailsVersionsTab), findsNothing);
-        expect(versionsFetches, 0);
+        expect(versionsFetches, 0,
+            reason: 'no /versions fetch — Versions tab is hidden (W7-8)');
       } finally {
         debugDefaultTargetPlatformOverride = previous;
       }

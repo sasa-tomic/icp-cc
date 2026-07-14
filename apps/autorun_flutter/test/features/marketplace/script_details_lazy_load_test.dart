@@ -55,10 +55,16 @@ void main() {
       service.resetHttpClient();
     });
 
-    /// Builds a counting MockClient that records every review / version
-    /// request, returns empty arrays for both, and serves the lightweight
-    /// `/preview` payload for the eager Details-tab preview load (UX-6: the
-    /// dialog now prefers the preview endpoint over the full bundle download).
+    /// Builds a counting MockClient that records every review request,
+    /// returns an empty array, and serves the lightweight `/preview` payload
+    /// for the eager Details-tab preview load (UX-6: the dialog now prefers
+    /// the preview endpoint over the full bundle download).
+    ///
+    /// W7-8: a `/versions` counter is retained as a regression guard — with
+    /// the Versions tab removed, the dialog must NEVER issue a `/versions`
+    /// request. The mock still answers one (200, empty) so an accidental
+    /// re-introduction surfaces as a non-zero counter instead of a hanging
+    /// future.
     MockClient countingClient({
       required void Function() onReview,
       required void Function() onVersion,
@@ -191,7 +197,8 @@ void main() {
     });
 
     testWidgets(
-        'selecting Versions fetches once; re-selecting Versions reuses the cache',
+        'W7-8: touring the available tabs never issues a /versions request '
+        '(Versions tab is hidden — no /versions backend route)',
         (WidgetTester tester) async {
       int reviewsFetches = 0;
       int versionsFetches = 0;
@@ -208,50 +215,18 @@ void main() {
         dialogBuilder: (_) => ScriptDetailsDialog(script: testScript),
       );
 
-      // First selection → fetch.
-      await tester.tap(find.text('Versions'));
-      await tester.pumpAndSettle();
-      expect(versionsFetches, 1);
-      expect(reviewsFetches, 0);
-
-      // Switch away to Details, then back to Versions → no new fetch (cached).
-      await tester.tap(find.text('Details'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Versions'));
-      await tester.pumpAndSettle();
-      expect(versionsFetches, 1,
-          reason: 'Re-selecting Versions must reuse the cached payload');
-    });
-
-    testWidgets('each tab fetches at most once across a full tour',
-        (WidgetTester tester) async {
-      int reviewsFetches = 0;
-      int versionsFetches = 0;
-
-      final client = countingClient(
-        onReview: () => reviewsFetches++,
-        onVersion: () => versionsFetches++,
-      );
-      service.overrideHttpClient(client);
-      addTearDown(client.close);
-
-      await pumpDetailsDialog(
-        tester,
-        dialogBuilder: (_) => ScriptDetailsDialog(script: testScript),
-      );
-
-      // Tour every tab twice. Each fetch endpoint should have been hit once.
+      // Tour every remaining tab twice. Reviews should be fetched once; the
+      // /versions endpoint must NEVER be hit (the tab is gone).
       for (int i = 0; i < 2; i++) {
         await tester.tap(find.text('Reviews'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Versions'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Details'));
         await tester.pumpAndSettle();
       }
 
       expect(reviewsFetches, 1);
-      expect(versionsFetches, 1);
+      expect(versionsFetches, 0,
+          reason: 'the Versions tab is hidden — no /versions fetch may fire');
     });
   });
 }

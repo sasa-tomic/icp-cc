@@ -7,7 +7,6 @@ import '../theme/app_design_system.dart';
 import 'keyboard_shortcuts.dart';
 import 'script_details_helpers.dart';
 import 'script_details_reviews_tab.dart';
-import 'script_details_versions_tab.dart';
 
 class ScriptDetailsDialog extends StatefulWidget {
   final MarketplaceScript script;
@@ -15,9 +14,6 @@ class ScriptDetailsDialog extends StatefulWidget {
   final VoidCallback? onBuy;
   final bool isDownloading;
   final bool isDownloaded;
-  final String? installedVersion;
-  final String? installedScriptSource;
-  final void Function(String version)? onInstallVersion;
 
   const ScriptDetailsDialog({
     super.key,
@@ -26,9 +22,6 @@ class ScriptDetailsDialog extends StatefulWidget {
     this.onBuy,
     this.isDownloading = false,
     this.isDownloaded = false,
-    this.installedVersion,
-    this.installedScriptSource,
-    this.onInstallVersion,
   });
 
   @override
@@ -57,39 +50,31 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   List<ScriptReview> _reviews = [];
   String? _reviewsError;
 
-  bool _isLoadingVersions = false;
-  List<ScriptVersion> _versions = [];
-  String? _versionsError;
   int _selectedTabIndex = 0;
 
   /// Tabs whose content has already been fetched at least once. The Details
   /// tab (index 0) is fetched eagerly in [initState] because it is the first
-  /// thing the user sees; Reviews (1) and Versions (2) are fetched lazily the
-  /// first time the user selects them, then cached here so re-selecting the
-  /// tab does not re-fetch (UX-5: kill the triple-load on dialog open).
+  /// thing the user sees; Reviews (1) is fetched lazily the first time the
+  /// user selects it, then cached here so re-selecting the tab does not
+  /// re-fetch (UX-5: kill the double-load on dialog open).
   final Set<int> _loadedTabs = <int>{0};
 
   @override
   void initState() {
     super.initState();
-    // Only the Details/preview tab loads eagerly — Reviews/Versions load on
-    // first selection (see [_selectTab]).
+    // Only the Details/preview tab loads eagerly — Reviews loads on first
+    // selection (see [_selectTab]).
     _loadScriptPreview();
   }
 
-  /// Switches the visible tab and, for Reviews/Versions, triggers their
-  /// fetch the first time they are selected. Subsequent selections reuse the
-  /// cached result (no re-fetch).
+  /// Switches the visible tab and, for Reviews, triggers its fetch the first
+  /// time it is selected. Subsequent selections reuse the cached result (no
+  /// re-fetch).
   void _selectTab(int index) {
     setState(() => _selectedTabIndex = index);
     if (_loadedTabs.add(index)) {
-      switch (index) {
-        case 1:
-          _loadReviews();
-          break;
-        case 2:
-          _loadVersions();
-          break;
+      if (index == 1) {
+        _loadReviews();
       }
     }
   }
@@ -106,29 +91,10 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
   /// → keyboard shortcut (UX-9 part B). Moves one tab right, clamped at the
   /// last tab. Lazy-load integration is identical to a tab tap.
   void _goToNextTab() {
-    if (_selectedTabIndex < 2) {
+    // W7-8: the Versions tab was removed (no /versions backend route); the
+    // tab strip is now Details (0) + Reviews (1), so the right edge is 1.
+    if (_selectedTabIndex < 1) {
       _selectTab(_selectedTabIndex + 1);
-    }
-  }
-
-  Future<void> _loadVersions() async {
-    setState(() {
-      _isLoadingVersions = true;
-      _versionsError = null;
-    });
-
-    try {
-      final versions =
-          await _marketplaceService.getScriptVersions(widget.script.id);
-      setState(() {
-        _versions = versions;
-        _isLoadingVersions = false;
-      });
-    } catch (e) {
-      setState(() {
-        _versionsError = 'Failed to load versions: $e';
-        _isLoadingVersions = false;
-      });
     }
   }
 
@@ -449,27 +415,21 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                       children: [
                         _buildTabBar(),
                         Expanded(
+                          // W7-8: only Details (0) + Reviews (1) remain. The
+                          // Versions tab (was index 2) was removed — the
+                          // backend ships no `/versions` route, so the tab
+                          // was permanently empty. Restore it together with
+                          // a `/versions` backend route.
                           child: _selectedTabIndex == 0
                               ? (isNarrow
                                   ? _buildNarrowLayout()
                                   : _buildWideLayout())
-                              : _selectedTabIndex == 1
-                                  ? ScriptDetailsReviewsTab(
-                                      script: widget.script,
-                                      reviews: _reviews,
-                                      isLoadingReviews: _isLoadingReviews,
-                                      reviewsError: _reviewsError,
-                                    )
-                                  : ScriptDetailsVersionsTab(
-                                      script: widget.script,
-                                      versions: _versions,
-                                      isLoadingVersions: _isLoadingVersions,
-                                      versionsError: _versionsError,
-                                      installedVersion: widget.installedVersion,
-                                      installedScriptSource:
-                                          widget.installedScriptSource,
-                                      onInstallVersion: widget.onInstallVersion,
-                                    ),
+                              : ScriptDetailsReviewsTab(
+                                  script: widget.script,
+                                  reviews: _reviews,
+                                  isLoadingReviews: _isLoadingReviews,
+                                  reviewsError: _reviewsError,
+                                ),
                         ),
                       ],
                     ),
@@ -1233,16 +1193,17 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
       ),
       // Surface the ←/→ tab-traversal binding on hover so the shortcut is
       // discoverable without opening the ? help sheet (UX-9 part B).
-      child: Tooltip(
-        message: 'Switch tabs with ← / → arrows',
-        child: Row(
-          children: [
-            _buildTab('Details', 0),
-            _buildTab('Reviews', 1),
-            _buildTab('Versions', 2),
-          ],
+        child: Tooltip(
+          message: 'Switch tabs with ← / → arrows',
+          child: Row(
+            // W7-8: only Details + Reviews — the Versions tab was removed
+            // (no /versions backend route; the tab was permanently empty).
+            children: [
+              _buildTab('Details', 0),
+              _buildTab('Reviews', 1),
+            ],
+          ),
         ),
-      ),
     );
   }
 
