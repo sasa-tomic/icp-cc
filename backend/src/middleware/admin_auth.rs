@@ -37,7 +37,13 @@ impl<E: Endpoint> Endpoint for AdminAuthEndpoint<E> {
             Some(header) => {
                 // Check for Bearer token format
                 if let Some(token) = header.strip_prefix("Bearer ") {
-                    if token == admin_token {
+                    // W7-3 (security): constant-time compare blunts a timing
+                    // side-channel that could leak how many leading bytes of a
+                    // guessed admin token are correct.
+                    if crate::crypto_util::constant_time_eq(
+                        token.as_bytes(),
+                        admin_token.as_bytes(),
+                    ) {
                         // Token is valid, proceed
                         let resp = self.ep.call(req).await?;
                         Ok(resp.into_response())

@@ -129,7 +129,10 @@ impl PaymentService {
         let expected_bytes = mac.finalize().into_bytes();
         let expected_hex = hex_encode(&expected_bytes);
 
-        if !constant_time_eq(expected_hex.as_bytes(), signature_header.trim().as_bytes()) {
+        if !crate::crypto_util::constant_time_eq(
+            expected_hex.as_bytes(),
+            signature_header.trim().as_bytes(),
+        ) {
             return Err(PaymentError::Unauthorized(
                 "Invalid ICPay webhook signature".to_string(),
             ));
@@ -225,21 +228,6 @@ fn hex_encode(bytes: &[u8]) -> String {
         out.push(HEX[(b & 0x0f) as usize] as char);
     }
     out
-}
-
-/// Constant-time byte comparison that ALWAYS processes the full length of both
-/// slices (no early-return on first mismatch). This blunts timing attacks
-/// against the webhook signature check. Length differences are also factored
-/// into the accumulator so as not to leak length via timing.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    let mut acc: u8 = 0;
-    let n = a.len().max(b.len());
-    for i in 0..n {
-        let x = a.get(i).copied().unwrap_or(0);
-        let y = b.get(i).copied().unwrap_or(0);
-        acc |= x ^ y;
-    }
-    acc == 0 && a.len() == b.len()
 }
 
 #[cfg(test)]
@@ -484,17 +472,7 @@ mod tests {
         assert!(svc.get_publishable_config().is_none());
     }
 
-    // ---- constant_time_eq + hex_encode helpers ----
-
-    #[test]
-    fn constant_time_eq_matches_and_differs_correctly() {
-        assert!(constant_time_eq(b"abc", b"abc"));
-        assert!(!constant_time_eq(b"abc", b"abd"));
-        assert!(!constant_time_eq(b"abc", b"abcd"));
-        assert!(!constant_time_eq(b"abcd", b"abc"));
-        assert!(constant_time_eq(b"", b""));
-        assert!(!constant_time_eq(b"", b"a"));
-    }
+    // ---- hex_encode helper ----
 
     #[test]
     fn hex_encode_is_lowercase() {

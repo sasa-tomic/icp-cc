@@ -110,7 +110,12 @@ pub fn verify_recovery_code(code: &str, hash: &str) -> Result<bool, String> {
         .map_err(|e| format!("Invalid key: {}", e))?;
     let derived_key = derive_recovery_key(&normalized, &salt)?;
 
-    Ok(derived_key[..] == stored_key[..])
+    // W7-3 (security): constant-time compare so a timing attacker cannot learn
+    // how many leading bytes of a guessed recovery code are correct.
+    Ok(crate::crypto_util::constant_time_eq(
+        &derived_key[..],
+        &stored_key[..],
+    ))
 }
 
 #[cfg(test)]
