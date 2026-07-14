@@ -41,7 +41,7 @@ impl TestIdentity {
     /// and returns the base64 signature.
     fn sign_download(&self, script_id: &str, timestamp: &str, nonce: &str) -> String {
         let payload = build_download_payload(script_id, timestamp, nonce);
-        let sig = self.signing_key.sign(&payload);
+        let sig = self.signing_key.sign(payload.as_bytes());
         B64.encode(sig.to_bytes())
     }
 }
@@ -497,6 +497,48 @@ async fn download_unknown_script_returns_404() {
         .send()
         .await;
     resp.assert_status(StatusCode::NOT_FOUND);
+}
+
+/// W7-5 (security): a captured signed download request MUST NOT be replayable.
+/// The handler builds the signed payload from `timestamp`+`nonce` and verifies
+/// the signature, but pre-fix never called `auth::validate_replay_prevention`
+/// — so the same signed request could be submitted repeatedly. This test sends
+/// the identical signed request twice and asserts the second is rejected with
+/// 401 (replay). Pre-fix both requests returned 200.
+#[tokio::test]
+async fn download_replay_with_same_nonce_is_rejected() {
+    let state = build_state(None, None).await;
+    insert_script(&state.pool, "free-1", 0.0, "free source").await;
+    let identity = TestIdentity::new([7u8; 32], "acct-replay");
+    insert_identity(&state.pool, &identity).await;
+
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    let nonce = uuid::Uuid::new_v4().to_string();
+    let sig = identity.sign_download("free-1", &timestamp, &nonce);
+    let body = serde_json::json!({
+        "public_key": identity.public_key_b64,
+        "signature": sig,
+        "timestamp": timestamp,
+        "nonce": nonce,
+    });
+
+    let client = TestClient::new(build_app(state));
+
+    // First download succeeds.
+    let resp1 = client
+        .post("/api/v1/scripts/free-1/download")
+        .body_json(&body)
+        .send()
+        .await;
+    resp1.assert_status(StatusCode::OK);
+
+    // Replay the identical signed request — must be rejected (replay).
+    let resp2 = client
+        .post("/api/v1/scripts/free-1/download")
+        .body_json(&body)
+        .send()
+        .await;
+    resp2.assert_status(StatusCode::UNAUTHORIZED);
 }
 
 // ========================================================================

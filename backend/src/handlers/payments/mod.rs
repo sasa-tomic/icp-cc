@@ -23,8 +23,8 @@ use crate::{
 /// Ed25519 private key whose public half appears in `DownloadRequest.public_key`.
 /// Kept here (next to the handler) so the wire format is obvious from a single
 /// place; the Dart `script_download_service` must build the identical string.
-fn build_download_payload(script_id: &str, timestamp: &str, nonce: &str) -> Vec<u8> {
-    format!("download:{script_id}:{timestamp}:{nonce}").into_bytes()
+fn build_download_payload(script_id: &str, timestamp: &str, nonce: &str) -> String {
+    format!("download:{script_id}:{timestamp}:{nonce}")
 }
 
 /// Authenticated paid-bundle retrieval. `POST /api/v1/scripts/:id/download`.
@@ -71,7 +71,9 @@ pub async fn download_script(
 
     // 2. Verify Ed25519 signature over the canonical payload.
     let payload = build_download_payload(&script_id, &req.timestamp, &req.nonce);
-    if let Err(e) = auth::verify_ed25519_signature(&req.signature, &payload, &req.public_key) {
+    if let Err(e) =
+        auth::verify_ed25519_signature(&req.signature, payload.as_bytes(), &req.public_key)
+    {
         tracing::warn!(
             "Download rejected: signature verification failed (script={}, account={}): {}",
             script_id,
@@ -79,6 +81,40 @@ pub async fn download_script(
             e
         );
         return error_response(StatusCode::UNAUTHORIZED, "Invalid signature");
+    }
+
+    // 2b. Replay prevention (W7-5): the signed `timestamp`+`nonce` MUST be
+    //     freshness-checked and single-use, exactly like every account
+    //     mutation in `account_service`. A captured signed download is
+    //     otherwise replayable verbatim. Mirrors the account_service pattern:
+    //     InvalidFormat (bad/out-of-range timestamp) → 400, InvalidSignature
+    //     (replayed nonce) → 401.
+    let timestamp_unix = match chrono::DateTime::parse_from_rfc3339(&req.timestamp) {
+        Ok(dt) => dt.timestamp(),
+        Err(e) => {
+            tracing::warn!(
+                "Download rejected: unparseable timestamp (script={}, account={}): {}",
+                script_id,
+                account_id,
+                e
+            );
+            return error_response(StatusCode::BAD_REQUEST, "Invalid timestamp format");
+        }
+    };
+    if let Err(e) =
+        auth::validate_replay_prevention(&state.pool, timestamp_unix, &req.nonce).await
+    {
+        let status = match e {
+            auth::AuthError::InvalidFormat(_) => StatusCode::BAD_REQUEST,
+            _ => StatusCode::UNAUTHORIZED,
+        };
+        tracing::warn!(
+            "Download rejected: replay prevention failed (script={}, account={}): {}",
+            script_id,
+            account_id,
+            e
+        );
+        return error_response(status, "Replay prevention failed");
     }
 
     // 3. Load script.
@@ -134,7 +170,44 @@ pub async fn download_script(
             .into_response();
     }
 
-    // 5. Bump downloads counter (mirrors `update_script_stats`). Best-effort:
+    // 5. Record the signature audit so the `(timestamp, nonce)` pair is
+    //    single-use within the 10-minute window — this is the WRITE side of
+    //    replay prevention (step 2b was the CHECK side). Security-relevant:
+    //    if we cannot record the nonce, we MUST NOT hand over the bundle,
+    //    because that request would then be replayable. (Unlike the counter
+    //    bump below, this is not best-effort.) Mirrors account_service.
+    let audit_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    if let Err(e) = state
+        .script_service
+        .account_repo
+        .record_signature_audit(crate::repositories::SignatureAuditParams {
+            audit_id: &audit_id,
+            account_id: Some(&account_id),
+            action: "download_script",
+            payload: &payload,
+            signature: &req.signature,
+            public_key: &req.public_key,
+            timestamp: timestamp_unix,
+            nonce: &req.nonce,
+            is_admin_action: false,
+            now: &now,
+        })
+        .await
+    {
+        tracing::error!(
+            "Failed to record download audit — refusing to release bundle (script={}, account={}): {}",
+            script_id,
+            account_id,
+            e
+        );
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to record download audit",
+        );
+    }
+
+    // 6. Bump downloads counter (mirrors `update_script_stats`). Best-effort:
     //    a counter failure does NOT block the download — the entitlement
     //    decision is the security-relevant part and already succeeded.
     if let Err(e) = state.script_service.increment_downloads(&script_id).await {
