@@ -28,16 +28,23 @@ impl ScriptRepository {
         category: Option<String>,
         include_private: bool,
     ) -> Result<Vec<Script>, sqlx::Error> {
-        let category_filter = if let Some(cat) = category {
-            format!(" AND category = '{}'", cat)
+        // W7-1 (security): `category` is bound as a SQL parameter, NEVER
+        // string-interpolated. The previous `format!(" AND category = '{}'",
+        // cat)` let `?category=zzz' OR 1=1--` escape the quote, OR in a
+        // tautology, and comment out the privacy filter — leaking private
+        // scripts. Now the literal is a `?` placeholder (mirrors
+        // `get_by_category`). LIMIT/OFFSET stay interpolated because they are
+        // typed `i32` (not injectable).
+        let category_filter = if category.is_some() {
+            " AND category = ?"
         } else {
-            String::new()
+            ""
         };
 
         let privacy_filter = if include_private {
-            String::new()
+            ""
         } else {
-            " AND is_public = 1".to_string()
+            " AND is_public = 1"
         };
 
         let sql = format!(
@@ -45,9 +52,11 @@ impl ScriptRepository {
             SCRIPT_COLUMNS_WITH_ACCOUNT, category_filter, privacy_filter, limit, offset
         );
 
-        sqlx::query_as::<_, Script>(&sql)
-            .fetch_all(&self.pool)
-            .await
+        let mut query = sqlx::query_as::<_, Script>(&sql);
+        if let Some(cat) = category {
+            query = query.bind(cat);
+        }
+        query.fetch_all(&self.pool).await
     }
 
     pub async fn count_public(&self) -> Result<i64, sqlx::Error> {

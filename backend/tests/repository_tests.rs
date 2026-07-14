@@ -557,6 +557,55 @@ async fn script_find_all_category_filter() {
     assert!(utils.iter().all(|s| s.category == "Utilities"));
 }
 
+/// W7-1 (security): the `category` argument to `find_all` MUST be bound as a
+/// SQL parameter, never string-interpolated. This test drives the classic
+/// injection payload `zzz' OR 1=1--` through `find_all` with
+/// `include_private = false`:
+///
+/// - **Pre-fix** the payload escapes the quote, ORs in `1=1`, and comments out
+///   the trailing `AND is_public = 1`, so EVERY row (including private
+///   scripts) is returned — defeating the privacy filter.
+/// - **Post-fix** (parameterised bind) the literal string is treated as a
+///   value, so it matches no row and nothing leaks.
+#[tokio::test]
+async fn script_find_all_category_filter_rejects_sql_injection() {
+    let pool = setup().await;
+    let repo = ScriptRepository::new(pool);
+
+    // Seed: two public scripts in different categories + one private script.
+    create_script(&repo, "s-pub-util", "Utilities", true, "Pub Util").await;
+    create_script(&repo, "s-pub-fin", "Finance", true, "Pub Fin").await;
+    create_script(&repo, "s-priv", "Utilities", false, "Private").await;
+
+    // The injection: closes the quote, ORs a tautology, comments out the rest.
+    let injection = "zzz' OR 1=1--".to_string();
+    let leaked = repo
+        .find_all(100, 0, Some(injection), false)
+        .await
+        .expect("find_all failed");
+
+    assert!(
+        leaked.is_empty(),
+        "category injection must not bypass the privacy filter; got {} rows: {:?}",
+        leaked.len(),
+        leaked.iter().map(|s| s.id.as_str()).collect::<Vec<_>>()
+    );
+    // Belt-and-braces: the private script must never appear.
+    assert!(
+        !leaked.iter().any(|s| s.id == "s-priv"),
+        "private script leaked via category injection"
+    );
+
+    // A legitimate category still filters correctly (regression guard for the
+    // parameterisation itself — proves the bind matches real values).
+    let utils = repo
+        .find_all(100, 0, Some("Utilities".to_string()), false)
+        .await
+        .expect("find_all failed");
+    assert_eq!(utils.len(), 1, "only the public Utilities script matches");
+    assert_eq!(utils[0].id, "s-pub-util");
+}
+
 #[tokio::test]
 async fn script_find_all_pagination() {
     let pool = setup().await;
