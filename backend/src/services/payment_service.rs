@@ -22,10 +22,12 @@
 //! the exact header name against live ICPay docs before going to prod.**
 //!
 //! Loud-misconfig policy (AGENTS.md): when `ICPAY_WEBHOOK_SECRET` is unset the
-//! service refuses to verify (returns `Err`); the webhook handler turns that
-//! into a 500. When `ICPAY_PUBLISHABLE_KEY` is unset the config endpoint
-//! returns 503. The app still boots and browses the marketplace — only the
-//! payment endpoints 5xx/503 when invoked without config.
+//! service refuses to verify (returns `Err`); the webhook handler short-circuits
+//! before that with a 503 + generic "Payment provider not configured" (the
+//! precise var name stays in the log only — the webhook is called by an
+//! untrusted external caller). When `ICPAY_PUBLISHABLE_KEY` is unset the config
+//! endpoint returns 503. The app still boots and browses the marketplace — only
+//! the payment endpoints 5xx/503 when invoked without config.
 
 use crate::models::{NewPurchase, PaymentConfig, WebhookEvent};
 use crate::repositories::PurchaseRepository;

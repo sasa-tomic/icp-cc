@@ -670,8 +670,12 @@ async fn webhook_with_bad_hmac_returns_401() {
 }
 
 #[tokio::test]
-async fn webhook_without_secret_returns_500() {
-    // No webhook secret configured.
+async fn webhook_without_secret_returns_503_and_does_not_leak_config_var() {
+    // W7-6: when ICPAY_WEBHOOK_SECRET is unset the webhook is called by an
+    // UNTRUSTED external caller (ICPay). It must return 503 (service
+    // unavailable — "not configured"), NOT 500, and MUST NOT echo the
+    // internal config variable name back to that caller. The detailed reason
+    // stays in the server log (tracing::error!) only.
     let state = build_state(Some("pk"), None).await;
     let body = completed_webhook_body("buyer-1", "paid-1");
     let sig = sign_webhook("whsec_demo", &body);
@@ -683,9 +687,18 @@ async fn webhook_without_secret_returns_500() {
         .body(body)
         .send()
         .await;
-    resp.assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+    resp.assert_status(StatusCode::SERVICE_UNAVAILABLE);
     let json = json_value(resp).await;
-    assert_eq!(json["error"], "ICPAY_WEBHOOK_SECRET not configured");
+    let err = json["error"].as_str().expect("error must be a string");
+    // MUST NOT leak the internal config variable name to an untrusted caller.
+    assert!(
+        !err.contains("ICPAY_WEBHOOK_SECRET"),
+        "webhook error must not leak the config var name, got: {err}"
+    );
+    assert!(
+        !err.is_empty(),
+        "webhook error must carry a generic external message"
+    );
 }
 
 #[tokio::test]

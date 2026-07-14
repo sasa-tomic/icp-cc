@@ -263,14 +263,16 @@ pub async fn icpay_webhook(
     body: Vec<u8>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
-    // LOUD misconfig: refuse to verify when the secret is unset (500). This
-    // surfaces a real configuration error rather than silently accepting or
-    // rejecting every webhook.
+    // LOUD misconfig: refuse to verify when the secret is unset. Return 503
+    // (service unavailable — "not configured"), consistent with the config
+    // endpoint, and a GENERIC external message — the webhook is called by an
+    // untrusted external caller (ICPay), so the internal config variable name
+    // must NOT be echoed back. The precise reason stays in the log only.
     if !state.payment_service.has_webhook_secret() {
         tracing::error!("ICPay webhook received but ICPAY_WEBHOOK_SECRET is not configured");
         return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "ICPAY_WEBHOOK_SECRET not configured",
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Payment provider not configured",
         );
     }
 
