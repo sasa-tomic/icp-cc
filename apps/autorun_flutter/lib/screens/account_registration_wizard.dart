@@ -584,6 +584,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
               builder: (_) => PasskeyManagementScreen(
                 accountId: account.id,
                 username: account.username,
+                keypair: widget.keypair,
               ),
             ),
             result: account,

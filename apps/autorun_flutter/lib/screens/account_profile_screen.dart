@@ -1483,6 +1483,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         builder: (context) => PasskeyManagementScreen(
           accountId: _account.id,
           username: _account.username,
+          keypair: _profile.primaryKeypair,
         ),
       ),
     );

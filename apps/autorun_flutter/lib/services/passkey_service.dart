@@ -90,6 +90,7 @@ class PasskeyService {
   }
 
   Future<PasskeyRegistrationResult> registerPasskey({
+    required ProfileKeypair keypair,
     required String accountId,
     required String username,
     String? deviceName,
@@ -99,9 +100,22 @@ class PasskeyService {
           "Passkeys aren't available on this platform. Use the app on macOS, Windows, or Android.");
     }
 
+    // W7-13: signature-gated. The backend resolves accountId from the verified
+    // public key and binds the new credential to that proven owner — closing
+    // the account-takeover exploit where anyone could enrol their authenticator
+    // on any account.
+    final startAuth = await _signAccountRequest(
+      keypair: keypair,
+      action: kPasskeyRegisterAction,
+      extraFields: {'account_id': accountId},
+    );
     final startResponse = await _post('/passkey/register/start', {
-      'account_id': accountId,
       'username': username,
+      'signature': startAuth.signature,
+      'author_public_key': startAuth.authorPublicKey,
+      'author_principal': startAuth.authorPrincipal,
+      'timestamp': startAuth.timestamp.toString(),
+      'nonce': startAuth.nonce,
     });
     final options = startResponse['data'];
     final challengeId = options['challenge_id'] as String;
@@ -153,10 +167,25 @@ class PasskeyService {
   }
 
   Future<void> deletePasskey({
-    required String passkeyId,
+    required ProfileKeypair keypair,
     required String accountId,
+    required String passkeyId,
   }) async {
-    await _delete('/passkey/$passkeyId', body: {'account_id': accountId});
+    // W7-13: signature-gated. The backend resolves accountId from the verified
+    // public key and scopes the delete to that account — only the owner can
+    // delete their passkey.
+    final auth = await _signAccountRequest(
+      keypair: keypair,
+      action: kPasskeyDeleteAction,
+      extraFields: {'passkey_id': passkeyId, 'account_id': accountId},
+    );
+    await _delete('/passkey/$passkeyId', body: {
+      'signature': auth.signature,
+      'author_public_key': auth.authorPublicKey,
+      'author_principal': auth.authorPrincipal,
+      'timestamp': auth.timestamp.toString(),
+      'nonce': auth.nonce,
+    });
   }
 
   Future<RecoveryCodesResult> generateRecoveryCodes(String accountId) async {

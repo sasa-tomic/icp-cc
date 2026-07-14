@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/profile_keypair.dart';
 import '../services/passkey_service.dart';
 import '../theme/app_design_system.dart';
 import '../utils/passkey_platform.dart';
@@ -7,11 +8,16 @@ class PasskeyManagementScreen extends StatefulWidget {
   const PasskeyManagementScreen({
     required this.accountId,
     required this.username,
+    required this.keypair,
     super.key,
   });
 
   final String accountId;
   final String username;
+
+  /// The active profile keypair — used to sign the signature-gated
+  /// register/delete requests (W7-13).
+  final ProfileKeypair keypair;
 
   @override
   State<PasskeyManagementScreen> createState() =>
@@ -66,6 +72,7 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
   Future<void> _addPasskey() async {
     try {
       await PasskeyService().registerPasskey(
+        keypair: widget.keypair,
         accountId: widget.accountId,
         username: widget.username,
         deviceName: _getDeviceName(),
@@ -113,6 +120,7 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
 
     try {
       await PasskeyService().deletePasskey(
+        keypair: widget.keypair,
         passkeyId: passkey.id,
         accountId: widget.accountId,
       );

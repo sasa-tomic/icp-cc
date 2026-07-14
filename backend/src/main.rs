@@ -181,12 +181,13 @@ async fn main() -> Result<(), std::io::Error> {
     //   POST   /api/v1/accounts/:username/keys        -> add_account_key
     //   DELETE /api/v1/accounts/:username/keys/:key_id-> remove_account_key
     // Passkeys
-    //   POST   /api/v1/passkey/register/start         -> passkey_register_start
+    // Passkeys (register/delete signature-gated; W7-13)
+    //   POST   /api/v1/passkey/register/start         -> passkey_register_start (signed)
     //   POST   /api/v1/passkey/register/finish        -> passkey_register_finish
     //   POST   /api/v1/passkey/authenticate/start     -> passkey_authenticate_start
     //   POST   /api/v1/passkey/authenticate/finish    -> passkey_authenticate_finish
     //   GET    /api/v1/passkey/list/:account_id       -> passkey_list
-    //   DELETE /api/v1/passkey/:passkey_id            -> passkey_delete
+    //   DELETE /api/v1/passkey/:passkey_id            -> passkey_delete (signed)
     // Vault (signature-gated; W7-12)
     //   POST   /api/v1/vault          -> vault_create
     //   POST   /api/v1/vault/get      -> vault_get

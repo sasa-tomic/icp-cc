@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/passkey_management_screen.dart';
 import 'package:icp_autorun/utils/passkey_platform.dart';
+import '../../shared/test_keypair_factory.dart';
 
 /// Widget tests for PasskeyManagementScreen
 void main() {
+  // W7-13: the register/delete requests are signature-gated; the screen carries
+  // the active ProfileKeypair. One real Ed25519 keypair for all tests.
+  late ProfileKeypair keypair;
+
+  setUpAll(() async {
+    keypair = await TestKeypairFactory.getEd25519Keypair();
+  });
+
   group('PasskeyManagementScreen', () {
     testWidgets('shows title in app bar', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: PasskeyManagementScreen(
             accountId: 'test-account',
             username: 'testuser',
+            keypair: keypair,
           ),
         ),
       );
@@ -22,10 +33,11 @@ void main() {
 
     testWidgets('shows add passkey button', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: PasskeyManagementScreen(
             accountId: 'test-account',
             username: 'testuser',
+            keypair: keypair,
           ),
         ),
       );
@@ -42,10 +54,11 @@ void main() {
       }
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: PasskeyManagementScreen(
             accountId: 'test-account',
             username: 'testuser',
+            keypair: keypair,
           ),
         ),
       );
@@ -83,10 +96,11 @@ void main() {
       }
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: PasskeyManagementScreen(
             accountId: 'test-account',
             username: 'testuser',
+            keypair: keypair,
           ),
         ),
       );
@@ -107,10 +121,11 @@ void main() {
       }
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: PasskeyManagementScreen(
             accountId: 'test-account',
             username: 'testuser',
+            keypair: keypair,
           ),
         ),
       );
@@ -130,10 +145,11 @@ void main() {
       }
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: PasskeyManagementScreen(
             accountId: 'test-account',
             username: 'testuser',
+            keypair: keypair,
           ),
         ),
       );
