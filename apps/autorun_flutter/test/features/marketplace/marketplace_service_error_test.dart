@@ -638,4 +638,149 @@ void main() {
       });
     });
   });
+
+  // W7-7: residual robustness/DRY issues in marketplace_open_api_service.
+  //   (a) null-unsafe `!responseData['success']` → opaque TypeError if the
+  //       server omits the `success` flag (was in getCompatibleScripts).
+  //   (b) 3 success-path sites bypassed `_decodeSuccessResponse` (hand-rolled
+  //       jsonDecode + success check) — the duplication is what bred (a).
+  //   (c) getScriptVersions masked malformed data as `return []`.
+  //   (d) unguarded `as List` casts → raw CastError.
+  //   (e) one-sided `> 299` status bound let 1xx through as "success".
+  group('W7-7: null-safe success + typed versions/cast errors', () {
+    const validCanisterId = 'aaaaa-bbbbb-ccccc-ddddd-eee';
+
+    group('getCompatibleScripts (was null-unsafe !responseData[success])', () {
+      test(
+          'throws a typed Exception (not TypeError) when success is omitted '
+          '(W7-7a)', () {
+        // Old code: `if (!responseData['success'])` → NoSuchMethodError /
+        // TypeError on null. Must throw a typed Exception instead.
+        service.overrideHttpClient(_statusClient(
+          200,
+          body: jsonEncode({'data': <Map<String, dynamic>>[]}),
+        ));
+        expect(
+          service.getCompatibleScripts(validCanisterId),
+          throwsA(isA<Exception>()),
+        );
+      });
+
+      test(
+          'throws a typed Exception (not CastError) when data is not a list '
+          '(W7-7d)', () {
+        // Old code: `responseData['data'] as List` → _TypeError when data is
+        // a String. Must throw a typed Exception instead.
+        service.overrideHttpClient(_statusClient(
+          200,
+          body: jsonEncode({'success': true, 'data': 'not-a-list'}),
+        ));
+        expect(
+          service.getCompatibleScripts(validCanisterId),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'mentions list',
+                  contains('list'))),
+        );
+      });
+
+      test('1xx is NOT treated as success (W7-7e: one-sided > 299 bound)', () {
+        // Old code: `if (response.statusCode > 299)` → 100 falls through to
+        // jsonDecode('') → FormatException that masks the status. The correct
+        // bound is `< 200 || > 299` (centralised in _decodeSuccessResponse).
+        service.overrideHttpClient(_statusClient(100, body: ''));
+        expect(
+          service.getCompatibleScripts(validCanisterId),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'carries status',
+                  contains('HTTP 100'))),
+        );
+      });
+    });
+
+    group('getScriptVersions (was return [] on malformed data)', () {
+      test(
+          'throws MalformedVersionsResponseException when data is null '
+          '(W7-7c)', () {
+        // Old code: `if (data == null || data is! List) return []` → silently
+        // masks a server contract violation as "no versions". Must throw.
+        service.overrideHttpClient(_statusClient(
+          200,
+          body: jsonEncode({'success': true, 'data': null}),
+        ));
+        expect(
+          () => service.getScriptVersions('script-1'),
+          throwsA(isA<MalformedVersionsResponseException>()),
+        );
+      });
+
+      test(
+          'throws MalformedVersionsResponseException when data is a String '
+          '(W7-7c)', () {
+        service.overrideHttpClient(_statusClient(
+          200,
+          body: jsonEncode({'success': true, 'data': 'wrong-shape'}),
+        ));
+        expect(
+          () => service.getScriptVersions('script-1'),
+          throwsA(isA<MalformedVersionsResponseException>()),
+        );
+      });
+
+      test(
+          'returns [] for a genuine empty list ({success:true, data:[]}) — '
+          'only MALFORMED data throws', () async {
+        // A valid empty list from the server is NOT malformed — it must still
+        // return [] (the 404 → [] contract is preserved separately).
+        service.overrideHttpClient(_statusClient(
+          200,
+          body: jsonEncode({'success': true, 'data': <Object>[]}),
+        ));
+        expect(await service.getScriptVersions('script-1'), isEmpty);
+      });
+    });
+
+    group('downloadPaidScriptBundle (was bypassing _decodeSuccessResponse)', () {
+      test('1xx is NOT treated as success (W7-7e)', () {
+        // Old code: `if (response.statusCode > 299)` after the 401/402 branches
+        // → 100 falls through to jsonDecode('') → FormatException. Now routed
+        // through _decodeSuccessResponse which uses `< 200 || > 299`.
+        service.overrideHttpClient(_statusClient(100, body: ''));
+        expect(
+          () => service.downloadPaidScriptBundle(
+            'script-1',
+            accountId: 'a',
+            publicKeyB64: 'pk',
+            signatureB64: 'sig',
+            timestamp: 'ts',
+            nonce: 'n',
+          ),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'carries status',
+                  contains('HTTP 100'))),
+        );
+      });
+
+      test('throws a typed Exception when data is missing on 200 (W7-7b)', () {
+        // Routed through _decodeDataField — a missing data field must produce a
+        // clear Exception, not a null-dereference.
+        service.overrideHttpClient(_statusClient(
+          200,
+          body: jsonEncode({'success': true}),
+        ));
+        expect(
+          () => service.downloadPaidScriptBundle(
+            'script-1',
+            accountId: 'a',
+            publicKeyB64: 'pk',
+            signatureB64: 'sig',
+            timestamp: 'ts',
+            nonce: 'n',
+          ),
+          throwsA(isA<Exception>()
+              .having((e) => e.toString(), 'mentions data',
+                  contains('data'))),
+        );
+      });
+    });
+  });
 }

@@ -70,6 +70,19 @@ class MalformedReviewsResponseException implements Exception {
   String toString() => 'MalformedReviewsResponseException: $detail';
 }
 
+/// Thrown by `GET /api/v1/scripts/:id/versions` when the response `data` does
+/// not match the backend contract `[{version, ...}, ...]` (W7-7c). Surfaced
+/// loudly so the UI shows a real error instead of silently masking a server
+/// contract violation as "no versions" (`return []`). A *genuine* empty list
+/// (`{success:true, data:[]}`) still returns `[]` — only MALFORMED data (null
+/// / non-List `data`) throws.
+class MalformedVersionsResponseException implements Exception {
+  final String detail;
+  const MalformedVersionsResponseException(this.detail);
+  @override
+  String toString() => 'MalformedVersionsResponseException: $detail';
+}
+
 abstract class MarketplaceOpenApi {
   Future<MarketplaceSearchResult> searchScripts({
     String? query,
@@ -155,8 +168,17 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
       final responseData = _decodeSuccessResponse(response, label: 'Search');
 
-      final data = responseData['data'];
-      final scripts = (data['scripts'] as List)
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Search');
+      // W7-7d: guard the cast — a non-List `scripts` field is a server contract
+      // violation and must throw a typed Exception, not a raw CastError.
+      final scriptsRaw = data['scripts'];
+      if (scriptsRaw is! List) {
+        throw FormatException(
+          'Search response "scripts" is not a list: ${scriptsRaw.runtimeType}',
+        );
+      }
+      final scripts = scriptsRaw
           .whereType<Map<String, dynamic>>()
           .map((script) => MarketplaceScript.fromJson(script))
           .toList();
@@ -310,7 +332,10 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       final responseData =
           _decodeSuccessResponse(response, label: 'Get scripts by category');
 
-      final data = responseData['data'] as List;
+      // W7-7d: route through the typed data-field helper instead of an
+      // unguarded `as List` cast — a non-List `data` throws a clear Exception.
+      final data = _decodeDataField<List>(responseData,
+          label: 'Get scripts by category');
       return data
           .whereType<Map<String, dynamic>>()
           .map((script) => MarketplaceScript.fromJson(script))
@@ -568,6 +593,9 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       rethrow;
     }
 
+    // 402 / 401 carry typed exceptions with extracted detail (price / auth
+    // reason); they must run BEFORE the shared success-decode helper, which
+    // would treat them as generic non-2xx errors.
     if (response.statusCode == 402) {
       double? price;
       try {
@@ -595,21 +623,18 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       }
       throw DownloadAuthException(detail);
     }
-    if (response.statusCode > 299) {
-      throw Exception(
-          'Paid download failed (HTTP ${response.statusCode}): ${response.body}');
-    }
 
-    final responseData = jsonDecode(response.body);
-    if (responseData is! Map<String, dynamic> ||
-        responseData['success'] != true) {
-      throw Exception(
-          responseData['error'] ?? 'Paid download failed');
-    }
-    final data = responseData['data'];
-    if (data is! Map<String, dynamic>) {
-      throw Exception('Paid download response missing data field');
-    }
+    // W7-7b/e: the success path (status + decode + success flag + data shape)
+    // is now governed by the shared helpers — no hand-rolled jsonDecode, no
+    // one-sided `> 299` bound (the helper uses `< 200 || > 299`), no unguarded
+    // shape check.
+    final responseData = _decodeSuccessResponse(
+      response,
+      label: 'Paid download',
+      failureFallback: 'Paid download failed',
+    );
+    final data = _decodeDataField<Map<String, dynamic>>(responseData,
+        label: 'Paid download');
     final bundle = data['bundle'] as String?;
     if (bundle == null) {
       throw Exception('Paid download response missing bundle field');
@@ -653,8 +678,15 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           _decodeSuccessResponse(response, label: 'Get script versions');
 
       final data = responseData['data'];
-      if (data == null || data is! List) {
-        return [];
+      // W7-7c: a MALFORMED payload (data is null / not a List) is a server
+      // contract violation — surface it loudly as a typed exception, NOT a
+      // silent `return []` that masks the bug as "no versions". A GENUINE
+      // empty list (`{success:true, data:[]}`) still flows through and returns
+      // `[]` — only the wrong shape throws. (404 → [] is handled above.)
+      if (data is! List) {
+        throw MalformedVersionsResponseException(
+          'expected data to be a list, got ${data.runtimeType}',
+        );
       }
       return data
           .whereType<Map<String, dynamic>>()
@@ -707,18 +739,13 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.browseTimeout);
 
-      if (response.statusCode > 299) {
-        throw Exception(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      final responseData = jsonDecode(response.body);
-      if (!responseData['success']) {
-        throw Exception(
-            responseData['error'] ?? 'Failed to get compatible scripts');
-      }
-
-      final data = responseData['data'] as List;
+      final responseData = _decodeSuccessResponse(
+        response,
+        label: 'Get compatible scripts',
+        failureFallback: 'Failed to get compatible scripts',
+      );
+      final data = _decodeDataField<List>(responseData,
+          label: 'Get compatible scripts');
       return data
           .whereType<Map<String, dynamic>>()
           .map((script) => MarketplaceScript.fromJson(script))
@@ -798,35 +825,25 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
           )
           .timeout(AppDurations.downloadTimeout);
 
-      if (response.statusCode < 200 || response.statusCode > 299) {
-        if (!suppressDebugOutput) {
-          debugPrint('Upload failed with status: ${response.statusCode}');
-          debugPrint('Response body: ${response.body}');
-          debugPrint('Reason phrase: "${response.reasonPhrase}"');
-        }
-        final errorMessage = _buildUploadErrorMessage(
-          statusCode: response.statusCode,
-          reasonPhrase: response.reasonPhrase,
-          responseBody: response.body,
-        );
-        throw Exception(errorMessage);
-      }
-
-      if (response.body.isEmpty) {
+      // W7-7b: route the status + decode + success check through the shared
+      // `_decodeSuccessResponse` helper (DRY — the hand-rolled copy was what
+      // bred the null-unsafe `!responseData['success']` bug in sibling
+      // methods). `statusErrorPrefix: 'Upload failed'` preserves the exact
+      // `'Upload failed (HTTP $status): $detail'` message format the old
+      // `_buildUploadErrorMessage` produced (the helper delegates body-detail
+      // extraction to the same `_extractServerError`).
+      //
+      // A 2xx empty body is guarded explicitly: the helper's `jsonDecode`
+      // would throw an opaque FormatException otherwise. (Non-2xx empty bodies
+      // are handled by the helper's `_extractServerError` fallback.)
+      if (response.statusCode >= 200 &&
+          response.statusCode <= 299 &&
+          response.body.isEmpty) {
         throw Exception(
             'Upload failed (HTTP ${response.statusCode}): Empty response from server');
       }
-
-      final responseData = jsonDecode(response.body);
-      if (responseData['success'] != true) {
-        throw Exception(
-          _buildUploadErrorMessage(
-            statusCode: response.statusCode,
-            reasonPhrase: response.reasonPhrase,
-            serverError: responseData['error']?.toString(),
-          ),
-        );
-      }
+      final responseData = _decodeSuccessResponse(response,
+          label: 'Upload', statusErrorPrefix: 'Upload failed');
 
       final data = responseData['data'];
       if (data == null) {
@@ -867,22 +884,6 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (!suppressDebugOutput) debugPrint('Upload script failed: $e');
       rethrow;
     }
-  }
-
-  String _buildUploadErrorMessage({
-    required int statusCode,
-    String? reasonPhrase,
-    String? responseBody,
-    Object? serverError,
-  }) {
-    // Prefer an already-extracted server `error` string; otherwise tolerate
-    // whatever the body contains via the shared extractor (never a
-    // FormatException).
-    final serverText = serverError?.toString().trim();
-    final detail = (serverText != null && serverText.isNotEmpty)
-        ? serverText
-        : _extractServerError(statusCode, reasonPhrase, responseBody ?? '');
-    return 'Upload failed (HTTP $statusCode): $detail';
   }
 
   // Update an existing script
