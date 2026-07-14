@@ -1,5 +1,5 @@
 use icp_marketplace_api::{
-    cleanup, db, handlers, middleware,
+    cleanup, cors, db, handlers, middleware,
     models::*,
     repositories::PurchaseRepository,
     services::{AccountService, PasskeyService, PaymentService, ReviewService, ScriptService},
@@ -9,7 +9,7 @@ use icp_marketplace_api::{
     },
 };
 use poem::{
-    delete, get, listener::TcpListener, middleware::Cors, post, EndpointExt, Route, Server,
+    delete, get, listener::TcpListener, post, EndpointExt, Route, Server,
 };
 use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc, time::Duration};
@@ -353,12 +353,12 @@ async fn main() -> Result<(), std::io::Error> {
         // so the browser-side agent-js can reach IC boundary nodes (browsers
         // cannot call ic0.app directly — no CORS headers). Supports GET (status
         // / candid registry) + POST (query/call/read_state). The global
-        // `Cors::new()` below adds CORS headers; the proxy never sees a key.
+        // CORS middleware below adds CORS headers; the proxy never sees a key.
         .at(
             "/api/v1/ic/*rest",
             get(handlers::ic_proxy::ic_proxy).post(handlers::ic_proxy::ic_proxy),
         )
-        .with(Cors::new())
+        .with(cors::build_cors())
         .data(state);
 
     // Start server

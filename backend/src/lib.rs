@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod cleanup;
+pub mod cors;
 pub mod crypto_util;
 pub mod db;
 pub mod handlers;
