@@ -218,3 +218,6 @@ Serialized git index (shared working tree + caches). Suggested sequence:
 | W7-5 | `71dd7d2d` | signed download now calls `validate_replay_prevention` + records audit; replay → 401 |
 | W7-6 | `e20ffdfc` | webhook 500→503 + generic msg (no `ICPAY_WEBHOOK_SECRET` leak); detail in logs |
 | W7-2 | `22e96a6b` | GET `/scripts/:id` never ships paid `bundle` (closes `?account_id=` entitlement bypass); new signed `POST /scripts/:id/entitlement` returns `{purchased, owns}`; 3 frontend consumers re-wired to the signed check |
+| W7-4 | `2022b4f8` | central `cors::build_cors()` — explicit allow-list (loopback dev `127.0.0.1` / `localhost` any port + `CORS_ALLOWED_ORIGIN` env, default `https://icp-mp.kalaj.org`); TRACE/CONNECT dropped; RED test proves `https://evil.example.com` is not reflected |
+| W7-16 | `78e3412b` | dead unauthenticated `POST /update-script-stats` removed entirely (handler, route, `UpdateStatsRequest` model, re-export); empirically zero frontend callers + signed download is the sole downloads-counter write site |
+| W7-6 follow-up | `26433e6e` | `GET /payments/icpay/config` 503 no longer echoes `ICPAY_PUBLISHABLE_KEY`; generic external message + `tracing::error!` detail (mirrors W7-6 webhook fix) |
