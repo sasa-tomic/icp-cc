@@ -13,7 +13,7 @@ use crate::{
     middleware,
     models::{
         AppState, CreateScriptRequest, DeleteScriptRequest, EntitlementRequest,
-        ScriptDetailResponse, ScriptsQuery, SearchRequest, UpdateScriptRequest, UpdateStatsRequest,
+        ScriptDetailResponse, ScriptsQuery, SearchRequest, UpdateScriptRequest,
         scripts_to_list_json,
     },
     repositories::SignatureAuditParams,
@@ -681,46 +681,5 @@ pub async fn get_compatible_scripts(
                 "Failed to get compatible scripts",
             )
         }
-    }
-}
-
-#[handler]
-pub async fn update_script_stats(
-    Json(req): Json<UpdateStatsRequest>,
-    Data(state): Data<&Arc<AppState>>,
-) -> Response {
-    if let Some(increment) = req.increment_downloads {
-        if increment > 0 {
-            match state
-                .script_service
-                .increment_downloads(&req.script_id)
-                .await
-            {
-                Ok(_) => {
-                    tracing::info!("Updated download count for script: {}", req.script_id);
-                    Json(serde_json::json!({
-                        "success": true,
-                        "message": "Stats updated successfully"
-                    }))
-                    .into_response()
-                }
-                Err(e) => {
-                    tracing::error!("Failed to update stats for script {}: {}", req.script_id, e);
-                    error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to update stats")
-                }
-            }
-        } else {
-            Json(serde_json::json!({
-                "success": true,
-                "message": "No stats to update"
-            }))
-            .into_response()
-        }
-    } else {
-        Json(serde_json::json!({
-            "success": true,
-            "message": "No stats to update"
-        }))
-        .into_response()
     }
 }

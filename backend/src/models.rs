@@ -169,14 +169,6 @@ pub struct CreateReviewRequest {
     pub comment: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct UpdateStatsRequest {
-    #[serde(rename = "scriptId")]
-    pub script_id: String,
-    #[serde(rename = "incrementDownloads")]
-    pub increment_downloads: Option<i32>,
-}
-
 pub struct AppState {
     pub pool: sqlx::SqlitePool,
     pub account_service: crate::services::AccountService,

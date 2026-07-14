@@ -153,7 +153,6 @@ async fn main() -> Result<(), std::io::Error> {
     //   GET    /api/v1/health                         -> health_check
     //   GET    /api/v1/ping                           -> ping
     //   GET    /api/v1/marketplace-stats              -> get_marketplace_stats
-    //   POST   /api/v1/update-script-stats            -> update_script_stats
     //   POST   /api/dev/reset-database                -> reset_database (dev only)
     // Scripts
     //   GET    /api/v1/scripts                        -> get_scripts
@@ -342,10 +341,6 @@ async fn main() -> Result<(), std::io::Error> {
         .at(
             "/api/v1/marketplace-stats",
             get(handlers::get_marketplace_stats),
-        )
-        .at(
-            "/api/v1/update-script-stats",
-            post(handlers::update_script_stats),
         )
         .at("/api/dev/reset-database", post(handlers::reset_database))
         // R-3b WU-1: IC byte-relay CORS proxy. A protocol-blind catch-all that

@@ -207,9 +207,12 @@ pub async fn download_script(
         );
     }
 
-    // 6. Bump downloads counter (mirrors `update_script_stats`). Best-effort:
-    //    a counter failure does NOT block the download — the entitlement
-    //    decision is the security-relevant part and already succeeded.
+    // 6. Bump downloads counter. Best-effort: a counter failure does NOT
+    //    block the download — the entitlement decision is the
+    //    security-relevant part and already succeeded. (This is the SOLE
+    //    write site of the downloads counter — the former unauthenticated
+    //    `POST /update-script-stats` endpoint was removed as dead code in
+    //    W7-16.)
     if let Err(e) = state.script_service.increment_downloads(&script_id).await {
         tracing::warn!(
             "Download succeeded but failed to bump downloads counter for {}: {}",
