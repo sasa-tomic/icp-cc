@@ -18,7 +18,16 @@
     var state = {
       backend_id: a.backend_id || "",
       host: a.host || "",
-      principal: "",
+      // W7-10: the host injects the active profile's principal here so the
+      // initial render shows the right identity (matching the runner chrome)
+      // WITHOUT a `whoami` canister round-trip. The `whoami` effect emitted
+      // below still fires (it refreshes the principal from the canister at
+      // the source of truth), but the body no longer flips from
+      // "No profile — view-only" → "Signed in: …" when the replica is
+      // unreachable — the host-known principal is shown from the first frame.
+      // Empty string for a keyless user → the view renders its honest
+      // "No profile — view-only" state.
+      principal: a.principal || "",
       polls: [],
       tallies: {},
       error: "",

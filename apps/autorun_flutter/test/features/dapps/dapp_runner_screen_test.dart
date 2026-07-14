@@ -173,6 +173,57 @@ void main() {
     expect(runtime.lastScript, '/* test bundle */');
   });
 
+  // ===========================================================================
+  // W7-10: the runner used to send the bundle only `{backend_id, host}` and
+  // let the bundle re-derive the caller's principal via a `whoami` canister
+  // call. When the replica was unreachable (the documented, expected state for
+  // the local-replica Polls example) `whoami` failed → principal empty → the
+  // bundle body rendered "No profile — view-only" while the host chrome
+  // correctly showed "Signed as: …" (the host already had the principal
+  // locally from the active profile's keypair). Fix: inject the host-known
+  // principal into the bundle's initial state so the bundle never needs a
+  // canister round-trip to learn who the caller is. The `whoami` call still
+  // fires (it refreshes the principal from the canister), but the INITIAL
+  // render now matches the chrome.
+  // ===========================================================================
+  testWidgets(
+      'W7-10: with an active profile, the runner injects the host-known '
+      'principal into the bundle initialArg (no canister round-trip needed '
+      'for the initial identity)', (tester) async {
+    final runtime = _RecordingRuntime();
+    final controller = await _pumpRunnerWithProfile(
+      tester,
+      descriptor,
+      runtime: runtime,
+    );
+    await tester.pumpAndSettle();
+
+    // The active keypair's principal is what the host chrome shows ("Signed
+    // as: …") — the bundle must receive the SAME value in initialArg so its
+    // body agrees with the chrome from the first frame.
+    final activePrincipal = controller.activeKeypair!.principal;
+    expect(activePrincipal, isNotNull,
+        reason: 'test precondition: the active profile must have a principal');
+    expect(runtime.lastInitialArg, isNotNull);
+    expect(runtime.lastInitialArg!['principal'], equals(activePrincipal),
+        reason: 'the host must inject its known principal into the bundle '
+            'so the bundle renders the right identity BEFORE the whoami '
+            'canister call resolves (or when the replica is unreachable)');
+  });
+
+  testWidgets(
+      'W7-10: with NO active profile, the runner injects an empty principal '
+      '(the bundle renders the honest view-only state)', (tester) async {
+    final runtime = _RecordingRuntime();
+    await _pumpRunner(tester, descriptor, runtime: runtime);
+    await tester.pumpAndSettle();
+
+    expect(runtime.lastInitialArg, isNotNull);
+    expect(runtime.lastInitialArg!['principal'], equals(''),
+        reason: 'a keyless user has no principal — inject empty so the '
+            'bundle renders its view-only state honestly from the start');
+  });
+
   testWidgets('Apply persists the edited connection and remounts the host',
       (tester) async {
     final runtime = _RecordingRuntime();

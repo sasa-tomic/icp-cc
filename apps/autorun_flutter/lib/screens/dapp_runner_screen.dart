@@ -856,6 +856,19 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
       initialArg: <String, dynamic>{
         'backend_id': _backendId,
         'host': _host,
+        // W7-10: inject the host-known principal so the bundle's INITIAL
+        // render shows the right identity (matching the runner chrome's
+        // "Signed as: …" chip) without waiting for a `whoami` canister
+        // round-trip. The Polls bundle used to derive the caller's principal
+        // via `whoami` — when the replica was unreachable (the documented,
+        // expected state for the local-replica example), `whoami` failed and
+        // the body showed "No profile — view-only" while the chrome
+        // correctly showed the real principal. The host already had the
+        // principal locally (from the active profile's keypair); this just
+        // threads it through. Empty string for a keyless user → the bundle
+        // renders its honest view-only state from the first frame.
+        'principal':
+            ProfileScope.of(context).activeKeypair?.principal ?? '',
       },
       // The shipped example dapp uses the per-dapp "Trust this dapp?" gate
       // (UX-10) so a first-run user sees at most ONE prompt, then all of the
