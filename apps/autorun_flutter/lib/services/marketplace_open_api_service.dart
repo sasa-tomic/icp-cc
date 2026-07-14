@@ -7,6 +7,7 @@ import '../models/account.dart';
 import '../utils/base64_utils.dart';
 import '../theme/app_design_system.dart';
 import 'api_routes.dart';
+import 'script_signature_service.dart';
 
 // Flag to control debug output in tests
 bool suppressDebugOutput = false;
@@ -175,21 +176,17 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
   // Get script details by ID.
   //
-  // Pass [accountId] (the backend Account.id, not username) to receive the
-  // entitlement-gated view: for paid scripts the response's `bundle` is `null`
-  // and `purchased` is `false` unless the account owns/has-purchased the
-  // script. Without [accountId] the server treats paid scripts as locked.
-  Future<MarketplaceScript> getScriptDetails(
-    String scriptId, {
-    String? accountId,
-  }) async {
+  // (W7-2) The `GET /scripts/:id` endpoint NEVER returns the paid bundle —
+  // `bundle` is `null` and `purchased` is `false` for every paid script here.
+  // The paid source is obtainable only via the authenticated signed
+  // `POST /scripts/:id/download`. To learn whether the active account owns /
+  // has purchased a paid script (so the UI can render Download vs Buy), call
+  // [checkEntitlement] — the sole signed source of truth for entitlement.
+  Future<MarketplaceScript> getScriptDetails(String scriptId) async {
     try {
-      final uri = accountId == null || accountId.isEmpty
-          ? Uri.parse(ApiRoutes.script(scriptId))
-          : Uri.parse(ApiRoutes.script(scriptId))
-              .replace(queryParameters: {'account_id': accountId});
-
-      final response = await _httpClient.get(uri).timeout(AppDurations.browseTimeout);
+      final response = await _httpClient
+          .get(Uri.parse(ApiRoutes.script(scriptId)))
+          .timeout(AppDurations.browseTimeout);
 
       if (response.statusCode == 404) {
         throw Exception('Script not found');
@@ -201,6 +198,55 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       return MarketplaceScript.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get script details failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Signed entitlement check — `POST /api/v1/scripts/:id/entitlement` (W7-2).
+  ///
+  /// Returns `{purchased, owns}` for the caller identified by [signed]. The
+  /// server resolves the caller's `account_id` from the verified public key
+  /// (NEVER trusts a client-supplied account id). This is the metadata-only
+  /// replacement for the entitlement branch removed from `GET /scripts/:id`
+  /// (which leaked the paid bundle). Drives the Buy/Download CTA on the
+  /// frontend without ever shipping the bundle.
+  ///
+  /// Throws on 401 (unknown public key / bad signature / replay) and any
+  /// non-2xx, routed through the shared `_decodeSuccessResponse` /
+  /// `_decodeDataField` helpers (no hand-rolled jsonDecode).
+  Future<({bool purchased, bool owns})> checkEntitlement(
+    String scriptId, {
+    required SignedEntitlementRequest signed,
+  }) async {
+    try {
+      final response = await _httpClient
+          .post(
+            Uri.parse(ApiRoutes.scriptEntitlement(scriptId)),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'signature': signed.signatureB64,
+              'author_public_key': signed.authorPublicKeyB64,
+              'author_principal': signed.authorPrincipal,
+              'timestamp': signed.timestamp,
+              'nonce': signed.nonce,
+            }),
+          )
+          .timeout(AppDurations.browseTimeout);
+
+      final responseData = _decodeSuccessResponse(response,
+          label: 'Entitlement check');
+      final data = _decodeDataField<Map<String, dynamic>>(responseData,
+          label: 'Entitlement check');
+      final purchased = data['purchased'];
+      final owns = data['owns'];
+      if (purchased is! bool || owns is! bool) {
+        throw FormatException(
+          'Entitlement response missing boolean purchased/owns fields: $data',
+        );
+      }
+      return (purchased: purchased, owns: owns);
+    } catch (e) {
+      if (!suppressDebugOutput) debugPrint('Entitlement check failed: $e');
       rethrow;
     }
   }

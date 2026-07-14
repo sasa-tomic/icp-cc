@@ -260,13 +260,24 @@ pub struct NewPurchase {
     pub created_at: String,
 }
 
-/// Query params for `GET /api/v1/scripts/:id`. The optional `account_id` drives
-/// the paid-script entitlement gate: when present, the server checks the
-/// purchases ledger (and script ownership) to decide whether to ship the full
-/// bundle. Omitting it returns metadata only for paid scripts.
-#[derive(Debug, Deserialize, Default)]
-pub struct ScriptDetailQuery {
-    pub account_id: Option<String>,
+/// Request body for `POST /api/v1/scripts/:id/entitlement` (W7-2). The caller
+/// signs the canonical payload `{action:"entitlement", id:<script_id>,
+/// nonce:<nonce>, ts:<timestamp>}` with the Ed25519 (or secp256k1) key whose
+/// public half appears in `author_public_key`. The server resolves the
+/// caller's `account_id` from that public key (NEVER trusts a client-supplied
+/// account id) and returns `{purchased: bool, owns: bool}` so the frontend can
+/// drive the Buy/Download CTA without leaking the paid bundle.
+///
+/// Field names are snake_case on the wire, matching the existing signed-request
+/// convention (`CreateScriptRequest`, `DeleteScriptRequest`, …).
+#[derive(Debug, Deserialize)]
+pub struct EntitlementRequest {
+    pub signature: String,
+    pub author_public_key: String,
+    pub author_principal: String,
+    /// Unix seconds. Must be within the replay-prevention window (±5 min).
+    pub timestamp: i64,
+    pub nonce: String,
 }
 
 /// Public ICPay client config (browser-safe). Returned by

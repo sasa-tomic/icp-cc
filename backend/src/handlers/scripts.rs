@@ -9,15 +9,23 @@ use poem::{
 };
 
 use crate::{
+    auth,
     middleware,
     models::{
-        AppState, CreateScriptRequest, DeleteScriptRequest, ScriptDetailQuery,
+        AppState, CreateScriptRequest, DeleteScriptRequest, EntitlementRequest,
         ScriptDetailResponse, ScriptsQuery, SearchRequest, UpdateScriptRequest, UpdateStatsRequest,
         scripts_to_list_json,
     },
+    repositories::SignatureAuditParams,
     responses::error_response,
     startup_checks::verify_script_ownership,
 };
+
+/// Single source of truth for the signed-entitlement action name. The client
+/// signs this exact string inside the canonical JSON payload and the server
+/// verifies it — both sides MUST agree, so it is named once here (and mirrored
+/// in the Dart `ScriptSignatureService.signEntitlement`).
+const ENTITLEMENT_ACTION: &str = "entitlement";
 
 #[handler]
 pub async fn get_scripts(
@@ -49,10 +57,26 @@ pub async fn get_scripts(
     }
 }
 
+/// `GET /api/v1/scripts/:id` — public script detail.
+///
+/// **Security (W7-2):** for a PAID script this ALWAYS returns
+/// [`ScriptDetailResponse::locked`] — i.e. `bundle: null`. The paid source is
+/// obtainable ONLY via the authenticated `POST /scripts/:id/download`, which
+/// gates on a real Ed25519 signature + purchase record. Free scripts (price
+/// <= 0) keep shipping the full bundle. The former `?account_id=<owner>`
+/// query branch was an entitlement bypass: `account_id` is a *public*
+/// identifier (leaked by `GET /accounts/:username` and
+/// `ScriptDetailResponse.owner_account_id`), so anyone could spoof it and
+/// receive the full paid bundle. It is now removed.
+///
+/// The `purchased` boolean is metadata-safe and stays in the response, but is
+/// always `false` for paid scripts here (the locked view). The signed
+/// `POST /scripts/:id/entitlement` endpoint is the sole source of truth for a
+/// caller's purchase/ownership state — the frontend uses it to drive the
+/// Buy/Download CTA.
 #[handler]
 pub async fn get_script(
     Path(script_id): Path<String>,
-    Query(query): Query<ScriptDetailQuery>,
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
     let script = match state.script_service.get_script(&script_id).await {
@@ -64,44 +88,10 @@ pub async fn get_script(
         }
     };
 
-    // Entitlement gate. Free scripts (price <= 0) always ship the full bundle.
-    // Paid scripts ship the bundle ONLY when the caller owns the script OR has
-    // a purchase record; otherwise `bundle` is dropped (rendered as `null`) and
-    // `purchased: false` so the UI can render a Buy CTA. This is the security
-    // fix for the HIGH-severity leak where the public endpoint used to return
-    // the full paid bundle to anyone.
-    let entitled = if script.price <= 0.0 {
-        true
-    } else if let Some(account_id) = query.account_id.as_deref() {
-        // Owner of the script is always entitled to their own bundle.
-        if script.owner_account_id.as_deref() == Some(account_id) {
-            true
-        } else {
-            match state
-                .purchase_repo
-                .exists_for_account_and_script(account_id, &script_id)
-                .await
-            {
-                Ok(purchased) => purchased,
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to check purchase entitlement for account={} script={}: {}",
-                        account_id,
-                        script_id,
-                        e
-                    );
-                    return error_response(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "Failed to verify purchase entitlement",
-                    );
-                }
-            }
-        }
-    } else {
-        false
-    };
-
-    let detail = if entitled {
+    // Free scripts (price <= 0) always ship the full bundle. Paid scripts are
+    // ALWAYS locked here — the bundle is only released via the signed download
+    // endpoint, which already gates correctly.
+    let detail = if script.price <= 0.0 {
         ScriptDetailResponse::entitled(script)
     } else {
         ScriptDetailResponse::locked(script)
@@ -110,6 +100,184 @@ pub async fn get_script(
     Json(serde_json::json!({
         "success": true,
         "data": detail
+    }))
+    .into_response()
+}
+
+/// `POST /api/v1/scripts/:id/entitlement` — signed entitlement check.
+///
+/// Replaces the entitlement bypass closed in `get_script`. Lets the frontend
+/// drive the Buy/Download CTA WITHOUT leaking the paid bundle: it returns only
+/// `{purchased: bool, owns: bool}`. The caller proves their identity with an
+/// Ed25519 (or secp256k1) signature over the canonical payload
+/// `{action:"entitlement", id:<script_id>, nonce:<nonce>, ts:<timestamp>}`;
+/// the server resolves the caller's `account_id` SERVER-SIDE from the verified
+/// public key (never trusts a client-supplied account id). Mirrors the auth +
+/// replay-prevention + signature-audit pattern proven on the signed download
+/// endpoint (`handlers::payments::download_script`).
+#[handler]
+pub async fn entitlement_check(
+    Path(script_id): Path<String>,
+    Json(req): Json<EntitlementRequest>,
+    Data(state): Data<&Arc<AppState>>,
+) -> Response {
+    // 1. Resolve account_id from the public key FIRST (never trust a
+    //    client-supplied identity). Unknown key → 401.
+    let account_id = match state
+        .script_service
+        .account_repo
+        .find_public_key_by_value(&req.author_public_key)
+        .await
+    {
+        Ok(Some(key)) => key.account_id,
+        Ok(None) => {
+            tracing::warn!(
+                "Entitlement rejected: public key not bound to any account (script={})",
+                script_id
+            );
+            return error_response(StatusCode::UNAUTHORIZED, "Unknown public key");
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to lookup public key for entitlement (script={}): {}",
+                script_id,
+                e
+            );
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to resolve account for entitlement",
+            );
+        }
+    };
+
+    // 2. Build the canonical payload and verify the signature. The payload is
+    //    canonicalised by `verify_operation_signature` (keys sorted
+    //    alphabetically) — the frontend `ScriptSignatureService.signEntitlement`
+    //    builds the identical canonical bytes.
+    let payload = serde_json::json!({
+        "action": ENTITLEMENT_ACTION,
+        "id": script_id,
+        "nonce": req.nonce,
+        "ts": req.timestamp,
+    });
+    if let Err(e) = auth::verify_operation_signature(
+        Some(&req.signature),
+        Some(&req.author_public_key),
+        Some(&req.author_principal),
+        &payload,
+    ) {
+        tracing::warn!(
+            "Entitlement rejected: signature verification failed (script={}, account={}): {}",
+            script_id,
+            account_id,
+            e
+        );
+        return error_response(StatusCode::UNAUTHORIZED, "Invalid signature");
+    }
+
+    // 3. Replay prevention (mirrors download_script step 2b): the signed
+    //    `timestamp`+`nonce` MUST be freshness-checked and single-use so a
+    //    captured signed request cannot be replayed.
+    if let Err(e) =
+        auth::validate_replay_prevention(&state.pool, req.timestamp, &req.nonce).await
+    {
+        let status = match e {
+            auth::AuthError::InvalidFormat(_) => StatusCode::BAD_REQUEST,
+            _ => StatusCode::UNAUTHORIZED,
+        };
+        tracing::warn!(
+            "Entitlement rejected: replay prevention failed (script={}, account={}): {}",
+            script_id,
+            account_id,
+            e
+        );
+        return error_response(status, "Replay prevention failed");
+    }
+
+    // 4. Load script. 404 if absent — entitlement is meaningless for a ghost.
+    let script = match state.script_service.get_script(&script_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => return error_response(StatusCode::NOT_FOUND, "Script not found"),
+        Err(e) => {
+            tracing::error!("Failed to load script for entitlement {}: {}", script_id, e);
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to load script for entitlement",
+            );
+        }
+    };
+
+    // 5. Compute entitlement. `owns` = caller is the script owner. `purchased`
+    //    = owns OR free OR holds a purchase record. `account_id` is always
+    //    server-derived (step 1), never client-supplied.
+    let owns = script.owner_account_id.as_deref() == Some(account_id.as_str());
+    let purchased = if script.price <= 0.0 || owns {
+        true
+    } else {
+        match state
+            .purchase_repo
+            .exists_for_account_and_script(&account_id, &script_id)
+            .await
+        {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::error!(
+                    "Failed to check purchase for entitlement (script={}, account={}): {}",
+                    script_id,
+                    account_id,
+                    e
+                );
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to verify purchase entitlement",
+                );
+            }
+        }
+    };
+
+    // 6. Record the signature audit so the `(timestamp, nonce)` pair is
+    //    single-use within the 10-minute window (the WRITE side of step 3).
+    //    Fail-closed: if the audit cannot be recorded, the request is
+    //    replayable, so we refuse to return the entitlement.
+    let audit_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    let canonical_payload = auth::create_canonical_payload(&payload);
+    if let Err(e) = state
+        .script_service
+        .account_repo
+        .record_signature_audit(SignatureAuditParams {
+            audit_id: &audit_id,
+            account_id: Some(&account_id),
+            action: ENTITLEMENT_ACTION,
+            payload: &canonical_payload,
+            signature: &req.signature,
+            public_key: &req.author_public_key,
+            timestamp: req.timestamp,
+            nonce: &req.nonce,
+            is_admin_action: false,
+            now: &now,
+        })
+        .await
+    {
+        tracing::error!(
+            "Failed to record entitlement audit — refusing to return entitlement \
+             (script={}, account={}): {}",
+            script_id,
+            account_id,
+            e
+        );
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to record entitlement audit",
+        );
+    }
+
+    Json(serde_json::json!({
+        "success": true,
+        "data": {
+            "purchased": purchased,
+            "owns": owns,
+        }
     }))
     .into_response()
 }

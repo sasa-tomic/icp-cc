@@ -71,7 +71,8 @@ class MarketplaceScript {
   /// backend has confirmed a purchase / ownership (`purchased == true`).
   /// `purchased == null` (absent on legacy list responses) is treated as
   /// "not confirmed" — paid scripts in that state are NOT downloadable until
-  /// `getScriptDetails(id, accountId:)` confirms entitlement.
+  /// `MarketplaceOpenApiService.checkEntitlement` (W7-2 signed check)
+  /// confirms entitlement.
   bool get isDownloadable => price <= 0 || purchased == true;
 
   static bool _parseBool(dynamic value) {

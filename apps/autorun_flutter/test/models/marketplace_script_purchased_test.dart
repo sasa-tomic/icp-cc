@@ -119,8 +119,9 @@ void main() {
         ).isDownloadable,
         isFalse,
         reason: 'a paid script with no entitlement signal must NOT be '
-            'downloadable — the client must confirm via getScriptDetails '
-            '(accountId:) before offering the download affordance.',
+            'downloadable — the client must confirm via the signed '
+            'checkEntitlement endpoint (W7-2) before offering the download '
+            'affordance.',
       );
     });
   });

@@ -5,11 +5,15 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
+import 'package:icp_autorun/services/script_signature_service.dart';
 
 /// Coverage for the ICPay / paid-download surface of
 /// [MarketplaceOpenApiService]:
-/// - `getScriptDetails(id, accountId:)` appends `?account_id=` and parses the
-///   entitlement `purchased` flag.
+/// - `getScriptDetails(id)` fetches metadata-only (W7-2: the `?account_id=`
+///   entitlement bypass is gone; `bundle`/`purchased` are never authoritative
+///   for paid scripts here).
+/// - `checkEntitlement` is the signed replacement: POSTs an Ed25519-signed
+///   body and parses `{purchased, owns}`. Throws on 401 / non-2xx.
 /// - `downloadPaidScriptBundle` returns the bundle on 200, throws
 ///   [PurchaseRequiredException] (with price) on 402, throws
 ///   [DownloadAuthException] on 401.
@@ -35,42 +39,8 @@ void main() {
         headers: {'Content-Type': 'application/json'},
       );
 
-  group('getScriptDetails(accountId:)', () {
-    test('appends ?account_id= when accountId is provided', () async {
-      String? capturedUrl;
-      final client = MockClient((request) async {
-        capturedUrl = request.url.toString();
-        return ok(jsonEncode({
-          'success': true,
-          'data': {
-            'id': 'script-paid',
-            'title': 'Paid',
-            'description': 'd',
-            'category': 'c',
-            'bundle': 'src',
-            'price': 9.99,
-            'purchased': false,
-            'created_at': '2024-01-01T00:00:00.000Z',
-            'updated_at': '2024-01-01T00:00:00.000Z',
-          },
-        }));
-      });
-      service.overrideHttpClient(client);
-      addTearDown(client.close);
-
-      final script = await service.getScriptDetails(
-        'script-paid',
-        accountId: 'acct-123',
-      );
-
-      expect(capturedUrl,
-          'https://mock.api/api/v1/scripts/script-paid?account_id=acct-123');
-      expect(script.purchased, isFalse,
-          reason: 'paid + not purchased must parse purchased:false');
-      expect(script.bundle, 'src');
-    });
-
-    test('omits query string when accountId is null (legacy shape)', () async {
+  group('getScriptDetails (W7-2: no accountId param)', () {
+    test('hits the bare /scripts/:id URL with no query string', () async {
       String? capturedUrl;
       final client = MockClient((request) async {
         capturedUrl = request.url.toString();
@@ -94,30 +64,86 @@ void main() {
 
       final script = await service.getScriptDetails('script-free');
 
+      // W7-2: the entitlement-bypassing ?account_id= query is GONE. The bare
+      // URL is all that's sent; entitlement is resolved via checkEntitlement.
       expect(capturedUrl, 'https://mock.api/api/v1/scripts/script-free');
       expect(script.purchased, isTrue);
     });
+  });
 
-    test('omits query string when accountId is empty', () async {
+  group('checkEntitlement (W7-2 signed entitlement check)', () {
+    /// Builds a minimal valid [SignedEntitlementRequest] for testing. The
+    /// signature is a placeholder — the mock HTTP client doesn't verify it
+    /// (that's the backend's job, covered by the Rust entitlement tests).
+    SignedEntitlementRequest fakeSigned() => const SignedEntitlementRequest(
+          signatureB64: 'sig-b64',
+          authorPublicKeyB64: 'pk-b64',
+          authorPrincipal: 'principal-text',
+          timestamp: 1700000000,
+          nonce: '11111111-1111-1111-1111-111111111111',
+        );
+
+    test('POSTs the 5-field signed body to /entitlement and parses the result',
+        () async {
+      Map<String, dynamic>? capturedBody;
       String? capturedUrl;
       final client = MockClient((request) async {
         capturedUrl = request.url.toString();
+        capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
         return ok(jsonEncode({
           'success': true,
-          'data': {
-            'id': 's',
-            'title': 't',
-            'bundle': 'b',
-            'created_at': '2024-01-01T00:00:00.000Z',
-            'updated_at': '2024-01-01T00:00:00.000Z',
-          },
+          'data': {'purchased': true, 'owns': false},
         }));
       });
       service.overrideHttpClient(client);
       addTearDown(client.close);
 
-      await service.getScriptDetails('s', accountId: '');
-      expect(capturedUrl, 'https://mock.api/api/v1/scripts/s');
+      final result =
+          await service.checkEntitlement('script-1', signed: fakeSigned());
+
+      expect(result.purchased, isTrue);
+      expect(result.owns, isFalse);
+      expect(capturedUrl,
+          'https://mock.api/api/v1/scripts/script-1/entitlement');
+      // Body is exactly the snake_case shape the backend expects.
+      expect(capturedBody, {
+        'signature': 'sig-b64',
+        'author_public_key': 'pk-b64',
+        'author_principal': 'principal-text',
+        'timestamp': 1700000000,
+        'nonce': '11111111-1111-1111-1111-111111111111',
+      });
+    });
+
+    test('surfaces 401 (bad signature / unknown key) as an Exception', () {
+      final client = MockClient((_) async => http.Response(
+            jsonEncode({'success': false, 'error': 'Invalid signature'}),
+            401,
+          ));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      expect(
+        () => service.checkEntitlement('script-1', signed: fakeSigned()),
+        throwsA(isA<Exception>()
+            .having((e) => e.toString(), 'status', contains('HTTP 401'))),
+      );
+    });
+
+    test('throws FormatException when purchased/owns are not booleans',
+        () async {
+      final client = MockClient((_) async => ok(jsonEncode({
+            'success': true,
+            // purchased missing, owns is a string — malformed contract.
+            'data': {'owns': 'yes'},
+          })));
+      service.overrideHttpClient(client);
+      addTearDown(client.close);
+
+      expect(
+        () => service.checkEntitlement('script-1', signed: fakeSigned()),
+        throwsA(isA<FormatException>()),
+      );
     });
   });
 

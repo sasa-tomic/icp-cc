@@ -13,6 +13,7 @@ import '../models/marketplace_script.dart';
 import '../models/script_list_item.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
+import '../services/script_signature_service.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
 import '../services/download_signature_service.dart';
@@ -173,25 +174,42 @@ class ScriptsScreenState extends State<ScriptsScreen>
 
   Future<void> _refetchPendingPurchases() async {
     if (_pendingPurchaseAccountIds.isEmpty) return;
+    // All pending entries are for the SAME active account; resolve the
+    // keypair once so we can sign the entitlement check (W7-2: the backend
+    // resolves account_id from the verified public key — no client-supplied
+    // identity is trusted anymore).
+    final active = await _resolveActiveAccount();
+    if (active?.account == null || active?.keypair == null) {
+      // No usable identity — leave entries pending so the next resume retries.
+      return;
+    }
     final entries = _pendingPurchaseAccountIds.entries.toList();
     for (final entry in entries) {
       final scriptId = entry.key;
-      final accountId = entry.value;
       try {
-        final updated =
-            await _api.getScriptDetails(scriptId, accountId: accountId);
+        final signed = await ScriptSignatureService.signEntitlement(
+          signingKeypair: active!.keypair,
+          scriptId: scriptId,
+        );
+        final result = await _api.checkEntitlement(scriptId, signed: signed);
         if (!mounted) return;
-        if (updated.purchased == true) {
+        if (result.purchased) {
           _pendingPurchaseAccountIds.remove(scriptId);
           setState(() {
             _marketplaceScripts = _marketplaceScripts
-                .map((s) => s.id == scriptId ? updated : s)
+                .map((s) => s.id == scriptId
+                    ? s.copyWith(purchased: true)
+                    : s)
                 .toList();
           });
           if (mounted) {
+            final title = _marketplaceScripts
+                .firstWhere((s) => s.id == scriptId,
+                    orElse: () => throw StateError('missing script'))
+                .title;
             ScaffoldMessenger.of(context).showSnackBar(
               AppDesignSystem.successSnackBar(
-                'Payment confirmed — "${updated.title}" is ready to download!',
+                'Payment confirmed — "$title" is ready to download!',
               ),
             );
           }
@@ -601,10 +619,35 @@ class ScriptsScreenState extends State<ScriptsScreen>
     }
   }
 
-  void _showScriptDetails(BuildContext context, MarketplaceScript script) {
+  Future<void> _showScriptDetails(BuildContext context, MarketplaceScript script) async {
     final isFree = script.price <= 0;
+    // W7-2: for a paid script whose entitlement is unknown (`purchased` is
+    // null — list endpoints don't carry it), resolve it NOW via the signed
+    // entitlement endpoint so the dialog opens with the right CTA (Download
+    // for an owner/purchaser, Buy otherwise). The GET endpoint no longer
+    // leaks entitlement (or the bundle); the signed check is the sole source
+    // of truth. Best-effort: any failure / no-account leaves `purchased`
+    // unchanged (null → Buy CTA, the safe default).
+    if (!isFree && script.purchased == null) {
+      final resolved = await _resolveEntitlement(script);
+      if (resolved != null && mounted) {
+        setState(() {
+          _marketplaceScripts = _marketplaceScripts
+              .map((s) => s.id == script.id
+                  ? s.copyWith(purchased: resolved)
+                  : s)
+              .toList();
+          script = _marketplaceScripts.firstWhere(
+            (s) => s.id == script.id,
+            orElse: () => script,
+          );
+        });
+      }
+    }
+    if (!mounted) return;
     final owned = script.isDownloadable;
     showDialog(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => ScriptDetailsDialog(
         script: script,
@@ -620,6 +663,27 @@ class ScriptsScreenState extends State<ScriptsScreen>
         isDownloaded: _downloadedScriptIds.contains(script.id),
       ),
     );
+  }
+
+  /// Best-effort signed entitlement check for [script]. Returns the
+  /// `purchased` boolean on success, or `null` if the active profile has no
+  /// account / the check failed (callers fall back to the safe default —
+  /// the Buy CTA). W7-2 replacement for the removed `?account_id=` GET
+  /// query param.
+  Future<bool?> _resolveEntitlement(MarketplaceScript script) async {
+    final active = await _resolveActiveAccount();
+    if (active?.account == null || active?.keypair == null) return null;
+    try {
+      final signed = await ScriptSignatureService.signEntitlement(
+        signingKeypair: active!.keypair,
+        scriptId: script.id,
+      );
+      final result = await _api.checkEntitlement(script.id, signed: signed);
+      return result.purchased;
+    } catch (e) {
+      debugPrint('Entitlement check for ${script.id} failed: $e');
+      return null;
+    }
   }
 
   /// Buy CTA for a paid, not-yet-purchased script. Loads the active account,

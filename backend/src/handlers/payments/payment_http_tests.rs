@@ -1,6 +1,7 @@
 use super::{build_download_payload, download_script, icpay_webhook, payment_config};
+use crate::auth::create_canonical_payload;
 use crate::db;
-use crate::handlers::get_script;
+use crate::handlers::{entitlement_check, get_script};
 use crate::models::{self, AppState};
 use crate::repositories::PurchaseRepository;
 use crate::services::{
@@ -17,6 +18,13 @@ use sqlx::sqlite::SqlitePool;
 use std::sync::Arc;
 
 type HmacSha256 = Hmac<Sha256>;
+
+/// The single canonical action name for the signed-entitlement payload.
+/// Mirrors `handlers::scripts::ENTITLEMENT_ACTION` — the wire contract both
+/// sides must agree on. Kept literal here (not imported) because the backend
+/// const is private to its module; if it drifts the entitlement tests will
+/// fail loudly at the signature step.
+const ENTITLEMENT_ACTION: &str = "entitlement";
 
 /// A real Ed25519 keypair + the public key row inserted into the DB so the
 /// download handler can resolve `account_id` from the public key.
@@ -42,6 +50,23 @@ impl TestIdentity {
     fn sign_download(&self, script_id: &str, timestamp: &str, nonce: &str) -> String {
         let payload = build_download_payload(script_id, timestamp, nonce);
         let sig = self.signing_key.sign(payload.as_bytes());
+        B64.encode(sig.to_bytes())
+    }
+
+    /// Signs the canonical-JSON entitlement payload
+    /// `{action:"entitlement", id:<script_id>, nonce:<nonce>, ts:<timestamp>}`
+    /// and returns the base64 signature. The payload is canonicalised with the
+    /// SAME helper the backend uses (`auth::create_canonical_payload`) so the
+    /// bytes are identical on both sides.
+    fn sign_entitlement(&self, script_id: &str, timestamp: i64, nonce: &str) -> String {
+        let payload = serde_json::json!({
+            "action": ENTITLEMENT_ACTION,
+            "id": script_id,
+            "nonce": nonce,
+            "ts": timestamp,
+        });
+        let canonical = create_canonical_payload(&payload);
+        let sig = self.signing_key.sign(canonical.as_bytes());
         B64.encode(sig.to_bytes())
     }
 }
@@ -138,6 +163,10 @@ fn build_app(state: Arc<AppState>) -> impl poem::Endpoint {
     Route::new()
         .at("/api/v1/scripts/:id", get(get_script))
         .at("/api/v1/scripts/:id/download", post(download_script))
+        .at(
+            "/api/v1/scripts/:id/entitlement",
+            post(entitlement_check),
+        )
         .at("/api/v1/payments/icpay/config", get(payment_config))
         .at("/api/v1/payments/icpay/webhook", post(icpay_webhook))
         .with(Cors::new())
@@ -227,8 +256,70 @@ async fn get_script_paid_account_without_purchase_hides_bundle() {
     assert_eq!(json["data"]["purchased"], false);
 }
 
+/// W7-2 (security, RED-first): the public `GET /scripts/:id` endpoint MUST NOT
+/// return the paid bundle even when the caller spoofs the owner's `account_id`
+/// (a public identifier leaked by `GET /accounts/:username` and
+/// `ScriptDetailResponse.owner_account_id`). The `?account_id=` query branch
+/// was an entitlement bypass — it returned the full paid source to anyone. The
+/// fix strips `bundle` for every paid-script GET; entitlement is now provable
+/// only via the signed `POST /scripts/:id/entitlement` endpoint.
 #[tokio::test]
-async fn get_script_paid_account_with_purchase_returns_bundle() {
+async fn get_script_paid_spoofed_owner_account_id_does_not_leak_bundle() {
+    let state = build_state(None, None).await;
+    let identity = TestIdentity::new([42u8; 32], "owner-acct");
+    insert_identity(&state.pool, &identity).await;
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        r#"INSERT INTO scripts (
+            id, slug, owner_account_id, title, description, category, tags,
+            bundle, author_principal, author_public_key, upload_signature,
+            canister_ids, icon_url, screenshots, version, compatibility,
+            price, is_public, downloads, rating, review_count,
+            created_at, updated_at, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?, NULL, ?, 1, 0, 0.0, 0, ?, ?, NULL)"#,
+    )
+    .bind("paid-spoof")
+    .bind("slug-paid-spoof")
+    .bind("owner-acct")
+    .bind("Title")
+    .bind("desc")
+    .bind("utility")
+    .bind("PAID SOURCE — must never leak via GET")
+    .bind("1.0.0")
+    .bind(19.99)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.pool)
+    .await
+    .unwrap();
+
+    let client = TestClient::new(build_app(state));
+
+    // Spoof the owner's public account_id — the exact exploit from
+    // §1 of the Wave-7 plan.
+    let resp = client
+        .get("/api/v1/scripts/paid-spoof?account_id=owner-acct")
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert!(
+        json["data"]["bundle"].is_null(),
+        "paid bundle MUST be null even when ?account_id=<owner> is spoofed \
+         (account_id is a public identifier; entitlement requires a signature)"
+    );
+    // `purchased` is metadata-safe but now always false for paid scripts via
+    // GET — the signed entitlement endpoint is the sole source of truth.
+    assert_eq!(json["data"]["purchased"], false);
+}
+
+/// W7-2: `GET /scripts/:id` no longer carries entitlement. Even when a
+/// purchase record exists, the paid bundle is `null` + `purchased: false`
+/// here. The signed `POST /scripts/:id/entitlement` endpoint is the sole
+/// source of truth — the entitlement-purchased-owner / entitlement-purchaser
+/// tests below prove the purchase row still grants access via that path.
+#[tokio::test]
+async fn get_script_paid_with_purchase_no_longer_leaks_bundle_via_get() {
     let state = build_state(None, None).await;
     insert_script(&state.pool, "paid-1", 9.99, "print('paid source')").await;
     // Seed a purchase record.
@@ -251,21 +342,27 @@ async fn get_script_paid_account_with_purchase_returns_bundle() {
         .unwrap();
 
     let client = TestClient::new(build_app(state));
+    // The `?account_id=` query param is now ignored — it was the leak vector.
     let resp = client
         .get("/api/v1/scripts/paid-1?account_id=buyer-1")
         .send()
         .await;
     resp.assert_status(StatusCode::OK);
     let json = json_value(resp).await;
-    assert_eq!(
-        json["data"]["bundle"], "print('paid source')",
-        "paid bundle MUST be present once a purchase record exists"
+    assert!(
+        json["data"]["bundle"].is_null(),
+        "GET must never return the paid bundle, even for a known purchaser"
     );
-    assert_eq!(json["data"]["purchased"], true);
+    assert_eq!(
+        json["data"]["purchased"], false,
+        "GET is no longer an entitlement source; paid scripts are always purchased:false here"
+    );
+    // Metadata is still present for the Buy CTA.
+    assert!(!json["data"]["description"].is_null());
 }
 
 #[tokio::test]
-async fn get_script_paid_owner_is_entitled_without_purchase() {
+async fn get_script_paid_owner_bundle_is_locked_via_get() {
     let state = build_state(None, None).await;
     // Seed an account + a script it owns.
     let identity = TestIdentity::new([42u8; 32], "owner-acct");
@@ -302,11 +399,12 @@ async fn get_script_paid_owner_is_entitled_without_purchase() {
         .await;
     resp.assert_status(StatusCode::OK);
     let json = json_value(resp).await;
-    assert_eq!(
-        json["data"]["bundle"], "owner source",
-        "script owner is always entitled, even without a purchase row"
+    assert!(
+        json["data"]["bundle"].is_null(),
+        "GET must never return the paid bundle — even to the owner. \
+         Use POST /scripts/:id/entitlement (metadata) or /download (bundle)."
     );
-    assert_eq!(json["data"]["purchased"], true);
+    assert_eq!(json["data"]["purchased"], false);
 }
 
 #[tokio::test]
@@ -733,4 +831,237 @@ async fn webhook_accepts_icmpay_signature_header_spelling() {
     resp.assert_status(StatusCode::OK);
     let json = json_value(resp).await;
     assert_eq!(json["data"]["recorded"], true);
+}
+
+// ========================================================================
+// POST /scripts/:id/entitlement (W7-2 — signed entitlement check)
+// ========================================================================
+//
+// Replaces the entitlement bypass closed in `get_script`. The endpoint returns
+// ONLY `{purchased, owns}` — metadata that drives the Buy/Download CTA — and
+// never the bundle. The caller proves identity with an Ed25519 signature over
+// the canonical payload; the server resolves account_id from the verified
+// public key (never trusts client input). Mirrors the download endpoint's
+// account-resolution + replay-prevention + signature-audit pattern.
+
+/// Builds a valid signed entitlement request body for [identity].
+fn entitlement_body(identity: &TestIdentity, script_id: &str) -> serde_json::Value {
+    let timestamp = chrono::Utc::now().timestamp();
+    let nonce = uuid::Uuid::new_v4().to_string();
+    let sig = identity.sign_entitlement(script_id, timestamp, &nonce);
+    serde_json::json!({
+        "signature": sig,
+        "author_public_key": identity.public_key_b64,
+        "author_principal": "principal-placeholder",
+        "timestamp": timestamp,
+        "nonce": nonce,
+    })
+}
+
+#[tokio::test]
+async fn entitlement_unsigned_returns_401() {
+    let state = build_state(None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let identity = TestIdentity::new([1u8; 32], "acct-1");
+    insert_identity(&state.pool, &identity).await;
+
+    let client = TestClient::new(build_app(state));
+    // No signature, garbage key — must be rejected before any entitlement work.
+    let resp = client
+        .post("/api/v1/scripts/paid-1/entitlement")
+        .body_json(&serde_json::json!({
+            "signature": "deadbeef".repeat(16),
+            "author_public_key": identity.public_key_b64,
+            "author_principal": "principal-placeholder",
+            "timestamp": chrono::Utc::now().timestamp(),
+            "nonce": uuid::Uuid::new_v4().to_string(),
+        }))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn entitlement_signed_by_owner_returns_purchased_true_owns_true() {
+    let state = build_state(None, None).await;
+    let owner = TestIdentity::new([42u8; 32], "owner-acct");
+    insert_identity(&state.pool, &owner).await;
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        r#"INSERT INTO scripts (
+            id, slug, owner_account_id, title, description, category, tags,
+            bundle, author_principal, author_public_key, upload_signature,
+            canister_ids, icon_url, screenshots, version, compatibility,
+            price, is_public, downloads, rating, review_count,
+            created_at, updated_at, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?, NULL, ?, 1, 0, 0.0, 0, ?, ?, NULL)"#,
+    )
+    .bind("paid-owned")
+    .bind("slug-paid-owned")
+    .bind("owner-acct") // owner_account_id — matches the identity's account
+    .bind("Title")
+    .bind("desc")
+    .bind("utility")
+    .bind("owner source")
+    .bind("1.0.0")
+    .bind(19.99)
+    .bind(&now)
+    .bind(&now)
+    .execute(&state.pool)
+    .await
+    .unwrap();
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-owned/entitlement")
+        .body_json(&entitlement_body(&owner, "paid-owned"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert_eq!(json["success"], true);
+    assert_eq!(
+        json["data"]["purchased"], true,
+        "owner is always entitled — purchased:true, owns:true"
+    );
+    assert_eq!(json["data"]["owns"], true);
+}
+
+#[tokio::test]
+async fn entitlement_signed_by_purchaser_returns_purchased_true_owns_false() {
+    let state = build_state(None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let buyer = TestIdentity::new([2u8; 32], "buyer-1");
+    insert_identity(&state.pool, &buyer).await;
+    // Seed the purchase record that grants entitlement.
+    let now = chrono::Utc::now().to_rfc3339();
+    state
+        .purchase_repo
+        .create_or_ignore(&models::NewPurchase {
+            id: uuid::Uuid::new_v4().to_string(),
+            account_id: "buyer-1".to_string(),
+            script_id: "paid-1".to_string(),
+            icpay_intent_id: None,
+            icpay_transaction_id: None,
+            usd_amount: 9.99,
+            currency: "USD".to_string(),
+            status: "completed".to_string(),
+            paid_at: now.clone(),
+            created_at: now,
+        })
+        .await
+        .unwrap();
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/entitlement")
+        .body_json(&entitlement_body(&buyer, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert_eq!(json["data"]["purchased"], true, "purchaser is entitled");
+    assert_eq!(json["data"]["owns"], false, "but is NOT the owner");
+}
+
+#[tokio::test]
+async fn entitlement_signed_by_random_account_returns_all_false() {
+    let state = build_state(None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let rando = TestIdentity::new([3u8; 32], "rando-acct");
+    insert_identity(&state.pool, &rando).await;
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/entitlement")
+        .body_json(&entitlement_body(&rando, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert_eq!(
+        json["data"]["purchased"], false,
+        "no purchase + not owner → not entitled"
+    );
+    assert_eq!(json["data"]["owns"], false);
+}
+
+#[tokio::test]
+async fn entitlement_free_script_returns_purchased_true() {
+    // A free script is entitled to everyone — purchased:true regardless of
+    // caller. (The frontend uses this to render Download for free scripts.)
+    let state = build_state(None, None).await;
+    insert_script(&state.pool, "free-1", 0.0, "free source").await;
+    let caller = TestIdentity::new([4u8; 32], "caller-acct");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/free-1/entitlement")
+        .body_json(&entitlement_body(&caller, "free-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert_eq!(json["data"]["purchased"], true);
+}
+
+#[tokio::test]
+async fn entitlement_unknown_public_key_returns_401() {
+    // Unregistered key → no account → 401 (cannot establish identity).
+    let state = build_state(None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let ghost = TestIdentity::new([5u8; 32], "ghost-acct");
+    // Deliberately NOT inserted into account_public_keys.
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/entitlement")
+        .body_json(&entitlement_body(&ghost, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn entitlement_replay_with_same_nonce_is_rejected() {
+    // The signed (timestamp, nonce) pair MUST be single-use — a captured
+    // entitlement request cannot be replayed. Mirrors the download replay test.
+    let state = build_state(None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let caller = TestIdentity::new([6u8; 32], "replay-acct");
+    insert_identity(&state.pool, &caller).await;
+
+    let body = entitlement_body(&caller, "paid-1");
+    let client = TestClient::new(build_app(state));
+
+    let resp1 = client
+        .post("/api/v1/scripts/paid-1/entitlement")
+        .body_json(&body)
+        .send()
+        .await;
+    resp1.assert_status(StatusCode::OK);
+
+    // Replay the identical signed body.
+    let resp2 = client
+        .post("/api/v1/scripts/paid-1/entitlement")
+        .body_json(&body)
+        .send()
+        .await;
+    resp2.assert_status(StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn entitlement_unknown_script_returns_404() {
+    let state = build_state(None, None).await;
+    let caller = TestIdentity::new([7u8; 32], "acct-7");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/ghost-script/entitlement")
+        .body_json(&entitlement_body(&caller, "ghost-script"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::NOT_FOUND);
 }

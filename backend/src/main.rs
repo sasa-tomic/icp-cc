@@ -173,6 +173,7 @@ async fn main() -> Result<(), std::io::Error> {
     //   GET    /api/v1/scripts/:id/reviews            -> get_reviews
     //   POST   /api/v1/scripts/:id/reviews            -> create_review
     //   POST   /api/v1/scripts/:id/download           -> download_script (signed; entitlement gate)
+    //   POST   /api/v1/scripts/:id/entitlement        -> entitlement_check (signed; CTA metadata only)
     // Accounts
     //   POST   /api/v1/accounts                       -> register_account
     //   GET    /api/v1/accounts/:username             -> get_account
@@ -255,6 +256,10 @@ async fn main() -> Result<(), std::io::Error> {
         .at(
             "/api/v1/scripts/:id/download",
             post(handlers::download_script),
+        )
+        .at(
+            "/api/v1/scripts/:id/entitlement",
+            post(handlers::entitlement_check),
         )
         // Account Profiles endpoints
         .at("/api/v1/accounts", post(handlers::register_account))

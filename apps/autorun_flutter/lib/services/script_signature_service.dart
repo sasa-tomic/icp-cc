@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
+import 'package:uuid/uuid.dart';
 import '../models/profile_keypair.dart';
 import '../rust/native_bridge.dart';
 import '../utils/principal.dart';
@@ -8,6 +9,14 @@ import '../utils/principal.dart';
 /// Supports Ed25519 and secp256k1 signatures for script authentication
 class ScriptSignatureService {
   const ScriptSignatureService._();
+
+  /// Single source of truth for the signed-entitlement action name. The
+  /// backend (`handlers::scripts::ENTITLEMENT_ACTION`) MUST agree — both sides
+  /// bake this exact string into the canonical payload. Defined here so the
+  /// wire contract has one Dart home.
+  static const entitlementAction = 'entitlement';
+
+  static const _uuid = Uuid();
 
   /// Sign a script upload payload with the author's private key
   /// Returns a base64-encoded signature
@@ -77,6 +86,42 @@ class ScriptSignatureService {
     );
 
     return await _signPayload(authorKeypair, payload);
+  }
+
+  /// Build a fully-signed `POST /api/v1/scripts/:id/entitlement` request
+  /// (W7-2). Returns the exact fields the backend's `EntitlementRequest`
+  /// expects: `{signature, author_public_key, author_principal, timestamp,
+  /// nonce}`. The signed payload is the canonical JSON
+  /// `{action:"entitlement", id:<id>, nonce:<nonce>, ts:<unix_seconds>}`,
+  /// canonicalised identically to the upload/update/delete payloads (sorted
+  /// keys) so `auth::verify_operation_signature` accepts it.
+  ///
+  /// [timestamp] / [nonce] are optional for testability; production callers
+  /// let them default so each request gets a fresh Unix timestamp + UUID
+  /// (replay protection is enforced server-side).
+  static Future<SignedEntitlementRequest> signEntitlement({
+    required ProfileKeypair signingKeypair,
+    required String scriptId,
+    int? timestamp,
+    String? nonce,
+  }) async {
+    _assertScriptId(scriptId);
+    final ts = timestamp ?? DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    final resolvedNonce = nonce ?? _uuid.v4();
+    final payload = <String, dynamic>{
+      'action': entitlementAction,
+      'id': scriptId,
+      'nonce': resolvedNonce,
+      'ts': ts,
+    };
+    final signature = await _signPayload(signingKeypair, payload);
+    return SignedEntitlementRequest(
+      signatureB64: signature,
+      authorPublicKeyB64: signingKeypair.publicKey,
+      authorPrincipal: PrincipalUtils.textFromRecord(signingKeypair),
+      timestamp: ts,
+      nonce: resolvedNonce,
+    );
   }
 
   /// Create a canonical payload for script uploads
@@ -311,4 +356,29 @@ class ScriptSignatureService {
     if (principal.length <= 5) return principal;
     return principal.substring(0, 5);
   }
+}
+
+/// The five signed fields consumed by
+/// `MarketplaceOpenApiService.checkEntitlement`, produced by
+/// `ScriptSignatureService.signEntitlement`. Mirrors the backend
+/// `EntitlementRequest` shape verbatim (snake_case on the wire).
+class SignedEntitlementRequest {
+  final String signatureB64;
+  final String authorPublicKeyB64;
+  final String authorPrincipal;
+  final int timestamp;
+  final String nonce;
+
+  const SignedEntitlementRequest({
+    required this.signatureB64,
+    required this.authorPublicKeyB64,
+    required this.authorPrincipal,
+    required this.timestamp,
+    required this.nonce,
+  });
+
+  @override
+  String toString() =>
+      'SignedEntitlementRequest{principal: $authorPrincipal, '
+      'timestamp: $timestamp, nonce: $nonce}';
 }

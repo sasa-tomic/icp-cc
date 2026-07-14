@@ -25,6 +25,7 @@ abstract final class ApiRoutes {
   static String script(String id) => '$base/scripts/$id';
   static String scriptPreview(String id) => '$base/scripts/$id/preview';
   static String scriptDownload(String id) => '$base/scripts/$id/download';
+  static String scriptEntitlement(String id) => '$base/scripts/$id/entitlement';
   static String scriptReviews(String id) => '$base/scripts/$id/reviews';
   static String scriptVersions(String id) => '$base/scripts/$id/versions';
   static String scriptVersion(String id, String version) =>

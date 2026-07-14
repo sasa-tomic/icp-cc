@@ -14,6 +14,7 @@ import 'services/deep_link_service.dart';
 import 'services/marketplace_open_api_service.dart';
 import 'services/onboarding_service.dart';
 import 'services/script_repository.dart';
+import 'services/script_signature_service.dart';
 import 'services/secure_storage_readiness.dart';
 import 'services/service_locator.dart';
 import 'services/settings_service.dart';
@@ -110,11 +111,19 @@ class _KeypairAppState extends State<KeypairApp> {
     );
 
     try {
-      // Pass the active account id so the entitlement view returns
-      // `purchased` + (for paid scripts) a null bundle when not yet purchased.
-      final accountId = _activeAccountIdForDeepLink();
-      final script = await MarketplaceOpenApiService()
-          .getScriptDetails(scriptId, accountId: accountId);
+      // W7-2: `GET /scripts/:id` no longer carries entitlement (that branch
+      // leaked the paid bundle). Fetch metadata-only, then resolve the
+      // signed entitlement separately so the right CTA (Download vs Buy)
+      // renders for paid scripts.
+      var script = await MarketplaceOpenApiService().getScriptDetails(scriptId);
+
+      // For a paid script with unknown entitlement, ask the signed endpoint.
+      if (script.price > 0 && script.purchased == null) {
+        final purchased = await _resolveDeepLinkEntitlement(scriptId);
+        if (purchased != null) {
+          script = script.copyWith(purchased: purchased);
+        }
+      }
 
       if (!mounted) return;
       // ignore: use_build_context_synchronously
@@ -159,20 +168,26 @@ class _KeypairAppState extends State<KeypairApp> {
     }
   }
 
-  /// Best-effort active account id for the deep-link entitlement view. The
-  /// deep-link handler runs before the user has necessarily interacted with
-  /// the Scripts screen, so we resolve the active profile's account here. The
-  /// full buy flow lives in ScriptsScreen (with ProfileScope + AccountController);
-  /// the deep-link path only needs the id to render the right CTA.
-  String? _activeAccountIdForDeepLink() {
+  /// Best-effort signed entitlement check for the deep-link path (W7-2).
+  /// Returns the `purchased` boolean for [scriptId] on success, or `null` if
+  /// there is no active profile / account, the keypair is missing, or the
+  /// signed check failed (callers fall back to the safe default — Buy CTA).
+  Future<bool?> _resolveDeepLinkEntitlement(String scriptId) async {
     final profile = _profileController.activeProfile;
-    if (profile == null || profile.username == null) return null;
-    // Account.id requires a backend fetch (cached by AccountController). The
-    // deep-link path intentionally does NOT block on that fetch here — if the
-    // account isn't cached, account_id is null and the server returns the
-    // locked view (paid scripts show Buy), which is the safe default.
-    final cached = _accountController.getAccount(profile.username!);
-    return cached?.id;
+    if (profile == null) return null;
+    final keypair = profile.primaryKeypair;
+    try {
+      final signed = await ScriptSignatureService.signEntitlement(
+        signingKeypair: keypair,
+        scriptId: scriptId,
+      );
+      final result = await MarketplaceOpenApiService()
+          .checkEntitlement(scriptId, signed: signed);
+      return result.purchased;
+    } catch (e) {
+      debugPrint('Deep-link entitlement check for $scriptId failed: $e');
+      return null;
+    }
   }
 
   Future<void> _showPurchaseUnavailableFromDeepLink(

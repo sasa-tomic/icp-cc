@@ -31,9 +31,9 @@ pub use payments::{download_script, icpay_webhook, payment_config};
 pub use recovery::{recovery_generate, recovery_status, recovery_verify};
 pub use reviews::{create_review, get_reviews};
 pub use scripts::{
-    create_script, delete_script, get_compatible_scripts, get_featured_scripts,
-    get_marketplace_stats, get_script, get_script_categories, get_script_preview, get_scripts,
-    get_scripts_by_category, get_scripts_count, get_trending_scripts, publish_script,
-    search_scripts, update_script, update_script_stats,
+    create_script, delete_script, entitlement_check, get_compatible_scripts,
+    get_featured_scripts, get_marketplace_stats, get_script, get_script_categories,
+    get_script_preview, get_scripts, get_scripts_by_category, get_scripts_count,
+    get_trending_scripts, publish_script, search_scripts, update_script, update_script_stats,
 };
 pub use vault::{vault_create, vault_get, vault_update};
