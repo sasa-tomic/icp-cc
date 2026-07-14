@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../utils/candid_args.dart';
+import '../utils/candid_type_classifier.dart';
 
 class CandidSmartForm extends StatefulWidget {
   const CandidSmartForm({
@@ -137,46 +138,42 @@ abstract class _FieldController {
 class _FieldControllerFactory {
   static _FieldController create(
       String type, String? label, int index, VoidCallback onChanged) {
-    final t = type.trim().toLowerCase();
-
-    if (t.startsWith('variant')) {
-      return _VariantFieldController(type, label, onChanged);
+    // W7-11: routing through `classifyCandidType` is the single source of
+    // truth for Candid type → controller selection. Replaces 13 duplicated
+    // `startsWith`/`==` literal checks (variant/bool/record/opt/vec/text/
+    // principal/nat/int/nat8../int8../float32/float64) that were internally
+    // inconsistent (`nat` used `==` but `nat8` used `startsWith`).
+    switch (classifyCandidType(type)) {
+      case CandidTypeKind.variant:
+        return _VariantFieldController(type, label, onChanged);
+      case CandidTypeKind.boolean:
+        return _BoolFieldController(label, onChanged);
+      case CandidTypeKind.record:
+        return _RecordFieldController(type, label, onChanged);
+      case CandidTypeKind.opt:
+        final inner = _extractInner(type, 'opt');
+        return _OptFieldController(inner, label, onChanged);
+      case CandidTypeKind.vec:
+        return _VecFieldController(type, label, onChanged);
+      case CandidTypeKind.text:
+      case CandidTypeKind.principal:
+        return _TextFieldController(label, onChanged);
+      case CandidTypeKind.nat:
+      case CandidTypeKind.int:
+      case CandidTypeKind.nat8:
+      case CandidTypeKind.nat16:
+      case CandidTypeKind.nat32:
+      case CandidTypeKind.nat64:
+      case CandidTypeKind.int8:
+      case CandidTypeKind.int16:
+      case CandidTypeKind.int32:
+      case CandidTypeKind.int64:
+      case CandidTypeKind.float32:
+      case CandidTypeKind.float64:
+        return _NumberFieldController(type, label, onChanged);
+      case CandidTypeKind.unknown:
+        return _JsonFieldController(type, label, onChanged);
     }
-    if (t == 'bool') {
-      return _BoolFieldController(label, onChanged);
-    }
-    if (t.startsWith('record')) {
-      return _RecordFieldController(type, label, onChanged);
-    }
-    if (t.startsWith('opt')) {
-      final inner = _extractInner(type, 'opt');
-      return _OptFieldController(inner, label, onChanged);
-    }
-    if (t.startsWith('vec')) {
-      return _VecFieldController(type, label, onChanged);
-    }
-    if (t == 'text' || t == 'principal') {
-      return _TextFieldController(label, onChanged);
-    }
-    if (_isNumericType(t)) {
-      return _NumberFieldController(type, label, onChanged);
-    }
-    return _JsonFieldController(type, label, onChanged);
-  }
-
-  static bool _isNumericType(String t) {
-    return t == 'nat' ||
-        t == 'int' ||
-        t.startsWith('nat8') ||
-        t.startsWith('nat16') ||
-        t.startsWith('nat32') ||
-        t.startsWith('nat64') ||
-        t.startsWith('int8') ||
-        t.startsWith('int16') ||
-        t.startsWith('int32') ||
-        t.startsWith('int64') ||
-        t == 'float32' ||
-        t == 'float64';
   }
 }
 
@@ -279,8 +276,11 @@ class _NumberFieldController extends _FieldController {
   dynamic toJsonValue() {
     final text = controller.text.trim();
     if (text.isEmpty) return 0;
-    final lower = type.toLowerCase();
-    if (lower == 'nat' || lower == 'int') {
+    // W7-11: Candid's unbounded integers (`nat`/`int`) may exceed 64-bit
+    // range — keep very long digit runs as strings so the encoder can
+    // round-trip them as bignums. Fixed-width integers (nat8..nat64,
+    // int8..int64) cannot overflow their width so they parse to a num.
+    if (classifyCandidType(type).isUnboundedInteger) {
       final num? value = num.tryParse(text);
       if (value != null && (text.length > 18)) {
         return text;

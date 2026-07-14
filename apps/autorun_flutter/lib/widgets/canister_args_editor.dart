@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/candid_form_model.dart';
 import '../utils/candid_json_validate.dart';
+import '../utils/candid_type_classifier.dart';
 
 class ArgsEditor extends StatefulWidget {
   const ArgsEditor({
@@ -119,17 +120,21 @@ class _ArgsEditorState extends State<ArgsEditor> {
       itemBuilder: (context, index) {
         final String t = widget.argTypes[index];
         final String label = 'Arg ${index + 1} ($t)';
-        final String lower = t.toLowerCase();
-        final TextInputType inputType = (lower.contains('int') ||
-                lower.contains('float') ||
-                lower.contains('nat'))
+        // W7-11: route through `classifyCandidType` — single source of
+        // truth. Replaces a triple `lower.contains('int'|'float'|'nat')`
+        // substring check (which would over-match e.g. 'print') and a
+        // triple `lower.startsWith('record'|'vec'|'opt')` prefix check
+        // with one exhaustive switch on the classified kind.
+        final kind = classifyCandidType(t);
+        final TextInputType inputType = kind.isNumeric
             ? TextInputType.number
             : TextInputType.text;
-        final String? hint = lower.startsWith('record')
-            ? 'JSON object or array matching record fields'
-            : (lower.startsWith('vec')
-                ? 'JSON array for vector values'
-                : (lower.startsWith('opt') ? 'Value or null' : null));
+        final String? hint = switch (kind) {
+          CandidTypeKind.record => 'JSON object or array matching record fields',
+          CandidTypeKind.vec => 'JSON array for vector values',
+          CandidTypeKind.opt => 'Value or null',
+          _ => null,
+        };
         return TextField(
           key: Key('argField_$index'),
           controller: _controllers[index],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/canister_method.dart';
+import '../utils/candid_type_classifier.dart';
 
 /// Widget for building arguments for canister method calls
 class CandidArgsBuilder extends StatefulWidget {
@@ -68,27 +69,48 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
     if (value.trim().isEmpty) return null;
 
     try {
-      // Handle different Candid types
-      if (type == 'text' || type == 'string') {
-        return value;
-      } else if (type == 'nat' || type == 'nat64' || type == 'int' || type == 'int64') {
-        return int.parse(value);
-      } else if (type == 'float64' || type == 'float') {
-        return double.parse(value);
-      } else if (type == 'bool') {
-        return value.toLowerCase() == 'true';
-      } else if (type == 'principal') {
-        // Validate principal format
-        if (RegExp(r'^[a-z0-9-]+$').hasMatch(value)) {
+      // W7-11: route every Candid-type branch through `classifyCandidType`,
+      // the single source of truth. The previous literal-by-literal switch
+      // used raw `type == '...'` (case-sensitive) and only listed
+      // nat/nat64/int/int64 + float64/float — nat8/16/32, int8/16/32, and
+      // float32 silently fell through to the text default. That behaviour
+      // is preserved verbatim (only the 4 historic integer literals and
+      // float64 are routed to numeric parsing; other numeric widths still
+      // fall through to `return value`).
+      switch (classifyCandidType(type)) {
+        case CandidTypeKind.text:
           return value;
-        }
-        return null;
-      } else if (type.startsWith('vec') || type.startsWith('record') || type.startsWith('variant')) {
-        // For complex types, try to parse as JSON
-        return _parseJsonValue(value);
-      } else {
-        // Default to treating as text
-        return value;
+        case CandidTypeKind.nat:
+        case CandidTypeKind.nat64:
+        case CandidTypeKind.int:
+        case CandidTypeKind.int64:
+          return int.parse(value);
+        case CandidTypeKind.float64:
+          return double.parse(value);
+        case CandidTypeKind.boolean:
+          return value.toLowerCase() == 'true';
+        case CandidTypeKind.principal:
+          // Validate principal format
+          if (RegExp(r'^[a-z0-9-]+$').hasMatch(value)) {
+            return value;
+          }
+          return null;
+        case CandidTypeKind.vec:
+        case CandidTypeKind.record:
+        case CandidTypeKind.variant:
+          // For complex types, try to parse as JSON
+          return _parseJsonValue(value);
+        case CandidTypeKind.nat8:
+        case CandidTypeKind.nat16:
+        case CandidTypeKind.nat32:
+        case CandidTypeKind.int8:
+        case CandidTypeKind.int16:
+        case CandidTypeKind.int32:
+        case CandidTypeKind.float32:
+        case CandidTypeKind.opt:
+        case CandidTypeKind.unknown:
+          // Default to treating as text (historic fall-through).
+          return value;
       }
     } catch (e) {
       // If parsing fails, return null
@@ -189,9 +211,14 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
   }
 
   Widget _buildInputField(CanisterArg arg, TextEditingController controller) {
-    switch (arg.type.toLowerCase()) {
-      case 'bool':
-      case 'boolean':
+    // W7-11: route through `classifyCandidType` — single source of truth.
+    // historic fall-through semantics preserved: only nat/int/nat64/int64
+    // get the integer keyboard, only float64 gets the decimal keyboard,
+    // every other numeric width (nat8/16/32, int8/16/32, float32) falls
+    // through to the multi-line JSON editor like before.
+    final kind = classifyCandidType(arg.type);
+    switch (kind) {
+      case CandidTypeKind.boolean:
         return DropdownButtonFormField<bool>(
           initialValue: controller.text.isEmpty ? null : controller.text.toLowerCase() == 'true',
           decoration: const InputDecoration(
@@ -207,8 +234,7 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
             _updateArg(arg.name, controller.text);
           },
         );
-      case 'text':
-      case 'string':
+      case CandidTypeKind.text:
         return TextFormField(
           controller: controller,
           decoration: const InputDecoration(
@@ -217,7 +243,7 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
           ),
           onChanged: (value) => _updateArg(arg.name, value),
         );
-      case 'principal':
+      case CandidTypeKind.principal:
         return TextFormField(
           controller: controller,
           decoration: const InputDecoration(
@@ -227,10 +253,10 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
           ),
           onChanged: (value) => _updateArg(arg.name, value),
         );
-      case 'nat':
-      case 'int':
-      case 'nat64':
-      case 'int64':
+      case CandidTypeKind.nat:
+      case CandidTypeKind.int:
+      case CandidTypeKind.nat64:
+      case CandidTypeKind.int64:
         return TextFormField(
           controller: controller,
           decoration: const InputDecoration(
@@ -240,8 +266,7 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
           keyboardType: TextInputType.number,
           onChanged: (value) => _updateArg(arg.name, value),
         );
-      case 'float64':
-      case 'float':
+      case CandidTypeKind.float64:
         return TextFormField(
           controller: controller,
           decoration: const InputDecoration(
@@ -251,7 +276,18 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (value) => _updateArg(arg.name, value),
         );
-      default:
+      case CandidTypeKind.nat8:
+      case CandidTypeKind.nat16:
+      case CandidTypeKind.nat32:
+      case CandidTypeKind.int8:
+      case CandidTypeKind.int16:
+      case CandidTypeKind.int32:
+      case CandidTypeKind.float32:
+      case CandidTypeKind.vec:
+      case CandidTypeKind.record:
+      case CandidTypeKind.variant:
+      case CandidTypeKind.opt:
+      case CandidTypeKind.unknown:
         // For complex types (vec, record, variant), use text area
         return TextFormField(
           controller: controller,
@@ -261,35 +297,43 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
             hintText: _getPlaceholderForType(arg.type),
             helperText: 'Enter JSON format for complex types',
           ),
-          maxLines: arg.type.startsWith('record') ? 3 : 1,
+          maxLines: kind == CandidTypeKind.record ? 3 : 1,
           onChanged: (value) => _updateArg(arg.name, value),
         );
     }
   }
 
   Widget _buildHelpText(CanisterArg arg) {
+    // W7-11: route through `classifyCandidType` — single source of truth.
     String helpText = '';
-
-    switch (arg.type.toLowerCase()) {
-      case 'principal':
+    switch (classifyCandidType(arg.type)) {
+      case CandidTypeKind.principal:
         helpText = 'Enter a valid principal ID (e.g., aaaaa-aa)';
-        break;
-      case 'nat':
-      case 'nat64':
+      case CandidTypeKind.nat:
+      case CandidTypeKind.nat64:
         helpText = 'Enter a non-negative integer';
-        break;
-      case 'bool':
-      case 'boolean':
+      case CandidTypeKind.boolean:
         helpText = 'Select true or false';
+      case CandidTypeKind.vec:
+        helpText = 'Enter array format: [item1, item2, ...]';
+      case CandidTypeKind.record:
+        helpText = 'Enter JSON object format: {"field": "value"}';
+      case CandidTypeKind.variant:
+        helpText = 'Enter variant format: {"variant_name": value}';
+      case CandidTypeKind.text:
+      case CandidTypeKind.int:
+      case CandidTypeKind.nat8:
+      case CandidTypeKind.nat16:
+      case CandidTypeKind.nat32:
+      case CandidTypeKind.int8:
+      case CandidTypeKind.int16:
+      case CandidTypeKind.int32:
+      case CandidTypeKind.int64:
+      case CandidTypeKind.float32:
+      case CandidTypeKind.float64:
+      case CandidTypeKind.opt:
+      case CandidTypeKind.unknown:
         break;
-      default:
-        if (arg.type.startsWith('vec')) {
-          helpText = 'Enter array format: [item1, item2, ...]';
-        } else if (arg.type.startsWith('record')) {
-          helpText = 'Enter JSON object format: {"field": "value"}';
-        } else if (arg.type.startsWith('variant')) {
-          helpText = 'Enter variant format: {"variant_name": value}';
-        }
     }
 
     if (helpText.isNotEmpty) {
@@ -305,13 +349,32 @@ class _CandidArgsBuilderState extends State<CandidArgsBuilder> {
   }
 
   String _getPlaceholderForType(String type) {
-    if (type.startsWith('vec')) {
-      return '[]';
-    } else if (type.startsWith('record')) {
-      return '{}';
-    } else if (type.startsWith('variant')) {
-      return '{"tag": "value"}';
+    // W7-11: route through `classifyCandidType` — single source of truth.
+    switch (classifyCandidType(type)) {
+      case CandidTypeKind.vec:
+        return '[]';
+      case CandidTypeKind.record:
+        return '{}';
+      case CandidTypeKind.variant:
+        return '{"tag": "value"}';
+      case CandidTypeKind.boolean:
+      case CandidTypeKind.text:
+      case CandidTypeKind.principal:
+      case CandidTypeKind.nat:
+      case CandidTypeKind.int:
+      case CandidTypeKind.nat8:
+      case CandidTypeKind.nat16:
+      case CandidTypeKind.nat32:
+      case CandidTypeKind.nat64:
+      case CandidTypeKind.int8:
+      case CandidTypeKind.int16:
+      case CandidTypeKind.int32:
+      case CandidTypeKind.int64:
+      case CandidTypeKind.float32:
+      case CandidTypeKind.float64:
+      case CandidTypeKind.opt:
+      case CandidTypeKind.unknown:
+        return '';
     }
-    return '';
   }
 }
