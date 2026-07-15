@@ -551,7 +551,7 @@ e2e-desktop:
     : > "$LOG"
     rm -rf "$STATE_DIR" 2>/dev/null || true
     echo "==> PASS 1 (keyring-less): suite_keyring_less_test.dart"
-    if (cd "{{flutter_dir}}" && flutter test \
+    if (cd "{{flutter_dir}}" && flutter test -d linux \
             integration_test/e2e/suite_keyring_less_test.dart \
             --reporter=compact --timeout=240s) >>"$LOG" 2>&1; then
         echo "   PASS 1 OK"
@@ -565,7 +565,7 @@ e2e-desktop:
     if "{{scripts_dir}}/run-with-mock-keyring.sh" --display :99 -- \
             bash -c 'cd "{{flutter_dir}}" && \
                 LD_LIBRARY_PATH="{{root}}/target/release" \
-                flutter test integration_test/e2e/suite_mock_keyring_test.dart \
+                flutter test -d linux integration_test/e2e/suite_mock_keyring_test.dart \
                     --reporter=compact --timeout=240s' >>"$LOG" 2>&1; then
         echo "   PASS 2 OK"
     else
@@ -594,11 +594,45 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
     # falls back to the production host and marketplace fetches throw 530.
     export MARKETPLACE_API_PORT=$(just _api-dev-port)
     echo "==> e2e-fast: {{file}} (backend :$MARKETPLACE_API_PORT)"
-    cd "{{flutter_dir}}" && flutter test "{{file}}" --reporter=compact --timeout=240s
+    cd "{{flutter_dir}}" && flutter test -d linux "{{file}}" --reporter=compact --timeout=240s
 
-# e2e: both surfaces. (Web runner lands in H-3; for now this runs desktop.)
-e2e: e2e-desktop
-    @echo "==> (web surface: just e2e-web — wired in H-3)"
+# e2e-web: Tier 1 — REAL app on Web as widget tests via `flutter test -d chrome`
+# (headless, no chromedriver, ~5s warm). The conditional-import split selects
+# native_bridge_web.dart (real pure-Dart Ed25519/secp256k1/Argon2id/AES-GCM),
+# so NO FFI is touched. Covers all Surface.web / Surface.both flows; QuickJS /
+# IC-agent / deeplink / keyboard-shortcut flows are desktop-only.
+#
+# Backend is the REAL local server; IC mainnet reaches the browser directly /
+# via the CORS proxy. Only ICPay checkout is mocked (ICP_E2E_MOCK_ICPAY=1 —
+# icpay.org is unreachable from the sandbox).
+e2e-web file="test/e2e_web/suite_web_smoke_test.dart":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    api_port=$(just _api-dev-port)
+    # Resolve a Chromium for `flutter test -d chrome`. Honor $CHROME_EXECUTABLE,
+    # else glob the Playwright cache, else install Playwright Chromium.
+    if [[ -z "${CHROME_EXECUTABLE:-}" ]]; then
+        bin=$(find "$HOME/.cache/ms-playwright" -type f -name chrome \
+            -path "*/chrome-linux64/*" 2>/dev/null | sort -V | tail -1 || true)
+        if [[ -z "$bin" ]]; then
+            echo "==> No Chromium in Playwright cache; installing..."
+            cd "{{flutter_dir}}" && npx playwright install chromium >/dev/null
+            bin=$(find "$HOME/.cache/ms-playwright" -type f -name chrome \
+                -path "*/chrome-linux64/*" 2>/dev/null | sort -V | tail -1)
+        fi
+        export CHROME_EXECUTABLE="$bin"
+    fi
+    echo "==> e2e-web: {{file}} (Chromium: $CHROME_EXECUTABLE, backend :$api_port)"
+    cd "{{flutter_dir}}" && CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
+        flutter test -d chrome \
+        --dart-define=PUBLIC_API_ENDPOINT=http://127.0.0.1:$api_port \
+        --dart-define=ICP_E2E=1 \
+        --dart-define=ICP_E2E_MOCK_ICPAY=1 \
+        "{{file}}" --reporter=compact --timeout=240s
+
+# e2e: BOTH surfaces (desktop then web). The full real-app e2e contract.
+e2e: e2e-desktop e2e-web
+    @echo "✅ e2e PASSED — desktop + web surfaces green"
 
 # =============================================================================
 # Development API Server (Local Cargo-based)

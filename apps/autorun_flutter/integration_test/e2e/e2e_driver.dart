@@ -64,8 +64,12 @@ class E2EDriver {
   /// Boot the real app for the first time in this process.
   ///
   /// Desktop: mounts the production widget tree via `app.main()` under
-  /// `runAsync` (real FFI load + service-locator + profile/theme load). Web:
-  /// deferred to Tier-1/Tier-2 boot (see H-3).
+  /// `runAsync` (real FFI load + service-locator + profile/theme load).
+  /// Web: mounts the production tree via `pumpWidget(KeypairApp())` — the
+  /// conditional-import split selects [native_bridge_web.dart] (real pure-Dart
+  /// Ed25519/secp256k1/Argon2id/AES-256-GCM), so NO FFI is touched. The benign
+  /// `libicp_core.so open failed` line is the IO-side residual import being
+  /// loaded by the analyzer and is ignored on Web at runtime.
   Future<void> boot(WidgetTester tester) async {
     tester.view.physicalSize = kDesktopSize * kDesktopDpr;
     tester.view.devicePixelRatio = kDesktopDpr;
@@ -74,9 +78,17 @@ class E2EDriver {
         await tester.runAsync(() => app.main());
         await _settle(tester);
       case E2ESurface.web:
-        // H-3 wires the web boot (pumpWidget(KeypairApp())). Until then a web
-        // suite must not call boot — surface selection is done by the runner.
-        throw UnimplementedError('E2EDriver.boot: web boot lands in H-3.');
+        await tester.pumpWidget(const app.KeypairApp());
+        // NOTE: deliberately NOT `runAsync`. Under `flutter test -d chrome`
+        // (TestWidgetsFlutterBinding) there are no real plugins registered, so
+        // letting the unawaited ensureLoaded() reach real platform channels
+        // (shared_preferences/path_provider) throws a FATAL
+        // MissingPluginException. Keeping the async work on the fake clock means
+        // the production widget tree mounts (MaterialApp renders) WITHOUT
+        // triggering unreachable channel calls — enough to assert the
+        // cross-surface boot contract. Loading real state needs plugin
+        // substrate fakes (Phase 2). See suite_web_smoke_test.dart header.
+        await _settle(tester);
     }
   }
 

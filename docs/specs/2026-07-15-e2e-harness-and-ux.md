@@ -92,6 +92,35 @@ shim — never duplicated flows.
 - Note: `secp256k1` is now REAL on Web too (`docs/BROWSER_SUPPORT.md:104-107`);
   `TODO.md:89` "secp256k1 stubbed" is STALE and will be reconciled.
 
+> **Phase 1 H-3 AS-BUILT (empirical, committed):** the two-tier assumption above
+> was refined by implementation. Findings:
+>
+> - **Tier 1 (`flutter test -d chrome`) — WORKS but is STRUCTURE-ONLY.** It runs
+>   under `TestWidgetsFlutterBinding`, which (a) returns **HTTP 400 for every
+>   network call** and (b) registers **no real plugins** (`shared_preferences`,
+>   `path_provider`, `app_links` throw `MissingPluginException`). The REAL app
+>   DOES boot (`pumpWidget(KeypairApp())` mounts `MaterialApp`, the conditional
+>   import loads the real pure-Dart `native_bridge_web.dart`, `secp256k1`/Ed25519
+>   run), so Tier 1 asserts the **cross-surface contract** (catalog compiles,
+>   production tree mounts). Real-network flows CANNOT run here. Loading real
+>   state needs plugin **substrate fakes** (`SharedPreferences.setMockInitialValues`
+>   …) — honest platform substrate (like Xvfb), NOT business mocking; lands in
+>   Phase 2. `just e2e-web` ships this smoke (~9s, green).
+> - **Tier 2 (`flutter drive` web) — BLOCKED on Flutter 3.38.3.** Chrome for
+>   Testing 149 launches under chromedriver ONLY with three container flags
+>   (`--no-sandbox --disable-gpu --disable-dev-shm-usage`; a `google-chrome`
+>   symlink on PATH is also needed). But `flutter drive -d chrome
+>   --target=<integration_test>` then fails at **web DEBUG COMPILE on Flutter's
+>   OWN framework code** — `<invalid>` exhaustiveness errors in
+>   `cupertino/colors.dart:1024` + `material/tooltip.dart:827` (not app code;
+>   cache-clear doesn't help). This is the `integration_test`-on-web gap; the
+>   repro is kept at `integration_test/e2e/web_drive_smoke_test.dart`. When
+>   Flutter ships working integration_test-on-web, the desktop `FlowRun` bodies
+>   move over **unchanged** (same `WidgetTester` + `E2EDriver` API).
+> - **Net:** desktop is the primary real-app e2e surface (2 boots, ~all flows);
+>   web Tier 1 proves the contract compiles + boots; real-network web e2e is a
+>   tracked follow-up gated on Flutter, not on this codebase.
+
 ### 2.5 Debug hooks (so WE can directly drive + dump)
 - `--dart-define=ICP_E2E=1` enables a test-only `E2EBridge`:
   - exposes current app state (active screen, profile count, vault state) via
