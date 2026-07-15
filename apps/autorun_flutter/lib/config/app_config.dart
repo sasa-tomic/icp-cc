@@ -12,6 +12,15 @@ class AppConfig {
     defaultValue: 'https://icp-mp.kalaj.org',
   );
 
+  /// E2E harness flags (set via `--dart-define` by the `just e2e-*` recipes).
+  /// When `ICP_E2E=1` the app knows it is under e2e control (enables debug
+  /// hooks, relaxes animations, etc.). When `ICP_E2E_MOCK_ICPAY=1` outbound
+  /// ICPay checkout calls are intercepted (icpay.org is unreachable from the
+  /// sandbox — the only mock boundary in the otherwise real e2e stack).
+  static const bool isE2E = bool.fromEnvironment('ICP_E2E', defaultValue: false);
+  static const bool mockIcpay =
+      bool.fromEnvironment('ICP_E2E_MOCK_ICPAY', defaultValue: false);
+
   static String get apiEndpoint {
     // Check if we're in test mode and an API service override is available
     if (_isTestMode && _testServiceEndpoint != null) {

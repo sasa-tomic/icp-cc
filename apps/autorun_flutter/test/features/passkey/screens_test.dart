@@ -286,6 +286,16 @@ void main() {
       var onVaultCreatedCalled = false;
 
       final client = MockClient((request) async {
+        if (request.url.path.contains('/recovery/generate')) {
+          return http.Response(
+              jsonEncode({
+                'data': {
+                  'codes': ['AAAA-BBBB', 'CCCC-DDDD'],
+                  'remaining_unused': 2,
+                }
+              }),
+              200);
+        }
         if (request.method == 'POST' && request.body.isNotEmpty) {
           capturedBody =
               (jsonDecode(request.body) as Map).cast<String, dynamic>();

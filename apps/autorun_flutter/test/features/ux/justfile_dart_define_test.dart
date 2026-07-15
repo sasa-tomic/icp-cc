@@ -104,7 +104,11 @@ void main() {
 /// not just `app_config.dart`, keeps this honest as config defines spread
 /// across modules — e.g. `IC_AGENT_PROXY_HOST` in the web-access module.)
 Set<String> _readAppEnvKeys(Directory libDir) {
-  final pattern = RegExp(r"String\.fromEnvironment\(\s*'([^']+)'\s*(?:,|\))");
+  // Match any `T.fromEnvironment('KEY', ...)` — String, bool, int — so the
+  // canonical key set stays honest as config defines spread across modules
+  // and types (e.g. `bool.fromEnvironment('ICP_E2E')` in app_config.dart).
+  final pattern =
+      RegExp(r"(?:String|bool|int)\.fromEnvironment\(\s*'([^']+)'\s*(?:,|\))");
   final keys = <String>{};
   for (final entity in libDir.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('.dart')) continue;
