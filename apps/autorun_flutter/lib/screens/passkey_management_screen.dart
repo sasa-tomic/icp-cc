@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/profile_keypair.dart';
 import '../services/passkey_service.dart';
@@ -140,8 +141,14 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
   }
 
   String _getDeviceName() {
-    // This would typically use device_info_plus
-    return 'This Device';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.iOS => 'iOS Device',
+      TargetPlatform.android => 'Android Device',
+      TargetPlatform.macOS => 'Mac',
+      TargetPlatform.windows => 'Windows PC',
+      TargetPlatform.linux => 'Linux Device',
+      TargetPlatform.fuchsia => 'Fuchsia Device',
+    };
   }
 
   String _formatDate(String isoDate) {

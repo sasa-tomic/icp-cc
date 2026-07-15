@@ -3,6 +3,7 @@ import '../models/profile_keypair.dart';
 import '../services/passkey_service.dart';
 import '../services/vault_crypto_service.dart';
 import '../theme/app_design_system.dart';
+import 'recovery_codes_screen.dart';
 
 typedef VaultCreatedCallback = void Function();
 
@@ -12,6 +13,7 @@ class VaultPasswordSetupScreen extends StatefulWidget {
     required this.keypair,
     this.onVaultCreated,
     this.vaultCrypto = const VaultCryptoService(),
+    this.isReset = false,
     super.key,
   });
 
@@ -26,6 +28,12 @@ class VaultPasswordSetupScreen extends StatefulWidget {
   /// widget tests can substitute a deterministic fake (the real FFI crypto is
   /// unit-tested separately in vault_crypto_service_test.dart).
   final VaultCryptoService vaultCrypto;
+
+  /// When `true`, the screen updates the existing vault blob (PUT /vault)
+  /// instead of creating a new one (POST /vault). Used by the recovery-code
+  /// reset flow reached from [VaultUnlockScreen]: a verified recovery code
+  /// proves ownership, after which the user sets a new password.
+  final bool isReset;
 
   @override
   State<VaultPasswordSetupScreen> createState() =>
@@ -99,22 +107,65 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
     });
 
     try {
-      // A-4 W2/W3: PasskeyService.createVault encrypts '{}' locally via
-      // VaultCryptoService before POSTing only the opaque blob. The password
-      // never leaves the device; the heavy Argon2id runs off the UI isolate
-      // (compute()) so the _isCreating spinner animates honestly.
-      await PasskeyService().createVault(
-        keypair: widget.keypair,
-        accountId: widget.accountId,
-        password: _passwordController.text,
-        plaintext: '{}',
-        vaultCrypto: widget.vaultCrypto,
-      );
-
-      if (mounted) {
-        widget.onVaultCreated?.call();
-        Navigator.pop(context, true);
+      final service = PasskeyService();
+      // A-4 W2/W3: encrypt '{}' locally, then POST (create) or PUT (reset)
+      // only the opaque blob. The password never leaves the device.
+      if (widget.isReset) {
+        await service.updateVault(
+          keypair: widget.keypair,
+          accountId: widget.accountId,
+          password: _passwordController.text,
+          plaintext: '{}',
+          vaultCrypto: widget.vaultCrypto,
+        );
+      } else {
+        await service.createVault(
+          keypair: widget.keypair,
+          accountId: widget.accountId,
+          password: _passwordController.text,
+          plaintext: '{}',
+          vaultCrypto: widget.vaultCrypto,
+        );
       }
+
+      if (!mounted) return;
+
+      // After a fresh CREATE, generate one-time recovery codes and show them
+      // so the user can save them (the only way back if they forget this
+      // password). Skipped on reset — existing codes remain valid.
+      if (!widget.isReset) {
+        try {
+          final result = await service.generateRecoveryCodes(
+            keypair: widget.keypair,
+            accountId: widget.accountId,
+          );
+          if (!mounted) return;
+          await Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RecoveryCodesScreen(
+                codes: result.codes,
+                accountId: widget.accountId,
+              ),
+            ),
+          );
+        } on PasskeyException catch (e) {
+          // The vault WAS created; failing to generate codes must not undo
+          // that. Surface the error loudly but continue to success.
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    'Vault created, but recovery codes unavailable: ${e.message}'),
+              ),
+            );
+          }
+        }
+      }
+
+      if (!mounted) return;
+      widget.onVaultCreated?.call();
+      Navigator.pop(context, true);
     } on PasskeyException catch (e) {
       setState(() {
         _errorMessage = e.message;
@@ -122,7 +173,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to create vault: $e';
+        _errorMessage =
+            'Failed to ${widget.isReset ? 'reset' : 'create'} vault: $e';
         _isCreating = false;
       });
     }
@@ -140,7 +192,7 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
           onPressed: _isCreating ? null : () => Navigator.pop(context),
         ),
         title: Text(
-          'Set Vault Password',
+          widget.isReset ? 'Reset Vault Password' : 'Set Vault Password',
           style: AppDesignSystem.heading3.copyWith(
             color: AppDesignSystem.neutral900,
           ),
@@ -348,8 +400,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
               child: CircularProgressIndicator(
                   strokeWidth: 2, color: Colors.white),
             )
-          : const Text('Create Vault',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          : Text(widget.isReset ? 'Reset Vault' : 'Create Vault',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
     );
   }
 }

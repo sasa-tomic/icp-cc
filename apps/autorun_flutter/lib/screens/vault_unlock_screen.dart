@@ -4,6 +4,7 @@ import '../services/passkey_service.dart';
 import '../services/vault_crypto_service.dart';
 import '../rust/native_bridge.dart';
 import '../theme/app_design_system.dart';
+import 'vault_password_setup_screen.dart';
 
 /// Called after the vault is successfully decrypted locally.
 /// [decryptedVaultContents] is the plaintext that was encrypted in the blob
@@ -139,11 +140,105 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
     }
   }
 
-  void _useRecoveryCode() {
+  /// "Use recovery code" — verify a saved one-time code against the backend,
+  /// then route to [VaultPasswordSetupScreen] in reset mode (PUT /vault with a
+  /// new password). A verified code proves ownership, so the reset is
+  /// legitimate.
+  ///
+  /// This replaces the dead `Navigator.pushNamed(context, '/recovery')` (the
+  /// route never existed → it threw at runtime).
+  Future<void> _useRecoveryCode() async {
     widget.onUseRecoveryCode?.call();
-    Navigator.pop(context);
-    // Navigate to recovery screen
-    Navigator.pushNamed(context, '/recovery');
+
+    final code = await _showRecoveryCodeEntryDialog();
+    if (code == null || code.isEmpty || !mounted) return;
+
+    setState(() {
+      _isUnlocking = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final valid = await PasskeyService().verifyRecoveryCode(
+        accountId: widget.accountId,
+        code: code,
+      );
+      if (!mounted) return;
+
+      if (valid) {
+        await Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VaultPasswordSetupScreen(
+              accountId: widget.accountId,
+              keypair: widget.keypair,
+              isReset: true,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        setState(() => _isUnlocking = false);
+      } else {
+        setState(() {
+          _failedAttempts++;
+          _errorMessage = _failedAttempts >= 3
+              ? 'Multiple failed attempts. Please check your recovery codes.'
+              : 'Invalid or already-used recovery code.';
+          _isUnlocking = false;
+        });
+      }
+    } on PasskeyException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.message;
+          _isUnlocking = false;
+        });
+      }
+    }
+  }
+
+  /// Prompts the user to enter a one-time recovery code. Returns the trimmed
+  /// code, or `null` if cancelled.
+  Future<String?> _showRecoveryCodeEntryDialog() {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Use Recovery Code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter a one-time recovery code you saved when you set up your '
+              'vault. After verification you can set a new vault password.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Recovery code',
+                hintText: 'e.g. ABCD-1234',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, controller.text.trim()),
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

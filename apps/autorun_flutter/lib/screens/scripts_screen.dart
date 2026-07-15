@@ -1155,9 +1155,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
           'Script duplicated as "${newScript.title}"',
           action: SnackBarAction(
             label: 'View',
-            onPressed: () {
-              // Scroll to the new script (implementation depends on your list view)
-            },
+            onPressed: () => _editScript(newScript),
           ),
         ),
       );

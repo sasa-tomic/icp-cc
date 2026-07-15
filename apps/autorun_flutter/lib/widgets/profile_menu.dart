@@ -633,15 +633,49 @@ class _ProfileSwitchRow extends StatelessWidget {
     required this.profile,
     required this.isActive,
     this.onTap,
+    this.onRename,
+    this.onDelete,
   });
 
   final Profile profile;
   final bool isActive;
   final VoidCallback? onTap;
 
+  /// When non-null, a trailing "more" menu (Rename / Delete) is rendered.
+  /// Used by the full Manage Profiles sheet. The inline quick-switcher omits
+  /// these (it is for 2-tap switching only).
+  final VoidCallback? onRename;
+  final VoidCallback? onDelete;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final rename = onRename;
+    final trailing = rename != null
+        ? PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert,
+                color: theme.colorScheme.onSurfaceVariant),
+            tooltip: 'Profile options',
+            onSelected: (value) {
+              switch (value) {
+                case 'rename':
+                  rename();
+                case 'delete':
+                  onDelete?.call();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'rename', child: Text('Rename')),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete',
+                    style: TextStyle(color: theme.colorScheme.error)),
+              ),
+            ],
+          )
+        : (isActive
+            ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+            : null);
     return ListTile(
       leading: Container(
         width: 40,
@@ -673,17 +707,20 @@ class _ProfileSwitchRow extends StatelessWidget {
         style: isActive ? const TextStyle(fontWeight: FontWeight.w600) : null,
       ),
       subtitle: profile.username != null ? Text('@${profile.username}') : null,
-      trailing: isActive
-          ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
-          : null,
+      trailing: trailing,
       enabled: onTap != null,
       onTap: onTap,
     );
   }
 }
 
-/// Combined profile management sheet with switch + create options
-class _ManageProfilesSheet extends StatelessWidget {
+/// Combined profile management sheet with switch + create + rename + delete.
+///
+/// Subtitle promises "Create, rename, or delete" — this delivers all three.
+/// Rename/delete use the existing [ProfileController.updateProfileName] /
+/// [ProfileController.deleteProfile] (which were previously unreachable from
+/// the UI).
+class _ManageProfilesSheet extends StatefulWidget {
   const _ManageProfilesSheet({
     required this.profileController,
     required this.accountController,
@@ -695,105 +732,211 @@ class _ManageProfilesSheet extends StatelessWidget {
   final VoidCallback onCreateProfile;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final profiles = profileController.profiles;
-    final activeId = profileController.activeProfileId;
+  State<_ManageProfilesSheet> createState() => _ManageProfilesSheetState();
+}
 
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.outlineVariant,
-              borderRadius: BorderRadius.circular(2),
-            ),
+class _ManageProfilesSheetState extends State<_ManageProfilesSheet> {
+  Future<void> _renameProfile(Profile profile) async {
+    final controller =
+        TextEditingController(text: profile.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Profile'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Profile Name',
+            border: OutlineInputBorder(),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Switch Profile',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          const Divider(height: 1),
-          Flexible(
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: profiles.length,
-              itemBuilder: (context, index) {
-                final profile = profiles[index];
-                final isActive = profile.id == activeId;
-
-                return _ProfileSwitchRow(
-                  profile: profile,
-                  isActive: isActive,
-                  onTap: isActive
-                      ? null
-                      : () async {
-                          HapticFeedback.lightImpact();
-                          final messenger = ScaffoldMessenger.of(context);
-                          await profileController.setActiveProfile(profile.id);
-                          if (!context.mounted) return;
-                          Navigator.pop(context);
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text('${profile.name} is now active'),
-                            ),
-                          );
-                        },
-                );
-              },
-            ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
           ),
-          const Divider(height: 1),
-          // Create new profile option
-          ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.add_circle_outline,
-                color: theme.colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
-            ),
-            title: Text(
-              'Create New Profile',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            subtitle: Text(
-              'Add another identity',
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            trailing: Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            onTap: () {
-              HapticFeedback.lightImpact();
-              onCreateProfile();
-            },
-          ),
-          const SizedBox(height: 16),
         ],
       ),
+    );
+    controller.dispose();
+
+    if (newName == null || newName.isEmpty || !mounted) return;
+    if (newName == profile.name) return;
+
+    try {
+      await widget.profileController.updateProfileName(
+        profileId: profile.id,
+        name: newName,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Renamed to "$newName"')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to rename profile: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteProfile(Profile profile) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Profile?'),
+        content: Text(
+          'Delete "${profile.name}"? This permanently removes its keypairs '
+          'from this device. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.profileController.deleteProfile(profile.id);
+      messenger.showSnackBar(
+        SnackBar(content: Text('"${profile.name}" deleted')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to delete profile: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final controller = widget.profileController;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final profiles = controller.profiles;
+        final activeId = controller.activeProfileId;
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Manage Profiles',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: profiles.length,
+                  itemBuilder: (context, index) {
+                    final profile = profiles[index];
+                    final isActive = profile.id == activeId;
+
+                    return _ProfileSwitchRow(
+                      profile: profile,
+                      isActive: isActive,
+                      onTap: isActive
+                          ? null
+                          : () async {
+                              HapticFeedback.lightImpact();
+                              final messenger = ScaffoldMessenger.of(context);
+                              await controller.setActiveProfile(profile.id);
+                              if (!context.mounted) return;
+                              Navigator.pop(context);
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content:
+                                      Text('${profile.name} is now active'),
+                                ),
+                              );
+                            },
+                      onRename: () => _renameProfile(profile),
+                      onDelete: () => _deleteProfile(profile),
+                    );
+                  },
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.add_circle_outline,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ),
+                title: Text(
+                  'Create New Profile',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                subtitle: Text(
+                  'Add another identity',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  widget.onCreateProfile();
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 }

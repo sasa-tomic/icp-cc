@@ -86,7 +86,7 @@ Genuinely open items are listed below.
 | Issue | Location | Severity | Notes |
 |-------|----------|----------|-------|
 | **✅ RESOLVED:** paid-script `bundle` is now server-side gated | `backend/src/main.rs::get_script` | ~~HIGH~~ | `GET /scripts/:id` strips `bundle` for paid scripts unless the requester is the owner or holds a purchase record (`?account_id=`); the only paid-bundle path is the authenticated `POST /scripts/:id/download` (Ed25519-signed). See **ICPay / entitlement** below. |
-| secp256k1 (alg=1) stubbed on Web | `lib/rust/native_bridge_web.dart` | LOW | `flutter build web` succeeds (R-1). **The full Web runtime is real:** identity (Ed25519 + ICP principal), vault crypto (Argon2id + AES-256-GCM), script execution + lint/validate (R-3a — QuickJS via quickjs-emscripten, 51 golden vectors at native parity), AND the IC-canister HTTP agent (R-3b — `fetchCandid`/`parseCandid`/`callAnonymous`/`callAuthenticated` via `@dfinity/agent` + backend byte-relay CORS proxy, live-verified against mainnet). Only **secp256k1** (alg=1) remains stubbed (Ed25519 is ICP-critical). See `docs/BROWSER_SUPPORT.md`. |
+| **✅ RESOLVED:** secp256k1 (alg=1) real on Web | `lib/rust/native_bridge_web.dart` | ~~LOW~~ | Pure-Dart BIP32 `m/44'/223'/0'/0/0` + RFC 6979 deterministic low-S ECDSA + RFC 5480 principal in `lib/rust/web/secp256k1.dart`. Both `alg=0` (Ed25519) and `alg=1` (secp256k1) are fully real on Web — native-byte-identical (golden vectors). See `docs/BROWSER_SUPPORT.md`. |
 
 ## ICPay / paid-script entitlement (UX-5) — COMPLETE
 
