@@ -10,6 +10,33 @@ in `docs/specs/CLEANUP_PLAN.md`. Architecture reference at the bottom.
 complete (`docs/specs/CLEANUP_PLAN.md` WU-1..WU-10 done; `SCRIPTING_RUNTIME_MIGRATION.md`
 Phase 4 done). There is no active scripting work.
 
+> **E2E harness + functional/visual sweep: COMPLETE (2026-07-15, confidence 9/10).**
+> See `docs/specs/2026-07-15-e2e-harness-and-ux.md`. 7 commits across 7 phases:
+> - **Phase 1** (commits `d1683989`, `08ccc4f2`): Unified e2e harness — 98-flow
+>   `FlowCatalog` + `E2EDriver` (boot/remount/reset/screenshot) + desktop fast runner
+>   (2 shared boots, `resetAppState` between flows, ~15min→~6min) + web Tier-1 runner
+>   (`flutter test -d chrome`, Playwright Chromium). `just e2e` runs both surfaces.
+> - **Phase 3** (`9b37bb46`): Fixed F1 (`/recovery` route dead — vault unlock →
+>   recovery-code entry dialog → reset flow, wired to existing backend), F3 (duplicate
+>   "View" no-op → opens editor), F4 (passkey name hardcoded → platform-aware), F5
+>   (profile rename/delete missing UI → manage sheet with PopupMenu), F8 (stale
+>   TODO.md secp256k1 claim). F2 (vault tile) already fixed. F7 (dual profile paths)
+>   fixed in Phase 5c.
+> - **Phase 4** (`98add60a`): Detail dialog "Downloaded ✓" dead button → green **Run**
+>   button + **Enter** keyboard shortcut.
+> - **Phase 5** (`79b6646f`, `095dfa5d`): Merged 3 duplicate helper files → 1
+>   `ux_probe_helpers.dart` (-531 LOC); deleted 3 stale excluded probes; F7 unified
+>   profile creation path (deleted legacy `_CreateProfileDialog`); `dart_test.yaml`
+>   web tag.
+> - **Phase 6**: Real-app UX review (desktop boots cleanly, no new issues found);
+>   HUMAN_EXPECTATIONS alignment confirmed (timeout discipline excellent, no dead
+>   routes/orphaned screens/silent catches/empty handlers).
+> - **Phase 7** (`3ec1fd3c`): Fixed 2 test regressions (dart-define regex + vault
+>   happy-path mock). Full suite: 1031 passed / 0 failed / 11 skipped.
+> - **Remaining**: Phase 2 (migrate 98 flows into `FlowRegistry` — bulk test
+>   authoring, harness foundation is ready); F6 (dapp vote HTTP 530 — environmental,
+>   needs resilience/timeout work).
+
 Genuinely open items are listed below.
 
 > **Wave-7 security, functional, visual & tech-debt sweep: COMPLETE (2026-07-15,
