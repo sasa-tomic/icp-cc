@@ -5,7 +5,7 @@ use icp_marketplace_api::{
     services::{AccountService, PasskeyService, PaymentService, ReviewService, ScriptService},
     startup_checks::{
         warn_if_broken_prod_passkey_rp, warn_if_icpay_unconfigured,
-        warn_if_insecure_prod_admin_token,
+        warn_if_insecure_prod_admin_token, Environment,
     },
 };
 use poem::{
@@ -99,18 +99,17 @@ async fn main() -> Result<(), std::io::Error> {
     let rp_id = env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".to_string());
     let rp_origin =
         env::var("WEBAUTHN_RP_ORIGIN").unwrap_or_else(|_| "http://localhost:58000".to_string());
-    warn_if_broken_prod_passkey_rp(
-        &env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
-        &rp_id,
-        &rp_origin,
-    );
+
+    // W7-014: resolve ENVIRONMENT exactly once via the typed single source of
+    // truth (`Environment::current` caches + emits the unset-warn once). Both
+    // startup security checks consume the same resolved value, so they can
+    // never disagree about whether dev-warnings should be suppressed.
+    let environment = Environment::current();
+    warn_if_broken_prod_passkey_rp(environment, &rp_id, &rp_origin);
 
     let admin_token =
         env::var("ADMIN_TOKEN").unwrap_or_else(|_| "change-me-in-production".to_string());
-    warn_if_insecure_prod_admin_token(
-        &env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
-        &admin_token,
-    );
+    warn_if_insecure_prod_admin_token(environment, &admin_token);
 
     // ICPay payment integration: warn (do NOT crash) when env vars are unset.
     // The marketplace still boots and browses; only the payment endpoints

@@ -101,6 +101,23 @@ impl PasskeyService {
     // Passkey Registration
     // ========================================================================
 
+    /// Best-effort cleanup of a single-use WebAuthn challenge. The challenge
+    /// is already consumed (registration/authentication succeeded OR was
+    /// determined expired/invalid); a delete failure here is suspicious but
+    /// NOT fatal — the row expires within `CHALLENGE_EXPIRY_MINUTES`
+    /// regardless, and the periodic sweep reaps any stragglers. We LOG the
+    /// failure loudly (W7-12) instead of silently swallowing it with `.ok()`
+    /// so a persistent delete fault (e.g. DB pressure) is visible in logs.
+    async fn consume_challenge(&self, challenge_id: &str) {
+        if let Err(e) = self.repo.delete_challenge(challenge_id).await {
+            tracing::warn!(
+                challenge_id,
+                "Failed to delete consumed WebAuthn challenge (best-effort cleanup); \
+                 it will expire via the background sweep, but the failure is unexpected: {e}"
+            );
+        }
+    }
+
     /// Start passkey registration for an account
     pub async fn start_registration(
         &self,
@@ -185,7 +202,7 @@ impl PasskeyService {
         let expires_at = chrono::DateTime::parse_from_rfc3339(&challenge.expires_at)
             .map_err(|e| PasskeyError::BadRequest(format!("Invalid expires_at: {e}")))?;
         if Utc::now() > expires_at {
-            self.repo.delete_challenge(&req.challenge_id).await.ok();
+            self.consume_challenge(&req.challenge_id).await;
             return Err(PasskeyError::BadRequest("Challenge expired".to_string()));
         }
 
@@ -220,7 +237,7 @@ impl PasskeyService {
             .map_err(|e| PasskeyError::BadRequest(format!("DB error: {e}")))?;
 
         // Clean up challenge
-        self.repo.delete_challenge(&req.challenge_id).await.ok();
+        self.consume_challenge(&req.challenge_id).await;
 
         Ok(PasskeyInfo {
             id: passkey_id,
@@ -325,7 +342,7 @@ impl PasskeyService {
         let expires_at = chrono::DateTime::parse_from_rfc3339(&challenge.expires_at)
             .map_err(|e| PasskeyError::Unauthorized(format!("Invalid expires_at: {e}")))?;
         if Utc::now() > expires_at {
-            self.repo.delete_challenge(&req.challenge_id).await.ok();
+            self.consume_challenge(&req.challenge_id).await;
             return Err(PasskeyError::Unauthorized("Challenge expired".to_string()));
         }
 
@@ -383,7 +400,7 @@ impl PasskeyService {
         }
 
         // Clean up challenge
-        self.repo.delete_challenge(&req.challenge_id).await.ok();
+        self.consume_challenge(&req.challenge_id).await;
 
         Ok(account_id)
     }
@@ -461,15 +478,18 @@ impl PasskeyService {
         let codes = generate_recovery_codes();
         let now = Utc::now().to_rfc3339();
 
-        // Hash codes for storage
-        let code_hashes: Vec<(String, String)> = codes
+        // Hash codes for storage. Argon2id is fallible (param / memory pressure),
+        // so propagate as a typed Internal error instead of panicking the
+        // request handler (W7-13). Matches the `verify_recovery_code` mapping
+        // a few lines below.
+        let code_hashes = codes
             .iter()
-            .map(|code| {
+            .map(|code| -> Result<(String, String), PasskeyError> {
                 let id = uuid::Uuid::new_v4().to_string();
-                let hash = hash_recovery_code(code).expect("hash should succeed");
-                (id, hash)
+                let hash = hash_recovery_code(code).map_err(PasskeyError::Internal)?;
+                Ok((id, hash))
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         self.repo
             .create_recovery_codes(account_id, &code_hashes, &now)

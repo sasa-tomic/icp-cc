@@ -1,6 +1,6 @@
 use crate::auth::{
-    create_canonical_payload, derive_ic_principal, validate_replay_prevention, validate_username,
-    verify_signature, AuthError,
+    create_canonical_payload, derive_ic_principal, is_audit_replay_error, validate_replay_prevention,
+    validate_username, verify_signature, AuthError,
 };
 use crate::models::{
     AccountPublicKeyResponse, AccountResponse, AddPublicKeyRequest, RegisterAccountRequest,
@@ -35,6 +35,23 @@ fn replay_err(e: AuthError) -> AccountError {
 /// wrapping so the JSON body is byte-identical.
 fn signature_err(e: AuthError) -> AccountError {
     AccountError::Unauthorized(format!("Signature verification failed: {e}"))
+}
+
+/// Maps a `record_signature_audit` DB error to a typed [`AccountError`].
+///
+/// A UNIQUE-violation on the `signature_audit.nonce` constraint is a
+/// concurrent identical-nonce INSERT — i.e. a request that won the TOCTOU
+/// race between `validate_replay_prevention`'s SELECT-COUNT and the audit
+/// INSERT. That is a replay attack (W7-011) → `Unauthorized` (401). Any
+/// other fault is a genuine DB problem → `Internal` (500). Reuses the shared
+/// [`crate::auth::is_audit_replay_error`] predicate so the replay detection
+/// has ONE source of truth.
+fn account_audit_error(e: sqlx::Error) -> AccountError {
+    if is_audit_replay_error(&e) {
+        AccountError::Unauthorized("Nonce already used (replay attack detected)".to_string())
+    } else {
+        AccountError::Internal(format!("Failed to record audit: {e}"))
+    }
 }
 
 pub struct AccountService {
@@ -152,7 +169,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
+            .map_err(account_audit_error)?;
 
         // 10. Return created account
         Ok(AccountResponse {
@@ -417,7 +434,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
+            .map_err(account_audit_error)?;
 
         // 8. Return updated account (fetch fresh from DB)
         self.get_account(&normalized_username)
@@ -549,7 +566,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
+            .map_err(account_audit_error)?;
 
         // 11. Return created key
         Ok(AccountPublicKeyResponse {
@@ -678,7 +695,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
+            .map_err(account_audit_error)?;
 
         // 10. Return disabled key
         Ok(AccountPublicKeyResponse {
@@ -759,7 +776,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
+            .map_err(account_audit_error)?;
 
         // 5. Return disabled key
         Ok(crate::models::AdminKeyResponse {
@@ -861,7 +878,7 @@ impl AccountService {
                 now: &now,
             })
             .await
-            .map_err(|e| AccountError::Internal(format!("Failed to record audit: {e}")))?;
+            .map_err(account_audit_error)?;
 
         // 7. Return created key
         Ok(crate::models::AdminKeyResponse {

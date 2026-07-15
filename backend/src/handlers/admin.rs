@@ -151,16 +151,17 @@ mod admin_token_tests {
 
     #[test]
     fn warning_fires_for_production_insecure_only() {
+        use crate::startup_checks::Environment;
         assert!(warn_if_insecure_prod_admin_token(
-            "production",
+            Environment::Production,
             "change-me-in-production"
         ));
         assert!(!warn_if_insecure_prod_admin_token(
-            "development",
+            Environment::Development,
             "change-me-in-production"
         ));
         assert!(!warn_if_insecure_prod_admin_token(
-            "production",
+            Environment::Production,
             "super-secret-operator-token-9f3a7c1e"
         ));
     }

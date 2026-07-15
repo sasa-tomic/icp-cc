@@ -176,35 +176,53 @@ pub async fn download_script(
     //    if we cannot record the nonce, we MUST NOT hand over the bundle,
     //    because that request would then be replayable. (Unlike the counter
     //    bump below, this is not best-effort.) Mirrors account_service.
+    //
+    //    W7-011: the DB UNIQUE constraint on `signature_audit.nonce` closes
+    //    the TOCTOU window between the CHECK (step 2b) and this WRITE. A
+    //    unique-violation = a concurrent download won the race with the same
+    //    nonce → replay → 401 (do NOT release the bundle).
     let audit_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
-    if let Err(e) = state
-        .script_service
-        .account_repo
-        .record_signature_audit(crate::repositories::SignatureAuditParams {
-            audit_id: &audit_id,
-            account_id: Some(&account_id),
-            action: "download_script",
-            payload: &payload,
-            signature: &req.signature,
-            public_key: &req.public_key,
-            timestamp: timestamp_unix,
-            nonce: &req.nonce,
-            is_admin_action: false,
-            now: &now,
-        })
-        .await
-    {
-        tracing::error!(
-            "Failed to record download audit — refusing to release bundle (script={}, account={}): {}",
-            script_id,
-            account_id,
-            e
-        );
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to record download audit",
-        );
+    match auth::classify_audit_write(
+        state
+            .script_service
+            .account_repo
+            .record_signature_audit(crate::repositories::SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account_id),
+                action: "download_script",
+                payload: &payload,
+                signature: &req.signature,
+                public_key: &req.public_key,
+                timestamp: timestamp_unix,
+                nonce: &req.nonce,
+                is_admin_action: false,
+                now: &now,
+            })
+            .await,
+    ) {
+        Ok(auth::AuditOutcome::Ok) => {}
+        Ok(auth::AuditOutcome::Replay) => {
+            tracing::warn!(
+                "Download rejected: nonce UNIQUE constraint fired — concurrent replay \
+                 (script={}, account={})",
+                script_id,
+                account_id
+            );
+            return error_response(StatusCode::UNAUTHORIZED, "Replay prevention failed");
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to record download audit — refusing to release bundle (script={}, account={}): {}",
+                script_id,
+                account_id,
+                e
+            );
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to record download audit",
+            );
+        }
     }
 
     // 6. Bump downloads counter. Best-effort: a counter failure does NOT

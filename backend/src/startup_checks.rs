@@ -16,8 +16,89 @@ use poem::{http::StatusCode, Response};
 
 use crate::{models::AppState, responses::error_response};
 
+// ============================================================================
+// Environment — the single source of truth for the `ENVIRONMENT` env var
+// (W7-014). Previously two readers disagreed: `main.rs`'s warn helpers treated
+// unset as "development" (suppressing the insecure-admin-token warning), while
+// `is_development()` read the raw var with `unwrap_or_default()` (returning
+// false on unset). A prod deploy that forgot to set `ENVIRONMENT` therefore
+// shipped the default admin token with NO warning. This enum is read in
+// exactly one place and every consumer goes through it.
+// ============================================================================
+
+static CURRENT_ENV: std::sync::OnceLock<Environment> = std::sync::OnceLock::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Environment {
+    Development,
+    Production,
+}
+
+impl Environment {
+    /// Returns the resolved environment, reading `ENVIRONMENT` exactly once
+    /// per process (cached via `OnceLock`, so the unset-warn fires exactly
+    /// once even though several handlers + `main` call this).
+    ///
+    /// Resolution:
+    /// - `"development"` / `"dev"` (case-insensitive) → `Development`
+    /// - `"production"` / `"prod"` → `Production`
+    /// - unset / empty / unrecognised → loud `tracing::warn!` + `Development`
+    ///   (preserves the long-standing dev-friendly default so a bare local
+    ///   `cargo run` still boots; the warn makes a forgotten prod deploy
+    ///   impossible to miss in the logs).
+    pub fn current() -> Environment {
+        *CURRENT_ENV.get_or_init(Environment::read_from_env)
+    }
+
+    fn read_from_env() -> Environment {
+        match env::var("ENVIRONMENT") {
+            Ok(raw) => {
+                let normalised = raw.trim().to_ascii_lowercase();
+                match normalised.as_str() {
+                    "" => Self::warn_unset(),
+                    "production" | "prod" => Environment::Production,
+                    "development" | "dev" => Environment::Development,
+                    _ => {
+                        tracing::warn!(
+                            value = %raw,
+                            "ENVIRONMENT='{raw}' is not recognised (expected 'development' or \
+                             'production'); assuming development. Set ENVIRONMENT=production for \
+                             production deploys so the startup security checks (admin token, \
+                             passkey RP, ICPay) fire correctly."
+                        );
+                        Environment::Development
+                    }
+                }
+            }
+            Err(_) => Self::warn_unset(),
+        }
+    }
+
+    fn warn_unset() -> Environment {
+        tracing::warn!(
+            "ENVIRONMENT is not set; assuming development. Set ENVIRONMENT=production for \
+             production deploys so the startup security checks (admin token, passkey RP, ICPay) \
+             fire correctly. Set ENVIRONMENT=development to silence this warning on a local dev box."
+        );
+        Environment::Development
+    }
+
+    pub fn is_development(self) -> bool {
+        matches!(self, Environment::Development)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Environment::Development => "development",
+            Environment::Production => "production",
+        }
+    }
+}
+
+/// Legacy convenience predicate kept for callers (`admin::reset_database`).
+/// Delegates to the typed [`Environment::current`] single source of truth.
 pub fn is_development() -> bool {
-    env::var("ENVIRONMENT").unwrap_or_default() == "development"
+    Environment::current().is_development()
 }
 
 pub fn is_localhost_webauthn_rp(rp_id: &str, rp_origin: &str) -> bool {
@@ -27,8 +108,12 @@ pub fn is_localhost_webauthn_rp(rp_id: &str, rp_origin: &str) -> bool {
     rp_is_local || origin_is_local_http
 }
 
-pub fn warn_if_broken_prod_passkey_rp(environment: &str, rp_id: &str, rp_origin: &str) -> bool {
-    if environment == "development" || !is_localhost_webauthn_rp(rp_id, rp_origin) {
+pub fn warn_if_broken_prod_passkey_rp(
+    environment: Environment,
+    rp_id: &str,
+    rp_origin: &str,
+) -> bool {
+    if environment.is_development() || !is_localhost_webauthn_rp(rp_id, rp_origin) {
         return false;
     }
     let rule = "=".repeat(72);
@@ -44,10 +129,11 @@ pub fn warn_if_broken_prod_passkey_rp(environment: &str, rp_id: &str, rp_origin:
          and WEBAUTHN_RP_ORIGIN to its https origin\n\
          (e.g. https://icp-mp.kalaj.org).\n\
          \n\
-         ENVIRONMENT       = {environment}\n\
+         ENVIRONMENT       = {env}\n\
          WEBAUTHN_RP_ID    = {rp_id}\n\
          WEBAUTHN_RP_ORIGIN = {rp_origin}\n\
-         {rule}"
+         {rule}",
+        env = environment.as_str(),
     );
     eprintln!("{msg}");
     tracing::error!("{msg}");
@@ -58,8 +144,11 @@ pub fn is_insecure_admin_token(admin_token: &str) -> bool {
     admin_token.is_empty() || admin_token == "change-me-in-production"
 }
 
-pub fn warn_if_insecure_prod_admin_token(environment: &str, admin_token: &str) -> bool {
-    if environment == "development" || !is_insecure_admin_token(admin_token) {
+pub fn warn_if_insecure_prod_admin_token(
+    environment: Environment,
+    admin_token: &str,
+) -> bool {
+    if environment.is_development() || !is_insecure_admin_token(admin_token) {
         return false;
     }
     let rule = "=".repeat(72);
@@ -75,9 +164,10 @@ pub fn warn_if_insecure_prod_admin_token(environment: &str, admin_token: &str) -
          Fix: set ADMIN_TOKEN to a strong, secret, operator-chosen value\n\
          before deploying.\n\
          \n\
-         ENVIRONMENT = {environment}\n\
+         ENVIRONMENT = {env}\n\
          ADMIN_TOKEN = {admin_token}\n\
-         {rule}"
+         {rule}",
+        env = environment.as_str(),
     );
     eprintln!("{msg}");
     tracing::error!("{msg}");
@@ -217,18 +307,19 @@ mod webauthn_rp_tests {
 
     #[test]
     fn warning_fires_for_production_localhost_only() {
+        use crate::startup_checks::Environment;
         assert!(warn_if_broken_prod_passkey_rp(
-            "production",
+            Environment::Production,
             "localhost",
             "http://localhost:58000"
         ));
         assert!(!warn_if_broken_prod_passkey_rp(
-            "development",
+            Environment::Development,
             "localhost",
             "http://localhost:58000"
         ));
         assert!(!warn_if_broken_prod_passkey_rp(
-            "production",
+            Environment::Production,
             "icp-mp.kalaj.org",
             "https://icp-mp.kalaj.org"
         ));

@@ -52,15 +52,20 @@ async fn cleanup_loop(pool: SqlitePool, shutdown: CancellationToken) {
 
 /// Deletes signature audit records older than AUDIT_RETENTION_DAYS
 async fn cleanup_old_audit_records(pool: &SqlitePool) -> Result<u64, sqlx::Error> {
-    let query = format!(
+    // Bind `AUDIT_RETENTION_DAYS` as a parameter rather than interpolating it
+    // via `format!` (W7-024). It is a compile-time const i32 (so not actually
+    // injectable), but using `.bind` keeps the SQL text constant — good
+    // hygiene near SQL and avoids setting a format-string precedent. SQLite
+    // builds the modifier ('-90 days') via text concatenation at query time.
+    let result = sqlx::query(
         r#"
         DELETE FROM signature_audit
-        WHERE datetime(created_at) < datetime('now', '-{} days')
+        WHERE datetime(created_at) < datetime('now', '-' || ? || ' days')
         "#,
-        AUDIT_RETENTION_DAYS
-    );
-
-    let result = sqlx::query(&query).execute(pool).await?;
+    )
+    .bind(AUDIT_RETENTION_DAYS)
+    .execute(pool)
+    .await?;
 
     Ok(result.rows_affected())
 }

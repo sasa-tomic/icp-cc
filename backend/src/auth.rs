@@ -151,7 +151,19 @@ pub fn create_canonical_payload(value: &serde_json::Value) -> String {
             result.push('}');
             result
         }
-        _ => serde_json::to_string(value).unwrap_or_default(),
+        // `serde_json::to_string` is total for any `serde_json::Value`: the
+        // only way it can fail is serialising a non-finite float (NaN/Inf),
+        // and `Value::Number` cannot represent those (they are not valid
+        // JSON). So this branch cannot fail. `.expect` with the documented
+        // invariant is LOUD (panics if a future serde_json change ever made
+        // this reachable) instead of the old `unwrap_or_default()` which
+        // would have silently verified the signature over an EMPTY payload
+        // (W7-21). Propagating via `?` was considered but would ripple to
+        // every caller for a provably-impossible error.
+        _ => serde_json::to_string(value).expect(
+            "serde_json::Value serialises infallibly (NaN/Inf cannot inhabit Value::Number); \
+             to_string cannot fail for any Value",
+        ),
     }
 }
 
@@ -395,6 +407,44 @@ pub async fn validate_replay_prevention(
     }
 
     Ok(())
+}
+
+/// Outcome of writing a signature-audit row (the WRITE side of replay
+/// prevention). Returned by [`classify_audit_write`].
+#[derive(Debug)]
+pub enum AuditOutcome {
+    /// Row recorded successfully.
+    Ok,
+    /// The `signature_audit.nonce` UNIQUE constraint fired — a concurrent
+    /// request already recorded this nonce, winning the TOCTOU race between
+    /// [`validate_replay_prevention`]'s SELECT-COUNT and the INSERT. This is a
+    /// replay attack; the caller MUST reject the request (401).
+    Replay,
+}
+
+/// Returns true iff the error is a UNIQUE-violation — the race-proof replay
+/// signal from the `signature_audit.nonce` constraint (W7-011). Single
+/// source of truth consumed by [`classify_audit_write`] (signature gate /
+/// download / entitlement handlers) and the per-service `AccountError`
+/// wrapper.
+pub fn is_audit_replay_error(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .map(|d| d.is_unique_violation())
+        .unwrap_or(false)
+}
+
+/// Classifies the result of `record_signature_audit`. Maps a DB
+/// unique-violation on the `nonce` column to [`AuditOutcome::Replay`] (the
+/// race-proof replay signal); any other error is a genuine DB fault and is
+/// returned unchanged so the caller can surface it as a 5xx. This is the
+/// single point that distinguishes "concurrent identical nonce" (replay) from
+/// "real DB problem" (W7-011).
+pub fn classify_audit_write(result: Result<(), sqlx::Error>) -> Result<AuditOutcome, sqlx::Error> {
+    match result {
+        Ok(()) => Ok(AuditOutcome::Ok),
+        Err(e) if is_audit_replay_error(&e) => Ok(AuditOutcome::Replay),
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(test)]

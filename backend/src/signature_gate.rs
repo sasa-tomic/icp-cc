@@ -134,33 +134,52 @@ pub async fn verify_signed_account_request(
     }
 
     // 4. Record the audit (fail-closed: a replayable request is refused).
+    //    W7-011: the DB UNIQUE constraint on `signature_audit.nonce` is the
+    //    race-proof source of truth. A unique-violation means a concurrent
+    //    request with the same nonce won the TOCTOU race past step 3's
+    //    SELECT-COUNT — classify it as a replay (401), not a server fault.
     let audit_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let canonical_payload = auth::create_canonical_payload(&payload);
-    if let Err(e) = account_repo
-        .record_signature_audit(SignatureAuditParams {
-            audit_id: &audit_id,
-            account_id: Some(&account_id),
-            action,
-            payload: &canonical_payload,
-            signature: auth_fields.signature,
-            public_key: auth_fields.author_public_key,
-            timestamp: auth_fields.timestamp,
-            nonce: auth_fields.nonce,
-            is_admin_action: false,
-            now: &now,
-        })
-        .await
-    {
-        tracing::error!(
-            action,
-            account_id = %account_id,
-            "Signature gate: audit record failed: {e}"
-        );
-        return Err(AuthGateRejection {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to record signature audit",
-        });
+    match auth::classify_audit_write(
+        account_repo
+            .record_signature_audit(SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account_id),
+                action,
+                payload: &canonical_payload,
+                signature: auth_fields.signature,
+                public_key: auth_fields.author_public_key,
+                timestamp: auth_fields.timestamp,
+                nonce: auth_fields.nonce,
+                is_admin_action: false,
+                now: &now,
+            })
+            .await,
+    ) {
+        Ok(auth::AuditOutcome::Ok) => {}
+        Ok(auth::AuditOutcome::Replay) => {
+            tracing::warn!(
+                action,
+                account_id = %account_id,
+                "Signature gate: nonce UNIQUE constraint fired (concurrent replay)"
+            );
+            return Err(AuthGateRejection {
+                status: StatusCode::UNAUTHORIZED,
+                message: "Replay prevention failed",
+            });
+        }
+        Err(e) => {
+            tracing::error!(
+                action,
+                account_id = %account_id,
+                "Signature gate: audit record failed: {e}"
+            );
+            return Err(AuthGateRejection {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Failed to record signature audit",
+            });
+        }
     }
 
     Ok(account_id)

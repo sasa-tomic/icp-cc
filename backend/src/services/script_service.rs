@@ -333,7 +333,10 @@ mod tests {
 
         let result = service.create_script(req).await;
         if let Err(e) = &result {
-            eprintln!("Error creating script: {}", e);
+            // Surface the failure cause in the server log (W7-09: eprintln →
+            // tracing). The subsequent `.unwrap()` also fails the test loudly
+            // with the error's Debug, so the signal is preserved either way.
+            tracing::error!(error = %e, "Error creating script in test fixture");
         }
         let script = result.unwrap();
 

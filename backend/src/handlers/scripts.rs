@@ -239,37 +239,55 @@ pub async fn entitlement_check(
     //    single-use within the 10-minute window (the WRITE side of step 3).
     //    Fail-closed: if the audit cannot be recorded, the request is
     //    replayable, so we refuse to return the entitlement.
+    //
+    //    W7-011: the DB UNIQUE constraint on `signature_audit.nonce` closes
+    //    the TOCTOU window between step 3's SELECT-COUNT and this WRITE.
+    //    A unique-violation = a concurrent request won the race with the
+    //    same nonce → replay → 401.
     let audit_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let canonical_payload = auth::create_canonical_payload(&payload);
-    if let Err(e) = state
-        .script_service
-        .account_repo
-        .record_signature_audit(SignatureAuditParams {
-            audit_id: &audit_id,
-            account_id: Some(&account_id),
-            action: ENTITLEMENT_ACTION,
-            payload: &canonical_payload,
-            signature: &req.signature,
-            public_key: &req.author_public_key,
-            timestamp: req.timestamp,
-            nonce: &req.nonce,
-            is_admin_action: false,
-            now: &now,
-        })
-        .await
-    {
-        tracing::error!(
-            "Failed to record entitlement audit — refusing to return entitlement \
-             (script={}, account={}): {}",
-            script_id,
-            account_id,
-            e
-        );
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to record entitlement audit",
-        );
+    match auth::classify_audit_write(
+        state
+            .script_service
+            .account_repo
+            .record_signature_audit(SignatureAuditParams {
+                audit_id: &audit_id,
+                account_id: Some(&account_id),
+                action: ENTITLEMENT_ACTION,
+                payload: &canonical_payload,
+                signature: &req.signature,
+                public_key: &req.author_public_key,
+                timestamp: req.timestamp,
+                nonce: &req.nonce,
+                is_admin_action: false,
+                now: &now,
+            })
+            .await,
+    ) {
+        Ok(auth::AuditOutcome::Ok) => {}
+        Ok(auth::AuditOutcome::Replay) => {
+            tracing::warn!(
+                "Entitlement rejected: nonce UNIQUE constraint fired — concurrent replay \
+                 (script={}, account={})",
+                script_id,
+                account_id
+            );
+            return error_response(StatusCode::UNAUTHORIZED, "Replay prevention failed");
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to record entitlement audit — refusing to return entitlement \
+                 (script={}, account={}): {}",
+                script_id,
+                account_id,
+                e
+            );
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to record entitlement audit",
+            );
+        }
     }
 
     Json(serde_json::json!({

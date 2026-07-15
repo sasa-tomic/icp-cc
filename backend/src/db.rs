@@ -57,13 +57,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
     ];
 
     for (column_name, migration_sql) in account_migrations {
-        if let Err(e) = sqlx::query(migration_sql).execute(pool).await {
-            tracing::debug!(
-                "Migration skipped for accounts column '{}' (likely already exists): {}",
-                column_name,
-                e
-            );
-        }
+        apply_add_column_migration(pool, "accounts", column_name, migration_sql).await;
     }
 
     sqlx::query(
@@ -132,6 +126,23 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .execute(pool)
     .await
     .expect("Failed to create audit nonce_time index");
+
+    // W7-011: race-proof replay prevention. `validate_replay_prevention` does
+    // a SELECT-COUNT for the nonce, then `record_signature_audit` INSERTs it —
+    // a TOCTOU window two concurrent identical-nonce requests can both win.
+    // This UNIQUE constraint is the source of truth: the second INSERT fails
+    // with a unique-violation that callers map to a replay rejection (401) via
+    // `auth::classify_audit_write`. Nonces are fresh per-request UUIDs, so
+    // global uniqueness is equivalent to the 10-minute replay window the
+    // SELECT checks — but enforced atomically by the DB. The cleanup job
+    // reaps rows older than 90 days; a UUID collision across the remaining
+    // window is negligibly improbable.
+    sqlx::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_nonce_unique ON signature_audit(nonce)",
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create audit nonce UNIQUE index");
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_audit_account ON signature_audit(account_id)")
         .execute(pool)
@@ -223,13 +234,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
     ];
 
     for (column_name, migration_sql) in migrations {
-        if let Err(e) = sqlx::query(migration_sql).execute(pool).await {
-            tracing::debug!(
-                "Migration skipped for column '{}' (likely already exists): {}",
-                column_name,
-                e
-            );
-        }
+        apply_add_column_migration(pool, "scripts", column_name, migration_sql).await;
     }
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_scripts_slug ON scripts(slug)")
@@ -538,6 +543,34 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .execute(pool)
         .await
         .expect("Failed to create purchases script_id index");
+}
+
+/// Applies an idempotent `ALTER TABLE … ADD COLUMN` migration, distinguishing
+/// the expected "column already exists" case from a genuine DDL fault (W7-022).
+///
+/// SQLite returns `"duplicate column name: <col>"` (a generic `SQLITE_ERROR`,
+/// code 1) when the column is already present — that is the idempotent success
+/// case for a re-run on an already-migrated DB and is downgraded to a debug
+/// log. Any OTHER error (disk I/O, malformed DDL, locked DB, …) is fatal: the
+/// previous blanket `if let Err(_) { debug! }` masked real faults as "likely
+/// already exists", hiding genuine schema problems. The duplicate-column arm
+/// is detected by message because SQLite exposes no dedicated error code for
+/// it (this is exactly the discriminator the audit recommended).
+async fn apply_add_column_migration(pool: &SqlitePool, table: &str, column: &str, sql: &str) {
+    if let Err(e) = sqlx::query(sql).execute(pool).await {
+        let msg = e.to_string();
+        if msg.contains("duplicate column name") {
+            tracing::debug!(
+                table, column,
+                "Migration skipped (column already exists): {msg}"
+            );
+        } else {
+            panic!(
+                "Migration failed for {table}.{column} — NOT a duplicate-column case, \
+                 refusing to mask as 'already migrated' (W7-022): {e}"
+            );
+        }
+    }
 }
 
 /// Idempotently rename the legacy `user_principal` column to `account_id` on

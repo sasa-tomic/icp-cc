@@ -37,6 +37,27 @@ fn canister_call_timeout() -> Duration {
         .unwrap_or(DEFAULT)
 }
 
+/// Shared multi-threaded tokio runtime for the synchronous FFI canister calls.
+///
+/// Previously `fetch_candid` / `call_anonymous` / `call_authenticated` each
+/// constructed + tore down a fresh `tokio::runtime::Runtime` on every call —
+/// expensive reactor spin-up on the synchronous FFI path (W7-019). The runtime
+/// is now reused for the process lifetime, mirroring the
+/// `OnceLock<reqwest::Client>` pattern in `backend/src/handlers/ic_proxy.rs`.
+///
+/// `.expect` is appropriate here: a process that cannot spawn a tokio runtime
+/// is fatally broken (every async path needs one), and `#[tokio::main]` itself
+/// panics on runtime-construction failure. These calls are invoked from the
+/// synchronous Flutter UI thread (no ambient runtime), so `block_on` cannot
+/// hit the "cannot start a runtime from within a runtime" panic.
+fn shared_runtime() -> &'static tokio::runtime::Runtime {
+    static RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+    RT.get_or_init(|| {
+        tokio::runtime::Runtime::new()
+            .expect("Failed to construct shared tokio runtime for canister FFI")
+    })
+}
+
 #[derive(Debug, Error)]
 pub enum CanisterClientError {
     #[error("invalid canister id: {0}")]
@@ -568,8 +589,7 @@ pub fn fetch_candid(canister_id: &str, host: Option<&str>) -> Result<String, Can
             .await
     };
     let to = canister_call_timeout();
-    let rt =
-        tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
+    let rt = shared_runtime();
     let bytes = match rt.block_on(async { timeout(to, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
@@ -633,8 +653,7 @@ pub fn call_anonymous(
         }
     };
     let to = canister_call_timeout();
-    let rt =
-        tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
+    let rt = shared_runtime();
     let out = match rt.block_on(async { timeout(to, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
@@ -718,8 +737,7 @@ pub fn call_authenticated(
         }
     };
     let to = canister_call_timeout();
-    let rt =
-        tokio::runtime::Runtime::new().map_err(|e| CanisterClientError::Net(format!("rt: {e}")))?;
+    let rt = shared_runtime();
     let out = match rt.block_on(async { timeout(to, fut).await }) {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {

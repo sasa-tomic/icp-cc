@@ -391,6 +391,96 @@ async fn account_record_signature_audit_admin_flag_stored_as_one() {
     assert_eq!(is_admin, 1);
 }
 
+// ---------------------------------------------------------------------------
+// W7-011: the `signature_audit.nonce` UNIQUE constraint is the race-proof
+// source of truth for replay prevention. These tests prove (a) a duplicate
+// nonce INSERT fails at the DB (killing the TOCTOU window between
+// `validate_replay_prevention`'s SELECT-COUNT and the audit INSERT), and (b)
+// `auth::is_audit_replay_error` classifies that failure as a replay while a
+// different SQL fault is NOT misclassified.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn account_record_signature_audit_rejects_duplicate_nonce() {
+    let pool = setup().await;
+    let repo = AccountRepository::new(pool.clone());
+    create_account_full(&repo, "acc-dup", "dupalice").await;
+
+    // First insert with nonce "nonce-shared" succeeds.
+    repo.record_signature_audit(SignatureAuditParams {
+        audit_id: "audit-first",
+        account_id: Some("acc-dup"),
+        action: "register_account",
+        payload: "p",
+        signature: "s",
+        public_key: "pk",
+        timestamp: 1,
+        nonce: "nonce-shared",
+        is_admin_action: false,
+        now: NOW,
+    })
+    .await
+    .expect("first audit insert should succeed");
+
+    // Second insert with the SAME nonce must fail — the UNIQUE constraint is
+    // what closes the TOCTOU replay window. Two concurrent identical-nonce
+    // requests can no longer both pass the SELECT-COUNT gate before either
+    // INSERTs.
+    let err = repo
+        .record_signature_audit(SignatureAuditParams {
+            audit_id: "audit-second",
+            account_id: Some("acc-dup"),
+            action: "register_account",
+            payload: "p2",
+            signature: "s2",
+            public_key: "pk2",
+            timestamp: 2,
+            nonce: "nonce-shared",
+            is_admin_action: false,
+            now: NOW,
+        })
+        .await
+        .expect_err("duplicate-nonce INSERT must fail the UNIQUE constraint");
+
+    // And the shared classifier recognises it as a replay (not a generic fault).
+    assert!(
+        icp_marketplace_api::auth::is_audit_replay_error(&err),
+        "duplicate-nonce violation must classify as a replay, got: {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn account_record_signature_audit_distinct_nonces_both_succeed() {
+    // Negative control for the above: distinct nonces are both accepted, so
+    // the constraint is specifically on `nonce` (not overzealous).
+    let pool = setup().await;
+    let repo = AccountRepository::new(pool.clone());
+    create_account_full(&repo, "acc-distinct", "distalice").await;
+
+    for (audit_id, nonce) in [("audit-a", "nonce-a"), ("audit-b", "nonce-b")] {
+        repo.record_signature_audit(SignatureAuditParams {
+            audit_id,
+            account_id: Some("acc-distinct"),
+            action: "register_account",
+            payload: "p",
+            signature: "s",
+            public_key: "pk",
+            timestamp: 1,
+            nonce,
+            is_admin_action: false,
+            now: NOW,
+        })
+        .await
+        .expect("distinct-nonce insert should succeed");
+    }
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM signature_audit")
+        .fetch_one(&pool)
+        .await
+        .expect("count query failed");
+    assert_eq!(count, 2);
+}
+
 // ===========================================================================
 // ScriptRepository
 // ===========================================================================
