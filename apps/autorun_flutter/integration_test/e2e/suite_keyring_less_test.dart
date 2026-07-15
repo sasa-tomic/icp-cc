@@ -25,6 +25,7 @@ import 'package:icp_autorun/screens/settings_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/profile_setup_chip.dart';
+import 'package:icp_autorun/widgets/shortcuts_help_sheet.dart';
 
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
@@ -113,6 +114,28 @@ void main() {
           timeout: const Duration(seconds: 3));
       expect(scripts, isTrue,
           reason: 'Alt+1 must switch back to the Scripts tab.');
+    })
+    ..register('shortcut.show_help', (tester, d) async {
+      // Tap the always-visible ShortcutsHelpButton (keyboard icon).
+      final helpBtn = find.byType(ShortcutsHelpButton);
+      expect(d.present(helpBtn, tester), isTrue,
+          reason: 'ShortcutsHelpButton must be visible on desktop.');
+      await tester.tap(helpBtn);
+      final helpOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(ShortcutsHelpSheet), tester),
+          timeout: const Duration(seconds: 3));
+      expect(helpOpen, isTrue,
+          reason: 'Tapping the help button must open the ShortcutsHelpSheet.');
+    })
+    ..register('shortcut.escape_back', (tester, d) async {
+      // Press Esc to close the help sheet.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      final closed = await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(ShortcutsHelpSheet), tester),
+          timeout: const Duration(seconds: 3));
+      expect(closed, isTrue,
+          reason: 'Esc must close the ShortcutsHelpSheet.');
     });
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -189,13 +212,19 @@ void main() {
     await registry.runFor('shortcut.tab_switch')!(tester, driver);
     driver.phase('7', 'OK — shortcut.tab_switch');
 
+    // PHASE 8: shortcuts help (?) + escape back (Esc).
+    driver.phase('8', 'shortcuts help + escape');
+    await registry.runFor('shortcut.show_help')!(tester, driver);
+    await registry.runFor('shortcut.escape_back')!(tester, driver);
+    driver.phase('8', 'OK — shortcut.show_help + shortcut.escape_back');
+
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(6));
+    expect(cov.implemented, greaterThanOrEqualTo(8));
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered.');
