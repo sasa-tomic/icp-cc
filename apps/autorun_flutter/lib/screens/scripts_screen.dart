@@ -659,6 +659,21 @@ class ScriptsScreenState extends State<ScriptsScreen>
             ? () => _downloadScript(script)
             : (owned ? () => _downloadPaidScript(script) : null),
         onBuy: (!isFree && !owned) ? () => _buyScript(script) : null,
+        onRun: () {
+          final local = _controller.scripts
+              .where((s) => s.marketplaceId == script.id)
+              .lastOrNull;
+          if (local != null) {
+            _runScript(local);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Could not find the local copy. Try re-downloading.'),
+              ),
+            );
+          }
+        },
         isDownloading: _downloadingScriptIds.contains(script.id),
         isDownloaded: _downloadedScriptIds.contains(script.id),
       ),

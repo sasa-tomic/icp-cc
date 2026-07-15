@@ -49,6 +49,7 @@ const Map<String, ShortcutSpec> kShortcutSpecs = <String, ShortcutSpec>{
   'details_close': ShortcutSpec('Close the dialog', 'Esc'),
   'details_prev_tab': ShortcutSpec('Previous tab', '←'),
   'details_next_tab': ShortcutSpec('Next tab', '→'),
+  'details_run': ShortcutSpec('Run or Download (primary action)', 'Enter'),
 };
 
 /// True when the user is currently editing text somewhere. Every guarded
@@ -302,11 +303,13 @@ class DetailsDialogShortcuts extends StatelessWidget {
     required this.child,
     required this.onPrevTab,
     required this.onNextTab,
+    this.onPrimaryAction,
   });
 
   final Widget child;
   final VoidCallback onPrevTab;
   final VoidCallback onNextTab;
+  final VoidCallback? onPrimaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -319,11 +322,16 @@ class DetailsDialogShortcuts extends StatelessWidget {
             const _PrevTabIntent(),
         const SingleActivator(LogicalKeyboardKey.arrowRight):
             const _NextTabIntent(),
+        if (onPrimaryAction != null)
+          const SingleActivator(LogicalKeyboardKey.enter):
+              const _PrimaryActionIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
           _PrevTabIntent: _PrevTabAction(onPrevTab),
           _NextTabIntent: _NextTabAction(onNextTab),
+          if (onPrimaryAction != null)
+            _PrimaryActionIntent: _PrimaryActionAction(onPrimaryAction!),
         },
         // Autofocus so the shortcut layer owns a primary-focus descendant the
         // moment the dialog mounts (mirrors ScreenShortcuts). Clicking a tab,
@@ -452,6 +460,25 @@ class _NextTabAction extends _GuardedAction<_NextTabIntent> {
   @override
   Object? invoke(_NextTabIntent intent) {
     onNextTab();
+    return null;
+  }
+}
+
+/// Enter = primary CTA action (Phase 4). Guarded so Enter inside a text
+/// field (password entry, label edit) inserts a newline / submits the field
+/// — not the dialog's Download/Run button.
+class _PrimaryActionIntent extends Intent {
+  const _PrimaryActionIntent();
+}
+
+class _PrimaryActionAction extends _GuardedAction<_PrimaryActionIntent> {
+  _PrimaryActionAction(this.onPrimaryAction);
+
+  final VoidCallback onPrimaryAction;
+
+  @override
+  Object? invoke(_PrimaryActionIntent intent) {
+    onPrimaryAction();
     return null;
   }
 }

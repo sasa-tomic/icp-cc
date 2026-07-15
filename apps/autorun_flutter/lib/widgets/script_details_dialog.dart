@@ -12,6 +12,7 @@ class ScriptDetailsDialog extends StatefulWidget {
   final MarketplaceScript script;
   final VoidCallback? onDownload;
   final VoidCallback? onBuy;
+  final VoidCallback? onRun;
   final bool isDownloading;
   final bool isDownloaded;
 
@@ -20,6 +21,7 @@ class ScriptDetailsDialog extends StatefulWidget {
     required this.script,
     this.onDownload,
     this.onBuy,
+    this.onRun,
     this.isDownloading = false,
     this.isDownloaded = false,
   });
@@ -226,12 +228,21 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
     }
   }
 
+  /// The primary CTA: Run if already downloaded, else Download/Buy.
+  VoidCallback? get _primaryAction {
+    if (widget.isDownloaded && widget.onRun != null) return widget.onRun;
+    if (widget.onBuy != null) return widget.onBuy;
+    if (widget.onDownload != null) return widget.onDownload;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       child: DetailsDialogShortcuts(
         onPrevTab: _goToPrevTab,
         onNextTab: _goToNextTab,
+        onPrimaryAction: _primaryAction,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < 600;
@@ -969,6 +980,29 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
           style: FilledButton.styleFrom(
             // Commerce CTA — intentionally off-token (not a warning).
             backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+      );
+    }
+
+    // Run: shown when the script has already been downloaded and a Run
+    // callback is available. Replaces the dead "Downloaded ✓" indicator
+    // (which re-triggered a duplicate download on tap) with an actionable
+    // primary CTA.
+    if (widget.isDownloaded && widget.onRun != null) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: widget.onRun,
+          icon: const Icon(Icons.play_arrow, size: 20),
+          label: const Text(
+            'Run',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppDesignSystem.successColor,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
           ),
