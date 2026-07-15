@@ -34,6 +34,18 @@ class ScriptContextMenuSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Avatar label: the first *grapheme* of the emoji/fallback. Indexing [0]
+    // would return a lone UTF-16 surrogate for any non-BMP emoji (📦/📜),
+    // crashing ParagraphBuilder.addText ("string is not well-formed UTF-16")
+    // — which broke the context menu for every marketplace script (always
+    // falls back to 📦) and for the local default 📜. Use the first code point
+    // so multi-unit emoji render whole. (W7-18)
+    final avatarEmoji =
+        item.emoji ?? (item.isFromMarketplace ? '📦' : '📜');
+    final avatarLabel = avatarEmoji.isNotEmpty
+        ? String.fromCharCode(avatarEmoji.runes.first)
+        : '📜';
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       child: Column(
@@ -54,13 +66,7 @@ class ScriptContextMenuSheet extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                child: Text(
-                  (item.emoji ?? (item.isFromMarketplace ? '📦' : '📜'))
-                          .isNotEmpty
-                      ? (item.emoji ??
-                          (item.isFromMarketplace ? '📦' : '📜'))[0]
-                      : '📜',
-                ),
+                child: Text(avatarLabel),
               ),
               const SizedBox(width: 12),
               Expanded(
