@@ -26,10 +26,10 @@ import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 
-import 'r3_addendum_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   // -----------------------------------------------------------------------
   // FOUNDATION: real Ed25519 profile creation end-to-end under the mock.
@@ -41,7 +41,7 @@ void main() {
   // -----------------------------------------------------------------------
   testWidgets('Addendum-A: create TWO real profiles end-to-end under the mock',
       (tester) async {
-    await clearAddendumProfileState();
+    await clearProfileState();
 
     final repo = ProfileRepository();
     // Belt-and-suspenders: ensure a clean secret store for this run.
@@ -129,7 +129,7 @@ void main() {
   // -----------------------------------------------------------------------
   testWidgets('Addendum-WU4: inline profile switcher with 2 real profiles',
       (tester) async {
-    await clearAddendumProfileState();
+    await clearProfileState();
 
     final repo = ProfileRepository();
     await tester.runAsync(() => repo.deleteAllSecureData());
@@ -187,7 +187,7 @@ void main() {
     // Tap 1: open the avatar menu.
     await tester.tap(find.text('Open Menu'));
     await tester.pumpAndSettle();
-    await shotAddendum(binding, '08_wu4_inline_profile_switcher', tester);
+    await shot(tester, '08_wu4_inline_profile_switcher', dir: kShotDirRound3Addendum);
 
     // --- WU-4 decisive assertions (production widget, real profiles) ---
     // The inline list inlines BOTH profiles directly (no second sheet needed).

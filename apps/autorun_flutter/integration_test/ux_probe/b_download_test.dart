@@ -17,22 +17,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'ux_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-
-  Future<void> dismissWizard(WidgetTester tester) async {
-    int guard = 0;
-    while (!present(find.byIcon(Icons.close), tester) && guard < 60) {
-      await tester.pump(const Duration(milliseconds: 200));
-      guard++;
-    }
-    if (present(find.byIcon(Icons.close), tester)) {
-      await tester.tap(find.byIcon(Icons.close).first);
-    }
-    await tester.pump(const Duration(seconds: 1));
-  }
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('WU-2: download SnackBar has NO Run action', (tester) async {
     await clearProfileState();
@@ -90,7 +78,7 @@ void main() {
       }
     }
     final hasAction = present(find.byType(SnackBarAction), tester);
-    await shot(binding, '05_download_snackbar', tester);
+    await shot(tester, '05_download_snackbar', dir: kShotDirRound2);
     tester.widgetList(find.byType(SnackBar)).forEach((w) {
       // ignore: avoid_print
       print('WU2_DOWNLOAD: visible SnackBar type=${w.runtimeType}');

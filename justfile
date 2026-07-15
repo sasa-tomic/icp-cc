@@ -382,17 +382,6 @@ verify-ic-agent-web:
 # State is isolated: ~/.cache/data/com.example.icp_autorun/ is wiped before
 # every file so probes never contaminate each other.
 #
-# EXCLUDED stale round-2 probes (assert behavior intentionally superseded by
-# later fixes — loudly skipped here, NOT silently; current behavior is verified
-# by the round-3 probes):
-#   - a_first_run_test : A1/A3 assert the pre-WU-S2 wizard-form + raw libsecret
-#                        error path. Post-WU-S2 the wizard renders the blocking
-#                        readiness panel on a keyring-less box (never reaching
-#                        createProfile); current behavior = r3_review WU-S2.
-#   - b_create_test    : WU-3 was fixed — the create-script SnackBar now carries
-#                        an action; the probe asserted its absence.
-#   - d_keyboard_test  : tab shortcuts moved Ctrl+N -> Alt+N; the probe sends
-#                        Ctrl+digit. Discoverability is covered by r3_review WU-6.
 # Run the ux_probe real-app user-flow integration suite (Xvfb + FFI + mock keyring)
 test-ux-probe:
     #!/usr/bin/env bash
@@ -433,16 +422,7 @@ test-ux-probe:
         trap 'kill "$XVFB_PID" 2>/dev/null || true' EXIT
     fi
 
-    # --- 3. Loudly document the EXCLUDED stale round-2 probes -----------------
-    echo ""
-    echo "==> EXCLUDED stale round-2 probes (assert superseded behavior):"
-    echo "    a_first_run_test : pre-WU-S2 form+libsecret-error path (now the"
-    echo "                      WU-S2 readiness panel — see r3_review WU-S2)."
-    echo "    b_create_test   : WU-3 fixed (create SnackBar now has an action)."
-    echo "    d_keyboard_test : tab shortcuts Ctrl+N -> Alt+N (see r3_review WU-6)."
-    echo ""
-
-    # --- 4. PASS 1: keyring-less (StorageUnavailable) probes ------------------
+    # --- 3. PASS 1: keyring-less (StorageUnavailable) probes ------------------
     # Fresh per-pass log (NOT append) — avoids the stale-false-positive that
     # bites `flutter-tests`. Pass/fail is decided by each `flutter test` exit
     # code, not by grepping the log.
@@ -455,7 +435,7 @@ test-ux-probe:
     for t in "${NOMOCK[@]}"; do
         rm -rf "$STATE_DIR" 2>/dev/null || true   # isolate state per file
         printf '   - %-26s ... ' "$t"
-        if (cd "{{flutter_dir}}" && flutter test "integration_test/ux_probe/$t.dart" \
+        if (cd "{{flutter_dir}}" && flutter test -d linux "integration_test/ux_probe/$t.dart" \
                 --reporter=compact --timeout=240s) >>"$PASS1_LOG" 2>&1; then
             echo "OK"
         else
@@ -463,10 +443,14 @@ test-ux-probe:
         fi
     done
 
-    # --- 5. PASS 2: mock Secret Service (StorageReady) probes -----------------
-    if ! python3 -c 'import dbus_next' >/dev/null 2>&1; then
+    # --- 4. PASS 2: mock Secret Service (StorageReady) probes -----------------
+    # run-with-mock-keyring.sh auto-resolves a python with dbus_next; verify
+    # at least one candidate exists before starting the (expensive) mock.
+    if ! { python3 -c 'import dbus_next' 2>/dev/null || \
+           python3.13 -c 'import dbus_next' 2>/dev/null || \
+           /usr/bin/python3.13 -c 'import dbus_next' 2>/dev/null; }; then
         echo "❌ PASS 2 needs python3 + dbus-next (mock Secret Service). Install:"
-        echo "   python3 -m pip install dbus-next"
+        echo "   python3.13 -m pip install dbus-next"
         exit 1
     fi
     MOCK=( r3_addendum_test f_dapp_vote_flow_test g_first_run_wizard_happy_path_test h_vault_lifecycle_test )
@@ -479,7 +463,7 @@ test-ux-probe:
         if "{{scripts_dir}}/run-with-mock-keyring.sh" --display :99 -- \
                 bash -c 'cd "{{flutter_dir}}" && \
                     LD_LIBRARY_PATH="{{root}}/target/release" \
-                    flutter test "integration_test/ux_probe/'"$t"'.dart" \
+                    flutter test -d linux "integration_test/ux_probe/'"$t"'.dart" \
                     --reporter=compact --timeout=240s' >>"$PASS2_LOG" 2>&1; then
             echo "OK"
         else
@@ -487,7 +471,7 @@ test-ux-probe:
         fi
     done
 
-    # --- 6. Verdict -----------------------------------------------------------
+    # --- 5. Verdict -----------------------------------------------------------
     echo ""
     if [[ $fail1 -eq 0 && $fail2 -eq 0 ]]; then
         echo "✅ ux_probe suite PASSED — PASS 1 (keyring-less) + PASS 2 (mock keyring)."

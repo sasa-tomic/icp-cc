@@ -38,10 +38,10 @@ import 'package:integration_test/integration_test.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 
-import 'ux_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   // --- Real-shape seed data (same JSON fields the production parser reads) ---
   const scriptId = 'script-uxprobe-chain';
@@ -140,21 +140,6 @@ void main() {
         headers: const {'Content-Type': 'application/json'},
       );
     });
-  }
-
-  // Bounded wizard dismissal (pumpAndSettle never returns: the Scripts screen
-  // kicks off marketplace fetches; same approach as the other round-2 probes).
-  Future<void> dismissWizard(WidgetTester tester) async {
-    int guard = 0;
-    while (!present(find.byIcon(Icons.close), tester) && guard < 60) {
-      await tester.pump(const Duration(milliseconds: 200));
-      guard++;
-    }
-    if (present(find.byIcon(Icons.close), tester)) {
-      await tester.tap(find.byIcon(Icons.close).first);
-    }
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(seconds: 1));
   }
 
   testWidgets('I: browse -> details -> download chain through real app boot',
@@ -311,6 +296,6 @@ void main() {
     expect(unexpectedFetches, 0,
         reason: 'No unexpected HTTP calls should reach the mock transport');
 
-    await shot(binding, 'i_marketplace_download_flow', tester);
+    await shot(tester, 'i_marketplace_download_flow', dir: kShotDirRound2);
   });
 }

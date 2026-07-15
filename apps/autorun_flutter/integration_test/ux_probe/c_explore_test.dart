@@ -7,10 +7,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'ux_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('C/A-1: Explore tab = canister dev tool, only 2 tabs', (tester) async {
     await clearProfileState();
@@ -31,7 +31,7 @@ void main() {
     await tester.tap(exploreTab.first);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
-    await shot(binding, '09_explore_tab_is_canisters', tester);
+    await shot(tester, '09_explore_tab_is_canisters', dir: kShotDirRound2);
 
     // Decisive: the Canisters tab renders BookmarksScreen (canister tool), not a
     // marketplace browse view.

@@ -3,7 +3,6 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -46,7 +45,7 @@ void main() {
       service.resetHttpClient();
     });
 
-    MockClient _stubClient() {
+    MockClient stubClient() {
       return MockClient((request) async {
         final path = request.url.path;
         if (path.contains('/preview')) {
@@ -76,13 +75,13 @@ void main() {
       });
     }
 
-    Future<void> _pump(
+    Future<void> pumpDialog(
       WidgetTester tester, {
       VoidCallback? onDownload,
       VoidCallback? onRun,
       bool isDownloaded = false,
     }) async {
-      service.overrideHttpClient(_stubClient());
+      service.overrideHttpClient(stubClient());
       await pumpDetailsDialog(
         tester,
         dialogBuilder: (_) => ScriptDetailsDialog(
@@ -97,7 +96,7 @@ void main() {
     testWidgets(
         'downloaded script with onRun shows a Run button (not Downloaded ✓)',
         (tester) async {
-      await _pump(tester, onRun: () {}, isDownloaded: true);
+      await pumpDialog(tester, onRun: () {}, isDownloaded: true);
 
       expect(find.text('Run'), findsOneWidget,
           reason: 'downloaded script should show Run, not Downloaded ✓');
@@ -107,7 +106,7 @@ void main() {
     testWidgets(
         'downloaded script WITHOUT onRun falls back to Downloaded ✓ (backward compat)',
         (tester) async {
-      await _pump(tester, onDownload: () {}, isDownloaded: true);
+      await pumpDialog(tester, onDownload: () {}, isDownloaded: true);
 
       expect(find.text('Downloaded ✓'), findsOneWidget);
       expect(find.text('Run'), findsNothing);
@@ -115,7 +114,7 @@ void main() {
 
     testWidgets('not-downloaded script still shows Download (Run hidden)',
         (tester) async {
-      await _pump(tester, onDownload: () {}, onRun: () {}, isDownloaded: false);
+      await pumpDialog(tester, onDownload: () {}, onRun: () {}, isDownloaded: false);
 
       expect(find.text('Download FREE'), findsOneWidget);
       expect(find.text('Run'), findsNothing);
@@ -123,7 +122,7 @@ void main() {
 
     testWidgets('tapping Run calls the onRun callback', (tester) async {
       var runCalled = 0;
-      await _pump(
+      await pumpDialog(
         tester,
         onRun: () => runCalled++,
         isDownloaded: true,
@@ -140,7 +139,7 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       try {
         var runCalled = 0;
-        await _pump(
+        await pumpDialog(
           tester,
           onRun: () => runCalled++,
           isDownloaded: true,
@@ -161,7 +160,7 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       try {
         var downloadCalled = 0;
-        await _pump(
+        await pumpDialog(
           tester,
           onDownload: () => downloadCalled++,
           isDownloaded: false,
@@ -179,7 +178,7 @@ void main() {
 
     testWidgets('Enter is inert on mobile (pass-through)', (tester) async {
       var runCalled = 0;
-      await _pump(
+      await pumpDialog(
         tester,
         onRun: () => runCalled++,
         isDownloaded: true,

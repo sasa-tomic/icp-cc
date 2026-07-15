@@ -14,7 +14,7 @@
 //
 // This probe runs under the MOCK Secret Service so `SecureStorageReadiness`
 // returns `StorageReady` (the happy path). It reuses the round-3 harness
-// (`r3_helpers.dart`) exactly as the PASS 2 sibling `f_dapp_vote_flow_test`
+// (ux_probe_helpers.dart) exactly as the PASS 2 sibling `f_dapp_vote_flow_test`
 // does — same Xvfb surface, same real `app.main()` boot, same bounded-pump
 // discipline. NO crypto / FFI / libsecret is mocked: the only seam is the mock
 // Secret Service itself (dev infra, sanctioned in AGENTS.md).
@@ -35,7 +35,7 @@ import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 
-import 'r3_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -63,17 +63,17 @@ void main() {
       'and survives a reload (mock keyring, real FFI + libsecret)',
       (tester) async {
     // --- Fresh start: wipe on-disk profile state AND the mock's secrets.json --
-    // `clearProfileStateR3` resets profiles.json to the empty list so the
+    // `clearProfileState` resets profiles.json to the empty list so the
     // first-run gate fires on boot. We ALSO clear secure storage via the real
     // repo so the mock keyring's secrets.json is empty (mirrors r3_addendum's
     // belt-and-suspenders reset). Both are real, production code paths.
-    await clearProfileStateR3();
+    await clearProfileState();
     final repo = ProfileRepository();
     await tester.runAsync(() => repo.deleteAllSecureData());
     await tester.pump();
 
     // --- Real app boot --------------------------------------------------------
-    await launchAppR3(tester);
+    await launchApp(tester);
 
     // --- Wait for the readiness check to finish + the FORM to render ---------
     // Under the mock the gate resolves to StorageReady quickly; bounded-pump
@@ -81,7 +81,7 @@ void main() {
     bool formShown = false;
     for (int i = 0; i < 120; i++) {
       await tester.pump(const Duration(milliseconds: 250));
-      if (presentR3(find.text('How should we call you?'), tester)) {
+      if (present(find.text('How should we call you?'), tester)) {
         formShown = true;
         break;
       }
@@ -93,15 +93,15 @@ void main() {
             'not running — run under scripts/run-with-mock-keyring.sh.');
 
     // --- Wizard form is on screen: assert the decisive form elements ---------
-    expect(presentR3(find.text('Create Your Profile'), tester), isTrue,
+    expect(present(find.text('Create Your Profile'), tester), isTrue,
         reason: 'Wizard heading present.');
-    expect(presentR3(find.text('How should we call you?'), tester), isTrue,
+    expect(present(find.text('How should we call you?'), tester), isTrue,
         reason: 'Display-name field hint present.');
     // The submit button is the FilledButton labelled 'Get Started'. (The AppBar
     // title is a Text, not a FilledButton, so this is unambiguous — same
     // technique as a_first_run_test A3.)
     final submit = find.widgetWithText(FilledButton, 'Get Started');
-    expect(presentR3(submit, tester), isTrue,
+    expect(present(submit, tester), isTrue,
         reason: 'Wizard submit button present.');
 
     // --- Drive the form: type a profile name + tap submit --------------------
@@ -126,17 +126,16 @@ void main() {
     bool sawError = false;
     for (int i = 0; i < 160; i++) {
       await tester.pump(const Duration(milliseconds: 250));
-      if (presentR3(find.text('Success!'), tester)) {
+      if (present(find.text('Success!'), tester)) {
         sawSuccess = true;
         break;
       }
-      if (presentR3(find.byIcon(Icons.error_outline), tester)) {
+      if (present(find.byIcon(Icons.error_outline), tester)) {
         sawError = true;
         break;
       }
     }
-    await shotR3(IntegrationTestWidgetsFlutterBinding.instance,
-        'g_wizard_success_screen', tester);
+    await shot(tester, 'g_wizard_success_screen', dir: kShotDirRound3);
     expect(sawSuccess, isTrue,
         reason: 'Wizard happy path: a real profile must be created under the '
             'mock keyring → the Success screen renders.');
@@ -146,7 +145,7 @@ void main() {
 
     // --- Dismiss the success screen → wizard route pops → main shell ---------
     final startExploring = find.widgetWithText(FilledButton, 'Start Exploring');
-    expect(presentR3(startExploring, tester), isTrue,
+    expect(present(startExploring, tester), isTrue,
         reason: 'Success screen offers the "Start Exploring" exit button.');
     await tester.ensureVisible(startExploring);
     await tester.tap(startExploring);
@@ -158,22 +157,21 @@ void main() {
     bool mainShell = false;
     for (int i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 250));
-      if (presentR3(find.text('Dapps'), tester) &&
-          presentR3(find.text('Scripts'), tester) &&
-          presentR3(find.text('Canisters'), tester)) {
+      if (present(find.text('Dapps'), tester) &&
+          present(find.text('Scripts'), tester) &&
+          present(find.text('Canisters'), tester)) {
         mainShell = true;
         break;
       }
     }
-    await shotR3(IntegrationTestWidgetsFlutterBinding.instance,
-        'g_wizard_main_shell_reached', tester);
+    await shot(tester, 'g_wizard_main_shell_reached', dir: kShotDirRound3);
     expect(mainShell, isTrue,
         reason: 'The wizard route must be dismissed and the main shell '
             '(Scripts / Canisters / Dapps bottom nav) reachable.');
     // The wizard is GONE: its heading + display-name hint are no longer painted.
-    expect(presentR3(find.text('Create Your Profile'), tester), isFalse,
+    expect(present(find.text('Create Your Profile'), tester), isFalse,
         reason: 'Wizard heading must disappear once the gate is dismissed.');
-    expect(presentR3(find.text('How should we call you?'), tester), isFalse,
+    expect(present(find.text('How should we call you?'), tester), isFalse,
         reason: 'Wizard form must be gone once the user reaches the shell.');
 
     // --- The RUNNING app's controller actually has the created profile -------

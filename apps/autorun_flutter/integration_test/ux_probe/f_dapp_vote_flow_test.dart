@@ -81,7 +81,7 @@ import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/services/service_locator.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 
-import 'r3_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -103,10 +103,10 @@ void main() {
       'F: real boot → catalog → On-chain Polls → trust → polls → vote 1→2 → '
       'revoke (one through-the-catalog flow)', (tester) async {
     // --- Belt-and-suspenders state clearing so this run starts first-run ---
-    // r3_helpers wipes the data dir; the persisted trust grant + connection
+    // ux_probe_helpers.clearProfileState wipes the data dir; the persisted trust grant + connection
     // overrides live in SharedPreferences, which we clear in the in-process
     // singleton the app will share.
-    await clearProfileStateR3();
+    await clearProfileState();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('dapp.$dappId.trusted');
     await prefs.remove('dapp.$dappId.backend_id');
@@ -132,21 +132,21 @@ void main() {
     registerTestScriptBridge(bridge);
 
     try {
-      await launchAppR3(tester);
+      await launchApp(tester);
       // Dismiss (do NOT complete) the first-run wizard: the keyless state is
       // part of this flow — the CTA + view-only status are asserted below.
-      await dismissWizardR3(tester);
+      await dismissWizard(tester);
 
       // --- Step 2: tap the Dapps nav item → the On-chain Polls card --------
       final dappsNav = find.text('Dapps');
-      expect(presentR3(dappsNav, tester), isTrue,
+      expect(present(dappsNav, tester), isTrue,
           reason: 'The Dapps nav item must be present on the main shell.');
       await tester.tap(dappsNav.first);
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
       final pollCard = find.text(pollDescriptor.title); // 'On-chain Polls'
-      expect(presentR3(pollCard, tester), isTrue,
+      expect(present(pollCard, tester), isTrue,
           reason: 'The "On-chain Polls" example dapp card must be in the '
               'catalog.');
       await tester.ensureVisible(pollCard);
@@ -163,7 +163,7 @@ void main() {
       bool trustDialogShown = false;
       for (int i = 0; i < 120; i++) {
         await tester.pump(const Duration(milliseconds: 250));
-        if (presentR3(find.text('Trust this dapp?'), tester)) {
+        if (present(find.text('Trust this dapp?'), tester)) {
           trustDialogShown = true;
           break;
         }
@@ -175,14 +175,14 @@ void main() {
                   'asset path, and the service-locator ScriptBridge override.');
       // The trust gate REPLACES the strict per-method dialog — it must not
       // appear.
-      expect(presentR3(find.text('Allow canister call?'), tester), isFalse);
+      expect(present(find.text('Allow canister call?'), tester), isFalse);
 
       await tester.tap(find.text('Trust this dapp'));
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
       // --- Step 4: the broad grant → "Trusted" chip visible (UX-10 visibility)
-      expect(presentR3(find.text('Trusted'), tester), isTrue,
+      expect(present(find.text('Trusted'), tester), isTrue,
           reason: 'UX-10 visibility: surfacing the grant as a "Trusted" chip '
               'so the user never wonders "did I trust this?".');
 
@@ -194,7 +194,7 @@ void main() {
       bool pollsRendered = false;
       for (int i = 0; i < 120; i++) {
         await tester.pump(const Duration(milliseconds: 250));
-        if (presentR3(find.text('Rust or Motoko?'), tester)) {
+        if (present(find.text('Rust or Motoko?'), tester)) {
           pollsRendered = true;
           break;
         }
@@ -215,13 +215,13 @@ void main() {
       // Addendum-A; the CTA deep-link into the wizard is proven by
       // dapp_runner_screen_test.dart. Not duplicated here.)
       expect(
-          presentR3(find.byKey(const Key('dappCreateProfileToVoteCta')), tester),
+          present(find.byKey(const Key('dappCreateProfileToVoteCta')), tester),
           isTrue,
           reason: 'A keyless user must see a one-tap "Create a profile to vote" '
               'CTA inline — the pedagogical bridge from "I can see polls" to "I '
               'can vote".');
-      expect(presentR3(find.text('Create a profile to vote'), tester), isTrue);
-      expect(presentR3(find.textContaining('viewing only'), tester), isTrue,
+      expect(present(find.text('Create a profile to vote'), tester), isTrue);
+      expect(present(find.textContaining('viewing only'), tester), isTrue,
           reason: 'The keyless status chip must state view-only mode.');
 
       // --- Step 7: create ONE real profile so the authenticated vote can sign -
@@ -294,7 +294,7 @@ void main() {
       // --- Step 9: Manage trust → Revoke → confirm → "Trusted" chip disappears
       await tester.tap(find.byTooltip('Manage trust'));
       await tester.pump(const Duration(seconds: 1));
-      expect(presentR3(find.text('Manage dapp trust'), tester), isTrue,
+      expect(present(find.text('Manage dapp trust'), tester), isTrue,
           reason: 'The shield toolbar button must open the Manage-trust dialog.');
 
       // First "Revoke trust" (in the manage dialog) opens the explicit yes/no
@@ -302,7 +302,7 @@ void main() {
       // silently undo the broad grant.
       await tester.tap(find.text('Revoke trust'));
       await tester.pump(const Duration(seconds: 1));
-      expect(presentR3(find.text('Revoke trust?'), tester), isTrue,
+      expect(present(find.text('Revoke trust?'), tester), isTrue,
           reason: 'Revocation of the broad grant must require confirmation.');
 
       // Second "Revoke trust" (in the confirm dialog) performs the revoke.
@@ -310,7 +310,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
-      expect(presentR3(find.text('Trusted'), tester), isFalse,
+      expect(present(find.text('Trusted'), tester), isFalse,
           reason: 'UX-10 completeness: after revocation the "Trusted" chip '
               'must disappear (the broad grant is rolled back, the next '
               'canister call re-prompts).');

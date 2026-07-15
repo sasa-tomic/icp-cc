@@ -25,24 +25,24 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'r3_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   // ---------------------------------------------------------------------
   // WU-7: "Explore" tab relabelled to "Canisters".
   // ---------------------------------------------------------------------
   testWidgets('WU-7: 2nd nav tab label is "Canisters" (was "Explore")',
       (tester) async {
-    await clearProfileStateR3();
-    await launchAppR3(tester);
-    await dismissWizardR3(tester);
+    await clearProfileState();
+    await launchApp(tester);
+    await dismissWizard(tester);
     await tester.pump(const Duration(seconds: 1));
-    await shotR3(binding, '02_nav_canisters_label', tester);
+    await shot(tester, '02_nav_canisters_label', dir: kShotDirRound3);
 
-    final hasCanisters = presentR3(find.text('Canisters'), tester);
-    final hasExploreLabel = presentR3(find.text('Explore'), tester);
+    final hasCanisters = present(find.text('Canisters'), tester);
+    final hasExploreLabel = present(find.text('Explore'), tester);
     // ignore: avoid_print
     print('R3_WU7: hasCanistersLabel=$hasCanisters hasExploreLabel=$hasExploreLabel');
     expect(hasCanisters, isTrue,
@@ -58,8 +58,8 @@ void main() {
   // ---------------------------------------------------------------------
   testWidgets('WU-S2: wizard shows actionable secure-storage panel (not raw exception)',
       (tester) async {
-    await clearProfileStateR3();
-    await launchAppR3(tester);
+    await clearProfileState();
+    await launchApp(tester);
 
     // The wizard probes readiness on entry. Wait for the actionable panel:
     // decisive markers are the lock icon + "Install command" label + copy
@@ -69,20 +69,20 @@ void main() {
     int guard = 0;
     while (guard < 160) {
       await tester.pump(const Duration(milliseconds: 250));
-      if (presentR3(find.text('Checking secure storage…'), tester)) {
+      if (present(find.text('Checking secure storage…'), tester)) {
         checkingSeen = true;
       }
       // Decisive panel markers (these widgets only exist in the actionable
       // panel, never in the form or the checking spinner).
-      if (presentR3(find.byIcon(Icons.lock_outline), tester) &&
-          presentR3(find.text('Install command'), tester) &&
-          presentR3(find.byIcon(Icons.copy_outlined), tester)) {
+      if (present(find.byIcon(Icons.lock_outline), tester) &&
+          present(find.text('Install command'), tester) &&
+          present(find.byIcon(Icons.copy_outlined), tester)) {
         panelSeen = true;
         break;
       }
       guard++;
     }
-    await shotR3(binding, '03_wizard_secure_storage_panel', tester);
+    await shot(tester, '03_wizard_secure_storage_panel', dir: kShotDirRound3);
 
     // Dump every visible Text so the evidence is authoritative (what does the
     // user ACTUALLY see), independent of my specific finders.
@@ -94,13 +94,13 @@ void main() {
     final leaksPlatformException = allText
         .where((t) => t.contains('PlatformException'))
         .toList();
-    final hasCopyableCmd = presentR3(find.byIcon(Icons.copy_outlined), tester);
+    final hasCopyableCmd = present(find.byIcon(Icons.copy_outlined), tester);
     final hasInstallCommandLabel =
-        presentR3(find.text('Install command'), tester);
-    final hasLockIcon = presentR3(find.byIcon(Icons.lock_outline), tester);
+        present(find.text('Install command'), tester);
+    final hasLockIcon = present(find.byIcon(Icons.lock_outline), tester);
     final hasRetryButton =
-        presentR3(find.widgetWithText(FilledButton, 'Retry'), tester) ||
-            presentR3(find.text('Retry'), tester);
+        present(find.widgetWithText(FilledButton, 'Retry'), tester) ||
+            present(find.text('Retry'), tester);
 
     // ignore: avoid_print
     print('R3_WUS2: panelSeen=$panelSeen checkingSeen=$checkingSeen '
@@ -122,15 +122,15 @@ void main() {
   // ---------------------------------------------------------------------
   testWidgets('WU-6: keyboard help button visible, opens sheet; Ctrl+3 unbound',
       (tester) async {
-    await clearProfileStateR3();
-    await launchAppR3(tester);
-    await dismissWizardR3(tester);
+    await clearProfileState();
+    await launchApp(tester);
+    await dismissWizard(tester);
     await tester.pump(const Duration(seconds: 1));
 
     // Always-visible keyboard-icon help button next to the profile avatar.
     final helpBtn = find.byIcon(Icons.keyboard_outlined);
-    final hasHelpBtn = presentR3(helpBtn, tester);
-    await shotR3(binding, '04_keyboard_help_button', tester);
+    final hasHelpBtn = present(helpBtn, tester);
+    await shot(tester, '04_keyboard_help_button', dir: kShotDirRound3);
     // ignore: avoid_print
     print('R3_WU6: hasShortcutsHelpButton=$hasHelpBtn');
     expect(hasHelpBtn, isTrue,
@@ -140,28 +140,28 @@ void main() {
     await tester.tap(helpBtn.first, warnIfMissed: false);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
-    final sheetOpen = presentR3(find.text('Keyboard Shortcuts'), tester) ||
-        presentR3(find.text('NAVIGATION'), tester);
-    await shotR3(binding, '05_keyboard_help_sheet', tester);
+    final sheetOpen = present(find.text('Keyboard Shortcuts'), tester) ||
+        present(find.text('NAVIGATION'), tester);
+    await shot(tester, '05_keyboard_help_sheet', dir: kShotDirRound3);
     // ignore: avoid_print
     print('R3_WU6: helpSheetOpenAfterTap=$sheetOpen');
     expect(sheetOpen, isTrue,
         reason: 'WU-6: tapping the help button must open the shortcuts sheet.');
 
     // Close the sheet via a barrier tap so later steps start clean.
-    if (presentR3(find.text('Keyboard Shortcuts'), tester)) {
+    if (present(find.text('Keyboard Shortcuts'), tester)) {
       await tester.tapAt(const Offset(20, 20));
       await tester.pump(const Duration(seconds: 1));
     }
 
     // Ctrl+3 must NOT navigate anywhere (dead binding removed; only 2 tabs).
-    final onScriptsBefore = presentR3(find.text('Popular Canisters'), tester);
+    final onScriptsBefore = present(find.text('Popular Canisters'), tester);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
-    final onScriptsAfter = presentR3(find.text('Popular Canisters'), tester);
+    final onScriptsAfter = present(find.text('Popular Canisters'), tester);
     // ignore: avoid_print
     print('R3_WU6: ctrl3IsDead=${onScriptsBefore == onScriptsAfter} '
         '(PopularCanisters before=$onScriptsBefore after=$onScriptsAfter)');
@@ -174,9 +174,9 @@ void main() {
   // ---------------------------------------------------------------------
   testWidgets('WU-1: no-profile empty-state offers "Set Up Profile" CTA',
       (tester) async {
-    await clearProfileStateR3();
-    await launchAppR3(tester);
-    await dismissWizardR3(tester);
+    await clearProfileState();
+    await launchApp(tester);
+    await dismissWizard(tester);
     await tester.pump(const Duration(seconds: 1));
 
     // The Scripts screen shows a CircularProgressIndicator while the
@@ -189,27 +189,27 @@ void main() {
     int guard = 0;
     while (guard < 240) {
       await tester.pump(const Duration(milliseconds: 250));
-      final isLoading = presentR3(find.byType(CircularProgressIndicator), tester);
+      final isLoading = present(find.byType(CircularProgressIndicator), tester);
       if (isLoading) wasLoading = true;
-      final hasEmptyCta = presentR3(find.text('Set Up Profile'), tester) ||
-          presentR3(find.text('Create Script'), tester) ||
-          presentR3(find.text('Set Up Your Profile'), tester);
+      final hasEmptyCta = present(find.text('Set Up Profile'), tester) ||
+          present(find.text('Create Script'), tester) ||
+          present(find.text('Set Up Your Profile'), tester);
       if (hasEmptyCta) {
         settled = true;
         break;
       }
       guard++;
     }
-    await shotR3(binding, '06_empty_state_set_up_profile', tester);
+    await shot(tester, '06_empty_state_set_up_profile', dir: kShotDirRound3);
 
     final allText = _allVisibleText(tester);
     // ignore: avoid_print
     print('R3_WU1_VISIBLE_TEXT: ${allText.join(" | ")}');
 
-    final hasSetUpProfileCta = presentR3(find.text('Set Up Profile'), tester);
-    final hasSetUpProfileTitle = presentR3(find.text('Set Up Your Profile'), tester);
-    final hasLegacyCreateCta = presentR3(find.text('Create Script'), tester);
-    final stillLoading = presentR3(find.byType(CircularProgressIndicator), tester);
+    final hasSetUpProfileCta = present(find.text('Set Up Profile'), tester);
+    final hasSetUpProfileTitle = present(find.text('Set Up Your Profile'), tester);
+    final hasLegacyCreateCta = present(find.text('Create Script'), tester);
+    final stillLoading = present(find.byType(CircularProgressIndicator), tester);
     // ignore: avoid_print
     print('R3_WU1: settled=$settled wasLoading=$wasLoading stillLoading=$stillLoading '
         'hasSetUpProfileCta=$hasSetUpProfileCta '
@@ -235,21 +235,21 @@ void main() {
   // Navigation sweep: tap the Canisters tab and screenshot it.
   // ---------------------------------------------------------------------
   testWidgets('Nav: Canisters tab opens BookmarksScreen', (tester) async {
-    await clearProfileStateR3();
-    await launchAppR3(tester);
-    await dismissWizardR3(tester);
+    await clearProfileState();
+    await launchApp(tester);
+    await dismissWizard(tester);
     await tester.pump(const Duration(seconds: 1));
 
     final canistersTab = find.text('Canisters');
     await tester.tap(canistersTab.first);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
-    await shotR3(binding, '07_canisters_tab', tester);
+    await shot(tester, '07_canisters_tab', dir: kShotDirRound3);
 
     final isCanisterTool =
-        presentR3(find.text('Popular Canisters'), tester) ||
-            presentR3(find.text('Explore ICP Services'), tester) ||
-            presentR3(find.text('Recent Calls'), tester);
+        present(find.text('Popular Canisters'), tester) ||
+            present(find.text('Explore ICP Services'), tester) ||
+            present(find.text('Recent Calls'), tester);
     // ignore: avoid_print
     print('R3_NAV: canistersTabIsCanisterTool=$isCanisterTool');
     expect(isCanisterTool, isTrue,

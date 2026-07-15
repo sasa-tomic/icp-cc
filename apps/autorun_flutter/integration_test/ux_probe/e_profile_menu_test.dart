@@ -5,27 +5,13 @@
 //
 // Run: DISPLAY=:99 flutter test integration_test/ux_probe/e_profile_menu_test.dart
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
-import 'ux_helpers.dart';
+import 'ux_probe_helpers.dart';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-
-  Future<void> dismissWizard(WidgetTester tester) async {
-    int guard = 0;
-    while (!present(find.byIcon(Icons.close), tester) && guard < 60) {
-      await tester.pump(const Duration(milliseconds: 200));
-      guard++;
-    }
-    if (present(find.byIcon(Icons.close), tester)) {
-      await tester.tap(find.byIcon(Icons.close).first);
-    }
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(seconds: 1));
-  }
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('WU-4: avatar menu has My Account / Switch Profile / Settings', (tester) async {
     await clearProfileState();
@@ -38,7 +24,7 @@ void main() {
     await tester.tap(avatar);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
-    await shot(binding, '07_profile_menu', tester);
+    await shot(tester, '07_profile_menu', dir: kShotDirRound2);
 
     final hasSwitchProfile = present(find.text('Switch Profile'), tester);
     final hasSettings = present(find.text('Settings'), tester);
