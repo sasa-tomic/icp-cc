@@ -57,7 +57,8 @@ impl ReviewService {
         let review_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
-        self.review_repo
+        if let Err(e) = self
+            .review_repo
             .create(
                 &review_id,
                 script_id,
@@ -67,7 +68,22 @@ impl ReviewService {
                 &now,
             )
             .await
-            .map_err(|e| ReviewError::Internal(format!("Failed to create review: {e}")))?;
+        {
+            // W7-16: the UNIQUE(script_id, user_id) index makes the dup-check
+            // race-free. A UNIQUE violation here means a concurrent review from
+            // the same user won the race past the COUNT(*) guard above — map it
+            // to the same typed Conflict so the client sees a consistent 409.
+            if let sqlx::Error::Database(db_err) = &e {
+                if db_err.is_unique_violation() {
+                    return Err(ReviewError::Conflict(
+                        "User has already reviewed this script".to_string(),
+                    ));
+                }
+            }
+            return Err(ReviewError::Internal(format!(
+                "Failed to create review: {e}"
+            )));
+        }
 
         // Update script stats
         let avg_rating = self

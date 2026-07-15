@@ -1,16 +1,24 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 import '../models/marketplace_script.dart';
+import '../models/profile_keypair.dart';
 import '../models/purchase_record.dart';
 import '../models/account.dart';
 import '../utils/base64_utils.dart';
+import '../utils/principal.dart';
 import '../theme/app_design_system.dart';
+import 'account_signature_service.dart';
 import 'api_routes.dart';
 import 'script_signature_service.dart';
 
 // Flag to control debug output in tests
 bool suppressDebugOutput = false;
+
+/// Single source of truth for the signed review-create action name (W7-15).
+/// Mirrors the backend `REVIEW_CREATE_ACTION` const in handlers/reviews.rs.
+const String kReviewCreateAction = 'review:create';
 
 /// Thrown by `POST /api/v1/scripts/:id/download` when the caller is entitled
 /// to FREE download but the script is paid and the caller has no purchase
@@ -68,6 +76,16 @@ class MalformedReviewsResponseException implements Exception {
   const MalformedReviewsResponseException(this.detail);
   @override
   String toString() => 'MalformedReviewsResponseException: $detail';
+}
+
+/// Thrown by `createReview` (W7-15) when the backend returns 409 — the caller
+/// (resolved server-side from the verified public key) has already reviewed
+/// this script. The DB `UNIQUE(script_id, user_id)` index enforces this.
+class ReviewAlreadyExistsException implements Exception {
+  final String message;
+  const ReviewAlreadyExistsException(this.message);
+  @override
+  String toString() => 'ReviewAlreadyExistsException: $message';
 }
 
 abstract class MarketplaceOpenApi {
@@ -381,6 +399,68 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (!suppressDebugOutput) debugPrint('Get script reviews failed: $e');
       rethrow;
     }
+  }
+
+  /// `POST /api/v1/scripts/:id/reviews` — signature-gated (W7-15).
+  ///
+  /// The author (`user_id`) is resolved SERVER-SIDE from the verified public
+  /// key — never sent in the body. The caller signs
+  /// `{action:"review:create", script_id, rating, account_id, nonce, ts}`; the
+  /// backend verifies the signature and attributes the review to the resolved
+  /// account. A duplicate (same user, same script) → typed 402-style Conflict
+  /// (surfaced as [ReviewAlreadyExistsException]).
+  ///
+  /// NOTE: no UI consumes this yet (the Reviews tab is read-only); shipped so
+  /// the submission flow is reachable the moment a compose UI lands.
+  Future<ScriptReview> createReview({
+    required ProfileKeypair keypair,
+    required String accountId,
+    required String scriptId,
+    required int rating,
+    String? comment,
+  }) async {
+    final ts = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    final nonce = const Uuid().v4();
+    final payload = <String, dynamic>{
+      'action': kReviewCreateAction,
+      'script_id': scriptId,
+      'rating': rating,
+      'account_id': accountId,
+      'nonce': nonce,
+      'ts': ts,
+    };
+    final signature = await AccountSignatureService.signCanonicalPayload(
+      keypair: keypair,
+      payload: payload,
+    );
+
+    final response = await _httpClient
+        .post(
+          Uri.parse(ApiRoutes.scriptReviews(scriptId)),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'signature': signature,
+            'author_public_key': keypair.publicKey,
+            'author_principal': PrincipalUtils.textFromRecord(keypair),
+            'timestamp': ts,
+            'nonce': nonce,
+            'rating': rating,
+            if (comment != null) 'comment': comment,
+          }),
+        )
+        .timeout(AppDurations.browseTimeout);
+
+    final status = response.statusCode;
+    if (status == 409) {
+      throw ReviewAlreadyExistsException(
+          'You have already reviewed this script');
+    }
+    final responseData = _decodeSuccessResponse(response, label: 'Create review');
+    final data = _decodeDataField<Map<String, dynamic>>(
+      responseData,
+      label: 'Created review',
+    );
+    return ScriptReview.fromJson(data);
   }
 
   // Get marketplace categories

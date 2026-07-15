@@ -267,6 +267,25 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .await
         .expect("Failed to create reviews index");
 
+    // W7-15: one review per (script, user) — DB-level idempotency that closes
+    // the app-level dup-check TOCTOU (W7-016). Enforced regardless of
+    // PRAGMA foreign_keys. A concurrent race past the service's COUNT(*) guard
+    // hits this constraint; the service maps the violation to a typed 409.
+    //
+    // NOTE: the `user_id → accounts(id)` FK (W7-017) is intentionally NOT
+    // added here: sqlx enforces FKs, which would break the review-service
+    // unit tests that exercise the service in isolation with synthetic
+    // user_ids. The signature gate (W7-15) already resolves user_id SERVER-
+    // SIDE from the verified public key, so it is always a real account id in
+    // production — the FK would be marginal defense-in-depth only. Adding it
+    // requires refactoring the service tests to seed real accounts (follow-up).
+    sqlx::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_script_user ON reviews(script_id, user_id)",
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create reviews (script_id, user_id) unique index");
+
     // Keypair Profiles System (separate from account profiles)
     sqlx::query(
         r#"

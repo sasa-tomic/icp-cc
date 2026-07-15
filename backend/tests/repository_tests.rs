@@ -1105,14 +1105,14 @@ async fn review_count_by_script() {
 
 #[tokio::test]
 async fn review_count_by_script_and_user() {
+    // W7-15: the UNIQUE(script_id, user_id) index enforces one review per user
+    // per script — so this test seeds one review each for user-a/user-b (the
+    // pre-W7-15 second `user-a` insert is now impossible by design).
     let pool = setup().await;
     create_script_for_reviews(&pool).await;
     let repo = ReviewRepository::new(pool);
 
     repo.create("r-1", "s-reviews", "user-a", 5, None, NOW)
-        .await
-        .unwrap();
-    repo.create("r-2", "s-reviews", "user-a", 4, None, NOW)
         .await
         .unwrap();
     repo.create("r-3", "s-reviews", "user-b", 3, None, NOW)
@@ -1123,7 +1123,7 @@ async fn review_count_by_script_and_user() {
         repo.count_by_script_and_user("s-reviews", "user-a")
             .await
             .unwrap(),
-        2
+        1
     );
     assert_eq!(
         repo.count_by_script_and_user("s-reviews", "user-b")
