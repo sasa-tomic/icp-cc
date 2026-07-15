@@ -177,6 +177,9 @@ pub struct AppState {
     pub passkey_service: crate::services::PasskeyService,
     pub purchase_repo: crate::repositories::PurchaseRepository,
     pub payment_service: crate::services::PaymentService,
+    /// Sliding-window throttle for the open `POST /recovery/verify` brute-force
+    /// oracle (W7-14). Shared across all requests (process-local).
+    pub recovery_rate_limiter: std::sync::Arc<crate::rate_limit::SlidingWindowRateLimiter>,
 }
 
 #[derive(Debug, Deserialize)]

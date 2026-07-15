@@ -188,9 +188,26 @@ class PasskeyService {
     });
   }
 
-  Future<RecoveryCodesResult> generateRecoveryCodes(String accountId) async {
-    final response =
-        await _post('/recovery/generate', {'account_id': accountId});
+  /// W7-14: signature-gated. The caller proves ownership of an account keypair;
+  /// the backend resolves accountId from the verified public key and mints the
+  /// plaintext codes for THAT account only. Closes the exploit where anyone
+  /// could mint+receive plaintext codes for ANY account (W7-005).
+  Future<RecoveryCodesResult> generateRecoveryCodes({
+    required ProfileKeypair keypair,
+    required String accountId,
+  }) async {
+    final auth = await _signAccountRequest(
+      keypair: keypair,
+      action: kRecoveryGenerateAction,
+      extraFields: {'account_id': accountId},
+    );
+    final response = await _post('/recovery/generate', {
+      'signature': auth.signature,
+      'author_public_key': auth.authorPublicKey,
+      'author_principal': auth.authorPrincipal,
+      'timestamp': auth.timestamp.toString(),
+      'nonce': auth.nonce,
+    });
     return RecoveryCodesResult.fromJson(response['data']);
   }
 

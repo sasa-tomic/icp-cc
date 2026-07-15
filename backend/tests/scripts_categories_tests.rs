@@ -82,6 +82,9 @@ async fn build_state() -> Arc<AppState> {
         passkey_service,
         purchase_repo: PurchaseRepository::new(pool.clone()),
         payment_service: PaymentService::from_env(pool.clone()),
+        recovery_rate_limiter: std::sync::Arc::new(
+            icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
+        ),
         pool,
     })
 }

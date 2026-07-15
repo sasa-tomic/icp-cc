@@ -153,6 +153,9 @@ async fn build_state(publishable_key: Option<&str>, webhook_secret: Option<&str>
             webhook_secret.map(str::to_string),
             pool.clone(),
         ),
+        recovery_rate_limiter: std::sync::Arc::new(
+            crate::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
+        ),
         pool,
     })
 }

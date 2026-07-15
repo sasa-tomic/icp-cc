@@ -135,6 +135,13 @@ async fn main() -> Result<(), std::io::Error> {
     let purchase_repo = PurchaseRepository::new(pool.clone());
     let payment_service = PaymentService::from_env(pool.clone());
 
+    // W7-14: throttle the open `POST /recovery/verify` brute-force oracle —
+    // 5 failed codes per (account_id, IP) in 15 minutes → 429. The codes are
+    // Argon2id-hashed (each guess is expensive); this adds the per-caller cap.
+    let recovery_rate_limiter = std::sync::Arc::new(
+        icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
+    );
+
     let state = Arc::new(AppState {
         account_service: AccountService::new(pool.clone()),
         script_service: ScriptService::new(pool.clone()),
@@ -142,6 +149,7 @@ async fn main() -> Result<(), std::io::Error> {
         passkey_service,
         purchase_repo,
         payment_service,
+        recovery_rate_limiter,
         pool,
     });
 
@@ -192,9 +200,9 @@ async fn main() -> Result<(), std::io::Error> {
     //   POST   /api/v1/vault          -> vault_create
     //   POST   /api/v1/vault/get      -> vault_get
     //   PUT    /api/v1/vault          -> vault_update
-    // Recovery codes
-    //   POST   /api/v1/recovery/generate              -> recovery_generate
-    //   POST   /api/v1/recovery/verify                -> recovery_verify
+    // Recovery codes (generate signature-gated; verify open + rate-limited; W7-14)
+    //   POST   /api/v1/recovery/generate              -> recovery_generate (signed)
+    //   POST   /api/v1/recovery/verify                -> recovery_verify (rate-limited)
     //   GET    /api/v1/recovery/status/:account_id    -> recovery_status
     // Admin (AdminAuth middleware)
     //   POST   /api/v1/admin/accounts/:username/keys/:key_id/disable -> admin_disable_key

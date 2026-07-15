@@ -302,3 +302,83 @@ fn raw_generate_recovery_codes_produces_twelve_formatted_codes() {
         assert!(c.bytes().all(|b| ALPHABET.contains(&b)), "bad char in {c}");
     }
 }
+
+// ============================================================================
+// W7-14: HTTP-level rate-limit on the open POST /recovery/verify oracle.
+// ============================================================================
+
+/// `POST /recovery/verify` stays open (a locked-out user has no keypair), but
+/// after 5 failed codes in 15 min it MUST return 429 (W7-007 brute-force
+/// throttle). Proven end-to-end through the real handler + TestClient.
+#[tokio::test]
+async fn recovery_verify_rate_limits_after_five_failed_attempts() {
+    use icp_marketplace_api::handlers::recovery_verify;
+    use poem::{post, test::TestClient, EndpointExt, Route};
+    use std::sync::Arc;
+
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .expect("pool");
+    icp_marketplace_api::db::initialize_database(&pool).await;
+
+    let (service, _) = setup().await;
+    // Reuse the setup's service is awkward (separate pool); build state here so
+    // the handler, the seeded code, and the rate-limiter share ONE pool.
+    let _ = service; // drop the helper's service (its pool is unrelated)
+    let account_id = "principal-ratelimit";
+    seed_principal(&pool, account_id).await;
+    // Seed ONE real-hashed code so verify returns `false` (not an error) for
+    // wrong guesses — exercising the failure-counting path.
+    let _ = seed_one_code(&pool, account_id, "REALCODE1").await;
+
+    let state = Arc::new(icp_marketplace_api::models::AppState {
+        pool: pool.clone(),
+        account_service: icp_marketplace_api::services::AccountService::new(pool.clone()),
+        script_service: icp_marketplace_api::services::ScriptService::new(pool.clone()),
+        review_service: icp_marketplace_api::services::ReviewService::new(pool.clone()),
+        passkey_service: icp_marketplace_api::services::PasskeyService::new(
+            pool.clone(),
+            "localhost",
+            "http://localhost:58000",
+        )
+        .expect("PasskeyService"),
+        purchase_repo: icp_marketplace_api::repositories::PurchaseRepository::new(pool.clone()),
+        payment_service: icp_marketplace_api::services::PaymentService::from_env(pool),
+        recovery_rate_limiter: Arc::new(
+            icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
+        ),
+    });
+
+    let app = Route::new()
+        .at("/recovery/verify", post(recovery_verify))
+        .data(state);
+    let client = TestClient::new(app);
+
+    // 5 wrong codes → each 200 with valid:false (under the limit).
+    for i in 1..=5 {
+        let resp = client
+            .post("/recovery/verify")
+            .body_json(&serde_json::json!({
+                "account_id": account_id,
+                "code": format!("WRONG{i}"),
+            }))
+            .send()
+            .await;
+        resp.assert_status(poem::http::StatusCode::OK);
+        let body: serde_json::Value = resp.0.into_body().into_json().await.unwrap();
+        assert_eq!(body["data"]["valid"], false, "attempt {i}: wrong code → invalid");
+    }
+
+    // 6th wrong code → 429 (rate-limited).
+    let resp = client
+        .post("/recovery/verify")
+        .body_json(&serde_json::json!({
+            "account_id": account_id,
+            "code": "WRONG6",
+        }))
+        .send()
+        .await;
+    resp.assert_status(poem::http::StatusCode::TOO_MANY_REQUESTS);
+}
