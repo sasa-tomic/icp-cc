@@ -206,10 +206,10 @@ void main() {
         ),
       );
 
-      // Should display 'JO' for 'John Doe'
-      final initials = find.text('JO');
+      // Word-based initials: first letter of first + last word.
+      final initials = find.text('JD');
       expect(initials, findsOneWidget,
-          reason: 'Should display initials from display name');
+          reason: 'Should display word-based initials from display name');
     });
 
     testWidgets('displays question mark for empty name', (tester) async {

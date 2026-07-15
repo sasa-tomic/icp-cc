@@ -417,7 +417,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         TextFormField(
           controller: _usernameController,
           decoration: InputDecoration(
-            hintText: 'alice_dev',
+            hintText: 'Choose a username',
             prefixIcon: const Icon(Icons.alternate_email),
             suffixIcon: _buildUsernameValidationIcon(),
             errorText: _usernameValidation?.isValid == false

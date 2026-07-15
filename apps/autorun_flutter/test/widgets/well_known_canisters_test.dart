@@ -114,4 +114,39 @@ void main() {
     expect(bookmarkButtons.length, 8,
         reason: 'expected one bookmark button per card');
   });
+
+  testWidgets(
+      'W7-19: the canister name is announced only once (no doubled name '
+      'from the card label + title Text)', (tester) async {
+    await pumpList(
+      tester,
+      onSelect: (_, __) {},
+      onBookmark: (_) async {},
+    );
+
+    final handle = tester.ensureSemantics();
+    final nodes = collectNodes(tester);
+    handle.dispose();
+
+    // The card's open-action node is the button whose label starts with
+    // "Open NNS Registry". Before W7-19 the inner title Text merged its
+    // label in too, producing "Open NNS Registry NNS Registry …" (the name
+    // spoken twice). After ExcludeSemantics on the title, the name appears
+    // exactly once within that label.
+    const name = 'NNS Registry';
+    final openNode = nodes.firstWhere(
+      (n) =>
+          n.hasFlag(SemanticsFlag.isButton) &&
+          n.label.toLowerCase().startsWith('open $name'.toLowerCase()),
+      orElse: () => throw TestFailure(
+          'Open-action card node not found. Labels: '
+          '${nodes.where((n) => n.label.isNotEmpty).map((n) => n.label).toList()}'),
+    );
+
+    final occurrences =
+        name.toLowerCase().allMatches(openNode.label.toLowerCase()).length;
+    expect(occurrences, 1,
+        reason: 'Card name must appear exactly once in the open-action label. '
+            'Got: "${openNode.label}"');
+  });
 }

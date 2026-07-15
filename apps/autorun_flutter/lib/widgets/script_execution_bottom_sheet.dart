@@ -7,6 +7,7 @@ import '../services/script_integrity_service.dart';
 import '../services/script_runner.dart';
 import '../theme/app_design_system.dart';
 import 'script_app_host.dart';
+import 'script_leading_icon.dart';
 
 class ScriptExecutionBottomSheet extends StatefulWidget {
   const ScriptExecutionBottomSheet({
@@ -64,10 +65,6 @@ class _ScriptExecutionBottomSheetState
   }
 
   Widget _buildHeader(BuildContext context) {
-    final emoji = (widget.script.emoji?.isNotEmpty ?? false)
-        ? widget.script.emoji!
-        : '📜';
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -88,9 +85,15 @@ class _ScriptExecutionBottomSheetState
             ),
           ),
           const SizedBox(width: 12),
-          Text(
-            emoji,
-            style: const TextStyle(fontSize: 20),
+          // W7-19: render the script's artwork (imageUrl) when present, with
+          // the emoji/📦 as the load-failure fallback — mirrors the list tile
+          // via the shared ScriptLeadingIcon. Previously this always showed
+          // the emoji (hard-coded 📦 for marketplace installs).
+          ScriptLeadingIcon(
+            iconUrl: widget.script.imageUrl,
+            emoji: widget.script.emoji,
+            isMarketplace: widget.script.isFromMarketplace,
+            radius: 16,
           ),
           const SizedBox(width: 8),
           Expanded(

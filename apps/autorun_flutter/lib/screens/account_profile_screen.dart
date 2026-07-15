@@ -664,7 +664,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 icon: const Icon(Icons.copy, size: 16),
                 onPressed: () =>
                     _copyToClipboard(keypair.publicKey, 'Public key'),
-                tooltip: 'Copy',
+                tooltip: 'Copy public key',
                 visualDensity: VisualDensity.compact,
               ),
             ],
@@ -707,8 +707,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 IconButton(
                   icon: const Icon(Icons.copy, size: 16),
                   onPressed: () =>
-                      _copyToClipboard(keypair.principal!, 'Principal'),
-                  tooltip: 'Copy',
+                      _copyToClipboard(keypair.principal!, 'IC principal'),
+                  tooltip: 'Copy IC principal',
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -1688,7 +1688,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                   icon: const Icon(Icons.copy, size: 16),
                   onPressed: () =>
                       _copyToClipboard(key.publicKey, 'Public key'),
-                  tooltip: 'Copy',
+                  tooltip: 'Copy public key',
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -1731,8 +1731,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 IconButton(
                   icon: const Icon(Icons.copy, size: 16),
                   onPressed: () =>
-                      _copyToClipboard(key.icPrincipal, 'Principal'),
-                  tooltip: 'Copy',
+                      _copyToClipboard(key.icPrincipal, 'IC principal'),
+                  tooltip: 'Copy IC principal',
                   visualDensity: VisualDensity.compact,
                 ),
               ],

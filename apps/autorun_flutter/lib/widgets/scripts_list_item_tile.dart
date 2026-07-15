@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:icp_autorun/models/script_list_item.dart';
 import '../theme/app_design_system.dart';
+import 'script_leading_icon.dart';
 
 /// A single row in the unified Scripts list.
 ///
@@ -91,52 +91,17 @@ class ScriptsListItemTile extends StatelessWidget {
   /// `iconUrl` artwork; emoji-only scripts render the emoji. On image load
   /// failure the emoji fallback is shown, so a broken image never degrades the
   /// row. Without this, every marketplace tile shows the same generic 📦 even
-  /// when the author uploaded artwork (UXR-4).
+  /// when the author uploaded artwork (UXR-4). The rendering lives in the
+  /// shared [ScriptLeadingIcon] so the run panel stays consistent (W7-19).
   Widget _buildLeading(bool isCompactScreen) {
     final radius = isCompactScreen ? 20.0 : 24.0;
-    final emoji = _leadingEmoji();
-    final iconUrl = item.iconUrl;
-
-    if (iconUrl == null || iconUrl.isEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        child: Text(emoji, style: _emojiTextStyle(isCompactScreen)),
-      );
-    }
-
-    return CircleAvatar(
+    return ScriptLeadingIcon(
+      iconUrl: item.iconUrl,
+      emoji: item.emoji,
+      isMarketplace: item.isFromMarketplace,
       radius: radius,
-      child: SizedBox(
-        width: radius * 2,
-        height: radius * 2,
-        child: CachedNetworkImage(
-          imageUrl: iconUrl,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => _avatarFallback(emoji, isCompactScreen),
-          errorWidget: (context, url, error) =>
-              _avatarFallback(emoji, isCompactScreen),
-        ),
-      ),
     );
   }
-
-  /// Emoji shown while the icon image loads, or when it fails to load. Shared
-  /// by [CachedNetworkImage]'s placeholder + errorWidget so both paths render
-  /// the same fallback.
-  Widget _avatarFallback(String emoji, bool isCompactScreen) =>
-      Center(child: Text(emoji, style: _emojiTextStyle(isCompactScreen)));
-
-  /// Resolved single-character emoji for the avatar: the item's emoji, else 📦
-  /// for marketplace scripts, else 📜; never empty.
-  String _leadingEmoji() {
-    const box = '📦';
-    const scroll = '📜';
-    final raw = item.emoji ?? (item.isFromMarketplace ? box : scroll);
-    return raw.isEmpty ? scroll : raw.characters.first;
-  }
-
-  TextStyle _emojiTextStyle(bool isCompactScreen) =>
-      TextStyle(fontSize: isCompactScreen ? 16 : 20);
 
   /// Small color-coded source icon.
   /// Blue for local scripts, green for marketplace scripts.

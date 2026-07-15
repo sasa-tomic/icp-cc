@@ -12,6 +12,7 @@ import '../screens/account_profile_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/vault_password_setup_screen.dart';
 import '../screens/vault_unlock_screen.dart';
+import '../utils/user_initials.dart';
 
 /// Profile menu action types
 enum ProfileMenuAction {
@@ -345,12 +346,7 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     );
   }
 
-  String _getInitials(String name) {
-    if (name.isEmpty) return '?';
-    return name.length >= 2
-        ? name.substring(0, 2).toUpperCase()
-        : name.substring(0, 1).toUpperCase();
-  }
+  String _getInitials(String name) => computeInitials(name);
 
   void _handleAction(ProfileMenuAction action) async {
     HapticFeedback.lightImpact();
@@ -664,9 +660,7 @@ class _ProfileSwitchRow extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            profile.name.isNotEmpty
-                ? profile.name.substring(0, 1).toUpperCase()
-                : '?',
+            computeInitials(profile.name),
             style: TextStyle(
               color: isActive ? Colors.white : theme.colorScheme.onSurface,
               fontWeight: FontWeight.w600,
@@ -875,11 +869,21 @@ class ProfileAvatarButton extends StatelessWidget {
   /// Whether the user has a registered account. When false, shows subtle text.
   final bool hasAccount;
 
-  String _getInitials(String? name) {
-    if (name == null || name.isEmpty) return '?';
-    return name.length >= 2
-        ? name.substring(0, 2).toUpperCase()
-        : name.substring(0, 1).toUpperCase();
+  String _getInitials(String? name) => computeInitials(name ?? '');
+
+  /// Clean, single-sentence a11y label for the chip. The visible avatar
+  /// initials and "Profile" / "No account" texts are excluded from semantics
+  /// (see [ExcludeSemantics] in [build]) so the spoken label is this sentence
+  /// alone, instead of raw initials spliced mid-sentence (W7-19 / W7-10).
+  String get _semanticsLabel {
+    if (!hasAccount) {
+      return 'Profile menu, no account registered. Tap to open.';
+    }
+    final name = displayName;
+    if (name != null && name.trim().isNotEmpty) {
+      return 'Profile: $name. Tap to open.';
+    }
+    return 'Profile menu. Tap to open.';
   }
 
   @override
@@ -921,66 +925,65 @@ class ProfileAvatarButton extends StatelessWidget {
 
     if (!showLabel) {
       return Semantics(
-        label: hasAccount
-            ? 'Profile menu'
-            : 'Profile menu - no account registered',
+        label: _semanticsLabel,
         button: true,
         child: GestureDetector(
           onTap: () {
             HapticFeedback.lightImpact();
             onTap();
           },
-          child: avatar,
+          child: ExcludeSemantics(child: avatar),
         ),
       );
     }
 
     return Semantics(
-      label:
-          hasAccount ? 'Profile menu' : 'Profile menu - no account registered',
+      label: _semanticsLabel,
       button: true,
       child: GestureDetector(
         onTap: () {
           HapticFeedback.lightImpact();
           onTap();
         },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest
-                .withValues(alpha: 0.8),
-            borderRadius: BorderRadius.all(AppDesignSystem.sheetRadius),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              avatar,
-              const SizedBox(width: 8),
-              Text(
-                'Profile',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
+        child: ExcludeSemantics(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.8),
+              borderRadius: BorderRadius.all(AppDesignSystem.sheetRadius),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                width: 1,
               ),
-              // Subtle "No account" indicator instead of red badge
-              if (!hasAccount) ...[
-                const SizedBox(width: 6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                avatar,
+                const SizedBox(width: 8),
                 Text(
-                  'No account',
+                  'Profile',
                   style: TextStyle(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w400,
-                    fontSize: 12,
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
                   ),
                 ),
+                // Subtle "No account" indicator instead of red badge
+                if (!hasAccount) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    'No account',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w400,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

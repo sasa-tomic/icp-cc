@@ -257,9 +257,15 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
     );
   }
 
-  String _shortenPrincipal(String p) {
-    if (p.length <= 20) return p;
-    return '${p.substring(0, 14)}…${p.substring(p.length - 6)}';
+  /// Copies the active profile's [principal] to the clipboard and confirms
+  /// with a SnackBar (W7-19: dapp-runner auth chip now matches the Account
+  /// screen's copyable principal).
+  void _copyPrincipal(String principal) {
+    Clipboard.setData(ClipboardData(text: principal));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      AppDesignSystem.successSnackBar('Principal copied to clipboard'),
+    );
   }
 
   /// UX-9: remounts the [ScriptAppHost] (re-runs `init` → fresh polls/dapp
@@ -752,13 +758,16 @@ class _DappRunnerScreenState extends State<DappRunnerScreen> {
 
   Widget _buildAuthStatus({required bool hasProfile, String? principal}) {
     if (hasProfile) {
-      final label = (principal == null || principal.isEmpty)
-          ? 'Signed in with the active profile'
-          : 'Signed as: ${_shortenPrincipal(principal)}';
+      final hasPrincipal = principal != null && principal.isNotEmpty;
+      // W7-19: show the FULL principal (monospace, wraps) and make it
+      // tap-to-copy, so the dapp-runner chip matches the Account screen's
+      // copyable principal instead of a dead, clipped "qtjow-…-cae" string.
       return _StatusChip(
         icon: Icons.verified_user_outlined,
-        text: label,
+        text: hasPrincipal ? 'Signed as: $principal' : 'Signed in with the active profile',
         color: AppDesignSystem.successColor,
+        monospace: hasPrincipal,
+        onTap: hasPrincipal ? () => _copyPrincipal(principal) : null,
       );
     }
     // Keyless user: show the view-only status (teaches the dual-path model)
@@ -900,16 +909,26 @@ class _StatusChip extends StatelessWidget {
     required this.text,
     required this.color,
     this.hint,
+    this.monospace = false,
+    this.onTap,
   });
   final IconData icon;
   final String text;
   final Color color;
   final String? hint;
 
+  /// Render [text] in a monospace font (used for principals / ids).
+  final bool monospace;
+
+  /// When set the chip becomes a tappable copy affordance (ripple + trailing
+  /// copy icon). Used by the auth-status chip to make the principal copyable
+  /// instead of a dead, clipped string (W7-19).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
+    final core = Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: AppDesignSystem.spacing12,
@@ -929,9 +948,14 @@ class _StatusChip extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(text,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600, color: color)),
+                Text(
+                  text,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                    fontFamily: monospace ? 'monospace' : null,
+                  ),
+                ),
                 if (hint != null) ...[
                   const SizedBox(height: 2),
                   Text(
@@ -943,7 +967,21 @@ class _StatusChip extends StatelessWidget {
               ],
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: AppDesignSystem.spacing8),
+            Icon(Icons.copy_outlined, color: color, size: 16),
+          ],
         ],
+      ),
+    );
+
+    if (onTap == null) return core;
+    return Tooltip(
+      message: 'Copy principal',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppDesignSystem.radius12),
+        child: core,
       ),
     );
   }

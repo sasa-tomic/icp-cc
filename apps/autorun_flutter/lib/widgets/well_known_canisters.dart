@@ -162,10 +162,15 @@ class _WellKnownCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            entry.label,
-                            style: theme.textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                          // W7-19: the card-level Semantics(label: 'Open …')
+                          // already exposes the name; exclude the title Text
+                          // so screen readers don't announce it twice.
+                          ExcludeSemantics(
+                            child: Text(
+                              entry.label,
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(

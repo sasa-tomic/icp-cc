@@ -259,7 +259,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
                   controller: _contactTwitterController,
                   decoration: InputDecoration(
                     labelText: 'Twitter/X (optional)',
-                    hintText: '@alice_dev',
+                    hintText: '@your_handle',
                     prefixIcon: const Icon(Icons.tag),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
