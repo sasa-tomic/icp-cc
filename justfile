@@ -665,6 +665,31 @@ flutter-dev-local +args="":
     echo "==> Using API endpoint: http://127.0.0.1:$api_port"
     cd {{flutter_dir}} && flutter run -d linux --dart-define=PUBLIC_API_ENDPOINT=http://127.0.0.1:$api_port {{args}}
 
+# Build the Flutter WEB app against the local dev backend. The app's compiled-in
+# default endpoint (PUBLIC_API_ENDPOINT) points at the production host, which is
+# unreachable from a dev box — and Web has no Platform.environment to pick up
+# MARKETPLACE_API_PORT at runtime. So a plain `flutter build web` silently talks
+# to a dead host. This target injects the live local backend via dart-define so
+# the built bundle works against `just api-dev-up` without remembering any flag.
+web-dev-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    api_port=$(just _api-dev-port)
+    echo "==> Building Flutter Web against local backend http://127.0.0.1:$api_port"
+    cd {{flutter_dir}} && flutter build web --dart-define=PUBLIC_API_ENDPOINT=http://127.0.0.1:$api_port
+
+# Serve the built Flutter Web app on a fixed local port (default 8099) so a
+# browser/UX-reviewer can reach it deterministically. Re-serves an existing
+# build; pair with `web-dev-build` (or use `web-dev`) for a fresh bundle.
+web-dev-serve port="8099":
+    @echo "==> Serving Flutter Web at http://127.0.0.1:{{port}}/ (Ctrl-C to stop)"
+    @echo "==> Backend: http://127.0.0.1:$(just _api-dev-port)"
+    @cd {{flutter_dir}} && python3 -m http.server {{port}} --bind 127.0.0.1 --directory build/web
+
+# Build + serve the Flutter Web app against the local dev backend (one-shot).
+web-dev: web-dev-build
+    @just web-dev-serve
+
 # Start Android emulator
 android-emulator:
     @echo "==> Starting Android emulator..."
