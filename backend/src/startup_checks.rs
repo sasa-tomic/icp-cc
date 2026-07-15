@@ -42,10 +42,12 @@ impl Environment {
     /// Resolution:
     /// - `"development"` / `"dev"` (case-insensitive) → `Development`
     /// - `"production"` / `"prod"` → `Production`
-    /// - unset / empty / unrecognised → loud `tracing::warn!` + `Development`
-    ///   (preserves the long-standing dev-friendly default so a bare local
-    ///   `cargo run` still boots; the warn makes a forgotten prod deploy
-    ///   impossible to miss in the logs).
+    /// - unset / empty / unrecognised → loud `tracing::warn!` + `Production`
+    ///   (fail-closed: a misconfigured or bare deploy must NOT expose the
+    ///   destructive dev endpoints (`/api/dev/reset-database`) or suppress the
+    ///   startup security warnings. The dev workflows — `just api-dev-up`,
+    ///   `dev-setup.sh`, `docker-compose.dev.yml` — all set
+    ///   `ENVIRONMENT=development` explicitly, so local dev is unaffected).
     pub fn current() -> Environment {
         *CURRENT_ENV.get_or_init(Environment::read_from_env)
     }
@@ -62,11 +64,10 @@ impl Environment {
                         tracing::warn!(
                             value = %raw,
                             "ENVIRONMENT='{raw}' is not recognised (expected 'development' or \
-                             'production'); assuming development. Set ENVIRONMENT=production for \
-                             production deploys so the startup security checks (admin token, \
-                             passkey RP, ICPay) fire correctly."
+                             'production'); assuming production (fail-closed). Set \
+                             ENVIRONMENT=development for local dev."
                         );
-                        Environment::Development
+                        Environment::Production
                     }
                 }
             }
@@ -76,11 +77,10 @@ impl Environment {
 
     fn warn_unset() -> Environment {
         tracing::warn!(
-            "ENVIRONMENT is not set; assuming development. Set ENVIRONMENT=production for \
-             production deploys so the startup security checks (admin token, passkey RP, ICPay) \
-             fire correctly. Set ENVIRONMENT=development to silence this warning on a local dev box."
+            "ENVIRONMENT is not set; assuming production (fail-closed — dev endpoints disabled, \
+             startup security checks active). Set ENVIRONMENT=development for local dev."
         );
-        Environment::Development
+        Environment::Production
     }
 
     pub fn is_development(self) -> bool {
