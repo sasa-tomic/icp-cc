@@ -269,7 +269,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: 200,
-        height: 170,
+        height: 180,
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(

@@ -34,6 +34,7 @@ String _appSupportDir() {
 /// example_dapps.dart `_trustKey`/`_backendKey`/`_hostKey`).
 const String kPrefActiveProfileId = 'active_profile_id';
 const String kPrefFirstRunDismissed = 'first_run_wizard_dismissed';
+const String kPrefDevOptions = 'developer_options_enabled';
 const String _kDappPrefix = 'dapp.';
 
 /// Wipe all per-flow state so the next phase boots first-run clean.
@@ -87,6 +88,7 @@ Future<void> resetAppState({
   for (final key in keys) {
     if (key == kPrefActiveProfileId ||
         key == kPrefFirstRunDismissed ||
+        key == kPrefDevOptions ||
         key.startsWith(_kDappPrefix)) {
       await prefs.remove(key);
     }
