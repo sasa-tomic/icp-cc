@@ -499,6 +499,108 @@ test-ux-probe:
     exit 1
 
 # =============================================================================
+# Unified E2E Harness (Desktop + Web) — docs/specs/2026-07-15-e2e-harness-and-ux.md
+# One flow catalog (integration_test/e2e/flow_catalog.dart) run on BOTH real
+# surfaces. Desktop = 2 shared boots (keyring-less + mock-keyring) instead of
+# one-per-file → ~2.5x faster than the old ux_probe suite. Flow implementations
+# register into a FlowRegistry; the catalog is the single coverage contract.
+# =============================================================================
+
+# e2e-desktop: run the unified DESKTOP suites. Two app boots total:
+#   PASS 1 (keyring-less) — suite_keyring_less_test.dart  (no Secret Service)
+#   PASS 2 (mock keyring)  — suite_mock_keyring_test.dart  (mock Secret Service)
+# Each suite boots the REAL app once and runs many phases with resetAppState
+# isolation between them.
+e2e-desktop:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    STATE_DIR="$HOME/.cache/data/com.example.icp_autorun"
+    LOG="{{logs_dir}}/e2e-desktop.log"
+    mkdir -p "{{logs_dir}}"
+
+    echo "==> e2e-desktop: unified harness (2 shared boots)"
+
+    # --- 1. Real FFI library --------------------------------------------------
+    if [[ ! -f "$RELEASE_LIB" ]]; then
+        echo "==> libicp_core.so missing — building (cargo build --release)..."
+        (cd "{{root}}" && cargo build --release)
+    fi
+    [[ -f "$RELEASE_LIB" ]] || { echo "❌ $RELEASE_LIB not found"; exit 1; }
+    export LD_LIBRARY_PATH="{{root}}/target/release${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+    # --- 2. Xvfb :99 (1440x900, matches kDesktopSize) -------------------------
+    XVFB_STARTED=0
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        echo "==> starting Xvfb :99"
+        Xvfb :99 -screen 0 1440x900x24 -ac +extension XTEST \
+            >"{{logs_dir}}/xvfb-e2e.log" 2>&1 &
+        XVFB_PID=$!; XVFB_STARTED=1
+        for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
+    fi
+    [[ -S /tmp/.X11-unix/X99 ]] || { echo "❌ Xvfb :99 did not come up"; exit 1; }
+    export DISPLAY=:99
+    if [[ "$XVFB_STARTED" -eq 1 ]]; then trap 'kill "$XVFB_PID" 2>/dev/null || true' EXIT; fi
+
+    # Drive the REAL app against the REAL local backend (kDebugMode desktop
+    # honors MARKETPLACE_API_PORT → http://127.0.0.1:port). Fails loud if down.
+    export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    echo "==> backend: http://127.0.0.1:$MARKETPLACE_API_PORT"
+
+    # --- 3. PASS 1: keyring-less (one boot) -----------------------------------
+    : > "$LOG"
+    rm -rf "$STATE_DIR" 2>/dev/null || true
+    echo "==> PASS 1 (keyring-less): suite_keyring_less_test.dart"
+    if (cd "{{flutter_dir}}" && flutter test \
+            integration_test/e2e/suite_keyring_less_test.dart \
+            --reporter=compact --timeout=240s) >>"$LOG" 2>&1; then
+        echo "   PASS 1 OK"
+    else
+        echo "   PASS 1 FAIL  (see $LOG)"; exit 1
+    fi
+
+    # --- 4. PASS 2: mock Secret Service (one boot) ----------------------------
+    rm -rf "$STATE_DIR" 2>/dev/null || true
+    echo "==> PASS 2 (mock keyring): suite_mock_keyring_test.dart"
+    if "{{scripts_dir}}/run-with-mock-keyring.sh" --display :99 -- \
+            bash -c 'cd "{{flutter_dir}}" && \
+                LD_LIBRARY_PATH="{{root}}/target/release" \
+                flutter test integration_test/e2e/suite_mock_keyring_test.dart \
+                    --reporter=compact --timeout=240s' >>"$LOG" 2>&1; then
+        echo "   PASS 2 OK"
+    else
+        echo "   PASS 2 FAIL  (see $LOG)"; exit 1
+    fi
+
+    echo "✅ e2e-desktop PASSED — both suites green (2 boots). Log: $LOG"
+
+# e2e-fast: run a SINGLE suite file for a sub-minute dev loop (default: the
+# keyring-less smoke, no mock-keyring wrap needed). Pass a file path to target
+# another suite.
+e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    [[ -f "$RELEASE_LIB" ]] || { echo "❌ build first: cargo build --release"; exit 1; }
+    export LD_LIBRARY_PATH="{{root}}/target/release"
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        Xvfb :99 -screen 0 1440x900x24 -ac >/dev/null 2>&1 &
+        for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
+    fi
+    export DISPLAY=:99
+    rm -rf "$HOME/.cache/data/com.example.icp_autorun" 2>/dev/null || true
+    # Drive the REAL app against the REAL local backend (kDebugMode desktop
+    # honors MARKETPLACE_API_PORT → http://127.0.0.1:port). Without it the app
+    # falls back to the production host and marketplace fetches throw 530.
+    export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    echo "==> e2e-fast: {{file}} (backend :$MARKETPLACE_API_PORT)"
+    cd "{{flutter_dir}}" && flutter test "{{file}}" --reporter=compact --timeout=240s
+
+# e2e: both surfaces. (Web runner lands in H-3; for now this runs desktop.)
+e2e: e2e-desktop
+    @echo "==> (web surface: just e2e-web — wired in H-3)"
+
+# =============================================================================
 # Development API Server (Local Cargo-based)
 # =============================================================================
 

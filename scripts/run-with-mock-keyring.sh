@@ -16,6 +16,33 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOCK="${SCRIPT_DIR}/mock_secret_service.py"
 
+# Resolve a Python interpreter that has dbus_next installed. On a box where the
+# default `python3` is a venv without dbus_next (common on dev machines), this
+# auto-discovers one (e.g. /usr/bin/python3.13) instead of failing opaquely.
+# Override explicitly with MOCK_PYTHON=/path/to/python.
+resolve_python() {
+    local candidates=()
+    if [[ -n "${MOCK_PYTHON:-}" ]]; then
+        candidates+=("$MOCK_PYTHON")
+    fi
+    # Prefer a more-specific version, then the default. Include /usr/bin paths
+    # explicitly because a venv's `python3.13` can shadow the system one that
+    # actually has dbus_next installed.
+    candidates+=("python3.13" "python3.12" "python3.11" "python3"
+                 "/usr/bin/python3.13" "/usr/bin/python3.12" "/usr/bin/python3")
+    for c in "${candidates[@]}"; do
+        if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import dbus_next' >/dev/null 2>&1; then
+            command -v "$c"
+            return 0
+        fi
+    done
+    echo "❌ No Python with dbus_next found. Tried: ${candidates[*]}" >&2
+    echo "   Install:  $c -m pip install dbus-next" >&2
+    echo "   Or set:   MOCK_PYTHON=/path/to/python" >&2
+    return 1
+}
+PY="$(resolve_python)"
+
 # --display VALUE  : forward DISPLAY into the inner shell (for Xvfb)
 DISPLAY_ENV=()
 if [[ "${1:-}" == "--display" ]]; then
@@ -36,7 +63,7 @@ trap cleanup EXIT INT TERM
 dbus-run-session -- bash -c "
     set -euo pipefail
     ${DISPLAY_ENV[0]:+export ${DISPLAY_ENV[0]}}
-    python3 '${MOCK}' &
+    '$PY' '${MOCK}' &
     MOCK_PID=\$!
     # give the mock a moment to claim its D-Bus name
     for i in {1..30}; do
