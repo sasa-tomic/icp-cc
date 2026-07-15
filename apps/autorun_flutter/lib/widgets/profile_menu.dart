@@ -10,8 +10,10 @@ import '../services/passkey_service.dart';
 import '../services/settings_service.dart';
 import '../screens/account_profile_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/unified_setup_wizard.dart';
 import '../screens/vault_password_setup_screen.dart';
 import '../screens/vault_unlock_screen.dart';
+import '../services/secure_storage_readiness.dart';
 import '../utils/user_initials.dart';
 
 /// Profile menu action types
@@ -531,28 +533,18 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
   }
 
   Future<void> _showCreateProfileDialog() async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => const _CreateProfileDialog(),
+    await Navigator.of(context).push<UnifiedSetupResult>(
+      MaterialPageRoute<UnifiedSetupResult>(
+        fullscreenDialog: true,
+        builder: (_) => UnifiedSetupWizard(
+          profileController: widget.profileController,
+          accountController: widget.accountController,
+          secureStorageReadiness: SecureStorageReadiness(),
+        ),
+      ),
     );
-
-    if (result != null && mounted) {
-      try {
-        await widget.profileController.createProfile(
-          profileName: result['name'] ?? 'New Profile',
-          algorithm: result['algorithm'] ?? 'ed25519',
-          setAsActive: true,
-        );
-        if (mounted) {
-          setState(() {});
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to create profile: $e')),
-          );
-        }
-      }
+    if (mounted) {
+      setState(() {});
     }
   }
 }
@@ -937,54 +929,6 @@ class _ManageProfilesSheetState extends State<_ManageProfilesSheet> {
           ),
         );
       },
-    );
-  }
-}
-
-/// Simple create profile dialog
-class _CreateProfileDialog extends StatefulWidget {
-  const _CreateProfileDialog();
-
-  @override
-  State<_CreateProfileDialog> createState() => _CreateProfileDialogState();
-}
-
-class _CreateProfileDialogState extends State<_CreateProfileDialog> {
-  final _controller = TextEditingController(text: 'New Profile');
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Create Profile'),
-      content: TextField(
-        controller: _controller,
-        decoration: const InputDecoration(
-          labelText: 'Profile Name',
-          border: OutlineInputBorder(),
-        ),
-        autofocus: true,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            Navigator.pop(context, {
-              'name': _controller.text.trim(),
-              'algorithm': 'ed25519',
-            });
-          },
-          child: const Text('Create'),
-        ),
-      ],
     );
   }
 }

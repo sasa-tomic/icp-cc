@@ -1,0 +1,3 @@
+tags:
+  web:
+    description: "Tests that run on the Web platform (flutter test -d chrome)"
