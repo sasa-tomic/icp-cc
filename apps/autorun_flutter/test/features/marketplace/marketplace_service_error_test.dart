@@ -522,6 +522,14 @@ void main() {
   //     FormatException ("Unexpected end of input") that masked the status.
   group('W6-3: robust success / status / data decoding', () {
     group('fragile success flag (typed Exception, never a TypeError)', () {
+      // W7-L2 note: the four asserts below are intentionally bare
+      // `isA<Exception>()` (no `.having`). The regression guard is that
+      // `_decodeSuccessResponse` throws a typed Exception from its
+      // `success != true` branch — NOT a TypeError. Dart's TypeError is an
+      // Error, not an Exception, so a bare `isA<Exception>()` FAILS if a
+      // TypeError leaks through (which is the W6-3 contract under test).
+      // Tightening to a message substring would add no signal here; the
+      // sibling tests below (data:null, non-JSON 502, …) already pin wording.
       test('searchScripts with success omitted', () {
         service.overrideHttpClient(_statusClient(200,
             body: jsonEncode({

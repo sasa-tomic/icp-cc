@@ -57,7 +57,10 @@ void main() {
     var browseCalled = false;
     await pumpHistoryRoute(tester, () => browseCalled = true);
 
-    // Empty state is shown with the CTA.
+    // Empty state is shown with the CTA. (Folds in the screen-title smoke
+    // check formerly in the mis-named download_workflow_test.dart — its other
+    // empty-state strings were already covered here and below.)
+    expect(find.text('Download History'), findsOneWidget);
     expect(find.text('No Download History'), findsOneWidget);
     expect(find.text('Browse Marketplace'), findsOneWidget);
     expect(find.byType(DownloadHistoryScreen), findsOneWidget);

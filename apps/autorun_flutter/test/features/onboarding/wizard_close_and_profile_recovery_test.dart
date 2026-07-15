@@ -100,12 +100,15 @@ void main() {
             builder: (context) => Scaffold(
               body: Center(
                 child: ElevatedButton(
-                  onPressed: () {
-                    showFirstRunSetupIfNeeded(
+                  // Await the gate (W7-L5) instead of fire-and-forget `.then`,
+                  // so the `firstShown` assertion no longer races the
+                  // Navigator-pop microtask that resolves the gate Future.
+                  onPressed: () async {
+                    firstShown = await showFirstRunSetupIfNeeded(
                       context: context,
                       profileController: profileController,
                       accountController: accountController,
-                    ).then((shown) => firstShown = shown);
+                    );
                   },
                   child: const Text('Start App'),
                 ),

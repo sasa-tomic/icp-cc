@@ -55,15 +55,16 @@ void main() {
             builder: (context) => Scaffold(
               body: Center(
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Fire-and-forget: the gate awaits Navigator.push, which
-                    // only resolves once the wizard is popped. We assert on
-                    // the wizard being shown, not on the awaited result.
-                    showFirstRunSetupIfNeeded(
+                  // Await the gate (W7-L5) instead of fire-and-forget `.then`:
+                  // the gate Future only resolves when the wizard is popped, so
+                  // awaiting removes the latent microtask-drain flake where the
+                  // `gateShowed` assertion raced the Navigator-pop Future.
+                  onPressed: () async {
+                    gateShowed = await showFirstRunSetupIfNeeded(
                       context: context,
                       profileController: profileController,
                       accountController: accountController,
-                    ).then((showed) => gateShowed = showed);
+                    );
                   },
                   child: const Text('Start App'),
                 ),
