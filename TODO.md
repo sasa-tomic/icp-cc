@@ -11,11 +11,18 @@ complete (`docs/specs/CLEANUP_PLAN.md` WU-1..WU-10 done; `SCRIPTING_RUNTIME_MIGR
 Phase 4 done). There is no active scripting work.
 
 > **E2E harness + functional/visual sweep: COMPLETE (2026-07-15, confidence 9/10).**
-> See `docs/specs/2026-07-15-e2e-harness-and-ux.md`. 7 commits across 7 phases:
+> See `docs/specs/2026-07-15-e2e-harness-and-ux.md`. 12 commits across Phases 1-7 + Phase 2:
 > - **Phase 1** (commits `d1683989`, `08ccc4f2`): Unified e2e harness — 98-flow
 >   `FlowCatalog` + `E2EDriver` (boot/remount/reset/screenshot) + desktop fast runner
 >   (2 shared boots, `resetAppState` between flows, ~15min→~6min) + web Tier-1 runner
 >   (`flutter test -d chrome`, Playwright Chromium). `just e2e` runs both surfaces.
+> - **Phase 2** (`262d3b49`, `d76ea4bf`): Migrated 12 real-app flows into the
+>   `FlowRegistry`: keyring-less suite (8: first_run.dismiss_wizard,
+>   first_run.reopen_wizard_chip, profile.open_menu, settings.open,
+>   settings.unlock_dev_options, shortcut.tab_switch, shortcut.show_help,
+>   shortcut.escape_back) + mock-keyring suite (4: first_run.create_profile,
+>   profile.open_menu, profile.switch_via_manage_sheet F5-verified, scripts.create).
+>   Found + fixed ScriptCreationScreen template card overflow (3-5px at 1440x900).
 > - **Phase 3** (`9b37bb46`): Fixed F1 (`/recovery` route dead — vault unlock →
 >   recovery-code entry dialog → reset flow, wired to existing backend), F3 (duplicate
 >   "View" no-op → opens editor), F4 (passkey name hardcoded → platform-aware), F5
@@ -33,9 +40,9 @@ Phase 4 done). There is no active scripting work.
 >   routes/orphaned screens/silent catches/empty handlers).
 > - **Phase 7** (`3ec1fd3c`): Fixed 2 test regressions (dart-define regex + vault
 >   happy-path mock). Full suite: 1031 passed / 0 failed / 11 skipped.
-> - **Remaining**: Phase 2 (migrate 98 flows into `FlowRegistry` — bulk test
->   authoring, harness foundation is ready); F6 (dapp vote HTTP 530 — environmental,
->   needs resilience/timeout work).
+> - **Remaining**: Phase 2 continuation (12/98 e2e flows migrated; 86 remaining are
+>   largely covered by 1031 widget tests — vault/dapp/canister/deeplink/passkey
+>   flows need complex substrate setup); F6 (dapp vote HTTP 530 — environmental).
 
 Genuinely open items are listed below.
 
