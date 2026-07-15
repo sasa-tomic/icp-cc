@@ -12,6 +12,36 @@ Phase 4 done). There is no active scripting work.
 
 Genuinely open items are listed below.
 
+> **Wave-7 security, functional, visual & tech-debt sweep: COMPLETE (2026-07-15,
+> confidence 9/10).** See `docs/specs/2026-07-14-wave7-issue-hunt.md`
+> (W7-1..W7-20, 35 commits across 3 phases). The headline was the **systemic
+> backend auth-gating cluster**: 6 subsystems (vault, passkey register/delete,
+> recovery generate, review, detail-entitlement, script-stats) all trusted a
+> client-supplied `account_id` with ZERO auth — `account_id` is public. A new
+> shared `signature_gate::verify_signed_account_request` (factors the proven
+> entitlement pattern: resolve account_id SERVER-SIDE from the verified public key
+> → verify Ed25519 → replay-prevention → audit fail-closed) gates every
+> state-changing route. Also closed: **SQL injection** in the `category` filter
+> (W7-1, live-proven exploit), **entitlement bundle leak** via GET (W7-2, paid
+> source no longer reachable without a signed download), **non-constant-time**
+> admin/recovery/webhook compares (W7-3), **permissive CORS** + TRACE/CONNECT
+> (W7-4), **dead unauthenticated `update-script-stats`** removed (W7-16),
+> **config-var leak** in ICPay 503 (W7-6 follow-up). Frontend: null-unsafe
+> `success` check + `getScriptVersions` malformed-data → typed throw (W7-7),
+> dead Versions tab removed (W7-8 — no `/versions` backend route), dead
+> "Marketplace Website" link removed (W7-9), Polls contradictory identity fixed
+> (W7-10), 26 Candid `startsWith` heuristics DRY'd into one typed classifier
+> (W7-11). Robustness: `nonce` UNIQUE + TOCTOU kill (W7-011), typed
+> `Environment` enum fail-closed, `eprintln!`→`tracing`, shared `tokio::Runtime`.
+> UX: word-based avatar initials, run-panel iconUrl, distinct Copy labels,
+> wizard placeholder, dapp-chip full+copyable principal, a11y dedup. Tests:
+> `ScriptContextMenuSheet` + `ScriptEditorDialog` coverage (surfaced + fixed a
+> non-BMP emoji crash), low-signal test cleanup. Dev workflow: reproducible
+> `just web-dev-build`/`web-dev-serve` (kills the dead-host Web build default).
+> Verify: `flutter analyze` clean; 2010 passed / 11 skipped; integration 49/49
+> with `MARKETPLACE_API_PORT`; backend 308/308; clippy clean; live security +
+> UX re-review PASS (no mocks).
+
 > **Wave-6 functional/visual/tech-debt sweep: COMPLETE (2026-07-11, confidence 9/10).** See
 > `docs/specs/2026-07-10-wave6-issues.md` (W6-1..W6-13, 14 commits). 13 work units:
 > IC-agent proxy origin fix + friendly dapp errors + generic copy (W6-1), auth.rs

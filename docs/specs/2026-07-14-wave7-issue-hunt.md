@@ -1,6 +1,6 @@
 # Wave 7 — Security, Functional & Visual Sweep
 
-- **Status:** 🔧 IN PROGRESS (2026-07-14)
+- **Status:** ✅ COMPLETE (2026-07-15) — confidence 9/10
 - **Date:** 2026-07-14
 - **Scope:** Whole app — backend security (the headline), frontend functional/visual, test coverage.
 - **Method:** empirically grounded (every claim cited to `file:line` or a live
@@ -234,3 +234,41 @@ Serialized git index (shared working tree + caches). Suggested sequence:
 | W7-17 | `571c45e6` | Misc backend robustness (8 fixes, P2/P3). **W7-011** — `signature_audit.nonce` UNIQUE constraint kills the replay-prevention TOCTOU (SELECT-COUNT then INSERT); new `auth::is_audit_replay_error` + `classify_audit_write` (single source) → every audit-recording site (`signature_gate`, `download_script`, `entitlement_check`, 6×`account_service`) maps the unique-violation to 401 replay vs 5xx fault; RED test proves duplicate-nonce INSERT fails + classifies as replay (negative control: distinct nonces both succeed). **W7-012** — 4× silent `delete_challenge().ok()` in `passkey_service` → `consume_challenge` helper that `tracing::warn!`s the failure (best-effort, but visible). **W7-013** — `hash_recovery_code().expect()` → `?`-propagate as `PasskeyError::Internal` (no panic under Argon2 memory pressure). **W7-014** — `ENVIRONMENT` → typed `Environment` enum (`OnceLock`-cached, single source) closing the reader disagreement (`main.rs` warn-helpers said "development" on unset while `is_development()` returned false); unset/empty/unrecognised → loud `tracing::warn!`; main/health/is_development/warn-helpers all threaded through the enum. Side-effect of consistency: `is_development()` now true on unset, so `reset_database` is permissive in a bare `cargo run` (correct for a dev tool — prior 403 was a symptom of the disagreement). **W7-022** — `ALTER TABLE ADD COLUMN` migration loops distinguish SQLite "duplicate column name" (idempotent → debug) from any other DDL fault (fatal panic), so a real schema problem is never masked as "already migrated". **W7-019** — canister FFI reuses a `OnceLock<tokio::runtime::Runtime>` instead of constructing+tearing down a fresh runtime per `fetch_candid`/`call_anonymous`/`call_authenticated` (mirrors `ic_proxy`'s `OnceLock<reqwest::Client>`). **W7-021** — `auth.rs:154` `serde_json::to_string(value).unwrap_or_default()` (would silently verify a signature over an EMPTY payload on the impossible failure) → `.expect` with the documented invariant that `serde_json::Value` serialises infallibly (NaN/Inf cannot inhabit `Value::Number`); `?`-propagation rejected as it would ripple to 24 callers for a provably-impossible error. **W7-024** — `cleanup.rs` `format!`-interpolated `AUDIT_RETENTION_DAYS` → `.bind()` (constant SQL text). **W7-09 static** — lone `eprintln!` in `script_service.rs` test fixture → `tracing::error!` with error context. `cargo nextest run -p icp-marketplace-api` → 308 passed / 1 skipped (+2 W7-011 tests); clippy clean; `icp_core` 102 passed + clippy clean |
 | W7-18 | `be86b238` | Coverage for the two zero-test widgets (verified by symbol search). **ScriptContextMenuSheet** (`script_context_menu_test.dart`, 12 tests): local vs marketplace action rendering + cross-section hiding; null-callback hides its action; already-downloaded + downloading-state variants; tapping each of the 7 action callbacks fires it exactly once and closes the sheet (pumped via the production `showModalBottomSheet`). **ScriptEditorDialog** (`script_editor_dialog_test.dart`, 6 tests): opens with record title + source loaded (not dirty); edit + Save persists the editor content via a real `ScriptController`/`MockScriptRepository` (the I/O boundary — no crypto/network), pops, success snackbar; Save failure surfaces 'Save failed' + keeps the dialog open; Cancel clean pops without saving; Cancel dirty shows the discard-confirm; keep-editing on the guard keeps the dialog open. **Drive-by P1 fix discovered by writing the marketplace test** (the exact value of W7-18): the avatar did `Text((item.emoji ?? '📦')[0])`, which returns a lone UTF-16 surrogate for any non-BMP emoji → `ArgumentError: string is not well-formed UTF-16` at paint time, breaking the context menu for EVERY marketplace script (emoji always null → `📦` fallback) and for the local default `📜`. Replaced with a code-point-safe first character (`runes.first`) so multi-unit emoji render whole — approved as a minimal surgical fix. `flutter analyze` clean; 18 new tests green |
 | W7-20 | `9c657f86` | Low-signal test cleanup (W7-L1/L2/L5). **W7-L1** — deleted the mis-named `download_workflow_test.dart` (36 lines asserting 3 static empty-state strings on `DownloadHistoryScreen`, exercising no workflow); its empty-state signal was already covered (better) by `download_history_browse_test.dart` which drives the real Browse-Marketplace CTA. Folded the one non-redundant assertion (the screen title) into that test; dropped the rest as no-signal smoke. **W7-L2** — the 4 bare `throwsA(isA<Exception>())` in `marketplace_service_error_test.dart` verified load-bearing (the code under test, `_decodeSuccessResponse`, throws a typed `Exception` from its `success != true` branch; a `TypeError` regression would be an `Error`, not an `Exception`, so the bare assert FAILS if one leaks through — the W6-3 contract). Left as-is + one clarifying comment explaining the bare-ness; NOT tightened (tightening would add no signal — sibling tests already pin wording). **W7-L5** — replaced the two fire-and-forget `.then((x) => flag = x)` sites (`first_run_setup_gate_test`, `wizard_close_and_profile_recovery_test`) with `await` inside an async `onPressed`, removing the latent microtask-drain flake where the flag assertion raced the Navigator-pop Future. `flutter analyze` clean; all touched tests green |
+| ENV follow-up | `40a6e990` | Security follow-up to W7-014: `warn_unset()`/unrecognised `ENVIRONMENT` value returned `Environment::Development` (fail-OPEN for the destructive `/api/dev/reset-database`). Flipped to `Environment::Production` (fail-closed): an unset/misconfigured production deploy now blocks dev endpoints (403) + fires the admin-token/passkey security warnings. Local dev unaffected (`just api-dev-up`/`dev-setup.sh`/`docker-compose.dev.yml` all set `ENVIRONMENT=development` explicitly) |
+| NEW-1 (test) | `71ffe022` | The dart-define guard test's regex required a trailing comma in `String.fromEnvironment('KEY',` so it MISSED the no-default 1-arg form `String.fromEnvironment('IC_AGENT_PROXY_HOST')` at `ic_agent_engine_web_access.dart:52`. The app reads the key correctly; the test gave a false NEW-1 failure. Regex now matches both forms (`(?:,\|))`). The ONLY pre-existing test failure — now green |
+| NEW-1 (dev-web) | `774bd7f5` | Reproducible dev-Web workflow. Plain `flutter build web` compiled in the dead prod default `https://icp-mp.kalaj.org` (530); Web has no `Platform.environment` so the `MARKETPLACE_API_PORT` runtime override is skipped (`kDebugMode && !kIsWeb`). Added justfile targets `web-dev-build` / `web-dev-serve` / `web-dev` (mirror native `flutter-dev-local`) that inject `--dart-define=PUBLIC_API_ENDPOINT=http://127.0.0.1:$PORT`. Rebuilt bundle now contains the local endpoint (2×), not the dead host. Resolves end-to-end: marketplace renders real scripts in the live re-review |
+
+## §6. Verification (2026-07-15)
+
+**Verdict: ✅ APPROVED — confidence 9/10, no regressions, no new product bugs.**
+(Reports: `.tmp/wave7-ux-reverification.md`, `.tmp/wave7-final-verify.md`;
+screenshots/AX dumps: `.tmp/screenshots/wave7-verify/`.)
+
+| Check | Result |
+|-------|--------|
+| `flutter analyze` | **CLEAN** |
+| `flutter test` | **2010 passed / 11 skipped** (+34 integration tests gated on `MARKETPLACE_API_PORT`; 49/49 pass with the env set) |
+| `cargo nextest run -p icp-marketplace-api` | **308 passed / 1 skipped** (pre-existing Argon2 `#[ignore]`) |
+| `cargo clippy --tests -p icp-marketplace-api -- -D warnings` | **CLEAN** |
+
+**Live security re-verification (curl, no mocks):**
+- W7-1 SQLi CLOSED — `?category=zzz' OR 1=1--` → 0 results (was 118 incl private).
+- W7-2 entitlement leak CLOSED — `GET /scripts/interactive-counter?account_id=…` → `bundle:null`.
+
+**Live UX re-review (real Chromium AX tree, no mocks, no WebGL → semantics tree):**
+- W7-8 ✅ Details dialog shows only Details + Reviews (no Versions tab).
+- W7-19 ✅ avatar "WS" (word-based); distinct Copy labels; full principal; wizard "Choose a username".
+- W7-10 ✅ On-chain Polls chrome "Signed as" == body "Signed in" (consistent identity).
+- NEW-1 ✅ marketplace renders 3 real scripts against the local backend.
+- NEW-4 ✅ CLEARED — canister cards = one "Open" + one "Bookmark" node (distinct, not duplicate).
+
+## §7. Follow-ups (surfaced by Wave-7, not blockers — deferred per KISS/YAGNI)
+
+- `ScriptContextMenuSheet` action Column not scrollable (overflow on short screens); action Row clips long labels on <400 px phones.
+- `ScriptEditorState.updateCode` uses `_controller.text=` which mangles non-cursor-aligned text in flutter_code_editor (switch to `fullText` setter).
+- Out-of-scope DRY: Candid heuristics still in `candid_form_model.dart`/`candid_args.dart`/`candid_type_resolver.dart` (classifier ready to receive them).
+- `getScriptVersion` (singular) + `downloadScript`'s `{version}` param now dead (Versions tab removed) — library API, prune later.
+- `_pendingPurchaseAccountIds` Map<String,String> but only keys used now → simplify to Set<String>.
+- Reviews `user_id → accounts(id)` FK not added (signature gate resolves server-side; sqlx FK would break synthetic-user_id service tests).
+- No review-submission UI exists (Reviews tab read-only); `createReview` shipped signed for when UI lands.
+- `generateRecoveryCodes` has no UI caller — wired signed for future setup screen.

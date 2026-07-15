@@ -85,6 +85,14 @@ A dapp that drifts from "real + dual-path + teachable" has drifted from intent.
 - **Greenfield.** No backward compatibility, no legacy, no migration shims — fix
   things properly.
 - **No offline mode / no cached fallbacks.** A failed call fails loudly.
+- **Dev-Web must reach the local backend by default.** A plain
+  `flutter build web` compiles in the production API endpoint (which may be
+  unreachable from the dev sandbox) because Web has no `Platform.environment` to
+  honour `MARKETPLACE_API_PORT` at runtime. The reproducible path is
+  `just web-dev-build` / `just web-dev-serve` (injects
+  `--dart-define=PUBLIC_API_ENDPOINT=http://127.0.0.1:$PORT`). Don't hand-craft
+  the dart-define per session — it drifts. (Wave-7 NEW-1; the dev-Web dead-host
+  stumble silently broke the marketplace for several prior waves.)
 - **Postgres** if a database is ever needed.
 - **Orchestrate subagent swarms** for plan/build/verify; each unit gets its own
   commit with a clean message. (Subagents share one working tree + `.git` +
