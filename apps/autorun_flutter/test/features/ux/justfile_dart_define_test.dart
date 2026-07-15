@@ -33,7 +33,8 @@ void main() {
       // canonical key set is itself asserted by symbol, not by hand-typed
       // duplication.
       final source = appConfig.readAsStringSync();
-      final envKeyPattern = RegExp(r"String\.fromEnvironment\(\s*'([^']+)'\s*,");
+      final envKeyPattern =
+          RegExp(r"String\.fromEnvironment\(\s*'([^']+)'\s*(?:,|\))");
       final keys = envKeyPattern
           .allMatches(source)
           .map((m) => m.group(1)!)
@@ -103,7 +104,7 @@ void main() {
 /// not just `app_config.dart`, keeps this honest as config defines spread
 /// across modules — e.g. `IC_AGENT_PROXY_HOST` in the web-access module.)
 Set<String> _readAppEnvKeys(Directory libDir) {
-  final pattern = RegExp(r"String\.fromEnvironment\(\s*'([^']+)'\s*,");
+  final pattern = RegExp(r"String\.fromEnvironment\(\s*'([^']+)'\s*(?:,|\))");
   final keys = <String>{};
   for (final entity in libDir.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('.dart')) continue;
