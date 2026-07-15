@@ -114,3 +114,11 @@ A dapp that drifts from "real + dual-path + teachable" has drifted from intent.
 - Prefer crisp bullets over prose; link to the source prompt/spec where useful.
 - If reality diverges from this doc, the doc wins as the intent of record — fix
   the code, or explicitly update the doc with the human's call.
+
+### Steering log
+
+- **2026-07-15 — "TUI" = the Flutter desktop (native) app; "Web UI" = Flutter
+  Web.** The repo has no terminal UI. When the human refers to "the TUI" they
+  mean the Linux/native desktop surface (`flutter run -d linux`); the Web UI is
+  `flutter build web`. E2E + UX work targets **both real surfaces**. See
+  `docs/specs/2026-07-15-e2e-harness-and-ux.md`.
