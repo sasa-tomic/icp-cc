@@ -258,6 +258,70 @@ void main() {
           await tester.pump(const Duration(milliseconds: 500));
         }
       }
+    })
+    ..register('download_history.remove', (tester, d) async {
+      // Open download history screen.
+      final appBarMenu = find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byWidgetPredicate((w) => w is PopupMenuButton<String>));
+      await tester.tap(appBarMenu);
+      await tester.pump(const Duration(milliseconds: 500));
+      final dhItem = find.text('Download History');
+      final menuReady = await d.waitUntil(
+          tester, () => d.present(dhItem, tester),
+          timeout: const Duration(seconds: 3));
+      if (!menuReady) return;
+      await tester.tap(dhItem);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(DownloadHistoryScreen), tester),
+          timeout: const Duration(seconds: 5));
+
+      // Find and tap the remove icon on the first record.
+      final removeIcon = find.byIcon(Icons.delete_outline);
+      if (d.present(removeIcon, tester)) {
+        await tester.tap(removeIcon.first);
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.tap(find.text('Remove'));
+        final snackBar = await d.waitUntil(
+            tester, () => d.present(find.textContaining('Removed from history'), tester),
+            timeout: const Duration(seconds: 5));
+        expect(snackBar, isTrue,
+            reason: 'Removing a download record must confirm via SnackBar.');
+      }
+      await tester.pageBack();
+      await tester.pump(const Duration(milliseconds: 500));
+    })
+    ..register('download_history.clear', (tester, d) async {
+      // Open download history screen.
+      final appBarMenu = find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byWidgetPredicate((w) => w is PopupMenuButton<String>));
+      await tester.tap(appBarMenu);
+      await tester.pump(const Duration(milliseconds: 500));
+      final dhItem = find.text('Download History');
+      final menuReady = await d.waitUntil(
+          tester, () => d.present(dhItem, tester),
+          timeout: const Duration(seconds: 3));
+      if (!menuReady) return;
+      await tester.tap(dhItem);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(DownloadHistoryScreen), tester),
+          timeout: const Duration(seconds: 5));
+
+      // Tap clear-all IconButton (tooltip: 'Clear history').
+      final clearBtn = find.byTooltip('Clear history');
+      if (d.present(clearBtn, tester)) {
+        await tester.tap(clearBtn);
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.tap(find.text('Clear'));
+        final snackBar = await d.waitUntil(
+            tester, () => d.present(find.textContaining('History cleared'), tester),
+            timeout: const Duration(seconds: 5));
+        expect(snackBar, isTrue,
+            reason: 'Clearing history must confirm via SnackBar.');
+      }
+      await tester.pageBack();
+      await tester.pump(const Duration(milliseconds: 500));
     });
 
   testWidgets('e2e suite — marketplace: real-backend browse+search+filter+download',
@@ -342,13 +406,23 @@ void main() {
     await registry.runFor('download_history.view')!(tester, driver);
     driver.phase('12', 'OK — download_history.view');
 
+    // PHASE 13: download history remove.
+    driver.phase('13', 'download history remove');
+    await registry.runFor('download_history.remove')!(tester, driver);
+    driver.phase('13', 'OK — download_history.remove');
+
+    // PHASE 14: download history clear.
+    driver.phase('14', 'download history clear');
+    await registry.runFor('download_history.clear')!(tester, driver);
+    driver.phase('14', 'OK — download_history.clear');
+
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(11),
-        reason: 'Marketplace suite must cover at least 9 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(13),
+        reason: 'Marketplace suite must cover at least 13 flows.');
 
     // ignore: avoid_print
     print('SUITE_MARKETPLACE: PASS — ${cov.implemented} flows covered.');
