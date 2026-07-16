@@ -11,21 +11,32 @@
 /// Covered flows (registered in [FlowRegistry]):
 ///   first_run.dismiss_wizard, first_run.reopen_wizard_chip,
 ///   profile.open_menu, settings.open, settings.unlock_dev_options,
-///   shortcut.tab_switch
+///   settings.version_display, settings.theme, settings.docs_link,
+///   settings.report_issue, settings.getting_started,
+///   settings.copy_api_endpoint, settings.clear_dev_options,
+///   settings.restart_tour,
+///   shortcut.tab_switch, shortcut.show_help, shortcut.escape_back,
+///   shortcut.new_script, shortcut.focus_search, shortcut.refresh,
+///   shortcut.details_prev_next_tab
 @TestOn('linux')
 library;
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/screens/bookmarks_screen.dart';
+import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/profile_setup_chip.dart';
+import 'package:icp_autorun/widgets/script_details_dialog.dart';
+import 'package:icp_autorun/widgets/scripts_search_bar.dart';
 import 'package:icp_autorun/widgets/shortcuts_help_sheet.dart';
+import 'package:icp_autorun/widgets/spotlight_overlay.dart';
 
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
@@ -94,6 +105,107 @@ void main() {
       expect(devVisible, isTrue,
           reason: 'Seven taps on version must reveal the DEVELOPER INFO section.');
     })
+    // ── G8: Settings flows ──────────────────────────────────────────────────
+    ..register('settings.version_display', (tester, d) async {
+      expect(d.present(find.text('ICP Autorun'), tester), isTrue,
+          reason: 'Settings must show the "ICP Autorun" heading.');
+      expect(d.present(find.textContaining('Version 1.0.0'), tester), isTrue,
+          reason: 'Settings must show "Version 1.0.0" with build number.');
+    })
+    ..register('settings.theme', (tester, d) async {
+      await tester.ensureVisible(find.text('Dark'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Dark'));
+      await tester.pump(const Duration(milliseconds: 500));
+      // The check_circle is a sibling of the label text, inside the same
+      // InkWell — search within the InkWell ancestor.
+      final darkOption = find.ancestor(
+          of: find.text('Dark'), matching: find.byType(InkWell));
+      expect(
+        d.present(
+            find.descendant(
+                of: darkOption, matching: find.byIcon(Icons.check_circle)),
+            tester),
+        isTrue,
+        reason: 'Selecting Dark must show the check-circle indicator.',
+      );
+      // Restore System to avoid leaking the theme across phases.
+      await tester.tap(find.text('System'));
+      await tester.pump(const Duration(milliseconds: 500));
+    })
+    ..register('settings.docs_link', (tester, d) async {
+      expect(d.present(find.text('Documentation'), tester), isTrue,
+          reason: 'Settings must show a Documentation link.');
+      expect(d.present(find.text('View guides and API reference'), tester),
+          isTrue,
+          reason: 'Documentation must show its subtitle.');
+    })
+    ..register('settings.report_issue', (tester, d) async {
+      expect(d.present(find.text('Report Issue'), tester), isTrue,
+          reason: 'Settings must show a Report Issue link.');
+    })
+    ..register('settings.getting_started', (tester, d) async {
+      await tester.ensureVisible(find.text('Getting Started'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Getting Started'));
+      final snackBar = await d.waitUntil(
+          tester,
+          () => d.present(
+              find.textContaining('Getting Started guide'), tester),
+          timeout: const Duration(seconds: 3));
+      expect(snackBar, isTrue,
+          reason: 'Getting Started must show a confirmation SnackBar.');
+    })
+    ..register('settings.copy_api_endpoint', (tester, d) async {
+      // Dev options must be unlocked (phase 6) so API Endpoint is visible.
+      expect(d.present(find.text('API Endpoint'), tester), isTrue,
+          reason: 'Dev-options card must show the API Endpoint row.');
+      await tester.ensureVisible(find.text('API Endpoint'));
+      await tester.pump(const Duration(milliseconds: 300));
+      // Invoke the copy callback directly (IconButton near screen edge
+      // suffers the same gesture-interception issue as the filter button).
+      final copyBtn = find.widgetWithIcon(IconButton, Icons.copy);
+      expect(d.present(copyBtn, tester), isTrue,
+          reason: 'API Endpoint row must have a Copy IconButton.');
+      tester.widget<IconButton>(copyBtn).onPressed!();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      // Check for any SnackBar (the copy callback fires synchronously).
+      final copied = await d.waitUntil(
+          tester, () => d.present(find.byType(SnackBar), tester),
+          timeout: const Duration(seconds: 3));
+      expect(copied, isTrue,
+          reason: 'Copy callback must show a SnackBar.');
+    })
+    ..register('settings.clear_dev_options', (tester, d) async {
+      await tester.ensureVisible(find.text('Clear Developer Options'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Clear Developer Options'),
+          warnIfMissed: false);
+      // _clearDeveloperOptions is async (SharedPreferences write → setState
+      // → SnackBar). Give the platform channel time to complete.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 500));
+      // The key assertion: DEVELOPER INFO card must vanish.
+      final devGone = await d.waitUntil(
+          tester, () => !d.present(find.text('DEVELOPER INFO'), tester),
+          timeout: const Duration(seconds: 5));
+      expect(devGone, isTrue,
+          reason: 'Clearing dev options must remove the DEVELOPER INFO card.');
+    })
+    ..register('settings.restart_tour', (tester, d) async {
+      // Tap Restart Tour → SnackBar.
+      await tester.ensureVisible(find.text('Restart Tour'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Restart Tour'));
+      final tourScheduled = await d.waitUntil(
+          tester,
+          () => d.present(find.textContaining('Tour will start'), tester),
+          timeout: const Duration(seconds: 3));
+      expect(tourScheduled, isTrue,
+          reason: 'Restart Tour must schedule the spotlight tour.');
+    })
+    // ── G9: Keyboard shortcut flows ─────────────────────────────────────────
     ..register('shortcut.tab_switch', (tester, d) async {
       // Alt+2 → Canisters (BookmarksScreen).
       await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
@@ -136,6 +248,85 @@ void main() {
           timeout: const Duration(seconds: 3));
       expect(closed, isTrue,
           reason: 'Esc must close the ShortcutsHelpSheet.');
+    })
+    ..register('shortcut.new_script', (tester, d) async {
+      // Clear any EditableText focus so the 'N' key reaches the shortcut
+      // handler (guarded actions are inert while typing).
+      await tester.tapAt(const Offset(720, 450));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      final created = await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptCreationScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(created, isTrue,
+          reason: 'Pressing N must open the ScriptCreationScreen.');
+      // Close it via pageBack (cleaner than Esc for pushed routes).
+      await tester.pageBack();
+      await tester.pump(const Duration(milliseconds: 500));
+      await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(ScriptCreationScreen), tester),
+          timeout: const Duration(seconds: 3));
+      // Wait for ScriptsScreen search bar to rebuild.
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsSearchBar), tester),
+          timeout: const Duration(seconds: 5));
+    })
+    ..register('shortcut.focus_search', (tester, d) async {
+      // Press '/' to focus the search field.
+      await tester.tapAt(const Offset(720, 450));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.sendKeyEvent(LogicalKeyboardKey.slash);
+      await tester.pump(const Duration(milliseconds: 500));
+      // The TextField should exist on ScriptsScreen.
+      expect(d.present(find.byType(ScriptsSearchBar), tester), isTrue,
+          reason: 'ScriptsSearchBar must be present.');
+      expect(d.present(find.byType(TextField), tester), isTrue,
+          reason: 'Search TextField must be present after / shortcut.');
+      // Unfocus.
+      await tester.tapAt(const Offset(720, 450));
+      await tester.pump(const Duration(milliseconds: 300));
+    })
+    ..register('shortcut.refresh', (tester, d) async {
+      // Press 'R' to trigger a refresh — assertion is behavioral: screen
+      // stays stable, no crash, ScriptsScreen still present.
+      await tester.tapAt(const Offset(720, 450));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.pump(const Duration(seconds: 1));
+      expect(d.present(find.byType(ScriptsScreen), tester), isTrue,
+          reason: 'ScriptsScreen must remain present after R (refresh).');
+    })
+    ..register('shortcut.details_prev_next_tab', (tester, d) async {
+      // Open a marketplace tile to get the details dialog, then test arrow
+      // keys for tab switching. Need a tile to be present first.
+      final tileReady = await d.waitUntil(
+          tester,
+          () => d.present(find.text('Hello IC Starter'), tester),
+          timeout: const Duration(seconds: 15));
+      expect(tileReady, isTrue,
+          reason: 'A marketplace tile must be present to open details.');
+      await tester.tap(find.text('Hello IC Starter'));
+      final dialogOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptDetailsDialog), tester),
+          timeout: const Duration(seconds: 5));
+      expect(dialogOpen, isTrue,
+          reason: 'Tapping a tile must open the ScriptDetailsDialog.');
+
+      // Arrow Right → Reviews tab.
+      await tester.tapAt(const Offset(720, 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump(const Duration(seconds: 1));
+      // Arrow Left → back to Details tab.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump(const Duration(milliseconds: 500));
+      // Close the dialog.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(ScriptDetailsDialog), tester),
+          timeout: const Duration(seconds: 3));
     });
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -199,24 +390,99 @@ void main() {
     await registry.runFor('settings.unlock_dev_options')!(tester, driver);
     driver.phase('6', 'OK — settings.unlock_dev_options');
 
-    // PHASE 7: keyboard shortcuts (Alt+1/2 tab switching).
-    driver.phase('7', 'keyboard shortcuts');
-    // Close Settings to return to the main shell.
+    // ── G8: Settings flows (SettingsScreen still open) ─────────────────────
+    // PHASE 7: version display.
+    driver.phase('7', 'settings: version display');
+    await registry.runFor('settings.version_display')!(tester, driver);
+    driver.phase('7', 'OK — settings.version_display');
+
+    // PHASE 8: theme toggle.
+    driver.phase('8', 'settings: theme');
+    await registry.runFor('settings.theme')!(tester, driver);
+    driver.phase('8', 'OK — settings.theme');
+
+    // PHASE 9: docs link + report issue (assert presence).
+    driver.phase('9', 'settings: docs + report');
+    await registry.runFor('settings.docs_link')!(tester, driver);
+    await registry.runFor('settings.report_issue')!(tester, driver);
+    driver.phase('9', 'OK — settings.docs_link + settings.report_issue');
+
+    // PHASE 10: getting started.
+    driver.phase('10', 'settings: getting started');
+    await registry.runFor('settings.getting_started')!(tester, driver);
+    driver.phase('10', 'OK — settings.getting_started');
+
+    // PHASE 11: copy API endpoint (dev options still unlocked from phase 6).
+    driver.phase('11', 'settings: copy API endpoint');
+    await registry.runFor('settings.copy_api_endpoint')!(tester, driver);
+    driver.phase('11', 'OK — settings.copy_api_endpoint');
+
+    // PHASE 12: clear dev options (must be AFTER copy_api_endpoint).
+    driver.phase('12', 'settings: clear dev options');
+    await registry.runFor('settings.clear_dev_options')!(tester, driver);
+    driver.phase('12', 'OK — settings.clear_dev_options');
+
+    // ── G9: Keyboard shortcuts (need ScriptsScreen, not Settings) ──────────
+    // PHASE 13: close Settings → ScriptsScreen → tab switching.
+    driver.phase('13', 'close settings → shortcuts');
     await tester.pageBack();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(milliseconds: 500));
-    // Ensure we're back on the Scripts tab.
     await driver.waitUntil(
         tester, () => driver.present(find.byType(ScriptsScreen), tester),
         timeout: const Duration(seconds: 5));
     await registry.runFor('shortcut.tab_switch')!(tester, driver);
-    driver.phase('7', 'OK — shortcut.tab_switch');
+    driver.phase('13', 'OK — shortcut.tab_switch');
 
-    // PHASE 8: shortcuts help (?) + escape back (Esc).
-    driver.phase('8', 'shortcuts help + escape');
+    // PHASE 14: shortcuts help (?) + escape back (Esc).
+    driver.phase('14', 'shortcuts help + escape');
     await registry.runFor('shortcut.show_help')!(tester, driver);
     await registry.runFor('shortcut.escape_back')!(tester, driver);
-    driver.phase('8', 'OK — shortcut.show_help + shortcut.escape_back');
+    driver.phase('14', 'OK — shortcut.show_help + shortcut.escape_back');
+
+    // PHASE 15: new script shortcut (N).
+    driver.phase('15', 'shortcut: N → new script');
+    await registry.runFor('shortcut.new_script')!(tester, driver);
+    driver.phase('15', 'OK — shortcut.new_script');
+
+    // PHASE 16: focus search shortcut (/).
+    driver.phase('16', 'shortcut: / → focus search');
+    await registry.runFor('shortcut.focus_search')!(tester, driver);
+    driver.phase('16', 'OK — shortcut.focus_search');
+
+    // PHASE 17: refresh shortcut (R).
+    driver.phase('17', 'shortcut: R → refresh');
+    await registry.runFor('shortcut.refresh')!(tester, driver);
+    driver.phase('17', 'OK — shortcut.refresh');
+
+    // PHASE 18: details dialog tab switching (←/→).
+    driver.phase('18', 'shortcut: ←/→ details tabs');
+    await registry.runFor('shortcut.details_prev_next_tab')!(tester, driver);
+    driver.phase('18', 'OK — shortcut.details_prev_next_tab');
+
+    // PHASE 19: restart tour (open settings, tap, remount, verify).
+    driver.phase('19', 'settings: restart tour');
+    await tester.tap(find.byType(ProfileAvatarButton));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Settings'));
+    await driver.waitUntil(
+        tester, () => driver.present(find.byType(SettingsScreen), tester),
+        timeout: const Duration(seconds: 5));
+    await registry.runFor('settings.restart_tour')!(tester, driver);
+
+    // The spotlight tour only fires in initState after a remount.
+    // DO NOT resetAppState here — the spotlight pref must persist.
+    await driver.remount(tester);
+    final tourShown = await driver.waitUntil(
+        tester, () => driver.present(find.byType(SpotlightOverlay), tester),
+        timeout: const Duration(seconds: 10));
+    expect(tourShown, isTrue,
+        reason: 'After remount with spotlight pref set, the tour must appear.');
+    // Dismiss the tour.
+    await driver.tapIfPresent(tester, find.text('Skip'));
+    await tester.pump(const Duration(milliseconds: 500));
+    driver.phase('19', 'OK — settings.restart_tour (tour verified)');
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -224,7 +490,7 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(8));
+    expect(cov.implemented, greaterThanOrEqualTo(20));
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered.');

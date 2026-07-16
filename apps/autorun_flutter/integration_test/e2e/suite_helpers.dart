@@ -35,6 +35,7 @@ String _appSupportDir() {
 const String kPrefActiveProfileId = 'active_profile_id';
 const String kPrefFirstRunDismissed = 'first_run_wizard_dismissed';
 const String kPrefDevOptions = 'developer_options_enabled';
+const String kPrefSpotlightStarted = 'spotlight_explicitly_started';
 const String _kDappPrefix = 'dapp.';
 
 /// Wipe all per-flow state so the next phase boots first-run clean.
@@ -89,6 +90,7 @@ Future<void> resetAppState({
     if (key == kPrefActiveProfileId ||
         key == kPrefFirstRunDismissed ||
         key == kPrefDevOptions ||
+        key == kPrefSpotlightStarted ||
         key.startsWith(_kDappPrefix)) {
       await prefs.remove(key);
     }
