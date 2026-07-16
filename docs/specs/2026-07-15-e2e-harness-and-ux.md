@@ -1,6 +1,6 @@
 # 2026-07-15 — Unified E2E Harness (Desktop + Web) + Functional/Visual Sweep
 
-- **Status:** PLANNING → IN PROGRESS
+- **Status:** IN PROGRESS — Phase 1 (harness skeleton) ✅, Phase 2 (flow migration) 58/98 (59%), Phase 3 (issue hunt) ✅, Phase 5 (tech debt) mostly ✅
 - **Surfaces:** (per human steering 2026-07-15) **"TUI" = Flutter Linux desktop (native)**;
   **"Web UI" = Flutter Web**. (No terminal UI exists in this repo.)
 - **Predecessors:** Wave-7 (`2026-07-14-wave7-issue-hunt.md`, COMPLETE). This initiative
@@ -203,3 +203,47 @@ expensive setup. Positive + negative + edge per flow.
 - "Seconds" for web is aspirational (Flutter web cold boot is inherently slower);
   we target seconds for desktop + tagged subsets, and minimal rebuild for web via
   flutter's build cache. Flagged honestly below.
+
+---
+
+## §5. Progress log (updated 2026-07-16)
+
+### Phase 1 — Harness skeleton ✅ COMPLETE
+- `flow_catalog.dart` (98-flow contract), `e2e_driver.dart`, `suite_helpers.dart` shipped.
+- Desktop: 3 PASS targets (keyring-less, mock-keyring, marketplace) under `just e2e-desktop`.
+- `just e2e-fast <file>` for single-suite dev loop (~80-100s).
+- Web Tier 1 smoke (`just e2e-web`) green (~9s, structure-only).
+- Web Tier 2 BLOCKED on Flutter 3.38.3 framework bug (dartdevc exhaustiveness). Release-bundle + Playwright path proven (TD-8).
+
+### Phase 2 — Flow migration: 58/98 (59%)
+| Suite | Flows | Runtime | Backend |
+|-------|-------|---------|---------|
+| Keyring-less | 25 | ~90s | real (:port) |
+| Mock-keyring | 20 | ~100s | real (:port) |
+| Marketplace | 13 | ~85s | real (:port) |
+| **Total** | **58** | **~5min** | |
+
+### Phase 3 — Issue hunt ✅ COMPLETE
+- Planner subagent verified code is **functionally clean**: no silent catches, no dead routes, no missing timeouts, no UI slop.
+- UX structural review (Flutter Web semantics tree via Chrome/Playwright) across 8 screens: **CLEAN** — no layout/overflow/exception issues.
+- **3 real bugs found and FIXED via e2e testing**:
+  1. 🟥 **Backend FK constraint bug** (`db.rs`): `user_vaults`/`recovery_codes` FK referenced `keypair_profiles(principal)` instead of `accounts(id)`. Vault creation was IMPOSSIBLE in production. Fixed (commit aae008ae).
+  2. 🟥 **JSON serialization mismatch** (`account.dart`): 4 request types sent `publicKeyB64`/`newPublicKeyB64`/`signingPublicKeyB64` but backend expects camelCase `publicKey`/`newPublicKey`/`signingPublicKey`. Account operations (register/add-key/remove-key/update) were BROKEN. Fixed (commit aae008ae).
+  3. 🟥 **Timestamp type mismatch** (`passkey_service.dart`): timestamps sent as `String` (`.toString()`) but backend expects `i64`. Vault/passkey/recovery operations were BROKEN. Fixed (commit aae008ae).
+- F1-F8 from seed list: ALL RESOLVED (F1-F5,F7,F8 in prior commit 9b37bb46; F6 environmental).
+
+### Phase 5 — Tech debt ✅ MOSTLY COMPLETE
+- ✅ TD-1: Rust `unwrap_or_default()` → loud warn (commit b12222ee)
+- ✅ TD-2: Stale flow catalog de-staled (commit b52db971)
+- ✅ TD-3: DRY passkey timeout → `AppDurations.networkRequest` (commit cc03536b)
+- ✅ TD-4: DROPPED (false positive — literals inside raw JS string)
+- ✅ TD-6: Low-signal tests tightened (commit 533b30b9)
+- ⬜ TD-5: `account_service.rs` (2007 lines) split — Complex, needs own planner
+- ⬜ TD-7: `just e2e-one <flow-id>` — single-flow dev loop
+- ⬜ TD-8: Web e2e unblock via release-probe + Playwright
+
+### Remaining work
+- **~40 flows** unmigrated (many need dapp runner, deeplink injection, or web e2e)
+- **TD-7/8** for dev-cycle speed + web coverage
+- **Phase 4** (click-reduction UX) not started
+- **Phase 6** (final UX alignment review) pending

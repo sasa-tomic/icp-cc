@@ -10,39 +10,20 @@ in `docs/specs/CLEANUP_PLAN.md`. Architecture reference at the bottom.
 complete (`docs/specs/CLEANUP_PLAN.md` WU-1..WU-10 done; `SCRIPTING_RUNTIME_MIGRATION.md`
 Phase 4 done). There is no active scripting work.
 
-> **E2E harness + functional/visual sweep: COMPLETE (2026-07-15, confidence 9/10).**
-> See `docs/specs/2026-07-15-e2e-harness-and-ux.md`. 12 commits across Phases 1-7 + Phase 2:
-> - **Phase 1** (commits `d1683989`, `08ccc4f2`): Unified e2e harness — 98-flow
->   `FlowCatalog` + `E2EDriver` (boot/remount/reset/screenshot) + desktop fast runner
->   (2 shared boots, `resetAppState` between flows, ~15min→~6min) + web Tier-1 runner
->   (`flutter test -d chrome`, Playwright Chromium). `just e2e` runs both surfaces.
-> - **Phase 2** (`262d3b49`, `d76ea4bf`): Migrated 12 real-app flows into the
->   `FlowRegistry`: keyring-less suite (8: first_run.dismiss_wizard,
->   first_run.reopen_wizard_chip, profile.open_menu, settings.open,
->   settings.unlock_dev_options, shortcut.tab_switch, shortcut.show_help,
->   shortcut.escape_back) + mock-keyring suite (4: first_run.create_profile,
->   profile.open_menu, profile.switch_via_manage_sheet F5-verified, scripts.create).
->   Found + fixed ScriptCreationScreen template card overflow (3-5px at 1440x900).
-> - **Phase 3** (`9b37bb46`): Fixed F1 (`/recovery` route dead — vault unlock →
->   recovery-code entry dialog → reset flow, wired to existing backend), F3 (duplicate
->   "View" no-op → opens editor), F4 (passkey name hardcoded → platform-aware), F5
->   (profile rename/delete missing UI → manage sheet with PopupMenu), F8 (stale
->   TODO.md secp256k1 claim). F2 (vault tile) already fixed. F7 (dual profile paths)
->   fixed in Phase 5c.
-> - **Phase 4** (`98add60a`): Detail dialog "Downloaded ✓" dead button → green **Run**
->   button + **Enter** keyboard shortcut.
-> - **Phase 5** (`79b6646f`, `095dfa5d`): Merged 3 duplicate helper files → 1
->   `ux_probe_helpers.dart` (-531 LOC); deleted 3 stale excluded probes; F7 unified
->   profile creation path (deleted legacy `_CreateProfileDialog`); `dart_test.yaml`
->   web tag.
-> - **Phase 6**: Real-app UX review (desktop boots cleanly, no new issues found);
->   HUMAN_EXPECTATIONS alignment confirmed (timeout discipline excellent, no dead
->   routes/orphaned screens/silent catches/empty handlers).
-> - **Phase 7** (`3ec1fd3c`): Fixed 2 test regressions (dart-define regex + vault
->   happy-path mock). Full suite: 1031 passed / 0 failed / 11 skipped.
-> - **Remaining**: Phase 2 continuation (12/98 e2e flows migrated; 86 remaining are
->   largely covered by 1031 widget tests — vault/dapp/canister/deeplink/passkey
->   flows need complex substrate setup); F6 (dapp vote HTTP 530 — environmental).
+> **E2E harness + functional/visual sweep: IN PROGRESS (2026-07-16, confidence 9/10).**
+> See `docs/specs/2026-07-15-e2e-harness-and-ux.md`. Current session extended to **58/98 flows**:
+> - **3 real bugs found + FIXED via e2e** (all in commit `aae008ae`):
+>   1. Backend FK constraint (`db.rs`): `user_vaults`/`recovery_codes` FK wrong → vault creation impossible in production
+>   2. JSON serialization (`account.dart`): `publicKeyB64`→`publicKey` mismatch → all account ops broken
+>   3. Timestamp type (`passkey_service.dart`): String→int → vault/passkey/recovery ops broken
+> - **Coverage 12→58 flows**: keyring-less 25, mock-keyring 20, marketplace 13 — all against REAL backend.
+> - **Tech debt**: TD-1/2/3/6 done (Rust silent error, stale catalog, DRY timeout, low-signal tests).
+> - **Remaining**: ~40 flows (dapps/deeplink/web-passkey need complex substrate), TD-5 (account_service split), TD-7 (e2e-one), TD-8 (web e2e), Phase 4 (click-reduction UX).
+
+> **Wave-7 + prior e2e work (2026-07-15): COMPLETE.**
+> Phase 1 (harness skeleton), Phase 2 (12 flows migrated), Phase 3 (F1-F8 fixed),
+> Phase 4 (keyboard shortcut UX), Phase 5 (3 helper files merged, F7 unified),
+> Phase 6 (UX review clean), Phase 7 (test regressions fixed). 1031 tests pass.
 
 Genuinely open items are listed below.
 
