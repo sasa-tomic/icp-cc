@@ -354,66 +354,79 @@ void main() {
     // PHASE 2: browse — verify all 3 scripts.
     driver.phase('2', 'browse marketplace');
     await registry.runFor('scripts.browse_marketplace')!(tester, driver);
+    if (shouldStopAfter('scripts.browse_marketplace')) return;
     driver.phase('2', 'OK — scripts.browse_marketplace');
 
     // PHASE 3: search "counter" → 2 results.
     driver.phase('3', 'search "counter"');
     await registry.runFor('scripts.search')!(tester, driver);
+    if (shouldStopAfter('scripts.search')) return;
     driver.phase('3', 'OK — scripts.search');
 
     // PHASE 4: search no results.
     driver.phase('4', 'search no results');
     await registry.runFor('scripts.search_no_results')!(tester, driver);
+    if (shouldStopAfter('scripts.search_no_results')) return;
     driver.phase('4', 'OK — scripts.search_no_results');
 
     // PHASE 5: filter by category.
     driver.phase('5', 'filter category');
     await registry.runFor('scripts.filter_category')!(tester, driver);
+    if (shouldStopAfter('scripts.filter_category')) return;
     driver.phase('5', 'OK — scripts.filter_category');
 
     // PHASE 6: view details.
     driver.phase('6', 'view details');
     await registry.runFor('scripts.view_details')!(tester, driver);
+    if (shouldStopAfter('scripts.view_details')) return;
     driver.phase('6', 'OK — scripts.view_details');
 
     // PHASE 7: download free.
     driver.phase('7', 'download free');
     await registry.runFor('scripts.download_free')!(tester, driver);
+    if (shouldStopAfter('scripts.download_free')) return;
     driver.phase('7', 'OK — scripts.download_free');
 
     // PHASE 8: filter downloaded only.
     driver.phase('8', 'filter downloaded only');
     await registry.runFor('scripts.filter_downloaded_only')!(tester, driver);
+    if (shouldStopAfter('scripts.filter_downloaded_only')) return;
     driver.phase('8', 'OK — scripts.filter_downloaded_only');
 
     // PHASE 9: toggle favorite.
     driver.phase('9', 'toggle favorite');
     await registry.runFor('scripts.toggle_favorite')!(tester, driver);
+    if (shouldStopAfter('scripts.toggle_favorite')) return;
     driver.phase('9', 'OK — scripts.toggle_favorite');
 
     // PHASE 10: filter favorites only.
     driver.phase('10', 'filter favorites only');
     await registry.runFor('scripts.filter_favorites_only')!(tester, driver);
+    if (shouldStopAfter('scripts.filter_favorites_only')) return;
     driver.phase('10', 'OK — scripts.filter_favorites_only');
 
     // PHASE 11: filter sort.
     driver.phase('11', 'filter sort');
     await registry.runFor('scripts.filter_sort')!(tester, driver);
+    if (shouldStopAfter('scripts.filter_sort')) return;
     driver.phase('11', 'OK — scripts.filter_sort');
 
     // PHASE 12: download history view.
     driver.phase('12', 'download history view');
     await registry.runFor('download_history.view')!(tester, driver);
+    if (shouldStopAfter('download_history.view')) return;
     driver.phase('12', 'OK — download_history.view');
 
     // PHASE 13: download history remove.
     driver.phase('13', 'download history remove');
     await registry.runFor('download_history.remove')!(tester, driver);
+    if (shouldStopAfter('download_history.remove')) return;
     driver.phase('13', 'OK — download_history.remove');
 
     // PHASE 14: download history clear.
     driver.phase('14', 'download history clear');
     await registry.runFor('download_history.clear')!(tester, driver);
+    if (shouldStopAfter('download_history.clear')) return;
     driver.phase('14', 'OK — download_history.clear');
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────

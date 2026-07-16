@@ -609,35 +609,41 @@ void main() {
     // ── PHASE 2: profile menu with active profile ──────────────────────────
     driver.phase('2', 'open profile menu with active profile');
     await registry.runFor('profile.open_menu')!(tester, driver);
+    if (shouldStopAfter('profile.open_menu')) return;
     await driver.screenshot(tester, 'mk_02_profile_menu');
     driver.phase('2', 'OK — profile.open_menu');
 
     // ── PHASE 3: manage sheet → rename/delete (F5 fix) ─────────────────────
     driver.phase('3', 'manage sheet → assert Rename/Delete (F5)');
     await registry.runFor('profile.switch_via_manage_sheet')!(tester, driver);
+    if (shouldStopAfter('profile.switch_via_manage_sheet')) return;
     await driver.screenshot(tester, 'mk_03_manage_sheet_rename_delete');
     driver.phase('3', 'OK — profile.switch_via_manage_sheet');
 
     // ── PHASE 4: scripts FAB → ScriptCreationScreen ────────────────────────
     driver.phase('4', 'tap FAB → ScriptCreationScreen');
     await registry.runFor('scripts.create')!(tester, driver);
+    if (shouldStopAfter('scripts.create')) return;
     await driver.screenshot(tester, 'mk_04_script_creation');
     driver.phase('4', 'OK — scripts.create');
 
     // ── PHASE 5: scripts.duplicate ───────────────────────────────────────
     driver.phase('5', 'duplicate created script → verify (Copy)');
     await registry.runFor('scripts.duplicate')!(tester, driver);
+    if (shouldStopAfter('scripts.duplicate')) return;
     await driver.screenshot(tester, 'mk_05_script_duplicated');
     driver.phase('5', 'OK — scripts.duplicate');
 
     // ── PHASE 5b: scripts.edit ───────────────────────────────────────────
     driver.phase('5b', 'edit script → ScriptEditorDialog → Cancel');
     await registry.runFor('scripts.edit')!(tester, driver);
+    if (shouldStopAfter('scripts.edit')) return;
     driver.phase('5b', 'OK — scripts.edit');
 
     // ── PHASE 5c: scripts.copy_source ────────────────────────────────────
     driver.phase('5c', 'copy source → SnackBar');
     await registry.runFor('scripts.copy_source')!(tester, driver);
+    if (shouldStopAfter('scripts.copy_source')) return;
     driver.phase('5c', 'OK — scripts.copy_source');
 
     // Clear stale SnackBars from scripts.create/duplicate/copy so they don't
@@ -652,42 +658,49 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(milliseconds: 500));
     await registry.runFor('profile.open_account_profile')!(tester, driver);
+    if (shouldStopAfter('profile.open_account_profile')) return;
     await driver.screenshot(tester, 'mk_06_account_profile');
     driver.phase('6', 'OK — profile.open_account_profile');
 
     // ── PHASE 8: keypair.generate_local ────────────────────────────────────
     driver.phase('8', 'Add Key → generate local keypair');
     await registry.runFor('keypair.generate_local')!(tester, driver);
+    if (shouldStopAfter('keypair.generate_local')) return;
     await driver.screenshot(tester, 'mk_08_keypair_generated');
     driver.phase('8', 'OK — keypair.generate_local');
 
     // ── PHASE 9: keypair.set_signing ───────────────────────────────────────
     driver.phase('9', 'set non-primary key as signing');
     await registry.runFor('keypair.set_signing')!(tester, driver);
+    if (shouldStopAfter('keypair.set_signing')) return;
     await driver.screenshot(tester, 'mk_09_signing_key');
     driver.phase('9', 'OK — keypair.set_signing');
 
     // ── PHASE 10: keypair.edit_label ───────────────────────────────────────
     driver.phase('10', 'edit key label');
     await registry.runFor('keypair.edit_label')!(tester, driver);
+    if (shouldStopAfter('keypair.edit_label')) return;
     await driver.screenshot(tester, 'mk_10_edit_label');
     driver.phase('10', 'OK — keypair.edit_label');
 
     // ── PHASE 11: keypair.export ───────────────────────────────────────────
     driver.phase('11', 'export keys (encrypted backup)');
     await registry.runFor('keypair.export')!(tester, driver);
+    if (shouldStopAfter('keypair.export')) return;
     await driver.screenshot(tester, 'mk_11_export');
     driver.phase('11', 'OK — keypair.export');
 
     // ── PHASE 12: keypair.import (negative) ────────────────────────────────
     driver.phase('12', 'import keys (negative path — garbage input)');
     await registry.runFor('keypair.import')!(tester, driver);
+    if (shouldStopAfter('keypair.import')) return;
     await driver.screenshot(tester, 'mk_12_import_negative');
     driver.phase('12', 'OK — keypair.import');
 
     // ── PHASE 12b: passkey.unsupported_linux ──────────────────────────────
     driver.phase('12b', 'passkey unsupported hint (Linux desktop)');
     await registry.runFor('passkey.unsupported_linux')!(tester, driver);
+    if (shouldStopAfter('passkey.unsupported_linux')) return;
     driver.phase('12b', 'OK — passkey.unsupported_linux');
 
     // ── PHASE 13: register account against the real backend ───────────────
@@ -696,6 +709,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump(const Duration(milliseconds: 300));
     await registry.runFor('account.register_from_local')!(tester, driver);
+    if (shouldStopAfter('account.register_from_local')) return;
     // Close AccountProfileScreen → root.
     await tester.pageBack();
     await driver.waitUntil(
@@ -715,30 +729,35 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(milliseconds: 500));
     await registry.runFor('vault.route_from_menu')!(tester, driver);
+    if (shouldStopAfter('vault.route_from_menu')) return;
     await driver.screenshot(tester, 'mk_14_vault_route');
     driver.phase('14', 'OK — vault.route_from_menu');
 
     // ── PHASE 15: vault.setup (create vault + capture recovery code) ───────
     driver.phase('15', 'set up vault — encrypt, POST, generate recovery codes');
     await registry.runFor('vault.setup')!(tester, driver);
+    if (shouldStopAfter('vault.setup')) return;
     await driver.screenshot(tester, 'mk_15_vault_setup');
     driver.phase('15', 'OK — vault.setup (recovery code captured)');
 
     // ── PHASE 16: vault.unlock (correct password) ─────────────────────────
     driver.phase('16', 'unlock vault with correct password');
     await registry.runFor('vault.unlock')!(tester, driver);
+    if (shouldStopAfter('vault.unlock')) return;
     await driver.screenshot(tester, 'mk_16_vault_unlocked');
     driver.phase('16', 'OK — vault.unlock');
 
     // ── PHASE 17: vault.unlock_wrong_password ─────────────────────────────
     driver.phase('17', 'unlock with wrong password → loud error');
     await registry.runFor('vault.unlock_wrong_password')!(tester, driver);
+    if (shouldStopAfter('vault.unlock_wrong_password')) return;
     await driver.screenshot(tester, 'mk_17_vault_wrong_pw');
     driver.phase('17', 'OK — vault.unlock_wrong_password');
 
     // ── PHASE 18: vault.use_recovery_code (single-use — must be last) ──────
     driver.phase('18', 'use recovery code → reset screen');
     await registry.runFor('vault.use_recovery_code')!(tester, driver);
+    if (shouldStopAfter('vault.use_recovery_code')) return;
     await driver.screenshot(tester, 'mk_18_vault_recovery_code');
     driver.phase('18', 'OK — vault.use_recovery_code');
 

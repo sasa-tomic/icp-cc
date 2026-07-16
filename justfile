@@ -597,6 +597,51 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
 e2e-marketplace:
     @just e2e-fast integration_test/e2e/suite_marketplace_test.dart
 
+# e2e-one: run a keyring-less or marketplace suite UP TO a specific flow for
+# fast single-flow iteration. The suite boots the real app, runs all setup
+# phases, then stops immediately after the requested flow.
+# Usage: just e2e-one <flow-id> [suite]
+#   suite: keyring-less (default), marketplace, mock-keyring
+# Example: just e2e-one scripts.search marketplace
+#          just e2e-one settings.theme
+#          just e2e-one vault.setup mock-keyring
+e2e-one flow suite="keyring-less":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    [[ -f "$RELEASE_LIB" ]] || { echo "❌ build first: cargo build --release"; exit 1; }
+    export LD_LIBRARY_PATH="{{root}}/target/release"
+
+    case "{{suite}}" in
+        keyring-less)  FILE="suite_keyring_less_test.dart" ;;
+        marketplace)   FILE="suite_marketplace_test.dart" ;;
+        mock-keyring)  FILE="suite_mock_keyring_test.dart" ;;
+        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, marketplace, mock-keyring"; exit 1 ;;
+    esac
+
+    if [[ "{{suite}}" == "mock-keyring" ]]; then
+        export MARKETPLACE_API_PORT=$(just _api-dev-port)
+        export DISPLAY=:99
+        scripts/run-with-mock-keyring.sh --display :99 -- bash -c \
+          'cd "{{flutter_dir}}" && flutter test -d linux \
+          integration_test/e2e/'"$FILE"' \
+          --dart-define=ICP_E2E_STOP_AFTER={{flow}} \
+          --reporter=compact --timeout=300s'
+        exit 0
+    fi
+
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        Xvfb :99 -screen 0 1440x900x24 -ac >/dev/null 2>&1 &
+        for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
+    fi
+    export DISPLAY=:99
+    rm -rf "$HOME/.cache/data/com.example.icp_autorun" 2>/dev/null || true
+    export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    echo "==> e2e-one: {{suite}} stop-after={{flow}} (backend :$MARKETPLACE_API_PORT)"
+    cd "{{flutter_dir}}" && flutter test -d linux "integration_test/e2e/$FILE" \
+      --dart-define=ICP_E2E_STOP_AFTER={{flow}} --reporter=compact --timeout=240s
+
+
 # e2e-web: Tier 1 — REAL app on Web as widget tests via `flutter test -d chrome`
 # (headless, no chromedriver, ~5s warm). The conditional-import split selects
 # native_bridge_web.dart (real pure-Dart Ed25519/secp256k1/Argon2id/AES-GCM),

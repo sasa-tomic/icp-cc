@@ -473,6 +473,7 @@ void main() {
     // PHASE 3: reopen wizard via persistent chip.
     driver.phase('3', 'tap ProfileSetupChip → wizard re-opens');
     await registry.runFor('first_run.reopen_wizard_chip')!(tester, driver);
+    if (shouldStopAfter('first_run.reopen_wizard_chip')) return;
     driver.phase('3', 'OK — first_run.reopen_wizard_chip');
 
     // PHASE 4: dismiss again → ScriptsScreen → open profile menu.
@@ -482,48 +483,58 @@ void main() {
         tester, () => driver.present(find.byType(ScriptsScreen), tester),
         timeout: const Duration(seconds: 5));
     await registry.runFor('profile.open_menu')!(tester, driver);
+    if (shouldStopAfter('profile.open_menu')) return;
     driver.phase('4', 'OK — profile.open_menu');
 
     // PHASE 5: tap Settings tile → SettingsScreen.
     driver.phase('5', 'navigate to Settings');
     await registry.runFor('settings.open')!(tester, driver);
+    if (shouldStopAfter('settings.open')) return;
     driver.phase('5', 'OK — settings.open');
 
     // PHASE 6: unlock dev options (7 taps on version).
     driver.phase('6', 'unlock dev options');
     await registry.runFor('settings.unlock_dev_options')!(tester, driver);
+    if (shouldStopAfter('settings.unlock_dev_options')) return;
     driver.phase('6', 'OK — settings.unlock_dev_options');
 
     // ── G8: Settings flows (SettingsScreen still open) ─────────────────────
     // PHASE 7: version display.
     driver.phase('7', 'settings: version display');
     await registry.runFor('settings.version_display')!(tester, driver);
+    if (shouldStopAfter('settings.version_display')) return;
     driver.phase('7', 'OK — settings.version_display');
 
     // PHASE 8: theme toggle.
     driver.phase('8', 'settings: theme');
     await registry.runFor('settings.theme')!(tester, driver);
+    if (shouldStopAfter('settings.theme')) return;
     driver.phase('8', 'OK — settings.theme');
 
     // PHASE 9: docs link + report issue (assert presence).
     driver.phase('9', 'settings: docs + report');
     await registry.runFor('settings.docs_link')!(tester, driver);
+    if (shouldStopAfter('settings.docs_link')) return;
     await registry.runFor('settings.report_issue')!(tester, driver);
+    if (shouldStopAfter('settings.report_issue')) return;
     driver.phase('9', 'OK — settings.docs_link + settings.report_issue');
 
     // PHASE 10: getting started.
     driver.phase('10', 'settings: getting started');
     await registry.runFor('settings.getting_started')!(tester, driver);
+    if (shouldStopAfter('settings.getting_started')) return;
     driver.phase('10', 'OK — settings.getting_started');
 
     // PHASE 11: copy API endpoint (dev options still unlocked from phase 6).
     driver.phase('11', 'settings: copy API endpoint');
     await registry.runFor('settings.copy_api_endpoint')!(tester, driver);
+    if (shouldStopAfter('settings.copy_api_endpoint')) return;
     driver.phase('11', 'OK — settings.copy_api_endpoint');
 
     // PHASE 12: clear dev options (must be AFTER copy_api_endpoint).
     driver.phase('12', 'settings: clear dev options');
     await registry.runFor('settings.clear_dev_options')!(tester, driver);
+    if (shouldStopAfter('settings.clear_dev_options')) return;
     driver.phase('12', 'OK — settings.clear_dev_options');
 
     // ── G9: Keyboard shortcuts (need ScriptsScreen, not Settings) ──────────
@@ -536,32 +547,39 @@ void main() {
         tester, () => driver.present(find.byType(ScriptsScreen), tester),
         timeout: const Duration(seconds: 5));
     await registry.runFor('shortcut.tab_switch')!(tester, driver);
+    if (shouldStopAfter('shortcut.tab_switch')) return;
     driver.phase('13', 'OK — shortcut.tab_switch');
 
     // PHASE 14: shortcuts help (?) + escape back (Esc).
     driver.phase('14', 'shortcuts help + escape');
     await registry.runFor('shortcut.show_help')!(tester, driver);
+    if (shouldStopAfter('shortcut.show_help')) return;
     await registry.runFor('shortcut.escape_back')!(tester, driver);
+    if (shouldStopAfter('shortcut.escape_back')) return;
     driver.phase('14', 'OK — shortcut.show_help + shortcut.escape_back');
 
     // PHASE 15: new script shortcut (N).
     driver.phase('15', 'shortcut: N → new script');
     await registry.runFor('shortcut.new_script')!(tester, driver);
+    if (shouldStopAfter('shortcut.new_script')) return;
     driver.phase('15', 'OK — shortcut.new_script');
 
     // PHASE 16: focus search shortcut (/).
     driver.phase('16', 'shortcut: / → focus search');
     await registry.runFor('shortcut.focus_search')!(tester, driver);
+    if (shouldStopAfter('shortcut.focus_search')) return;
     driver.phase('16', 'OK — shortcut.focus_search');
 
     // PHASE 17: refresh shortcut (R).
     driver.phase('17', 'shortcut: R → refresh');
     await registry.runFor('shortcut.refresh')!(tester, driver);
+    if (shouldStopAfter('shortcut.refresh')) return;
     driver.phase('17', 'OK — shortcut.refresh');
 
     // PHASE 18: details dialog tab switching (←/→).
     driver.phase('18', 'shortcut: ←/→ details tabs');
     await registry.runFor('shortcut.details_prev_next_tab')!(tester, driver);
+    if (shouldStopAfter('shortcut.details_prev_next_tab')) return;
     driver.phase('18', 'OK — shortcut.details_prev_next_tab');
 
     // PHASE 19: restart tour (open settings, tap, remount, verify).
@@ -574,6 +592,7 @@ void main() {
         tester, () => driver.present(find.byType(SettingsScreen), tester),
         timeout: const Duration(seconds: 5));
     await registry.runFor('settings.restart_tour')!(tester, driver);
+    if (shouldStopAfter('settings.restart_tour')) return;
 
     // The spotlight tour only fires in initState after a remount.
     // DO NOT resetAppState here — the spotlight pref must persist.
@@ -591,26 +610,31 @@ void main() {
     // PHASE 20: canisters — bookmark a well-known canister.
     driver.phase('20', 'canisters: bookmark well-known');
     await registry.runFor('canisters.bookmark_well_known')!(tester, driver);
+    if (shouldStopAfter('canisters.bookmark_well_known')) return;
     driver.phase('20', 'OK — canisters.bookmark_well_known');
 
     // PHASE 21: canisters — save via composer.
     driver.phase('21', 'canisters: save composer');
     await registry.runFor('canisters.save_composer')!(tester, driver);
+    if (shouldStopAfter('canisters.save_composer')) return;
     driver.phase('21', 'OK — canisters.save_composer');
 
     // PHASE 22: dapps — open catalog.
     driver.phase('22', 'dapps: open catalog');
     await registry.runFor('dapps.open_catalog')!(tester, driver);
+    if (shouldStopAfter('dapps.open_catalog')) return;
     driver.phase('22', 'OK — dapps.open_catalog');
 
     // PHASE 23: canisters — recent calls section.
     driver.phase('23', 'canisters: recent calls');
     await registry.runFor('canisters.recent_calls')!(tester, driver);
+    if (shouldStopAfter('canisters.recent_calls')) return;
     driver.phase('23', 'OK — canisters.recent_calls');
 
     // PHASE 24: canisters — tap bookmark (verify saved bookmark persists).
     driver.phase('24', 'canisters: tap bookmark');
     await registry.runFor('canisters.tap_bookmark')!(tester, driver);
+    if (shouldStopAfter('canisters.tap_bookmark')) return;
     driver.phase('24', 'OK — canisters.tap_bookmark');
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────

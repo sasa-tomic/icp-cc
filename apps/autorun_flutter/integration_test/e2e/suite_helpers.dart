@@ -29,6 +29,15 @@ String _appSupportDir() {
   return '$home/.cache/data/com.example.icp_autorun';
 }
 
+/// When non-null (set via `--dart-define=ICP_E2E_STOP_AFTER=<flow-id>`), the
+/// suite stops after running this flow — enabling sub-suite single-flow
+/// iteration via `just e2e-one <flow-id>`.
+const _stopAfter = String.fromEnvironment('ICP_E2E_STOP_AFTER');
+
+/// Whether the suite should stop after this flow (for `just e2e-one`).
+bool shouldStopAfter(String flowId) =>
+    _stopAfter.isNotEmpty && _stopAfter == flowId;
+
 /// SharedPreferences keys that gate flow state. Cleared wholesale by
 /// [resetAppState]. The dapp trust grants use a `dapp.` prefix (see
 /// example_dapps.dart `_trustKey`/`_backendKey`/`_hostKey`).
