@@ -3,10 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '_scripts_test_harness.dart';
 
-/// Active filter-chips behaviour. The previous version of this file was almost
-/// entirely `expect(true, isTrue)` "code-verification" placeholders (zero
-/// signal — they could never fail). Only the single behavioural assertion that
-/// the chips section is absent until a filter is active is retained.
+/// Active filter-chips behaviour: the chips section must be absent until a
+/// filter is active.
 void main() {
   testWidgets('no filter chips shown when no filters are active', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));

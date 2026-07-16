@@ -1124,7 +1124,7 @@ void main() {
 
       expect(
         () => controller.importProfileBackup(backup, 'wrong-password'),
-        throwsA(anything),
+        throwsA(isA<BackupDecryptionException>()),
       );
     });
 

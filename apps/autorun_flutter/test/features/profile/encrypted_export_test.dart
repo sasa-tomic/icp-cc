@@ -101,7 +101,7 @@ void main() {
       );
     });
 
-    test('missing required fields throws FormatException', () async {
+    test('missing required fields throws TypeError', () async {
       final invalidExport = jsonEncode({
         'v': 1,
         'alg': 'aes256-gcm',
@@ -109,7 +109,7 @@ void main() {
 
       await expectLater(
         ProfileKeypair.fromEncryptedExport(invalidExport, 'password'),
-        throwsA(anything),
+        throwsA(isA<TypeError>()),
       );
     });
 

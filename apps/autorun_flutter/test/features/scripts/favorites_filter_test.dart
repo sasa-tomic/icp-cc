@@ -10,13 +10,9 @@ import '_scripts_test_harness.dart';
 
 /// Favorites filter behaviour.
 ///
-/// The previous version of this file was almost entirely
-/// `expect(true, isTrue)` "verified by code inspection" placeholders — nine
-/// tests that could never fail and so masked the missing real coverage (the
-/// sibling `active_filter_chips_test.dart` was already cleaned up from the same
-/// antipattern). These tests drive the real widgets ([FilterBottomSheet]
-/// Favorites chip + [ScriptsEmptyState] favorites variant) and the real
-/// [FavoritesService]; every assertion below can go red on a real regression.
+/// Drives the real widgets ([FilterBottomSheet] Favorites chip +
+/// [ScriptsEmptyState] favorites variant) and the real [FavoritesService];
+/// every assertion below can go red on a real regression.
 void main() {
   group('FilterBottomSheet Favorites chip', () {
     FilterBottomSheet buildSheet({
