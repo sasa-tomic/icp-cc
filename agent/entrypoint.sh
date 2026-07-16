@@ -94,32 +94,60 @@ YAML
 	fi
 fi
 
+# --- opencode: sync host credentials so custom providers authenticate ---
+# opencode reads provider API keys from $XDG_DATA_HOME/opencode/auth.json.
+# Here XDG_DATA_HOME=/home/ubuntu/.cache/data (set for dfx caches), but the
+# host's real auth.json is bind-mounted at ~/.local/share/opencode/auth.json
+# (compose volume). opencode — and omnigent's per-session auth copy (it sources
+# from the same $XDG_DATA_HOME path, opencode_native_bridge.py) — look under
+# .cache/data, find nothing, and CANNOT authenticate custom providers (e.g.
+# zai-coding-plan/glm-5.2). opencode then silently falls back to its built-in
+# default model (glm-5v-turbo). Copy the credentials into the expected location
+# so every opencode session (direct container path AND omnigent sessions) can
+# use the user's own providers/models. Best-effort: skip silently if absent.
+OC_AUTH_SRC="/home/ubuntu/.local/share/opencode/auth.json"
+OC_AUTH_DST="${XDG_DATA_HOME:-/home/ubuntu/.local/share}/opencode/auth.json"
+if [ -f "$OC_AUTH_SRC" ] && [ "$OC_AUTH_SRC" != "$OC_AUTH_DST" ]; then
+	mkdir -p "$(dirname "$OC_AUTH_DST")"
+	cp -f "$OC_AUTH_SRC" "$OC_AUTH_DST" && echo "[opencode] synced provider credentials -> $OC_AUTH_DST"
+fi
+
 # --- opencode: inject model + MCP servers + variant into omnigent sessions ---
-# Omnigent launches each opencode session with a private per-session
-# XDG_CONFIG_HOME and SYNTHESIZES a fresh opencode.json there (model +
-# permission + omnigent's own tool-relay MCP). It deliberately does NOT carry
-# over the host's MCP servers (only provider entries are merged), so none of
-# the user's MCP servers (plasmate/zai-vision/web-*/zread) reach the session.
+# opencode loads config in TWO layers: a GLOBAL one ($XDG_CONFIG_HOME/opencode/
+# opencode.json) and a PROJECT one (the first opencode.json / .opencode found by
+# walking UP from the working directory). Omnigent privatizes the GLOBAL layer
+# only: it sets a per-session XDG_CONFIG_HOME and writes a synthesized config
+# there (model OMITTED, permission:ask, omnigent's own tool-relay MCP, your
+# provider entries merged). The omitted model is why we re-add it here; the
+# synthesized mcp is why only the omnigent relay shows up without our injection.
+# (Credentials must ALSO be synced — see the block above — or opencode can't
+# authenticate the configured provider and falls back to glm-5v-turbo anyway.)
 #
-# opencode, however, MERGES a project opencode.json from the cwd ON TOP of that
-# synthesized config. So we generate /code/icp-cc/.opencode/opencode.json,
-# DERIVED from the host global config (single source of truth — no committed
-# secret), containing model + the host's mcp block + a default model variant.
-# This injects them into EVERY opencode session here, whether launched by
-# `omni opencode`, `omni run`, or the Web UI. .opencode/ is gitignored (see
-# repo .gitignore) so the derived token-bearing file is never committed; it
-# appears on the host working tree via the bind mount and also benefits the
-# host TUI (same config the host already uses).
+# Omnigent does NOT touch the PROJECT layer — opencode always walks the real cwd
+# at startup, so a project config there merges ON TOP of omnigent's synthesized
+# global. We exploit that seam.
 #
-# Disable with OPENCODE_INJECT_PROJECT_CONFIG=0. Override the default variant
-# with OPENCODE_MODEL_VARIANT (default: max).
+# The catch: opencode's cwd is the SESSION'S WORKSPACE, which defaults to
+# /home/ubuntu (the home dir) for Web-UI sessions — NOT the repo at /code/icp-cc
+# (different directory trees). A project config placed only at /code/icp-cc is
+# invisible to a home-cwd session. So we write the derived config to BOTH
+# plausible session cwds: /home/ubuntu (Web-UI default + `omni opencode` from
+# home) and /code/icp-cc/.opencode (`omni opencode` from the repo + host TUI).
+#
+# All derived from the host global config (single source of truth — no committed
+# secret). The repo copy is gitignored (.opencode/ in repo .gitignore); the home
+# copy is container-only (ephemeral, regenerated each start). Disable with
+# OPENCODE_INJECT_PROJECT_CONFIG=0; override the variant with
+# OPENCODE_MODEL_VARIANT (default: max).
 if [ "${OPENCODE_INJECT_PROJECT_CONFIG:-1}" = "1" ]; then
 	GLOBAL_OC="/home/ubuntu/.config/opencode/opencode.json"
-	PROJ_OC_DIR="/code/icp-cc/.opencode"
 	if [ -f "$GLOBAL_OC" ] && command -v python3 >/dev/null 2>&1; then
-		python3 - "$GLOBAL_OC" "$PROJ_OC_DIR" "${OPENCODE_MODEL_VARIANT:-max}" <<'PY' || echo "[opencode] WARNING: project config generation failed" >&2
+		python3 - "$GLOBAL_OC" "${OPENCODE_MODEL_VARIANT:-max}" \
+			/home/ubuntu/opencode.json \
+			/code/icp-cc/.opencode/opencode.json <<'PY' || echo "[opencode] WARNING: project config generation failed" >&2
 import json, os, sys
-src, outdir, variant = sys.argv[1], sys.argv[2], sys.argv[3]
+src, variant = sys.argv[1], sys.argv[2]
+targets = sys.argv[3:]
 try:
     g = json.load(open(src))
 except Exception as e:
@@ -131,12 +159,31 @@ if g.get("model"):
 if g.get("mcp"):
     proj["mcp"] = g["mcp"]
 proj["agent"] = {"build": {"variant": variant}}
-os.makedirs(outdir, exist_ok=True)
-with open(os.path.join(outdir, "opencode.json"), "w") as f:
-    json.dump(proj, f, indent=2)
-print(f"[opencode] injected project config: model={proj.get('model')} variant={variant} mcp={len(proj.get('mcp', {}))} server(s)")
+for t in targets:
+    os.makedirs(os.path.dirname(t) or ".", exist_ok=True)
+    with open(t, "w") as f:
+        json.dump(proj, f, indent=2)
+print(f"[opencode] injected project config: model={proj.get('model')} variant={variant} mcp={len(proj.get('mcp', {}))} server(s) -> {len(targets)} location(s)")
 PY
 	fi
+
+	# Surface host skills/agents/commands that omnigent's privatized XDG hides.
+	# opencode discovers these from a project `.opencode/` (cwd walk), so copying
+	# them into the same two session-cwd dirs as the config makes them visible in
+	# omnigent sessions. (Plain markdown instruction files — no secrets.) Note
+	# ~/.claude/skills/ is a fixed non-XDG path that omnigent does NOT hide, so
+	# skills living only there survive without this. Best-effort: never blocks.
+	for sub in skills agents commands; do
+		src_dir="/home/ubuntu/.config/opencode/$sub"
+		[ -d "$src_dir" ] || continue
+		mkdir -p "/home/ubuntu/.opencode/$sub" "/code/icp-cc/.opencode/$sub"
+		if cp -af "$src_dir/." /home/ubuntu/.opencode/$sub/ 2>/dev/null \
+			&& cp -af "$src_dir/." /code/icp-cc/.opencode/$sub/ 2>/dev/null; then
+			echo "[opencode] injected $sub -> 2 location(s)"
+		else
+			echo "[opencode] WARNING: $sub copy incomplete (non-fatal)" >&2
+		fi
+	done
 fi
 
 # Execute command as the host user (we already are ubuntu)

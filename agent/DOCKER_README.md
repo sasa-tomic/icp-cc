@@ -114,6 +114,42 @@ If the server requires authentication, the background daemon fails loud with an 
 omnigent login --server http://192.168.0.2:6767
 ```
 
+## opencode Config & Credential Injection
+
+When opencode is launched through Omnigent (Web UI / `omni opencode`), Omnigent
+runs it with a private per-session config that hides your global one — so none
+of your host MCP servers reach the session. Separately, provider credentials are
+masked by the container's `home-cache` volume (opencode reads keys from
+`$XDG_DATA_HOME/opencode/auth.json`, which the volume hides), causing opencode to
+silently fall back to its built-in default model `glm-5v-turbo`.
+
+The container's entrypoint fixes both, **derived from your host config at runtime
+(no committed secrets)**:
+
+1. **Credential sync** — copies your host `~/.local/share/opencode/auth.json`
+   into the `$XDG_DATA_HOME` location opencode actually reads, so your own
+   providers/models authenticate (instead of falling back to `glm-5v-turbo`).
+2. **Config injection** — generates `opencode.json` (model + full `mcp` block +
+   `variant`) from your host `~/.config/opencode/opencode.json`, written to both
+   plausible session working dirs (`/home/ubuntu` and the repo), so opencode
+   merges it on top of Omnigent's synthesized config.
+3. **Skills / agents / commands injection** — copies your host
+   `~/.config/opencode/{skills,agents,commands}` into the same `.opencode/` dirs,
+   since Omnigent's privatized config hides those too. (Skills under
+   `~/.claude/skills/` already survive — a fixed path Omnigent doesn't hide.)
+   **Plugins are not injected**: Omnigent replaces your plugin with its own policy
+   bridge regardless, a known limitation.
+
+Knobs (set in `docker-compose.yml` or override at `docker compose run`):
+
+- `OPENCODE_INJECT_PROJECT_CONFIG=1` — set `0` to skip config injection.
+- `OPENCODE_MODEL_VARIANT=max` — default model variant for the `build` agent.
+
+The repo copy (`.opencode/opencode.json`) is gitignored; it appears on the host
+working tree via the bind mount and also benefits the host TUI. The home copy is
+container-only (ephemeral, regenerated each start). See
+[`REUSE_GUIDE.md`](REUSE_GUIDE.md) for the full mechanism.
+
 ## What's Included in the Container
 
 ### Development Tools
