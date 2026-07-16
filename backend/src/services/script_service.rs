@@ -35,9 +35,12 @@ impl ScriptService {
         let version = req.version.as_deref().unwrap_or("1.0.0");
         let price = req.price.unwrap_or(0.0);
         let is_public = resolve_script_visibility(req.is_public);
-        let tags_json = req
-            .tags
-            .map(|tags| serde_json::to_string(&tags).unwrap_or_default());
+        let tags_json = req.tags.map(|tags| {
+            serde_json::to_string(&tags).unwrap_or_else(|e| {
+                tracing::warn!("Failed to serialize script tags: {e}");
+                "[]".to_owned()
+            })
+        });
 
         // Determine owner account ID from authenticated public key
         let owner_account_id = if let Some(ref public_key) = req.author_public_key {
@@ -109,9 +112,12 @@ impl ScriptService {
         req: UpdateScriptRequest,
     ) -> Result<Script, sqlx::Error> {
         let now = Utc::now().to_rfc3339();
-        let tags_json = req
-            .tags
-            .map(|tags| serde_json::to_string(&tags).unwrap_or_default());
+        let tags_json = req.tags.map(|tags| {
+            serde_json::to_string(&tags).unwrap_or_else(|e| {
+                tracing::warn!("Failed to serialize script tags: {e}");
+                "[]".to_owned()
+            })
+        });
 
         self.repo
             .update(
