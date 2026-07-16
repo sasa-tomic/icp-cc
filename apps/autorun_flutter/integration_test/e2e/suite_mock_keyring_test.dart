@@ -13,22 +13,31 @@
 ///   first_run.create_profile, profile.open_menu, profile.switch_via_manage_sheet,
 ///   scripts.create,
 ///   profile.open_account_profile, keypair.generate_local, keypair.set_signing,
-///   keypair.edit_label, keypair.export, keypair.import
+///   keypair.edit_label, keypair.export, keypair.import,
+///   account.register_from_local,
+///   vault.route_from_menu, vault.setup, vault.unlock,
+///   vault.unlock_wrong_password, vault.use_recovery_code
 @TestOn('linux')
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
+import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/account_profile_screen.dart';
 import 'package:icp_autorun/screens/export_keys_dialog.dart';
 import 'package:icp_autorun/screens/import_keys_dialog.dart';
+import 'package:icp_autorun/screens/recovery_codes_screen.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
+import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
+import 'package:icp_autorun/screens/vault_unlock_screen.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 
@@ -45,6 +54,10 @@ void main() {
 
   // Profile name used across phases — asserted in the menu header.
   const testProfileName = 'Phase One Owner';
+
+  // Captured across phases (closures share these by reference).
+  const vaultPassword = 'E2eVault!Pass1';
+  String? capturedRecoveryCode;
 
   final registry = FlowRegistry()
     ..register('first_run.create_profile', (tester, d) async {
@@ -289,6 +302,187 @@ void main() {
       expect(errorShown, isTrue,
           reason: 'Garbage import must surface an error SnackBar (not silently '
               'succeed, not crash).');
+    })
+    ..register('account.register_from_local', (tester, d) async {
+      // AccountProfileScreen is open. Access the real controllers from the
+      // widget (same MarketplaceOpenApiService singleton as the app).
+      final screen = tester.widget<AccountProfileScreen>(
+          find.byType(AccountProfileScreen));
+      final profileController = screen.profileController;
+      final profile = profileController.activeProfile!;
+      final keypair = profile.primaryKeypair;
+
+      // Generate a unique username (backend rejects duplicates).
+      final username = 'e2e_${DateTime.now().millisecondsSinceEpoch}';
+
+      final accountController =
+          AccountController(profileController: profileController);
+      Account? account;
+      await tester.runAsync(() async {
+        account = await accountController.registerAccount(
+          keypair: keypair,
+          username: username,
+          displayName: testProfileName,
+        );
+        await profileController.updateProfileUsername(
+          profileId: profile.id,
+          username: username,
+        );
+      });
+      accountController.dispose();
+
+      expect(account, isNotNull,
+          reason: 'Account registration must succeed against the real backend '
+              '(signed request via FFI Ed25519).');
+      expect(account!.username, username);
+    })
+    ..register('vault.route_from_menu', (tester, d) async {
+      // Profile menu must be open with the registered account loaded.
+      // The vault tile appears only when profile.username != null.
+      final vaultTileFound = await d.waitUntil(
+          tester, () => d.present(find.text('Vault'), tester),
+          timeout: const Duration(seconds: 10));
+      expect(vaultTileFound, isTrue,
+          reason: 'Vault tile must appear in the profile menu for a registered '
+              'account.');
+      await tester.tap(find.text('Vault'));
+      // The probe runs async (GET /vault signed request). On a fresh account,
+      // no vault exists → VaultPasswordSetupScreen.
+      final setupPushed = await d.waitUntil(
+          tester,
+          () => d.present(find.byType(VaultPasswordSetupScreen), tester),
+          timeout: const Duration(seconds: 15));
+      expect(setupPushed, isTrue,
+          reason: 'Tapping Vault on a fresh account must push '
+              'VaultPasswordSetupScreen.');
+    })
+    ..register('vault.setup', (tester, d) async {
+      // VaultPasswordSetupScreen is open. Enter a strong password.
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), vaultPassword);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.enterText(fields.at(1), vaultPassword);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // Scroll the Create Vault button into view and tap it.
+      await tester.ensureVisible(find.text('Create Vault'));
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.byType(ElevatedButton));
+
+      // _createVault runs FFI encrypt (Argon2id on isolate) + POST, then
+      // pushes RecoveryCodesScreen. Give it generous time.
+      final recoveryShown = await d.waitUntil(
+          tester,
+          () => d.present(find.byType(RecoveryCodesScreen), tester),
+          timeout: const Duration(seconds: 30));
+      expect(recoveryShown, isTrue,
+          reason: 'Creating a vault must generate recovery codes and push '
+              'RecoveryCodesScreen.');
+
+      // Capture a recovery code for vault.use_recovery_code (single-use —
+      // must run LAST among vault flows).
+      final rcs = tester.widget<RecoveryCodesScreen>(
+          find.byType(RecoveryCodesScreen));
+      expect(rcs.codes.isNotEmpty, isTrue,
+          reason: 'Recovery codes must be generated.');
+      capturedRecoveryCode = rcs.codes.first;
+
+      // Confirm checkbox + Continue.
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Continue'));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // RecoveryCodesScreen pops, then VaultPasswordSetupScreen pops (true)
+      // → back at root.
+      await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(RecoveryCodesScreen), tester),
+          timeout: const Duration(seconds: 5));
+      await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(VaultPasswordSetupScreen), tester),
+          timeout: const Duration(seconds: 5));
+    })
+    ..register('vault.unlock', (tester, d) async {
+      // At root (ScriptsScreen). Open profile menu → tap Vault → probe finds
+      // the vault → VaultUnlockScreen.
+      await tester.tap(find.byType(ProfileAvatarButton));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Vault'));
+      final unlockPushed = await d.waitUntil(
+          tester,
+          () => d.present(find.byType(VaultUnlockScreen), tester),
+          timeout: const Duration(seconds: 15));
+      expect(unlockPushed, isTrue,
+          reason: 'Tapping Vault with an existing vault must push '
+              'VaultUnlockScreen.');
+
+      // Enter the correct password → decrypt (Argon2id on isolate).
+      await tester.enterText(find.byType(TextFormField), vaultPassword);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Unlock'));
+      // Successful decrypt pops the screen → back at root.
+      final unlocked = await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(VaultUnlockScreen), tester),
+          timeout: const Duration(seconds: 15));
+      expect(unlocked, isTrue,
+          reason: 'Unlocking with the correct password must succeed (real '
+              'FFI Argon2id decrypt) and pop back to root.');
+    })
+    ..register('vault.unlock_wrong_password', (tester, d) async {
+      // At root. Re-open vault → VaultUnlockScreen.
+      await tester.tap(find.byType(ProfileAvatarButton));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Vault'));
+      await d.waitUntil(
+          tester,
+          () => d.present(find.byType(VaultUnlockScreen), tester),
+          timeout: const Duration(seconds: 15));
+
+      // Enter a wrong password.
+      await tester.enterText(find.byType(TextFormField), 'WrongPassword!1');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Unlock'));
+      final errorShown = await d.waitUntil(
+          tester,
+          () => d.present(find.textContaining('Incorrect password'), tester),
+          timeout: const Duration(seconds: 15));
+      expect(errorShown, isTrue,
+          reason: 'Wrong password must surface "Incorrect password" error '
+              '(AES-256-GCM auth-tag failure), not silently succeed.');
+      // Screen stays mounted (no pop) — ready for vault.use_recovery_code.
+    })
+    ..register('vault.use_recovery_code', (tester, d) async {
+      // VaultUnlockScreen is open (from wrong-password phase). Tap the
+      // recovery-code link.
+      await tester.tap(find.text('Forgot password? Use recovery code'));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // Recovery-code dialog appears.
+      expect(d.present(find.text('Use Recovery Code'), tester), isTrue,
+          reason: 'Tapping the recovery link must open the recovery-code '
+              'dialog.');
+
+      // Enter the captured recovery code (scope to dialog — VaultUnlockScreen
+      // also has a TextField via its TextFormField password field).
+      await tester.enterText(
+          find.descendant(
+              of: find.byType(AlertDialog),
+              matching: find.byType(TextField)),
+          capturedRecoveryCode ?? '');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Verify'));
+
+      // A valid code pushes VaultPasswordSetupScreen(isReset: true).
+      final resetPushed = await d.waitUntil(
+          tester,
+          () => d.present(find.text('Reset Vault Password'), tester),
+          timeout: const Duration(seconds: 15));
+      expect(resetPushed, isTrue,
+          reason: 'A valid recovery code must verify (backend round-trip) and '
+              'push the reset-password screen.');
     });
 
   testWidgets('e2e suite — mock keyring: profile + keypair flows + isolation',
@@ -395,25 +589,77 @@ void main() {
     await driver.screenshot(tester, 'mk_10_import_negative');
     driver.phase('10', 'OK — keypair.import');
 
-    // ── PHASE 11: resetAppState → wizard returns (isolation) ───────────────
+    // ── PHASE 11: register account against the real backend ───────────────
+    driver.phase('11', 'register account (real backend, signed request)');
+    // Close the ImportKeysDialog from phase 10.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(milliseconds: 300));
+    await registry.runFor('account.register_from_local')!(tester, driver);
+    // Close AccountProfileScreen → root.
+    await tester.pageBack();
+    await driver.waitUntil(
+        tester, () => driver.present(find.byType(ScriptsScreen), tester),
+        timeout: const Duration(seconds: 5));
+    // Remount so the profile menu picks up the new username.
+    await driver.remount(tester);
+    await driver.waitUntil(
+        tester, () => driver.present(find.byType(ScriptsScreen), tester),
+        timeout: const Duration(seconds: 15));
+    await driver.screenshot(tester, 'mk_11_account_registered');
+    driver.phase('11', 'OK — account.register_from_local');
+
+    // ── PHASE 12: vault.route_from_menu ───────────────────────────────────
+    driver.phase('12', 'open vault from profile menu');
+    await tester.tap(find.byType(ProfileAvatarButton));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 500));
+    await registry.runFor('vault.route_from_menu')!(tester, driver);
+    await driver.screenshot(tester, 'mk_12_vault_route');
+    driver.phase('12', 'OK — vault.route_from_menu');
+
+    // ── PHASE 13: vault.setup (create vault + capture recovery code) ───────
+    driver.phase('13', 'set up vault — encrypt, POST, generate recovery codes');
+    await registry.runFor('vault.setup')!(tester, driver);
+    await driver.screenshot(tester, 'mk_13_vault_setup');
+    driver.phase('13', 'OK — vault.setup (recovery code captured)');
+
+    // ── PHASE 14: vault.unlock (correct password) ─────────────────────────
+    driver.phase('14', 'unlock vault with correct password');
+    await registry.runFor('vault.unlock')!(tester, driver);
+    await driver.screenshot(tester, 'mk_14_vault_unlocked');
+    driver.phase('14', 'OK — vault.unlock');
+
+    // ── PHASE 15: vault.unlock_wrong_password ─────────────────────────────
+    driver.phase('15', 'unlock with wrong password → loud error');
+    await registry.runFor('vault.unlock_wrong_password')!(tester, driver);
+    await driver.screenshot(tester, 'mk_15_vault_wrong_pw');
+    driver.phase('15', 'OK — vault.unlock_wrong_password');
+
+    // ── PHASE 16: vault.use_recovery_code (single-use — must be last) ──────
+    driver.phase('16', 'use recovery code → reset screen');
+    await registry.runFor('vault.use_recovery_code')!(tester, driver);
+    await driver.screenshot(tester, 'mk_16_vault_recovery_code');
+    driver.phase('16', 'OK — vault.use_recovery_code');
+
+    // ── PHASE 17: resetAppState → wizard returns (isolation) ──────────────
     await resetAppState(tester: tester);
     await driver.remount(tester);
-    driver.phase('11', 'remount after wipe — asserting wizard re-fires');
+    driver.phase('17', 'remount after wipe — asserting wizard re-fires');
     final wizardAfterWipe = await driver.waitUntil(
         tester, () => driver.present(find.byType(UnifiedSetupWizard), tester),
         timeout: const Duration(seconds: 20));
     expect(wizardAfterWipe, isTrue,
         reason: 'After resetAppState the profile + dismissal pref are gone, so '
             'the wizard must show again.');
-    await driver.screenshot(tester, 'mk_11_isolation_wizard_refires');
-    driver.phase('11', 'OK');
+    await driver.screenshot(tester, 'mk_17_isolation_wizard_refires');
+    driver.phase('17', 'OK');
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(10));
+    expect(cov.implemented, greaterThanOrEqualTo(16));
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING: PASS — ${cov.implemented} flows covered.');

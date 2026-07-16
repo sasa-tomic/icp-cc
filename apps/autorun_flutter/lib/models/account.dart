@@ -288,7 +288,7 @@ class RegisterAccountRequest {
       if (contactDiscord != null) 'contactDiscord': contactDiscord,
       if (websiteUrl != null) 'websiteUrl': websiteUrl,
       if (bio != null) 'bio': bio,
-      'publicKeyB64': publicKeyB64,
+      'publicKey': publicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -297,12 +297,12 @@ class RegisterAccountRequest {
 
   /// Create canonical JSON for signing (alphabetically ordered fields)
   ///
-  /// Example: {"action":"register_account","nonce":"...","publicKeyB64":"...","timestamp":1700000000,"username":"alice"}
+  /// Example: {"action":"register_account","nonce":"...","publicKey":"...","timestamp":1700000000,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
     return <String, dynamic>{
       'action': 'register_account',
       'nonce': nonce,
-      'publicKeyB64': publicKeyB64,
+      'publicKey': publicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };
@@ -341,13 +341,13 @@ class AddPublicKeyRequest {
 
   /// Wire-format base64 of the public key being added (derived from
   /// [newKeypair]). Kept as a getter so serialization matches the backend's
-  /// `newPublicKeyB64` field name exactly.
+  /// `newPublicKey` field name exactly.
   String get newPublicKeyB64 => newKeypair.publicKey;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
-      'newPublicKeyB64': newPublicKeyB64,
-      'signingPublicKeyB64': signingPublicKeyB64,
+      'newPublicKey': newPublicKeyB64,
+      'signingPublicKey': signingPublicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -358,9 +358,9 @@ class AddPublicKeyRequest {
   Map<String, dynamic> toCanonicalPayload() {
     final payload = <String, dynamic>{
       'action': 'add_key',
-      'newPublicKeyB64': newPublicKeyB64,
+      'newPublicKey': newPublicKeyB64,
       'nonce': nonce,
-      'signingPublicKeyB64': signingPublicKeyB64,
+      'signingPublicKey': signingPublicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };
@@ -388,7 +388,7 @@ class RemovePublicKeyRequest {
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
-      'signingPublicKeyB64': signingPublicKeyB64,
+      'signingPublicKey': signingPublicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -397,13 +397,13 @@ class RemovePublicKeyRequest {
 
   /// Create canonical JSON for signing
   ///
-  /// Example: {"action":"remove_key","keyId":"...","nonce":"...","signingPublicKeyB64":"...","timestamp":1700000200,"username":"alice"}
+  /// Example: {"action":"remove_key","keyId":"...","nonce":"...","signingPublicKey":"...","timestamp":1700000200,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
     return <String, dynamic>{
       'action': 'remove_key',
       'keyId': keyId,
       'nonce': nonce,
-      'signingPublicKeyB64': signingPublicKeyB64,
+      'signingPublicKey': signingPublicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };
@@ -449,7 +449,7 @@ class UpdateAccountRequest {
       if (contactDiscord != null) 'contactDiscord': contactDiscord,
       if (websiteUrl != null) 'websiteUrl': websiteUrl,
       if (bio != null) 'bio': bio,
-      'signingPublicKeyB64': signingPublicKeyB64,
+      'signingPublicKey': signingPublicKeyB64,
       'timestamp': timestamp,
       'nonce': nonce,
       'signature': signature,
@@ -458,12 +458,12 @@ class UpdateAccountRequest {
 
   /// Create canonical JSON for signing (only includes fields being updated)
   ///
-  /// Example: {"action":"update_profile","bio":"New bio","displayName":"New Name","nonce":"...","signingPublicKeyB64":"...","timestamp":1700000300,"username":"alice"}
+  /// Example: {"action":"update_profile","bio":"New bio","displayName":"New Name","nonce":"...","signingPublicKey":"...","timestamp":1700000300,"username":"alice"}
   Map<String, dynamic> toCanonicalPayload() {
     final Map<String, dynamic> payload = <String, dynamic>{
       'action': 'update_profile',
       'nonce': nonce,
-      'signingPublicKeyB64': signingPublicKeyB64,
+      'signingPublicKey': signingPublicKeyB64,
       'timestamp': timestamp,
       'username': username,
     };

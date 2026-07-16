@@ -420,15 +420,32 @@ pub async fn initialize_database(pool: &SqlitePool) {
     rename_legacy_user_principal_column(pool, "recovery_codes").await;
     rename_legacy_user_principal_column(pool, "user_vaults").await;
 
+    // Fix FK targets: pre-A-4 dev DBs created `recovery_codes` and
+    // `user_vaults` with `FOREIGN KEY … REFERENCES keypair_profiles(principal)`,
+    // but the signature gate resolves `account_id` as an `accounts.id` UUID.
+    // SQLite cannot ALTER FK constraints, so we drop+recreate. No data loss is
+    // possible: the broken FK meant no vault/recovery row was ever insertable.
+    sqlx::query("DROP TABLE IF EXISTS user_vaults")
+        .execute(pool)
+        .await
+        .expect("Failed to drop legacy user_vaults table");
+    sqlx::query("DROP TABLE IF EXISTS recovery_codes")
+        .execute(pool)
+        .await
+        .expect("Failed to drop legacy recovery_codes table");
+
     // Recovery codes table for vault password recovery.
     //
-    // The owning account identifier is `account_id` (a keypair principal — see
-    // the FK target). A previous scaffold of this table used the column name
-    // `user_principal`; every query in `passkey_repository.rs` already used
-    // `account_id`, so the prior DDL was unconditionally broken at runtime
-    // (`no such column: account_id`). The schema is corrected here, and the
+    // `account_id` is the accounts-table UUID resolved server-side by the
+    // signature gate (from `account_public_keys.account_id`). A previous
+    // scaffold used `keypair_profiles(principal)` as the FK target — that was
+    // wrong: the resolved value is an accounts.id UUID, not a principal string.
+    // The FK now correctly references `accounts(id)`.
+    //
+    // A previous scaffold of this table used the column name `user_principal`;
+    // every query in `passkey_repository.rs` already used `account_id`. The
     // `rename_legacy_user_principal_column` migration above upgrades any
-    // pre-existing dev DB in place (respects "never delete tables").
+    // pre-existing dev DB in place.
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS recovery_codes (
@@ -438,7 +455,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             used INTEGER NOT NULL DEFAULT 0,
             used_at TEXT,
             created_at TEXT NOT NULL,
-            FOREIGN KEY (account_id) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
         )
         "#,
     )
@@ -458,8 +475,9 @@ pub async fn initialize_database(pool: &SqlitePool) {
     // As of A-4 W4 the backend performs NO vault cryptography: the client
     // derives the Argon2id key + AES-256-GCM ciphertext locally and POSTs the
     // resulting opaque blob (ciphertext + salt + nonce); the server stores and
-    // returns those bytes verbatim. `account_id` is the keypair principal that
-    // owns the vault.
+    // returns those bytes verbatim. `account_id` is the accounts-table UUID
+    // resolved server-side by the signature gate (from
+    // `account_public_keys.account_id` → `accounts.id`), NOT a principal.
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS user_vaults (
@@ -470,7 +488,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             nonce BLOB NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY (account_id) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
         )
         "#,
     )

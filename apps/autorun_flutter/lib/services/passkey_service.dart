@@ -115,7 +115,7 @@ class PasskeyService {
       'signature': startAuth.signature,
       'author_public_key': startAuth.authorPublicKey,
       'author_principal': startAuth.authorPrincipal,
-      'timestamp': startAuth.timestamp.toString(),
+      'timestamp': startAuth.timestamp,
       'nonce': startAuth.nonce,
     });
     final options = startResponse['data'];
@@ -184,7 +184,7 @@ class PasskeyService {
       'signature': auth.signature,
       'author_public_key': auth.authorPublicKey,
       'author_principal': auth.authorPrincipal,
-      'timestamp': auth.timestamp.toString(),
+      'timestamp': auth.timestamp,
       'nonce': auth.nonce,
     });
   }
@@ -206,7 +206,7 @@ class PasskeyService {
       'signature': auth.signature,
       'author_public_key': auth.authorPublicKey,
       'author_principal': auth.authorPrincipal,
-      'timestamp': auth.timestamp.toString(),
+      'timestamp': auth.timestamp,
       'nonce': auth.nonce,
     });
     return RecoveryCodesResult.fromJson(response['data']);
@@ -310,15 +310,15 @@ class PasskeyService {
   /// Builds the opaque-blob request body for createVault/updateVault (auth
   /// fields + the opaque blob). Defined ONCE so the wire shape drifts in one
   /// place.
-  static Map<String, String> _vaultRequestBody(
+  static Map<String, dynamic> _vaultRequestBody(
     _SignedAccountFields auth,
     EncryptedVaultResult blob,
   ) {
-    return <String, String>{
+    return <String, dynamic>{
       'signature': auth.signature,
       'author_public_key': auth.authorPublicKey,
       'author_principal': auth.authorPrincipal,
-      'timestamp': auth.timestamp.toString(),
+      'timestamp': auth.timestamp,
       'nonce': auth.nonce,
       kVaultFieldEncryptedData: blob.encryptedDataB64,
       kVaultFieldSalt: blob.saltB64,
@@ -326,12 +326,12 @@ class PasskeyService {
     };
   }
 
-  static Map<String, String> _vaultGetRequestBody(_SignedAccountFields auth) {
-    return <String, String>{
+  static Map<String, dynamic> _vaultGetRequestBody(_SignedAccountFields auth) {
+    return <String, dynamic>{
       'signature': auth.signature,
       'author_public_key': auth.authorPublicKey,
       'author_principal': auth.authorPrincipal,
-      'timestamp': auth.timestamp.toString(),
+      'timestamp': auth.timestamp,
       'nonce': auth.nonce,
     };
   }
