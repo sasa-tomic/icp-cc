@@ -10,6 +10,7 @@ import '../models/profile_keypair.dart';
 import '../utils/passkey_platform.dart';
 import '../utils/principal.dart';
 import '../rust/native_bridge.dart';
+import '../theme/app_design_system.dart';
 
 // ─── A-4 vault wire-contract field names (single-source-of-truth) ───────────
 // These are the JSON keys for /api/v1/vault, byte-identical to the W4 backend
@@ -40,7 +41,7 @@ class PasskeyService {
   PasskeyService._internal() : _httpClient = http.Client();
 
   String get _baseUrl => ApiRoutes.base;
-  final Duration _timeout = const Duration(seconds: 30);
+  static final Duration _timeout = AppDurations.networkRequest;
   http.Client _httpClient;
   final NativePasskeyAuthenticator _authenticator =
       NativePasskeyAuthenticator();
