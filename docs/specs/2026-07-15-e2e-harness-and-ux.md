@@ -238,12 +238,12 @@ expensive setup. Positive + negative + edge per flow.
 - ✅ TD-3: DRY passkey timeout → `AppDurations.networkRequest` (commit cc03536b)
 - ✅ TD-4: DROPPED (false positive — literals inside raw JS string)
 - ✅ TD-6: Low-signal tests tightened (commit 533b30b9)
+- ✅ TD-7: `just e2e-one <flow-id>` — single-flow dev loop (commit 589412c2)
 - ⬜ TD-5: `account_service.rs` (2007 lines) split — Complex, needs own planner
-- ⬜ TD-7: `just e2e-one <flow-id>` — single-flow dev loop
 - ⬜ TD-8: Web e2e unblock via release-probe + Playwright
 
 ### Remaining work
 - **~40 flows** unmigrated (many need dapp runner, deeplink injection, or web e2e)
-- **TD-7/8** for dev-cycle speed + web coverage
+- **TD-8** for web coverage
 - **Phase 4** (click-reduction UX) not started
 - **Phase 6** (final UX alignment review) pending
