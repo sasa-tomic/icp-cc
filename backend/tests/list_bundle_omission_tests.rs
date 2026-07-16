@@ -77,9 +77,8 @@ async fn build_state() -> Arc<AppState> {
     insert_script(&pool, "free-1", 0.0, 4.8, 100, "print('free source')").await;
     insert_script(&pool, "paid-1", 9.99, 4.7, 50, "print('paid source')").await;
 
-    let passkey_service =
-        PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
-            .expect("Failed to create PasskeyService");
+    let passkey_service = PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
+        .expect("Failed to create PasskeyService");
 
     Arc::new(AppState {
         account_service: AccountService::new(pool.clone()),
@@ -136,9 +135,7 @@ fn script_items(body: &serde_json::Value) -> Vec<&serde_json::Value> {
 /// Asserts every item in a browse list omits `bundle` but keeps metadata.
 fn assert_no_bundle_anywhere(items: &[&serde_json::Value]) {
     for item in items {
-        let obj = item
-            .as_object()
-            .expect("each list item is a JSON object");
+        let obj = item.as_object().expect("each list item is a JSON object");
         assert!(
             !obj.contains_key("bundle"),
             "LIST endpoint must NOT ship the full `bundle` (IH-5); got keys: {:?}",
@@ -195,10 +192,7 @@ async fn get_compatible_omits_bundle() {
 #[tokio::test]
 async fn get_scripts_by_category_omits_bundle() {
     let client = TestClient::new(build_app(build_state().await));
-    let resp = client
-        .get("/api/v1/scripts/category/utility")
-        .send()
-        .await;
+    let resp = client.get("/api/v1/scripts/category/utility").send().await;
     resp.assert_status(StatusCode::OK);
     let body = json_value(resp).await;
     let items = script_items(&body);

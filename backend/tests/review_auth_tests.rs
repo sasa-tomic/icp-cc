@@ -121,7 +121,13 @@ fn ts_now() -> i64 {
 }
 
 /// Builds a fully-signed review request body for `script_id` / `rating`.
-fn signed_review_body(key: &RealKey, script_id: &str, rating: i32, ts: i64, nonce: &str) -> serde_json::Value {
+fn signed_review_body(
+    key: &RealKey,
+    script_id: &str,
+    rating: i32,
+    ts: i64,
+    nonce: &str,
+) -> serde_json::Value {
     let account_id = "acc-reviewer";
     let payload = serde_json::json!({
         "action": REVIEW_CREATE_ACTION,
@@ -149,10 +155,7 @@ async fn review_unsigned_with_unknown_key_is_rejected_401() {
     let script_id = seed_account_key_and_script(&state, &stranger).await;
 
     let app = Route::new()
-        .at(
-            "/scripts/:id/reviews",
-            post(create_review),
-        )
+        .at("/scripts/:id/reviews", post(create_review))
         .data(state);
     let client = TestClient::new(app);
 

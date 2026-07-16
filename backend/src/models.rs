@@ -746,10 +746,20 @@ mod tests {
             updated_at: "2025-01-02T00:00:00Z".to_string(),
         };
         let json = serde_json::to_value(&review).expect("Review must serialize");
-        let obj = json.as_object().expect("Review must serialize to an object");
+        let obj = json
+            .as_object()
+            .expect("Review must serialize to an object");
 
         // Every key the Flutter frontend reads must be present and camelCase.
-        for key in ["id", "userId", "scriptId", "rating", "comment", "createdAt", "updatedAt"] {
+        for key in [
+            "id",
+            "userId",
+            "scriptId",
+            "rating",
+            "comment",
+            "createdAt",
+            "updatedAt",
+        ] {
             assert!(
                 obj.contains_key(key),
                 "Review JSON missing camelCase key `{key}` — got keys: {:?}",
@@ -785,6 +795,9 @@ mod tests {
         };
         let json = serde_json::to_value(&review).unwrap();
         assert!(json.get("comment").is_some(), "comment key must be present");
-        assert!(json["comment"].is_null(), "None comment must serialize to null");
+        assert!(
+            json["comment"].is_null(),
+            "None comment must serialize to null"
+        );
     }
 }

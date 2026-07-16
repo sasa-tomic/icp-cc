@@ -144,10 +144,7 @@ pub fn is_insecure_admin_token(admin_token: &str) -> bool {
     admin_token.is_empty() || admin_token == "change-me-in-production"
 }
 
-pub fn warn_if_insecure_prod_admin_token(
-    environment: Environment,
-    admin_token: &str,
-) -> bool {
+pub fn warn_if_insecure_prod_admin_token(environment: Environment, admin_token: &str) -> bool {
     if environment.is_development() || !is_insecure_admin_token(admin_token) {
         return false;
     }

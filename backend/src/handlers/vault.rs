@@ -101,11 +101,11 @@ struct DecodedBlob {
 /// Extracts + validates the base64 blob fields, or returns a `(status,
 /// message)` pair the caller renders.
 fn decode_blob_fields(req: &VaultBlobRequest) -> Result<DecodedBlob, (StatusCode, String)> {
-    let encrypted_data =
-        decode_blob_field("encrypted_data", &req.encrypted_data).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let encrypted_data = decode_blob_field("encrypted_data", &req.encrypted_data)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     let salt = decode_blob_field("salt", &req.salt).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-    let nonce =
-        decode_blob_field("blob_nonce", &req.blob_nonce).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let nonce = decode_blob_field("blob_nonce", &req.blob_nonce)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     Ok(DecodedBlob {
         encrypted_data,
         salt,
@@ -137,20 +137,25 @@ pub async fn vault_create(
     };
 
     let account_repo = &state.script_service.account_repo;
-    let account_id =
-        match verify_signed_account_request(account_repo, &state.pool, VAULT_CREATE_ACTION, &vault_auth_fields(&req), |resolved| {
+    let account_id = match verify_signed_account_request(
+        account_repo,
+        &state.pool,
+        VAULT_CREATE_ACTION,
+        &vault_auth_fields(&req),
+        |resolved| {
             serde_json::json!({
                 "action": VAULT_CREATE_ACTION,
                 "account_id": resolved,
                 "nonce": req.nonce,
                 "ts": req.timestamp,
             })
-        })
-        .await
-        {
-            Ok(id) => id,
-            Err(r) => return error_response(r.status, r.message),
-        };
+        },
+    )
+    .await
+    {
+        Ok(id) => id,
+        Err(r) => return error_response(r.status, r.message),
+    };
 
     match state
         .passkey_service
@@ -196,26 +201,31 @@ pub async fn vault_get(
     Data(state): Data<&Arc<AppState>>,
 ) -> Response {
     let account_repo = &state.script_service.account_repo;
-    let account_id =
-        match verify_signed_account_request(account_repo, &state.pool, VAULT_GET_ACTION, &SignedAuthFields {
+    let account_id = match verify_signed_account_request(
+        account_repo,
+        &state.pool,
+        VAULT_GET_ACTION,
+        &SignedAuthFields {
             signature: &req.signature,
             author_public_key: &req.author_public_key,
             author_principal: &req.author_principal,
             timestamp: req.timestamp,
             nonce: &req.nonce,
-        }, |resolved| {
+        },
+        |resolved| {
             serde_json::json!({
                 "action": VAULT_GET_ACTION,
                 "account_id": resolved,
                 "nonce": req.nonce,
                 "ts": req.timestamp,
             })
-        })
-        .await
-        {
-            Ok(id) => id,
-            Err(r) => return error_response(r.status, r.message),
-        };
+        },
+    )
+    .await
+    {
+        Ok(id) => id,
+        Err(r) => return error_response(r.status, r.message),
+    };
 
     match state.passkey_service.get_vault(&account_id).await {
         Ok(Some(vault)) => Json(serde_json::json!({
@@ -246,20 +256,25 @@ pub async fn vault_update(
     };
 
     let account_repo = &state.script_service.account_repo;
-    let account_id =
-        match verify_signed_account_request(account_repo, &state.pool, VAULT_UPDATE_ACTION, &vault_auth_fields(&req), |resolved| {
+    let account_id = match verify_signed_account_request(
+        account_repo,
+        &state.pool,
+        VAULT_UPDATE_ACTION,
+        &vault_auth_fields(&req),
+        |resolved| {
             serde_json::json!({
                 "action": VAULT_UPDATE_ACTION,
                 "account_id": resolved,
                 "nonce": req.nonce,
                 "ts": req.timestamp,
             })
-        })
-        .await
-        {
-            Ok(id) => id,
-            Err(r) => return error_response(r.status, r.message),
-        };
+        },
+    )
+    .await
+    {
+        Ok(id) => id,
+        Err(r) => return error_response(r.status, r.message),
+    };
 
     match state
         .passkey_service

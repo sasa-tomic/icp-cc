@@ -14,7 +14,7 @@ pub mod vault;
 pub mod wasm_exports;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use canister_client::{DEFAULT_IC_GATEWAY, MethodInfo, MethodKind, ParsedInterface};
+pub use canister_client::{MethodInfo, MethodKind, ParsedInterface, DEFAULT_IC_GATEWAY};
 pub use contract::SDK_CONTRACT_VERSION;
 #[cfg(not(target_arch = "wasm32"))]
 pub use js_engine::{

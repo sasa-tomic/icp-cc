@@ -1,6 +1,6 @@
 use crate::auth::{
-    create_canonical_payload, derive_ic_principal, is_audit_replay_error, validate_replay_prevention,
-    validate_username, verify_signature, AuthError,
+    create_canonical_payload, derive_ic_principal, is_audit_replay_error,
+    validate_replay_prevention, validate_username, verify_signature, AuthError,
 };
 use crate::models::{
     AccountPublicKeyResponse, AccountResponse, AddPublicKeyRequest, RegisterAccountRequest,

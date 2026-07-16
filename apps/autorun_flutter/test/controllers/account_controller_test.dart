@@ -39,7 +39,7 @@ void main() {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['username'], username);
           expect(body['displayName'], displayName);
-          expect(body['publicKeyB64'], isNotEmpty);
+          expect(body['publicKey'], isNotEmpty);
           expect(body['signature'], isNotEmpty);
           expect(body['timestamp'], isNotNull);
           expect(body['nonce'], isNotNull);

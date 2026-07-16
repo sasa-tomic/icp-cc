@@ -23,7 +23,7 @@
 //! route table and tests can never drift. The production origin is read from
 //! `CORS_ALLOWED_ORIGIN` (default: `DEFAULT_PROD_ORIGIN`).
 
-use icp_marketplace_api::cors::{DEFAULT_PROD_ORIGIN, build_cors};
+use icp_marketplace_api::cors::{build_cors, DEFAULT_PROD_ORIGIN};
 use icp_marketplace_api::handlers::health_check;
 use poem::http::{Method, StatusCode};
 use poem::test::TestClient;

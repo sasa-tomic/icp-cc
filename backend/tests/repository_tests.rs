@@ -116,10 +116,7 @@ async fn account_find_returns_none_for_unknown_id() {
     let pool = setup().await;
     let repo = AccountRepository::new(pool);
 
-    let found = repo
-        .find_by_id("ghost")
-        .await
-        .expect("find_by_id failed");
+    let found = repo.find_by_id("ghost").await.expect("find_by_id failed");
     assert!(found.is_none());
 }
 
@@ -202,9 +199,33 @@ async fn account_keys_ordered_by_added_at_ascending() {
 
     create_account_full(&repo, "acc-1", "alice").await;
     // Insert out of chronological order to prove ORDER BY added_at works.
-    add_key(&repo, "key-b", "acc-1", "pk-bbb", "principal-bbb", "2026-07-11T10:00:00Z").await;
-    add_key(&repo, "key-a", "acc-1", "pk-aaa", "principal-aaa", "2026-07-11T05:00:00Z").await;
-    add_key(&repo, "key-c", "acc-1", "pk-ccc", "principal-ccc", "2026-07-11T15:00:00Z").await;
+    add_key(
+        &repo,
+        "key-b",
+        "acc-1",
+        "pk-bbb",
+        "principal-bbb",
+        "2026-07-11T10:00:00Z",
+    )
+    .await;
+    add_key(
+        &repo,
+        "key-a",
+        "acc-1",
+        "pk-aaa",
+        "principal-aaa",
+        "2026-07-11T05:00:00Z",
+    )
+    .await;
+    add_key(
+        &repo,
+        "key-c",
+        "acc-1",
+        "pk-ccc",
+        "principal-ccc",
+        "2026-07-11T15:00:00Z",
+    )
+    .await;
 
     let keys = repo
         .get_account_keys("acc-1")
@@ -314,7 +335,10 @@ async fn account_count_active_and_count_all_after_disable() {
     // Verify the disabled key's metadata.
     let disabled = repo.find_key_by_id("key-2").await.unwrap().unwrap();
     assert!(!disabled.is_active);
-    assert_eq!(disabled.disabled_at.as_deref(), Some("2026-07-11T12:00:00Z"));
+    assert_eq!(
+        disabled.disabled_at.as_deref(),
+        Some("2026-07-11T12:00:00Z")
+    );
     assert_eq!(disabled.disabled_by_key_id.as_deref(), Some("key-1"));
 
     // key-1 and key-3 still active.
@@ -702,10 +726,20 @@ async fn script_find_all_pagination() {
     let repo = ScriptRepository::new(pool);
 
     for i in 1..=5 {
-        create_script(&repo, &format!("s-{i}"), "Utilities", true, &format!("T{i}")).await;
+        create_script(
+            &repo,
+            &format!("s-{i}"),
+            "Utilities",
+            true,
+            &format!("T{i}"),
+        )
+        .await;
     }
 
-    let page = repo.find_all(2, 1, None, false).await.expect("find_all failed");
+    let page = repo
+        .find_all(2, 1, None, false)
+        .await
+        .expect("find_all failed");
     assert_eq!(page.len(), 2);
 }
 
@@ -789,9 +823,20 @@ async fn script_update_with_all_none_only_touches_updated_at() {
 
     create_script(&repo, "s-1", "Utilities", true, "Original").await;
 
-    repo.update("s-1", None, None, None, None, None, None, None, None, "2026-07-11T12:00:00Z")
-        .await
-        .expect("update failed");
+    repo.update(
+        "s-1",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        "2026-07-11T12:00:00Z",
+    )
+    .await
+    .expect("update failed");
 
     let s = repo.find_by_id("s-1").await.unwrap().unwrap();
     assert_eq!(s.title, "Original"); // unchanged
@@ -842,9 +887,15 @@ async fn script_increment_downloads() {
 
     create_script(&repo, "s-1", "Utilities", true, "A").await;
 
-    repo.increment_downloads("s-1").await.expect("increment failed");
-    repo.increment_downloads("s-1").await.expect("increment failed");
-    repo.increment_downloads("s-1").await.expect("increment failed");
+    repo.increment_downloads("s-1")
+        .await
+        .expect("increment failed");
+    repo.increment_downloads("s-1")
+        .await
+        .expect("increment failed");
+    repo.increment_downloads("s-1")
+        .await
+        .expect("increment failed");
 
     let s = repo.find_by_id("s-1").await.unwrap().unwrap();
     assert_eq!(s.downloads, 3);
@@ -1046,7 +1097,10 @@ async fn script_search_invalid_limit_returns_bad_request() {
         limit: Some(0),
         ..Default::default()
     };
-    let err = repo.search(&request).await.expect_err("should reject limit=0");
+    let err = repo
+        .search(&request)
+        .await
+        .expect_err("should reject limit=0");
     assert_eq!(err.0, poem::http::StatusCode::BAD_REQUEST);
 }
 
@@ -1059,7 +1113,10 @@ async fn script_search_limit_over_100_returns_bad_request() {
         limit: Some(101),
         ..Default::default()
     };
-    let err = repo.search(&request).await.expect_err("should reject limit>100");
+    let err = repo
+        .search(&request)
+        .await
+        .expect_err("should reject limit>100");
     assert_eq!(err.0, poem::http::StatusCode::BAD_REQUEST);
 }
 
@@ -1072,7 +1129,10 @@ async fn script_search_unsupported_sort_field_returns_bad_request() {
         sort_by: Some("bogus".to_string()),
         ..Default::default()
     };
-    let err = repo.search(&request).await.expect_err("should reject sort field");
+    let err = repo
+        .search(&request)
+        .await
+        .expect_err("should reject sort field");
     assert_eq!(err.0, poem::http::StatusCode::BAD_REQUEST);
 }
 
@@ -1085,7 +1145,10 @@ async fn script_search_bad_sort_order_returns_bad_request() {
         sort_order: Some("sideways".to_string()),
         ..Default::default()
     };
-    let err = repo.search(&request).await.expect_err("should reject order");
+    let err = repo
+        .search(&request)
+        .await
+        .expect_err("should reject order");
     assert_eq!(err.0, poem::http::StatusCode::BAD_REQUEST);
 }
 
@@ -1110,15 +1173,36 @@ async fn review_create_and_find_by_script_ordered_desc() {
     create_script_for_reviews(&pool).await;
     let repo = ReviewRepository::new(pool);
 
-    repo.create("r-1", "s-reviews", "user-a", 5, Some("Great"), "2026-07-11T01:00:00Z")
-        .await
-        .expect("create failed");
-    repo.create("r-2", "s-reviews", "user-b", 3, Some("OK"), "2026-07-11T02:00:00Z")
-        .await
-        .expect("create failed");
-    repo.create("r-3", "s-reviews", "user-c", 1, None, "2026-07-11T03:00:00Z")
-        .await
-        .expect("create failed");
+    repo.create(
+        "r-1",
+        "s-reviews",
+        "user-a",
+        5,
+        Some("Great"),
+        "2026-07-11T01:00:00Z",
+    )
+    .await
+    .expect("create failed");
+    repo.create(
+        "r-2",
+        "s-reviews",
+        "user-b",
+        3,
+        Some("OK"),
+        "2026-07-11T02:00:00Z",
+    )
+    .await
+    .expect("create failed");
+    repo.create(
+        "r-3",
+        "s-reviews",
+        "user-c",
+        1,
+        None,
+        "2026-07-11T03:00:00Z",
+    )
+    .await
+    .expect("create failed");
 
     let reviews = repo
         .find_by_script("s-reviews", 100, 0)

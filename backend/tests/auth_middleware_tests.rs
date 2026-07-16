@@ -13,17 +13,12 @@
 //!    parse + status path is exercised: missing header, bad format, wrong
 //!    token, and a valid token that passes through to the handler.
 
-use ed25519_dalek::{Signer, SigningKey};
 use base64::Engine;
+use ed25519_dalek::{Signer, SigningKey};
 use icp_marketplace_api::auth::{create_canonical_payload, derive_ic_principal};
 use icp_marketplace_api::middleware::{verify_request_auth, AdminAuth, AuthenticatedRequest};
 use poem::{
-    get,
-    handler,
-    http::StatusCode,
-    test::TestClient,
-    web::Json,
-    EndpointExt, IntoResponse, Route,
+    get, handler, http::StatusCode, test::TestClient, web::Json, EndpointExt, IntoResponse, Route,
 };
 use rand::rngs::OsRng;
 
@@ -64,8 +59,7 @@ impl RealKey {
     fn generate() -> Self {
         let signing = SigningKey::generate(&mut OsRng);
         let verifying = signing.verifying_key();
-        let public_key_b64 =
-            base64::engine::general_purpose::STANDARD.encode(verifying.to_bytes());
+        let public_key_b64 = base64::engine::general_purpose::STANDARD.encode(verifying.to_bytes());
         let principal = derive_ic_principal(&public_key_b64)
             .expect("principal derivation must succeed for a real key");
         Self {
@@ -232,7 +226,11 @@ async fn verify_auth_rejects_empty_signature_with_401() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     let body = body_of(resp).await;
     assert!(
-        body["error"].as_str().unwrap().to_lowercase().contains("empty"),
+        body["error"]
+            .as_str()
+            .unwrap()
+            .to_lowercase()
+            .contains("empty"),
         "must explain the empty-signature rejection, got: {}",
         body["error"],
     );
@@ -280,10 +278,7 @@ async fn admin_only() -> impl IntoResponse {
 }
 
 fn guarded_app() -> Route {
-    Route::new().at(
-        "/admin/thing",
-        get(admin_only).with(AdminAuth),
-    )
+    Route::new().at("/admin/thing", get(admin_only).with(AdminAuth))
 }
 
 #[tokio::test]

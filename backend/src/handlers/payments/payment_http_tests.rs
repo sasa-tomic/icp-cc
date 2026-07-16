@@ -166,10 +166,7 @@ fn build_app(state: Arc<AppState>) -> impl poem::Endpoint {
     Route::new()
         .at("/api/v1/scripts/:id", get(get_script))
         .at("/api/v1/scripts/:id/download", post(download_script))
-        .at(
-            "/api/v1/scripts/:id/entitlement",
-            post(entitlement_check),
-        )
+        .at("/api/v1/scripts/:id/entitlement", post(entitlement_check))
         .at("/api/v1/payments/icpay/config", get(payment_config))
         .at("/api/v1/payments/icpay/webhook", post(icpay_webhook))
         .with(Cors::new())

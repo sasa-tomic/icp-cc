@@ -68,7 +68,12 @@ async fn setup() -> (AccountRepository, SqlitePool) {
 }
 
 /// Seeds an account `id` with username + binds `key.public_key_b64` to it.
-async fn seed_account_with_key(repo: &AccountRepository, account_id: &str, username: &str, key: &RealKey) {
+async fn seed_account_with_key(
+    repo: &AccountRepository,
+    account_id: &str,
+    username: &str,
+    key: &RealKey,
+) {
     repo.create_account(icp_marketplace_api::repositories::CreateAccountParams {
         account_id,
         username,
@@ -223,22 +228,17 @@ async fn gate_accepts_valid_owner_signature_and_resolves_account_id() {
         nonce: &nonce,
     };
 
-    let resolved = verify_signed_account_request(
-        &repo,
-        &pool,
-        VAULT_CREATE_ACTION,
-        &auth,
-        |resolved| {
+    let resolved =
+        verify_signed_account_request(&repo, &pool, VAULT_CREATE_ACTION, &auth, |resolved| {
             serde_json::json!({
                 "action": VAULT_CREATE_ACTION,
                 "account_id": resolved,
                 "nonce": nonce,
                 "ts": ts,
             })
-        },
-    )
-    .await
-    .expect("a valid owner signature must resolve the account_id");
+        })
+        .await
+        .expect("a valid owner signature must resolve the account_id");
 
     assert_eq!(resolved, "acc-owner-real");
 }

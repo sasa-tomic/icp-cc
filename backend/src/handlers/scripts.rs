@@ -9,12 +9,10 @@ use poem::{
 };
 
 use crate::{
-    auth,
-    middleware,
+    auth, middleware,
     models::{
-        AppState, CreateScriptRequest, DeleteScriptRequest, EntitlementRequest,
-        ScriptDetailResponse, ScriptsQuery, SearchRequest, UpdateScriptRequest,
-        scripts_to_list_json,
+        scripts_to_list_json, AppState, CreateScriptRequest, DeleteScriptRequest,
+        EntitlementRequest, ScriptDetailResponse, ScriptsQuery, SearchRequest, UpdateScriptRequest,
     },
     repositories::SignatureAuditParams,
     responses::error_response,
@@ -178,9 +176,7 @@ pub async fn entitlement_check(
     // 3. Replay prevention (mirrors download_script step 2b): the signed
     //    `timestamp`+`nonce` MUST be freshness-checked and single-use so a
     //    captured signed request cannot be replayed.
-    if let Err(e) =
-        auth::validate_replay_prevention(&state.pool, req.timestamp, &req.nonce).await
-    {
+    if let Err(e) = auth::validate_replay_prevention(&state.pool, req.timestamp, &req.nonce).await {
         let status = match e {
             auth::AuthError::InvalidFormat(_) => StatusCode::BAD_REQUEST,
             _ => StatusCode::UNAUTHORIZED,

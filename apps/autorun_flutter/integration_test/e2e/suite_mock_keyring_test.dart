@@ -27,12 +27,10 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
-import 'package:icp_autorun/controllers/script_controller.dart';
 import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/account_profile_screen.dart';
 import 'package:icp_autorun/screens/export_keys_dialog.dart';
-import 'package:icp_autorun/screens/import_keys_dialog.dart';
 import 'package:icp_autorun/screens/recovery_codes_screen.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/script_editor_dialog.dart';
@@ -41,11 +39,9 @@ import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
 import 'package:icp_autorun/screens/vault_unlock_screen.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
-import 'package:icp_autorun/services/script_repository.dart';
 import 'package:icp_autorun/utils/profile_errors.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/script_row_menus.dart';
-import 'package:icp_autorun/widgets/scripts_list_item_tile.dart';
 
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';

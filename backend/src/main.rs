@@ -8,9 +8,7 @@ use icp_marketplace_api::{
         warn_if_insecure_prod_admin_token, Environment,
     },
 };
-use poem::{
-    delete, get, listener::TcpListener, post, EndpointExt, Route, Server,
-};
+use poem::{delete, get, listener::TcpListener, post, EndpointExt, Route, Server};
 use sqlx::sqlite::SqlitePool;
 use std::{env, io::ErrorKind, net::TcpListener as StdTcpListener, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;

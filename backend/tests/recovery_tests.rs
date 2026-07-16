@@ -36,22 +36,22 @@ async fn setup() -> (PasskeyService, SqlitePool) {
     (service, pool)
 }
 
-/// `recovery_codes` has an FK `account_id → keypair_profiles.principal`, so a
+/// `recovery_codes` has an FK `account_id → accounts(id)`, so a
 /// row must exist before codes are stored.
 async fn seed_principal(pool: &SqlitePool, principal: &str) {
     sqlx::query(
-        r#"INSERT INTO keypair_profiles
-               (id, principal, display_name, username, created_at, updated_at)
-           VALUES (?, ?, ?, NULL, ?, ?)"#,
+        r#"INSERT INTO accounts
+               (id, username, display_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)"#,
     )
-    .bind(format!("id-{principal}"))
     .bind(principal)
+    .bind(format!("user-{principal}"))
     .bind(format!("display-{principal}"))
     .bind(NOW)
     .bind(NOW)
     .execute(pool)
     .await
-    .expect("failed to seed keypair_profiles row");
+    .expect("failed to seed accounts row");
 }
 
 /// Store ONE recovery code for `account_id` with a known plaintext, returning
@@ -108,7 +108,11 @@ async fn generate_returns_twelve_unique_codes_and_status_reflects_them() {
         .await
         .expect("generate must succeed");
 
-    assert_eq!(result.codes.len(), 12, "generate must produce exactly 12 codes");
+    assert_eq!(
+        result.codes.len(),
+        12,
+        "generate must produce exactly 12 codes"
+    );
     assert_eq!(
         result.remaining_unused, 12,
         "remaining_unused must be 12 for a fresh set",
@@ -150,7 +154,10 @@ async fn status_returns_zero_for_account_with_no_codes() {
         .get_recovery_code_status(account_id)
         .await
         .expect("status for an account with no codes must be Ok(0)");
-    assert_eq!(remaining, 0, "an account with no codes must report 0 remaining");
+    assert_eq!(
+        remaining, 0,
+        "an account with no codes must report 0 remaining"
+    );
 }
 
 // ============================================================================
@@ -227,10 +234,7 @@ async fn verify_returns_false_when_account_has_no_codes() {
         .verify_recovery_code_for_account(account_id, "ANYCODE1")
         .await
         .expect("verify on an account with no codes must be Ok(false)");
-    assert!(
-        !result,
-        "no codes stored must verify as invalid, not error",
-    );
+    assert!(!result, "no codes stored must verify as invalid, not error",);
 }
 
 // ============================================================================
@@ -368,7 +372,10 @@ async fn recovery_verify_rate_limits_after_five_failed_attempts() {
             .await;
         resp.assert_status(poem::http::StatusCode::OK);
         let body: serde_json::Value = resp.0.into_body().into_json().await.unwrap();
-        assert_eq!(body["data"]["valid"], false, "attempt {i}: wrong code → invalid");
+        assert_eq!(
+            body["data"]["valid"], false,
+            "attempt {i}: wrong code → invalid"
+        );
     }
 
     // 6th wrong code → 429 (rate-limited).

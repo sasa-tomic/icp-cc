@@ -170,10 +170,16 @@ async fn finish_registration_with_real_attestation_stores_passkey() {
         .await
         .expect("list must succeed");
     assert_eq!(passkeys.len(), 1, "exactly one passkey must be stored");
-    assert_eq!(passkeys[0].id, passkey_id, "stored id must match finish result");
+    assert_eq!(
+        passkeys[0].id, passkey_id,
+        "stored id must match finish result"
+    );
     assert_eq!(passkeys[0].account_id, account_id);
     assert_eq!(passkeys[0].device_name.as_deref(), Some("soft-token"));
-    assert_eq!(passkeys[0].counter, 0, "fresh passkey must start at counter 0");
+    assert_eq!(
+        passkeys[0].counter, 0,
+        "fresh passkey must start at counter 0"
+    );
 
     // The credential id the authenticator chose must be the one stored.
     assert_eq!(
@@ -354,7 +360,10 @@ async fn authenticate_round_trip_with_real_assertion_returns_account() {
         .await
         .expect("read must succeed")
         .expect("passkey must exist");
-    assert_eq!(stored.counter, 1, "counter must advance to the assertion counter");
+    assert_eq!(
+        stored.counter, 1,
+        "counter must advance to the assertion counter"
+    );
     assert!(stored.last_used_at.is_some(), "last_used_at must be set");
 
     // And the authentication challenge must be consumed (single-use).
@@ -569,8 +578,7 @@ async fn delete_passkey_succeeds_when_at_least_one_remains() {
 
     // Register two distinct credentials (two independent P-256 keys).
     let (auth_a, id_a, _) = register_one(&service, account_id).await;
-    let (id_b, challenge_b) =
-        register_second(&service, account_id, &auth_a.credential_id()).await;
+    let (id_b, challenge_b) = register_second(&service, account_id, &auth_a.credential_id()).await;
 
     let before = service.list_passkeys(account_id).await.unwrap().len();
     assert_eq!(before, 2, "two distinct credentials must be registered");

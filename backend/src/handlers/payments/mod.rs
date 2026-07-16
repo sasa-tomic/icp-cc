@@ -101,8 +101,7 @@ pub async fn download_script(
             return error_response(StatusCode::BAD_REQUEST, "Invalid timestamp format");
         }
     };
-    if let Err(e) =
-        auth::validate_replay_prevention(&state.pool, timestamp_unix, &req.nonce).await
+    if let Err(e) = auth::validate_replay_prevention(&state.pool, timestamp_unix, &req.nonce).await
     {
         let status = match e {
             auth::AuthError::InvalidFormat(_) => StatusCode::BAD_REQUEST,
@@ -268,9 +267,7 @@ pub async fn payment_config(Data(state): Data<&Arc<AppState>>) -> Response {
         }))
         .into_response(),
         None => {
-            tracing::error!(
-                "Payment config requested but ICPAY_PUBLISHABLE_KEY is not configured"
-            );
+            tracing::error!("Payment config requested but ICPAY_PUBLISHABLE_KEY is not configured");
             error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Payment provider not configured",

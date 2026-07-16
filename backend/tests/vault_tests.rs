@@ -16,8 +16,8 @@ const B64: base64::engine::general_purpose::GeneralPurpose =
     base64::engine::general_purpose::STANDARD;
 
 /// Builds an in-memory DB + PasskeyService, the same pattern as search_tests.
-/// Returns the pool too so tests can seed `keypair_profiles` rows (the vault
-/// FK target) — this keeps the test honest about the real schema relationships.
+/// Returns the pool too so tests can seed `accounts` rows (the vault FK
+/// target) — this keeps the test honest about the real schema relationships.
 async fn setup_vault_service() -> (PasskeyService, SqlitePool) {
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
@@ -30,23 +30,24 @@ async fn setup_vault_service() -> (PasskeyService, SqlitePool) {
     (service, pool)
 }
 
-/// Inserts a `keypair_profiles` row for `principal` so the vault FK is
-/// satisfied. Mirrors what production flow would do before a vault is created.
-async fn seed_principal(pool: &SqlitePool, principal: &str) {
+/// Inserts an `accounts` row for `account_id` so the vault FK
+/// (`REFERENCES accounts(id)`) is satisfied. Mirrors what the production
+/// registration flow does before a vault is created.
+async fn seed_principal(pool: &SqlitePool, account_id: &str) {
     let now = "2026-07-04T00:00:00Z";
     sqlx::query(
-        r#"INSERT INTO keypair_profiles
-               (id, principal, display_name, username, created_at, updated_at)
-           VALUES (?, ?, ?, NULL, ?, ?)"#,
+        r#"INSERT INTO accounts
+               (id, username, display_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)"#,
     )
-    .bind(format!("id-{principal}"))
-    .bind(principal)
-    .bind(format!("display-{principal}"))
+    .bind(account_id)
+    .bind(format!("user-{account_id}"))
+    .bind(format!("display-{account_id}"))
     .bind(now)
     .bind(now)
     .execute(pool)
     .await
-    .expect("failed to seed keypair_profiles row");
+    .expect("failed to seed accounts row");
 }
 
 /// The opaque blob the client would have produced via local FFI crypto. We use

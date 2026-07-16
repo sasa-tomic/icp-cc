@@ -10,7 +10,7 @@ pub mod rate_limit;
 pub mod repositories;
 pub mod responses;
 pub mod script_language;
-pub mod signature_gate;
 pub mod services;
+pub mod signature_gate;
 pub mod startup_checks;
 pub mod vault;

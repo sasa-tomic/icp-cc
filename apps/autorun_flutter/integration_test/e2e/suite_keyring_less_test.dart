@@ -28,12 +28,10 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/screens/bookmarks_screen.dart';
 import 'package:icp_autorun/widgets/bookmarks_list.dart';
-import 'package:icp_autorun/screens/dapps_screen.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
-import 'package:icp_autorun/widgets/bookmark_composer.dart';
 import 'package:icp_autorun/widgets/well_known_canisters.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/profile_setup_chip.dart';

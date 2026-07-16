@@ -71,9 +71,8 @@ async fn build_state() -> Arc<AppState> {
     // A public script with an EMPTY category — excluded as noise.
     insert_script(&pool, "pub-empty", "", true).await;
 
-    let passkey_service =
-        PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
-            .expect("Failed to create PasskeyService");
+    let passkey_service = PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
+        .expect("Failed to create PasskeyService");
 
     Arc::new(AppState {
         account_service: AccountService::new(pool.clone()),

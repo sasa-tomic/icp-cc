@@ -23,7 +23,7 @@ void main() {
     expect(signatureBytes, isNotEmpty);
 
     final payload = request.toCanonicalPayload();
-    expect(payload['publicKeyB64'], keypair.publicKey);
+    expect(payload['publicKey'], keypair.publicKey);
     expect(payload['username'], 'alice');
   });
 
@@ -42,7 +42,7 @@ void main() {
     expect(request.newKeypair, same(newKeypair));
     expect(request.signingPublicKeyB64, signingKeypair.publicKey);
     expect(request.signature, isNotEmpty);
-    expect(request.toCanonicalPayload()['newPublicKeyB64'], newKeypair.publicKey);
+    expect(request.toCanonicalPayload()['newPublicKey'], newKeypair.publicKey);
   });
 
   // Defense-in-depth: even though a real ProfileKeypair.publicKey is always

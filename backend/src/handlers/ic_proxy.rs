@@ -173,10 +173,7 @@ pub async fn ic_proxy(req: &Request, Path(rest): Path<String>, body: Vec<u8>) ->
             // agent-js and surfacing as a confusing certificate error
             // downstream instead of "gateway unreachable". Surface a 502.
             tracing::warn!("IC proxy body read failed: {e}");
-            return error_response(
-                StatusCode::BAD_GATEWAY,
-                "IC gateway truncated response",
-            );
+            return error_response(StatusCode::BAD_GATEWAY, "IC gateway truncated response");
         }
     };
 

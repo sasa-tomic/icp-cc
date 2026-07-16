@@ -249,7 +249,7 @@ void main() {
         final json = request.toJson();
 
         expect(json['label'], 'Phone');
-        expect(json['newPublicKeyB64'], newKeypair.publicKey);
+        expect(json['newPublicKey'], newKeypair.publicKey);
         expect(json['nonce'], 'uuid-1234');
       });
 
@@ -288,7 +288,7 @@ void main() {
         expect(payload['label'], 'Hardware Wallet');
         expect(payload['action'], 'add_key');
         expect(payload['username'], 'alice');
-        expect(payload['newPublicKeyB64'], newKeypair.publicKey);
+        expect(payload['newPublicKey'], newKeypair.publicKey);
       });
 
       test('omits label from canonical payload when null', () async {

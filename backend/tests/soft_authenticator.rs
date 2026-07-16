@@ -83,9 +83,9 @@ impl SoftAuthenticator {
         let y = encoded.y().expect("uncompressed point has y").to_vec();
 
         let cose = Value::Map(vec![
-            (1u64.into(), 2u64.into()), // kty = EC2
-            (3u64.into(), (-7i64).into()), // alg = ES256
-            ((-1i64).into(), 1u64.into()), // crv = P-256
+            (1u64.into(), 2u64.into()),        // kty = EC2
+            (3u64.into(), (-7i64).into()),     // alg = ES256
+            ((-1i64).into(), 1u64.into()),     // crv = P-256
             ((-2i64).into(), Value::Bytes(x)), // x
             ((-3i64).into(), Value::Bytes(y)), // y
         ]);
@@ -169,8 +169,7 @@ impl SoftAuthenticator {
         // whose ECDSA `EVP_DigestVerifyFinal` requires an ASN.1 DER signature
         // (a raw r‖s byte string is rejected with an OpenSSL parse error).
         let client_data_hash = Sha256::digest(&client_data);
-        let signed_message: Vec<u8> =
-            [auth_data.as_slice(), client_data_hash.as_slice()].concat();
+        let signed_message: Vec<u8> = [auth_data.as_slice(), client_data_hash.as_slice()].concat();
         let signature: DerSignature = self.signing_key.sign(&signed_message);
 
         let cred_id_b64 = B64URL.encode(&self.credential_id);

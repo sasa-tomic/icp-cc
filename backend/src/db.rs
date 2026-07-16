@@ -353,12 +353,10 @@ pub async fn initialize_database(pool: &SqlitePool) {
     .await
     .expect("Failed to create passkeys table");
 
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_passkeys_account_id ON passkeys(account_id)",
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create passkeys account_id index");
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_passkeys_account_id ON passkeys(account_id)")
+        .execute(pool)
+        .await
+        .expect("Failed to create passkeys account_id index");
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_passkeys_credential_id ON passkeys(credential_id)")
         .execute(pool)
@@ -579,7 +577,8 @@ async fn apply_add_column_migration(pool: &SqlitePool, table: &str, column: &str
         let msg = e.to_string();
         if msg.contains("duplicate column name") {
             tracing::debug!(
-                table, column,
+                table,
+                column,
                 "Migration skipped (column already exists): {msg}"
             );
         } else {

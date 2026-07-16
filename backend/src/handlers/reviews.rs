@@ -112,7 +112,11 @@ pub async fn create_review(
         comment: req.comment,
     };
 
-    match state.review_service.create_review(&script_id, review_req).await {
+    match state
+        .review_service
+        .create_review(&script_id, review_req)
+        .await
+    {
         Ok(review) => {
             tracing::info!(
                 "Created review for script {} by user {}",
