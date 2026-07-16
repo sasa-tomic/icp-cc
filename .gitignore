@@ -1,5 +1,6 @@
 # Repo-wide ignores
 vendors/
+.opencode/
 .rgignore
 third_party/
 __pycache__/

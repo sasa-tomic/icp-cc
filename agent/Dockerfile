@@ -100,9 +100,22 @@ RUN curl -fsSL https://plasmate.app/install.sh | sh
 
 # Install Omnigent (the `omni`/`omnigent` CLI). `uv tool install` resolves the
 # full dependency tree (incl. pre-release opentelemetry-instrumentation-* that
-# plain pip rejects) into an isolated env; bin shims land in ~/.local/bin
-# (already on PATH). Pinned to match the verified host-registration flow.
-# See agent/entrypoint.sh for automatic host registration on container start.
+# plain pip rejects) into an isolated env. Pinned to match the verified
+# host-registration flow. See agent/entrypoint.sh for auto host registration.
+#
+# CRITICAL — placement: docker-compose mounts a named `home-cache` volume over
+# /home/ubuntu/.cache, and XDG_DATA_HOME points there, so uv would otherwise put
+# the tool env, bin shims, AND the managed CPython interpreter (the venv's
+# `python` is a symlink into uv's python-install dir) all under .cache → MASKED
+# & invisible at runtime. The shims vanish, `omnigent`/`omni` aren't found, and
+# even if a shim is reached its shebang interpreter is a dangling symlink (the
+# classic "cannot execute: required file not found" / setsid ENOENT) → host
+# never registers. We force all three (tools, shims, managed python) into
+# /home/ubuntu/.local (never volume-masked, always on PATH) so every container
+# sees them straight from the image layer, regardless of any stale cache volume.
+ENV UV_TOOL_DIR=/home/ubuntu/.local/share/uv/tools \
+    UV_TOOL_BIN_DIR=/home/ubuntu/.local/bin \
+    UV_PYTHON_INSTALL_DIR=/home/ubuntu/.local/share/uv/python
 RUN uv tool install --python 3.12 omnigent==0.5.1
 
 # Install Flutter SDK for ICP-CC project

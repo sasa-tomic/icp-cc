@@ -17,8 +17,12 @@ services:
       - RUST_BACKTRACE=1
       - HOME=/home/ubuntu
       - VIRTUAL_ENV=/home/ubuntu/.venv
-      # All permissions inside the container only; host opencode is unaffected
-      # (a project-local opencode.json would leak to the host via bind mount).
+      # Container-only permission: allow for `run-container.sh opencode` (the
+      # direct-container path). Omnigent strips this env var from its own
+      # sessions (so they keep the synthesized permission:ask). The host's MCP
+      # servers + variant are injected into ALL opencode sessions (incl.
+      # omnigent's) via the auto-generated, gitignored .opencode/opencode.json
+      # at the cwd — see agent/entrypoint.sh (OPENCODE_INJECT_PROJECT_CONFIG).
       - "OPENCODE_CONFIG_CONTENT={\"permission\":\"allow\"}"
       # Android SDK/NDK — NDK auto-detected by scripts/common.sh::setup_android_ndk_env
       - ANDROID_HOME=/home/ubuntu/Android/Sdk
