@@ -224,7 +224,7 @@ abstract final class FlowCatalog {
     FlowSpec(id: 'vault.setup', name: 'Set up vault (encrypt locally)', surfaces: _b, keyring: Keyring.mockSecretService, tags: {'vault'}, entry: 'vault_password_setup_screen.dart'),
     FlowSpec(id: 'vault.unlock', name: 'Unlock vault (decrypt locally)', surfaces: _b, keyring: Keyring.mockSecretService, tags: {'vault'}, entry: 'vault_unlock_screen.dart'),
     FlowSpec(id: 'vault.unlock_wrong_password', name: 'Unlock with wrong password fails loud', surfaces: _b, keyring: Keyring.mockSecretService, tags: {'vault'}, entry: 'vault_unlock_screen.dart'),
-    FlowSpec(id: 'vault.use_recovery_code', name: 'Use recovery code', surfaces: _b, broken: true, brokenNote: 'F1: /recovery route is dead — Navigator.pushNamed throws', entry: 'vault_unlock_screen.dart'),
+    FlowSpec(id: 'vault.use_recovery_code', name: 'Use recovery code', surfaces: _b, keyring: Keyring.mockSecretService, tags: {'vault'}, entry: 'vault_unlock_screen.dart'),
   ];
 
   // ── J. Passkeys (web-only authenticator) ─────────────────────────────────
@@ -313,14 +313,10 @@ abstract final class FlowCatalog {
 
   /// The Phase-0 seed defect list (drives Phase 3 RED→GREEN). Source of truth
   /// for the issue tracker; extend as the real-app sweep surfaces more.
+  /// Known defects discovered during Phase-0 recon. Each was a RED test → fix →
+  /// GREEN in Phase 3. F1–F5, F7, F8 are **resolved** (see git history + TODO.md).
+  /// F6 remains environmental (canned-bridge test does not reproduce the 530).
   static const knownIssues = <KnownIssue>[
-    KnownIssue(id: 'F1', flowId: 'vault.use_recovery_code', severity: IssueSeverity.blocker, summary: '/recovery route is dead — tap "Use recovery code" throws; RecoveryCodesScreen never instantiated', evidence: 'vault_unlock_screen.dart:146 + main.dart has no routes table'),
-    KnownIssue(id: 'F2', flowId: 'vault.route_from_menu', severity: IssueSeverity.blocker, summary: 'Vault screens unreachable by navigation (only programmatic) — ZK vault invisible to users', evidence: 'grep VaultPasswordSetupScreen|VaultUnlockScreen lib → only definitions + tests'),
-    KnownIssue(id: 'F3', flowId: 'scripts.duplicate', severity: IssueSeverity.major, summary: '"View" SnackBar action is a no-op (empty body)', evidence: 'scripts_screen.dart:1156-1160'),
-    KnownIssue(id: 'F4', flowId: 'passkey.register', severity: IssueSeverity.major, summary: 'Passkey device name hardcoded "This Device"', evidence: 'passkey_management_screen.dart:142'),
-    KnownIssue(id: 'F5', flowId: 'profile.open_menu', severity: IssueSeverity.major, summary: 'Profile rename/delete promised by manage sheet but no UI; controller methods have no caller', evidence: 'profile_menu.dart subtitle + profile_controller.dart deleteProfile/updateProfileName'),
-    KnownIssue(id: 'F6', flowId: 'dapps.run_poll', severity: IssueSeverity.major, summary: 'dapp vote flow fails (HTTP 530 / Cloudflare 1033) on catalog fetch', evidence: 'f_dapp_vote_flow_test.dart'),
-    KnownIssue(id: 'F7', flowId: 'profile.create_via_menu_dialog', severity: IssueSeverity.minor, summary: 'Dual profile-creation paths: legacy _CreateProfileDialog + UnifiedSetupWizard', evidence: 'profile_menu.dart:802'),
-    KnownIssue(id: 'F8', flowId: 'settings.version_display', severity: IssueSeverity.doc, summary: 'Stale doc: TODO.md:89 claims secp256k1 stubbed on web (it is real)', evidence: 'TODO.md:89 vs BROWSER_SUPPORT.md:104-107'),
+    KnownIssue(id: 'F6', flowId: 'dapps.run_poll', severity: IssueSeverity.major, summary: 'dapp vote flow reports HTTP 530 on catalog fetch — environmental; the test uses a canned bridge so this is likely stale', evidence: 'f_dapp_vote_flow_test.dart uses _RecordingBridge, not mainnet'),
   ];
 }
