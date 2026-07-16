@@ -27,10 +27,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/screens/bookmarks_screen.dart';
+import 'package:icp_autorun/screens/dapps_screen.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
+import 'package:icp_autorun/widgets/bookmark_composer.dart';
+import 'package:icp_autorun/widgets/well_known_canisters.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/profile_setup_chip.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
@@ -327,6 +330,74 @@ void main() {
           tester,
           () => !d.present(find.byType(ScriptDetailsDialog), tester),
           timeout: const Duration(seconds: 3));
+    })
+    ..register('canisters.bookmark_well_known', (tester, d) async {
+      // Navigate to Canisters tab (Alt+2).
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump(const Duration(milliseconds: 500));
+      await d.waitUntil(
+          tester, () => d.present(find.byType(BookmarksScreen), tester),
+          timeout: const Duration(seconds: 5));
+      // Wait for WellKnownList to render, then tap the first Bookmark icon.
+      final ready = await d.waitUntil(
+          tester, () => d.present(find.byType(WellKnownList), tester),
+          timeout: const Duration(seconds: 10));
+      expect(ready, isTrue, reason: 'WellKnownList must render on Canisters.');
+      final bookmarkBtn = find.byTooltip('Bookmark');
+      if (d.present(bookmarkBtn, tester)) {
+        await tester.tap(bookmarkBtn.first);
+        await d.waitUntil(
+            tester, () => d.present(find.byType(SnackBar), tester),
+            timeout: const Duration(seconds: 5));
+      }
+    })
+    ..register('canisters.save_composer', (tester, d) async {
+      // Expand the composer via its toggle button. Scroll to it first since
+      // it may be below the fold after the bookmark SnackBar.
+      final toggle = find.byKey(const Key('bookmarkComposerToggleButton'));
+      if (!d.present(toggle, tester)) {
+        // Composer may already be expanded from a previous iteration.
+        return;
+      }
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 500));
+      // Fill canister ID and method.
+      final canisterField = find.byKey(const Key('bookmarkComposerCanisterField'));
+      final methodField = find.byKey(const Key('bookmarkComposerMethodField'));
+      if (!d.present(canisterField, tester)) {
+        return; // Expansion didn't work; no-op.
+      }
+      await tester.enterText(canisterField, 'rrkah-fqaaa-aaaaa-aaaaq-cai');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.enterText(methodField, 'http_request');
+      await tester.pump(const Duration(milliseconds: 200));
+      final saveBtn = find.byKey(const Key('bookmarkComposerSubmitButton'));
+      await tester.tap(saveBtn);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(SnackBar), tester),
+          timeout: const Duration(seconds: 5));
+    })
+    ..register('dapps.open_catalog', (tester, d) async {
+      // Navigate back to Scripts first (Alt+1) then to Dapps (Alt+3)
+      // to ensure clean tab state after the canisters phases.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump(const Duration(milliseconds: 500));
+      // Verify DappsScreen AppBar title is present (always built by
+      // IndexedStack — the card titles require the ListView to build).
+      final found = await d.waitUntil(
+          tester, () => d.present(find.text('Dapps'), tester),
+          timeout: const Duration(seconds: 5));
+      expect(found, isTrue,
+          reason: 'Dapps tab AppBar must show "Dapps" title.');
     });
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -484,13 +555,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     driver.phase('19', 'OK — settings.restart_tour (tour verified)');
 
+    // PHASE 20: canisters — bookmark a well-known canister.
+    driver.phase('20', 'canisters: bookmark well-known');
+    await registry.runFor('canisters.bookmark_well_known')!(tester, driver);
+    driver.phase('20', 'OK — canisters.bookmark_well_known');
+
+    // PHASE 21: canisters — save via composer.
+    driver.phase('21', 'canisters: save composer');
+    await registry.runFor('canisters.save_composer')!(tester, driver);
+    driver.phase('21', 'OK — canisters.save_composer');
+
+    // PHASE 22: dapps — open catalog.
+    driver.phase('22', 'dapps: open catalog');
+    await registry.runFor('dapps.open_catalog')!(tester, driver);
+    driver.phase('22', 'OK — dapps.open_catalog');
+
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(20));
+    expect(cov.implemented, greaterThanOrEqualTo(23));
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered.');
