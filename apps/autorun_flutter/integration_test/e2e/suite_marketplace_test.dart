@@ -26,7 +26,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'package:icp_autorun/screens/download_history_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
+import 'package:icp_autorun/screens/script_filter_sheet.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
 import 'package:icp_autorun/widgets/script_row_menus.dart';
@@ -214,6 +216,48 @@ void main() {
       await tester.tap(find.widgetWithText(FilterChip, 'Favorites'));
       await tester.pump(const Duration(milliseconds: 500));
       await _closeFilterSheet(tester);
+    })
+    ..register('scripts.filter_sort', (tester, d) async {
+      await _openFilterSheet(tester, d);
+      // Find the sort dropdown and change it. The DropdownButtonFormField
+      // is inside the FilterBottomSheet.
+      final dropdown = find.byType(DropdownButtonFormField);
+      if (!d.present(dropdown, tester)) return;
+      await tester.tap(dropdown);
+      await tester.pump(const Duration(milliseconds: 500));
+      // The dropdown menu items appear — tap the last one (alphabetical or
+      // whatever is at the bottom).
+      final menuItems = find.byType(DropdownMenuItem);
+      if (d.present(menuItems.last, tester)) {
+        await tester.tap(menuItems.last);
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      await _closeFilterSheet(tester);
+    })
+    ..register('download_history.view', (tester, d) async {
+      // Open the overflow menu (the AppBar PopupMenuButton, scoped to avoid
+      // matching the PopupMenuButtons in script row menus).
+      final appBarMenu = find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byWidgetPredicate((w) => w is PopupMenuButton<String>));
+      if (!d.present(appBarMenu, tester)) return;
+      await tester.tap(appBarMenu);
+      await tester.pump(const Duration(milliseconds: 500));
+      final dhItem = find.text('Download History');
+      if (d.present(dhItem, tester)) {
+        await tester.tap(dhItem);
+        final screenReady = await d.waitUntil(
+            tester, () => d.present(find.byType(DownloadHistoryScreen), tester),
+            timeout: const Duration(seconds: 5));
+        if (screenReady) {
+          // The downloaded 'Hello IC Starter' should appear in the list.
+          await d.waitUntil(
+              tester, () => d.present(find.textContaining('Hello IC Starter'), tester),
+              timeout: const Duration(seconds: 5));
+          await tester.pageBack();
+          await tester.pump(const Duration(milliseconds: 500));
+        }
+      }
     });
 
   testWidgets('e2e suite — marketplace: real-backend browse+search+filter+download',
@@ -288,12 +332,22 @@ void main() {
     await registry.runFor('scripts.filter_favorites_only')!(tester, driver);
     driver.phase('10', 'OK — scripts.filter_favorites_only');
 
+    // PHASE 11: filter sort.
+    driver.phase('11', 'filter sort');
+    await registry.runFor('scripts.filter_sort')!(tester, driver);
+    driver.phase('11', 'OK — scripts.filter_sort');
+
+    // PHASE 12: download history view.
+    driver.phase('12', 'download history view');
+    await registry.runFor('download_history.view')!(tester, driver);
+    driver.phase('12', 'OK — download_history.view');
+
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(9),
+    expect(cov.implemented, greaterThanOrEqualTo(11),
         reason: 'Marketplace suite must cover at least 9 flows.');
 
     // ignore: avoid_print
