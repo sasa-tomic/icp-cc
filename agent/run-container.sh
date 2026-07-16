@@ -91,12 +91,14 @@ TOOLS:
     claude              Run Claude Code (with dangerously-skip-permissions)
     happy               Run Happy Coder
     opencode            Run OpenCode
+    omni                Run Omnigent (alias: omnigent)
     bash OR shell       Run a plain bash shell
 
 EXAMPLES:
     $0 claude                        # Start Claude Code with dangerously-skip-permissions
     $0 happy                         # Start Happy Coder
     $0 opencode                      # Start OpenCode
+    $0 omni                          # Start Omnigent
     $0 bash                          # Start a bash shell
     $0 claude --no-build             # Run Claude Code without rebuilding
     $0 claude "just test"            # Run ICP-CC tests in the container
@@ -108,7 +110,7 @@ ICP-CC SPECIFIC:
 
 REQUIREMENTS:
     - Docker and Docker Compose must be installed
-    - Must specify a tool: claude, happy, or opencode
+    - Must specify a tool: claude, happy, opencode, or omni
 
 This wrapper provides a safe way to run Claude Code, Happy Coder, or OpenCode with full access to the project
 while keeping your host system isolated through containerization.
@@ -138,7 +140,7 @@ while [[ $# -gt 0 ]]; do
 		AGENT_NAME="$2"
 		shift 2
 		;;
-	claude | happy | opencode | shell | bash)
+    claude | happy | opencode | omni | omnigent | shell | bash)
 		if [[ -z "$TOOL" ]]; then
 			TOOL="$1"
 			shift
@@ -155,7 +157,7 @@ while [[ $# -gt 0 ]]; do
 		;;
 	*)
 		if [[ -z "$TOOL" ]]; then
-			log_error "Must specify a tool: claude, happy, or opencode"
+			log_error "Must specify a tool: claude, happy, opencode, or omni"
 			show_help
 			exit 1
 		fi
@@ -193,7 +195,7 @@ check_requirements() {
 
 	# Check if tool is specified
 	if [[ -z "$TOOL" ]]; then
-		log_error "Must specify a tool: claude, happy, or opencode"
+		log_error "Must specify a tool: claude, happy, opencode, or omni"
 		show_help
 		exit 1
 	fi
@@ -256,6 +258,10 @@ run_tool() {
 		opencode)
 			tool_command="opencode"
 			log_info "Starting OpenCode..."
+			;;
+		omni | omnigent)
+			tool_command="omni"
+			log_info "Starting Omnigent..."
 			;;
 		bash | shell)
 			tool_command="bash"

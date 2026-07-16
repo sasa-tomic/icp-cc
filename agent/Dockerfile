@@ -25,7 +25,7 @@ RUN DFXVM_INIT_YES=yes sh -ci "$(curl -fsSL https://internetcomputer.org/install
 
 # Install deps
 RUN apt update && \
-    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq clang mold sqlite3 curl gosu postgresql \
+    apt install -y libunwind-dev curl libssl-dev pkg-config gzip build-essential ca-certificates less jq clang mold sqlite3 curl gosu postgresql tmux \
     # Docker CLI for running docker commands inside the container
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
@@ -98,6 +98,13 @@ RUN curl -fsSL https://opencode.ai/install | bash
 # Install Plasmate
 RUN curl -fsSL https://plasmate.app/install.sh | sh
 
+# Install Omnigent (the `omni`/`omnigent` CLI). `uv tool install` resolves the
+# full dependency tree (incl. pre-release opentelemetry-instrumentation-* that
+# plain pip rejects) into an isolated env; bin shims land in ~/.local/bin
+# (already on PATH). Pinned to match the verified host-registration flow.
+# See agent/entrypoint.sh for automatic host registration on container start.
+RUN uv tool install --python 3.12 omnigent==0.5.1
+
 # Install Flutter SDK for ICP-CC project
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \
     && /home/ubuntu/flutter/bin/flutter config --enable-web
@@ -135,7 +142,8 @@ RUN mkdir -p /code/icp-cc/target && chown ubuntu:ubuntu /code/icp-cc/target
 # non-root container can't write to them.
 RUN mkdir -p /home/ubuntu/.pub-cache \
         /home/ubuntu/flutter/bin/cache \
-    && chown -R ubuntu:ubuntu /home/ubuntu/.pub-cache /home/ubuntu/flutter/bin/cache
+        /home/ubuntu/.omnigent \
+    && chown -R ubuntu:ubuntu /home/ubuntu/.pub-cache /home/ubuntu/flutter/bin/cache /home/ubuntu/.omnigent
 COPY agent/entrypoint.sh $HOME/entrypoint.sh
 RUN chmod +x $HOME/entrypoint.sh
 

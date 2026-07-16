@@ -19,6 +19,11 @@ This directory contains a complete Docker setup for running AI coding agents (Cl
 ./run-container.sh opencode
 ```
 
+**Run Omnigent:**
+```bash
+./run-container.sh omni
+```
+
 ## Files Overview
 
 - **`Dockerfile`** - Customized for ICP-CC project with Flutter, Rust, ICP tooling
@@ -40,6 +45,7 @@ This setup provides:
 - **Claude Code** - Installed globally via npm
 - **Happy Coder** - Installed globally via npm
 - **OpenCode** - Installed via official installer
+- **Omnigent** - Installed via `uv tool` (the `omni`/`omnigent` CLI)
 - **Docker CLI & Compose** - For running containers from within the container
 - **PostgreSQL client** - For database operations
 
@@ -89,6 +95,25 @@ This setup provides:
 ./run-container.sh bash "just build"
 ```
 
+## Omnigent Host Auto-Registration
+
+The container automatically registers itself as an [Omnigent](https://omnigent.ai) **cloud sandbox host** on startup, so agent sessions launched from the Omnigent Web UI run inside this container. Registration happens in the background alongside whichever tool you invoke (`claude`/`happy`/`opencode`/`bash`); the host goes offline when the container stops.
+
+- **Server**: `http://192.168.0.2:6767` (override with `OMNIGENT_SERVER_URL`)
+- **Host name**: the repo basename, e.g. `icp-cc` (override with `OMNIGENT_HOST_NAME`)
+- **Disable**: `OMNIGENT_AUTO_REGISTER=0`
+- **Logs**: `~/.omnigent/logs/host-register.log` inside the container
+
+A stable host id is derived from the name, so an ephemeral (`--rm`) container reconnects as the same host across restarts. Host identity + credentials persist in the `omnigent-state` volume.
+
+If the server requires authentication, the background daemon fails loud with an `omnigent login` hint in the log. Run this once interactively to persist credentials:
+
+```bash
+./run-container.sh bash
+# inside the container:
+omnigent login --server http://192.168.0.2:6767
+```
+
 ## What's Included in the Container
 
 ### Development Tools
@@ -99,6 +124,7 @@ This setup provides:
 - **Claude Code** - Installed globally via npm
 - **Happy Coder** - Installed globally via npm
 - **OpenCode** - Installed via official installer
+- **Omnigent** - Installed via `uv tool`
 - **Docker CLI & Compose** - For running containers from within the container
 
 ### Project-Specific Tools

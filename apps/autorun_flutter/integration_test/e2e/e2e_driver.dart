@@ -47,6 +47,31 @@ Future<void> _settle(WidgetTester tester,
   }
 }
 
+/// Resolve the repo workspace root from the running test file's path.
+///
+/// The e2e suites live at `<repo>/apps/autorun_flutter/integration_test/e2e/`,
+/// so the repo root is exactly four directory components above the suite file.
+/// Deriving it (rather than hard-coding an absolute path) keeps the harness
+/// portable across dev/CI/Docker layouts — it works wherever the test binary
+/// happens to live on disk.
+String _resolveRepoRoot() {
+  // Platform.script is the authoritative path to the suite .dart file:
+  // .../apps/autorun_flutter/integration_test/e2e/<suite>.dart
+  final file = Platform.script.toFilePath();
+  final segments = Uri.file(file).pathSegments;
+  const trailing = 5; // apps/autorun_flutter/integration_test/e2e/<suite>
+  if (segments.length < trailing) {
+    throw StateError(
+      'E2EDriver: cannot derive repo root from script path "$file"; '
+      'expected at least $trailing path segments '
+      '(apps/autorun_flutter/integration_test/e2e/<suite>).',
+    );
+  }
+  // Drop the trailing <suite> file + its 4 parent dirs and re-join the rest
+  // as the absolute repo root.
+  return '/${segments.take(segments.length - trailing).join('/')}';
+}
+
 /// Drives the REAL app on either surface.
 ///
 /// Construct once per suite, then [boot] once, run many phases (resetAppState
@@ -55,8 +80,9 @@ Future<void> _settle(WidgetTester tester,
 class E2EDriver {
   E2EDriver({
     required this.surface,
-    this.shotDir = '/code/icp-cc/docs/specs/ux_screenshots/e2e',
-  });
+    String? shotDir,
+  }) : shotDir = shotDir ??
+            '${_resolveRepoRoot()}/docs/specs/ux_screenshots/e2e';
 
   final E2ESurface surface;
   final String shotDir;

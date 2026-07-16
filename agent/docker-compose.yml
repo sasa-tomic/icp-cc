@@ -23,6 +23,10 @@ services:
       # Android SDK/NDK — NDK auto-detected by scripts/common.sh::setup_android_ndk_env
       - ANDROID_HOME=/home/ubuntu/Android/Sdk
       - ANDROID_SDK_ROOT=/home/ubuntu/Android/Sdk
+      # Omnigent host registration (see agent/entrypoint.sh). The container
+      # auto-registers as a host with this server on start.
+      - OMNIGENT_SERVER_URL=http://192.168.0.2:6767
+      - OMNIGENT_AUTO_REGISTER=1
     volumes:
       # Mount the entire repository directory to /code
       - ..:/code/icp-cc
@@ -49,6 +53,9 @@ services:
       # Persist Flutter engine cache (Dart SDK + artifacts, ~200MB) so it isn't
       # re-downloaded on every --rm run; also stabilizes framework pkg resolution.
       - flutter-engine-cache:/home/ubuntu/flutter/bin/cache
+      # Persist Omnigent state (host identity + auth tokens from `omnigent login`)
+      # so the host keeps a stable identity across --rm runs.
+      - omnigent-state:/home/ubuntu/.omnigent
       # SSH key for agent access to remote nodes
       - ${HOME}/.ssh/claude-code:/tmp/claude-ssh/claude-code:ro
       - ${HOME}/.ssh/claude-code.pub:/tmp/claude-ssh/claude-code.pub:ro
@@ -72,6 +79,8 @@ volumes:
   pub-cache:
     driver: local
   flutter-engine-cache:
+    driver: local
+  omnigent-state:
     driver: local
   target-cache:
     driver: local
