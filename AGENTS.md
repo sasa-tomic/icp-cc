@@ -202,10 +202,15 @@ execution (R-3) and the IC-canister HTTP agent. See `docs/BROWSER_SUPPORT.md`.
 On a **headless Linux dev box** the authenticator itself is the gap (not the
 build):
 
-- **Linux desktop** (`flutter run -d linux`) — the app builds and runs, but the
-  `passkeys` package does **not** support Linux desktop, so
-  `PasskeyPlatform.isSupported` is `false` there. The passkey UI correctly
-  reports unsupported; you cannot exercise a real authenticator.
+- **Linux desktop** (`flutter run -d linux`) — the app builds and runs. On this
+dev box **gnome-keyring IS installed** (verified 2026-07-16:
+`/usr/bin/gnome-keyring-daemon` present), so `PasskeyPlatform.isSupported`
+is still `false` on Linux desktop (the `passkeys` package does not support
+Linux desktop), but `flutter_secure_storage` → libsecret → gnome-keyring
+**does work** once the keyring is unlocked. The user's `~/.local/share/
+keyrings/login.keyring` has a real password — interactive runs unlock via
+the GUI prompter; headless test runs use the mock (see "Mock Secret Service
+for dev/CI" below to avoid the prompter race).
 - **Flutter Web** (`flutter run -d chrome`) — builds and runs; would be the
   authenticator target (KeePassXC / Android hybrid / YubiKey / Titan Key via the
   browser). A live WebAuthn round-trip needs a real browser session + display
@@ -287,10 +292,13 @@ scripts/run-with-mock-keyring.sh --display :99 \
 ```
 
 The wrapper starts a private D-Bus session (`dbus-run-session`), launches the
-mock (`scripts/mock_secret_service.py`, requires `pip install dbus-next`), waits
-for it to claim the `org.freedesktop.secrets` name, then runs your command.
-Secrets persist in `$MOCK_SECRET_DATA_DIR` (or `$XDG_DATA_HOME`, default
-`~/.local/share/mock-secret-service/secrets.json`).
+mock FIRST (`scripts/mock_secret_service.py`, requires `pip install dbus-next`),
+then polls `NameHasOwner` (a bus-daemon call that does NOT trigger service
+autostart) until the mock owns `org.freedesktop.secrets`. This ordering is
+load-bearing: if any client call hits the unowned name first, D-Bus autostarts
+gnome-keyring (when installed) which wins the name race and blocks the suite
+on its GUI unlock prompter. Secrets persist in `$MOCK_SECRET_DATA_DIR` (or
+`$XDG_DATA_HOME`, default `~/.local/share/mock-secret-service/secrets.json`).
 
 **Verified end-to-end:** `SecureStorageReadiness().check()` returns
 `StorageReady` under the mock, and profile creation succeeds (the entire

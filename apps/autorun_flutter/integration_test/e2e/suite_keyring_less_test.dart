@@ -36,6 +36,7 @@ import 'package:icp_autorun/widgets/well_known_canisters.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/profile_setup_chip.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
+import 'package:icp_autorun/widgets/scripts_list_item_tile.dart';
 import 'package:icp_autorun/widgets/scripts_search_bar.dart';
 import 'package:icp_autorun/widgets/shortcuts_help_sheet.dart';
 import 'package:icp_autorun/widgets/spotlight_overlay.dart';
@@ -131,7 +132,12 @@ void main() {
         isTrue,
         reason: 'Selecting Dark must show the check-circle indicator.',
       );
-      // Restore System to avoid leaking the theme across phases.
+      // Restore System to avoid leaking the theme across phases. Re-scroll
+      // into view first: switching themes reflows the layout (font metrics
+      // differ between light/dark) and the System option may now sit above
+      // the viewport, which would make the tap miss.
+      await tester.ensureVisible(find.text('System'));
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('System'));
       await tester.pump(const Duration(milliseconds: 500));
     })
@@ -292,7 +298,12 @@ void main() {
     ..register('shortcut.refresh', (tester, d) async {
       // Press 'R' to trigger a refresh — assertion is behavioral: screen
       // stays stable, no crash, ScriptsScreen still present.
-      await tester.tapAt(const Offset(720, 450));
+      //
+      // NOTE: do NOT `tapAt(screenCenter)` to "focus" — that hits a
+      // marketplace tile (the scripts list fills the body) and opens the
+      // details dialog, leaking into the next flow. The keyboard shortcut
+      // handler is bound at the ScriptsScreen level, so a single pump after
+      // the previous flow is enough to receive the keystroke.
       await tester.pump(const Duration(milliseconds: 300));
       await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
       await tester.pump(const Duration(seconds: 1));
@@ -302,13 +313,28 @@ void main() {
     ..register('shortcut.details_prev_next_tab', (tester, d) async {
       // Open a marketplace tile to get the details dialog, then test arrow
       // keys for tab switching. Need a tile to be present first.
+      //
+      // Dismiss any details dialog a prior flow may have opened (the stray
+      // tap that opened this one was removed in `shortcut.refresh`, but a
+      // future flow may regress — guard against it here so the flow is
+      // self-contained).
+      await d.dismissOverlays(tester);
+      // The marketplace tile renders the title plus a "(Marketplace)" badge
+      // suffix when local scripts also exist (so the user can tell apart
+      // downloaded-vs-store items). Match by `textContaining` so the flow
+      // doesn't break the next time that badge wording changes. The Text
+      // itself isn't the tap target — its `ScriptsListItemTile` ancestor is.
+      final tileText = find.textContaining('Hello IC Starter');
       final tileReady = await d.waitUntil(
-          tester,
-          () => d.present(find.text('Hello IC Starter'), tester),
+          tester, () => d.present(tileText, tester),
           timeout: const Duration(seconds: 15));
       expect(tileReady, isTrue,
           reason: 'A marketplace tile must be present to open details.');
-      await tester.tap(find.text('Hello IC Starter'));
+      final tileWidget = find.ancestor(
+        of: tileText,
+        matching: find.byType(ScriptsListItemTile),
+      );
+      await tester.tap(tileWidget);
       final dialogOpen = await d.waitUntil(
           tester, () => d.present(find.byType(ScriptDetailsDialog), tester),
           timeout: const Duration(seconds: 5));

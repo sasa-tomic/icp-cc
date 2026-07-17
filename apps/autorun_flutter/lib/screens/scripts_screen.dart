@@ -1738,6 +1738,11 @@ class ScriptsScreenState extends State<ScriptsScreen>
             _allScriptsSortOption = option;
             _allScriptsSortAscending = ascending;
           });
+          // Sort is a one-shot selection (like category), so close the sheet
+          // immediately after applying — leaving it open forces the user to
+          // manually dismiss, and an open modal sheet intercepts AppBar taps
+          // (a real reachability bug surfaced by the strict e2e harness).
+          Navigator.of(context).pop();
         },
         onDownloadedFilterChanged: (value) {
           setState(() {

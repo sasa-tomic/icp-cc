@@ -19,6 +19,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/main.dart' as app;
 
@@ -47,29 +48,31 @@ Future<void> _settle(WidgetTester tester,
   }
 }
 
-/// Resolve the repo workspace root from the running test file's path.
+/// Resolve the repo workspace root by walking up from the running entrypoint.
 ///
-/// The e2e suites live at `<repo>/apps/autorun_flutter/integration_test/e2e/`,
-/// so the repo root is exactly four directory components above the suite file.
-/// Deriving it (rather than hard-coding an absolute path) keeps the harness
-/// portable across dev/CI/Docker layouts — it works wherever the test binary
-/// happens to live on disk.
+/// `Platform.script` under `flutter test -d linux` is the APP entrypoint
+/// (`apps/autorun_flutter/main.dart`), NOT the suite .dart file. Hard-coded
+/// segment math breaks the moment the entrypoint changes (unit-test mode uses
+/// the test file; integration mode uses main.dart; a future refactor may move
+/// main.dart). Instead, walk up the directory tree from the entrypoint's
+/// directory until we find the repo's `AGENTS.md` marker — that's the
+/// authoritative repo root regardless of which entrypoint launched the test.
 String _resolveRepoRoot() {
-  // Platform.script is the authoritative path to the suite .dart file:
-  // .../apps/autorun_flutter/integration_test/e2e/<suite>.dart
-  final file = Platform.script.toFilePath();
-  final segments = Uri.file(file).pathSegments;
-  const trailing = 5; // apps/autorun_flutter/integration_test/e2e/<suite>
-  if (segments.length < trailing) {
-    throw StateError(
-      'E2EDriver: cannot derive repo root from script path "$file"; '
-      'expected at least $trailing path segments '
-      '(apps/autorun_flutter/integration_test/e2e/<suite>).',
-    );
+  var dir = Directory(
+      File(Platform.script.toFilePath()).parent.path).absolute;
+  for (var i = 0; i < 12; i++) {
+    if (File('${dir.path}/AGENTS.md').existsSync()) {
+      return dir.path;
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break; // filesystem root
+    dir = parent;
   }
-  // Drop the trailing <suite> file + its 4 parent dirs and re-join the rest
-  // as the absolute repo root.
-  return '/${segments.take(segments.length - trailing).join('/')}';
+  throw StateError(
+    'E2EDriver: could not find AGENTS.md walking up from '
+    '"${File(Platform.script.toFilePath()).parent.path}". '
+    'The e2e harness must run inside the icp-cc repo checkout.',
+  );
 }
 
 /// Drives the REAL app on either surface.
@@ -99,6 +102,11 @@ class E2EDriver {
   Future<void> boot(WidgetTester tester) async {
     tester.view.physicalSize = kDesktopSize * kDesktopDpr;
     tester.view.devicePixelRatio = kDesktopDpr;
+    // Make off-target taps FATAL. The Flutter default is to emit a warning
+    // then keep going — which silently passes a test whose `tap()` missed the
+    // widget (real UX bug). For e2e we want every tap to actually hit the
+    // intended target; otherwise the assertion that follows is meaningless.
+    WidgetController.hitTestWarningShouldBeFatal = true;
     switch (surface) {
       case E2ESurface.desktop:
         await tester.runAsync(() => app.main());
@@ -131,14 +139,20 @@ class E2EDriver {
 
   /// Dismiss the first-run wizard by tapping its close (X) button. Bounded —
   /// never pumpAndSettle (the Scripts screen kicks off marketplace fetches).
+  ///
+  /// Matches the wizard's close button by its `Close setup` tooltip — NOT by
+  /// `Icons.close`, because `Icons.close` is also used by other on-screen
+  /// widgets (getting-started card, contextual tips, search bars) and the
+  /// `.first` of those is off-target when the wizard overlays them.
   Future<void> dismissWizard(WidgetTester tester) async {
+    final closeBtn = find.byTooltip('Close setup');
     var guard = 0;
-    while (!present(find.byIcon(Icons.close), tester) && guard < 60) {
+    while (!present(closeBtn, tester) && guard < 60) {
       await tester.pump(const Duration(milliseconds: 200));
       guard++;
     }
-    if (present(find.byIcon(Icons.close), tester)) {
-      await tester.tap(find.byIcon(Icons.close).first);
+    if (present(closeBtn, tester)) {
+      await tester.tap(closeBtn);
     }
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
@@ -172,6 +186,69 @@ class E2EDriver {
       return true;
     }
     return false;
+  }
+
+  /// Dismiss any transient overlays (SnackBar, open dialogs/menus) that would
+  /// absorb taps meant for the underlying widget tree (AppBar actions, the
+  /// back button, FABs, etc.).
+  ///
+  /// SnackBars from a prior phase often linger across flow boundaries and sit
+  /// in the Material Overlay — `tester.tap(find.byTooltip(...))` then derives
+  /// an offset whose hit-test is intercepted by the overlay's
+  /// AbsorbPointer/IgnorePointer chain, surfacing as a `hitTestWarning` /
+  /// `warnIfMissed` failure now that the harness makes those fatal.
+  ///
+  /// SnackBars with an action button (e.g. the download-flow "Run" action)
+  /// stay open MUCH longer than the default 4s — the action button holds
+  /// them on screen until tapped. So we explicitly tap any SnackBar action
+  /// first, then pump past the dismiss animation.
+  ///
+  /// NOTE: deliberately bounded pumps (NOT `pumpAndSettle`) — the real FFI's
+  /// Argon2id spinner and pending marketplace fetches animate forever, so
+  /// `pumpAndSettle` would never return.
+  /// Dismiss any SnackBar-with-action that would otherwise absorb taps meant
+  /// for the underlying widget tree.
+  ///
+  /// SnackBars from a prior phase often linger across flow boundaries and sit
+  /// in the Material Overlay — `tester.tap(find.byTooltip(...))` then derives
+  /// an offset whose hit-test is intercepted by the overlay's
+  /// AbsorbPointer/IgnorePointer chain, surfacing as a `hitTestWarning` /
+  /// `warnIfMissed` failure now that the harness makes those fatal.
+  ///
+  /// SnackBars with an action button (e.g. the download-flow "Run" action)
+  /// stay open MUCH longer than the default 4s — the action button holds
+  /// them on screen until tapped. We tap the action to dismiss immediately.
+  ///
+  /// IMPORTANT: this helper is intentionally MINIMAL. It does NOT close
+  /// modal bottom sheets, dialogs, or routes — those have to be closed by
+  /// the suite that opened them (the suite knows the right gesture:
+  /// drag-down for a sheet, Esc for a popup menu, `pageBack` for a route).
+  /// A blanket "dismiss everything" helper that auto-closes routes is a
+  /// footgun: it pops the actual navigation stack and breaks later
+  /// `pageBack` calls (we hit this exact regression in the mock-keyring
+  /// suite).
+  ///
+  /// NOTE: deliberately NOT `pumpAndSettle` — the real FFI's Argon2id
+  /// spinner and pending marketplace fetches animate forever.
+  Future<void> dismissOverlays(WidgetTester tester) async {
+    final sbAction = find.byType(SnackBarAction);
+    if (present(sbAction, tester)) {
+      // Tap the action's label Text (more reliable than the wrapper).
+      final actionLabel = find.descendant(
+          of: sbAction, matching: find.byType(Text));
+      if (present(actionLabel, tester)) {
+        await tester.tap(actionLabel.first);
+      } else {
+        await tester.tap(sbAction.first);
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    // Real-time wait so any timer-based SnackBar (no action) can clear on
+    // its own wall-clock schedule — `pump(Duration)` advances the binding
+    // clock only, which doesn't fire SnackBar's dart:async Timer.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pump(const Duration(milliseconds: 200));
   }
 
   /// Capture the live render tree to `<shotDir>/<name>.png`. Captures straight

@@ -706,6 +706,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await registry.runFor('account.register_from_local')!(tester, driver);
     if (shouldStopAfter('account.register_from_local')) return;
+    // Dismiss any SnackBar/dialog the registration surfaced before navigating
+    // away — the overlay's AbsorbPointer chain would otherwise intercept the
+    // Back-button tap (now a fatal `hitTestWarning`).
+    await driver.dismissOverlays(tester);
+    // DEBUG: dump what's on screen so we know what route is topmost.
+    // ignore: avoid_print
+    print('DEBUG_P13: AccountProfileScreen=' +
+        driver.present(find.byType(AccountProfileScreen), tester).toString() +
+        ' Dialog=' +
+        driver.present(find.byType(Dialog), tester).toString() +
+        ' AppBar=' +
+        driver.present(find.byType(AppBar), tester).toString() +
+        ' BackBtn=' +
+        driver.present(find.byTooltip('Back'), tester).toString());
     // Close AccountProfileScreen → root.
     await tester.pageBack();
     await driver.waitUntil(

@@ -16,6 +16,15 @@ logs_dir := root + "/logs"
 flutter_dir := root + "/apps/autorun_flutter"
 api_dir := root + "/backend"
 
+# The Flutter app's on-disk state directory. Follows the same resolution the
+# Dart `path_provider` package uses on Linux (`XDG_DATA_HOME` if set, else
+# `$HOME/.cache/data`), so wiping works regardless of the box's layout —
+# dev (HOME-based), CI containers, or wrappers (e.g. omnigent sets
+# XDG_DATA_HOME). Hard-coding only `$HOME/.cache/data/...` leaves state behind
+# on layouts that override XDG_DATA_HOME, which contaminates subsequent suite
+# runs with stale `scripts.json` / `bookmarks.json`.
+state_dir := (if env_var_or_default('XDG_DATA_HOME', '') == '' { env_var('HOME') + '/.cache/data' } else { env_var('XDG_DATA_HOME') }) + '/com.example.icp_autorun'
+
 # API server runtime state
 tmp_dir := root + "/.just-tmp"
 api_port_file := tmp_dir + "/icp-api.port"
@@ -387,7 +396,7 @@ test-ux-probe:
     #!/usr/bin/env bash
     set -euo pipefail
     RELEASE_LIB="{{root}}/target/release/libicp_core.so"
-    STATE_DIR="$HOME/.cache/data/com.example.icp_autorun"
+    STATE_DIR="{{state_dir}}"
     PASS1_LOG="{{logs_dir}}/ux-probe-pass1-keyring-less.log"
     PASS2_LOG="{{logs_dir}}/ux-probe-pass2-mock-keyring.log"
     mkdir -p "{{logs_dir}}"
@@ -500,7 +509,7 @@ e2e-desktop:
     #!/usr/bin/env bash
     set -euo pipefail
     RELEASE_LIB="{{root}}/target/release/libicp_core.so"
-    STATE_DIR="$HOME/.cache/data/com.example.icp_autorun"
+    STATE_DIR="{{state_dir}}"
     LOG="{{logs_dir}}/e2e-desktop.log"
     mkdir -p "{{logs_dir}}"
 
@@ -584,7 +593,7 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
         for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
     fi
     export DISPLAY=:99
-    rm -rf "$HOME/.cache/data/com.example.icp_autorun" 2>/dev/null || true
+    rm -rf "{{state_dir}}" 2>/dev/null || true
     # Drive the REAL app against the REAL local backend (kDebugMode desktop
     # honors MARKETPLACE_API_PORT → http://127.0.0.1:port). Without it the app
     # falls back to the production host and marketplace fetches throw 530.
@@ -635,7 +644,7 @@ e2e-one flow suite="keyring-less":
         for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
     fi
     export DISPLAY=:99
-    rm -rf "$HOME/.cache/data/com.example.icp_autorun" 2>/dev/null || true
+    rm -rf "{{state_dir}}" 2>/dev/null || true
     export MARKETPLACE_API_PORT=$(just _api-dev-port)
     echo "==> e2e-one: {{suite}} stop-after={{flow}} (backend :$MARKETPLACE_API_PORT)"
     cd "{{flutter_dir}}" && flutter test -d linux "integration_test/e2e/$FILE" \

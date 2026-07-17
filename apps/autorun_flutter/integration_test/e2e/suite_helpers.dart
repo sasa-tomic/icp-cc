@@ -57,12 +57,19 @@ const String _kDappPrefix = 'dapp.';
 ///    (the readiness gate blocks profile creation). Opting out there avoids a
 ///    spurious `PlatformException(Libsecret error)` while remaining honest —
 ///    there is genuinely nothing to wipe.
-/// 2. `profiles.json` — rewritten to the empty-store document.
-/// 3. SharedPreferences — the active-profile + first-run-dismissal keys and
-///    every `dapp.*` trust grant.
+/// 2. The whole app-support directory: `profiles.json`, `scripts.json`,
+///    `bookmarks.json`, `shared_preferences.json`, the cached-image index,
+///    any other on-disk artifact. Wiping the directory wholesale (vs.
+///    resetting individual files) is the only way to guarantee a true
+///    first-run state, since the app can add new state files at any time.
+///    Without this, scripts.json / bookmarks.json accumulate across phases
+///    and leak "Hello IC Starter (Marketplace)" / "E2E CRUD Script" tiles
+///    into the next flow, breaking text-based finders.
+/// 3. SharedPreferences in-memory cache (the gating keys + every `dapp.*`
+///    trust grant) — see [kPrefActiveProfileId] etc.
 ///
-/// After this, call `driver.remount(tester)` to mount a fresh shell that loads
-/// the now-empty store.
+/// After this, call `driver.remount(tester)` to mount a fresh shell that
+/// loads the now-empty store.
 Future<void> resetAppState({
   WidgetTester? tester,
   bool wipeSecureStorage = true,
@@ -77,13 +84,14 @@ Future<void> resetAppState({
     }
   }
 
-  // (2) profiles.json (+ legacy path wholesale, belt-and-suspenders).
+  // (2) Wipe the entire app-support directory WHOLESALE. The path follows the
+  //     app's path_provider resolution (XDG_DATA_HOME > $HOME/.cache/data),
+  //     plus the older $HOME/.local/share location used by some Flutter
+  //     versions — belt-and-suspenders so we don't leave state behind on any
+  //     layout the test box might use.
   final dir = Directory(_appSupportDir());
   if (await dir.exists()) {
-    final profiles = File('${dir.path}/profiles.json');
-    if (await profiles.exists()) {
-      await profiles.writeAsString('{"version":1,"profiles":[]}');
-    }
+    await dir.delete(recursive: true);
   }
   final legacy = Directory(
       '${Platform.environment['HOME'] ?? '/tmp'}/.local/share/com.example.icp_autorun');
