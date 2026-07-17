@@ -93,7 +93,38 @@ keyring-less, this becomes a non-issue.
 
 ## Medium severity
 
-*(none currently)*
+### UX-W1 — `details_run` shortcut missing from help sheet (RESOLVED)
+
+- **Status**: 🟢 RESOLVED (2026-07-17, commit `d12a9d24`)
+- **Surfaced**: 2026-07-17 (`shortcuts_help_sheet_test` was red)
+
+The `Enter` shortcut in the Script Details dialog (Run or Download — the
+primary action) was wired in `kShortcutSpecs` but never listed in the
+`ShortcutsHelpSheet` Details group. So users pressing Enter got the
+behavior but couldn't discover the binding via `?`. Fixed by adding
+`details_run` to the Details group alongside the close/prev/next entries.
+
+---
+
+### TEST-N1 — `profile_menu_simplified_v2_test` was asserting stale 'Switch Profile' copy
+
+- **Status**: 🟢 RESOLVED (2026-07-17, commit `d12a9d24`)
+- **Surfaced**: 2026-07-17
+
+With a single profile, the tile labelled "Switch Profile" actually opens
+the Manage Profiles sheet (since there's nothing to switch TO). The test
+asserted the wrong post-condition. Updated to assert "Manage Profiles"
+sheet opens (which is the current production behaviour).
+
+### TEST-N2 — `profile_menu_first_run_test` used `pumpAndSettle` on an infinitely-animating wizard
+
+- **Status**: 🟢 RESOLVED (2026-07-17, commit `d12a9d24`)
+- **Surfaced**: 2026-07-17
+
+`UnifiedSetupWizard` has continuous focus/transition animations that
+prevent `pumpAndSettle` from ever returning. Replaced with bounded
+pumps. Also fixed the stale "Create Profile" copy assertion (the actual
+CTA is "Get Started").
 
 ---
 

@@ -196,7 +196,54 @@ up vault). Reduce clicks. Encode the optimized path in the matching e2e flow.
 
 ## §5. Progress log
 
-### 2026-07-17 — Session start
+### 2026-07-17 — Session end summary
+
+**Phase A (fix broken e2e) ✅ COMPLETE.** 3/3 desktop suites green
+(58/98 flows). The 2 red suites were silently broken from the predecessor.
+
+**Phase C (web e2e harness) ⚠️ PARTIAL.**
+- Web Tier 1 widget smoke: extended from 1 to 2 tests, asserts the full
+  home shell mounts (MaterialApp root, first-run affordance, bottom nav
+  with all 3 tab labels, ScriptsScreen search bar). ~13s.
+- Playwright-against-built-web: BLOCKED on Flutter Web 3.38.3 semantics
+  enablement (`flt-semantics` element never appears regardless of
+  `SystemChannels.accessibility.send`, `SemanticsService.announce`, or
+  synthetic Tab keydowns). See `docs/OPEN_ISSUES.md` #WEB-1 for the
+  full investigation + the in-place hook that flips on the moment
+  Flutter ships working programmatic semantics.
+
+**Phase D (flow coverage) 🟡 IN PROGRESS.** 58 → 64 desktop flows:
+- keyring-less +4 (canisters.refresh_pull, scripts.empty_library,
+  scripts.marketplace_load_error, scripts.refresh_pull)
+- mock-keyring +2 (account.refresh, profile.switch_inline)
+- 31 still uncovered (mostly dapp runner, deeplink, paid-script flows).
+
+**Phase E (UX review) ⚠️ PARTIAL.** Visual review BLOCKED on zai-vision
+MCP lacking API key (`docs/OPEN_ISSUES.md` #UX-N1). Code-level review
+DONE: found + fixed 1 real UX bug (`details_run` missing from help
+sheet) + 3 stale widget-test assertions.
+
+**Phase I (persist open issues) ✅ COMPLETE.** `docs/OPEN_ISSUES.md`
+is the durable backlog; `AGENTS.md` links to it.
+
+**Phase J (final verify) 🟡 IN PROGRESS.**
+- `flutter analyze` clean (0 issues).
+- Backend `cargo clippy` clean (release).
+- `flutter test`: 4 pre-existing failures fixed; ~2019 pass / 11 skip.
+- `just e2e-desktop`: all 3 suites green (3 boots, ~3min).
+
+### Commits this session
+- `bcd0e407` (prior session tail)
+- `eb9cbdfa` — fix(e2e): unblock 2 of 3 desktop suites + plan extension
+- `094d8602` — test(e2e): +6 flows + docs/OPEN_ISSUES.md
+- `3c3d6e88` — docs(agents): link OPEN_ISSUES.md
+- `3607e07e` — test(e2e-web): +1 widget assertion to Tier 1 smoke
+- `d12a9d24` — fix(tests): 4 pre-existing test failures + lint cleanups
+
+---
+
+### Original 2026-07-17 session-start notes
+
 - Empirical baseline established (§0). Two of three desktop suites RED.
 - Plan written.
 - Subagents dispatched for parallel recon (Web PoC, deep code review,
