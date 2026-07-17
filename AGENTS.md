@@ -1,6 +1,8 @@
 # Project Rules for AI Agents
 
 > **Human expectations (intent of record):** [`docs/HUMAN_EXPECTATIONS.md`](docs/HUMAN_EXPECTATIONS.md) — what humans value; distils the rules below. Read alongside this file.
+>
+> **Open issues (living backlog):** [`docs/OPEN_ISSUES.md`](docs/OPEN_ISSUES.md) — every known issue, surfaced by sweeps / UX review / e2e reds / humans. Update on discovery; move to "Resolved" on close. **Read before starting work** to avoid re-discovering and to know what's currently blocking.
 
 ## CRITICAL: Read This First
 
