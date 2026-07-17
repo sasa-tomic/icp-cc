@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show SystemChannels;
+import 'package:flutter/semantics.dart' show SemanticsService;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:app_links/app_links.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,16 +41,23 @@ Future<void> main() async {
   setupServiceLocator();
   await ScriptTemplates.ensureInitialized();
   AppConfig.debugPrintConfig();
-  // Test affordance for Playwright/CDP-driven web e2e. The Flutter Web engine
-  // only enables its a11y semantics tree (the DOM a Playwright harness asserts
-  // on) when it detects a screen reader or a Tab keypress at the engine level;
-  // headless Chromium triggers neither reliably. This dart-define forces
-  // semantics ON at boot — production users see no change (unset by default).
+  // Test affordance for Playwright/CDP-driven web e2e. Empirically on Flutter
+  // 3.38.3 canvaskit, none of {SystemChannels.accessibility.send,
+  // SemanticsService.announce, dispatching window Tab keydowns from JS}
+  // force-enables the Flutter Web a11y tree. The engine's SemanticsEnabler
+  // appears to only honour its own internal screen-reader detection. So this
+  // hook is left in place (and wired to both attempted paths) so that when a
+  // future Flutter version ships working programmatic semantics enablement,
+  // the Playwright harness flips on without further app changes. See
+  // docs/OPEN_ISSUES.md (#WEB-1) for the full investigation + workarounds.
   if (kIsWeb) {
     const forceSemantics =
         bool.fromEnvironment('FLUTTER_WEB_FORCE_SEMANTICS', defaultValue: false);
     if (forceSemantics) {
-      SystemChannels.accessibility.send(<Object?>['enableSemantics', null]);
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        // ignore: deprecated_member_use
+        SemanticsService.announce('e2e harness ready', TextDirection.ltr);
+      });
     }
   }
   runApp(const KeypairApp());
