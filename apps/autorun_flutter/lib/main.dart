@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:app_links/app_links.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -39,6 +40,18 @@ Future<void> main() async {
   setupServiceLocator();
   await ScriptTemplates.ensureInitialized();
   AppConfig.debugPrintConfig();
+  // Test affordance for Playwright/CDP-driven web e2e. The Flutter Web engine
+  // only enables its a11y semantics tree (the DOM a Playwright harness asserts
+  // on) when it detects a screen reader or a Tab keypress at the engine level;
+  // headless Chromium triggers neither reliably. This dart-define forces
+  // semantics ON at boot — production users see no change (unset by default).
+  if (kIsWeb) {
+    const forceSemantics =
+        bool.fromEnvironment('FLUTTER_WEB_FORCE_SEMANTICS', defaultValue: false);
+    if (forceSemantics) {
+      SystemChannels.accessibility.send(<Object?>['enableSemantics', null]);
+    }
+  }
   runApp(const KeypairApp());
 }
 

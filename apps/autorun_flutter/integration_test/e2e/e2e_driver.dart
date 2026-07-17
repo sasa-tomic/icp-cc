@@ -219,6 +219,15 @@ class E2EDriver {
   /// stay open MUCH longer than the default 4s — the action button holds
   /// them on screen until tapped. We tap the action to dismiss immediately.
   ///
+  /// IMPLEMENTATION NOTES:
+  /// - We use `warnIfMissed: false` because the matched `SnackBarAction` may
+  ///   be mid-animation (fading out) and have no on-stage geometry. Treating
+  ///   "the dismiss tap didn't land" as fatal here is wrong: it's a best-effort
+  ///   cleanup, not a behavioral assertion.
+  /// - We prefer `ScaffoldMessenger.removeCurrentSnackBar()` (the explicit
+  ///   Material API) when a Scaffold context is available — it's atomic and
+  ///   doesn't depend on hit-testing at all. The tap path is the fallback.
+  ///
   /// IMPORTANT: this helper is intentionally MINIMAL. It does NOT close
   /// modal bottom sheets, dialogs, or routes — those have to be closed by
   /// the suite that opened them (the suite knows the right gesture:
@@ -231,15 +240,24 @@ class E2EDriver {
   /// NOTE: deliberately NOT `pumpAndSettle` — the real FFI's Argon2id
   /// spinner and pending marketplace fetches animate forever.
   Future<void> dismissOverlays(WidgetTester tester) async {
+    // Preferred path: atomic, no hit-test dependency. Scaffold always provides
+    // a ScaffoldMessenger ancestor, so .of() resolves without throwing when a
+    // Scaffold is on stage.
+    final scaffoldEl = find.byType(Scaffold).evaluate().firstOrNull;
+    if (scaffoldEl != null) {
+      ScaffoldMessenger.of(scaffoldEl).removeCurrentSnackBar();
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Fallback: tap the SnackBarAction's Text to dismiss (best-effort).
     final sbAction = find.byType(SnackBarAction);
     if (present(sbAction, tester)) {
-      // Tap the action's label Text (more reliable than the wrapper).
       final actionLabel = find.descendant(
           of: sbAction, matching: find.byType(Text));
       if (present(actionLabel, tester)) {
-        await tester.tap(actionLabel.first);
+        await tester.tap(actionLabel.first, warnIfMissed: false);
       } else {
-        await tester.tap(sbAction.first);
+        await tester.tap(sbAction.first, warnIfMissed: false);
       }
       await tester.pump(const Duration(milliseconds: 300));
     }

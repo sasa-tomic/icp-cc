@@ -710,21 +710,17 @@ void main() {
     // away — the overlay's AbsorbPointer chain would otherwise intercept the
     // Back-button tap (now a fatal `hitTestWarning`).
     await driver.dismissOverlays(tester);
-    // DEBUG: dump what's on screen so we know what route is topmost.
-    // ignore: avoid_print
-    print('DEBUG_P13: AccountProfileScreen=' +
-        driver.present(find.byType(AccountProfileScreen), tester).toString() +
-        ' Dialog=' +
-        driver.present(find.byType(Dialog), tester).toString() +
-        ' AppBar=' +
-        driver.present(find.byType(AppBar), tester).toString() +
-        ' BackBtn=' +
-        driver.present(find.byTooltip('Back'), tester).toString());
-    // Close AccountProfileScreen → root.
-    await tester.pageBack();
-    await driver.waitUntil(
-        tester, () => driver.present(find.byType(ScriptsScreen), tester),
-        timeout: const Duration(seconds: 5));
+    // Close AccountProfileScreen → root, IF it's still on stage. The
+    // controller-direct `registerAccount` call mutates profile.username,
+    // which can trigger a reactive rebuild that pops AccountProfileScreen
+    // out from under us. Calling pageBack() with no Back button on stage
+    // throws a fatal TestFailure — guard with a presence check first.
+    if (driver.present(find.byType(AccountProfileScreen), tester)) {
+      await tester.pageBack();
+      await driver.waitUntil(
+          tester, () => driver.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 5));
+    }
     // Remount so the profile menu picks up the new username.
     await driver.remount(tester);
     await driver.waitUntil(
