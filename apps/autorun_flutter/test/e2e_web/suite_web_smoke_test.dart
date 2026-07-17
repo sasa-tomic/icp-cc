@@ -34,6 +34,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 
 import '../../integration_test/e2e/e2e_driver.dart';
 import '../../integration_test/e2e/flow_catalog.dart';
@@ -59,6 +60,18 @@ void main() {
         reason: 'KeypairApp must mount a MaterialApp root on Web.');
     driver.phase('boot', 'MaterialApp mounted');
 
+    // After boot, EITHER the wizard appears (first-run) OR the persistent
+    // chip "Set up profile" appears (wizard auto-dismissed in test mode).
+    // Both prove the FULL reactive chain ran on Web canvaskit-on-Chromium:
+    // ProfileController.ensureLoaded() → first-run gate → wizard/chip mount.
+    final wizardOrChip = find.byWidgetPredicate((w) =>
+        w is UnifiedSetupWizard ||
+        (w is Text && (w.data?.contains('Set up profile') ?? false)));
+    expect(wizardOrChip, findsWidgets,
+        reason: 'Web boot must show either UnifiedSetupWizard (first-run) '
+            'or the persistent "Set up profile" chip.');
+    driver.phase('cta', 'first-run affordance rendered');
+
     // Coverage contract: the catalog is intact and the registry wires up.
     final report = FlowCatalog.coverageReport(registry);
     expect(report.total, greaterThan(90), reason: 'catalog lists all flows');
@@ -66,5 +79,29 @@ void main() {
         reason: 'smoke flow registered');
     driver.phase('coverage',
         '${report.implemented}/${report.total} flows registered');
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  // Network-free widget-tree assertions: prove key surfaces render correctly
+  // on Web canvaskit. These don't need real backend hits (the bottom nav
+  // renders before any fetch fires); they assert the cross-surface visual
+  // contract: nav bar, scripts screen, search bar.
+  testWidgets('web e2e Tier 1 — home shell + nav bar render on canvaskit',
+      (tester) async {
+    await driver.boot(tester);
+    await tester.pump(const Duration(seconds: 2));
+    // The bottom nav has 3 tabs: Scripts, Canisters, Dapps. Asserting these
+    // labels render proves the ModernNavigationBar builds + lays out.
+    expect(find.text('Scripts'), findsWidgets,
+        reason: 'Bottom nav must show "Scripts" tab label.');
+    expect(find.text('Canisters'), findsOneWidget,
+        reason: 'Bottom nav must show "Canisters" tab label.');
+    expect(find.text('Dapps'), findsOneWidget,
+        reason: 'Bottom nav must show "Dapps" tab label.');
+    driver.phase('nav', '3 bottom-nav labels rendered');
+    // The scripts search bar renders (proves ScriptsScreen body builds,
+    // even with no marketplace data due to the 400-returning HTTP override).
+    expect(find.text('Search scripts...'), findsOneWidget,
+        reason: 'ScriptsScreen must render its search bar hint text.');
+    driver.phase('shell', 'ScriptsScreen search bar rendered');
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
