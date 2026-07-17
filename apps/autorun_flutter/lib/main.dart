@@ -40,10 +40,12 @@ import 'widgets/script_details_dialog.dart';
 /// production app). Declared here as no-op `fromEnvironment` lookups so the
 /// WU-S1 justfile-dart-define-key audit recognizes them as legitimate. Each
 /// key documents who reads it.
+// ignore: unused_element, prefer_const_declarations
 const _kTestOnlyDefines = <String>[
   // Read by integration_test/e2e/suite_*.dart to stop after a specific flow.
   'ICP_E2E_STOP_AFTER',
 ];
+// ignore: unused_element
 const _ignoredStopAfter =
     String.fromEnvironment('ICP_E2E_STOP_AFTER', defaultValue: '');
 
