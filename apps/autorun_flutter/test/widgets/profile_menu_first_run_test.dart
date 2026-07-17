@@ -56,10 +56,16 @@ void main() {
 
       // ... and tapping it opens the creation surface (no longer a no-op).
       await tester.tap(find.text('My Account'));
-      await tester.pumpAndSettle();
+      // Bounded pumps (NOT pumpAndSettle) — UnifiedSetupWizard has continuous
+      // focus/transition animations that prevent pumpAndSettle from returning.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(seconds: 1));
 
-      expect(find.text('Create Profile'), findsOneWidget,
-          reason: 'first-run My Account tap must open profile creation');
+      // The wizard's primary CTA is "Get Started" (UnifiedSetupWizard uses
+      // this consistently across its 3 mount points).
+      expect(find.text('Get Started'), findsOneWidget,
+          reason: 'first-run My Account tap must open the setup wizard '
+              '(CTA: "Get Started").');
     });
 
     testWidgets(

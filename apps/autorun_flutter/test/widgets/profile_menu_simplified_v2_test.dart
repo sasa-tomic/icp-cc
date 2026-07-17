@@ -229,16 +229,19 @@ void main() {
     });
 
     group('Switch Profile navigation', () {
-      testWidgets('tapping "Switch Profile" opens profile switcher sheet',
+      testWidgets('tapping "Switch Profile" opens manage profiles sheet',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: true);
 
         await tester.tap(find.text('Switch Profile'));
         await tester.pumpAndSettle();
 
-        // Should show profile switcher
-        expect(find.text('Switch Profile'), findsWidgets,
-            reason: 'Should open profile switcher sheet');
+        // With a single profile, "Switch Profile" opens the full manage sheet
+        // (create / rename / delete) — there is nothing to switch TO. The
+        // sheet's title is "Manage Profiles". Asserting that title appears
+        // is the correct post-condition (not "Switch Profile" re-appearing).
+        expect(find.text('Manage Profiles'), findsWidgets,
+            reason: 'Should open manage profiles sheet for single-profile case.');
       });
     });
   });

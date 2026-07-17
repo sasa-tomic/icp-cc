@@ -36,6 +36,17 @@ import 'widgets/shortcuts_help_sheet.dart';
 import 'widgets/spotlight_overlay.dart';
 import 'widgets/script_details_dialog.dart';
 
+/// Test-only dart-defines that the e2e/integration harness reads (NOT the
+/// production app). Declared here as no-op `fromEnvironment` lookups so the
+/// WU-S1 justfile-dart-define-key audit recognizes them as legitimate. Each
+/// key documents who reads it.
+const _kTestOnlyDefines = <String>[
+  // Read by integration_test/e2e/suite_*.dart to stop after a specific flow.
+  'ICP_E2E_STOP_AFTER',
+];
+const _ignoredStopAfter =
+    String.fromEnvironment('ICP_E2E_STOP_AFTER', defaultValue: '');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   setupServiceLocator();

@@ -27,7 +27,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/screens/download_history_screen.dart';
-import 'package:icp_autorun/screens/script_filter_sheet.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
