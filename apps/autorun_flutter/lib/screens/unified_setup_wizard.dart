@@ -6,6 +6,7 @@ import '../models/profile.dart';
 import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../controllers/profile_controller.dart';
+import '../services/connectivity_service.dart';
 import '../services/secure_storage_readiness.dart';
 import '../theme/app_design_system.dart';
 
@@ -27,6 +28,7 @@ class UnifiedSetupWizard extends StatefulWidget {
     required this.accountController,
     this.initialDisplayName,
     this.secureStorageReadiness,
+    this.connectivityProbe,
     super.key,
   });
 
@@ -42,6 +44,15 @@ class UnifiedSetupWizard extends StatefulWidget {
   /// (legacy callers / unit tests that inject a fake ProfileController), the
   /// gate is skipped and the form is shown directly.
   final SecureStorageReadiness? secureStorageReadiness;
+
+  /// Optional reachability probe invoked before [ProfileController.createProfile]
+  /// when the user has entered a marketplace username (UX-21 / UX-H7). Lets the
+  /// wizard fail fast on offline with a friendly inline error, instead of
+  /// persisting a profile and rolling it back via UX-CRIT-2's path. When `null`
+  /// (production wiring), the default backend health probe is used. When the
+  /// username is empty (local-only profile), the probe is skipped entirely —
+  /// local profile creation needs no connectivity.
+  final ConnectivityProbe? connectivityProbe;
 
   @override
   State<UnifiedSetupWizard> createState() => _UnifiedSetupWizardState();
@@ -774,6 +785,20 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
     return _usernameValidation?.isValid == true;
   }
 
+  Future<bool> _runConnectivityProbe() async {
+    final injected = widget.connectivityProbe;
+    if (injected != null) return injected();
+    // Production wiring: a one-shot ConnectivityService that runs the
+    // platform-default backend health probe (HTTP GET /api/v1/health on
+    // native; navigator.onLine on web). Cheap to construct; disposed once.
+    final service = ConnectivityService();
+    try {
+      return await service.checkConnectivity();
+    } finally {
+      await service.dispose();
+    }
+  }
+
   Future<void> _handleCreate() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -792,6 +817,24 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
       _isCreating = true;
       _errorMessage = null;
     });
+
+    // UX-21 / UX-H7: if the user intends to register a marketplace account,
+    // probe the backend BEFORE createProfile so we fail fast on offline with a
+    // friendly inline error (no orphan-profile churn, no waiting for a network
+    // timeout). Skipped when the username is empty — a local-only profile
+    // needs no backend.
+    if (username.isNotEmpty) {
+      final reachable = await _runConnectivityProbe();
+      if (!mounted) return;
+      if (!reachable) {
+        setState(() {
+          _errorMessage =
+              "Can't reach the marketplace backend. Check your connection and try again.";
+          _isCreating = false;
+        });
+        return;
+      }
+    }
 
     try {
       final displayName = _displayNameController.text.trim();

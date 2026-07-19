@@ -492,6 +492,7 @@ void main() {
                       builder: (context) => UnifiedSetupWizard(
                         profileController: profileController,
                         accountController: accountController,
+                        connectivityProbe: () async => true,
                       ),
                     ),
                   );
@@ -567,6 +568,7 @@ void main() {
           home: UnifiedSetupWizard(
             profileController: profileController,
             accountController: accountController,
+            connectivityProbe: () async => true,
           ),
         ));
         await tester.pumpAndSettle();
@@ -711,6 +713,7 @@ void main() {
           home: UnifiedSetupWizard(
             profileController: profileController,
             accountController: accountController,
+            connectivityProbe: () async => true,
           ),
         ));
         await tester.pumpAndSettle();
@@ -750,6 +753,109 @@ void main() {
         expect(find.text('Get Started'), findsWidgets);
         expect(find.text('Success!'), findsNothing);
         expect(profileController.profiles, isEmpty);
+      });
+    });
+
+    group('Connectivity precheck (UX-21)', () {
+      testWidgets(
+          'when the marketplace backend is unreachable, shows a friendly '
+          'inline error, creates NO profile, and stays on the wizard',
+          (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+            connectivityProbe: () async => false,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextFormField).first, 'Offline User');
+        await tester.enterText(find.byType(TextFormField).at(1), 'offline123');
+        await tester.pump(const Duration(milliseconds: 600));
+
+        await tester
+            .ensureVisible(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+
+        expect(
+            find.textContaining("Can't reach the marketplace backend"),
+            findsOneWidget,
+            reason: 'Connectivity failure must show a friendly inline error.');
+        expect(profileController.profiles, isEmpty,
+            reason: 'No profile should be persisted when the precheck fails.');
+        expect(find.text('Get Started'), findsWidgets,
+            reason: 'The wizard must remain on screen.');
+        expect(find.text('Success!'), findsNothing);
+      });
+
+      testWidgets(
+          'when the probe succeeds, registration proceeds normally '
+          '(one profile + one account)', (tester) async {
+        var probeCalls = 0;
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+            connectivityProbe: () async {
+              probeCalls += 1;
+              return true;
+            },
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextFormField).first, 'Online User');
+        await tester.enterText(find.byType(TextFormField).at(1), 'online123');
+        await tester.pump(const Duration(milliseconds: 600));
+
+        await tester
+            .ensureVisible(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(profileController.profiles, hasLength(1),
+            reason: 'Registration should succeed when the probe returns true.');
+        expect(profileController.profiles.first.username, 'online123');
+        expect(probeCalls, 1,
+            reason: 'The probe must be invoked exactly once per submit.');
+      });
+
+      testWidgets(
+          'skips the probe entirely when the username is empty (local-only)',
+          (tester) async {
+        var probeCalls = 0;
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+            connectivityProbe: () async {
+              probeCalls += 1;
+              return false; // would block if invoked
+            },
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextFormField).first, 'Local User');
+        await tester.pump();
+
+        await tester
+            .ensureVisible(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(profileController.profiles, hasLength(1),
+            reason: 'Local-only profiles must not require connectivity.');
+        expect(probeCalls, 0,
+            reason: 'The probe must not fire when the username is empty.');
       });
     });
   });
