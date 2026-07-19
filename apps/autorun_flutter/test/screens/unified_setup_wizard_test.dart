@@ -673,5 +673,84 @@ void main() {
         expect(find.text('Start Exploring'), findsOneWidget);
       });
     });
+
+    group('Keyboard completion (UX-9/UX-10)', () {
+      testWidgets(
+          'Enter on display name (with empty username) moves focus to the '
+          'username field instead of submitting', (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextFormField).first, 'Keyboard User');
+        await tester.pump();
+
+        // Display name is the first field and has TextInputAction.next.
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await tester.pump();
+
+        final usernameField =
+            tester.widget<TextField>(find.byType(TextField).at(1));
+        expect(usernameField.focusNode?.hasFocus, isTrue,
+            reason: 'Enter on display name should move focus to username.');
+
+        // The wizard has NOT submitted — still on the form screen.
+        expect(find.text('Get Started'), findsWidgets);
+        expect(find.text('Success!'), findsNothing);
+        expect(profileController.profiles, isEmpty);
+      });
+
+      testWidgets(
+          'Enter on username (valid form) submits the wizard via the keyboard',
+          (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextFormField).first, 'Enter Sub');
+        await tester.enterText(find.byType(TextFormField).at(1), 'entersub');
+        await tester.pump(const Duration(milliseconds: 600));
+
+        // Username is the last field and has TextInputAction.done.
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Success!'), findsOneWidget,
+            reason: 'Enter on the username field should submit the wizard.');
+        expect(profileController.profiles, hasLength(1));
+        expect(profileController.profiles.first.username, 'entersub');
+      });
+
+      testWidgets(
+          'Enter on display name with empty value does not move focus and '
+          'does not submit (form invalid)', (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        // Don't enter anything — display name stays empty.
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await tester.pump();
+
+        // The wizard stays put; no profile created.
+        expect(find.text('Get Started'), findsWidgets);
+        expect(find.text('Success!'), findsNothing);
+        expect(profileController.profiles, isEmpty);
+      });
+    });
   });
 }

@@ -51,6 +51,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
   final _displayNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _usernameFocusNode = FocusNode();
 
   bool _isValidating = false;
   UsernameValidation? _usernameValidation;
@@ -94,6 +95,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
   void dispose() {
     _displayNameController.dispose();
     _usernameController.dispose();
+    _usernameFocusNode.dispose();
     _debounceTimer?.cancel();
     super.dispose();
   }
@@ -384,6 +386,8 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
           ),
           onChanged: (_) => setState(() {}),
           textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: (_) => _usernameFocusNode.requestFocus(),
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
               return 'Display name is required';
@@ -416,6 +420,7 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         const SizedBox(height: 12),
         TextFormField(
           controller: _usernameController,
+          focusNode: _usernameFocusNode,
           decoration: InputDecoration(
             hintText: 'Choose a username',
             prefixIcon: const Icon(Icons.alternate_email),
@@ -428,6 +433,10 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
             ),
           ),
           onChanged: _onUsernameChanged,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) {
+            if (_canCreate && !_isCreating) _handleCreate();
+          },
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_-]')),
           ],

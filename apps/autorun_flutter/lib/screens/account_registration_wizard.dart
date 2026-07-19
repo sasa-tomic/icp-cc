@@ -55,6 +55,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
   final _websiteUrlController = TextEditingController();
   final _bioController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _displayNameFocusNode = FocusNode();
 
   // Validation state
   bool _isValidating = false;
@@ -83,6 +84,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
     _contactDiscordController.dispose();
     _websiteUrlController.dispose();
     _bioController.dispose();
+    _displayNameFocusNode.dispose();
     _debounceTimer?.cancel();
     super.dispose();
   }
@@ -165,6 +167,8 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
                 ),
               ),
               onChanged: _onUsernameChanged,
+              textInputAction: TextInputAction.next,
+              onFieldSubmitted: (_) => _displayNameFocusNode.requestFocus(),
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Username is required';
@@ -184,6 +188,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
             // Display Name input
             TextFormField(
               controller: _displayNameController,
+              focusNode: _displayNameFocusNode,
               decoration: InputDecoration(
                 labelText: 'Display Name *',
                 hintText: 'Alice Developer',
@@ -193,6 +198,10 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
                 ),
               ),
               onChanged: (_) => setState(() {}),
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) {
+                if (_canRegister && !_isRegistering) _registerAccount();
+              },
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Display name is required';

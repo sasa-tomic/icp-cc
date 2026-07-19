@@ -466,5 +466,128 @@ void main() {
         expect((result as Account).username, 'alice');
       });
     });
+
+    group('Keyboard completion (UX-9/UX-10)', () {
+      testWidgets(
+          'Enter on username moves focus to the display name field; Enter on '
+          'display name submits the form when valid', (tester) async {
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
+        final mockController = _MockAccountController();
+        final testAccount = Account(
+          id: 'acc-kbd',
+          username: 'kbduser',
+          displayName: 'Keyboard User',
+          publicKeys: const <AccountPublicKey>[],
+          createdAt: DateTime.utc(2024, 1, 1),
+          updatedAt: DateTime.utc(2024, 1, 1),
+        );
+
+        registerFallbackValue('');
+        registerFallbackValue(keypair);
+        when(() => mockController.validateUsername(any()))
+            .thenReturn(UsernameValidation.valid);
+        when(() => mockController.isUsernameAvailable(any()))
+            .thenAnswer((_) => Future<bool>.value(true));
+        when(() => mockController.registerAccount(
+              keypair: any(named: 'keypair'),
+              username: any(named: 'username'),
+              displayName: any(named: 'displayName'),
+              contactEmail: any(named: 'contactEmail'),
+              contactTelegram: any(named: 'contactTelegram'),
+              contactTwitter: any(named: 'contactTwitter'),
+              contactDiscord: any(named: 'contactDiscord'),
+              websiteUrl: any(named: 'websiteUrl'),
+              bio: any(named: 'bio'),
+            )).thenAnswer((_) => Future<Account>.value(testAccount));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AccountRegistrationWizard(
+              keypair: keypair,
+              accountController: mockController,
+              isPasskeySupported: () => false,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Username').first,
+          'kbduser',
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+
+        // Enter on username → focus should move to display name.
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await tester.pump();
+
+        final displayNameField = tester.widget<TextField>(
+            find.widgetWithText(TextField, 'Display Name *').first);
+        expect(displayNameField.focusNode?.hasFocus, isTrue,
+            reason: 'Enter on username should focus the display name field.');
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Display Name *').first,
+          'Keyboard User',
+        );
+        await tester.pumpAndSettle();
+
+        // Enter on display name (the last field) submits the wizard.
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        verify(() => mockController.registerAccount(
+              keypair: any(named: 'keypair'),
+              username: any(named: 'username'),
+              displayName: any(named: 'displayName'),
+              contactEmail: any(named: 'contactEmail'),
+              contactTelegram: any(named: 'contactTelegram'),
+              contactTwitter: any(named: 'contactTwitter'),
+              contactDiscord: any(named: 'contactDiscord'),
+              websiteUrl: any(named: 'websiteUrl'),
+              bio: any(named: 'bio'),
+            )).called(1);
+      });
+
+      testWidgets(
+          'Enter on display name does nothing when username is invalid',
+          (tester) async {
+        final keypair = await TestKeypairFactory.getEd25519Keypair();
+        final controller = AccountController();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AccountRegistrationWizard(
+              keypair: keypair,
+              accountController: controller,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Type a too-short username; validation fails.
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Username').first,
+          'ab',
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Display Name *').first,
+          'Some User',
+        );
+        await tester.pumpAndSettle();
+
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // No navigation pop / no passkey prompt — the wizard stays put.
+        expect(find.text('Set Up Passkey?'), findsNothing);
+        expect(find.text('Register'), findsOneWidget);
+      });
+    });
   });
 }

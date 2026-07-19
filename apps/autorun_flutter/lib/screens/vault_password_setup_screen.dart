@@ -44,6 +44,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _passwordFocusNode = FocusNode();
+  final _confirmFocusNode = FocusNode();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isCreating = false;
@@ -66,6 +68,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
     _confirmController.removeListener(_onFormChanged);
     _passwordController.dispose();
     _confirmController.dispose();
+    _passwordFocusNode.dispose();
+    _confirmFocusNode.dispose();
     super.dispose();
   }
 
@@ -271,8 +275,11 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
   Widget _buildPasswordField() {
     return TextFormField(
       controller: _passwordController,
+      focusNode: _passwordFocusNode,
       obscureText: _obscurePassword,
       validator: _validatePassword,
+      textInputAction: TextInputAction.next,
+      onFieldSubmitted: (_) => _confirmFocusNode.requestFocus(),
       decoration: InputDecoration(
         labelText: 'Password',
         hintText: 'Enter strong password',
@@ -290,8 +297,13 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
   Widget _buildConfirmField() {
     return TextFormField(
       controller: _confirmController,
+      focusNode: _confirmFocusNode,
       obscureText: _obscureConfirm,
       validator: _validateConfirm,
+      textInputAction: TextInputAction.done,
+      onFieldSubmitted: (_) {
+        if (_isFormValid && !_isCreating) _createVault();
+      },
       decoration: InputDecoration(
         labelText: 'Confirm Password',
         hintText: 'Re-enter password',
@@ -377,13 +389,17 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
     );
   }
 
-  Widget _buildCreateButton() {
-    final isValid = _passwordController.text.length >= 12 &&
+  bool get _isFormValid {
+    return _passwordController.text.length >= 12 &&
         RegExp(r'[A-Z]').hasMatch(_passwordController.text) &&
         RegExp(r'[a-z]').hasMatch(_passwordController.text) &&
         RegExp(r'[0-9]').hasMatch(_passwordController.text) &&
         RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(_passwordController.text) &&
         _confirmController.text == _passwordController.text;
+  }
+
+  Widget _buildCreateButton() {
+    final isValid = _isFormValid;
 
     return ElevatedButton(
       onPressed: _isCreating || !isValid ? null : _createVault,
