@@ -15,7 +15,7 @@
 
 ### UX-CRIT-1 — Recovery-codes screen traps the user into lying (data loss path)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `b5c6168b`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-1)
 - **Severity**: CRITICAL (permanent vault data loss)
 - **Location**: `apps/autorun_flutter/lib/screens/recovery_codes_screen.dart:48,232`
@@ -30,7 +30,7 @@ button next to Copy.
 
 ### UX-CRIT-2 — Wizard partial-failure leaves orphan duplicate-prone profiles
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `f7db0a1e`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-2)
 - **Severity**: CRITICAL (silent data corruption + misleading error)
 - **Location**: `apps/autorun_flutter/lib/screens/unified_setup_wizard.dart:792-812`
@@ -47,7 +47,7 @@ created locally, but marketplace registration failed: …".
 
 ### UX-CRIT-3 — Currency label mismatch on script publish flow
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `7239d3d7`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-3)
 - **Severity**: CRITICAL (money-path bug)
 - **Location**: `apps/autorun_flutter/lib/widgets/quick_upload_dialog.dart:511`
@@ -83,7 +83,7 @@ details dialog header, and run-panel status row.
 
 ### UX-H2 — Empty-library CTAs inverted (Create primary, Browse secondary)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `a0316eb9`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-2)
 - **Severity**: HIGH (first-impression discovery)
 - **Location**: `apps/autorun_flutter/lib/widgets/scripts_empty_state.dart:110-118`
@@ -326,6 +326,58 @@ transcripts.
 ---
 
 ## Resolved (kept for the historical record)
+
+### UX-CRIT-3 — Currency label mismatch on script publish flow
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `7239d3d7`)
+- **Severity**: CRITICAL (money-path bug)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-3)
+
+Upload form labelled the price field `Price (ICP) *` while the rest of the
+app treats `script.price` as USD (passed as `usdAmount`, rendered as `$X.XX`).
+Renamed to `Price (USD) *`. Widget test in
+`apps/autorun_flutter/test/widgets/quick_upload_dialog_test.dart`.
+
+### UX-H2 — Empty-library CTAs inverted (Create primary, Browse secondary)
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `a0316eb9`)
+- **Severity**: HIGH (first-impression discovery)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-2)
+
+Swapped the library-empty state so "Browse Marketplace" is the primary
+(FilledButton-equivalent `ModernButton`) and "Create Script" is the
+secondary ghost button. LOW-1: favorites-filter empty state also re-labelled
+"Browse Scripts" → "Browse Marketplace". Parameterised `ModernEmptyState`
+primary action icon so non-create actions render the right glyph. Widget
+tests in `apps/autorun_flutter/test/widgets/scripts_empty_state_test.dart`.
+
+### UX-CRIT-1 — Recovery-codes screen escape hatch + Download .txt
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `b5c6168b`)
+- **Severity**: CRITICAL (permanent vault data loss)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-1)
+
+Restored the AppBar `BackButton` (with custom `onPressed` that shows a
+"Leave without saving?" warning dialog before popping) and added a Download
+`.txt` button next to Copy. The downloaded file contains a header (account,
+ISO timestamp) plus all codes; written via `path_provider` to the temp
+directory and surfaced to the user via SnackBar. Widget tests in
+`apps/autorun_flutter/test/widgets/recovery_codes_screen_test.dart`.
+
+### UX-CRIT-2 — Wizard rolls back profile on registration failure
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `f7db0a1e`)
+- **Severity**: CRITICAL (silent data corruption + misleading error)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-2)
+
+`_handleCreate` now wraps `registerAccount` in an inner try/catch. On
+failure it calls `profileController.deleteProfile(profile.id)` (rolling
+back the persisted orphan) and surfaces a specific message: "Profile
+created locally, but marketplace registration failed: $e. Your profile has
+been removed — please try again." A retry then creates exactly one profile,
+not two. Outer catch still handles `createProfile` failures via
+`humanizeSecureStorageError`. Test in
+`apps/autorun_flutter/test/screens/unified_setup_wizard_test.dart`.
 
 ### F1–F8 — Seed defect list from the predecessor plan (Phase 3)
 
