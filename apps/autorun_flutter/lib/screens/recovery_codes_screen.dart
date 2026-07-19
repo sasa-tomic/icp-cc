@@ -241,7 +241,7 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppDesignSystem.neutral200),
       ),
@@ -348,7 +348,7 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
       onPressed: _hasConfirmed ? _confirmAndContinue : null,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppDesignSystem.primaryLight,
-        foregroundColor: Colors.white,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         disabledBackgroundColor: AppDesignSystem.neutral300,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

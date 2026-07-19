@@ -179,7 +179,7 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addPasskey,
         backgroundColor: AppDesignSystem.primaryLight,
-        foregroundColor: Colors.white,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         icon: const Icon(Icons.add),
         label: const Text('Add Passkey'),
       ),

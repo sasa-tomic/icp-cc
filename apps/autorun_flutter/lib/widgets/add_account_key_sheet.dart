@@ -41,7 +41,7 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: AppDesignSystem.sheetBorderRadius,
       ),
       padding: EdgeInsets.only(
@@ -160,12 +160,12 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.add_circle_outline,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onPrimary,
                   size: 28,
                 ),
               ),
@@ -177,7 +177,7 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
                     Text(
                       'Generate New Keypair',
                       style: AppDesignSystem.bodyLarge.copyWith(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onPrimary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -185,7 +185,7 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
                     Text(
                       'Generate a new keypair and add its public key to this account',
                       style: AppDesignSystem.bodySmall.copyWith(
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -198,7 +198,7 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
             onPressed: _generateAndAddNewKeypair,
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              backgroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               foregroundColor: AppDesignSystem.primaryDark,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),

@@ -122,10 +122,10 @@ class _AnimatedFabState extends State<AnimatedFab>
                     ),
                   ),
                   elevation: 0,
-                  backgroundColor: widget.onPressed != null 
-                      ? Theme.of(context).colorScheme.primary 
+                  backgroundColor: widget.onPressed != null
+                      ? Theme.of(context).colorScheme.primary
                       : Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                  foregroundColor: Colors.white,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),

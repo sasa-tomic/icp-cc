@@ -554,9 +554,9 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                           child: CircularProgressIndicator(
                             value: _uploadProgress,
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onPrimary,
                             backgroundColor:
-                                Colors.white.withValues(alpha: 0.3),
+                                Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.3),
                           ),
                         )
                       : const Icon(Icons.upload),

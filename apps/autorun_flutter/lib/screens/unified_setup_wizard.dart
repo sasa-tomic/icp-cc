@@ -551,12 +551,12 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         ),
       ),
       child: _isCreating
-          ? const SizedBox(
+          ? SizedBox(
               height: 20,
               width: 20,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
               ),
             )
           : const Text(
@@ -588,10 +588,10 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
                   shape: BoxShape.circle,
                   boxShadow: AppDesignSystem.shadowColored,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_rounded,
                   size: 40,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
               const SizedBox(height: 24),

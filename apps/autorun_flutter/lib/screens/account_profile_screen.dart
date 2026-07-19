@@ -340,10 +340,10 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 shape: BoxShape.circle,
                 gradient: AppDesignSystem.primaryGradient,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.person_rounded,
                 size: 50,
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
               ),
             ),
             const SizedBox(height: 16),
@@ -932,10 +932,10 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
                 shape: BoxShape.circle,
                 gradient: AppDesignSystem.primaryGradient,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.account_circle,
                 size: 50,
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
               ),
             ),
             const SizedBox(height: 16),

@@ -310,7 +310,7 @@ class _ModernFloatingActionButtonState
                         child: Text(
                           widget.label,
                           style: AppDesignSystem.bodyMedium.copyWith(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onPrimary,
                             fontWeight: FontWeight.w600,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -527,7 +527,7 @@ class ModernChip extends StatelessWidget {
               label,
               style: AppDesignSystem.caption.copyWith(
                 color: selected
-                    ? Colors.white
+                    ? Theme.of(context).colorScheme.onPrimary
                     : Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
@@ -540,7 +540,7 @@ class ModernChip extends StatelessWidget {
                   Icons.close_rounded,
                   size: 14,
                   color: selected
-                      ? Colors.white.withValues(alpha: 0.8)
+                      ? Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8)
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -695,12 +695,12 @@ class _ModernButtonState extends State<ModernButton>
       case ModernButtonVariant.primary:
         return _ButtonColors(
           background: Theme.of(context).colorScheme.primary,
-          foreground: Colors.white,
+          foreground: Theme.of(context).colorScheme.onPrimary,
         );
       case ModernButtonVariant.secondary:
         return _ButtonColors(
           background: Theme.of(context).colorScheme.secondary,
-          foreground: Colors.white,
+          foreground: Theme.of(context).colorScheme.onSecondary,
         );
       case ModernButtonVariant.outline:
         return _ButtonColors(

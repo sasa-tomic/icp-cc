@@ -306,10 +306,10 @@ class ScriptEditorState extends State<ScriptEditor> {
             ),
             child: Text(
               'TYPESCRIPT',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
               ),
             ),
           ),

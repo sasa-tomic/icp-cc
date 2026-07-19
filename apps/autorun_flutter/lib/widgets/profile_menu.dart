@@ -159,8 +159,8 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
             child: Center(
               child: Text(
                 _getInitials(displayName),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.colorScheme.onPrimary,
                   fontWeight: FontWeight.w700,
                   fontSize: 20,
                 ),
@@ -688,7 +688,7 @@ class _ProfileSwitchRow extends StatelessWidget {
           child: Text(
             computeInitials(profile.name),
             style: TextStyle(
-              color: isActive ? Colors.white : theme.colorScheme.onSurface,
+              color: isActive ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1002,7 +1002,7 @@ class ProfileAvatarButton extends StatelessWidget {
         child: Text(
           _getInitials(displayName),
           style: TextStyle(
-            color: Colors.white,
+            color: theme.colorScheme.onPrimary,
             fontWeight: FontWeight.w600,
             fontSize: size * 0.4,
           ),

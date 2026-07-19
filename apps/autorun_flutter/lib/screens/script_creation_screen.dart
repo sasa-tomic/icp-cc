@@ -514,12 +514,12 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
             minimumSize: const Size(double.infinity, 48),
           ),
           child: _isCreating
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                   ),
                 )
               : const Text('Create Script'),

@@ -264,7 +264,7 @@ class _ModernEmptyStateState extends State<ModernEmptyState>
                               icon: widget.actionIcon == null
                                   ? null
                                   : Icon(widget.actionIcon,
-                                      color: Colors.white),
+                                      color: Theme.of(context).colorScheme.onPrimary),
                               child: Text(widget.actionLabel!),
                             ),
                           ),
@@ -418,7 +418,7 @@ class _ModernLoadingIndicatorState extends State<ModernLoadingIndicator>
                     child: Icon(
                       Icons.refresh_rounded,
                       size: iconSize,
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onPrimary,
                     ),
                   ),
                 ),

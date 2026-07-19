@@ -288,11 +288,11 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                     fit: BoxFit.cover,
                                     errorBuilder:
                                         (context, error, stackTrace) =>
-                                            const Icon(Icons.code,
-                                                color: Colors.white),
+                                            Icon(Icons.code,
+                                                color: Theme.of(context).colorScheme.onPrimary),
                                   ),
                                 )
-                              : const Icon(Icons.code, color: Colors.white),
+                              : Icon(Icons.code, color: Theme.of(context).colorScheme.onPrimary),
                         ),
                         const SizedBox(width: 16),
 

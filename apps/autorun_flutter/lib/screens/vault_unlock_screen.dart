@@ -367,17 +367,17 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
           : _unlockVault,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppDesignSystem.primaryLight,
-        foregroundColor: Colors.white,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         disabledBackgroundColor: AppDesignSystem.neutral300,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: _isUnlocking
-          ? const SizedBox(
+          ? SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
-                  strokeWidth: 2, color: Colors.white),
+                  strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary),
             )
           : const Text('Unlock',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
