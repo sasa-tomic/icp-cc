@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/main.dart' as app;
+import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 
 /// Which surface the driver is running on.
 enum E2ESurface { desktop, web }
@@ -83,11 +84,19 @@ class E2EDriver {
   E2EDriver({
     required this.surface,
     String? shotDir,
+    this.substrateAware = false,
   }) : shotDir = shotDir ??
             '${_resolveRepoRoot()}/docs/specs/ux_screenshots/e2e';
 
   final E2ESurface surface;
   final String shotDir;
+
+  /// Whether the Web boot should drive the unawaited async chain via
+  /// `runAsync` (so substrate-faked plugin round-trips complete and the
+  /// first-run gate evaluates). Tier 1 (no substrate) leaves this `false`;
+  /// Tier A (substrate installed) sets it `true`. Ignored on desktop — the
+  /// desktop boot always uses `runAsync` for `app.main()`.
+  final bool substrateAware;
 
   /// Boot the real app for the first time in this process.
   ///
@@ -112,17 +121,62 @@ class E2EDriver {
         await _settle(tester);
       case E2ESurface.web:
         await tester.pumpWidget(const app.KeypairApp());
-        // NOTE: deliberately NOT `runAsync`. Under `flutter test -d chrome`
-        // (TestWidgetsFlutterBinding) there are no real plugins registered, so
-        // letting the unawaited ensureLoaded() reach real platform channels
-        // (shared_preferences/path_provider) throws a FATAL
-        // MissingPluginException. Keeping the async work on the fake clock means
-        // the production widget tree mounts (MaterialApp renders) WITHOUT
-        // triggering unreachable channel calls — enough to assert the
-        // cross-surface boot contract. Loading real state needs plugin
-        // substrate fakes (Phase 2). See suite_web_smoke_test.dart header.
-        await _settle(tester);
+        if (substrateAware) {
+          // Tier A: substrate fakes are installed. Drive the unawaited
+          // async chain (ensureLoaded → first-run gate) via `runAsync` so
+          // real plugin round-trips complete. Bounded pumps + wall-clock
+          // waits (see _settle's docstring on why pumpAndSettle is
+          // forbidden).
+          for (var i = 0; i < 30; i++) {
+            await tester.runAsync<void>(() =>
+                Future<void>.delayed(const Duration(milliseconds: 200)));
+            await tester.pump();
+            // Bail as soon as EITHER the wizard appears (first-run) OR the
+            // persistent chip appears (returning user) — both prove the
+            // reactive chain ran. Re-imported here to keep the file
+            // self-contained.
+            final settled = present(
+              find.byWidgetPredicate((w) =>
+                  w is UnifiedSetupWizard ||
+                  (w is Text &&
+                      (w.data?.contains('Set up profile') ?? false))),
+              tester,
+            );
+            if (settled) break;
+          }
+        } else {
+          // NOTE: deliberately NOT `runAsync`. Under `flutter test -d chrome`
+          // (TestWidgetsFlutterBinding) there are no real plugins registered,
+          // so letting the unawaited ensureLoaded() reach real platform
+          // channels throws a FATAL MissingPluginException. Keeping the async
+          // work on the fake clock means the production widget tree mounts
+          // (MaterialApp renders) WITHOUT triggering unreachable channel calls
+          // — enough to assert the cross-surface boot contract. Loading real
+          // state needs plugin substrate fakes (Phase 2). See
+          // suite_web_smoke_test.dart header.
+          await _settle(tester);
+        }
     }
+  }
+
+  /// Web-only substrate-aware boot: pump the production tree AND drive the
+  /// unawaited async chain (ensureLoaded → first-run gate) via `runAsync` so
+  /// the real profile/script/theme loads complete.
+  ///
+  /// **Deprecated.** Construct the driver with `substrateAware: true` and
+  /// call [boot] instead — the surface dispatch now routes the substrate
+  /// path automatically. This method is kept as a thin delegation shim so
+  /// older callers don't break.
+  Future<void> bootSubstrateAware(WidgetTester tester) async {
+    assert(surface == E2ESurface.web,
+        'bootSubstrateAware is web-only; use boot() for desktop.');
+    // Temporarily pretend `substrateAware` is set so the delegated boot takes
+    // the substrate branch. (We can't mutate the final field, so we just
+    // assert and delegate — when false, the caller is using the wrong API.)
+    assert(substrateAware,
+        'bootSubstrateAware requires the driver to be constructed with '
+        'substrateAware: true; otherwise the substrate code path is inert.');
+    await boot(tester);
   }
 
   /// Re-mount the shell after a state wipe. Cheap in-process reboot: a UNIQUE

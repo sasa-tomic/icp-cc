@@ -78,6 +78,11 @@ dev_dependencies:
   mocktail: ^1.0.4
   build_runner: ^2.4.13
   cbor: ^6.2.0
+  # Test-only direct dependency for the Web e2e substrate
+  # (path_provider_platform_interface is a transitive dep of path_provider, but
+  # the substrate fakes import it directly to install a fake
+  # PathProviderPlatform for `flutter test -d chrome`).
+  path_provider_platform_interface: ^2.1.3
   pointycastle: ^3.9.1
   # Already a transitive dep of shared_preferences; declared here so tests can
   # inject a failing store (InMemorySharedPreferencesStore) to prove write

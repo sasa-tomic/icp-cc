@@ -635,16 +635,30 @@ e2e-one flow suite="keyring-less":
       --dart-define=ICP_E2E_STOP_AFTER={{flow}} --reporter=compact --timeout=240s
 
 
-# e2e-web: Tier 1 — REAL app on Web as widget tests via `flutter test -d chrome`
+# e2e-web: REAL app on Web as widget tests via `flutter test -d chrome`
 # (headless, no chromedriver, ~5s warm). The conditional-import split selects
 # native_bridge_web.dart (real pure-Dart Ed25519/secp256k1/Argon2id/AES-GCM),
 # so NO FFI is touched. Covers all Surface.web / Surface.both flows; QuickJS /
 # IC-agent / deeplink / keyboard-shortcut flows are desktop-only.
 #
+# Two suite files run by default:
+#   1. suite_web_smoke_test.dart  — Tier 1 (no substrate): boot contract +
+#      nav-bar shell render (2 widget tests, no plugins).
+#   2. suite_web_flows_test.dart  — Tier A (substrate fakes at the smallest
+#      I/O boundary — HTTP, SharedPreferences, FlutterSecureStorage,
+#      path_provider, package_info_plus): 7 real-app FlowCatalog flows
+#      (first_run.dismiss_wizard, profile.open_menu, settings.open/theme/
+#      version_display, scripts.browse_marketplace). Same flow bodies the
+#      desktop suite uses (cross-surface sharing via flow_implementations.dart).
+#
 # Backend is the REAL local server; IC mainnet reaches the browser directly /
 # via the CORS proxy. Only ICPay checkout is mocked (ICP_E2E_MOCK_ICPAY=1 —
 # icpay.org is unreachable from the sandbox).
-e2e-web file="test/e2e_web/suite_web_smoke_test.dart":
+#
+# Override the suite by passing `file=` (single file):
+#   just e2e-web                       # default: both suites
+#   just e2e-web file=test/e2e_web/substrate_smoke_test.dart
+e2e-web file="test/e2e_web/suite_web_smoke_test.dart test/e2e_web/suite_web_flows_test.dart":
     #!/usr/bin/env bash
     set -euo pipefail
     api_port=$(just _api-dev-port)
@@ -667,7 +681,7 @@ e2e-web file="test/e2e_web/suite_web_smoke_test.dart":
         --dart-define=PUBLIC_API_ENDPOINT=http://127.0.0.1:$api_port \
         --dart-define=ICP_E2E=1 \
         --dart-define=ICP_E2E_MOCK_ICPAY=1 \
-        "{{file}}" --reporter=compact --timeout=240s
+        {{file}} --reporter=compact --timeout=240s
 
 # e2e: BOTH surfaces (desktop then web). The full real-app e2e contract.
 e2e: e2e-desktop e2e-web

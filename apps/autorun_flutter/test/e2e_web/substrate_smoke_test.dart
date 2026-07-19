@@ -24,6 +24,7 @@ void main() {
     installSubstrateHttp(defaultServer());
     installSubstratePathProvider();
     installSubstrateAppLinksSilencer();
+    installSubstratePackageInfo();
   });
 
   testWidgets('substrate boots app + first-run wizard appears', (tester) async {

@@ -24,7 +24,7 @@
 /// agree on a single location.
 library;
 
-import 'dart:io' show Directory, File;
+import 'dart:io' show Directory;
 
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 

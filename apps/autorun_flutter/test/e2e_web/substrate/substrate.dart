@@ -41,6 +41,7 @@ library;
 
 export 'substrate_app_links.dart';
 export 'substrate_http.dart';
+export 'substrate_package_info.dart';
 export 'substrate_path_provider.dart';
 export 'substrate_prefs.dart';
 export 'substrate_secure_storage.dart';
