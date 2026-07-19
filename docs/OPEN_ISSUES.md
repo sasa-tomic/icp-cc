@@ -13,15 +13,206 @@
 
 ## Critical / Blockers
 
-*(none currently)*
+### UX-CRIT-1 — Recovery-codes screen traps the user into lying (data loss path)
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-1)
+- **Severity**: CRITICAL (permanent vault data loss)
+- **Location**: `apps/autorun_flutter/lib/screens/recovery_codes_screen.dart:48,232`
+
+`automaticallyImplyLeading: false` and no back/close button. Continue is
+disabled unless the user ticks "I have saved these recovery codes" — even if
+they haven't. No Download `.txt` button (only Copy). Trains users to tick
+the box without saving → permanent vault data loss.
+
+**Fix:** AppBar with back-arrow + warn-on-leave dialog + Download `.txt`
+button next to Copy.
+
+### UX-CRIT-2 — Wizard partial-failure leaves orphan duplicate-prone profiles
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-2)
+- **Severity**: CRITICAL (silent data corruption + misleading error)
+- **Location**: `apps/autorun_flutter/lib/screens/unified_setup_wizard.dart:792-812`
+
+`createProfile` persists to secure storage BEFORE the network-bound
+`registerAccount`. If registration fails, the catch block sets
+`_errorMessage = humanizeSecureStorageError(e)` which misleadingly reads
+"Could not create the profile" even though it WAS. On retry, createProfile
+runs again → second orphan profile + keypair.
+
+**Fix:** either roll back the persisted profile on registration failure,
+OR skip re-running createProfile on retry AND re-word the error to "Profile
+created locally, but marketplace registration failed: …".
+
+### UX-CRIT-3 — Currency label mismatch on script publish flow
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §CRIT-3)
+- **Severity**: CRITICAL (money-path bug)
+- **Location**: `apps/autorun_flutter/lib/widgets/quick_upload_dialog.dart:511`
+
+Upload form labels the price field `Price (ICP) *`. The rest of the app
+treats `script.price` as USD: `scripts_screen.dart:760` passes it as
+`usdAmount`; `scripts_screen.dart:869`, `script_details_dialog.dart:362,
+977, 1123` all render `$X.XX`. An author entering `5` (meaning "5 ICP")
+silently lists at **$5 USD**.
+
+**Fix:** rename label to `Price (USD) *` with helper text "USD, charged via
+ICPay. Set to 0 for free scripts." One-line change.
 
 ---
 
 ## High severity
 
-### WEB-1 — Flutter Web e2e via Playwright blocked on semantics enablement
+### UX-H1 — Trust signals absent on every script surface
 
 - **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-1)
+- **Severity**: HIGH (core product promise invisible)
+- **Locations**: `scripts_list_item_tile.dart`, `script_details_dialog.dart`, `script_execution_bottom_sheet.dart`, `marketplace_stats_banner.dart`
+
+The entire product promise is **signed, sandboxed, downloadable + executable
+scripts**. Today the user gets ZERO visible signal of either property at the
+moment they decide to download or tap-run. `MarketplaceAuthor.isVerifiedDeveloper`,
+`authorPublicKey`, `uploadSignature` are checked internally but never
+surfaced. Stats banner returns `SizedBox.shrink()` on error.
+
+**Fix:** add "Sandboxed ✓" + "Signed by {author}" chips to tile subtitle,
+details dialog header, and run-panel status row.
+
+### UX-H2 — Empty-library CTAs inverted (Create primary, Browse secondary)
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-2)
+- **Severity**: HIGH (first-impression discovery)
+- **Location**: `apps/autorun_flutter/lib/widgets/scripts_empty_state.dart:110-118`
+
+When the user lands on Scripts with empty library, primary CTA is "Create
+Script" and secondary is "Browse Marketplace". New users want to FIND
+scripts, not author them. Invert.
+
+### UX-H3 — Dark-mode breakage: 25+ hard-coded `Colors.white`
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-3)
+- **Severity**: HIGH (premium feel; affects Account, Dapps tour, onboarding spotlight)
+- **Locations**: `add_account_key_sheet.dart` (6 refs), `account_key_details_sheet.dart` (1), `profile_menu.dart` (3), `quick_upload_dialog.dart` (2), `script_details_dialog.dart` (7), `script_editor.dart` (1), `spotlight_overlay.dart` (1), `modern_empty_state.dart` (2), `shimmer_loading.dart` (1), `animated_fab.dart` (1)
+
+All render wrong colors in Dark theme.
+
+**Fix:** replace `Colors.white` with `theme.colorScheme.onPrimary` / `surface`
+at each call site. Mechanical pattern.
+
+### UX-H4 — Trust-grant dialog all-or-nothing + missing principal warning
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-4)
+- **Severity**: HIGH (permission honesty)
+- **Location**: `apps/autorun_flutter/lib/widgets/script_app_host.dart:611-633, 989-994`
+
+Only "Deny" + "Trust this dapp" (allow-always). No "Allow once" though
+`_showPermissionDialog` framework already supports the `allowLabel`
+parameter. Body says "any method, signed or anonymous" but never warns the
+dapp will SEE YOUR PRINCIPAL / can deanonymize.
+
+**Fix:** restore the "Allow once" affordance + add a one-line warning.
+
+### UX-H5 — Unguarded destructive actions (4 paths)
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-5)
+- **Severity**: HIGH (one-click data loss)
+
+Four unguarded destructive paths:
+- `recent_calls_list.dart:73-78` — Clear wipes ALL call history, no confirm.
+- `bookmarks_list.dart:185-208` — Bookmark trash deletes immediately.
+- `keypair_switcher_sheet.dart:174-179` — Tapping tile instantly selects + pops.
+- `import_keys_dialog.dart:53-55` — "Profile already exists. Delete it first"
+  suggests destroying a profile + its local data to restore a backup.
+
+**Fix:** add confirm dialogs / undo SnackBars at each; rewrite import to
+allow merge-or-replace or scope into a NEW profile.
+
+### UX-H6 — Wizard doesn't surface vault + passkey steps
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-6)
+- **Severity**: HIGH (post-onboarding security gap)
+- **Location**: `apps/autorun_flutter/lib/screens/unified_setup_wizard.dart:798-812`
+
+Both vault setup and passkey enrollment are buried behind the profile menu.
+AccountRegistrationWizard (lines 573-594) DOES show a post-registration
+passkey prompt; unify the helper and call from both wizards.
+
+### UX-H7 — First-run wizard has no connectivity precheck
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-7)
+- **Severity**: HIGH (compounds UX-CRIT-2)
+- **Locations**: `apps/autorun_flutter/lib/main.dart:382-410`, `apps/autorun_flutter/lib/screens/unified_setup_wizard.dart:768-831`
+
+User can reach wizard while offline; createProfile succeeds locally,
+registerAccount throws → UX-CRIT-2 partial state. Add probe at wizard entry;
+if backend is unreachable, show actionable panel BEFORE letting the user type.
+
+### UX-H8 — "Canisters" tab label is unexplained jargon
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-8)
+- **Severity**: HIGH (first-impression confusion)
+- **Locations**: `apps/autorun_flutter/lib/main.dart:585` (uses `kCanistersTabLabel`), `apps/autorun_flutter/lib/screens/bookmarks_screen.dart:21` (defines `kCanistersTabLabel = 'Canisters'`)
+
+First-time users don't know what "Canisters" means. Rename or attach a
+one-line info popover on long-press / hover.
+
+### UX-H9 — Raw exception strings in user-facing errors
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-9)
+- **Severity**: HIGH (AGENTS violation: "human errors")
+- **Locations**: `vault_password_setup_screen.dart:175-178`, `account_registration_wizard.dart:599`, `scripts_screen.dart:607, 748, 767, 891`
+
+Raw exception strings (HTTP bodies, stack traces) leak into SnackBars /
+error text. The friendly-error pattern already exists in `_DappErrorView` —
+extend it.
+
+### UX-H10 — Fake progress bars
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-10)
+- **Severity**: HIGH (trust erosion)
+- **Locations**: `scripts_screen.dart:522-530`, `quick_upload_dialog.dart:237-246`
+
+Download + upload progress is FAKED via `[0.3, 0.6, 0.9]` with
+`Future.delayed(100ms)`. Drive from real byte/HTTP progress OR use an
+indeterminate spinner.
+
+### UX-H11 — Three divergent "well-known canisters" catalogs
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-11)
+- **Severity**: HIGH (DRY/consistency; AGENTS violation)
+- **Locations**: `canister_call_builder.dart:36-46`, `well_known_canisters.dart:26-83`, `canister_registry_service.dart`
+
+Three separate hard-coded lists with DIFFERENT members. Call Builder omits
+ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
+
+**Fix:** replace with one shared const.
+
+### UX-H12 — No authenticated canister calls (power users can't sign)
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-12)
+- **Severity**: HIGH (power-user surface incomplete)
+- **Location**: `apps/autorun_flutter/lib/widgets/canister_client_sheet.dart:321`
+
+"Call" button only invokes `callAnonymous`; bridge supports
+`callAuthenticated` but it's never used. Wire when an active keypair exists.
+
+### WEB-1 — Flutter Web e2e via Playwright blocked on semantics enablement
+
+- **Status**: ⚪ DEFERRED (per 2026-07-19 plan Pivot 1 — Tier A substrate-fakes + Tier B image-based Playwright bypass the need)
 - **Surfaced**: 2026-07-17 (`docs/specs/2026-07-17-e2e-completion-and-ux-sweep.md` Phase C)
 - **Severity**: HIGH (blocks real-app web e2e coverage)
 - **Owner**: future Flutter upgrade / harness rework
@@ -118,15 +309,19 @@ CTA is "Get Started").
 
 ### UX-N1 — Visual UX review pending (vision MCP unavailable in this environment)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, `docs/specs/2026-07-19-ux-review.md`)
 - **Severity**: LOW (process issue, not product issue)
 - **Surfaced**: 2026-07-17
 
 The `zai-vision_analyze_image` MCP timed out for every screenshot during
-this session, blocking the planned per-screen visual UX review. Code-level
-review was done instead (no AI slop / dead routes / placeholder text found
-in `lib/`). To close this: re-run the UX review once vision is available,
-and screenshot every screen in `docs/specs/ux_screenshots/e2e/`.
+the 2026-07-17 session. The 2026-07-19 continuation did a CODE-LEVEL review
+instead via 3 parallel `orchestrator-verifier` subagents covering all
+`lib/screens/` + `lib/widgets/` (~30k LOC); vision MCP was usable for
+high-DPR Web Playwright captures but unreliable on the desktop screenshots
+at `kDesktopDpr=1.0` (filed as Phase H tech-debt to bump to 2.0). Findings
+distilled into 3 CRITICAL + 12 HIGH-severity issues (see UX-CRIT-{1,2,3}
+and UX-H{1..12} above); raw reports preserved in the verifier task
+transcripts.
 
 ---
 
