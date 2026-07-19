@@ -30,6 +30,13 @@ enum E2ESurface { desktop, web }
 const Size kDesktopSize = Size(1440, 900);
 const double kDesktopDpr = 1.0;
 
+/// Screenshot rasterization density. The test viewport stays at [kDesktopDpr]
+/// (logical 1440×900, matching real desktop layout), but screenshots are
+/// rasterized from the layer tree at this higher density so vision-MCP / OCR
+/// models get crisp text. 2.0 → 2880×1800 PNG, ~4× the pixels at the same
+/// layout. Raised from 1.0 after vision MCP hallucinated heavily at 1.0.
+const double kScreenshotDpr = 2.0;
+
 /// Per-phase wall-clock budgets. Integration-test pumps use real wall-clock
 /// time, so background-isolate crypto completes during the pumps.
 const Duration _kWaitDefault = Duration(seconds: 30);
@@ -336,7 +343,7 @@ class E2EDriver {
     // ignore: invalid_use_of_protected_member
     final OffsetLayer layer = view.layer! as OffsetLayer;
     final ui.Image image =
-        await layer.toImage(Offset.zero & size, pixelRatio: kDesktopDpr);
+        await layer.toImage(Offset.zero & size, pixelRatio: kScreenshotDpr);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) {
       throw StateError('Failed to encode screenshot $name to PNG.');
