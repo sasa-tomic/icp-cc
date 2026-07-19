@@ -58,6 +58,7 @@ import 'package:icp_autorun/screens/dapp_runner_screen.dart';
 import 'package:icp_autorun/screens/dapps_screen.dart';
 import 'package:icp_autorun/theme/modern_components.dart';
 import 'package:icp_autorun/widgets/canister_client_sheet.dart';
+import 'package:icp_autorun/widgets/script_app_host.dart';
 
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
@@ -99,11 +100,15 @@ Future<void> _tapPollsCard(WidgetTester tester, E2EDriver d) async {
 }
 
 Future<void> _closeDappRunner(WidgetTester tester, E2EDriver d) async {
+  // Dismiss any SnackBars first — a lingering SnackBar in the Overlay sits
+  // ABOVE the AppBar back-arrow location and intercepts pageBack taps.
+  await d.dismissOverlays(tester);
   // The DappRunnerScreen close path is the documented Phase-D bug. Try the
-  // full ladder of close mechanisms: Esc (ScreenShortcuts), pageBack (AppBar
-  // back-arrow), then Navigator.pop on the runner's own context. Each is
-  // tried in turn until the runner is no longer present. If none work, the
-  // assertion fails loud.
+  // full ladder of close mechanisms: Esc (ScreenShortcuts), the AppBar
+  // back-arrow tooltip tap (warnIfMissed: false — the tap may be absorbed
+  // by a residual RenderAbsorbPointer), then Navigator.pop on the runner's
+  // own context. Each is tried in turn until the runner is no longer
+  // present. If none work, the assertion fails loud.
   bool closed = false;
   String closedBy = '(none)';
   // Path 1: Esc (bound via ScreenShortcuts → _handleBack → maybePop).
@@ -113,13 +118,18 @@ Future<void> _closeDappRunner(WidgetTester tester, E2EDriver d) async {
     closed = true;
     closedBy = 'Esc';
   }
-  // Path 2: pageBack taps the AppBar back arrow.
+  // Path 2: tap the AppBar back-arrow Tooltip directly (warnIfMissed: false
+  // — pageBack wraps this with a fatal hit-test warning, which we don't want
+  // when the AbsorbPointer is shadowing it).
   if (!closed) {
-    await tester.pageBack();
-    await tester.pump(const Duration(milliseconds: 500));
-    if (!d.present(find.byType(DappRunnerScreen), tester)) {
-      closed = true;
-      closedBy = 'pageBack';
+    final backBtn = find.byTooltip('Back');
+    if (d.present(backBtn, tester)) {
+      await tester.tap(backBtn, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 500));
+      if (!d.present(find.byType(DappRunnerScreen), tester)) {
+        closed = true;
+        closedBy = 'pageBack';
+      }
     }
   }
   // Path 3: Navigator.pop on the runner's own context.
@@ -1087,6 +1097,60 @@ void main() {
           reason: 'Polls DappRunnerScreen must show the local-replica banner.');
       await _closeDappRunner(tester, d);
     })
+    // ── PHASE 46 flow: dapps.apply_connection — STILL DEFERRED on Flutter
+    // 3.44.6. The Expand + Apply callbacks now WORK (Flutter 3.44.6 cleared
+    // the body-tap AbsorbPointer for direct-callback invocation). However,
+    // _applyConfig triggers a ScriptAppHost REMOUNT (new GlobalKey), which
+    // disposes the previous host's State mid-boot. The Polls bundle's init
+    // chain continues running async (canister calls to an unreachable local
+    // replica) and fires setState on the disposed State — surfaced as a
+    // `_pendingFrame == null` assertion in LiveTestWidgetsFlutterBinding's
+    // postTest. Root cause is an app-level lifecycle issue in
+    // ScriptAppHost._dispatch (missing `mounted` guard), not the framework
+    // Overlay bug. Filed in docs/specs/phase-d-triage.md (Phase D-resume).
+    // ..register('dapps.apply_connection', ...)
+    // ── PHASE 47 flow: dapps.refresh — STILL DEFERRED on Flutter 3.44.6 for
+    // the SAME reason as dapps.apply_connection: _refreshDapp remounts the
+    // ScriptAppHost (new GlobalKey) which fires setState-after-dispose on
+    // the previous host's mid-boot State. SnackBar fires correctly, but the
+    // post-test _pendingFrame assertion catches the leaked async work.
+    // ..register('dapps.refresh', ...)
+    // ── PHASE 48 flow: dapps.open_frontend — Polls card → tap the AppBar
+    // open_in_new IconButton → triggers _openFrontend (url_launcher,
+    // external browser). url_launcher is best-effort in the headless test
+    // environment; we assert the IconButton is present and the onPressed
+    // callback fires without throwing. No SnackBar assertion (the launcher
+    // either succeeds silently, shows an error SnackBar, or no-ops on
+    // headless).
+    ..register('dapps.open_frontend', (tester, d) async {
+      await _navigateToDapps(tester, d);
+      await _tapPollsCard(tester, d);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 5));
+      // The open-in-new IconButton has an explicit tooltip "Open frontend in
+      // browser" (NOT wrapped in ShortcutTooltip). Find by icon to get the
+      // IconButton widget directly (find.byTooltip returns the RawTooltip
+      // wrapper, not the IconButton).
+      final openBtn = find.widgetWithIcon(
+          IconButton, Icons.open_in_new_rounded);
+      final btnReady = await d.waitUntil(
+          tester, () => d.present(openBtn, tester),
+          timeout: const Duration(seconds: 5));
+      expect(btnReady, isTrue,
+          reason: 'DappRunnerScreen AppBar must show the open-frontend '
+              'IconButton for Polls (hasFrontendBrowser).');
+      // Invoke the onPressed directly. url_launcher will try to spawn a
+      // browser; under Xvfb headless it typically returns false (no browser
+      // registered for the scheme) or throws — the runner handles both with
+      // an error SnackBar. Either path proves the callback is wired.
+      await tester.runAsync(() async {
+        tester.widget<IconButton>(openBtn).onPressed!();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      });
+      await tester.pump(const Duration(milliseconds: 500));
+      await _closeDappRunner(tester, d);
+    })
     ;
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -1439,6 +1503,19 @@ void main() {
     if (shouldStopAfter('dapps.local_replica_unreachable')) return;
     driver.phase('45', 'OK — dapps.local_replica_unreachable');
 
+    // PHASE 46: dapps.apply_connection — STILL DEFERRED (see registration
+    // comment above). The Apply path triggers a ScriptAppHost setState-after-
+    // dispose app-level bug, unrelated to the Overlay barrier issue.
+
+    // PHASE 47: dapps.refresh — STILL DEFERRED (same _refreshDapp remount
+    // triggers the same setState-after-dispose issue).
+
+    // PHASE 48: dapps.open_frontend — Polls → AppBar open-in-new icon.
+    driver.phase('48', 'dapps: open frontend icon');
+    await registry.runFor('dapps.open_frontend')!(tester, driver);
+    if (shouldStopAfter('dapps.open_frontend')) return;
+    driver.phase('48', 'OK — dapps.open_frontend');
+
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -1446,9 +1523,9 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(46),
-        reason: 'keyring-less must cover at least 46 flows '
-            '(42 base + 2 Phase-D easy + 1 Phase-D medium + 1 Phase D-resume).');
+    expect(cov.implemented, greaterThanOrEqualTo(47),
+        reason: 'keyring-less must cover at least 47 flows '
+            '(42 base + 2 Phase-D easy + 1 Phase-D medium + 2 Phase D-resume).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '
