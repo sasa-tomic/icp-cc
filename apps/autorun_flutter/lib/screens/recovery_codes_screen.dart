@@ -1,8 +1,35 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import '../theme/app_design_system.dart';
 
 typedef CodesConfirmedCallback = void Function();
+
+String buildRecoveryCodesFileText({
+  required List<String> codes,
+  required String accountId,
+  required DateTime generatedAt,
+}) {
+  final buffer = StringBuffer()
+    ..writeln('ICP Autorun — Recovery Codes')
+    ..writeln('================================')
+    ..writeln('Account: $accountId')
+    ..writeln('Generated: ${generatedAt.toIso8601String()}')
+    ..writeln()
+    ..writeln(
+      'Store these codes somewhere safe (password manager, offline print, '
+      'or hardware token). Each code can be used exactly once to recover '
+      'your vault if you forget your password.',
+    )
+    ..writeln()
+    ..writeln('Recovery codes:');
+  for (var i = 0; i < codes.length; i++) {
+    buffer.writeln('  ${i + 1}. ${codes[i]}');
+  }
+  return buffer.toString();
+}
 
 class RecoveryCodesScreen extends StatefulWidget {
   const RecoveryCodesScreen({
@@ -22,6 +49,7 @@ class RecoveryCodesScreen extends StatefulWidget {
 
 class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
   bool _hasConfirmed = false;
+  bool _isDownloading = false;
 
   Future<void> _copyAllCodes() async {
     await Clipboard.setData(ClipboardData(text: widget.codes.join('\n')));
@@ -29,6 +57,59 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Recovery codes copied to clipboard')),
       );
+    }
+  }
+
+  Future<void> _downloadCodes() async {
+    setState(() => _isDownloading = true);
+    try {
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final file = File('${dir.path}/icp-autorun-recovery-codes-$stamp.txt');
+      final text = buildRecoveryCodesFileText(
+        codes: widget.codes,
+        accountId: widget.accountId,
+        generatedAt: DateTime.now(),
+      );
+      await file.writeAsString(text);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved recovery codes to:\n${file.path}'),
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
+    }
+  }
+
+  Future<void> _confirmExit() async {
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Leave without saving?'),
+        content: const Text(
+          "You'll need these recovery codes to recover your vault if you "
+          'ever forget your password. Are you sure you want to leave?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    if (shouldLeave == true && mounted) {
+      Navigator.maybePop(context);
     }
   }
 
@@ -45,7 +126,7 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        automaticallyImplyLeading: false,
+        leading: BackButton(onPressed: _confirmExit),
         title: Text(
           'Recovery Codes',
           style: AppDesignSystem.heading3.copyWith(
@@ -63,7 +144,7 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
             const SizedBox(height: 24),
             _buildCodesGrid(),
             const SizedBox(height: 24),
-            _buildCopyButton(),
+            _buildActionsRow(),
             const SizedBox(height: 16),
             _buildConfirmCheckbox(),
             const SizedBox(height: 24),
@@ -187,11 +268,44 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
     );
   }
 
+  Widget _buildActionsRow() {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _buildCopyButton()),
+          const SizedBox(width: 12),
+          Expanded(child: _buildDownloadButton()),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCopyButton() {
     return OutlinedButton.icon(
       onPressed: _copyAllCodes,
       icon: const Icon(Icons.copy),
-      label: const Text('Copy All Codes'),
+      label: const Text('Copy All'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppDesignSystem.primaryLight,
+        side: BorderSide(color: AppDesignSystem.primaryLight),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildDownloadButton() {
+    return OutlinedButton.icon(
+      onPressed: _isDownloading ? null : _downloadCodes,
+      icon: _isDownloading
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.download),
+      label: const Text('Download .txt'),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppDesignSystem.primaryLight,
         side: BorderSide(color: AppDesignSystem.primaryLight),
