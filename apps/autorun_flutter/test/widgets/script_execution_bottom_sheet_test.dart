@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/widgets/script_execution_bottom_sheet.dart';
+import 'package:icp_autorun/widgets/trust_badges.dart';
 
 /// W7-19: the run panel must render the script's `imageUrl` artwork when
 /// present (with the emoji/📦 as the load-failure fallback), mirroring the
@@ -61,6 +62,45 @@ void main() {
     expect(find.byType(CachedNetworkImage), findsNothing);
     // Marketplace script with 📦 emoji → fallback shown.
     expect(find.text('📦'), findsOneWidget);
+  });
+
+  group('UX-H1 run-panel trust row', () {
+    testWidgets(
+      'run panel surfaces the SandboxedChip so the runtime promise is visible '
+      'while the script executes',
+      (tester) async {
+        await tester.pumpWidget(wrap(ScriptExecutionBottomSheet(
+          script: script(emoji: '📦', marketplaceId: 'hello-ic-starter'),
+          runtime: _FakeRuntime(),
+        )));
+
+        expect(find.byType(SandboxedChip), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'run panel surfaces the SignatureVerifiedChip when the bundle carries '
+      'a verified checksum',
+      (tester) async {
+        await tester.pumpWidget(wrap(ScriptExecutionBottomSheet(
+          script: ScriptRecord(
+            id: 'verified',
+            title: 'Verified Marketplace Script',
+            bundle: 'print(1)',
+            emoji: '📦',
+            createdAt: DateTime(2026, 1, 1),
+            updatedAt: DateTime(2026, 1, 2),
+            metadata: const {
+              'marketplace_id': 'hello-ic-starter',
+              'sha256_checksum': 'deadbeef',
+            },
+          ),
+          runtime: _FakeRuntime(),
+        )));
+
+        expect(find.byType(SignatureVerifiedChip), findsOneWidget);
+      },
+    );
   });
 }
 

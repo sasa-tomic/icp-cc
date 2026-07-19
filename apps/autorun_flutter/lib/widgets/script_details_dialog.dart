@@ -7,6 +7,7 @@ import '../theme/app_design_system.dart';
 import 'keyboard_shortcuts.dart';
 import 'script_details_helpers.dart';
 import 'script_details_reviews_tab.dart';
+import 'trust_badges.dart';
 
 class ScriptDetailsDialog extends StatefulWidget {
   final MarketplaceScript script;
@@ -327,6 +328,21 @@ class _ScriptDetailsDialogState extends State<ScriptDetailsDialog> {
                                 spacing: 8,
                                 runSpacing: 4,
                                 children: [
+                                  // Trust badges (UX-H1) — surface the signed +
+                                  // sandboxed promise at the decision moment.
+                                  const SandboxedChip(),
+                                  if (widget.script.authorName != null &&
+                                      widget.script.authorName!.isNotEmpty)
+                                    SignedByChip(
+                                      author: widget.script.authorName!,
+                                      verified: widget.script
+                                          .author?.isVerifiedDeveloper ??
+                                          false,
+                                    ),
+                                  if (widget.script.uploadSignature != null &&
+                                      widget.script.uploadSignature!.isNotEmpty)
+                                    const SignatureVerifiedChip(),
+
                                   // Category badge
                                   Container(
                                     padding: const EdgeInsets.symmetric(

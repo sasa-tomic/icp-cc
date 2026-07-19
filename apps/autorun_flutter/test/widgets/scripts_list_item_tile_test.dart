@@ -5,6 +5,7 @@ import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/models/script_list_item.dart';
 import 'package:icp_autorun/models/script_record.dart';
 import 'package:icp_autorun/widgets/scripts_list_item_tile.dart';
+import 'package:icp_autorun/widgets/trust_badges.dart';
 
 /// Tests for the browse/list tile leading avatar (IH-6 / UXR-4).
 ///
@@ -117,4 +118,54 @@ void main() {
       expect(find.text('📦'), findsOneWidget);
     },
   );
+
+  group('UX-H1 trust badges in tile subtitle', () {
+    testWidgets(
+      'marketplace tile shows the Sandboxed chip in its subtitle',
+      (tester) async {
+        final item = ScriptListItem.fromMarketplace(marketplaceScript());
+
+        await tester.pumpWidget(wrap(ScriptsListItemTile(item: item)));
+
+        expect(find.byType(SandboxedChip), findsOneWidget,
+            reason: 'the product promise (sandboxed runtime) must be visible '
+                'at the browse-tile decision moment');
+      },
+    );
+
+    testWidgets(
+      'marketplace tile shows "Signed by {author}" when an author is present',
+      (tester) async {
+        final item = ScriptListItem.fromMarketplace(
+          MarketplaceScript(
+            id: 'mp-2',
+            title: 'Sig',
+            description: 'desc',
+            category: 'Tools',
+            authorName: 'alice',
+            bundle: 'print(1)',
+            createdAt: DateTime(2026, 1, 1),
+            updatedAt: DateTime(2026, 1, 2),
+          ),
+        );
+
+        await tester.pumpWidget(wrap(ScriptsListItemTile(item: item)));
+
+        expect(find.byType(SignedByChip), findsOneWidget);
+        expect(find.textContaining('Signed by alice'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'marketplace tile hides "Signed by" when no author is present',
+      (tester) async {
+        final item = ScriptListItem.fromMarketplace(marketplaceScript());
+
+        await tester.pumpWidget(wrap(ScriptsListItemTile(item: item)));
+
+        expect(find.byType(SignedByChip), findsNothing,
+            reason: 'no author info → never fabricate a "Signed by" badge');
+      },
+    );
+  });
 }

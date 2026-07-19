@@ -8,6 +8,7 @@ import '../services/script_runner.dart';
 import '../theme/app_design_system.dart';
 import 'script_app_host.dart';
 import 'script_leading_icon.dart';
+import 'trust_badges.dart';
 
 class ScriptExecutionBottomSheet extends StatefulWidget {
   const ScriptExecutionBottomSheet({
@@ -97,12 +98,27 @@ class _ScriptExecutionBottomSheetState
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              widget.script.title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.script.title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    const SandboxedChip(),
+                    if (widget.script.metadata['sha256_checksum'] is String)
+                      const SignatureVerifiedChip(),
+                  ],
+                ),
+              ],
             ),
           ),
           IconButton(

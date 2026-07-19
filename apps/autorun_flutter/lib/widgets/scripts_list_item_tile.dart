@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:icp_autorun/models/script_list_item.dart';
 import '../theme/app_design_system.dart';
 import 'script_leading_icon.dart';
+import 'trust_badges.dart';
 
 /// A single row in the unified Scripts list.
 ///
@@ -76,6 +77,21 @@ class ScriptsListItemTile extends StatelessWidget {
                 fontSize: isCompactScreen ? 11 : 12,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
+            ),
+            SizedBox(height: isCompactScreen ? 2 : 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                const SandboxedChip(),
+                if (item.author != null && item.author!.isNotEmpty)
+                  SignedByChip(
+                    author: item.author!,
+                    verified:
+                        item.marketplaceScript?.author?.isVerifiedDeveloper ??
+                            false,
+                  ),
+              ],
             ),
           ],
         ),
