@@ -155,14 +155,20 @@ passkey prompt; unify the helper and call from both wizards.
 
 ### UX-H7 — First-run wizard has no connectivity precheck
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `68496c86`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-7)
 - **Severity**: HIGH (compounds UX-CRIT-2)
 - **Locations**: `apps/autorun_flutter/lib/main.dart:382-410`, `apps/autorun_flutter/lib/screens/unified_setup_wizard.dart:768-831`
 
 User can reach wizard while offline; createProfile succeeds locally,
-registerAccount throws → UX-CRIT-2 partial state. Add probe at wizard entry;
-if backend is unreachable, show actionable panel BEFORE letting the user type.
+registerAccount throws → UX-CRIT-2 partial state. The wizard now probes
+the backend via `ConnectivityService.checkConnectivity` *inside*
+`_handleCreate` when the user has entered a marketplace username — on
+offline, shows a friendly inline error ("Can't reach the marketplace
+backend. Check your connection and try again."), creates no profile,
+and stays on the wizard. Local-only profiles (empty username) skip the
+probe entirely. Tests in
+`apps/autorun_flutter/test/screens/unified_setup_wizard_test.dart`.
 
 ### UX-H8 — "Canisters" tab label is unexplained jargon
 
@@ -474,6 +480,44 @@ flows now run as phases 29-41 of `suite_keyring_less_test.dart`, and the
 `marketplace` suite arg + `e2e-marketplace` target were dropped. Every former
 marketplace flow is now reachable via `just e2e-one <flow-id>` with the
 default `keyring-less` suite.
+
+### UX-9 / UX-10 — Wizard + vault password keyboard-incomplete (Enter did nothing)
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `ef0029de`)
+- **Severity**: MEDIUM (desktop UX friction)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §MEDIUM)
+
+The display-name field in `unified_setup_wizard.dart` had `autofocus`
+but no `onFieldSubmitted` — pressing Enter did nothing. Same gap in
+`account_registration_wizard.dart` (username + display name) and
+`vault_password_setup_screen.dart` (password + confirm). Wired every
+primary input: intermediate fields use `TextInputAction.next` + focus-
+next via `FocusNode.requestFocus()`; the last field uses
+`TextInputAction.done` + submit-when-valid. Submit handlers reuse the
+existing `_canCreate` / `_canRegister` / `_isFormValid` getters so the
+Enter path and the button path can't drift. Tests in
+`apps/autorun_flutter/test/screens/{unified_setup_wizard,
+account_registration_wizard,vault_password_setup_screen}_test.dart`.
+
+### UX-7 — Vault password strength meter
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `490f4833`)
+- **Severity**: MEDIUM (typing feedback)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §MEDIUM)
+
+Strict password rules (12+ chars + 4 char classes) with no generator,
+no strength meter, no recovery hint — users typed blind until they
+broke a rule. Added a live, deterministic strength meter below the
+password field. Pure-Dart scoring util at
+`apps/autorun_flutter/lib/utils/password_strength.dart`:
+length (<8=0, 8-11=1, 12-15=2, 16+=3) + character classes (0-4, capped
+at 3), total clamped to [0,4]. Labels: Weak / Fair / Good / Strong.
+Colors use theme tokens (error / warningColor / accentLight /
+successColor) — no hardcoded `Colors.*`. Generator + recovery hint were
+out of scope. Tests in
+`apps/autorun_flutter/test/utils/password_strength_test.dart` (15 unit
+tests) and the strength-meter widget test in
+`apps/autorun_flutter/test/screens/vault_password_setup_screen_test.dart`.
 
 ---
 
