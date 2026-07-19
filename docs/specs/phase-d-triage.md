@@ -93,7 +93,96 @@ vault.{route_from_menu, setup, unlock, unlock_wrong_password, use_recovery_code}
 
 ## Phase D progress log
 
-(Updated per batch.)
+### Batch 1 — EASY (+2 flows; commit `468aa1fc`)
 
-### Batch 1 — EASY (target +8)
-_IN PROGRESS_
+Added to keyring-less (PHASE 42–43):
+- `scripts.share` — invoke `MarketplaceScriptRowMenu.onShare` → SnackBar
+  ("Script link copied"). Uses direct callback invocation to avoid the
+  PopupMenu gesture-interception issue seen elsewhere.
+- `scripts.view_in_marketplace` — invoke `LocalScriptRowMenu.onViewInMarketplace`
+  on the downloaded "Hello IC Starter" script → SnackBar ("Searching
+  marketplace").
+
+**Coverage: keyring-less 42 → 44.**
+
+### Batch 2 — MEDIUM (+1 flow; commit `1fba3142`)
+
+Added to keyring-less (PHASE 44):
+- `scripts.run` — invoke `LocalScriptRowMenu.onRun` on the downloaded
+  Hello IC Starter script → `ScriptExecutionBottomSheet` opens (real
+  QuickJS via `libicp_core.so`). Verifies integrity check (SHA-256),
+  records the run, mounts `ScriptAppHost` with the FFI-backed runtime.
+  Closes cleanly via the Close IconButton.
+
+**Coverage: keyring-less 44 → 45. Combined desktop: 64 → 66 / 92.**
+
+### Flows DEFERRED in Phase D
+
+The following flows are blocked by a **single root cause**: a transient
+`RenderAbsorbPointer` in the Overlay theater that shadows taps in the
+upper-left of the screen (the AppBar back-arrow location at offset
+(28, 28)) AND persists after `showModalBottomSheet` closes. The barrier
+doesn't respond to Esc, barrier-tap, drag-down gestures, or direct
+`Navigator.maybePop` on the route's context.
+
+| Flow | Reason |
+|------|--------|
+| `canisters.open_inline_client` | `CanisterClientSheet` (`showModalBottomSheet`) — modal barrier doesn't clear reliably after the sheet closes. |
+| `download_history.run` | Tile-tap to re-open details dialog blocked by the same AbsorbPointer after `scripts.run`'s bottom sheet closes. |
+| `dapps.local_replica_unreachable` | `DappRunnerScreen` close path unreliable: pageBack tap on AppBar back-arrow Tooltip absorbed. |
+| `dapps.apply_connection` | Same as above. |
+| `dapps.refresh` | Same as above. |
+| `shortcut.dapp_refresh` | Same as above. |
+| `dapps.open_frontend` | Same as above. |
+
+**Suspected root cause:** the integration-test binding's Overlay doesn't
+clean up modal-route barriers (`RenderAbsorbPointer`) reliably after
+`showModalBottomSheet` dismisses OR after a `MaterialPageRoute` pop.
+This may be a Flutter 3.38 binding quirk under `IntegrationTestWidgetsFlutterBinding`.
+
+**Recommended next step:** investigate whether upgrading the Flutter
+binding usage (or wrapping the binding's `pump` calls in `runAsync`)
+clears the residual barrier. Alternative: add a `pumpAndSettle`-free
+"wait for Overlay to settle" helper that polls the Overlay's entry list.
+
+### Flows still listed as DEFER (from initial triage)
+
+These are separate from the Overlay-barrier issue and remain DEFER for
+their original reasons:
+
+| Flow | Reason |
+|------|--------|
+| `passkey.list`, `passkey.register`, `passkey.delete` | Web-only — out of scope (linux desktop). |
+| `deeplink.open_script`, `deeplink.purchase_unavailable`, `deeplink.invalid_scheme` | Non-linux desktop — out of scope. |
+| `first_run.keyring_unavailable` | Dev box has gnome-keyring installed + auto-start recovers it; the readiness probe returns `StorageReady`. Cannot reproduce the blocking panel without uninstalling gnome-keyring. |
+| `scripts.load_more` | Backend has 3 seeded scripts, no pagination trigger. |
+| `scripts.delete` | Async dialog callback chain unreliable under `IntegrationTestWidgetsFlutterBinding` (existing comment). |
+| `scripts.buy`, `scripts.download_paid` | Need ICPay integration — not available locally. |
+| `dapps.run_poll`, `dapps.create_profile_to_vote` | Polls need local replica (F6 HTTP 530). |
+
+## Final Phase D tally
+
+- **Desktop coverage: 66 / 92** (was 64 / 92 at Phase D start)
+- **+2 flows added** in Batch 1 (EASY)
+- **+1 flow added** in Batch 2 (MEDIUM)
+- **6 flows DEFERRED** with single root cause documented above
+- **9 flows DEFERRED** for other reasons (web-only, non-linux, missing
+  external services)
+
+## Pre-existing app bugs noticed (not fixed)
+
+1. **`well_known_canisters.dart` line 145** — `RenderFlex overflowed by
+   80 pixels` layout error on a `Column` inside the canister cards when
+   rendered at narrow widths. Reproducible during the Phase-44
+   `canisters.open_inline_client` attempt (before the suite was
+   re-ordered). The card uses a fixed-aspect GridView; on small screens
+   the inner Column's children overflow the available height.
+
+2. **AppBar-back-arrow gesture interception after `MaterialPageRoute`
+   push** — the AppBar's back-arrow Tooltip's tap location (28, 28) is
+   shadowed by a `RenderAbsorbPointer` in the Overlay theater for ~the
+   first second after a route push. `tester.pageBack()` fails
+   intermittently. This is a framework binding quirk, not an app bug,
+   but it affects every e2e flow that wants to navigate back from a
+   pushed route.
+
