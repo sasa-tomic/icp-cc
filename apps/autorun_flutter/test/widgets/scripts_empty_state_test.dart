@@ -39,7 +39,7 @@ void main() {
           reason: 'exactly one primary button should be on screen');
 
       final ModernButton primaryButton = tester.widget(primary);
-      final Text label = primaryButton.child! as Text;
+      final Text label = primaryButton.child as Text;
       expect(label.data, 'Browse Marketplace');
 
       final Finder secondary = find.byWidgetPredicate(
@@ -47,7 +47,7 @@ void main() {
       );
       expect(secondary, findsOneWidget);
       final ModernButton secondaryButton = tester.widget(secondary);
-      expect((secondaryButton.child! as Text).data, 'Create Script');
+      expect((secondaryButton.child as Text).data, 'Create Script');
     });
 
     testWidgets('primary Browse Marketplace fires onBrowseMarketplace',

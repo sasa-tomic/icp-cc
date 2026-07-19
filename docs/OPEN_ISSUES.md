@@ -332,10 +332,12 @@ the 2026-07-17 session. The 2026-07-19 continuation did a CODE-LEVEL review
 instead via 3 parallel `orchestrator-verifier` subagents covering all
 `lib/screens/` + `lib/widgets/` (~30k LOC); vision MCP was usable for
 high-DPR Web Playwright captures but unreliable on the desktop screenshots
-at `kDesktopDpr=1.0` (filed as Phase H tech-debt to bump to 2.0). Findings
-distilled into 3 CRITICAL + 12 HIGH-severity issues (see UX-CRIT-{1,2,3}
-and UX-H{1..12} above); raw reports preserved in the verifier task
-transcripts.
+at `kDesktopDpr=1.0`. The DPR follow-up landed in Phase H (commit
+`3cb69594`): screenshots now rasterize at `kScreenshotDpr=2.0` while the
+test viewport stays at `kDesktopDpr=1.0` (logical 1440×900, matching real
+desktop layout). Findings distilled into 3 CRITICAL + 12 HIGH-severity
+issues (see UX-CRIT-{1,2,3} and UX-H{1..12} above); raw reports preserved
+in the verifier task transcripts.
 
 ---
 
