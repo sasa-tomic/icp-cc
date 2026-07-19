@@ -22,7 +22,7 @@
 ///   scripts.filter_category, scripts.view_details, scripts.download_free,
 ///   scripts.filter_downloaded_only, scripts.toggle_favorite,
 ///   scripts.filter_favorites_only, scripts.filter_sort, scripts.share,
-///   scripts.view_in_marketplace, scripts.refresh_pull,
+///   scripts.view_in_marketplace, scripts.refresh_pull, scripts.run,
 ///   scripts.empty_library, scripts.marketplace_load_error,
 ///   download_history.view, download_history.remove, download_history.clear,
 ///   canisters.bookmark_well_known, canisters.save_composer,
@@ -52,6 +52,7 @@ import 'package:icp_autorun/widgets/scripts_list_item_tile.dart';
 import 'package:icp_autorun/widgets/scripts_search_bar.dart';
 import 'package:icp_autorun/widgets/shortcuts_help_sheet.dart';
 import 'package:icp_autorun/widgets/spotlight_overlay.dart';
+import 'package:icp_autorun/widgets/script_execution_bottom_sheet.dart';
 
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
@@ -919,7 +920,69 @@ void main() {
           reason: 'View in Marketplace must surface a "Searching marketplace" '
               'SnackBar.');
     })
-    // ── PHASE 44 flow: canisters.open_inline_client — DEFERRED to a later
+    // ── PHASE 44 flow: scripts.run — open the ScriptExecutionBottomSheet on
+    // the downloaded Hello IC Starter script. Exercises the full QuickJS
+    // runtime path: integrity check (SHA-256) → recordScriptRun → mount
+    // ScriptAppHost with the real FFI-backed runtime → bundle executes via
+    // libicp_core.so. Closes the sheet via its Close IconButton.
+    ..register('scripts.run', (tester, d) async {
+      await d.dismissOverlays(tester);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 5));
+      // Find the LocalScriptRowMenu for the downloaded Hello IC Starter.
+      final menus = tester.widgetList<LocalScriptRowMenu>(
+          find.byType(LocalScriptRowMenu));
+      final menu = menus.firstWhere(
+          (m) => m.record.isFromMarketplace,
+          orElse: () => throw StateError(
+              'No LocalScriptRowMenu for a downloaded marketplace script. '
+              'Available: ${menus.map((m) => m.record.title)}'));
+      // Invoke the run callback (avoids popup-menu gesture interception).
+      // The callback fires `runLocalScript` which does integrity check +
+      // recordScriptRun + showModalBottomSheet(ScriptExecutionBottomSheet).
+      await tester.runAsync(() async {
+        menu.onRun();
+        // Give the FFI-backed runtime + integrity check real wall-clock time
+        // to complete. The bundle is small (~1 KB), so 1s is generous.
+        await Future<void>.delayed(const Duration(seconds: 1));
+      });
+      await tester.pump(const Duration(milliseconds: 500));
+      final sheetOpen = await d.waitUntil(
+          tester,
+          () => d.present(find.byType(ScriptExecutionBottomSheet), tester),
+          timeout: const Duration(seconds: 10));
+      expect(sheetOpen, isTrue,
+          reason: 'Tapping run on a downloaded script must open the '
+              'ScriptExecutionBottomSheet (real QuickJS via libicp_core.so).');
+      // The bottom sheet header has a Close IconButton (Icons.close) that
+      // calls Navigator.of(context).pop(). Invoke it via the widget tree to
+      // avoid gesture hit-test interception from the modal barrier.
+      final closeBtn = find.descendant(
+          of: find.byType(ScriptExecutionBottomSheet),
+          matching: find.widgetWithIcon(IconButton, Icons.close));
+      expect(d.present(closeBtn, tester), isTrue,
+          reason: 'ScriptExecutionBottomSheet must have a Close button.');
+      await tester.tap(closeBtn);
+      await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(ScriptExecutionBottomSheet), tester),
+          timeout: const Duration(seconds: 5));
+      // The modal barrier (RenderAbsorbPointer) takes a few frames to clear
+      // after the sheet widget is unmounted.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      await d.dismissOverlays(tester);
+    })
+    // ── PHASE 45 flow: download_history.run — DEFERRED. The catalog flow
+    // requires re-downloading Hello IC Starter (phase 41 cleared history),
+    // then opening download history, then tapping the record. The tile-tap
+    // step has the same gesture-interception problem as the dapp card
+    // (RenderAbsorbPointer in the Overlay theater shadows the tap target).
+    // Revisit after the dapp-runner modal-dismiss issue is solved.
+    // ..register('download_history.run', (tester, d) async { ... })
+    //
+    // ── PHASE 46 flow: canisters.open_inline_client — DEFERRED to a later
     // batch. The showModalBottomSheet's modal barrier (RenderAbsorbPointer)
     // does not clear reliably in the integration-test environment after the
     // CanisterClientSheet closes — Esc, barrier-tap, and drag-down gestures
@@ -1277,11 +1340,17 @@ void main() {
     if (shouldStopAfter('scripts.view_in_marketplace')) return;
     driver.phase('43', 'OK — scripts.view_in_marketplace');
 
-    // PHASE 44–49: DEFERRED — see registered-flow comments above. The flows
-    // need either a stable modal-dismiss path (canister inline client) or a
-    // stable dapp-runner close path (dapps.* flows). Both are blocked by a
-    // transient RenderAbsorbPointer in the Overlay theater that this phase
-    // of the suite can't reliably dismiss.
+    // PHASE 44: scripts.run — open ScriptExecutionBottomSheet on Hello IC Starter.
+    driver.phase('44', 'scripts: run via QuickJS');
+    await registry.runFor('scripts.run')!(tester, driver);
+    if (shouldStopAfter('scripts.run')) return;
+    driver.phase('44', 'OK — scripts.run');
+
+    // PHASE 45–50: DEFERRED — see registered-flow comments above. The flows
+    // need either a stable modal-dismiss path (canister inline client,
+    // download_history.run) or a stable dapp-runner close path (dapps.*).
+    // Both are blocked by a transient RenderAbsorbPointer in the Overlay
+    // theater that this phase of the suite can't reliably dismiss.
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -1289,9 +1358,9 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(44),
-        reason: 'keyring-less must cover at least 44 flows '
-            '(42 base + 2 Phase-D easy).');
+    expect(cov.implemented, greaterThanOrEqualTo(45),
+        reason: 'keyring-less must cover at least 45 flows '
+            '(42 base + 2 Phase-D easy + 1 Phase-D medium).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '
