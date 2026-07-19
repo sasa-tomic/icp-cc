@@ -61,3 +61,4 @@ examples/icp_poll_dapp/dist/
 examples/icp_poll_dapp/.env
 examples/icp_poll_dapp/canister_ids.local.json
 examples/icp_poll_dapp/src/declarations/
+backend/.api-dev-port
