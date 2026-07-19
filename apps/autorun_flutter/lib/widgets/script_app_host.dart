@@ -89,6 +89,12 @@ class ScriptAppHostState extends State<ScriptAppHost> {
   /// the strict per-method permission dialog for ALL canister calls.
   bool _dappTrusted = false;
 
+  /// UX-H4: true when the user picked "Allow once" on the trust dialog.
+  /// Session-scoped: lives only in this host instance, never persisted, never
+  /// published to [widget.dappTrustState]. Covers the rest of this dapp
+  /// session's calls without writing the persistent grant.
+  bool _sessionAllowed = false;
+
   /// Completes when the persisted trust grant (if any) has been loaded. Awaited
   /// before showing the trust dialog so a restart with persisted trust yields
   /// ZERO prompts instead of flashing a redundant one.
@@ -597,8 +603,15 @@ class ScriptAppHostState extends State<ScriptAppHost> {
   ///  - the grant persists across app restarts via [DappTrustStore].
   /// On Deny, returns false (effect -> "permission denied"); the user is asked
   /// again on the next canister effect.
+  ///
+  /// UX-H4 adds the third affordance: "Allow once" grants permission for the
+  /// current session (the rest of this host instance's calls run without
+  /// re-prompting) but does NOT persist. Implemented via a separate in-memory
+  /// [_sessionAllowed] flag so the parent's "Trusted" indicator (driven by
+  /// [widget.dappTrustState]) only lights up for actually-persistent trust.
   Future<bool> _ensureDappTrust() async {
     if (_dappTrusted) return true;
+    if (_sessionAllowed) return true;
     // Wait for the persisted trust grant to load so a restart with prior trust
     // does NOT flash a redundant prompt.
     try {
@@ -611,6 +624,7 @@ class ScriptAppHostState extends State<ScriptAppHost> {
     final _Decision decision = await _showPermissionDialog(
       title: _kTrustDappDialogTitle,
       details: _kTrustDappDialogBody,
+      allowLabel: _kTrustDappAllowOnceButton,
       allowAlwaysLabel: _kTrustDappButton,
     );
     if (decision == _Decision.allowAlways) {
@@ -627,6 +641,13 @@ class ScriptAppHostState extends State<ScriptAppHost> {
           debugPrint('script_app_host: failed to persist dapp trust for "$id": $e\n$st');
         }
       }
+      return true;
+    }
+    if (decision == _Decision.allowOnce) {
+      // Session-only grant: covers the rest of this host instance without
+      // writing to [DappTrustStore] or publishing to [widget.dappTrustState]
+      // (the parent's "Trusted" chip reflects persistent trust only).
+      _sessionAllowed = true;
       return true;
     }
     return false;
@@ -981,14 +1002,21 @@ class CanisterCallFailure {
 }
 
 // =============================================================================
-// "Trust this dapp" prompt copy (UX-10).
+// "Trust this dapp" prompt copy (UX-10, UX-H4).
 // Distinct from the per-method "Allow canister call? / Always allow" dialog:
 // the trust grant covers ALL current + future methods of one shipped example
 // dapp. Single source of truth — referenced by name from `_ensureDappTrust`.
+//
+// UX-H4 additions:
+//   - principal-visibility warning (the dapp can identify you on every
+//     authenticated call);
+//   - `_kTrustDappAllowOnceButton` (the session-only third affordance).
 // =============================================================================
 const String _kTrustDappDialogTitle = 'Trust this dapp?';
 const String _kTrustDappDialogBody =
     'Allow ALL current and future canister calls from this dapp — any method, '
     'signed or anonymous. You won\'t be asked again.\n'
+    'The dapp will see your principal and can identify you on every call.\n'
     'Only trust dapps you recognize.';
 const String _kTrustDappButton = 'Trust this dapp';
+const String _kTrustDappAllowOnceButton = 'Allow once';

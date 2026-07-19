@@ -1052,5 +1052,6 @@ const String _kTrustRevokedMessage =
     'Trust revoked — you\'ll be asked again on the next canister call';
 const String _kTrustedChipLabel = 'Trusted';
 const String _kTrustedChipHint =
-    'This dapp can call any canister without asking. Use "Manage trust" in the '
+    'This dapp can call any canister without asking. It can also see your '
+    'principal and identify you on every call. Use "Manage trust" in the '
     'toolbar to revoke.';

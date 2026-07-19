@@ -181,8 +181,10 @@ void main() {
         reason: 'First canister effect must surface the trust prompt');
     // The per-method dialog must NOT appear — trust gate replaces it.
     expect(find.text('Allow canister call?'), findsNothing);
-    // No "Allow once" button in the trust dialog (trust is all-or-nothing).
-    expect(find.text('Allow once'), findsNothing);
+    // UX-H4: "Allow once" is now offered as the session-only third affordance
+    // (does not persist trust). Tapping "Trust this dapp" below still
+    // grants + persists as before.
+    expect(find.text('Allow once'), findsOneWidget);
 
     await tester.tap(find.text('Trust this dapp'));
     await tester.pumpAndSettle();
