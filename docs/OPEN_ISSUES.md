@@ -77,20 +77,6 @@ broken by `<invalid>` exhaustiveness in `cupertino/colors.dart:1024` +
 
 ---
 
-### E2E-1 — `just e2e-one <flow-id>` cannot target individual flows inside the marketplace suite
-
-- **Status**: 🟡 IN-PROGRESS (Phase B of the 2026-07-17 plan will fold the
-  marketplace suite into keyring-less, after which `e2e-one` works for all
-  flows).
-- **Severity**: MEDIUM (dev-loop friction)
-- **Surfaced**: 2026-07-17 (`justfile` audit)
-
-`just e2e-one <flow> [suite]` only accepts `keyring-less | marketplace |
-mock-keyring` as the suite arg. After Phase B folds marketplace into
-keyring-less, this becomes a non-issue.
-
----
-
 ## Medium severity
 
 ### UX-W1 — `details_run` shortcut missing from help sheet (RESOLVED)
@@ -164,6 +150,20 @@ and screenshot every screen in `docs/specs/ux_screenshots/e2e/`.
 - **Status**: 🟢 RESOLVED (2026-07-17, commit `eb9cbdfa`)
 - **Source**: `docs/specs/2026-07-17-e2e-completion-and-ux-sweep.md` Phase A
 - Root causes + fixes documented in commit message.
+
+### E2E-1 — `just e2e-one <flow-id>` cannot target individual flows inside the marketplace suite
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `59bc4091`)
+- **Severity**: MEDIUM (dev-loop friction)
+- **Surfaced**: 2026-07-17 (`justfile` audit)
+
+`just e2e-one <flow> [suite]` only accepted `keyring-less | marketplace |
+mock-keyring` as the suite arg. Phase B of the 2026-07-17 plan folded the
+marketplace suite into keyring-less (3 desktop boots → 2): the 13 marketplace
+flows now run as phases 29-41 of `suite_keyring_less_test.dart`, and the
+`marketplace` suite arg + `e2e-marketplace` target were dropped. Every former
+marketplace flow is now reachable via `just e2e-one <flow-id>` with the
+default `keyring-less` suite.
 
 ---
 
