@@ -67,7 +67,7 @@ ICPay. Set to 0 for free scripts." One-line change.
 
 ### UX-H1 — Trust signals absent on every script surface
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `23a01dfd`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-1)
 - **Severity**: HIGH (core product promise invisible)
 - **Locations**: `scripts_list_item_tile.dart`, `script_details_dialog.dart`, `script_execution_bottom_sheet.dart`, `marketplace_stats_banner.dart`
@@ -78,8 +78,9 @@ moment they decide to download or tap-run. `MarketplaceAuthor.isVerifiedDevelope
 `authorPublicKey`, `uploadSignature` are checked internally but never
 surfaced. Stats banner returns `SizedBox.shrink()` on error.
 
-**Fix:** add "Sandboxed ✓" + "Signed by {author}" chips to tile subtitle,
-details dialog header, and run-panel status row.
+**Fix:** added `SandboxedChip`, `SignedByChip`, `SignatureVerifiedChip` to a
+shared `lib/widgets/trust_badges.dart`; surfaced in the browse tile subtitle,
+the details dialog header, and the run-panel header.
 
 ### UX-H2 — Empty-library CTAs inverted (Create primary, Browse secondary)
 
@@ -94,19 +95,23 @@ scripts, not author them. Invert.
 
 ### UX-H3 — Dark-mode breakage: 25+ hard-coded `Colors.white`
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `fec7f057`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-3)
 - **Severity**: HIGH (premium feel; affects Account, Dapps tour, onboarding spotlight)
 - **Locations**: `add_account_key_sheet.dart` (6 refs), `account_key_details_sheet.dart` (1), `profile_menu.dart` (3), `quick_upload_dialog.dart` (2), `script_details_dialog.dart` (7), `script_editor.dart` (1), `spotlight_overlay.dart` (1), `modern_empty_state.dart` (2), `shimmer_loading.dart` (1), `animated_fab.dart` (1)
 
 All render wrong colors in Dark theme.
 
-**Fix:** replace `Colors.white` with `theme.colorScheme.onPrimary` / `surface`
-at each call site. Mechanical pattern.
+**Fix:** replaced `Colors.white` with `theme.colorScheme.onPrimary` / `surface`
+at every call site where the bg/fg is theme-dependent. The remaining
+`Colors.white` occurrences are intentional (theme-colorScheme definitions,
+gradient constants, and SnackBars / colored buttons whose background is a
+hardcoded non-theme color — there the white foreground is consistent across
+both themes).
 
 ### UX-H4 — Trust-grant dialog all-or-nothing + missing principal warning
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `367f2d72`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-4)
 - **Severity**: HIGH (permission honesty)
 - **Location**: `apps/autorun_flutter/lib/widgets/script_app_host.dart:611-633, 989-994`
@@ -116,7 +121,10 @@ Only "Deny" + "Trust this dapp" (allow-always). No "Allow once" though
 parameter. Body says "any method, signed or anonymous" but never warns the
 dapp will SEE YOUR PRINCIPAL / can deanonymize.
 
-**Fix:** restore the "Allow once" affordance + add a one-line warning.
+**Fix:** restored the "Allow once" affordance (session-only via an in-memory
+`_sessionAllowed` flag — does NOT persist or light up the parent's Trusted
+chip), added a principal-visibility warning to both the trust dialog body
+and the dapp-runner Trusted-chip hint.
 
 ### UX-H5 — Unguarded destructive actions (4 paths)
 
@@ -326,6 +334,61 @@ transcripts.
 ---
 
 ## Resolved (kept for the historical record)
+
+### UX-H1 — Trust signals on every script surface
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `23a01dfd`)
+- **Severity**: HIGH (core product promise invisible)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-1)
+
+Added `lib/widgets/trust_badges.dart` with three theme-driven chips:
+`SandboxedChip` (the QuickJS runtime guarantee — green-tinted, always
+shown), `SignedByChip(author, verified)` (with an inline verified badge
+when `MarketplaceAuthor.isVerifiedDeveloper == true`), and
+`SignatureVerifiedChip` (shown when the bundle carries a verified
+`uploadSignature` / SHA-256 checksum). Surfaced in the browse tile
+subtitle, the details dialog header (next to category/price), and the
+run-panel header status row. Widget tests in
+`test/widgets/trust_badges_test.dart`,
+`test/widgets/scripts_list_item_tile_test.dart`,
+`test/widgets/script_details_dialog_trust_test.dart`, and
+`test/widgets/script_execution_bottom_sheet_test.dart`.
+
+### UX-H3 — Dark-mode breakage: 25+ hard-coded `Colors.white`
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `fec7f057`)
+- **Severity**: HIGH (premium feel; affects Account, Dapps tour, onboarding spotlight)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-3)
+
+Replaced `Colors.white` with the matching `Theme.of(context).colorScheme`
+token at every theme-dependent call site: sheet backgrounds → `surface`,
+foreground text/icons on primary gradients → `onPrimary`, FAB / button
+foregrounds → `onPrimary` / `onSecondary`, and the legacy `cardGradient`
+constant's container tints. Remaining `Colors.white` occurrences are
+intentional: theme-ColorScheme definitions (where `onPrimary: Colors.white`
+*defines* the token), static-const gradient stops, the dark-scrim spotlight
+overlay border, and SnackBars / colored FilledButtons whose background is a
+hardcoded non-theme color (success green, commerce orange) — there the
+white foreground is consistent across both themes. Widget test in
+`test/widgets/dark_theme_rendering_test.dart` asserts the dark-theme
+surface color is actually used.
+
+### UX-H4 — Trust-grant dialog all-or-nothing + missing principal warning
+
+- **Status**: 🟢 RESOLVED (2026-07-19, commit `367f2d72`)
+- **Severity**: HIGH (permission honesty)
+- **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-4)
+
+`_ensureDappTrust` now passes `allowLabel: 'Allow once'` so the dialog
+offers three buttons: Deny, Allow once, Trust this dapp. A new in-memory
+`_sessionAllowed` flag covers the rest of this host instance's calls
+without writing to `DappTrustStore` or publishing to `dappTrustState` (so
+the parent's "Trusted" chip lights up only for actually-persistent trust).
+The dialog body now warns "The dapp will see your principal and can
+identify you on every call." The dapp-runner Trusted-chip hint mirrors the
+warning. Tests in
+`test/features/dapps/dapp_trust_dialog_uxh4_test.dart` and the existing
+`dapp_trust_test.dart` (updated assertion for the new third button).
 
 ### UX-CRIT-3 — Currency label mismatch on script publish flow
 
