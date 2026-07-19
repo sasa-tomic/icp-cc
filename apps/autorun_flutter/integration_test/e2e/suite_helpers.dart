@@ -14,9 +14,14 @@ library;
 
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:icp_autorun/widgets/scripts_search_bar.dart';
+
+import 'e2e_driver.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 
 /// The path_provider `appSupport` resolution on this Linux build.
@@ -112,4 +117,63 @@ Future<void> resetAppState({
       await prefs.remove(key);
     }
   }
+}
+
+// ── Marketplace suite helpers (shared between keyring-less + marketplace) ────
+
+/// Backend script titles (real data, verified via curl on the dev backend).
+const kCounterTitle = 'Interactive Counter';
+const kBalanceTitle = 'ICP Balance Reader';
+const kHelloTitle = 'Hello IC Starter';
+
+/// Enter text into the search bar, clear first, then wait for debounce + fetch.
+Future<void> enterSearch(
+    WidgetTester tester, E2EDriver d, String query) async {
+  final searchField = find.descendant(
+      of: find.byType(ScriptsSearchBar),
+      matching: find.byType(TextField));
+  await tester.enterText(searchField, '');
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.enterText(searchField, query);
+  await tester.pump(const Duration(milliseconds: 500));
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+/// Clear the search field and wait for the full list to restore.
+Future<void> clearSearch(WidgetTester tester, E2EDriver d) async {
+  final searchField = find.descendant(
+      of: find.byType(ScriptsSearchBar),
+      matching: find.byType(TextField));
+  await tester.enterText(searchField, '');
+  await tester.pump(const Duration(milliseconds: 500));
+  // Unfocus the search field (enterText leaves it focused, which can absorb
+  // pointer events on the nearby filter button). Tap the screen center.
+  await tester.tapAt(const Offset(720, 450));
+  await tester.pump(const Duration(milliseconds: 300));
+  // Wait for at least one marketplace script to reappear after clearing.
+  await d.waitUntil(
+      tester, () => d.present(find.text(kCounterTitle), tester),
+      timeout: const Duration(seconds: 10));
+}
+
+/// Open the filter bottom sheet by invoking the search bar's filter callback.
+///
+/// The filter IconButton's tap gesture is intercepted by the Overlay's modal
+/// barrier in the integration-test headless environment. Invoking the callback
+/// directly tests the real filter code path — showModalBottomSheet →
+/// FilterBottomSheet — without relying on gesture hit-testing.
+Future<void> openFilterSheet(WidgetTester tester, E2EDriver d) async {
+  final searchBar = tester.widget<ScriptsSearchBar>(find.byType(ScriptsSearchBar));
+  searchBar.onFilterButtonPressed();
+  final sheetOpen = await d.waitUntil(
+      tester, () => d.present(find.text('Filters'), tester),
+      timeout: const Duration(seconds: 5));
+  assert(sheetOpen, 'Filter button callback must open the bottom sheet.');
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+/// Close the filter bottom sheet by pressing Escape (modal dismiss).
+Future<void> closeFilterSheet(WidgetTester tester) async {
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pump(const Duration(milliseconds: 500));
 }

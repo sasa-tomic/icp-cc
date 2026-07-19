@@ -499,10 +499,11 @@ test-ux-probe:
 # register into a FlowRegistry; the catalog is the single coverage contract.
 # =============================================================================
 
-# e2e-desktop: run the unified DESKTOP suites. Three app boots total:
+# e2e-desktop: run the unified DESKTOP suites. Two app boots total:
 #   PASS 1 (keyring-less) — suite_keyring_less_test.dart   (no Secret Service)
+#       includes marketplace + download-history flows (folded from the retired
+#       suite_marketplace_test.dart — same backend, same keyring-less surface).
 #   PASS 2 (mock keyring)  — suite_mock_keyring_test.dart   (mock Secret Service)
-#   PASS 3 (marketplace)   — suite_marketplace_test.dart    (real backend, keyring-less)
 # Each suite boots the REAL app once and runs many phases with resetAppState
 # isolation between them.
 e2e-desktop:
@@ -513,7 +514,7 @@ e2e-desktop:
     LOG="{{logs_dir}}/e2e-desktop.log"
     mkdir -p "{{logs_dir}}"
 
-    echo "==> e2e-desktop: unified harness (3 shared boots)"
+    echo "==> e2e-desktop: unified harness (2 shared boots)"
 
     # --- 1. Real FFI library --------------------------------------------------
     if [[ ! -f "$RELEASE_LIB" ]]; then
@@ -566,18 +567,7 @@ e2e-desktop:
         echo "   PASS 2 FAIL  (see $LOG)"; exit 1
     fi
 
-    # --- 5. PASS 3: marketplace (keyring-less, real backend) ------------------
-    rm -rf "$STATE_DIR" 2>/dev/null || true
-    echo "==> PASS 3 (marketplace): suite_marketplace_test.dart"
-    if (cd "{{flutter_dir}}" && flutter test -d linux \
-            integration_test/e2e/suite_marketplace_test.dart \
-            --reporter=compact --timeout=240s) >>"$LOG" 2>&1; then
-        echo "   PASS 3 OK"
-    else
-        echo "   PASS 3 FAIL  (see $LOG)"; exit 1
-    fi
-
-    echo "✅ e2e-desktop PASSED — all suites green (3 boots). Log: $LOG"
+    echo "✅ e2e-desktop PASSED — all suites green (2 boots). Log: $LOG"
 
 # e2e-fast: run a SINGLE suite file for a sub-minute dev loop (default: the
 # keyring-less smoke, no mock-keyring wrap needed). Pass a file path to target
@@ -601,17 +591,12 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
     echo "==> e2e-fast: {{file}} (backend :$MARKETPLACE_API_PORT)"
     cd "{{flutter_dir}}" && flutter test -d linux "{{file}}" --reporter=compact --timeout=240s
 
-# e2e-marketplace: run ONLY the marketplace suite (real backend, keyring-less).
-# Shortcut for `just e2e-fast integration_test/e2e/suite_marketplace_test.dart`.
-e2e-marketplace:
-    @just e2e-fast integration_test/e2e/suite_marketplace_test.dart
-
-# e2e-one: run a keyring-less or marketplace suite UP TO a specific flow for
+# e2e-one: run a keyring-less or mock-keyring suite UP TO a specific flow for
 # fast single-flow iteration. The suite boots the real app, runs all setup
 # phases, then stops immediately after the requested flow.
 # Usage: just e2e-one <flow-id> [suite]
-#   suite: keyring-less (default), marketplace, mock-keyring
-# Example: just e2e-one scripts.search marketplace
+#   suite: keyring-less (default, includes marketplace), mock-keyring
+# Example: just e2e-one scripts.search
 #          just e2e-one settings.theme
 #          just e2e-one vault.setup mock-keyring
 e2e-one flow suite="keyring-less":
@@ -623,9 +608,8 @@ e2e-one flow suite="keyring-less":
 
     case "{{suite}}" in
         keyring-less)  FILE="suite_keyring_less_test.dart" ;;
-        marketplace)   FILE="suite_marketplace_test.dart" ;;
         mock-keyring)  FILE="suite_mock_keyring_test.dart" ;;
-        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, marketplace, mock-keyring"; exit 1 ;;
+        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring"; exit 1 ;;
     esac
 
     if [[ "{{suite}}" == "mock-keyring" ]]; then
