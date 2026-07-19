@@ -75,6 +75,7 @@ class ScriptsEmptyState extends StatelessWidget {
           subtitle: 'Browse the marketplace to find scripts to download',
           action: onClearDownloadedFilter,
           actionLabel: 'Browse Marketplace',
+          actionIcon: Icons.storefront_rounded,
         );
       case ScriptsEmptyStateKind.favoritesFilter:
         return ModernEmptyState(
@@ -82,7 +83,8 @@ class ScriptsEmptyState extends StatelessWidget {
           title: "You haven't favorited any scripts yet",
           subtitle: 'Tap the star icon on scripts to add them to favorites',
           action: onClearFavoritesFilter,
-          actionLabel: 'Browse Scripts',
+          actionLabel: 'Browse Marketplace',
+          actionIcon: Icons.storefront_rounded,
         );
       case ScriptsEmptyStateKind.searchNoResults:
         // Echo the query so the user can see *which* term found nothing. The
@@ -105,16 +107,18 @@ class ScriptsEmptyState extends StatelessWidget {
                 'Create a profile to start building, running, and sharing scripts',
             action: onSetupProfile,
             actionLabel: 'Set Up Profile',
+            actionIcon: Icons.person_add_rounded,
           );
         }
         return ModernEmptyState(
           icon: Icons.code_rounded,
           title: 'Your Script Library is Empty',
-          subtitle: 'Create your first script or browse the marketplace',
-          action: onCreateScript,
-          actionLabel: 'Create Script',
-          secondaryAction: onBrowseMarketplace,
-          secondaryActionLabel: 'Browse Marketplace',
+          subtitle: 'Browse the marketplace to find scripts, or create your own',
+          action: onBrowseMarketplace,
+          actionLabel: 'Browse Marketplace',
+          actionIcon: Icons.storefront_rounded,
+          secondaryAction: onCreateScript,
+          secondaryActionLabel: 'Create Script',
         );
     }
   }

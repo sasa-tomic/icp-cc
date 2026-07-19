@@ -11,6 +11,7 @@ class ModernEmptyState extends StatefulWidget {
     required this.subtitle,
     this.action,
     this.actionLabel,
+    this.actionIcon = Icons.add_rounded,
     this.secondaryAction,
     this.secondaryActionLabel,
     this.animationDelay = Duration.zero,
@@ -21,6 +22,7 @@ class ModernEmptyState extends StatefulWidget {
   final String subtitle;
   final VoidCallback? action;
   final String? actionLabel;
+  final IconData? actionIcon;
   final VoidCallback? secondaryAction;
   final String? secondaryActionLabel;
   final Duration animationDelay;
@@ -259,8 +261,10 @@ class _ModernEmptyStateState extends State<ModernEmptyState>
                               variant: ModernButtonVariant.primary,
                               size: ModernButtonSize.large,
                               fullWidth: false,
-                              icon: const Icon(Icons.add_rounded,
-                                  color: Colors.white),
+                              icon: widget.actionIcon == null
+                                  ? null
+                                  : Icon(widget.actionIcon,
+                                      color: Colors.white),
                               child: Text(widget.actionLabel!),
                             ),
                           ),
