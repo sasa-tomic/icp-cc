@@ -1,0 +1,18 @@
+{
+  "name": "icp-autorun-web-e2e-playwright",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phase C Tier B — Playwright e2e harness against the built Flutter Web bundle. Visual assertions via zai-vision MCP.",
+  "scripts": {
+    "build": "bash ../../../scripts/web-e2e-build.sh",
+    "serve": "bash ../../../scripts/web-e2e-build.sh --serve 8099",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "install-browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.0.0"
+  }
+}

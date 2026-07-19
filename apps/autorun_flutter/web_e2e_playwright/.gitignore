@@ -1,0 +1,6 @@
+# Tier B Playwright harness — Node deps + screenshots are CI ephemera.
+node_modules/
+playwright-report/
+test-results/
+.cache/
+*.log

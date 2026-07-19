@@ -683,6 +683,58 @@ e2e-web file="test/e2e_web/suite_web_smoke_test.dart test/e2e_web/suite_web_flow
         --dart-define=ICP_E2E_MOCK_ICPAY=1 \
         {{file}} --reporter=compact --timeout=240s
 
+# e2e-web-playwright: Tier B — Playwright against the BUILT Flutter Web bundle
+# (real canvaskit + all Web platform code paths). Two specs:
+#   1. bundle boots → flt-glass-pane shadow-root canvas paints (geometry check).
+#   2. first-run wizard renders (screenshot artifact; vision-assert separately
+#      via `zai-vision_analyze_image` — DOM assertions unavailable, see
+#      docs/OPEN_ISSUES.md #WEB-1).
+#
+# Boots its own static HTTP server on :8099; tear down via trap on exit. The
+# bundle MUST be pre-built (call `just web-dev-build` first or this target
+# will offer to build it).
+#
+# Run:
+#   just e2e-web-playwright                # build (if needed) + run
+#   just e2e-web-playwright --no-build     # skip build (assume bundle exists)
+e2e-web-playwright skipbuild="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BUNDLE="{{flutter_dir}}/build/web"
+    if [[ "{{skipbuild}}" != "--no-build" && ! -f "$BUNDLE/index.html" ]]; then
+        echo "==> Bundle missing; building via scripts/web-e2e-build.sh"
+        bash "{{root}}/scripts/web-e2e-build.sh"
+    elif [[ "{{skipbuild}}" != "--no-build" ]]; then
+        # Always rebuild unless explicitly skipped — keeps the bundle in sync
+        # with current source.
+        echo "==> Building fresh bundle"
+        bash "{{root}}/scripts/web-e2e-build.sh"
+    fi
+    [[ -f "$BUNDLE/index.html" ]] || { echo "❌ $BUNDLE/index.html missing"; exit 1; }
+
+    PW_DIR="{{flutter_dir}}/web_e2e_playwright"
+    [[ -d "$PW_DIR/node_modules" ]] || (cd "$PW_DIR" && npm install)
+    [[ -d "$HOME/.cache/ms-playwright/chromium"* ]] || \
+        (cd "$PW_DIR" && npx playwright install chromium)
+
+    # Serve the bundle on :8099; trap to kill on exit.
+    HTTP_PID=""
+    cleanup() {
+        [[ -n "$HTTP_PID" ]] && kill "$HTTP_PID" 2>/dev/null || true
+        wait "$HTTP_PID" 2>/dev/null || true
+    }
+    trap cleanup EXIT
+    echo "==> Serving bundle on http://127.0.0.1:8099"
+    (cd "$BUNDLE" && python3 -m http.server 8099) &
+    HTTP_PID=$!
+    for _ in $(seq 1 30); do
+        curl -sf http://127.0.0.1:8099/ >/dev/null && break
+        sleep 0.2
+    done
+
+    echo "==> Running Playwright"
+    cd "$PW_DIR" && npx playwright test --reporter=list --workers=1
+
 # e2e: BOTH surfaces (desktop then web). The full real-app e2e contract.
 e2e: e2e-desktop e2e-web
     @echo "✅ e2e PASSED — desktop + web surfaces green"
