@@ -797,11 +797,26 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
 
       Account? account;
       if (normalizedUsername != null && normalizedUsername.isNotEmpty) {
-        account = await widget.accountController.registerAccount(
-          keypair: profile.primaryKeypair,
-          username: normalizedUsername,
-          displayName: displayName,
-        );
+        try {
+          account = await widget.accountController.registerAccount(
+            keypair: profile.primaryKeypair,
+            username: normalizedUsername,
+            displayName: displayName,
+          );
+        } catch (e) {
+          // UX-CRIT-2: `createProfile` already persisted the profile + keypair
+          // to secure storage. If marketplace registration fails, roll the
+          // profile back so a retry doesn't fork into a SECOND orphan profile
+          // (the original was created, but the user thinks it wasn't).
+          await widget.profileController.deleteProfile(profile.id);
+          setState(() {
+            _errorMessage =
+                'Profile created locally, but marketplace registration '
+                'failed: $e. Your profile has been removed — please try again.';
+            _isCreating = false;
+          });
+          return;
+        }
 
         await widget.profileController.updateProfileUsername(
           profileId: profile.id,
@@ -819,10 +834,8 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
         _isCreating = false;
       });
     } catch (e) {
-      // WU-S2 / NEW-4: never surface a raw `PlatformException(…)` string. The
-      // readiness gate covers the common keyring-down case; this maps any
-      // residual error (e.g. the keyring went down between probe and create)
-      // to a friendly message.
+      // Profile creation itself failed (e.g. secure storage unavailable). No
+      // rollback needed because nothing was persisted.
       setState(() {
         _errorMessage = humanizeSecureStorageError(e);
         _isCreating = false;

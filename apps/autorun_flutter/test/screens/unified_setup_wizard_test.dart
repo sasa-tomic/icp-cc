@@ -14,6 +14,7 @@ class _FakeProfileController extends ChangeNotifier
   final List<Profile> _profiles = [];
   bool _isBusy = false;
   String? _activeProfileId;
+  int deleteProfileCallCount = 0;
 
   @override
   List<Profile> get profiles => List.unmodifiable(_profiles);
@@ -125,7 +126,14 @@ class _FakeProfileController extends ChangeNotifier
   }) async {}
 
   @override
-  Future<void> deleteProfile(String profileId) async {}
+  Future<void> deleteProfile(String profileId) async {
+    deleteProfileCallCount += 1;
+    _profiles.removeWhere((p) => p.id == profileId);
+    if (_activeProfileId == profileId) {
+      _activeProfileId = _profiles.isNotEmpty ? _profiles.first.id : null;
+    }
+    notifyListeners();
+  }
 
   @override
   Profile? findById(String id) {
@@ -155,6 +163,10 @@ class _FakeAccountController extends ChangeNotifier
   final Map<String, bool> _availabilityCache = {};
   bool _isBusy = false;
 
+  /// When non-null, [registerAccount] throws this object instead of registering.
+  /// Tests set this to simulate marketplace registration failure (UX-CRIT-2).
+  Object? registrationFailure;
+
   @override
   bool get isBusy => _isBusy;
 
@@ -178,6 +190,12 @@ class _FakeAccountController extends ChangeNotifier
   }) async {
     _isBusy = true;
     notifyListeners();
+
+    if (registrationFailure != null) {
+      _isBusy = false;
+      notifyListeners();
+      throw registrationFailure!;
+    }
 
     if (_accounts.containsKey(username.toLowerCase())) {
       _isBusy = false;
@@ -533,6 +551,64 @@ void main() {
         await tester.pump(const Duration(milliseconds: 600));
 
         expect(find.textContaining('already taken'), findsOneWidget);
+      });
+    });
+
+    group('Registration failure rollback (UX-CRIT-2)', () {
+      testWidgets(
+          'rolls back the profile when registerAccount throws; retry then succeeds',
+          (tester) async {
+        // First submit: marketplace registration fails. The wizard must roll
+        // back the local profile so a retry doesn't fork into a second orphan.
+        accountController.registrationFailure =
+            Exception('marketplace is down');
+
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+            find.byType(TextFormField).first, 'Crashme User');
+        await tester.enterText(
+            find.byType(TextFormField).at(1), 'crashme123');
+        await tester.pump(const Duration(milliseconds: 600));
+
+        await tester
+            .ensureVisible(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+
+        // Specific error language — NOT the generic "Could not create the
+        // profile" message that used to lie about a profile that DID exist.
+        expect(find.textContaining('registration failed'), findsOneWidget);
+        expect(find.textContaining('Profile created locally, but'),
+            findsOneWidget);
+
+        // Rollback worked: no orphan profile, deleteProfile was called once.
+        expect(profileController.profiles, isEmpty);
+        expect(profileController.deleteProfileCallCount, 1);
+
+        // Second submit: clear the failure and let registration succeed.
+        accountController.registrationFailure = null;
+
+        // Re-tap Get Started (same form values are still in the fields).
+        await tester
+            .ensureVisible(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+
+        // Exactly one profile exists — not two.
+        expect(profileController.profiles, hasLength(1));
+        expect(profileController.deleteProfileCallCount, 1,
+            reason: 'rollback must not run again on the successful retry');
       });
     });
 
