@@ -508,7 +508,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                           TextFormField(
                             controller: _priceController,
                             decoration: const InputDecoration(
-                              labelText: 'Price (ICP) *',
+                              labelText: 'Price (USD) *',
                               border: OutlineInputBorder(),
                               helperText: 'Set to 0 for free scripts',
                             ),
