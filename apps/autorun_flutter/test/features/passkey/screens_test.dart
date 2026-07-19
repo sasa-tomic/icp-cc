@@ -327,7 +327,11 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Create Vault'));
+      await tester.ensureVisible(
+        find.widgetWithText(ElevatedButton, 'Create Vault'),
+      );
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create Vault'),
+          warnIfMissed: false);
       await tester.pumpAndSettle();
 
       expect(onVaultCreatedCalled, isTrue,

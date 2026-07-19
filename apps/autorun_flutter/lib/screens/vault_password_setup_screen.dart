@@ -3,6 +3,7 @@ import '../models/profile_keypair.dart';
 import '../services/passkey_service.dart';
 import '../services/vault_crypto_service.dart';
 import '../theme/app_design_system.dart';
+import '../utils/password_strength.dart';
 import 'recovery_codes_screen.dart';
 
 typedef VaultCreatedCallback = void Function();
@@ -213,6 +214,8 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
               _buildInfoCard(),
               const SizedBox(height: 32),
               _buildPasswordField(),
+              const SizedBox(height: 12),
+              _buildStrengthMeter(),
               const SizedBox(height: 16),
               _buildConfirmField(),
               const SizedBox(height: 16),
@@ -292,6 +295,48 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  Widget _buildStrengthMeter() {
+    final score = passwordStrength(_passwordController.text);
+    final label = passwordStrengthLabel(score);
+    final color = _strengthColor(score);
+
+    return Row(
+      children: [
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (score + 1) / 4,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+              backgroundColor:
+                  color.withValues(alpha: 0.18),
+              minHeight: 6,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 64,
+          child: Text(
+            label,
+            style: AppDesignSystem.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _strengthColor(int score) {
+    final colors = Theme.of(context).colorScheme;
+    if (score <= 1) return colors.error;
+    if (score == 2) return AppDesignSystem.warningColor;
+    if (score == 3) return AppDesignSystem.accentLight;
+    return AppDesignSystem.successColor;
   }
 
   Widget _buildConfirmField() {
