@@ -54,10 +54,101 @@ import 'package:icp_autorun/widgets/shortcuts_help_sheet.dart';
 import 'package:icp_autorun/widgets/spotlight_overlay.dart';
 import 'package:icp_autorun/widgets/script_execution_bottom_sheet.dart';
 
+import 'package:icp_autorun/screens/dapp_runner_screen.dart';
+import 'package:icp_autorun/screens/dapps_screen.dart';
+import 'package:icp_autorun/theme/modern_components.dart';
+import 'package:icp_autorun/widgets/canister_client_sheet.dart';
+
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
 import 'suite_helpers.dart';
 
+const String _kPollsTitle = 'On-chain Polls';
+
+Future<void> _navigateToDapps(WidgetTester tester, E2EDriver d) async {
+  await d.dismissOverlays(tester);
+  // Switch to the Dapps tab via the ModernNavigationBar's onTap callback.
+  // Both Alt+3 and the bottom-nav label TAP are unreliable after scripts.run's
+  // bottom-sheet close (residual RenderAbsorbPointer in the Overlay theater
+  // shadows the gesture). Invoking the callback directly tests the real
+  // navigation code path (setState(_currentIndex = 2)) without depending on
+  // gesture hit-testing.
+  final navBar = tester.widget<ModernNavigationBar>(
+      find.byType(ModernNavigationBar));
+  navBar.onTap(2);
+  await tester.pump(const Duration(milliseconds: 500));
+  // Verify the Dapps body actually rendered by asserting the Polls card text
+  // (only built/painted when the DappsScreen is the active tab — ListView
+  // items are lazy and don't build while the IndexedStack hides the screen).
+  final bodyReady = await d.waitUntil(
+      tester,
+      () => d.present(find.textContaining('On-chain Polls'), tester),
+      timeout: const Duration(seconds: 5));
+  expect(bodyReady, isTrue,
+      reason: 'Invoking the nav bar onTap(2) must switch to DappsScreen.');
+}
+
+Future<void> _tapPollsCard(WidgetTester tester, E2EDriver d) async {
+  final pollsCard = await d.waitUntil(
+      tester, () => d.present(find.textContaining(_kPollsTitle), tester),
+      timeout: const Duration(seconds: 10));
+  expect(pollsCard, isTrue,
+      reason: 'Polls card must be present in the dapp catalog.');
+  await tester.tap(find.textContaining(_kPollsTitle).first);
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+Future<void> _closeDappRunner(WidgetTester tester, E2EDriver d) async {
+  // The DappRunnerScreen close path is the documented Phase-D bug. Try the
+  // full ladder of close mechanisms: Esc (ScreenShortcuts), pageBack (AppBar
+  // back-arrow), then Navigator.pop on the runner's own context. Each is
+  // tried in turn until the runner is no longer present. If none work, the
+  // assertion fails loud.
+  bool closed = false;
+  String closedBy = '(none)';
+  // Path 1: Esc (bound via ScreenShortcuts → _handleBack → maybePop).
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pump(const Duration(milliseconds: 500));
+  if (!d.present(find.byType(DappRunnerScreen), tester)) {
+    closed = true;
+    closedBy = 'Esc';
+  }
+  // Path 2: pageBack taps the AppBar back arrow.
+  if (!closed) {
+    await tester.pageBack();
+    await tester.pump(const Duration(milliseconds: 500));
+    if (!d.present(find.byType(DappRunnerScreen), tester)) {
+      closed = true;
+      closedBy = 'pageBack';
+    }
+  }
+  // Path 3: Navigator.pop on the runner's own context.
+  if (!closed) {
+    final runnerEl = find.byType(DappRunnerScreen).evaluate().firstOrNull;
+    if (runnerEl != null) {
+      Navigator.of(runnerEl).pop();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    if (!d.present(find.byType(DappRunnerScreen), tester)) {
+      closed = true;
+      closedBy = 'Navigator.pop';
+    }
+  }
+  // Give the transition more time if any of the above started a pop.
+  if (closed) {
+    final settled = await d.waitUntil(
+        tester, () => !d.present(find.byType(DappRunnerScreen), tester),
+        timeout: const Duration(seconds: 5));
+    closed = settled;
+  }
+  // ignore: avoid_print
+  print('KL_DAPP_RUNNER_CLOSE: closedBy=$closedBy');
+  expect(closed, isTrue,
+      reason: 'DappRunnerScreen must close via one of: Esc, pageBack, '
+          'Navigator.pop. None worked — Phase-D Overlay barrier bug is '
+          'still present.');
+  await d.dismissOverlays(tester);
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -974,36 +1065,28 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await d.dismissOverlays(tester);
     })
-    // ── PHASE 45 flow: download_history.run — DEFERRED. The catalog flow
-    // requires re-downloading Hello IC Starter (phase 41 cleared history),
-    // then opening download history, then tapping the record. The tile-tap
-    // step has the same gesture-interception problem as the dapp card
-    // (RenderAbsorbPointer in the Overlay theater shadows the tap target).
-    // Revisit after the dapp-runner modal-dismiss issue is solved.
-    // ..register('download_history.run', (tester, d) async { ... })
-    //
-    // ── PHASE 46 flow: canisters.open_inline_client — DEFERRED to a later
-    // batch. The showModalBottomSheet's modal barrier (RenderAbsorbPointer)
-    // does not clear reliably in the integration-test environment after the
-    // CanisterClientSheet closes — Esc, barrier-tap, and drag-down gestures
-    // all leave the Overlay theater in a state that absorbs the next flow's
-    // taps. Filed in docs/specs/phase-d-triage.md.
-    // ..register('canisters.open_inline_client', (tester, d) async { ... })
-    //
-    // ── PHASE 45–49 flows: dapp-runner deep flows — DEFERRED. The Polls
-    // DappRunnerScreen push (via test code, since the catalog card's gesture
-    // is intercepted by a transient AbsorbPointer in the Overlay theater)
-    // works, but closing the runner reliably fails: pageBack's tap on the
-    // AppBar back-arrow Tooltip is absorbed at offset (28, 28) by a
-    // RenderAbsorbPointer that persists in the Overlay after the push, and
-    // Navigator.maybePop on the runner's context pops a route but leaves the
-    // DappRunnerScreen widget in the tree (likely a focus / async lifecycle
-    // interaction with the mounted ScriptAppHost). Filed in triage doc.
-    // ..register('dapps.local_replica_unreachable', ...)
-    // ..register('dapps.apply_connection', ...)
-    // ..register('dapps.refresh', ...)
-    // ..register('shortcut.dapp_refresh', ...)
-    // ..register('dapps.open_frontend', ...)
+    // ── PHASE 45 flow: dapps.local_replica_unreachable — tap the Polls card
+    // in the dapp catalog → DappRunnerScreen mounts → the local-replica
+    // banner is shown (the descriptor.isLocalReplica sliver). Close via Esc
+    // (bound to ScreenShortcuts.onBack → _handleBack → maybePop).
+    ..register('dapps.local_replica_unreachable', (tester, d) async {
+      await _navigateToDapps(tester, d);
+      await _tapPollsCard(tester, d);
+      final runnerOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(runnerOpen, isTrue,
+          reason: 'Tapping the Polls card must push DappRunnerScreen.');
+      final bannerShown = await d.waitUntil(
+          tester,
+          () => d.present(
+              find.textContaining('Developer example — needs a local replica'),
+              tester),
+          timeout: const Duration(seconds: 5));
+      expect(bannerShown, isTrue,
+          reason: 'Polls DappRunnerScreen must show the local-replica banner.');
+      await _closeDappRunner(tester, d);
+    })
     ;
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -1346,11 +1429,16 @@ void main() {
     if (shouldStopAfter('scripts.run')) return;
     driver.phase('44', 'OK — scripts.run');
 
-    // PHASE 45–50: DEFERRED — see registered-flow comments above. The flows
-    // need either a stable modal-dismiss path (canister inline client,
-    // download_history.run) or a stable dapp-runner close path (dapps.*).
-    // Both are blocked by a transient RenderAbsorbPointer in the Overlay
-    // theater that this phase of the suite can't reliably dismiss.
+    // PHASE 45–50: previously DEFERRED. Re-attempted on Flutter 3.44.6
+    // (upgraded from 3.38.3) to see whether the Overlay `RenderAbsorbPointer`
+    // bug cleared. See docs/specs/phase-d-triage.md for the resume log.
+
+    // PHASE 45: dapps.local_replica_unreachable — Polls → local-replica banner.
+    driver.phase('45', 'dapps: local replica unreachable banner');
+    await registry.runFor('dapps.local_replica_unreachable')!(tester, driver);
+    if (shouldStopAfter('dapps.local_replica_unreachable')) return;
+    driver.phase('45', 'OK — dapps.local_replica_unreachable');
+
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -1358,9 +1446,9 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(45),
-        reason: 'keyring-less must cover at least 45 flows '
-            '(42 base + 2 Phase-D easy + 1 Phase-D medium).');
+    expect(cov.implemented, greaterThanOrEqualTo(46),
+        reason: 'keyring-less must cover at least 46 flows '
+            '(42 base + 2 Phase-D easy + 1 Phase-D medium + 1 Phase D-resume).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '
