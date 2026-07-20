@@ -1,15 +1,21 @@
-//! Purchases ledger repository (ICPay payment integration).
-//!
-//! One row in `purchases` = one entitlement: a successful ICPay payment that
-//! grants `account_id` access to the paid bundle of `script_id`. The
-//! `UNIQUE(account_id, script_id)` constraint (see migration 006) makes ICPay
-//! webhook redelivery idempotent — [`PurchaseRepository::create_or_ignore`]
-//! issues `INSERT ... ON CONFLICT(account_id, script_id) DO NOTHING`, so a
-//! duplicate delivery is a no-op rather than an error.
-
 use crate::models::{NewPurchase, Purchase};
 use sqlx::SqlitePool;
 
+/// Purchases ledger repository (provider-agnostic payment integration).
+///
+/// One row in `purchases` = one entitlement: a successful payment (via any
+/// provider — stub, ICPay, future Stripe, etc.) that grants `account_id`
+/// access to the paid bundle of `script_id`. The `UNIQUE(account_id,
+/// script_id)` constraint (see migration 006) makes redelivery idempotent —
+/// [`PurchaseRepository::create_or_ignore`] issues `INSERT ... ON
+/// CONFLICT(account_id, script_id) DO NOTHING`, so a duplicate delivery or
+/// a repeat stub purchase is a no-op rather than an error.
+///
+/// `Clone` is cheap (the underlying `SqlitePool` is a `Pool<SqliteConnection>`
+/// held behind an `Arc`; cloning it just bumps the refcount). The Phase K
+/// providers each hold their own `PurchaseRepository` constructed from the
+/// same shared pool.
+#[derive(Clone)]
 pub struct PurchaseRepository {
     pool: SqlitePool,
 }

@@ -55,6 +55,17 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # over `sha2` (already a dependency).
 hmac = "0.12"
 
+# Payment provider trait dispatch (Phase K). `async-trait` makes
+# `async fn` object-safe so AppState can hold `Arc<dyn PaymentProvider>` and
+# switch implementations at boot via `PAYMENT_PROVIDER`. The Box allocation
+# per call is negligible — payment paths are cold (a handful of calls per
+# purchase, not hot).
+async-trait = "0.1"
+
+# Time-sortable identifier for payment intents (`stub-intent-{ulid}`). ULIDs
+# sort lexicographically by insertion time, which suits a purchases ledger.
+ulid = "1"
+
 # Passkey/WebAuthn authentication
 webauthn-rs = { version = "0.5.2", features = ["danger-allow-state-serialisation"] }
 webauthn-rs-proto = "0.5.0"

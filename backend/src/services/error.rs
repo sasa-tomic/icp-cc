@@ -154,13 +154,19 @@ service_error! {
 }
 
 service_error! {
-    /// Errors emitted by [`super::PaymentService::verify_webhook`]. The
-    /// signature-failure path is 401; a malformed body is 400; misconfig
-    /// (unset secret / bad length) is 500.
+    /// Errors emitted by [`super::PaymentService::verify_webhook`] and the
+    /// generic [`super::PaymentProvider`] trait. The signature-failure path
+    /// is 401; a malformed body is 400; misconfig (unset secret / bad
+    /// length) is 500; `PaymentsDisabled` (Phase K: `PAYMENT_PROVIDER=none`
+    /// or unrecognised) is 503 — surfaced as
+    /// `{"error":"payments_disabled","provider":"none"}` by the purchase
+    /// handler (NOT the canonical `{"success":false,...}` shape, per
+    /// AGENTS.md "fail fast").
     PaymentError {
         BadRequest => BAD_REQUEST,
         Unauthorized => UNAUTHORIZED,
         Internal => INTERNAL_SERVER_ERROR,
+        PaymentsDisabled => SERVICE_UNAVAILABLE,
     }
 }
 
