@@ -15,7 +15,7 @@
 ///   profile.open_account_profile, keypair.generate_local, keypair.set_signing,
 ///   keypair.edit_label, keypair.export, keypair.import, passkey.unsupported_linux,
 ///   account.register_from_local, account.refresh, account.edit_profile,
-///   keypair.generate_registered,
+///   keypair.generate_registered, keypair.delete_registered,
 ///   vault.route_from_menu, vault.setup, vault.unlock,
 ///   vault.unlock_wrong_password, vault.use_recovery_code
 @TestOn('linux')
@@ -567,6 +567,89 @@ void main() {
               'one after addKeypairToAccount. Before: $beforeCount.');
       expect(afterAccount.publicKeys.any((k) => k.id == newKey!.id), isTrue,
           reason: 'The new key must appear in the refreshed account publicKeys.');
+
+      // Pop AccountProfileScreen → back at root, ready for the next phase.
+      await tester.pageBack();
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 5));
+    })
+    // ── keypair.delete_registered: on a registered account with ≥2 active
+    // keys (set up by keypair.generate_registered in PHASE 13d), invoke
+    // AccountController.removePublicKey against a non-signing key. Asserts
+    // the key transitions to isActive=false (soft delete — the backend never
+    // hard-deletes for audit reasons; the user-visible effect is the key
+    // disappears from the active list). Uses the controller-direct pattern
+    // (same as keypair.generate_registered) — the UI path runs through the
+    // AccountKeyDetailsSheet → confirm dialog → _removeKey, which is the
+    // real chain invoked from a tap on the key details sheet's Remove action.
+    ..register('keypair.delete_registered', (tester, d) async {
+      // Open profile menu → My Account → AccountProfileScreen.
+      await tester.tap(find.byType(ProfileAvatarButton));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('My Account'));
+      final pushed = await d.waitUntil(
+          tester, () => d.present(find.byType(AccountProfileScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(pushed, isTrue,
+          reason: 'Tapping My Account must push AccountProfileScreen.');
+
+      final screen = tester.widget<AccountProfileScreen>(
+          find.byType(AccountProfileScreen));
+      final profileController = screen.profileController;
+      final profile = profileController.activeProfile!;
+      final username = profile.username!;
+      final signingKeypair = profile.primaryKeypair;
+
+      // Fetch the live backend account state (PHASE 13d just added a 2nd key).
+      final accountController =
+          AccountController(profileController: profileController);
+      final beforeAccount = await tester
+          .runAsync<Account?>(() => accountController.fetchAccount(username));
+      expect(beforeAccount, isNotNull,
+          reason: 'The registered account must be fetchable.');
+      final activeKeys = beforeAccount!.activeKeys;
+      expect(activeKeys.length, greaterThanOrEqualTo(2),
+          reason: 'keypair.delete_registered requires ≥2 active keys so the '
+              'non-signing one can be removed without disabling the account. '
+              'Run keypair.generate_registered first.');
+
+      // Pick a non-signing active key to remove (the primary is needed to
+      // sign the removal request itself; removing it would lock the account
+      // out). The signing key's publicKey matches profile.primaryKeypair.
+      final signingPubKey = signingKeypair.publicKey;
+      final toRemove = activeKeys.firstWhere(
+          (k) => k.publicKey != signingPubKey,
+          orElse: () => throw StateError(
+              'No non-signing active key found to remove. Active: '
+              '${activeKeys.map((k) => k.id)}'));
+      final removedId = toRemove.id;
+
+      // Sign + POST the removal (real Ed25519 signature via FFI).
+      final removedKey = await tester.runAsync<AccountPublicKey>(
+          () => accountController.removePublicKey(
+                username: username,
+                keyId: removedId,
+                signingKeypair: signingKeypair,
+              ));
+      accountController.dispose();
+
+      expect(removedKey, isNotNull,
+          reason: 'removePublicKey must succeed (signed POST against the real '
+              'backend) and return the updated AccountPublicKey.');
+      expect(removedKey!.isActive, isFalse,
+          reason: 'A removed key must transition to isActive=false (soft '
+              'delete — the user-visible effect is the key leaves the active '
+              'list, which is what _account.activeKeys filters on).');
+
+      // Re-fetch to confirm the backend state reflects the soft-delete.
+      final afterAccount = await tester
+          .runAsync<Account?>(() => AccountController(
+              profileController: profileController).fetchAccount(username));
+      expect(afterAccount, isNotNull);
+      expect(afterAccount!.activeKeys.any((k) => k.id == removedId), isFalse,
+          reason: 'The removed key must no longer appear in activeKeys.');
     })
     // ── profile.switch_inline: switch the active profile inline via the
     // profile menu (without opening the manage sheet).
@@ -914,6 +997,12 @@ void main() {
     if (shouldStopAfter('keypair.generate_registered')) return;
     driver.phase('13d', 'OK — keypair.generate_registered');
 
+    // ── PHASE 13e: keypair.delete_registered — soft-delete a key ───────────
+    driver.phase('13e', 'delete registered keypair (isActive=false)');
+    await registry.runFor('keypair.delete_registered')!(tester, driver);
+    if (shouldStopAfter('keypair.delete_registered')) return;
+    driver.phase('13e', 'OK — keypair.delete_registered');
+
     // ── PHASE 14: vault.route_from_menu ───────────────────────────────────
     driver.phase('14', 'open vault from profile menu');
     await tester.tap(find.byType(ProfileAvatarButton));
@@ -970,8 +1059,8 @@ void main() {
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(24),
-        reason: 'mock-keyring must cover at least 24 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(25),
+        reason: 'mock-keyring must cover at least 25 flows.');
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING: PASS — ${cov.implemented} flows covered.');
