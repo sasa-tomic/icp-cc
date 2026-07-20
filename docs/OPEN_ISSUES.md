@@ -15,56 +15,62 @@
 
 ### E2E-D-RESUME-1 — ScriptAppHost setState-after-dispose (blocks 3 dapp e2e flows)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-20, commit `f2054990`)
 - **Surfaced**: 2026-07-20 (`docs/specs/phase-d-triage.md` § Phase D-resume)
-- **Severity**: HIGH (blocks 3 e2e flows; production error log spam + memory leak)
+- **Severity**: HIGH (was blocking 3 e2e flows; production error log spam + memory leak)
 - **Location**: `apps/autorun_flutter/lib/widgets/script_app_host.dart:777` (`_dispatch`)
 
 `ScriptAppHostState._dispatch` (and the chain `_runEffect` → `_enqueueMsg`
-→ `_dispatch` originating from `_boot`/`_executeEffects`) calls `setState`
-without a `mounted` guard. When the host is remounted mid-boot (via the
-DappRunnerScreen's `_applyConfig` or `_refreshDapp`, both of which
-reassign `GlobalKey<ScriptAppHostState>`), the previous State is disposed
-but the boot's async chain keeps running and fires setState on the
-defunct state.
-
-**Surfaces as**: `_pendingFrame == null` assertion in
-`LiveTestWidgetsFlutterBinding.postTest` after a test that triggers a
+→ `_dispatch` originating from `_boot`/`_executeEffects`) called `setState`
+without a `mounted` guard on entry. When the host was remounted mid-boot
+(via the DappRunnerScreen's `_applyConfig` or `_refreshDapp`, both of
+which reassign `GlobalKey<ScriptAppHostState>`), the previous State was
+disposed but the boot's async chain kept running and fired setState on
+the defunct state. Surfaced as `_pendingFrame == null` assertion in
+`LiveTestWidgetsFlutterBinding.postTest` after a test that triggered a
 remount.
 
-**Blocks**:
-- `dapps.apply_connection` — Apply button remounts the host.
-- `dapps.refresh` — Refresh icon remounts the host.
-- `shortcut.dapp_refresh` — same path via R keyboard shortcut.
+**Fix**: added `if (!mounted) return;` before the first `setState` in
+`_dispatch` — canonical fix per
+<https://api.flutter.dev/flutter/widgets/State/mounted.html>. Test in
+`apps/autorun_flutter/test/features/scripts/script_app_host_dispose_test.dart`
+gates `runtime.init` on a Completer, disposes the host mid-boot, then
+completes init with an unsupported effect that drives the
+`_enqueueMsg → _dispatch` chain against the defunct State. Without the
+fix: `FlutterError setState() called after dispose()`. With the fix:
+clean.
 
-**Fix**: add `if (!mounted) return;` before every `setState` in the
-async boot / effect chain. Worth fixing in its own right — in production
-this leaks memory and emits error logs whenever a user clicks Apply or
-Refresh while the bundle is still booting.
+**Unblocked**: `dapps.apply_connection` (PHASE 46, commit `50782a97`),
+`dapps.refresh` + `shortcut.dapp_refresh` (PHASES 47 + 48b, commit
+`a39ce14e`).
 
 ### E2E-D-RESUME-2 — Well-known canister card RenderFlex overflow (now fatal)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-20, commit `0cd65171`)
 - **Surfaced**: pre-existing (noticed in Phase D, 2026-07-19); became
   fatal under Flutter 3.44.6 upgrade.
-- **Severity**: MEDIUM (visual layout bug + blocks 1 e2e flow)
+- **Severity**: MEDIUM (was visual layout bug + blocking 1 e2e flow)
 - **Location**: `apps/autorun_flutter/lib/widgets/well_known_canisters.dart:145-206`
 
-The card's outer `Column` uses a `Spacer()` to push the method-badge
+The card's outer `Column` used a `Spacer()` to push the method-badge
 `Container` to the bottom. Under tight GridView constraints (which occur
-transiently during `IndexedStack` re-layout when switching to the
-Canisters tab from a non-Scripts tab), the children overflow by ~80px.
+at 1-column narrow widths and 2-column medium widths, and transiently
+during `IndexedStack` re-layout when switching to the Canisters tab), the
+children overflowed. Pre-Flutter-3.44.6 this was a silent warning; the
+new `IntegrationTestWidgetsFlutterBinding` treats it as a fatal test
+error.
 
-Pre-Flutter-3.44.6 this was a silent warning; the new
-`IntegrationTestWidgetsFlutterBinding` treats it as a fatal test error.
+**Fix**: wrapped the inner `Column` in `SingleChildScrollView` with
+`NeverScrollableScrollPhysics`. This gives the Column unbounded height
+so its natural content always lays out, and visually clips anything that
+doesn't fit the card — no overflow error ever. The Spacer is replaced
+with a `SizedBox(height: 8)`. The method badge now sits directly under
+the title row instead of pinned to the card bottom (minor visual change;
+no test asserts position). Test in
+`apps/autorun_flutter/test/widgets/well_known_canisters_test.dart` sweeps
+6 widths (280, 420, 600, 880, 1200, 1440) covering all 3 layout branches.
 
-**Blocks**: `canisters.open_inline_client` — opening the Canisters tab
-during the suite triggers 8 overflow errors (one per card), failing
-the test.
-
-**Fix**: replace `Spacer()` with `SizedBox(height: 8)` (loses the
-"badge pinned to bottom" UX at narrow widths but eliminates the
-overflow) OR wrap the `Column` in `Flexible`/`SingleChildScrollView`.
+**Unblocked**: `canisters.open_inline_client` (PHASE 49, commit `b627253e`).
 
 ### UX-CRIT-1 — Recovery-codes screen traps the user into lying (data loss path)
 

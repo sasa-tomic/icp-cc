@@ -178,12 +178,11 @@ between 3.38 and 3.44).
 
 ### Results
 
-The Overlay `RenderAbsorbPointer` bug is **PARTIALLY cleared**. The
-framework upgrade unlocked 3 of the 7 previously-deferred flows; 4 remain
-blocked (3 by a separate app-level lifecycle bug, 1 by a pre-existing
-card-layout warning that became fatal under the new binding).
+The Overlay `RenderAbsorbPointer` bug is **PARTIALLY cleared**. After the
+framework upgrade + the two follow-up bug fixes (E2E-D-RESUME-1 + 2),
+all 7 previously-deferred flows are now unblocked.
 
-#### ✅ UNBLOCKED (+3 flows; commits `9b85f5e2`, `7c63a136`, `89593e8b`)
+#### ✅ UNBLOCKED in the initial 3.44.6 re-run (+3 flows; commits `9b85f5e2`, `7c63a136`, `89593e8b`)
 
 | Flow | Phase | Close mechanism | Notes |
 |------|-------|-----------------|-------|
@@ -191,28 +190,39 @@ card-layout warning that became fatal under the new binding).
 | `dapps.open_frontend` | 48 | `pageBack` (AppBar back-arrow) | AppBar `IconButton.onPressed` invoked directly (above the residual AbsorbPointer). `url_launcher` runs best-effort under Xvfb. |
 | `download_history.run` | 50 | bottom-sheet Close IconButton + `pageBack` | AppBar overflow-menu tap flaky → `PopupMenuButton.onSelected` invoked directly with `'download_history'`. The record tap fires `runLocalScript` reliably. |
 
-**Coverage: 66 → 69 / 92 desktop.**
+#### ✅ UNBLOCKED after E2E-D-RESUME-1 fix (+3 flows; commits `50782a97`, `a39ce14e`)
 
-#### ❌ STILL DEFERRED — root cause: `ScriptAppHost` setState-after-dispose
+| Flow | Phase | Notes |
+|------|-------|-------|
+| `dapps.apply_connection` | 46 | Polls card → expand Connection via `ExpansionTile.controller.expand()` (title tap shadowed by residual AbsorbPointer) → invoke Apply `FilledButton.onPressed` → SnackBar. Close via `_closeDappRunnerAfterRemount` helper (loops Esc + Navigator.pop to clear the post-remount trust/permission dialogs that sit ABOVE the runner route). |
+| `dapps.refresh` | 47 | Polls card → AppBar refresh IconButton `onPressed` → `_refreshDapp` → SnackBar. Same close helper. |
+| `shortcut.dapp_refresh` | 48b | Polls card → prime primary-focus by tapping the AppBar title (the bundle's UI may have moved focus to a focusable descendant of `ScriptAppHost`, causing `ScreenShortcuts`' autofocus to lose the focus race) → press R → `_refreshDapp` via `SingleActivator(keyR)` → SnackBar. |
 
-| Flow | Reason |
-|------|--------|
-| `dapps.apply_connection` | `_applyConfig` remounts the `ScriptAppHost` (new `GlobalKey<ScriptAppHostState>`). The previous host's State is disposed mid-boot; the Polls bundle's init chain (canister calls to an unreachable local replica) continues running async and fires `setState` on the disposed State. Surfaced as a `_pendingFrame == null` assertion in `LiveTestWidgetsFlutterBinding.postTest`. |
-| `dapps.refresh` | Same as above — `_refreshDapp` also remounts the host (new `GlobalKey`). |
-| `shortcut.dapp_refresh` | Same as `dapps.refresh` (R keyboard shortcut dispatches to the same `_refreshDapp`). |
+**Root cause that was fixed** (app-level, not framework):
+`ScriptAppHost._dispatch` in `lib/widgets/script_app_host.dart` called
+the first `setState` without checking `mounted`. The fix is the canonical
+`if (!mounted) return;` guard. This was a real production bug worth
+fixing in its own right — it leaked memory + emitted error logs whenever
+a user clicked Apply or Refresh while the bundle was still booting. See
+`apps/autorun_flutter/test/features/scripts/script_app_host_dispose_test.dart`.
 
-**Root cause** (app-level, not framework): `ScriptAppHost._dispatch` in
-`lib/widgets/script_app_host.dart` calls `setState` without checking
-`mounted`. The fix is to add a `mounted` guard. This is a real app bug
-worth fixing in its own right (independent of e2e coverage); it would
-leak memory + error logs in production whenever a user clicks Apply or
-Refresh while the bundle is still booting.
+#### ✅ UNBLOCKED after E2E-D-RESUME-2 fix (+1 flow; commit `b627253e`)
 
-#### ❌ STILL DEFERRED — root cause: pre-existing card layout bug
+| Flow | Phase | Notes |
+|------|-------|-------|
+| `canisters.open_inline_client` | 49 | Switch to Canisters via `ModernNavigationBar.onTap(1)` (Alt+2 unreliable after `scripts.run`) → tap the NNS Registry card title → `CanisterClientSheet` opens → close via `Navigator.pop` on the sheet's context. |
 
-| Flow | Reason |
-|------|--------|
-| `canisters.open_inline_client` | The `RenderFlex overflowed by 80 pixels` warning on `well_known_canisters.dart:145` (the inner `Column` of the well-known canister cards, which uses a `Spacer` to push the method badge to the bottom) is now FATAL under Flutter 3.44.6's `IntegrationTestWidgetsFlutterBinding`. The warnings fire transiently during the `IndexedStack`'s re-layout when switching to Canisters from a non-Scripts tab. Fix: replace the `Spacer` with a fixed `SizedBox(height: …)` (loses the "badge pinned to bottom" UX at narrow widths but eliminates the overflow) or wrap the `Column` in `Flexible`. |
+**Root cause that was fixed**: the outer `Column` in
+`lib/widgets/well_known_canisters.dart` used a `Spacer` whose flex
+requirement both (a) failed "non-zero flex in unbounded constraints"
+during transient `IndexedStack` re-layout AND (b) overflowed at narrow
+and medium widths (1-column 280-419w, 2-column 420-880w) where the
+GridView's tight cell height was smaller than the natural
+Row + Spacer + badge height. The fix wraps the `Column` in a
+`SingleChildScrollView` (with `NeverScrollableScrollPhysics`) so the
+content lays out at natural height and visually clips anything that
+doesn't fit — no overflow error at any width. See
+`apps/autorun_flutter/test/widgets/well_known_canisters_test.dart`.
 
 #### ⚠️ Framework bug behaviour changes observed on 3.44.6
 
@@ -231,23 +241,42 @@ Refresh while the bundle is still booting.
    IconButtons are reachable (above the barrier); body `InkWell`s,
    `FilledButton`s, and `ExpansionTile` titles are not. Workaround:
    invoke the widget's callback directly
-   (`tester.widget<T>(finder).onPressed!()`).
+   (`tester.widget<T>(finder).onPressed!()`) OR drive via
+   `ExpansionTile.controller.expand()` for collapsed panels.
 4. **Rendering errors are now FATAL** in
    `IntegrationTestWidgetsFlutterBinding`. Pre-existing
    `RenderFlex overflowed` warnings (previously silent) fail the test
-   outright. This is what blocks `canisters.open_inline_client`.
+   outright. This was the root cause of the E2E-D-RESUME-2 card layout
+   bug (now fixed).
+5. **`ScreenShortcuts` autofocus can lose the primary-focus race** to a
+   focusable descendant of `ScriptAppHost` (e.g. a UI button rendered by
+   the dapp bundle). Workaround for keyboard-shortcut flows: tap a
+   non-interactive AppBar element first to re-prime focus on the route's
+   FocusScope. Observed in `shortcut.dapp_refresh` (R key).
+6. **Post-remount trust/permission dialogs sit ABOVE the runner route.**
+   When `_applyConfig` / `_refreshDapp` reassigns the host `GlobalKey`,
+   the new host boots and its first canister call shows a
+   "Trust this dapp?" `AlertDialog`. The standard
+   `_closeDappRunner` ladder pops the DIALOG (topmost route), not the
+   runner. Workaround: factor out a `_closeDappRunnerAfterRemount`
+   helper that loops Esc + Navigator.pop to clear dialogs first, then
+   pops the runner.
 
 ### Phase D-resume final tally
 
-- **Desktop coverage: 69 / 92** (was 66 / 92 at Phase D end)
-- **+3 flows UNBLOCKED** (`dapps.local_replica_unreachable`,
-  `dapps.open_frontend`, `download_history.run`)
-- **4 flows still DEFERRED** with documented root causes
-- **2 distinct follow-up bugs** to file:
-  1. `ScriptAppHost._dispatch` missing `mounted` guard (causes
-     setState-after-dispose when Apply/Refresh remounts the host).
-  2. `well_known_canisters.dart:145` Spacer-based layout overflows
-     under tight GridView constraints.
+- **Desktop coverage: 69 → 73 / 92** (4 flows unblocked post-bug-fix).
+- **+3 flows UNBLOCKED** in the initial 3.44.6 re-run
+  (`dapps.local_replica_unreachable`, `dapps.open_frontend`,
+  `download_history.run`).
+- **+4 flows UNBLOCKED** after the two follow-up bug fixes
+  (`canisters.open_inline_client`, `dapps.apply_connection`,
+  `dapps.refresh`, `shortcut.dapp_refresh`).
+- **2 production bugs FIXED**:
+  1. `ScriptAppHost._dispatch` missing `mounted` guard (commit `f2054990`).
+  2. `well_known_canisters.dart` Spacer-based layout overflow (commit
+     `0cd65171`).
+- **6 framework behaviour changes** documented above for future flow
+  authors.
 
 ## Pre-existing app bugs noticed (not fixed)
 
