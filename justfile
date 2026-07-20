@@ -567,6 +567,16 @@ e2e-desktop:
         echo "   PASS 2 FAIL  (see $LOG)"; exit 1
     fi
 
+    # NOTE: the 2 local-replica Poll dapp flows (dapps.run_poll +
+    # dapps.create_profile_to_vote) are NOT included in `just e2e-desktop`
+    # because a running dfx replica destabilises the 58-phase keyring-less
+    # suite (the dapp runner's first successful canister call fires trust
+    # dialogs + extra widget tree complexity that the test process can't
+    # sustain past ~phase 30). Run them separately via
+    # `just e2e-local-replica` — a dedicated mini-suite that boots the
+    # app fresh against the local replica (2 flows, ~60s).
+    echo "==> PASS 3 (local replica): NOT included — run 'just e2e-local-replica' separately"
+
     echo "✅ e2e-desktop PASSED — all suites green (2 boots). Log: $LOG"
 
 # e2e-fast: run a SINGLE suite file for a sub-minute dev loop (default: the
@@ -683,6 +693,73 @@ seed-marketplace count="25":
     export MARKETPLACE_API_PORT=$(just _api-dev-port)
     echo "==> seed-marketplace: count={{count}} backend :$MARKETPLACE_API_PORT"
     "{{scripts_dir}}/seed-marketplace.sh" {{count}}
+
+
+# e2e-local-replica: run the 2 desktop Poll dapp flows that need a LOCAL
+# dfx replica + the deployed Poll canister:
+#   dapps.run_poll              — real canister round-trip (listPolls query)
+#   dapps.create_profile_to_vote — keyless-user CTA deep-link to wizard
+#
+# Boots the app FRESH in a dedicated mini-suite (NOT the 58-phase
+# keyring-less suite — adding the poll flow bodies there destabilises
+# the flutter_test binding's stream protocol; see
+# suite_poll_local_test.dart header for the root-cause notes).
+#
+# Pre-conditions the justfile handles for you:
+#   1. cargo build --release  (libicp_core.so for the FFI bridge)
+#   2. Xvfb :99                (1440x900, matches kDesktopSize)
+#   3. local dfx replica       (scripts/start-local-replica.sh — idempotent)
+#
+# Coverage: 79 → 81 / 92 desktop flows (the 2 Poll flows are desktop-only
+# in the catalog and were the last deferred desktop flows).
+e2e-local-replica:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    STATE_DIR="{{state_dir}}"
+    LOG="{{logs_dir}}/e2e-local-replica.log"
+    mkdir -p "{{logs_dir}}"
+
+    # 1. FFI library
+    if [[ ! -f "$RELEASE_LIB" ]]; then
+        echo "==> libicp_core.so missing — building (cargo build --release)..."
+        (cd "{{root}}" && cargo build --release)
+    fi
+    [[ -f "$RELEASE_LIB" ]] || { echo "❌ $RELEASE_LIB not found"; exit 1; }
+    export LD_LIBRARY_PATH="{{root}}/target/release"
+
+    # 2. Xvfb :99
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        echo "==> starting Xvfb :99"
+        Xvfb :99 -screen 0 1440x900x24 -ac +extension XTEST \
+            >"{{logs_dir}}/xvfb-poll.log" 2>&1 &
+        XVFB_PID=$!
+        for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
+    fi
+    [[ -S /tmp/.X11-unix/X99 ]] || { echo "❌ Xvfb :99 did not come up"; exit 1; }
+    export DISPLAY=:99
+
+    # 3. Backend (optional but recommended — the app's marketplace fetch
+    # is best-effort; failures degrade gracefully).
+    export MARKETPLACE_API_PORT=$(just _api-dev-port 2>/dev/null || echo "")
+
+    # 4. Local dfx replica + Poll canister (idempotent).
+    echo "==> starting local dfx replica (scripts/start-local-replica.sh)"
+    "{{scripts_dir}}/start-local-replica.sh"
+
+    # 5. Run the dedicated suite.
+    rm -rf "$STATE_DIR" 2>/dev/null || true
+    : > "$LOG"
+    echo "==> PASS: suite_poll_local_test.dart"
+    if (cd "{{flutter_dir}}" && flutter test -d linux \
+            integration_test/e2e/suite_poll_local_test.dart \
+            --reporter=compact --timeout=180s) >>"$LOG" 2>&1; then
+        echo "   POLL LOCAL REPLICA OK"
+    else
+        echo "   POLL LOCAL REPLICA FAIL  (see $LOG)"; exit 1
+    fi
+
+    echo "✅ e2e-local-replica PASSED — dapps.run_poll + dapps.create_profile_to_vote green. Log: $LOG"
 
 
 # e2e-web: REAL app on Web as widget tests via `flutter test -d chrome`
