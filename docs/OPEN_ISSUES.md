@@ -38,6 +38,39 @@ The Phase C Tier A harness (substrate fakes at the smallest I/O boundary — HTT
 
 **Caveat / follow-up filed (not fixed):** the deeplink flows assert the `DeepLinkService` parsing layer, NOT the downstream UI navigation (the `_handleDeepLink` → `_openScriptFromDeepLink` → `ScriptDetailsDialog` chain in `main.dart`). That navigation path is desktop-only because `_initDeepLinks` early-returns on linux; the Web Tier A harness cannot drive it without a real `_appLinks.uriLinkStream` (which `app_links` doesn't service under `flutter test -d chrome`). Desktop e2e remains the source of truth for the full deep-link UI navigation chain.
 
+### E2E-PHASE56+57 — `dapps.run_poll` + `dapps.create_profile_to_vote` (local dfx replica)
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase 56 + 57)
+- **Surfaced**: pre-existing (Phase D triage, 2026-07-19) — `docs/specs/phase-d-triage.md` §"HARD"
+- **Severity**: MEDIUM (2 deferred e2e flows — the last deferred desktop flows)
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_poll_local_test.dart` (dedicated mini-suite); flow bodies in `apps/autorun_flutter/integration_test/e2e/poll_flows.dart`; replica helper at `scripts/start-local-replica.sh`; canister source at `examples/icp_poll_dapp/src/backend/main.mo`
+
+Both flows were DEFERRED with the note: *"Local replica example — replica not running. Known issue F6 (HTTP 530)."* The original plan assumed the flows would be added to `suite_keyring_less_test.dart` as PHASE 56 + 57. That turned out to be infeasible: the suite's single `testWidgets` body already runs 55 phases (2478 lines) and adding the poll flow bodies — even extracted to a separate `poll_flows.dart` library and imported with a single line — deterministically destabilises the flutter_test binding's stream protocol. The Linux desktop app process crashes mid-suite with a flaky `"Cannot close sink while adding stream"` error in `FlutterPlatform._startTest`. The crash threshold is a function of TOTAL compiled code size (app + test file + imported helpers), not line count alone: even an unused `import 'poll_flows.dart';` in the suite file triggers it. A running dfx replica compounds the instability (the dapp runner's first successful canister call fires trust dialogs + extra widget tree complexity that the test process can't sustain past ~phase 30).
+
+**Unblocked by:**
+1. `scripts/start-local-replica.sh` — an idempotent, fully-detached replica + canister deploy helper. Uses `setsid` + full FD redirection to avoid the bash hang on `dfx start --background`. The deployed `backend` canister's id (`uxrrr-q7777-77774-qaaaq-cai`) is DETERMINISTIC for a fresh replica — it matches `kLocalPollBackendCanisterId` in `lib/config/example_dapps.dart`, so NO app-side runtime config seam is needed.
+2. A DEDICATED mini-suite (`suite_poll_local_test.dart`) that boots the app fresh and runs ONLY the 2 poll phases. Avoids the 55-phase buildup that destabilises the keyring-less suite. The coverage contract still counts the flows: `FlowCatalog.coverageReport` is per-registry, and `just e2e-desktop` documents that the poll flows are covered by the separate `just e2e-local-replica` recipe.
+
+**Flow assertions:**
+- `dapps.run_poll`: opens the Polls dapp → DappRunnerScreen mounts → ScriptAppHost executes the bundle → real canister round-trip (`listPolls` query) against the local replica. Best-effort (like `dapps.run_ledger_mainnet`): success (`"Polls (N)"` text renders) OR benign failure (`"Error: ..."` text renders) both PASS; only a crash/hang or stuck "Loading..." fails. The bundle's first canister call fires the per-dapp "Trust this dapp?" dialog, cleared by the remount-aware `_closeDappRunnerAfterRemount` helper.
+- `dapps.create_profile_to_vote`: opens the Polls dapp → asserts the keyless-user "Create a profile" CTA (`Key('dappCreateProfileToVoteCta')`) renders → invokes `onPressed` directly (Flutter 3.44.6 Overlay tap-absorption workaround) → UnifiedSetupWizard pushes above the runner route. The FULL create-profile-then-vote round-trip requires a Secret Service (mock-keyring or gnome-keyring); this flow covers the FRONTEND rendering + wizard deep-link, NOT profile creation itself (exercised end-to-end by `first_run.create_profile` + `scripts.buy` in the mock-keyring suite).
+
+**Candid interface (deployed canister):**
+```candid
+type PollRecord = record { creator: principal; id: text; options: vec text; question: text };
+service : {
+  createPoll: (question: text, options: vec text) -> (text);
+  getTally: (pollId: text) -> (vec nat) query;
+  listPolls: () -> (vec PollRecord) query;
+  vote: (pollId: text, optionIndex: nat) -> ();
+  whoami: () -> (text) query;
+}
+```
+
+**Follow-up (filed, not fixed):** the pre-existing flakiness in `suite_keyring_less_test.dart` (crash past ~phase 30 when the total compiled code size grows OR a local replica is running) is a flutter_test / Linux desktop integration issue, NOT an app bug. Root cause appears to be resource accumulation in the long single-`testWidgets` body. The proper fix is to split the 58-phase suite into smaller test files (each with its own `testWidgets` boot), but that's a separate effort. Tracked separately.
+
+Coverage 79 → 81 / 92 desktop flows.
+
 ### E2E-PHASE55 — `scripts.download_paid` (paid-script details dialog rendering)
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase 55)
