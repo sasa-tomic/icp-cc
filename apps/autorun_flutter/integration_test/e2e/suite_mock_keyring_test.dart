@@ -16,9 +16,14 @@
 ///   keypair.edit_label, keypair.export, keypair.import, passkey.unsupported_linux,
 ///   account.register_from_local, account.refresh, account.edit_profile,
 ///   keypair.generate_registered, keypair.delete_registered,
-///   shortcut.account_save, dapps.copy_principal, dapps.trust_grant,
 ///   vault.route_from_menu, vault.setup, vault.unlock,
 ///   vault.unlock_wrong_password, vault.use_recovery_code
+///
+/// Split-off dapp + shortcut flows live in `suite_mock_keyring_dapps_test.dart`
+/// (dapps.copy_principal, dapps.trust_grant, dapps.manage_trust_revoke,
+/// shortcut.account_save) — moved out to dodge the keyring-less suite's
+/// binding stability threshold (the documented "Cannot close sink while
+/// adding stream" crash past ~30 phases).
 @TestOn('linux')
 library;
 
@@ -29,11 +34,9 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
-import 'package:icp_autorun/config/example_dapps.dart';
 import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/account_profile_screen.dart';
-import 'package:icp_autorun/screens/dapp_runner_screen.dart';
 import 'package:icp_autorun/screens/export_keys_dialog.dart';
 import 'package:icp_autorun/screens/recovery_codes_screen.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
@@ -43,7 +46,6 @@ import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
 import 'package:icp_autorun/screens/vault_unlock_screen.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
-import 'package:icp_autorun/theme/modern_components.dart';
 import 'package:icp_autorun/utils/profile_errors.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/script_row_menus.dart';
@@ -51,68 +53,6 @@ import 'package:icp_autorun/widgets/script_row_menus.dart';
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
 import 'suite_helpers.dart';
-
-// ─── Dapp-flow helpers (mirror suite_keyring_less_test.dart's helpers) ───────
-
-const String _kLedgerTitle = 'ICP Ledger';
-
-/// Switch to the Dapps tab via the ModernNavigationBar callback. Gesture
-/// taps are unreliable post-scripts.run (residual RenderAbsorbPointer);
-/// invoking the callback directly tests the real nav code path.
-Future<void> _navigateToDapps(WidgetTester tester, E2EDriver d) async {
-  await d.dismissOverlays(tester);
-  // Use .first: in rare cases a transition leaves a stale ModernNavigationBar
-  // in the tree briefly (e.g. a route being popped). The active one is the
-  // last painted — but they're all bound to the same controller so any works.
-  final navBar = tester.widget<ModernNavigationBar>(
-      find.byType(ModernNavigationBar).first);
-  navBar.onTap(2);
-  await tester.pump(const Duration(milliseconds: 500));
-  final bodyReady = await d.waitUntil(
-      tester, () => d.present(find.textContaining(_kLedgerTitle), tester),
-      timeout: const Duration(seconds: 5));
-  expect(bodyReady, isTrue, reason: 'Invoking the nav bar onTap(2) must '
-      'switch to DappsScreen.');
-}
-
-/// Tap the ICP Ledger card → DappRunnerScreen pushes.
-Future<void> _tapLedgerCard(WidgetTester tester, E2EDriver d) async {
-  final found = await d.waitUntil(
-      tester, () => d.present(find.textContaining(_kLedgerTitle), tester),
-      timeout: const Duration(seconds: 5));
-  expect(found, isTrue, reason: 'ICP Ledger card must be present.');
-  await tester.tap(find.textContaining(_kLedgerTitle).first);
-  await tester.pump(const Duration(milliseconds: 500));
-}
-
-/// Closes DappRunnerScreen, dismissing any post-mount trust/permission
-/// dialogs that may have appeared above the runner route. Mirrors
-/// _closeDappRunnerAfterRemount in suite_keyring_less_test.dart.
-Future<void> _closeDappRunner(WidgetTester tester, E2EDriver d) async {
-  await d.dismissOverlays(tester);
-  // Dismiss any open dialogs above the runner route.
-  var dialogSafety = 0;
-  while (find.byType(Dialog).evaluate().isNotEmpty && dialogSafety < 6) {
-    dialogSafety++;
-    final rootCtx = find.byType(Navigator).evaluate().first;
-    Navigator.of(rootCtx).pop();
-    await tester.pump(const Duration(milliseconds: 400));
-  }
-  // Pop the runner route (Esc via ScreenShortcuts → maybePop).
-  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-  await tester.pump(const Duration(milliseconds: 500));
-  if (d.present(find.byType(DappRunnerScreen), tester)) {
-    final runnerEl = find.byType(DappRunnerScreen).evaluate().first;
-    Navigator.of(runnerEl).pop();
-    await tester.pump(const Duration(milliseconds: 500));
-  }
-  final closed = await d.waitUntil(
-      tester, () => !d.present(find.byType(DappRunnerScreen), tester),
-      timeout: const Duration(seconds: 5));
-  expect(closed, isTrue,
-      reason: 'DappRunnerScreen must close after dismissing dialogs.');
-  await d.dismissOverlays(tester);
-}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -723,230 +663,6 @@ void main() {
           tester, () => d.present(find.byType(ScriptsScreen), tester),
           timeout: const Duration(seconds: 5));
     })
-    // ── shortcut.account_save: open AccountProfileScreen (registered mode),
-    // edit the Bio field, then send Ctrl+S — the desktop keyboard shortcut
-    // wired by ScreenShortcuts (kShortcutSpecs['account_save'] → mod+S).
-    // Asserts the shortcut fires _saveProfile and the success SnackBar
-    // renders, proving the Ctrl+S binding reaches the same save path as the
-    // Save Changes button (UX-9).
-    ..register('shortcut.account_save', (tester, d) async {
-      // Open profile menu → My Account → AccountProfileScreen.
-      await tester.tap(find.byType(ProfileAvatarButton));
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.tap(find.text('My Account'));
-      final pushed = await d.waitUntil(
-          tester, () => d.present(find.byType(AccountProfileScreen), tester),
-          timeout: const Duration(seconds: 5));
-      expect(pushed, isTrue,
-          reason: 'Tapping My Account must push AccountProfileScreen.');
-
-      // Wait for the registered body (Save Changes visible) before editing.
-      final saveVisible = await d.waitUntil(
-          tester, () => d.present(find.text('Save Changes'), tester),
-          timeout: const Duration(seconds: 10));
-      expect(saveVisible, isTrue,
-          reason: 'Registered-mode AccountProfileScreen must show the Save '
-              'Changes button (the shortcut and the button share _saveProfile).');
-
-      // Enter a unique bio value to ensure the save has a real change to push
-      // (the previous account.edit_profile phase wrote a bio too — using a
-      // different value here proves the Ctrl+S path overwrites it).
-      final bioField = tester.widgetList<TextField>(find.byType(TextField)).firstWhere(
-          (tf) => tf.decoration?.labelText == 'Bio',
-          orElse: () => throw StateError(
-              'Bio TextField not found in AccountProfileScreen.'));
-      final uniqueBio =
-          'E2E ctrl+s bio ${DateTime.now().millisecondsSinceEpoch}';
-      await tester.enterText(find.byWidget(bioField), uniqueBio);
-      await tester.pump(const Duration(milliseconds: 300));
-
-      // Clear stale SnackBars so the new success SnackBar isn't dropped.
-      final scaffoldCtx = tester.element(find.byType(Scaffold).first);
-      ScaffoldMessenger.of(scaffoldCtx).removeCurrentSnackBar();
-
-      // Send Ctrl+S — the ScreenShortcuts layer maps mod+S → _SaveIntent →
-      // _saveProfile (same callback as the Save Changes button). On Linux
-      // the modifier is Ctrl (not Cmd). Simulated as a press-hold-release
-      // sequence because `sendKeyEvent` has no modifier parameter.
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-      // _saveProfile is async (signed POST round-trip); give it wall-clock
-      // time to complete before asserting.
-      await tester.runAsync(
-          () => Future<void>.delayed(const Duration(seconds: 1)));
-      await tester.pump(const Duration(milliseconds: 500));
-
-      final successShown = await d.waitUntil(
-          tester, () => d.present(find.text('Profile updated successfully'), tester),
-          timeout: const Duration(seconds: 10));
-      expect(successShown, isTrue,
-          reason: 'Ctrl+S must fire _saveProfile (the same callback as the '
-              'Save Changes button) and show the success SnackBar — proving '
-              'the desktop keyboard shortcut is correctly bound to the save '
-              'action.');
-
-      // Pop AccountProfileScreen → back at root.
-      await tester.pageBack();
-      await d.waitUntil(
-          tester, () => d.present(find.byType(ScriptsScreen), tester),
-          timeout: const Duration(seconds: 5));
-    })
-    // ── dapps.copy_principal: open the ICP Ledger dapp (mainnet, no local
-    // replica needed) → DappRunnerScreen mounts → the auth-status chip
-    // "Signed as: <principal>" is tap-to-copy. Pre-trust the dapp via
-    // DappTrustStore so the first canister call doesn't fire the trust
-    // dialog (we're testing copy-principal, not trust). Tap the chip →
-    // assert the clipboard contains the principal.
-    ..register('dapps.copy_principal', (tester, d) async {
-      // Pre-trust the dapp (avoids the "Trust this dapp?" prompt firing
-      // above the runner route when the bundle's first canister call lands).
-      // DappTrustStore writes to SharedPreferences — same persistence layer
-      // as the app.
-      await tester.runAsync(() =>
-          DappTrustStore.setTrusted('icp_ledger'));
-      await tester.pump(const Duration(milliseconds: 200));
-
-      // Capture the expected principal BEFORE opening the runner — read it
-      // from the active profile's keypair (the dapp runner uses the same
-      // value to render "Signed as: <principal>").
-      final profileController = newStandaloneController();
-      final activeProfile = profileController.activeProfile;
-      final expectedPrincipal = activeProfile?.primaryKeypair.principal ?? '';
-
-      await _navigateToDapps(tester, d);
-      await _tapLedgerCard(tester, d);
-      final runnerOpen = await d.waitUntil(
-          tester, () => d.present(find.byType(DappRunnerScreen), tester),
-          timeout: const Duration(seconds: 10));
-      expect(runnerOpen, isTrue,
-          reason: 'Tapping the ICP Ledger card must push DappRunnerScreen.');
-
-      // Wait for the auth-status chip to render (the principal text comes
-      // from the active keypair, available immediately on mount — no canister
-      // round-trip needed for the chip itself).
-      final chipVisible = await d.waitUntil(
-          tester,
-          () => d.present(find.textContaining('Signed as:'), tester),
-          timeout: const Duration(seconds: 10));
-      expect(chipVisible, isTrue,
-          reason: 'DappRunnerScreen must show the "Signed as: <principal>" '
-              'auth-status chip when an active profile exists.');
-
-      // Clear clipboard first so we can be sure the value we read came from
-      // our tap (not a prior test phase).
-      await tester.runAsync(() =>
-          Clipboard.setData(const ClipboardData(text: '')));
-      await tester.pump(const Duration(milliseconds: 200));
-
-      // Tap the chip via its Tooltip 'Copy principal' (the InkWell wraps the
-      // tooltip; tapping anywhere within copies). The tap should land — the
-      // chip sits in a SliverToBoxAdapter above the host area, not in a
-      // gesture-shadowed region.
-      await tester.tap(find.byTooltip('Copy principal'));
-      await tester.pump(const Duration(milliseconds: 400));
-      // Clipboard.setData is a platform channel call; give it wall-clock
-      // time and read it under runAsync.
-      final String? clipboardValue = await tester.runAsync<String?>(
-          () => Clipboard.getData('text/plain')
-              .then((data) => data?.text));
-      expect(clipboardValue, isNotNull,
-          reason: 'Tapping the auth-status chip must write the principal to '
-              'the clipboard.');
-      expect(clipboardValue!.isNotEmpty, isTrue,
-          reason: 'The clipboard value must not be empty.');
-      // If we know the expected principal (active keypair present), assert
-      // it matches exactly. Otherwise assert the generic principal shape
-      // (non-empty string with at least one dash — IC principals are
-      // dash-separated base32 strings ending in -cai/-cae).
-      if (expectedPrincipal.isNotEmpty) {
-        expect(clipboardValue, expectedPrincipal,
-            reason: 'The clipboard principal must match the active '
-                'profile\'s primary keypair principal.');
-      } else {
-        expect(clipboardValue.contains('-'), isTrue,
-            reason: 'IC principals are dash-separated; got "$clipboardValue".');
-      }
-
-      // Clear the trust grant we set so the next dapp flow (dapps.trust_grant)
-      // starts from a clean (untrusted) state.
-      await tester.runAsync(() => DappTrustStore.clear('icp_ledger'));
-
-      await _closeDappRunner(tester, d);
-    })
-    // ── dapps.trust_grant: open the ICP Ledger dapp → DO NOT pre-trust →
-    // the bundle's first canister call fires the "Trust this dapp?" dialog
-    // (script_app_host._ensureDappTrust). Tap "Trust this dapp" → assert
-    // the trust is granted (the persistent "Trusted" status chip shows).
-    ..register('dapps.trust_grant', (tester, d) async {
-      // Defensive: ensure no stale trust grant from a prior run.
-      await tester.runAsync(() => DappTrustStore.clear('icp_ledger'));
-      await tester.pump(const Duration(milliseconds: 200));
-
-      // Remount to ensure we start at the root ScriptsScreen tab — the
-      // previous flow (dapps.copy_principal) may have left the Dapps tab
-      // active (we close DappRunnerScreen but don't switch tabs back).
-      await d.remount(tester);
-      await d.waitUntil(
-          tester, () => d.present(find.byType(ScriptsScreen), tester),
-          timeout: const Duration(seconds: 10));
-
-      await _navigateToDapps(tester, d);
-      await _tapLedgerCard(tester, d);
-      final runnerOpen = await d.waitUntil(
-          tester, () => d.present(find.byType(DappRunnerScreen), tester),
-          timeout: const Duration(seconds: 10));
-      expect(runnerOpen, isTrue,
-          reason: 'Tapping the ICP Ledger card must push DappRunnerScreen.');
-
-      // The bundle boots + dispatches its first canister call → the trust
-      // gate (_ensureDappTrust) shows the AlertDialog. Wait for the dialog
-      // title to render. Use a generous timeout: the bundle load + first
-      // canister call round-trip can take a few seconds.
-      final dialogShown = await d.waitUntil(
-          tester, () => d.present(find.text('Trust this dapp?'), tester),
-          timeout: const Duration(seconds: 20));
-      expect(dialogShown, isTrue,
-          reason: 'The bundle\'s first canister call must fire the per-dapp '
-              '"Trust this dapp?" permission dialog.');
-
-      // Tap "Trust this dapp" (the FilledButton with the allow-always label —
-      // NOT "Allow once" which is session-only and doesn't light up the
-      // persistent Trusted chip). The dialog buttons are TextButtons + one
-      // FilledButton; find by exact text to avoid ambiguity.
-      await tester.runAsync(() async {
-        await tester.tap(find.text('Trust this dapp'));
-        await Future<void>.delayed(const Duration(milliseconds: 500));
-      });
-      await tester.pump(const Duration(milliseconds: 500));
-
-      // After the trust grant, the dialog closes and the runner's
-      // ValueListenableBuilder<_trustState> rebuilds with true → the
-      // "Trusted" status chip renders below the auth-status chip. Wait for
-      // it to appear (proves persistence — the chip only renders for
-      // actually-persistent trust, not session-only Allow once).
-      final trustedChipShown = await d.waitUntil(
-          tester, () => d.present(find.text('Trusted'), tester),
-          timeout: const Duration(seconds: 5));
-      expect(trustedChipShown, isTrue,
-          reason: 'Granting trust must surface the persistent "Trusted" '
-              'status chip (the ValueListenableBuilder rebuilds on '
-              '_trustState.value = true).');
-
-      // Verify persistence: DappTrustStore.isTrusted must now return true
-      // (the host wrote to SharedPreferences in the allowAlways branch).
-      final persisted = await tester
-          .runAsync<bool>(() => DappTrustStore.isTrusted('icp_ledger'));
-      expect(persisted, isTrue,
-          reason: 'The trust grant must persist via DappTrustStore.setTrusted '
-              '(SharedPreferences) so it survives app restarts.');
-
-      // Clear the trust so the next dapp flow starts clean.
-      await tester.runAsync(() => DappTrustStore.clear('icp_ledger'));
-
-      await _closeDappRunner(tester, d);
-    })
     // ── profile.switch_inline: switch the active profile inline via the
     // profile menu (without opening the manage sheet).
     ..register('profile.switch_inline', (tester, d) async {
@@ -1299,24 +1015,6 @@ void main() {
     if (shouldStopAfter('keypair.delete_registered')) return;
     driver.phase('13e', 'OK — keypair.delete_registered');
 
-    // ── PHASE 13f: shortcut.account_save — Ctrl+S fires _saveProfile ───────
-    driver.phase('13f', 'Ctrl+S save profile (desktop shortcut)');
-    await registry.runFor('shortcut.account_save')!(tester, driver);
-    if (shouldStopAfter('shortcut.account_save')) return;
-    driver.phase('13f', 'OK — shortcut.account_save');
-
-    // ── PHASE 13g: dapps.copy_principal — tap auth chip → clipboard ────────
-    driver.phase('13g', 'copy principal from dapp runner');
-    await registry.runFor('dapps.copy_principal')!(tester, driver);
-    if (shouldStopAfter('dapps.copy_principal')) return;
-    driver.phase('13g', 'OK — dapps.copy_principal');
-
-    // ── PHASE 13h: dapps.trust_grant — tap "Trust this dapp" → Trusted chip ─
-    driver.phase('13h', 'grant dapp trust → persistent Trusted chip');
-    await registry.runFor('dapps.trust_grant')!(tester, driver);
-    if (shouldStopAfter('dapps.trust_grant')) return;
-    driver.phase('13h', 'OK — dapps.trust_grant');
-
     // ── PHASE 14: vault.route_from_menu ───────────────────────────────────
     driver.phase('14', 'open vault from profile menu');
     await tester.tap(find.byType(ProfileAvatarButton));
@@ -1373,8 +1071,8 @@ void main() {
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(28),
-        reason: 'mock-keyring must cover at least 28 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(25),
+        reason: 'mock-keyring must cover at least 25 flows.');
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING: PASS — ${cov.implemented} flows covered.');

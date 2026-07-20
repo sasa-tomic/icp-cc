@@ -567,6 +567,24 @@ e2e-desktop:
         echo "   PASS 2 FAIL  (see $LOG)"; exit 1
     fi
 
+    # --- 4b. PASS 2b: mock Secret Service (daps + shortcut split-off) --------
+    # The dapp trust/copy-principal + Ctrl+S save flows are split into a
+    # dedicated testWidgets body to dodge the keyring-less suite's binding
+    # stability threshold (the documented "Cannot close sink while adding
+    # stream" crash past ~30 phases — same root cause as the local-replica
+    # split). Same mock-keyring wrap as PASS 2.
+    rm -rf "$STATE_DIR" 2>/dev/null || true
+    echo "==> PASS 2b (mock keyring daps): suite_mock_keyring_dapps_test.dart"
+    if "{{scripts_dir}}/run-with-mock-keyring.sh" --display :99 -- \
+            bash -c 'cd "{{flutter_dir}}" && \
+                LD_LIBRARY_PATH="{{root}}/target/release" \
+                flutter test -d linux integration_test/e2e/suite_mock_keyring_dapps_test.dart \
+                    --reporter=compact --timeout=300s' >>"$LOG" 2>&1; then
+        echo "   PASS 2b OK"
+    else
+        echo "   PASS 2b FAIL  (see $LOG)"; exit 1
+    fi
+
     # NOTE: the 2 local-replica Poll dapp flows (dapps.run_poll +
     # dapps.create_profile_to_vote) are NOT included in `just e2e-desktop`
     # because a running dfx replica destabilises the 58-phase keyring-less
@@ -577,7 +595,7 @@ e2e-desktop:
     # app fresh against the local replica (2 flows, ~60s).
     echo "==> PASS 3 (local replica): NOT included — run 'just e2e-local-replica' separately"
 
-    echo "✅ e2e-desktop PASSED — all suites green (2 boots). Log: $LOG"
+    echo "✅ e2e-desktop PASSED — all suites green (3 boots). Log: $LOG"
 
 # e2e-fast: run a SINGLE suite file for a sub-minute dev loop (default: the
 # keyring-less smoke, no mock-keyring wrap needed). Pass a file path to target
@@ -605,10 +623,12 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
 # fast single-flow iteration. The suite boots the real app, runs all setup
 # phases, then stops immediately after the requested flow.
 # Usage: just e2e-one <flow-id> [suite]
-#   suite: keyring-less (default, includes marketplace), mock-keyring
+#   suite: keyring-less (default, includes marketplace), mock-keyring,
+#          mock-keyring-dapps (dapp trust/copy + Ctrl+S split-off suite)
 # Example: just e2e-one scripts.search
 #          just e2e-one settings.theme
 #          just e2e-one vault.setup mock-keyring
+#          just e2e-one dapps.trust_grant mock-keyring-dapps
 e2e-one flow suite="keyring-less":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -617,12 +637,13 @@ e2e-one flow suite="keyring-less":
     export LD_LIBRARY_PATH="{{root}}/target/release"
 
     case "{{suite}}" in
-        keyring-less)  FILE="suite_keyring_less_test.dart" ;;
-        mock-keyring)  FILE="suite_mock_keyring_test.dart" ;;
-        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring"; exit 1 ;;
+        keyring-less)       FILE="suite_keyring_less_test.dart" ;;
+        mock-keyring)       FILE="suite_mock_keyring_test.dart" ;;
+        mock-keyring-dapps) FILE="suite_mock_keyring_dapps_test.dart" ;;
+        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring, mock-keyring-dapps"; exit 1 ;;
     esac
 
-    if [[ "{{suite}}" == "mock-keyring" ]]; then
+    if [[ "{{suite}}" == "mock-keyring" || "{{suite}}" == "mock-keyring-dapps" ]]; then
         export MARKETPLACE_API_PORT=$(just _api-dev-port)
         export DISPLAY=:99
         scripts/run-with-mock-keyring.sh --display :99 -- bash -c \
