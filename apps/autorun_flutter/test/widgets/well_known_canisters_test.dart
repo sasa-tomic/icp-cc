@@ -116,8 +116,8 @@ void main() {
   });
 
   testWidgets(
-      'W7-19: the canister name is announced only once (no doubled name '
-      'from the card label + title Text)', (tester) async {
+    'W7-19: the canister name is announced only once (no doubled name '
+    'from the card label + title Text)', (tester) async {
     await pumpList(
       tester,
       onSelect: (_, __) {},
@@ -148,5 +148,44 @@ void main() {
     expect(occurrences, 1,
         reason: 'Card name must appear exactly once in the open-action label. '
             'Got: "${openNode.label}"');
+  });
+
+  // E2E-D-RESUME-2: the card's outer Column used a Spacer to push the method
+  // badge to the bottom. At narrow widths (crossAxisCount=1, aspectRatio=3.0)
+  // AND medium widths (crossAxisCount=2, aspectRatio=2.6) the GridView gives
+  // each card a tight height that's smaller than the natural Row + Spacer +
+  // badge height, so the Column overflows. Pre-Flutter-3.44.6 this was a
+  // silent warning; under IntegrationTestWidgetsFlutterBinding on 3.44.6 it's
+  // a FATAL test error that blocks the canisters.open_inline_client e2e flow.
+  testWidgets(
+      'E2E-D-RESUME-2: cards do NOT overflow at any width '
+      '(1-, 2-, and 3-column GridView layouts)', (tester) async {
+    // Sweep widths that exercise every layout branch in WellKnownList.build
+    // (line 88-89): 1-col (aspect 3.0), 2-col (aspect 2.6), 3-col (aspect 3.5).
+    for (final width in const <double>[280, 420, 600, 880, 1200, 1440]) {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1.0;
+      // Reset between iterations so each width gets a clean viewport.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WellKnownList(onSelect: (_, __) {}),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Without the fix: each card emits a `RenderFlex overflowed` FlutterError
+      // (or `non-zero flex in unbounded` during transient re-layout).
+      // With the fix: no overflow at any width.
+      expect(tester.takeException(), isNull,
+          reason: 'Well-known canister cards must not overflow at width '
+              '$width. If this fires, the inner Column\'s natural height '
+              'exceeds the GridView card height — wrap content in '
+              'Flexible/Expanded or replace Spacer with a fixed SizedBox.');
+
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    }
   });
 }

@@ -142,86 +142,105 @@ class _WellKnownCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+            // E2E-D-RESUME-2: was a plain Column with `Spacer()` to push the
+            // method badge to the bottom. The Spacer (flex=1) both (a) fails
+            // "non-zero flex in unbounded constraints" during transient
+            // IndexedStack re-layout and (b) overflows when the GridView's
+            // tight cell height (esp. at narrow widths / 2-column layouts) is
+            // smaller than the natural Row + Spacer + badge height. Pre-3.44.6
+            // these were silent warnings; under the new
+            // IntegrationTestWidgetsFlutterBinding they fail the test outright.
+            //
+            // SingleChildScrollView (with scrolling disabled) gives the inner
+            // Column unbounded height so its natural content always lays out,
+            // and visually clips anything that doesn't fit the card — no
+            // overflow error ever. The method badge now sits directly under
+            // the title row instead of pinned to the card bottom (minor
+            // visual change; no test asserts position).
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              theme.colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(entry.icon,
+                            color: theme.colorScheme.primary, size: 20),
                       ),
-                      child: Icon(entry.icon,
-                          color: theme.colorScheme.primary, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // W7-19: the card-level Semantics(label: 'Open …')
-                          // already exposes the name; exclude the title Text
-                          // so screen readers don't announce it twice.
-                          ExcludeSemantics(
-                            child: Text(
-                              entry.label,
-                              style: theme.textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            // W7-19: the card-level Semantics(label: 'Open …')
+                            // already exposes the name; exclude the title Text
+                            // so screen readers don't announce it twice.
+                            ExcludeSemantics(
+                              child: Text(
+                                entry.label,
+                                style: theme.textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            entry.description,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                            const SizedBox(height: 4),
+                            Text(
+                              entry.description,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (onBookmark != null)
-                      // W6-10 (a): own container so this stays a SEPARATE
-                      // focusable button (labelled for screen readers) instead
-                      // of merging into the card's open-action node.
-                      Semantics(
-                        container: true,
-                        button: true,
-                        label: 'Bookmark ${entry.label}',
-                        child: IconButton(
-                          tooltip: 'Bookmark',
-                          icon: Icon(Icons.bookmark_add_outlined,
-                              color: theme.colorScheme.primary),
-                          onPressed: onBookmark,
-                          visualDensity: VisualDensity.compact,
+                          ],
                         ),
                       ),
-                  ],
-                ),
-                if ((entry.method ?? '').isNotEmpty) ...[
-                  const Spacer(),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer
-                          .withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      entry.method!,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w600,
+                      if (onBookmark != null)
+                        // W6-10 (a): own container so this stays a SEPARATE
+                        // focusable button (labelled for screen readers)
+                        // instead of merging into the card's open-action node.
+                        Semantics(
+                          container: true,
+                          button: true,
+                          label: 'Bookmark ${entry.label}',
+                          child: IconButton(
+                            tooltip: 'Bookmark',
+                            icon: Icon(Icons.bookmark_add_outlined,
+                                color: theme.colorScheme.primary),
+                            onPressed: onBookmark,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if ((entry.method ?? '').isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer
+                            .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        entry.method!,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
