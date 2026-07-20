@@ -16,7 +16,7 @@
 ///   keypair.edit_label, keypair.export, keypair.import, passkey.unsupported_linux,
 ///   account.register_from_local, account.refresh, account.edit_profile,
 ///   keypair.generate_registered, keypair.delete_registered,
-///   shortcut.account_save,
+///   shortcut.account_save, dapps.copy_principal,
 ///   vault.route_from_menu, vault.setup, vault.unlock,
 ///   vault.unlock_wrong_password, vault.use_recovery_code
 @TestOn('linux')
@@ -29,9 +29,11 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
+import 'package:icp_autorun/config/example_dapps.dart';
 import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/account_profile_screen.dart';
+import 'package:icp_autorun/screens/dapp_runner_screen.dart';
 import 'package:icp_autorun/screens/export_keys_dialog.dart';
 import 'package:icp_autorun/screens/recovery_codes_screen.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
@@ -41,6 +43,7 @@ import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
 import 'package:icp_autorun/screens/vault_unlock_screen.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
+import 'package:icp_autorun/theme/modern_components.dart';
 import 'package:icp_autorun/utils/profile_errors.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/script_row_menus.dart';
@@ -48,6 +51,65 @@ import 'package:icp_autorun/widgets/script_row_menus.dart';
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
 import 'suite_helpers.dart';
+
+// ─── Dapp-flow helpers (mirror suite_keyring_less_test.dart's helpers) ───────
+
+const String _kLedgerTitle = 'ICP Ledger';
+
+/// Switch to the Dapps tab via the ModernNavigationBar callback. Gesture
+/// taps are unreliable post-scripts.run (residual RenderAbsorbPointer);
+/// invoking the callback directly tests the real nav code path.
+Future<void> _navigateToDapps(WidgetTester tester, E2EDriver d) async {
+  await d.dismissOverlays(tester);
+  final navBar = tester.widget<ModernNavigationBar>(
+      find.byType(ModernNavigationBar));
+  navBar.onTap(2);
+  await tester.pump(const Duration(milliseconds: 500));
+  final bodyReady = await d.waitUntil(
+      tester, () => d.present(find.textContaining(_kLedgerTitle), tester),
+      timeout: const Duration(seconds: 5));
+  expect(bodyReady, isTrue, reason: 'Invoking the nav bar onTap(2) must '
+      'switch to DappsScreen.');
+}
+
+/// Tap the ICP Ledger card → DappRunnerScreen pushes.
+Future<void> _tapLedgerCard(WidgetTester tester, E2EDriver d) async {
+  final found = await d.waitUntil(
+      tester, () => d.present(find.textContaining(_kLedgerTitle), tester),
+      timeout: const Duration(seconds: 5));
+  expect(found, isTrue, reason: 'ICP Ledger card must be present.');
+  await tester.tap(find.textContaining(_kLedgerTitle).first);
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+/// Closes DappRunnerScreen, dismissing any post-mount trust/permission
+/// dialogs that may have appeared above the runner route. Mirrors
+/// _closeDappRunnerAfterRemount in suite_keyring_less_test.dart.
+Future<void> _closeDappRunner(WidgetTester tester, E2EDriver d) async {
+  await d.dismissOverlays(tester);
+  // Dismiss any open dialogs above the runner route.
+  var dialogSafety = 0;
+  while (find.byType(Dialog).evaluate().isNotEmpty && dialogSafety < 6) {
+    dialogSafety++;
+    final rootCtx = find.byType(Navigator).evaluate().first;
+    Navigator.of(rootCtx).pop();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+  // Pop the runner route (Esc via ScreenShortcuts → maybePop).
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pump(const Duration(milliseconds: 500));
+  if (d.present(find.byType(DappRunnerScreen), tester)) {
+    final runnerEl = find.byType(DappRunnerScreen).evaluate().first;
+    Navigator.of(runnerEl).pop();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+  final closed = await d.waitUntil(
+      tester, () => !d.present(find.byType(DappRunnerScreen), tester),
+      timeout: const Duration(seconds: 5));
+  expect(closed, isTrue,
+      reason: 'DappRunnerScreen must close after dismissing dialogs.');
+  await d.dismissOverlays(tester);
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -728,6 +790,88 @@ void main() {
           tester, () => d.present(find.byType(ScriptsScreen), tester),
           timeout: const Duration(seconds: 5));
     })
+    // ── dapps.copy_principal: open the ICP Ledger dapp (mainnet, no local
+    // replica needed) → DappRunnerScreen mounts → the auth-status chip
+    // "Signed as: <principal>" is tap-to-copy. Pre-trust the dapp via
+    // DappTrustStore so the first canister call doesn't fire the trust
+    // dialog (we're testing copy-principal, not trust). Tap the chip →
+    // assert the clipboard contains the principal.
+    ..register('dapps.copy_principal', (tester, d) async {
+      // Pre-trust the dapp (avoids the "Trust this dapp?" prompt firing
+      // above the runner route when the bundle's first canister call lands).
+      // DappTrustStore writes to SharedPreferences — same persistence layer
+      // as the app.
+      await tester.runAsync(() =>
+          DappTrustStore.setTrusted('icp_ledger'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Capture the expected principal BEFORE opening the runner — read it
+      // from the active profile's keypair (the dapp runner uses the same
+      // value to render "Signed as: <principal>").
+      final profileController = newStandaloneController();
+      final activeProfile = profileController.activeProfile;
+      final expectedPrincipal = activeProfile?.primaryKeypair.principal ?? '';
+
+      await _navigateToDapps(tester, d);
+      await _tapLedgerCard(tester, d);
+      final runnerOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 10));
+      expect(runnerOpen, isTrue,
+          reason: 'Tapping the ICP Ledger card must push DappRunnerScreen.');
+
+      // Wait for the auth-status chip to render (the principal text comes
+      // from the active keypair, available immediately on mount — no canister
+      // round-trip needed for the chip itself).
+      final chipVisible = await d.waitUntil(
+          tester,
+          () => d.present(find.textContaining('Signed as:'), tester),
+          timeout: const Duration(seconds: 10));
+      expect(chipVisible, isTrue,
+          reason: 'DappRunnerScreen must show the "Signed as: <principal>" '
+              'auth-status chip when an active profile exists.');
+
+      // Clear clipboard first so we can be sure the value we read came from
+      // our tap (not a prior test phase).
+      await tester.runAsync(() =>
+          Clipboard.setData(const ClipboardData(text: '')));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Tap the chip via its Tooltip 'Copy principal' (the InkWell wraps the
+      // tooltip; tapping anywhere within copies). The tap should land — the
+      // chip sits in a SliverToBoxAdapter above the host area, not in a
+      // gesture-shadowed region.
+      await tester.tap(find.byTooltip('Copy principal'));
+      await tester.pump(const Duration(milliseconds: 400));
+      // Clipboard.setData is a platform channel call; give it wall-clock
+      // time and read it under runAsync.
+      final String? clipboardValue = await tester.runAsync<String?>(
+          () => Clipboard.getData('text/plain')
+              .then((data) => data?.text));
+      expect(clipboardValue, isNotNull,
+          reason: 'Tapping the auth-status chip must write the principal to '
+              'the clipboard.');
+      expect(clipboardValue!.isNotEmpty, isTrue,
+          reason: 'The clipboard value must not be empty.');
+      // If we know the expected principal (active keypair present), assert
+      // it matches exactly. Otherwise assert the generic principal shape
+      // (non-empty string with at least one dash — IC principals are
+      // dash-separated base32 strings ending in -cai/-cae).
+      if (expectedPrincipal.isNotEmpty) {
+        expect(clipboardValue, expectedPrincipal,
+            reason: 'The clipboard principal must match the active '
+                'profile\'s primary keypair principal.');
+      } else {
+        expect(clipboardValue.contains('-'), isTrue,
+            reason: 'IC principals are dash-separated; got "$clipboardValue".');
+      }
+
+      // Clear the trust grant we set so the next dapp flow (dapps.trust_grant)
+      // starts from a clean (untrusted) state.
+      await tester.runAsync(() => DappTrustStore.clear('icp_ledger'));
+
+      await _closeDappRunner(tester, d);
+    })
     // ── profile.switch_inline: switch the active profile inline via the
     // profile menu (without opening the manage sheet).
     ..register('profile.switch_inline', (tester, d) async {
@@ -1086,6 +1230,12 @@ void main() {
     if (shouldStopAfter('shortcut.account_save')) return;
     driver.phase('13f', 'OK — shortcut.account_save');
 
+    // ── PHASE 13g: dapps.copy_principal — tap auth chip → clipboard ────────
+    driver.phase('13g', 'copy principal from dapp runner');
+    await registry.runFor('dapps.copy_principal')!(tester, driver);
+    if (shouldStopAfter('dapps.copy_principal')) return;
+    driver.phase('13g', 'OK — dapps.copy_principal');
+
     // ── PHASE 14: vault.route_from_menu ───────────────────────────────────
     driver.phase('14', 'open vault from profile menu');
     await tester.tap(find.byType(ProfileAvatarButton));
@@ -1142,8 +1292,8 @@ void main() {
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(26),
-        reason: 'mock-keyring must cover at least 26 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(27),
+        reason: 'mock-keyring must cover at least 27 flows.');
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING: PASS — ${cov.implemented} flows covered.');
