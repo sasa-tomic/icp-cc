@@ -16,7 +16,7 @@
 ///   keypair.edit_label, keypair.export, keypair.import, passkey.unsupported_linux,
 ///   account.register_from_local, account.refresh, account.edit_profile,
 ///   keypair.generate_registered, keypair.delete_registered,
-///   shortcut.account_save, dapps.copy_principal,
+///   shortcut.account_save, dapps.copy_principal, dapps.trust_grant,
 ///   vault.route_from_menu, vault.setup, vault.unlock,
 ///   vault.unlock_wrong_password, vault.use_recovery_code
 @TestOn('linux')
@@ -61,8 +61,11 @@ const String _kLedgerTitle = 'ICP Ledger';
 /// invoking the callback directly tests the real nav code path.
 Future<void> _navigateToDapps(WidgetTester tester, E2EDriver d) async {
   await d.dismissOverlays(tester);
+  // Use .first: in rare cases a transition leaves a stale ModernNavigationBar
+  // in the tree briefly (e.g. a route being popped). The active one is the
+  // last painted — but they're all bound to the same controller so any works.
   final navBar = tester.widget<ModernNavigationBar>(
-      find.byType(ModernNavigationBar));
+      find.byType(ModernNavigationBar).first);
   navBar.onTap(2);
   await tester.pump(const Duration(milliseconds: 500));
   final bodyReady = await d.waitUntil(
@@ -872,6 +875,78 @@ void main() {
 
       await _closeDappRunner(tester, d);
     })
+    // ── dapps.trust_grant: open the ICP Ledger dapp → DO NOT pre-trust →
+    // the bundle's first canister call fires the "Trust this dapp?" dialog
+    // (script_app_host._ensureDappTrust). Tap "Trust this dapp" → assert
+    // the trust is granted (the persistent "Trusted" status chip shows).
+    ..register('dapps.trust_grant', (tester, d) async {
+      // Defensive: ensure no stale trust grant from a prior run.
+      await tester.runAsync(() => DappTrustStore.clear('icp_ledger'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Remount to ensure we start at the root ScriptsScreen tab — the
+      // previous flow (dapps.copy_principal) may have left the Dapps tab
+      // active (we close DappRunnerScreen but don't switch tabs back).
+      await d.remount(tester);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 10));
+
+      await _navigateToDapps(tester, d);
+      await _tapLedgerCard(tester, d);
+      final runnerOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 10));
+      expect(runnerOpen, isTrue,
+          reason: 'Tapping the ICP Ledger card must push DappRunnerScreen.');
+
+      // The bundle boots + dispatches its first canister call → the trust
+      // gate (_ensureDappTrust) shows the AlertDialog. Wait for the dialog
+      // title to render. Use a generous timeout: the bundle load + first
+      // canister call round-trip can take a few seconds.
+      final dialogShown = await d.waitUntil(
+          tester, () => d.present(find.text('Trust this dapp?'), tester),
+          timeout: const Duration(seconds: 20));
+      expect(dialogShown, isTrue,
+          reason: 'The bundle\'s first canister call must fire the per-dapp '
+              '"Trust this dapp?" permission dialog.');
+
+      // Tap "Trust this dapp" (the FilledButton with the allow-always label —
+      // NOT "Allow once" which is session-only and doesn't light up the
+      // persistent Trusted chip). The dialog buttons are TextButtons + one
+      // FilledButton; find by exact text to avoid ambiguity.
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Trust this dapp'));
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      });
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // After the trust grant, the dialog closes and the runner's
+      // ValueListenableBuilder<_trustState> rebuilds with true → the
+      // "Trusted" status chip renders below the auth-status chip. Wait for
+      // it to appear (proves persistence — the chip only renders for
+      // actually-persistent trust, not session-only Allow once).
+      final trustedChipShown = await d.waitUntil(
+          tester, () => d.present(find.text('Trusted'), tester),
+          timeout: const Duration(seconds: 5));
+      expect(trustedChipShown, isTrue,
+          reason: 'Granting trust must surface the persistent "Trusted" '
+              'status chip (the ValueListenableBuilder rebuilds on '
+              '_trustState.value = true).');
+
+      // Verify persistence: DappTrustStore.isTrusted must now return true
+      // (the host wrote to SharedPreferences in the allowAlways branch).
+      final persisted = await tester
+          .runAsync<bool>(() => DappTrustStore.isTrusted('icp_ledger'));
+      expect(persisted, isTrue,
+          reason: 'The trust grant must persist via DappTrustStore.setTrusted '
+              '(SharedPreferences) so it survives app restarts.');
+
+      // Clear the trust so the next dapp flow starts clean.
+      await tester.runAsync(() => DappTrustStore.clear('icp_ledger'));
+
+      await _closeDappRunner(tester, d);
+    })
     // ── profile.switch_inline: switch the active profile inline via the
     // profile menu (without opening the manage sheet).
     ..register('profile.switch_inline', (tester, d) async {
@@ -1236,6 +1311,12 @@ void main() {
     if (shouldStopAfter('dapps.copy_principal')) return;
     driver.phase('13g', 'OK — dapps.copy_principal');
 
+    // ── PHASE 13h: dapps.trust_grant — tap "Trust this dapp" → Trusted chip ─
+    driver.phase('13h', 'grant dapp trust → persistent Trusted chip');
+    await registry.runFor('dapps.trust_grant')!(tester, driver);
+    if (shouldStopAfter('dapps.trust_grant')) return;
+    driver.phase('13h', 'OK — dapps.trust_grant');
+
     // ── PHASE 14: vault.route_from_menu ───────────────────────────────────
     driver.phase('14', 'open vault from profile menu');
     await tester.tap(find.byType(ProfileAvatarButton));
@@ -1292,8 +1373,8 @@ void main() {
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(27),
-        reason: 'mock-keyring must cover at least 27 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(28),
+        reason: 'mock-keyring must cover at least 28 flows.');
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING: PASS — ${cov.implemented} flows covered.');
