@@ -774,6 +774,14 @@ class ScriptAppHostState extends State<ScriptAppHost> {
 
   Future<void> _dispatch(Map<String, dynamic> msg) async {
     if (_state == null) return;
+    // E2E-D-RESUME-1: `_dispatch` is scheduled via `unawaited(_dispatch(msg))`
+    // from `_enqueueMsg`, which itself runs inside `_boot`'s async chain. When
+    // the parent remounts the host (DappRunnerScreen._applyConfig /
+    // _refreshDapp reassign the GlobalKey), this State is disposed mid-boot;
+    // the unawaited microtask then lands on a defunct State. Guard against
+    // that here — canonical fix per
+    // https://api.flutter.dev/flutter/widgets/State/mounted.html.
+    if (!mounted) return;
     setState(() {
       _busy = true;
       _error = null;
