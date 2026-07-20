@@ -103,9 +103,12 @@ A dapp that drifts from "real + dual-path + teachable" has drifted from intent.
 - **Decouple security from providers.** Entitlement / paywalling must be
   **provider-agnostic** (server-side ownership + purchase records gate the
   payload). A nonfunctional or swapped payment provider must never weaken the
-  security gate or require rewiring it. *(ICPay.org is currently unreachable
-  from the dev sandbox — its wiring degrades LOUDLY [503 + startup warn] and is
-  NOT extended until the provider is live; the entitlement gate stays regardless.)*
+  security gate or require rewiring it. *(Phase K landed a
+  `PaymentProvider` trait — `stub` (default) / `icpay` / `none` selected
+  via `PAYMENT_PROVIDER` env var. ICPay.org being unreachable no longer
+  degrades the dev experience: `PAYMENT_PROVIDER=stub` auto-grants
+  entitlements deterministically; the entitlement gate stays regardless of
+  provider.)*
 
 ## 5. How to keep this doc current
 

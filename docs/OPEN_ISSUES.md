@@ -13,6 +13,70 @@
 
 ## Critical / Blockers
 
+### E2E-PHASE55 — `scripts.download_paid` (paid-script details dialog rendering)
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase 55)
+- **Surfaced**: pre-existing (Phase D triage, 2026-07-19) — `docs/specs/phase-d-triage.md` §"Flows still listed as DEFER"
+- **Severity**: MEDIUM (1 deferred e2e flow)
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart` (PHASE 55); `apps/autorun_flutter/lib/widgets/script_details_dialog.dart` (`_buildPrimaryAction`)
+
+`scripts.download_paid` was DEFERRED with the note: *"ICPay is unreliable;
+need provider-agnostic backend first."* The backend was hard-wired to ICPay,
+the frontend `_buyScript` flow called ICPay directly, and the e2e harness
+had no way to drive a purchase against a deterministic provider.
+
+**Unblocked by:** the Phase K payment-provider-agnostic refactor
+(`backend/src/services/payment_provider.rs` — new `PaymentProvider` trait +
+`StubPaymentProvider` that auto-grants entitlements). The default backend
+now runs with `PAYMENT_PROVIDER=stub` so purchases complete immediately
+without any external ICPay round-trip.
+
+**Flow assertion:** the paid-seed script (uploaded by
+`tool/seed_marketplace.dart --paid`, slug `paid-seed-script`, price \$4.99)
+is opened in the details dialog. The flow asserts the **Buy for \$4.99**
+CTA renders (NOT Download — paid scripts the user hasn't purchased show
+Buy per `_buildPrimaryAction`). The full post-purchase Download path
+(signed `/scripts/:id/download` + entitlement gate → bundle released) is
+covered by `payment_http_tests.rs::purchase_with_stub_then_download_succeeds`.
+
+The keyring-less suite cannot exercise the post-purchase Download CTA
+(no profile = no purchase possible); that path is covered by the Rust
+http tests against the stub provider.
+
+Coverage 57 → 58.
+
+### E2E-PHASE54 — `scripts.buy` (provider-agnostic purchase CTA + keyring-less UX)
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase 54)
+- **Surfaced**: pre-existing (Phase D triage, 2026-07-19) — `docs/specs/phase-d-triage.md` §"Flows still listed as DEFER"
+- **Severity**: MEDIUM (1 deferred e2e flow)
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart` (PHASE 54); `apps/autorun_flutter/lib/screens/scripts_screen.dart` (`_buyScript`); `backend/src/handlers/payments/mod.rs` (`purchase_script`)
+
+`scripts.buy` was DEFERRED with the note: *"ICPay is unreliable; need
+provider-agnostic backend first."* The frontend Buy CTA called ICPay's API
+directly via `IcpayService`; when icpay.org was down (days at a time), the
+purchase flow hung indefinitely.
+
+**Unblocked by:** the Phase K refactor — a new generic
+`POST /api/v1/scripts/:id/purchase` endpoint dispatches to the active
+provider via the `PaymentProvider` trait. The frontend
+`MarketplaceOpenApiService.purchaseScript` calls this endpoint; the
+`_buyScript` flow was rewritten to use it (falling back to the legacy
+IcpayService client-SDK path only when the provider returns a Pending
+intent without a checkout URL — the icpay.org production case).
+
+**Flow assertion:** the paid-seed script is opened in the details dialog;
+the flow asserts the **Buy for \$4.99** CTA renders, taps it, and asserts
+the "Create a profile first" SnackBar (the keyring-less UX fallback —
+this suite cannot create a profile without a Secret Service). The full
+signed purchase round-trip (signed `POST /purchase` → StubProvider
+auto-grants entitlement → row in purchases table) is covered by 16 new
+`payment_http_tests` in the Rust suite against stub/icpay/none providers,
+including `purchase_with_stub_returns_completed_and_grants_entitlement`
++ `purchase_with_stub_then_download_succeeds` (end-to-end buy → download).
+
+Coverage 56 → 57.
+
 ### E2E-PHASE53 — `dapps.run_ledger_mainnet` (real IC mainnet canister call)
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase 53)

@@ -46,6 +46,31 @@ just docker-deploy-prod      # https://icp-mp.kalaj.org (+ http://localhost:5800
 - `GET /api/v1/marketplace-stats` - Get marketplace statistics
   - Returns: `totalScripts`, `totalDownloads`, `averageRating`
 
+### Payments (Phase K — provider-agnostic)
+- `POST /api/v1/scripts/:id/purchase` - Signed purchase (Ed25519 over
+  canonical `{action:"purchase", id, nonce, ts}`). Dispatches to the
+  active provider:
+  - `PAYMENT_PROVIDER=stub` (default): returns
+    `{success:true, data:{intent:{...status:"completed"...}, purchased:true}}`
+    and writes the entitlement row immediately. Use for local dev + tests.
+  - `PAYMENT_PROVIDER=icpay`: returns
+    `{success:true, data:{intent:{...status:"pending"...}, purchased:false}}`
+    — the entitlement is recorded when the ICPay webhook lands.
+  - `PAYMENT_PROVIDER=none`: returns `503` with body
+    `{"error":"payments_disabled","provider":"none"}` (NOT the canonical
+    `{success:false,...}` envelope — the spec is explicit).
+- `GET /api/v1/payments/config` - Generic public client config (dispatches
+  via `PaymentProvider::client_config()`). Stub/None → 503; ICPay (when
+  publishable key set) → `{publishableKey, shortcode, apiUrl}`.
+- `POST /api/v1/scripts/:id/download` - Signed authenticated download
+  (Ed25519 over `download:{id}:{ts}:{nonce}`). Releases the paid bundle
+  only when the caller owns the script OR holds a purchase record.
+- `POST /api/v1/scripts/:id/entitlement` - Signed entitlement check.
+  Returns `{purchased, owns}` (metadata only — never the bundle).
+- Legacy ICPay routes (mounted ONLY when `PAYMENT_PROVIDER=icpay`):
+  - `GET /api/v1/payments/icpay/config` - Alias of `/payments/config`.
+  - `POST /api/v1/payments/icpay/webhook` - HMAC-verified webhook receiver.
+
 ### Development
 - `POST /api/dev/reset-database` - Reset database (development only)
 
@@ -74,6 +99,22 @@ backend/
 ## ⚙️ Configuration
 
 See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for environment variables.
+
+### Payment provider (Phase K)
+
+The `PAYMENT_PROVIDER` env var selects which payment provider the backend
+uses for `POST /api/v1/scripts/:id/purchase`. Default: `stub`.
+
+| Value      | Behaviour                                                                                                  |
+|------------|------------------------------------------------------------------------------------------------------------|
+| `stub`     | Dev / test provider. Auto-grants entitlement immediately (HTTP 200, `purchased:true`). Deterministic; no network. Recommended for local dev + CI. |
+| `icpay`    | Production ICPay provider. Returns a Pending intent; the entitlement is recorded when the ICPay webhook lands. Requires `ICPAY_PUBLISHABLE_KEY` (+ `ICPAY_WEBHOOK_SECRET` for the webhook). The legacy `/payments/icpay/*` routes mount only in this mode. |
+| `none`     | Fail-closed. Purchase attempts return HTTP 503 `{"error":"payments_disabled","provider":"none"}`. Use during incidents / when payments must be disabled. |
+| `<other>`  | Unrecognised values fail closed to `none` with a loud `tracing::error!` at boot.                            |
+
+Switching providers is a config-only change — no code modifications needed.
+The `purchases` schema is provider-agnostic; the `icpay_intent_id` column
+is reused for ALL providers' intent ids (legacy name; never migrated).
 
 ## 🔄 Phase 2 - PostgreSQL Support
 
