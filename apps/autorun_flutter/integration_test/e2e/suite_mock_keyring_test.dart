@@ -16,6 +16,7 @@
 ///   keypair.edit_label, keypair.export, keypair.import, passkey.unsupported_linux,
 ///   account.register_from_local, account.refresh, account.edit_profile,
 ///   keypair.generate_registered, keypair.delete_registered,
+///   shortcut.account_save,
 ///   vault.route_from_menu, vault.setup, vault.unlock,
 ///   vault.unlock_wrong_password, vault.use_recovery_code
 @TestOn('linux')
@@ -650,6 +651,82 @@ void main() {
       expect(afterAccount, isNotNull);
       expect(afterAccount!.activeKeys.any((k) => k.id == removedId), isFalse,
           reason: 'The removed key must no longer appear in activeKeys.');
+
+      // Pop AccountProfileScreen → back at root, ready for the next phase.
+      await tester.pageBack();
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 5));
+    })
+    // ── shortcut.account_save: open AccountProfileScreen (registered mode),
+    // edit the Bio field, then send Ctrl+S — the desktop keyboard shortcut
+    // wired by ScreenShortcuts (kShortcutSpecs['account_save'] → mod+S).
+    // Asserts the shortcut fires _saveProfile and the success SnackBar
+    // renders, proving the Ctrl+S binding reaches the same save path as the
+    // Save Changes button (UX-9).
+    ..register('shortcut.account_save', (tester, d) async {
+      // Open profile menu → My Account → AccountProfileScreen.
+      await tester.tap(find.byType(ProfileAvatarButton));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('My Account'));
+      final pushed = await d.waitUntil(
+          tester, () => d.present(find.byType(AccountProfileScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(pushed, isTrue,
+          reason: 'Tapping My Account must push AccountProfileScreen.');
+
+      // Wait for the registered body (Save Changes visible) before editing.
+      final saveVisible = await d.waitUntil(
+          tester, () => d.present(find.text('Save Changes'), tester),
+          timeout: const Duration(seconds: 10));
+      expect(saveVisible, isTrue,
+          reason: 'Registered-mode AccountProfileScreen must show the Save '
+              'Changes button (the shortcut and the button share _saveProfile).');
+
+      // Enter a unique bio value to ensure the save has a real change to push
+      // (the previous account.edit_profile phase wrote a bio too — using a
+      // different value here proves the Ctrl+S path overwrites it).
+      final bioField = tester.widgetList<TextField>(find.byType(TextField)).firstWhere(
+          (tf) => tf.decoration?.labelText == 'Bio',
+          orElse: () => throw StateError(
+              'Bio TextField not found in AccountProfileScreen.'));
+      final uniqueBio =
+          'E2E ctrl+s bio ${DateTime.now().millisecondsSinceEpoch}';
+      await tester.enterText(find.byWidget(bioField), uniqueBio);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Clear stale SnackBars so the new success SnackBar isn't dropped.
+      final scaffoldCtx = tester.element(find.byType(Scaffold).first);
+      ScaffoldMessenger.of(scaffoldCtx).removeCurrentSnackBar();
+
+      // Send Ctrl+S — the ScreenShortcuts layer maps mod+S → _SaveIntent →
+      // _saveProfile (same callback as the Save Changes button). On Linux
+      // the modifier is Ctrl (not Cmd). Simulated as a press-hold-release
+      // sequence because `sendKeyEvent` has no modifier parameter.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      // _saveProfile is async (signed POST round-trip); give it wall-clock
+      // time to complete before asserting.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 1)));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      final successShown = await d.waitUntil(
+          tester, () => d.present(find.text('Profile updated successfully'), tester),
+          timeout: const Duration(seconds: 10));
+      expect(successShown, isTrue,
+          reason: 'Ctrl+S must fire _saveProfile (the same callback as the '
+              'Save Changes button) and show the success SnackBar — proving '
+              'the desktop keyboard shortcut is correctly bound to the save '
+              'action.');
+
+      // Pop AccountProfileScreen → back at root.
+      await tester.pageBack();
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 5));
     })
     // ── profile.switch_inline: switch the active profile inline via the
     // profile menu (without opening the manage sheet).
@@ -1003,6 +1080,12 @@ void main() {
     if (shouldStopAfter('keypair.delete_registered')) return;
     driver.phase('13e', 'OK — keypair.delete_registered');
 
+    // ── PHASE 13f: shortcut.account_save — Ctrl+S fires _saveProfile ───────
+    driver.phase('13f', 'Ctrl+S save profile (desktop shortcut)');
+    await registry.runFor('shortcut.account_save')!(tester, driver);
+    if (shouldStopAfter('shortcut.account_save')) return;
+    driver.phase('13f', 'OK — shortcut.account_save');
+
     // ── PHASE 14: vault.route_from_menu ───────────────────────────────────
     driver.phase('14', 'open vault from profile menu');
     await tester.tap(find.byType(ProfileAvatarButton));
@@ -1059,8 +1142,8 @@ void main() {
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(25),
-        reason: 'mock-keyring must cover at least 25 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(26),
+        reason: 'mock-keyring must cover at least 26 flows.');
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING: PASS — ${cov.implemented} flows covered.');
