@@ -28,7 +28,9 @@
 ///   canisters.bookmark_well_known, canisters.save_composer,
 ///   canisters.recent_calls, canisters.tap_bookmark, canisters.refresh_pull,
 ///   canisters.open_inline_client,
-///   dapps.open_catalog
+///   dapps.open_catalog, dapps.local_replica_unreachable,
+///   dapps.apply_connection, dapps.refresh, dapps.open_frontend,
+///   shortcut.dapp_refresh,
 @TestOn('linux')
 library;
 
@@ -1096,24 +1098,145 @@ void main() {
           reason: 'Polls DappRunnerScreen must show the local-replica banner.');
       await _closeDappRunner(tester, d);
     })
-    // ── PHASE 46 flow: dapps.apply_connection — STILL DEFERRED on Flutter
-    // 3.44.6. The Expand + Apply callbacks now WORK (Flutter 3.44.6 cleared
-    // the body-tap AbsorbPointer for direct-callback invocation). However,
-    // _applyConfig triggers a ScriptAppHost REMOUNT (new GlobalKey), which
-    // disposes the previous host's State mid-boot. The Polls bundle's init
-    // chain continues running async (canister calls to an unreachable local
-    // replica) and fires setState on the disposed State — surfaced as a
-    // `_pendingFrame == null` assertion in LiveTestWidgetsFlutterBinding's
-    // postTest. Root cause is an app-level lifecycle issue in
-    // ScriptAppHost._dispatch (missing `mounted` guard), not the framework
-    // Overlay bug. Filed in docs/specs/phase-d-triage.md (Phase D-resume).
-    // ..register('dapps.apply_connection', ...)
-    // ── PHASE 47 flow: dapps.refresh — STILL DEFERRED on Flutter 3.44.6 for
-    // the SAME reason as dapps.apply_connection: _refreshDapp remounts the
-    // ScriptAppHost (new GlobalKey) which fires setState-after-dispose on
-    // the previous host's mid-boot State. SnackBar fires correctly, but the
-    // post-test _pendingFrame assertion catches the leaked async work.
-    // ..register('dapps.refresh', ...)
+    // ── PHASE 46 flow: dapps.apply_connection — Polls card → Connection
+    // panel → Apply → SnackBar. Unblocked by the E2E-D-RESUME-1 fix
+    // (ScriptAppHostState._dispatch now guards setState with `mounted`; the
+    // host remount via _applyConfig no longer triggers setState-after-dispose
+    // on the previous host's defunct State).
+    ..register('dapps.apply_connection', (tester, d) async {
+      await _navigateToDapps(tester, d);
+      await _tapPollsCard(tester, d);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 5));
+
+      // Expand the Connection panel via its ExpansionTile controller. The
+      // title tap is shadowed by the residual RenderAbsorbPointer per Phase
+      // D-resume §3; the controller API expands the tile directly without
+      // gesture hit-testing.
+      final connectionTile = tester.widget<ExpansionTile>(
+          find.byKey(const ValueKey<String>('dappConnectionPanel')));
+      connectionTile.controller?.expand();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Find the Apply FilledButton by its label. Even with the AbsorbPointer
+      // shadowing body taps, invoking the onPressed callback directly tests
+      // the real apply path (form validate → DappRuntimeConfig.save → host
+      // remount → SnackBar).
+      final applyBtn = find.widgetWithText(FilledButton, 'Apply');
+      final btnReady = await d.waitUntil(
+          tester, () => d.present(applyBtn, tester),
+          timeout: const Duration(seconds: 5));
+      expect(btnReady, isTrue,
+          reason: 'Connection panel must render the Apply button once '
+              'expanded.');
+
+      // _applyConfig is async (awaits DappRuntimeConfig.save → shared prefs).
+      // Run inside tester.runAsync so the future can complete and the
+      // SnackBar can mount before the binding re-enters fake-time.
+      await tester.runAsync(() async {
+        tester.widget<FilledButton>(applyBtn).onPressed!();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      });
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final snackBarShown = await d.waitUntil(
+          tester,
+          () => d.present(
+              find.textContaining('Connection updated — dapp restarted'),
+              tester),
+          timeout: const Duration(seconds: 5));
+      expect(snackBarShown, isTrue,
+          reason: 'Apply must show the "Connection updated — dapp restarted" '
+              'SnackBar.');
+      // After Apply, the ScriptAppHost remounts (new GlobalKey → fresh _boot)
+      // and the new host begins its init chain against the unreachable local
+      // replica. The Apply SnackBar + new host's busy indicator linger in the
+      // Overlay and shadow the AppBar back-arrow's hit-test. The standard
+      // _closeDappRunner ladder (Esc → pageBack tap → Navigator.pop) is
+      // unreliable here; invoke the back IconButton's onPressed directly
+      // (same pattern as dapps.open_frontend).
+      final runnerScaffold = find.descendant(
+          of: find.byType(DappRunnerScreen),
+          matching: find.byType(Scaffold));
+      if (runnerScaffold.evaluate().isNotEmpty) {
+        ScaffoldMessenger.of(runnerScaffold.evaluate().first)
+            .removeCurrentSnackBar();
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      await d.dismissOverlays(tester);
+      // Find the AppBar back-arrow IconButton by its 'Back' tooltip and
+      // invoke onPressed. The tooltip wraps the IconButton via Tooltip; use
+      // find.ancestor to get from the tooltip text to the IconButton.
+      final backTooltip = find.byTooltip('Back');
+      if (d.present(backTooltip, tester)) {
+        final backBtn = find.ancestor(
+            of: backTooltip, matching: find.byType(IconButton)).first;
+        tester.widget<IconButton>(backBtn).onPressed!();
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      // After Apply, the new ScriptAppHost remount fires its init chain. The
+      // Polls bundle's first canister call triggers a "Trust this dapp?"
+      // dialog (and possibly a per-method permission dialog) BEFORE the call
+      // hits the unreachable local replica. These dialogs sit ABOVE the
+      // DappRunnerScreen route, so a single Navigator.pop pops the DIALOG,
+      // not the runner. Loop dismiss+pop until the runner is gone.
+      var safety = 0;
+      while (d.present(find.byType(DappRunnerScreen), tester) &&
+          safety < 8) {
+        safety++;
+        // Dismiss any open dialogs first (Esc bound to maybePop via the
+        // dialog's own Shortcuts).
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump(const Duration(milliseconds: 300));
+        if (!d.present(find.byType(DappRunnerScreen), tester)) break;
+        // Then pop the runner route itself.
+        final runnerEl = find.byType(DappRunnerScreen).evaluate().first;
+        Navigator.of(runnerEl).pop();
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      final closed = await d.waitUntil(
+          tester, () => !d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(closed, isTrue,
+          reason: 'DappRunnerScreen must close after dismissing the '
+              'permission/trust dialogs the post-Apply remount fires.');
+      await d.dismissOverlays(tester);
+    })
+    // ── PHASE 47 flow: dapps.refresh — Polls card → AppBar refresh icon →
+    // SnackBar. Unblocked by the E2E-D-RESUME-1 fix (same root cause as
+    // dapps.apply_connection: _refreshDapp remounts the ScriptAppHost via
+    // a fresh GlobalKey, which previously fired setState-after-dispose on
+    // the previous host's defunct State).
+    ..register('dapps.refresh', (tester, d) async {
+      await _navigateToDapps(tester, d);
+      await _tapPollsCard(tester, d);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 5));
+
+      // The AppBar Refresh IconButton (above the residual AbsorbPointer,
+      // so the tap would also work, but invoke onPressed directly for
+      // consistency with dapps.open_frontend).
+      final refreshBtn = find.widgetWithIcon(
+          IconButton, Icons.refresh_rounded);
+      final btnReady = await d.waitUntil(
+          tester, () => d.present(refreshBtn, tester),
+          timeout: const Duration(seconds: 5));
+      expect(btnReady, isTrue,
+          reason: 'DappRunnerScreen AppBar must show the refresh IconButton.');
+
+      // _refreshDapp is sync (setState + SnackBar); no runAsync needed.
+      tester.widget<IconButton>(refreshBtn).onPressed!();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final snackBarShown = await d.waitUntil(
+          tester, () => d.present(find.textContaining('Dapp refreshed'), tester),
+          timeout: const Duration(seconds: 5));
+      expect(snackBarShown, isTrue,
+          reason: 'Refresh icon must show the "Dapp refreshed" SnackBar.');
+      await _closeDappRunner(tester, d);
+    })
     // ── PHASE 48 flow: dapps.open_frontend — Polls card → tap the AppBar
     // open_in_new IconButton → triggers _openFrontend (url_launcher,
     // external browser). url_launcher is best-effort in the headless test
@@ -1148,6 +1271,30 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 500));
       });
       await tester.pump(const Duration(milliseconds: 500));
+      await _closeDappRunner(tester, d);
+    })
+    // ── PHASE 48b flow: shortcut.dapp_refresh — Polls card → press R →
+    // SnackBar. Same unblock path as dapps.refresh (E2E-D-RESUME-1). Verifies
+    // the keyboard shortcut layer (ScreenShortcuts onRefresh → _refreshDapp)
+    // fires on the R key while DappRunnerScreen is mounted.
+    ..register('shortcut.dapp_refresh', (tester, d) async {
+      await _navigateToDapps(tester, d);
+      await _tapPollsCard(tester, d);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 5));
+
+      // Press R. ScreenShortcuts binds SingleActivator(LogicalKeyboardKey.keyR)
+      // to _RefreshIntent → _refreshDapp.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final snackBarShown = await d.waitUntil(
+          tester, () => d.present(find.textContaining('Dapp refreshed'), tester),
+          timeout: const Duration(seconds: 5));
+      expect(snackBarShown, isTrue,
+          reason: 'R key must trigger _refreshDapp via ScreenShortcuts → '
+              '"Dapp refreshed" SnackBar.');
       await _closeDappRunner(tester, d);
     })
     // ── PHASE 49 flow: canisters.open_inline_client — tap a Popular Canister
@@ -1619,18 +1766,32 @@ void main() {
     if (shouldStopAfter('dapps.local_replica_unreachable')) return;
     driver.phase('45', 'OK — dapps.local_replica_unreachable');
 
-    // PHASE 46: dapps.apply_connection — STILL DEFERRED (see registration
-    // comment above). The Apply path triggers a ScriptAppHost setState-after-
-    // dispose app-level bug, unrelated to the Overlay barrier issue.
+    // PHASE 46: dapps.apply_connection — Polls → Connection → Apply → SnackBar.
+    // Unblocked by E2E-D-RESUME-1 fix (ScriptAppHost._dispatch mounted guard).
+    driver.phase('46', 'dapps: apply connection');
+    await registry.runFor('dapps.apply_connection')!(tester, driver);
+    if (shouldStopAfter('dapps.apply_connection')) return;
+    driver.phase('46', 'OK — dapps.apply_connection');
 
-    // PHASE 47: dapps.refresh — STILL DEFERRED (same _refreshDapp remount
-    // triggers the same setState-after-dispose issue).
+    // PHASE 47: dapps.refresh — Polls → AppBar refresh icon → SnackBar.
+    // Unblocked by E2E-D-RESUME-1 fix.
+    driver.phase('47', 'dapps: refresh icon');
+    await registry.runFor('dapps.refresh')!(tester, driver);
+    if (shouldStopAfter('dapps.refresh')) return;
+    driver.phase('47', 'OK — dapps.refresh');
 
     // PHASE 48: dapps.open_frontend — Polls → AppBar open-in-new icon.
     driver.phase('48', 'dapps: open frontend icon');
     await registry.runFor('dapps.open_frontend')!(tester, driver);
     if (shouldStopAfter('dapps.open_frontend')) return;
     driver.phase('48', 'OK — dapps.open_frontend');
+
+    // PHASE 48b: shortcut.dapp_refresh — Polls → press R → SnackBar.
+    // Unblocked by E2E-D-RESUME-1 fix.
+    driver.phase('48b', 'shortcut: dapp_refresh (R key)');
+    await registry.runFor('shortcut.dapp_refresh')!(tester, driver);
+    if (shouldStopAfter('shortcut.dapp_refresh')) return;
+    driver.phase('48b', 'OK — shortcut.dapp_refresh');
 
     // PHASE 49: canisters.open_inline_client — Popular Canister card → sheet.
     driver.phase('49', 'canisters: open inline client');
@@ -1651,10 +1812,11 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(49),
-        reason: 'keyring-less must cover at least 49 flows '
+    expect(cov.implemented, greaterThanOrEqualTo(52),
+        reason: 'keyring-less must cover at least 52 flows '
             '(42 base + 2 Phase-D easy + 1 Phase-D medium + 3 Phase D-resume '
-            '+ 1 Phase D-resume-2 fix canisters.open_inline_client).');
+            '+ 4 post-bug-fix: canisters.open_inline_client, '
+            'dapps.apply_connection, dapps.refresh, shortcut.dapp_refresh).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '
