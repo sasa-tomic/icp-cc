@@ -179,6 +179,44 @@ parallel to each other (read-only).
 
 ## §5. Progress log
 
+### 2026-07-20 — Phase L (Web Tier A 6 deferred flows)
+
+**Goal:** lift 6 catalog flows from DEFERRED to PASSING on Web Tier A (3 passkey + 3 deeplink), growing coverage 7 → 13/98 on Web Tier A and 79 → 85/98 on total catalog.
+
+**Outcome:** ✅ ALL 6 FLOWS GREEN in `suite_web_phase_l_test.dart` (2 testWidgets bodies: passkey 3-phase + deeplink 3-phase). 3 commits:
+
+| commit | summary |
+|--------|---------|
+| `eb245df7` | feat(passkey): visibleForTesting seams for Web e2e harness — `PasskeyPlatform.isSupportedOverrideForTesting` + `NativePasskeyAuthenticator.{register,authenticate}OverrideForTesting`. No production behaviour change. |
+| `005dd636` | test(e2e-web): Phase L 6 deferred flows — substrate HTTP passkey routes (`SubstratePasskeyStore` + 4 routes), substrate app_links emitter (`emitSubstrateDeepLink` + `collectSubstrateDeepLinks`), `suite_web_phase_l_test.dart` (6 flow bodies), catalog (`deeplink.*` → `_b`), justfile default suite list. |
+| (this commit) | docs(OPEN_ISSUES): mark Phase L resolved. |
+
+**Phase C insight that drove the design (must internalize for future Web Tier A flows):**
+
+> `flutter test -d chrome` is NOT a Web compile. Test code compiles for the Dart VM; chrome is just the canvaskit renderer. `dart.library.html` evaluates FALSE.
+
+Concrete consequences surfaced in Phase L:
+
+1. `kIsWeb` is FALSE and `Platform.isLinux` is TRUE → `PasskeyPlatform.isSupported` returns FALSE → `PasskeyManagementScreen` renders the "Linux desktop unsupported" panel, not the list/register/delete UI. **Fix:** `PasskeyPlatform.isSupportedOverrideForTesting` static flag.
+2. `NativePasskeyAuthenticator.register` would call into `package:passkeys`, which reaches `navigator.credentials.create` on Web or the FIDO framework on Android — unreachable from the test VM. **Fix:** `registerOverrideForTesting` static function override.
+3. `_KeypairAppState._initDeepLinks` is guarded by `if (kIsWeb || defaultTargetPlatform == TargetPlatform.linux) return;` — the app's `_handleDeepLink` listener is never wired under test, so synthetic URI emission can drive only the `DeepLinkService` parsing layer (not the downstream UI navigation). **Documented as a known caveat** — desktop e2e remains the source of truth for the full deep-link UI chain.
+4. **The binding's fake clock never advances real `Timer`s.** `Future.delayed` outside `tester.runAsync` hangs forever. Phase L flows route every wall-clock wait through `tester.runAsync(...)`. This is a general Phase C constraint; future flows must respect it.
+5. Under `flutter test -d chrome`, `defaultTargetPlatform` is `TargetPlatform.android` (Flutter's default for the chrome target — web doesn't have its own TargetPlatform enum). The passkey.register flow derives its expected device name from `defaultTargetPlatform` dynamically (matching `_PasskeyManagementScreenState._getDeviceName`) rather than hardcoding "Linux Device".
+
+**Substrate boundary simplifications (documented, not bugs):**
+- Passkey account scoping: the real backend resolves `account_id` from the Ed25519 signature on the request; the substrate can't verify signatures, so it stores passkeys in a single global bucket. Documented inline in `substrate_http.dart`. PasskeyService Dart code runs unchanged.
+
+**Files of record:**
+- Production seams: `lib/utils/passkey_platform.dart`, `lib/services/passkey_authenticator_{native,stub}.dart`.
+- Substrate extensions: `test/e2e_web/substrate/substrate_http.dart` (`SubstratePasskeyStore` + 4 routes), `test/e2e_web/substrate/substrate_app_links.dart` (`emitSubstrateDeepLink`, `collectSubstrateDeepLinks`).
+- Test suite: `test/e2e_web/suite_web_phase_l_test.dart` (2 testWidgets, 6 flows).
+- Catalog: `integration_test/e2e/flow_catalog.dart` (deeplink group → `_b`).
+
+**Coverage after Phase L:**
+- Desktop: 79/92 (unchanged — Phase L is Web-only).
+- Web Tier A: 7 → 13/98 flows.
+- **Total catalog:** 79 + 6 = **85/98**.
+
 ### 2026-07-19 — Session start
 - Empirical baseline re-checked (§0).
 - Plan written; todos set; subagent orchestration queued.

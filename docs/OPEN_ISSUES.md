@@ -13,6 +13,31 @@
 
 ## Critical / Blockers
 
+### E2E-PHASE-L — Phase L: Web Tier A 6 deferred flows (3 passkey + 3 deeplink)
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase L)
+- **Surfaced**: pre-existing (Phase C 2026-07-19 — `docs/specs/2026-07-19-e2e-and-ux-continuation.md` Phase C-Tier-A; passkey + deeplink flows listed but DEFERRED with no implementation).
+- **Severity**: MEDIUM (6 deferred e2e flows on the Web Tier A surface)
+- **Location**: `apps/autorun_flutter/test/e2e_web/suite_web_phase_l_test.dart` (Phase L suite); substrate extensions in `apps/autorun_flutter/test/e2e_web/substrate/substrate_{http,app_links}.dart`; production-code testing seams in `apps/autorun_flutter/lib/utils/passkey_platform.dart` + `apps/autorun_flutter/lib/services/passkey_authenticator_{native,stub}.dart`.
+
+The Phase C Tier A harness (substrate fakes at the smallest I/O boundary — HTTP, SharedPreferences, FlutterSecureStorage, path_provider, package_info) covered 7/98 flows. The 6 deferred flows needed additional platform-boundary seams that weren't available under `flutter test -d chrome`:
+
+- **Passkey flows** (catalog surface `_w`, web-only): blocked because `PasskeyPlatform.isSupported` is FALSE under `flutter test -d chrome` (test compiles for the Dart VM, so `kIsWeb=false` AND `Platform.isLinux=true`), routing the screen to the "Linux desktop unsupported" panel. Also `NativePasskeyAuthenticator.register` would call into the platform WebAuthn API (`navigator.credentials.create`), unreachable from the test VM.
+- **Deeplink flows** (catalog surface `_d`, desktop-only): blocked because `_KeypairAppState._initDeepLinks` is guarded by `if (kIsWeb || defaultTargetPlatform == TargetPlatform.linux) return;`, so the app's `_handleDeepLink` listener is never wired on the test surface — there's no way to drive UI navigation via synthetic URIs through the normal app_links pathway.
+
+**Unblocked by:** Phase L adds three minimal testing seams (mirroring the existing `PasskeyService.overrideHttpClient` pattern) plus substrate extensions:
+
+1. **`PasskeyPlatform.isSupportedOverrideForTesting`** (`lib/utils/passkey_platform.dart`): a `bool?` static flag. When non-null, `isSupported` returns its value AND `isLinuxDesktop` returns false — matching Web-surface semantics. The harness sets it to `true` in `setUpAll`, clears in `tearDownAll`.
+2. **`NativePasskeyAuthenticator.{register,authenticate}OverrideForTesting`** (`lib/services/passkey_authenticator_{native,stub}.dart`): static function overrides that substitute a deterministic in-process credential Map for the browser WebAuthn call. The real `PasskeyService.registerPasskey` chain runs unchanged — challenge fetch (substrate HTTP), canonical signature generation (real Ed25519), finish POST (substrate HTTP).
+3. **Substrate HTTP passkey routes** (`substrate_http.dart`): in-memory `SubstratePasskeyStore` + four routes (`GET /passkey/list/:id`, `POST /passkey/register/{start,finish}`, `DELETE /passkey/:id`). Account scoping is intentionally simplified (single global bucket) — the real backend derives `account_id` from the Ed25519 signature, which the substrate can't verify. Documented as a known substrate boundary simplification.
+4. **Substrate app_links emitter** (`substrate_app_links.dart`): `emitSubstrateDeepLink(uri)` pumps events through `DeepLinkService.instance.handleLink` (the same public API the app's `_initDeepLinks` listener subscribes to on non-linux surfaces). `collectSubstrateDeepLinks(tester, body)` subscribes + runs body inside `tester.runAsync` (the binding's fake clock never advances real `Timer`s, so `Future.delayed` outside `runAsync` hangs forever — discovered during Phase L debugging).
+
+**Flow assertions:** the passkey flows pump `PasskeyManagementScreen` directly (catalog entry is `passkey_management_screen.dart`, not main.dart) with a real `TestKeypairFactory.getEd25519Keypair()` keypair — the real `PasskeyService` Dart code runs end-to-end against substrate HTTP. The deeplink flows pump synthetic URIs and assert what `DeepLinkService.linkStream` did (or did not) dispatch — the real `DeepLinkService.parseUri` runs unchanged.
+
+**Verified** in `suite_web_phase_l_test.dart` (2 testWidgets bodies: passkey 3-phase + deeplink 3-phase). Coverage 79 → 85 / 98 (Web Tier A: 7 → 13).
+
+**Caveat / follow-up filed (not fixed):** the deeplink flows assert the `DeepLinkService` parsing layer, NOT the downstream UI navigation (the `_handleDeepLink` → `_openScriptFromDeepLink` → `ScriptDetailsDialog` chain in `main.dart`). That navigation path is desktop-only because `_initDeepLinks` early-returns on linux; the Web Tier A harness cannot drive it without a real `_appLinks.uriLinkStream` (which `app_links` doesn't service under `flutter test -d chrome`). Desktop e2e remains the source of truth for the full deep-link UI navigation chain.
+
 ### E2E-PHASE55 — `scripts.download_paid` (paid-script details dialog rendering)
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase 55)
