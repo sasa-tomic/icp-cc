@@ -19,7 +19,13 @@ ENV TINI_VERSION=v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
-# Install dfx
+# Install dfx (DFINITY Canister SDK). Used for local replica in e2e tests
+# (dapps.run_poll, dapps.create_profile_to_vote). The binary lives under
+# $HOME/.cache/data/dfx/bin (on PATH via the ENV above) — fresh home-cache
+# volumes copy this baked-in path on first init (see target-cache pattern
+# below). dfx emits a deprecation pointer to icp-cli on every call; we keep
+# dfx because icp-cli does not yet match dfx feature parity for `dfx start`
+# + `dfx deploy`. When icp-cli reaches parity, swap this block.
 RUN DFXVM_INIT_YES=yes sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)" \
     && dfxvm default 0.32.0
 
@@ -122,11 +128,11 @@ RUN uv tool install --python 3.12 omnigent==0.5.1
 RUN git clone https://github.com/flutter/flutter.git /home/ubuntu/flutter \
     && /home/ubuntu/flutter/bin/flutter config --enable-web
 
-# Pin Flutter to the stable release the app is verified against (host runs 3.38.3).
-# Cloning default branch (master) leaves the container on an unstable SDK whose own
-# framework fails to compile (vector_math Matrix4/Vector3 unresolvable in semantics.dart).
-# Checked out as a separate layer so the expensive clone above stays cached.
-RUN cd /home/ubuntu/flutter && git checkout 3.38.3
+# Pin Flutter to the stable release the app is verified against.
+# Upgraded from 3.38.3 → 3.44.6 (commit ed220a70): cleared the RenderAbsorbPointer
+# Overlay binding quirk that blocked 6 e2e flows. Dart 3.10.1→3.12.2, DevTools
+# 2.51.1→2.57.0. Checked out as a separate layer so the expensive clone above stays cached.
+RUN cd /home/ubuntu/flutter && git checkout 3.44.6
 
 # Add Flutter to PATH
 ENV PATH="/home/ubuntu/flutter/bin:${PATH}"
@@ -156,7 +162,9 @@ RUN mkdir -p /code/icp-cc/target && chown ubuntu:ubuntu /code/icp-cc/target
 RUN mkdir -p /home/ubuntu/.pub-cache \
         /home/ubuntu/flutter/bin/cache \
         /home/ubuntu/.omnigent \
-    && chown -R ubuntu:ubuntu /home/ubuntu/.pub-cache /home/ubuntu/flutter/bin/cache /home/ubuntu/.omnigent
+        /home/ubuntu/.cache/data/dfx \
+        /home/ubuntu/.cache/dfinity \
+    && chown -R ubuntu:ubuntu /home/ubuntu/.pub-cache /home/ubuntu/flutter/bin/cache /home/ubuntu/.omnigent /home/ubuntu/.cache/data/dfx /home/ubuntu/.cache/dfinity
 COPY agent/entrypoint.sh $HOME/entrypoint.sh
 RUN chmod +x $HOME/entrypoint.sh
 
