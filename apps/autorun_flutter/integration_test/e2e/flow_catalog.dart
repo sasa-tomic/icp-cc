@@ -167,7 +167,7 @@ abstract final class FlowCatalog {
     FlowSpec(id: 'scripts.view_details', name: 'View script details', surfaces: _b, tags: {'marketplace'}, entry: 'scripts_screen.dart'),
     FlowSpec(id: 'scripts.download_free', name: 'Download free script', surfaces: _b, tags: {'marketplace'}, entry: 'scripts_screen.dart'),
     FlowSpec(id: 'scripts.download_paid', name: 'Download paid script', surfaces: _b, keyring: Keyring.mockSecretService, tags: {'marketplace'}, entry: 'scripts_screen.dart'),
-    FlowSpec(id: 'scripts.buy', name: 'Buy paid script (ICPay)', surfaces: _b, tags: {'marketplace'}, entry: 'scripts_screen.dart'),
+    FlowSpec(id: 'scripts.buy', name: 'Buy paid script (provider-agnostic)', surfaces: _b, tags: {'marketplace'}, entry: 'scripts_screen.dart'),
     FlowSpec(id: 'scripts.share', name: 'Share script', surfaces: _b, entry: 'scripts_screen.dart'),
     FlowSpec(id: 'scripts.toggle_favorite', name: 'Toggle favorite', surfaces: _b, entry: 'scripts_screen.dart'),
     FlowSpec(id: 'scripts.create', name: 'Create script', surfaces: _b, tags: {'smoke'}, entry: 'scripts_screen.dart'),

@@ -126,6 +126,11 @@ const kCounterTitle = 'Interactive Counter';
 const kBalanceTitle = 'ICP Balance Reader';
 const kHelloTitle = 'Hello IC Starter';
 
+/// Title of the paid-seed script uploaded by `tool/seed_marketplace.dart
+/// --paid` (slug `paid-seed-script`, price \$4.99). Used by the
+/// scripts.buy + scripts.download_paid e2e flows (Phase K).
+const kPaidSeedTitle = 'Paid Seed Script';
+
 /// Enter text into the search bar, clear first, then wait for debounce + fetch.
 Future<void> enterSearch(
     WidgetTester tester, E2EDriver d, String query) async {
