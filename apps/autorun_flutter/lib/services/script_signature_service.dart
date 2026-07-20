@@ -16,6 +16,12 @@ class ScriptSignatureService {
   /// wire contract has one Dart home.
   static const entitlementAction = 'entitlement';
 
+  /// Single source of truth for the signed-purchase action name (Phase K).
+  /// The backend (`handlers::PURCHASE_ACTION`) MUST agree. The signed payload
+  /// is the canonical JSON `{action:"purchase", id, nonce, ts}` — same shape
+  /// as `signEntitlement`, only the action field differs.
+  static const purchaseAction = 'purchase';
+
   static const _uuid = Uuid();
 
   /// Sign a script upload payload with the author's private key
@@ -115,6 +121,49 @@ class ScriptSignatureService {
       'ts': ts,
     };
     final signature = await _signPayload(signingKeypair, payload);
+    return SignedEntitlementRequest(
+      signatureB64: signature,
+      authorPublicKeyB64: signingKeypair.publicKey,
+      authorPrincipal: PrincipalUtils.textFromRecord(signingKeypair),
+      timestamp: ts,
+      nonce: resolvedNonce,
+    );
+  }
+
+  /// Build a fully-signed `POST /api/v1/scripts/:id/purchase` request
+  /// (Phase K). The signed payload is the canonical JSON
+  /// `{action:"purchase", id:<id>, nonce:<nonce>, ts:<unix_seconds>}` —
+  /// identical canonicalisation to `signEntitlement`, only the action field
+  /// differs. The backend resolves the caller's account_id from the verified
+  /// public key (NEVER trusts a client-supplied account id) + dispatches to
+  /// the active provider:
+  ///   * stub  → entitlement granted immediately (purchased:true)
+  ///   * icpay → returns a Pending intent (frontend opens checkoutUrl)
+  ///   * none  → 503 {"error":"payments_disabled","provider":"none"}
+  ///
+  /// [timestamp] / [nonce] are optional for testability; production callers
+  /// let them default so each request gets a fresh Unix timestamp + UUID
+  /// (replay protection is enforced server-side via the same nonce table
+  /// as /entitlement + /download).
+  static Future<SignedEntitlementRequest> signPurchase({
+    required ProfileKeypair signingKeypair,
+    required String scriptId,
+    int? timestamp,
+    String? nonce,
+  }) async {
+    _assertScriptId(scriptId);
+    final ts = timestamp ?? DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    final resolvedNonce = nonce ?? _uuid.v4();
+    final payload = <String, dynamic>{
+      'action': purchaseAction,
+      'id': scriptId,
+      'nonce': resolvedNonce,
+      'ts': ts,
+    };
+    final signature = await _signPayload(signingKeypair, payload);
+    // Reuse SignedEntitlementRequest as the wire shape — the backend's
+    // `EntitlementRequest` struct is used for both /entitlement + /purchase
+    // (only the action field in the signed payload differs).
     return SignedEntitlementRequest(
       signatureB64: signature,
       authorPublicKeyB64: signingKeypair.publicKey,

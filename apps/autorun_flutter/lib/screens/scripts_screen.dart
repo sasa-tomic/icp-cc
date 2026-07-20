@@ -701,10 +701,27 @@ class ScriptsScreenState extends State<ScriptsScreen>
     }
   }
 
-  /// Buy CTA for a paid, not-yet-purchased script. Loads the active account,
-  /// creates an ICPay payment intent, opens the hosted checkout in the
-  /// external browser, then records the script as pending so app-resume
-  /// refetches its entitlement.
+  /// Buy CTA for a paid, not-yet-purchased script (Phase K — provider-agnostic).
+  ///
+  /// Flow:
+  ///   1. Resolve the active account (must be registered with the backend).
+  ///   2. Sign a purchase request via [ScriptSignatureService.signPurchase]
+  ///      and POST it to the generic `/scripts/:id/purchase` endpoint.
+  ///   3. Branch on the provider outcome:
+  ///      - **purchased == true** (stub Completed): flip the local tile to
+  ///        purchased, refresh entitlement, show "Purchased!" SnackBar. The
+  ///        user can immediately tap Download.
+  ///      - **checkoutUrl != null** (icpay Pending with hosted checkout URL):
+  ///        open it via url_launcher, then record the pending account id so
+  ///        app-resume refetches entitlement (matches the pre-Phase-K flow).
+  ///      - **purchased == false && checkoutUrl == null** (icpay Pending
+  ///        without a URL — the legacy ICPay client-SDK path): fall back to
+  ///        the [IcpayService] flow (create intent directly with ICPay's API
+  ///        + open hosted checkout). Preserves the existing ICPay client
+  ///        behaviour for providers that don't expose a server-side
+  ///        checkout URL.
+  ///   4. Catch [PaymentsDisabledException] (provider=none) → friendly
+  ///      "Payments are disabled on this server" SnackBar.
   Future<void> _buyScript(MarketplaceScript script) async {
     final active = await _resolveActiveAccount();
     if (!mounted) return;
@@ -727,17 +744,25 @@ class ScriptsScreenState extends State<ScriptsScreen>
       );
       return;
     }
+    final keypair = active.keypair;
 
-    final icpay = getIt<IcpayService>();
     final messenger = ScaffoldMessenger.of(context);
-    IcpayClientConfig config;
+    PurchaseResult result;
     try {
-      config = await icpay.loadConfig(_api);
-    } on PaymentsNotConfiguredException {
+      final signed = await ScriptSignatureService.signPurchase(
+        signingKeypair: keypair,
+        scriptId: script.id,
+      );
+      result = await _api.purchaseScript(script.id, signed: signed);
+    } on PaymentsDisabledException catch (e) {
+      // Backend is running with PAYMENT_PROVIDER=none (or unrecognised).
+      // The backend logged the misconfig LOUDLY; show a friendly message
+      // (NOT the raw provider name string).
+      debugPrint('Purchase rejected: payments disabled ($e)');
       messenger.showSnackBar(
         const SnackBar(
           content: Text(
-              "Payments aren't available on this server yet."),
+              "Payments aren't available on this server."),
           backgroundColor: AppDesignSystem.errorColor,
         ),
       );
@@ -745,45 +770,116 @@ class ScriptsScreenState extends State<ScriptsScreen>
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Could not load payment config: $e'),
+          content: Text('Purchase failed: $e'),
           backgroundColor: AppDesignSystem.errorColor,
         ),
       );
       return;
     }
 
-    PaymentIntent intent;
-    try {
-      intent = await icpay.createPaymentIntent(
-        accountId: account.id,
-        scriptId: script.id,
-        usdAmount: script.price,
-        config: config,
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Payment setup failed: $e'),
-          backgroundColor: AppDesignSystem.errorColor,
-        ),
-      );
-      return;
-    }
-
-    final launched = await icpay.openCheckout(intent);
-    if (!launched) {
+    if (result.purchased) {
+      // Stub / free-script path: entitlement already granted. Flip the
+      // local tile + show immediate confirmation.
+      setState(() {
+        _marketplaceScripts = _marketplaceScripts
+            .map((s) =>
+                s.id == script.id ? s.copyWith(purchased: true) : s)
+            .toList();
+      });
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Could not open the checkout page. '
-              'Check that a browser is installed.'),
+          content: Text('Purchase complete! You can now download the script.'),
+          backgroundColor: AppDesignSystem.successColor,
+          duration: Duration(seconds: 4),
         ),
       );
       return;
+    }
+
+    // Pending purchase (icpay). If the backend returned a hosted checkout
+    // URL, open it directly; else fall back to the ICPay client-SDK flow.
+    final checkoutUrl = result.intent.checkoutUrl;
+    if (checkoutUrl != null && checkoutUrl.startsWith('http')) {
+      final icpay = getIt<IcpayService>();
+      final launched = await icpay.openCheckout(
+        // Reuse PaymentIntent so openCheckout doesn't change signature.
+        PaymentIntent(
+          id: result.intent.id,
+          status: result.intent.status,
+          checkoutUrl: checkoutUrl,
+          raw: <String, dynamic>{},
+        ),
+      );
+      if (!launched) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Could not open the checkout page. '
+                'Check that a browser is installed.'),
+          ),
+        );
+        return;
+      }
+    } else {
+      // Legacy ICPay client-SDK path. The Phase K backend returns
+      // {status:'pending', checkoutUrl:null} for icpay (server-side intent
+      // creation is a future enhancement) — preserve the pre-Phase-K flow
+      // by driving ICPay's hosted checkout from the client side.
+      final icpay = getIt<IcpayService>();
+      IcpayClientConfig config;
+      try {
+        config = await icpay.loadConfig(_api);
+      } on PaymentsNotConfiguredException {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+                "Payments aren't available on this server yet."),
+            backgroundColor: AppDesignSystem.errorColor,
+          ),
+        );
+        return;
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Could not load payment config: $e'),
+            backgroundColor: AppDesignSystem.errorColor,
+          ),
+        );
+        return;
+      }
+
+      PaymentIntent intent;
+      try {
+        intent = await icpay.createPaymentIntent(
+          accountId: account.id,
+          scriptId: script.id,
+          usdAmount: script.price,
+          config: config,
+        );
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Payment setup failed: $e'),
+            backgroundColor: AppDesignSystem.errorColor,
+          ),
+        );
+        return;
+      }
+
+      final launched = await icpay.openCheckout(intent);
+      if (!launched) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Could not open the checkout page. '
+                'Check that a browser is installed.'),
+          ),
+        );
+        return;
+      }
     }
 
     // Record the pending purchase so app-resume refetches entitlement. The
-    // webhook (received by the backend) records the actual purchase; this just
-    // drives the client-side UI refresh.
+    // webhook (received by the backend) records the actual purchase; this
+    // just drives the client-side UI refresh.
     _pendingPurchaseAccountIds[script.id] = account.id;
 
     messenger.showSnackBar(

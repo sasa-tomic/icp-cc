@@ -26,6 +26,10 @@ abstract final class ApiRoutes {
   static String scriptPreview(String id) => '$base/scripts/$id/preview';
   static String scriptDownload(String id) => '$base/scripts/$id/download';
   static String scriptEntitlement(String id) => '$base/scripts/$id/entitlement';
+  /// Provider-agnostic purchase endpoint (Phase K). Dispatches to the
+  /// backend's active provider (stub auto-grants; icpay returns a checkout
+  /// intent; none → 503). Signed like /download + /entitlement.
+  static String scriptPurchase(String id) => '$base/scripts/$id/purchase';
   static String scriptReviews(String id) => '$base/scripts/$id/reviews';
   static String scriptVersion(String id, String version) =>
       '$base/scripts/$id/versions/$version';
@@ -44,6 +48,11 @@ abstract final class ApiRoutes {
       '$base/accounts/$username/keys/$keyId';
 
   // ---- Payments / Stats ----------------------------------------------------
+  /// Provider-agnostic public client config (Phase K). Replaces the
+  /// ICPay-specific /payments/icpay/config for new clients.
+  static String get paymentsConfig => '$base/payments/config';
+  /// Legacy ICPay-specific config route — still mounted by the backend when
+  /// PAYMENT_PROVIDER=icpay (delegates to the generic /payments/config).
   static String get paymentsIcpayConfig => '$base/payments/icpay/config';
   static String get marketplaceStats => '$base/marketplace-stats';
 }
