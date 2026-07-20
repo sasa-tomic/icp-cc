@@ -1151,6 +1151,84 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await _closeDappRunner(tester, d);
     })
+    // ── PHASE 49 flow: canisters.open_inline_client — STILL DEFERRED on
+    // Flutter 3.44.6. The pre-existing RenderFlex layout warning on
+    // well_known_canisters.dart line 145 cards (Spacer in a tight-constraint
+    // GridView cell) is now FATAL under Flutter 3.44.6's
+    // IntegrationTestWidgetsFlutterBinding. The warnings fire transiently
+    // during the IndexedStack's re-layout when switching to Canisters from
+    // a non-Scripts tab. Fix requires reworking the card layout (replace
+    // Spacer with a fixed gap, OR wrap in Flexible) — out of scope for this
+    // task (the task is to write flows, not fix app bugs).
+    // ..register('canisters.open_inline_client', ...)
+    // ── PHASE 50 flow: download_history.run — open download history, tap
+    // the Hello IC Starter record (added by phase 44's scripts.run via
+    // recordScriptRun) → ScriptExecutionBottomSheet opens via the same
+    // runLocalScript path as scripts.run. Closes via the bottom sheet's
+    // Close IconButton.
+    ..register('download_history.run', (tester, d) async {
+      await d.dismissOverlays(tester);
+      // Navigate to Scripts (phase 48 left us on Dapps).
+      final navBar = tester.widget<ModernNavigationBar>(
+          find.byType(ModernNavigationBar));
+      navBar.onTap(0);
+      await tester.pump(const Duration(milliseconds: 500));
+      // Navigate to Scripts.
+      final scriptsReady = await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(scriptsReady, isTrue,
+          reason: 'ScriptsScreen must be on stage for download_history.run.');
+      // Open the AppBar overflow menu → Download History. Invoke the
+      // PopupMenuButton's onSelected directly — the popup's tap is flaky
+      // (transient AbsorbPointer), but onSelected dispatches the same
+      // navigation action.
+      final appBarMenu = find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byWidgetPredicate((w) => w is PopupMenuButton<String>));
+      expect(d.present(appBarMenu, tester), isTrue,
+          reason: 'AppBar overflow menu must be present on ScriptsScreen.');
+      tester.widget<PopupMenuButton<String>>(appBarMenu).onSelected!('download_history');
+      await tester.pump(const Duration(milliseconds: 500));
+      final screenReady = await d.waitUntil(
+          tester, () => d.present(find.byType(DownloadHistoryScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(screenReady, isTrue,
+          reason: 'Tapping Download History must open the screen.');
+      // Verify the Hello IC Starter record is present (phase 44 added it).
+      final recordReady = await d.waitUntil(
+          tester, () => d.present(find.textContaining('Hello IC Starter'), tester),
+          timeout: const Duration(seconds: 5));
+      expect(recordReady, isTrue,
+          reason: 'Download history must list Hello IC Starter '
+              '(added by phase 44 scripts.run).');
+      // Tap the record's main area to trigger runLocalScript.
+      final recordTitle = find.textContaining('Hello IC Starter').first;
+      await tester.tap(recordTitle, warnIfMissed: false);
+      final sheetOpen = await d.waitUntil(
+          tester,
+          () => d.present(find.byType(ScriptExecutionBottomSheet), tester),
+          timeout: const Duration(seconds: 10));
+      expect(sheetOpen, isTrue,
+          reason: 'Tapping a download history record must open the '
+              'ScriptExecutionBottomSheet via runLocalScript.');
+      // Close via the bottom sheet's Close IconButton.
+      final closeBtn = find.descendant(
+          of: find.byType(ScriptExecutionBottomSheet),
+          matching: find.widgetWithIcon(IconButton, Icons.close));
+      expect(d.present(closeBtn, tester), isTrue,
+          reason: 'ScriptExecutionBottomSheet must have a Close button.');
+      await tester.tap(closeBtn, warnIfMissed: false);
+      await d.waitUntil(
+          tester,
+          () => !d.present(find.byType(ScriptExecutionBottomSheet), tester),
+          timeout: const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 300));
+      await d.dismissOverlays(tester);
+      // pageBack to ScriptsScreen.
+      await tester.pageBack();
+      await tester.pump(const Duration(milliseconds: 500));
+    })
     ;
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -1516,6 +1594,15 @@ void main() {
     if (shouldStopAfter('dapps.open_frontend')) return;
     driver.phase('48', 'OK — dapps.open_frontend');
 
+    // PHASE 49: canisters.open_inline_client — STILL DEFERRED (pre-existing
+    // card layout overflow now fatal under Flutter 3.44.6).
+
+    // PHASE 50: download_history.run — record tap → ScriptExecutionBottomSheet.
+    driver.phase('50', 'download_history: run via record tap');
+    await registry.runFor('download_history.run')!(tester, driver);
+    if (shouldStopAfter('download_history.run')) return;
+    driver.phase('50', 'OK — download_history.run');
+
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -1523,9 +1610,9 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(47),
-        reason: 'keyring-less must cover at least 47 flows '
-            '(42 base + 2 Phase-D easy + 1 Phase-D medium + 2 Phase D-resume).');
+    expect(cov.implemented, greaterThanOrEqualTo(48),
+        reason: 'keyring-less must cover at least 48 flows '
+            '(42 base + 2 Phase-D easy + 1 Phase-D medium + 3 Phase D-resume).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '
