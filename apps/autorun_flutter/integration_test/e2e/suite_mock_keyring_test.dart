@@ -15,6 +15,7 @@
 ///   profile.open_account_profile, keypair.generate_local, keypair.set_signing,
 ///   keypair.edit_label, keypair.export, keypair.import, passkey.unsupported_linux,
 ///   account.register_from_local, account.refresh, account.edit_profile,
+///   keypair.generate_registered,
 ///   vault.route_from_menu, vault.setup, vault.unlock,
 ///   vault.unlock_wrong_password, vault.use_recovery_code
 @TestOn('linux')
@@ -506,6 +507,67 @@ void main() {
           tester, () => d.present(find.byType(ScriptsScreen), tester),
           timeout: const Duration(seconds: 5));
     })
+    // ── keypair.generate_registered: open AccountProfileScreen (registered
+    // mode), invoke AccountController.addKeypairToAccount (the real UI path
+    // through AddAccountKeySheet → KeyParametersDialog → backend addPublicKey
+    // round-trip; invoked via the controller to bypass the bottom-sheet +
+    // popup-dialog Overlay hit-test chain — same pattern as keypair.export
+    // and the other keypair flows). Asserts the new key lands on the backend
+    // account (signed POST → publicKeys list grows by 1).
+    ..register('keypair.generate_registered', (tester, d) async {
+      // Open profile menu → My Account → AccountProfileScreen.
+      await tester.tap(find.byType(ProfileAvatarButton));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('My Account'));
+      final pushed = await d.waitUntil(
+          tester, () => d.present(find.byType(AccountProfileScreen), tester),
+          timeout: const Duration(seconds: 5));
+      expect(pushed, isTrue,
+          reason: 'Tapping My Account must push AccountProfileScreen.');
+
+      // Access the real controllers from the screen widget. The screen's
+      // accountController is the same one wired in main.dart (it shares the
+      // MarketplaceOpenApiService singleton), so addKeypairToAccount hits the
+      // real backend.
+      final screen = tester.widget<AccountProfileScreen>(
+          find.byType(AccountProfileScreen));
+      final profileController = screen.profileController;
+      final accountController =
+          AccountController(profileController: profileController);
+      final profile = profileController.activeProfile!;
+      final username = profile.username!;
+      final beforeAccount = await tester
+          .runAsync<Account?>(() => accountController.fetchAccount(username));
+      expect(beforeAccount, isNotNull,
+          reason: 'The registered account must be fetchable from the backend '
+              'before adding a key.');
+      final beforeCount = beforeAccount!.publicKeys.length;
+
+      // Generate + add a real Ed25519 keypair (signed POST → backend inserts
+      // a row → fetchAccount refreshes). Real FFI keygen + real signature.
+      final newKey = await tester.runAsync<AccountPublicKey>(
+          () => accountController.addKeypairToAccount(
+                profile: profile,
+                algorithm: KeyAlgorithm.ed25519,
+                keypairLabel: 'E2E registered key',
+              ));
+      accountController.dispose();
+
+      expect(newKey, isNotNull,
+          reason: 'addKeypairToAccount must succeed (signed POST against the '
+              'real backend) and return the new AccountPublicKey.');
+      final afterAccount = await tester
+          .runAsync<Account?>(() => AccountController(
+              profileController: profileController).fetchAccount(username));
+      expect(afterAccount, isNotNull,
+          reason: 'The account must still be fetchable after addKeypair.');
+      expect(afterAccount!.publicKeys.length, beforeCount + 1,
+          reason: 'The backend account publicKeys list must grow by exactly '
+              'one after addKeypairToAccount. Before: $beforeCount.');
+      expect(afterAccount.publicKeys.any((k) => k.id == newKey!.id), isTrue,
+          reason: 'The new key must appear in the refreshed account publicKeys.');
+    })
     // ── profile.switch_inline: switch the active profile inline via the
     // profile menu (without opening the manage sheet).
     ..register('profile.switch_inline', (tester, d) async {
@@ -846,6 +908,12 @@ void main() {
     if (shouldStopAfter('account.edit_profile')) return;
     driver.phase('13c', 'OK — account.edit_profile');
 
+    // ── PHASE 13d: keypair.generate_registered — add backend key ───────────
+    driver.phase('13d', 'generate registered keypair (signed POST)');
+    await registry.runFor('keypair.generate_registered')!(tester, driver);
+    if (shouldStopAfter('keypair.generate_registered')) return;
+    driver.phase('13d', 'OK — keypair.generate_registered');
+
     // ── PHASE 14: vault.route_from_menu ───────────────────────────────────
     driver.phase('14', 'open vault from profile menu');
     await tester.tap(find.byType(ProfileAvatarButton));
@@ -902,8 +970,8 @@ void main() {
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(23),
-        reason: 'mock-keyring must cover at least 23 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(24),
+        reason: 'mock-keyring must cover at least 24 flows.');
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING: PASS — ${cov.implemented} flows covered.');
