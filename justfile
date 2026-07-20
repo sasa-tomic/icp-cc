@@ -635,6 +635,37 @@ e2e-one flow suite="keyring-less":
       --dart-define=ICP_E2E_STOP_AFTER={{flow}} --reporter=compact --timeout=240s
 
 
+# e2e-keyring-unavailable: run the `first_run.keyring_unavailable` flow
+# under scripts/run-without-keyring.sh — a wrapper that kills any running
+# gnome-keyring-daemon + blanks DBUS_SESSION_BUS_ADDRESS so the
+# SecureStorageReadiness probe in the app returns StorageUnavailable and the
+# wizard renders the WU-S2 actionable blocking panel
+# (LinuxSecretServiceHelp). On a keyring-less box (no gnome-keyring installed)
+# the wrapper is a near-no-op and the flow passes naturally. On a box WITH
+# gnome-keyring auto-starting, the wrapper DISABLES it for this run so the
+# panel is exercised. The wrapper fails loud if the Secret Service is still
+# reachable after kill + env-wipe.
+e2e-keyring-unavailable:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    [[ -f "$RELEASE_LIB" ]] || { echo "❌ build first: cargo build --release"; exit 1; }
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        Xvfb :99 -screen 0 1440x900x24 -ac >/dev/null 2>&1 &
+        for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
+    fi
+    export DISPLAY=:99
+    rm -rf "{{state_dir}}" 2>/dev/null || true
+    export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    echo "==> e2e-keyring-unavailable: first_run.keyring_unavailable (backend :$MARKETPLACE_API_PORT)"
+    echo "    wrapping with scripts/run-without-keyring.sh to force the StorageUnavailable path"
+    "{{scripts_dir}}/run-without-keyring.sh" -- bash -c \
+      'cd "{{flutter_dir}}" && LD_LIBRARY_PATH="{{root}}/target/release" \
+       flutter test -d linux integration_test/e2e/suite_keyring_less_test.dart \
+       --dart-define=ICP_E2E_STOP_AFTER=first_run.keyring_unavailable \
+       --reporter=compact --timeout=240s'
+
+
 # e2e-web: REAL app on Web as widget tests via `flutter test -d chrome`
 # (headless, no chromedriver, ~5s warm). The conditional-import split selects
 # native_bridge_web.dart (real pure-Dart Ed25519/secp256k1/Argon2id/AES-GCM),

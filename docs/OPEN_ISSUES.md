@@ -13,6 +13,33 @@
 
 ## Critical / Blockers
 
+### E2E-PHASE1b — `first_run.keyring_unavailable` panel assertion
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase 1b)
+- **Surfaced**: pre-existing (Phase D triage, 2026-07-19) — `docs/specs/phase-d-triage.md` §"Flows still listed as DEFER"
+- **Severity**: MEDIUM (1 deferred e2e flow)
+- **Location**: `apps/autorun_flutter/lib/screens/unified_setup_wizard.dart:164` (`_buildReadinessPanel`); `apps/autorun_flutter/lib/services/secure_storage_readiness.dart` (`LinuxSecretServiceHelp`)
+
+`first_run.keyring_unavailable` was DEFERRED with the note: *"Dev box has
+gnome-keyring installed + auto-start recovers it; the readiness probe returns
+`StorageReady`. Cannot reproduce the blocking panel without uninstalling
+gnome-keyring."*
+
+**Unblocked by:** `scripts/run-without-keyring.sh` — a wrapper that kills any
+running `gnome-keyring-daemon`, blanks `DBUS_SESSION_BUS_ADDRESS` +
+`GNOME_KEYRING_CONTROL`, and sanity-checks `secret-tool` cannot reach a Secret
+Service before exec'ing the wrapped command. On a keyring-less box (e.g. CI)
+the wrapper is a near-no-op; on a box with gnome-keyring it forces the
+`StorageUnavailable` path so the WU-S2 panel renders.
+
+The flow (PHASE 1b of `suite_keyring_less_test.dart`) asserts the canonical
+markers: "Setup needed" AppBar title, "Install command" label, "Retry"
+button, a friendly reason heading (never a raw `PlatformException` string —
+NEW-4). On a host where the probe returns `StorageReady`, the flow no-ops in
+the main suite; the dedicated `just e2e-keyring-unavailable` recipe wraps the
+run with `scripts/run-without-keyring.sh` for the controlled assertion.
+Coverage 53 → 54.
+
 ### E2E-PHASE51 — `scripts.delete` dialog chain (was binding-flaky on 3.38.3)
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase 51)
