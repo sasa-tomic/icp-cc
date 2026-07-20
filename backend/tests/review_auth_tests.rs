@@ -16,8 +16,8 @@ use icp_marketplace_api::{
     handlers::create_review,
     models::AppState,
     rate_limit::SlidingWindowRateLimiter,
-    repositories::{AccountRepository, PurchaseRepository},
-    services::{AccountService, PasskeyService, PaymentService, ReviewService, ScriptService},
+    repositories::AccountRepository,
+    services::PasskeyService,
 };
 use poem::{post, test::TestClient, EndpointExt, Route};
 use rand::rngs::OsRng;
@@ -61,17 +61,13 @@ async fn setup() -> Arc<AppState> {
         .expect("pool");
     initialize_database(&pool).await;
 
-    Arc::new(AppState {
-        pool: pool.clone(),
-        account_service: AccountService::new(pool.clone()),
-        script_service: ScriptService::new(pool.clone()),
-        review_service: ReviewService::new(pool.clone()),
-        passkey_service: PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
-            .unwrap(),
-        purchase_repo: PurchaseRepository::new(pool.clone()),
-        payment_service: PaymentService::from_env(pool),
-        recovery_rate_limiter: Arc::new(SlidingWindowRateLimiter::new(5, 15 * 60)),
-    })
+    let passkey_service =
+        PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000").unwrap();
+    Arc::new(icp_marketplace_api::test_support::app_state_stub(
+        pool,
+        passkey_service,
+        Arc::new(SlidingWindowRateLimiter::new(5, 15 * 60)),
+    ))
 }
 
 /// Seeds an account + binds `key.public_key_b64` to it + inserts a script.

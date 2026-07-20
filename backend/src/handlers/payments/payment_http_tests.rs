@@ -1,11 +1,12 @@
 use super::{build_download_payload, download_script, icpay_webhook, payment_config};
 use crate::auth::create_canonical_payload;
 use crate::db;
-use crate::handlers::{entitlement_check, get_script};
+use crate::handlers::{entitlement_check, get_script, purchase_script, ENTITLEMENT_ACTION};
 use crate::models::{self, AppState};
 use crate::repositories::PurchaseRepository;
 use crate::services::{
-    AccountService, PasskeyService, PaymentService, ReviewService, ScriptService,
+    AccountService, NonePaymentProvider, PasskeyService, PaymentProvider,
+    ReviewService, ScriptService,
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use ed25519_dalek::{Signer, SigningKey};
@@ -19,12 +20,13 @@ use std::sync::Arc;
 
 type HmacSha256 = Hmac<Sha256>;
 
-/// The single canonical action name for the signed-entitlement payload.
-/// Mirrors `handlers::scripts::ENTITLEMENT_ACTION` — the wire contract both
-/// sides must agree on. Kept literal here (not imported) because the backend
-/// const is private to its module; if it drifts the entitlement tests will
-/// fail loudly at the signature step.
-const ENTITLEMENT_ACTION: &str = "entitlement";
+/// The single canonical action name for the signed-purchase payload.
+/// Mirrors `handlers::PURCHASE_ACTION` — the wire contract both sides must
+/// agree on. Kept literal here (not imported) because the backend const is
+/// private to the `handlers` crate root only when referenced from a sibling
+/// module; if it drifts the purchase tests will fail loudly at the signature
+/// step.
+const PURCHASE_ACTION: &str = "purchase";
 
 /// A real Ed25519 keypair + the public key row inserted into the DB so the
 /// download handler can resolve `account_id` from the public key.
@@ -59,8 +61,20 @@ impl TestIdentity {
     /// SAME helper the backend uses (`auth::create_canonical_payload`) so the
     /// bytes are identical on both sides.
     fn sign_entitlement(&self, script_id: &str, timestamp: i64, nonce: &str) -> String {
+        self.sign_action(ENTITLEMENT_ACTION, script_id, timestamp, nonce)
+    }
+
+    /// Signs the canonical-JSON purchase payload
+    /// `{action:"purchase", id:<script_id>, nonce:<nonce>, ts:<timestamp>}`
+    /// (Phase K). Same canonicalisation as `sign_entitlement` — only the
+    /// action field differs. Drives `POST /api/v1/scripts/:id/purchase`.
+    fn sign_purchase(&self, script_id: &str, timestamp: i64, nonce: &str) -> String {
+        self.sign_action(PURCHASE_ACTION, script_id, timestamp, nonce)
+    }
+
+    fn sign_action(&self, action: &str, script_id: &str, timestamp: i64, nonce: &str) -> String {
         let payload = serde_json::json!({
-            "action": ENTITLEMENT_ACTION,
+            "action": action,
             "id": script_id,
             "nonce": nonce,
             "ts": timestamp,
@@ -128,9 +142,27 @@ async fn insert_script(pool: &SqlitePool, id: &str, price: f64, bundle: &str) {
     .unwrap();
 }
 
-/// Builds a test `AppState` over an in-memory SQLite DB. Optionally seeds
-/// a known ICPay config so webhook/config tests can drive the happy path.
-async fn build_state(publishable_key: Option<&str>, webhook_secret: Option<&str>) -> Arc<AppState> {
+/// The provider under test. Selected per test via `build_state_with_provider`.
+#[derive(Clone, Copy)]
+enum TestProvider {
+    /// Default dev provider — auto-grants entitlement immediately.
+    Stub,
+    /// Production provider — ICPay webhook + publishable config (when env
+    /// vars are set via the `publishable_key` / `webhook_secret` args).
+    Icpay,
+    /// Fail-closed provider — purchase attempts return HTTP 503
+    /// `{"error":"payments_disabled","provider":"none"}`.
+    None,
+}
+
+/// Builds a test `AppState` over an in-memory SQLite DB. The provider is
+/// selected by `provider`; `publishable_key` + `webhook_secret` configure
+/// the ICPay provider when relevant (ignored for Stub/None).
+async fn build_state_with_provider(
+    provider: TestProvider,
+    publishable_key: Option<&str>,
+    webhook_secret: Option<&str>,
+) -> Arc<AppState> {
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
         .connect("sqlite::memory:")
@@ -141,36 +173,71 @@ async fn build_state(publishable_key: Option<&str>, webhook_secret: Option<&str>
     let passkey_service = PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
         .expect("Failed to create PasskeyService");
 
-    Arc::new(AppState {
-        account_service: AccountService::new(pool.clone()),
-        script_service: ScriptService::new(pool.clone()),
-        review_service: ReviewService::new(pool.clone()),
-        passkey_service,
-        purchase_repo: PurchaseRepository::new(pool.clone()),
-        payment_service: PaymentService::with_config(
+    let rate_limiter = std::sync::Arc::new(
+        crate::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
+    );
+
+    let state = match provider {
+        TestProvider::Stub => crate::test_support::app_state_stub(
+            pool,
+            passkey_service,
+            rate_limiter,
+        ),
+        TestProvider::Icpay => crate::test_support::app_state_icpay(
+            pool,
+            passkey_service,
+            rate_limiter,
             publishable_key.map(str::to_string),
-            None,
             webhook_secret.map(str::to_string),
-            pool.clone(),
         ),
-        recovery_rate_limiter: std::sync::Arc::new(
-            crate::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
-        ),
-        pool,
-    })
+        TestProvider::None => {
+            // Build directly — test_support doesn't expose NoneProvider
+            // because the only thing that matters is the trait object
+            // returning PaymentsDisabled.
+            let none: Arc<dyn PaymentProvider> = Arc::new(NonePaymentProvider);
+            AppState {
+                account_service: AccountService::new(pool.clone()),
+                script_service: ScriptService::new(pool.clone()),
+                review_service: ReviewService::new(pool.clone()),
+                passkey_service,
+                purchase_repo: PurchaseRepository::new(pool.clone()),
+                payment_provider: none,
+                icpay_provider: None,
+                recovery_rate_limiter: rate_limiter,
+                pool,
+            }
+        }
+    };
+    Arc::new(state)
+}
+
+/// Default: ICPay provider configured for the legacy webhook / config tests
+/// (the suite was originally written when ICPay was the only provider). New
+/// purchase-endpoint tests use `build_state_with_provider(Stub, _, _)`.
+async fn build_state(publishable_key: Option<&str>, webhook_secret: Option<&str>) -> Arc<AppState> {
+    build_state_with_provider(TestProvider::Icpay, publishable_key, webhook_secret).await
 }
 
 /// Builds a `Route` wired with just the payment-related endpoints, sharing
-/// `state` via `.data(...)`.
+/// `state` via `.data(...)`. The ICPay-specific routes mount only when the
+/// state's provider is ICPay (mirrors `main.rs` conditional routing).
 fn build_app(state: Arc<AppState>) -> impl poem::Endpoint {
-    Route::new()
+    let mount_icpay = state.icpay_provider.is_some();
+    let mut route = Route::new()
         .at("/api/v1/scripts/:id", get(get_script))
         .at("/api/v1/scripts/:id/download", post(download_script))
         .at("/api/v1/scripts/:id/entitlement", post(entitlement_check))
-        .at("/api/v1/payments/icpay/config", get(payment_config))
-        .at("/api/v1/payments/icpay/webhook", post(icpay_webhook))
-        .with(Cors::new())
-        .data(state)
+        .at("/api/v1/scripts/:id/purchase", post(purchase_script))
+        .at("/api/v1/payments/config", get(payment_config));
+    if mount_icpay {
+        route = route
+            .at(
+                "/api/v1/payments/icpay/config",
+                get(crate::handlers::payment_config_legacy),
+            )
+            .at("/api/v1/payments/icpay/webhook", post(icpay_webhook));
+    }
+    route.with(Cors::new()).data(state)
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
@@ -1078,4 +1145,456 @@ async fn entitlement_unknown_script_returns_404() {
         .send()
         .await;
     resp.assert_status(StatusCode::NOT_FOUND);
+}
+
+// ========================================================================
+// POST /api/v1/scripts/:id/purchase (Phase K — provider-agnostic)
+// ========================================================================
+//
+// The new generic purchase endpoint. Signed, like /download + /entitlement,
+// but the canonical action is "purchase" (not "download" / "entitlement").
+// Dispatches to state.payment_provider.initiate_purchase:
+//   - stub  → 200 {purchased:true} (auto-grants entitlement)
+//   - icpay → 200 {purchased:false, intent:{status:"pending",...}}
+//   - none  → 503 {"error":"payments_disabled","provider":"none"}
+//
+// Wire-shape contract — pinned verbatim by these tests (the task spec is
+// explicit: the public endpoint shape MUST NOT change after landing).
+
+/// Builds a signed purchase body for [identity] mirroring the wire contract
+/// `{signature, author_public_key, author_principal, timestamp, nonce}`.
+fn purchase_body(identity: &TestIdentity, script_id: &str) -> serde_json::Value {
+    let timestamp = chrono::Utc::now().timestamp();
+    let nonce = uuid::Uuid::new_v4().to_string();
+    let sig = identity.sign_purchase(script_id, timestamp, &nonce);
+    serde_json::json!({
+        "signature": sig,
+        "author_public_key": identity.public_key_b64,
+        "author_principal": "principal-placeholder",
+        "timestamp": timestamp,
+        "nonce": nonce,
+    })
+}
+
+#[tokio::test]
+async fn purchase_with_stub_returns_completed_and_grants_entitlement() {
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let buyer = TestIdentity::new([11u8; 32], "buyer-stub");
+    insert_identity(&state.pool, &buyer).await;
+
+    let client = TestClient::new(build_app(state.clone()));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&purchase_body(&buyer, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    // Wire-shape contract (load-bearing — DO NOT change):
+    assert_eq!(json["success"], true, "success flag");
+    assert_eq!(json["data"]["purchased"], true, "stub grants entitlement immediately");
+    assert_eq!(json["data"]["intent"]["status"], "completed");
+    assert_eq!(json["data"]["intent"]["provider"], "stub");
+    assert!(
+        json["data"]["intent"]["id"]
+            .as_str()
+            .unwrap()
+            .starts_with("stub-intent-"),
+        "stub intent id must have the canonical prefix, got: {}",
+        json["data"]["intent"]["id"]
+    );
+    assert_eq!(json["data"]["intent"]["checkoutUrl"], serde_json::Value::Null);
+    assert!((json["data"]["intent"]["usdAmount"].as_f64().unwrap() - 9.99).abs() < f64::EPSILON);
+
+    // The entitlement row was actually written — a follow-up signed
+    // entitlement check sees purchased:true.
+    assert!(
+        state
+            .purchase_repo
+            .exists_for_account_and_script("buyer-stub", "paid-1")
+            .await
+            .unwrap(),
+        "stub must persist the entitlement row"
+    );
+}
+
+#[tokio::test]
+async fn purchase_with_stub_then_download_succeeds() {
+    // End-to-end: buy (stub) → download (paid bundle released).
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "PAID SOURCE").await;
+    let buyer = TestIdentity::new([12u8; 32], "buyer-stub-dl");
+    insert_identity(&state.pool, &buyer).await;
+
+    let client = TestClient::new(build_app(state));
+
+    // 1. Purchase (stub auto-grants).
+    let r1 = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&purchase_body(&buyer, "paid-1"))
+        .send()
+        .await;
+    r1.assert_status(StatusCode::OK);
+
+    // 2. Download — should now succeed because entitlement exists.
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    let nonce = uuid::Uuid::new_v4().to_string();
+    let sig = buyer.sign_download("paid-1", &timestamp, &nonce);
+    let r2 = client
+        .post("/api/v1/scripts/paid-1/download")
+        .body_json(&serde_json::json!({
+            "public_key": buyer.public_key_b64,
+            "signature": sig,
+            "timestamp": timestamp,
+            "nonce": nonce,
+        }))
+        .send()
+        .await;
+    r2.assert_status(StatusCode::OK);
+    let json = json_value(r2).await;
+    assert_eq!(json["data"]["bundle"], "PAID SOURCE");
+}
+
+#[tokio::test]
+async fn purchase_with_none_returns_503_payments_disabled() {
+    // PAYMENT_PROVIDER=none (or unrecognised) → 503 with the exact JSON
+    // body shape the task spec mandates (NOT the canonical
+    // {"success":false,...} envelope — the spec is explicit).
+    let state = build_state_with_provider(TestProvider::None, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let caller = TestIdentity::new([13u8; 32], "caller-none");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state.clone()));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&purchase_body(&caller, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::SERVICE_UNAVAILABLE);
+    let json = json_value(resp).await;
+    // Exact body — load-bearing contract.
+    assert_eq!(json["error"], "payments_disabled");
+    assert_eq!(json["provider"], "none");
+    // MUST NOT include the canonical success flag (the spec separates this
+    // error path from the {"success":false,...} shape).
+    assert!(
+        json.get("success").is_none(),
+        "payments_disabled body must NOT carry a 'success' flag, got: {json}"
+    );
+    // No entitlement row written.
+    assert!(
+        !state
+            .purchase_repo
+            .exists_for_account_and_script("caller-none", "paid-1")
+            .await
+            .unwrap(),
+        "none provider must NOT grant entitlement"
+    );
+}
+
+#[tokio::test]
+async fn purchase_with_icpay_returns_pending_intent_without_entitlement() {
+    // PAYMENT_PROVIDER=icpay with publishable key set → returns a Pending
+    // intent; the entitlement is NOT recorded (the webhook is the source of
+    // truth for icpay).
+    let state =
+        build_state_with_provider(TestProvider::Icpay, Some("pk_test_abc"), Some("whsec_xyz"))
+            .await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let caller = TestIdentity::new([14u8; 32], "caller-icpay");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state.clone()));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&purchase_body(&caller, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert_eq!(json["success"], true);
+    assert_eq!(json["data"]["purchased"], false, "icpay must NOT auto-grant");
+    assert_eq!(json["data"]["intent"]["status"], "pending");
+    assert_eq!(json["data"]["intent"]["provider"], "icpay");
+    assert!(
+        json["data"]["intent"]["id"]
+            .as_str()
+            .unwrap()
+            .starts_with("icpay-pending-"),
+        "icpay intent id must have the canonical prefix"
+    );
+    assert!(
+        !state
+            .purchase_repo
+            .exists_for_account_and_script("caller-icpay", "paid-1")
+            .await
+            .unwrap(),
+        "icpay must NOT persist entitlement until webhook lands"
+    );
+}
+
+#[tokio::test]
+async fn purchase_with_icpay_without_publishable_key_returns_500() {
+    // icpay selected but publishable key unset → Loud misconfig → 500.
+    let state = build_state_with_provider(TestProvider::Icpay, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let caller = TestIdentity::new([15u8; 32], "caller-icpay-misconfig");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&purchase_body(&caller, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+    let json = json_value(resp).await;
+    let err = json["error"].as_str().unwrap();
+    assert!(
+        err.contains("ICPAY_PUBLISHABLE_KEY"),
+        "misconfig error must reference the missing env var, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn purchase_free_script_short_circuits_without_provider_call() {
+    // Free scripts don't need provider dispatch — the download gate already
+    // treats price<=0 as entitled. The purchase endpoint should return
+    // purchased:true regardless of provider (even None).
+    let state = build_state_with_provider(TestProvider::None, None, None).await;
+    insert_script(&state.pool, "free-1", 0.0, "free source").await;
+    let caller = TestIdentity::new([16u8; 32], "caller-free");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state.clone()));
+    let resp = client
+        .post("/api/v1/scripts/free-1/purchase")
+        .body_json(&purchase_body(&caller, "free-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert_eq!(json["data"]["purchased"], true);
+    assert_eq!(json["data"]["intent"]["status"], "completed");
+    // No row needed — the download gate keys off price<=0.
+    assert!(
+        !state
+            .purchase_repo
+            .exists_for_account_and_script("caller-free", "free-1")
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn purchase_with_invalid_signature_returns_401() {
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let caller = TestIdentity::new([17u8; 32], "caller-bad-sig");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&serde_json::json!({
+            "signature": "deadbeef".repeat(16),
+            "author_public_key": caller.public_key_b64,
+            "author_principal": "principal-placeholder",
+            "timestamp": chrono::Utc::now().timestamp(),
+            "nonce": uuid::Uuid::new_v4().to_string(),
+        }))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn purchase_with_unknown_public_key_returns_401() {
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let ghost = TestIdentity::new([18u8; 32], "ghost-purchase");
+    // NOT inserted into account_public_keys.
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&purchase_body(&ghost, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::UNAUTHORIZED);
+    let json = json_value(resp).await;
+    assert_eq!(json["error"], "Unknown public key");
+}
+
+#[tokio::test]
+async fn purchase_unknown_script_returns_404() {
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    let caller = TestIdentity::new([19u8; 32], "caller-404");
+    insert_identity(&state.pool, &caller).await;
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/ghost-script/purchase")
+        .body_json(&purchase_body(&caller, "ghost-script"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn purchase_replay_with_same_nonce_is_rejected() {
+    // The signed (timestamp, nonce) pair MUST be single-use — same replay
+    // protection as download / entitlement.
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let caller = TestIdentity::new([20u8; 32], "caller-replay");
+    insert_identity(&state.pool, &caller).await;
+
+    let body = purchase_body(&caller, "paid-1");
+    let client = TestClient::new(build_app(state));
+
+    let r1 = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&body)
+        .send()
+        .await;
+    r1.assert_status(StatusCode::OK);
+
+    let r2 = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&body)
+        .send()
+        .await;
+    r2.assert_status(StatusCode::UNAUTHORIZED);
+}
+
+// ========================================================================
+// GET /api/v1/payments/config (generic, Phase K)
+// ========================================================================
+
+#[tokio::test]
+async fn generic_config_stub_returns_503() {
+    // Stub provider exposes no client config (no publishable key needed).
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    let client = TestClient::new(build_app(state));
+    let resp = client.get("/api/v1/payments/config").send().await;
+    resp.assert_status(StatusCode::SERVICE_UNAVAILABLE);
+    let json = json_value(resp).await;
+    assert_eq!(json["success"], false);
+    let err = json["error"].as_str().unwrap();
+    assert!(
+        !err.is_empty(),
+        "must carry a generic external message"
+    );
+}
+
+#[tokio::test]
+async fn generic_config_none_returns_503() {
+    let state = build_state_with_provider(TestProvider::None, None, None).await;
+    let client = TestClient::new(build_app(state));
+    let resp = client.get("/api/v1/payments/config").send().await;
+    resp.assert_status(StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn generic_config_icpay_returns_publishable_config_when_set() {
+    let state =
+        build_state_with_provider(TestProvider::Icpay, Some("pk_test_abc"), Some("whsec_xyz"))
+            .await;
+    let client = TestClient::new(build_app(state));
+    let resp = client.get("/api/v1/payments/config").send().await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+    assert_eq!(json["success"], true);
+    assert_eq!(json["data"]["publishableKey"], "pk_test_abc");
+    assert_eq!(json["data"]["shortcode"], "ic_icp");
+    assert_eq!(json["data"]["apiUrl"], "https://api.icpay.org");
+}
+
+#[tokio::test]
+async fn generic_config_icpay_returns_503_when_unset() {
+    let state = build_state_with_provider(TestProvider::Icpay, None, None).await;
+    let client = TestClient::new(build_app(state));
+    let resp = client.get("/api/v1/payments/config").send().await;
+    resp.assert_status(StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn legacy_icpay_config_route_returns_same_body_as_generic_when_icpay() {
+    // The legacy /payments/icpay/config route is mounted only when
+    // provider=icpay (mirrors main.rs conditional routing). It must return
+    // the SAME body as the generic /payments/config (it's an alias).
+    let state =
+        build_state_with_provider(TestProvider::Icpay, Some("pk_test_abc"), Some("whsec_xyz"))
+            .await;
+    let client = TestClient::new(build_app(state));
+
+    let r1 = client.get("/api/v1/payments/config").send().await;
+    r1.assert_status(StatusCode::OK);
+    let j1 = json_value(r1).await;
+
+    let r2 = client.get("/api/v1/payments/icpay/config").send().await;
+    r2.assert_status(StatusCode::OK);
+    let j2 = json_value(r2).await;
+
+    assert_eq!(j1, j2, "legacy + generic config routes must be identical");
+}
+
+// ========================================================================
+// Wire-shape regression test — pins the purchase response shape
+// ========================================================================
+
+/// Regression guard: the `POST /api/v1/scripts/:id/purchase` wire contract
+/// is load-bearing (frontend parses it; the task spec says it MUST NOT
+/// change after landing). This test asserts the EXACT set of JSON keys so a
+/// future field rename / removal fails loudly here.
+#[tokio::test]
+async fn purchase_response_shape_is_pinned() {
+    let state = build_state_with_provider(TestProvider::Stub, None, None).await;
+    insert_script(&state.pool, "paid-1", 9.99, "paid source").await;
+    let buyer = TestIdentity::new([21u8; 32], "buyer-shape");
+    insert_identity(&state.pool, &buyer).await;
+
+    let client = TestClient::new(build_app(state));
+    let resp = client
+        .post("/api/v1/scripts/paid-1/purchase")
+        .body_json(&purchase_body(&buyer, "paid-1"))
+        .send()
+        .await;
+    resp.assert_status(StatusCode::OK);
+    let json = json_value(resp).await;
+
+    let data = json["data"]
+        .as_object()
+        .expect("data must be an object");
+    let expected_data_keys: std::collections::BTreeSet<String> =
+        ["intent", "purchased"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    let actual_data_keys: std::collections::BTreeSet<String> =
+        data.keys().cloned().collect();
+    assert_eq!(
+        actual_data_keys, expected_data_keys,
+        "data keys must be exactly {{intent, purchased}}, got: {:?}",
+        actual_data_keys
+    );
+
+    let intent = json["data"]["intent"]
+        .as_object()
+        .expect("intent must be an object");
+    let expected_intent_keys: std::collections::BTreeSet<String> =
+        ["id", "status", "checkoutUrl", "provider", "usdAmount"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    let actual_intent_keys: std::collections::BTreeSet<String> =
+        intent.keys().cloned().collect();
+    assert_eq!(
+        actual_intent_keys, expected_intent_keys,
+        "intent keys must be exactly {{id, status, checkoutUrl, provider, usdAmount}}, got: {:?}",
+        actual_intent_keys
+    );
 }

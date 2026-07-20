@@ -2,10 +2,11 @@ use icp_marketplace_api::{
     cleanup, cors, db, handlers, middleware,
     models::*,
     repositories::PurchaseRepository,
-    services::{AccountService, PasskeyService, PaymentService, ReviewService, ScriptService},
+    services::{
+        resolve_provider_from_env, AccountService, PasskeyService, ReviewService, ScriptService,
+    },
     startup_checks::{
-        warn_if_broken_prod_passkey_rp, warn_if_icpay_unconfigured,
-        warn_if_insecure_prod_admin_token, Environment,
+        warn_if_broken_prod_passkey_rp, warn_if_insecure_prod_admin_token, Environment,
     },
 };
 use poem::{delete, get, listener::TcpListener, post, EndpointExt, Route, Server};
@@ -109,10 +110,20 @@ async fn main() -> Result<(), std::io::Error> {
         env::var("ADMIN_TOKEN").unwrap_or_else(|_| "change-me-in-production".to_string());
     warn_if_insecure_prod_admin_token(environment, &admin_token);
 
-    // ICPay payment integration: warn (do NOT crash) when env vars are unset.
-    // The marketplace still boots and browses; only the payment endpoints
-    // themselves 5xx/503 when invoked without config (LOUD-misconfig policy).
-    warn_if_icpay_unconfigured();
+    // Phase K — provider-agnostic payment integration. The provider is
+    // selected once at boot from `PAYMENT_PROVIDER` (default "stub";
+    // accepted: stub | icpay | none). Unrecognised values fail closed to
+    // `none` with a loud `tracing::error!`. The marketplace still boots and
+    // browses regardless — only purchase endpoints 5xx/503 when invoked
+    // against a `none` provider (or an unconfigured icpay one).
+    let resolved_provider = resolve_provider_from_env(pool.clone());
+    let provider_name = resolved_provider.name();
+    tracing::info!(provider = provider_name, "Payment provider resolved");
+    // Conditional ICPay handle for the webhook + legacy config routes (only
+    // present when provider=icpay).
+    let icpay_provider = resolved_provider.icpay();
+    let payment_provider: std::sync::Arc<dyn icp_marketplace_api::services::PaymentProvider> =
+        resolved_provider.provider();
 
     // R-3b WU-1: log the IC gateway host the CORS byte-relay proxy forwards
     // to. Defaults to mainnet (the shared `icp_core::DEFAULT_IC_GATEWAY` const,
@@ -130,7 +141,6 @@ async fn main() -> Result<(), std::io::Error> {
         .expect("Failed to create PasskeyService");
 
     let purchase_repo = PurchaseRepository::new(pool.clone());
-    let payment_service = PaymentService::from_env(pool.clone());
 
     // W7-14: throttle the open `POST /recovery/verify` brute-force oracle —
     // 5 failed codes per (account_id, IP) in 15 minutes → 429. The codes are
@@ -145,7 +155,8 @@ async fn main() -> Result<(), std::io::Error> {
         review_service: ReviewService::new(pool.clone()),
         passkey_service,
         purchase_repo,
-        payment_service,
+        payment_provider,
+        icpay_provider,
         recovery_rate_limiter,
         pool,
     });
@@ -204,14 +215,21 @@ async fn main() -> Result<(), std::io::Error> {
     // Admin (AdminAuth middleware)
     //   POST   /api/v1/admin/accounts/:username/keys/:key_id/disable -> admin_disable_key
     //   POST   /api/v1/admin/accounts/:username/recovery-key         -> admin_add_recovery_key
-    // Payments (ICPay)
-    //   GET  /api/v1/payments/icpay/config          -> payment_config (public; 503 if unset)
-    //   POST /api/v1/payments/icpay/webhook         -> icpay_webhook (unauthenticated; HMAC-verified)
+    // Payments (provider-agnostic, Phase K)
+    //   GET  /api/v1/payments/config            -> payment_config
+    //                                                (stub/none: 503; icpay: pk+shortcode)
+    //   POST /api/v1/scripts/:id/purchase       -> purchase_script (signed; provider dispatch)
+    //                                                stub → 200 {purchased:true} (auto-grants)
+    //                                                icpay → 200 {purchased:false, intent}
+    //                                                none  → 503 {"error":"payments_disabled"}
+    //   ICPay-only routes — mounted ONLY when PAYMENT_PROVIDER=icpay:
+    //     GET  /api/v1/payments/icpay/config     -> payment_config_legacy (alias of /payments/config)
+    //     POST /api/v1/payments/icpay/webhook    -> icpay_webhook (unauthenticated; HMAC-verified)
     // IC byte-relay CORS proxy (R-3b WU-1)
     //   GET|POST /api/v1/ic/*<rest>                 -> ic_proxy (forwards to ${IC_GATEWAY_HOST})
     // ========================================================================
     // Build app
-    let app = Route::new()
+    let mut app = Route::new()
         .at("/api/v1/health", get(handlers::health_check))
         .at("/api/v1/ping", get(handlers::ping))
         .at(
@@ -265,6 +283,13 @@ async fn main() -> Result<(), std::io::Error> {
         .at(
             "/api/v1/scripts/:id/entitlement",
             post(handlers::entitlement_check),
+        )
+        // Phase K: provider-agnostic purchase endpoint. Dispatches via
+        // state.payment_provider (stub auto-grants; icpay returns Pending
+        // + checkout; none → 503 {"error":"payments_disabled"}).
+        .at(
+            "/api/v1/scripts/:id/purchase",
+            post(handlers::purchase_script),
         )
         // Account Profiles endpoints
         .at("/api/v1/accounts", post(handlers::register_account))
@@ -334,15 +359,8 @@ async fn main() -> Result<(), std::io::Error> {
             "/api/v1/admin/accounts/:username/recovery-key",
             post(handlers::admin_add_recovery_key).with(middleware::AdminAuth),
         )
-        // ICPay payment endpoints (webhook is unauthenticated; HMAC-verified)
-        .at(
-            "/api/v1/payments/icpay/config",
-            get(handlers::payment_config),
-        )
-        .at(
-            "/api/v1/payments/icpay/webhook",
-            post(handlers::icpay_webhook),
-        )
+        // Provider-agnostic payment endpoints.
+        .at("/api/v1/payments/config", get(handlers::payment_config))
         .at(
             "/api/v1/marketplace-stats",
             get(handlers::get_marketplace_stats),
@@ -357,9 +375,27 @@ async fn main() -> Result<(), std::io::Error> {
         .at(
             "/api/v1/ic/*rest",
             get(handlers::ic_proxy::ic_proxy).post(handlers::ic_proxy::ic_proxy),
-        )
-        .with(cors::build_cors())
-        .data(state);
+        );
+
+    // ICPay-specific routes — mount ONLY when PAYMENT_PROVIDER=icpay. The
+    // legacy config route is an alias of the generic /payments/config (same
+    // response shape); the webhook is ICPay-specific (HMAC verification
+    // over the raw body, idempotent entitlement insert). Both 503 LOUDLY
+    // when invoked while the typed icpay handle is somehow absent (route
+    // should be unmounted in that case — defence in depth).
+    if provider_name == "icpay" {
+        app = app
+            .at(
+                "/api/v1/payments/icpay/config",
+                get(handlers::payment_config_legacy),
+            )
+            .at(
+                "/api/v1/payments/icpay/webhook",
+                post(handlers::icpay_webhook),
+            );
+    }
+
+    let app = app.with(cors::build_cors()).data(state);
 
     // Start server
     let port = env::var("PORT").unwrap_or_else(|_| "58000".to_string());

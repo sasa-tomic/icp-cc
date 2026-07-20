@@ -2,10 +2,7 @@ use icp_marketplace_api::db::initialize_database;
 use icp_marketplace_api::models::{
     AppState, Script, SearchRequest, SearchResultPayload, SCRIPT_COLUMNS_WITH_ACCOUNT,
 };
-use icp_marketplace_api::repositories::PurchaseRepository;
-use icp_marketplace_api::services::{
-    AccountService, PasskeyService, PaymentService, ReviewService, ScriptService,
-};
+use icp_marketplace_api::services::PasskeyService;
 use poem::http::StatusCode;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::sync::Arc;
@@ -268,18 +265,14 @@ async fn setup_search_state() -> Arc<AppState> {
     let passkey_service = PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
         .expect("Failed to create PasskeyService");
 
-    Arc::new(AppState {
-        pool: pool.clone(),
-        account_service: AccountService::new(pool.clone()),
-        script_service: ScriptService::new(pool.clone()),
-        review_service: ReviewService::new(pool.clone()),
+    Arc::new(icp_marketplace_api::test_support::app_state_stub(
+        pool,
         passkey_service,
-        purchase_repo: PurchaseRepository::new(pool.clone()),
-        payment_service: PaymentService::from_env(pool),
-        recovery_rate_limiter: std::sync::Arc::new(
-            icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
-        ),
-    })
+        std::sync::Arc::new(icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(
+            5,
+            15 * 60,
+        )),
+    ))
 }
 
 #[tokio::test]

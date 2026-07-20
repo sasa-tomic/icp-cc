@@ -15,6 +15,15 @@ pub mod reviews;
 pub mod scripts;
 pub mod vault;
 
+/// Canonical signed-action strings used by the request-signature gates.
+/// Kept here so handlers in different domain modules (scripts.rs,
+/// payments/mod.rs) reference the same single source. The Dart
+/// `ScriptSignatureService` mirrors these exactly.
+pub const ENTITLEMENT_ACTION: &str = "entitlement";
+/// Action string for `POST /api/v1/scripts/:id/purchase`. The signed
+/// canonical payload is `{action:"purchase", id:<script_id>, nonce, ts}`.
+pub const PURCHASE_ACTION: &str = "purchase";
+
 pub use accounts::{
     add_account_key, get_account, get_account_by_public_key, register_account, remove_account_key,
     update_account,
@@ -27,7 +36,9 @@ pub use passkey::{
     passkey_authenticate_finish, passkey_authenticate_start, passkey_delete, passkey_list,
     passkey_register_finish, passkey_register_start,
 };
-pub use payments::{download_script, icpay_webhook, payment_config};
+pub use payments::{
+    download_script, icpay_webhook, payment_config, payment_config_legacy, purchase_script,
+};
 pub use recovery::{recovery_generate, recovery_status, recovery_verify};
 pub use reviews::{create_review, get_reviews};
 pub use scripts::{

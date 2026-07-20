@@ -176,7 +176,15 @@ pub struct AppState {
     pub review_service: crate::services::ReviewService,
     pub passkey_service: crate::services::PasskeyService,
     pub purchase_repo: crate::repositories::PurchaseRepository,
-    pub payment_service: crate::services::PaymentService,
+    /// Provider-agnostic payment dispatch (Phase K). Always present; resolved
+    /// once at boot from `PAYMENT_PROVIDER` (default stub; accepted: stub |
+    /// icpay | none). Holds the concrete provider behind the trait object.
+    pub payment_provider: std::sync::Arc<dyn crate::services::PaymentProvider>,
+    /// Typed ICPay handle — `Some` ONLY when `PAYMENT_PROVIDER=icpay`. Used
+    /// by the ICPay webhook handler (which is itself mounted conditionally
+    /// on the same condition). `None` for stub / none providers.
+    pub icpay_provider:
+        Option<std::sync::Arc<crate::services::ICPayPaymentProvider>>,
     /// Sliding-window throttle for the open `POST /recovery/verify` brute-force
     /// oracle (W7-14). Shared across all requests (process-local).
     pub recovery_rate_limiter: std::sync::Arc<crate::rate_limit::SlidingWindowRateLimiter>,

@@ -15,10 +15,7 @@
 use icp_marketplace_api::db::initialize_database;
 use icp_marketplace_api::handlers::{get_script, get_script_categories};
 use icp_marketplace_api::models::AppState;
-use icp_marketplace_api::repositories::PurchaseRepository;
-use icp_marketplace_api::services::{
-    AccountService, PasskeyService, PaymentService, ReviewService, ScriptService,
-};
+use icp_marketplace_api::services::PasskeyService;
 use poem::http::StatusCode;
 use poem::test::TestClient;
 use poem::{get, middleware::Cors, EndpointExt, Route};
@@ -74,18 +71,14 @@ async fn build_state() -> Arc<AppState> {
     let passkey_service = PasskeyService::new(pool.clone(), "localhost", "http://localhost:58000")
         .expect("Failed to create PasskeyService");
 
-    Arc::new(AppState {
-        account_service: AccountService::new(pool.clone()),
-        script_service: ScriptService::new(pool.clone()),
-        review_service: ReviewService::new(pool.clone()),
-        passkey_service,
-        purchase_repo: PurchaseRepository::new(pool.clone()),
-        payment_service: PaymentService::from_env(pool.clone()),
-        recovery_rate_limiter: std::sync::Arc::new(
-            icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
-        ),
+    Arc::new(icp_marketplace_api::test_support::app_state_stub(
         pool,
-    })
+        passkey_service,
+        std::sync::Arc::new(icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(
+            5,
+            15 * 60,
+        )),
+    ))
 }
 
 /// Mirrors the route ordering in `main.rs`: `categories` BEFORE `/scripts/:id`

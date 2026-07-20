@@ -337,23 +337,20 @@ async fn recovery_verify_rate_limits_after_five_failed_attempts() {
     // wrong guesses — exercising the failure-counting path.
     let _ = seed_one_code(&pool, account_id, "REALCODE1").await;
 
-    let state = Arc::new(icp_marketplace_api::models::AppState {
-        pool: pool.clone(),
-        account_service: icp_marketplace_api::services::AccountService::new(pool.clone()),
-        script_service: icp_marketplace_api::services::ScriptService::new(pool.clone()),
-        review_service: icp_marketplace_api::services::ReviewService::new(pool.clone()),
-        passkey_service: icp_marketplace_api::services::PasskeyService::new(
-            pool.clone(),
-            "localhost",
-            "http://localhost:58000",
-        )
-        .expect("PasskeyService"),
-        purchase_repo: icp_marketplace_api::repositories::PurchaseRepository::new(pool.clone()),
-        payment_service: icp_marketplace_api::services::PaymentService::from_env(pool),
-        recovery_rate_limiter: Arc::new(
-            icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(5, 15 * 60),
-        ),
-    });
+    let passkey_service = icp_marketplace_api::services::PasskeyService::new(
+        pool.clone(),
+        "localhost",
+        "http://localhost:58000",
+    )
+    .expect("PasskeyService");
+    let state = Arc::new(icp_marketplace_api::test_support::app_state_stub(
+        pool,
+        passkey_service,
+        Arc::new(icp_marketplace_api::rate_limit::SlidingWindowRateLimiter::new(
+            5,
+            15 * 60,
+        )),
+    ));
 
     let app = Route::new()
         .at("/recovery/verify", post(recovery_verify))
