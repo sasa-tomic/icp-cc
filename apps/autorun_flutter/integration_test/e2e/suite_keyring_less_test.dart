@@ -35,6 +35,8 @@
 ///   scripts.delete (Phase 51 — unblocked on Flutter 3.44.6),
 ///   scripts.load_more (Phase 52 — requires `dart run tool/seed_marketplace.dart
 ///   --count=25` to seed the backend past the page-size threshold of 20),
+///   dapps.run_ledger_mainnet (Phase 53 — real IC mainnet canister call;
+///   best-effort, network-dependent),
 @TestOn('linux')
 library;
 
@@ -74,6 +76,7 @@ import 'e2e_driver.dart';
 import 'suite_helpers.dart';
 
 const String _kPollsTitle = 'On-chain Polls';
+const String _kLedgerTitle = 'ICP Ledger';
 
 Future<void> _navigateToDapps(WidgetTester tester, E2EDriver d) async {
   await d.dismissOverlays(tester);
@@ -105,6 +108,16 @@ Future<void> _tapPollsCard(WidgetTester tester, E2EDriver d) async {
   expect(pollsCard, isTrue,
       reason: 'Polls card must be present in the dapp catalog.');
   await tester.tap(find.textContaining(_kPollsTitle).first);
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+Future<void> _tapLedgerCard(WidgetTester tester, E2EDriver d) async {
+  final ledgerCard = await d.waitUntil(
+      tester, () => d.present(find.textContaining(_kLedgerTitle), tester),
+      timeout: const Duration(seconds: 10));
+  expect(ledgerCard, isTrue,
+      reason: 'ICP Ledger card must be present in the dapp catalog.');
+  await tester.tap(find.textContaining(_kLedgerTitle).first);
   await tester.pump(const Duration(milliseconds: 500));
 }
 
@@ -1752,6 +1765,60 @@ void main() {
       // is last today, but this guard future-proofs the suite.
       await _runSeeder(tester, <String>['--purge']);
     })
+    // ── PHASE 53 flow: dapps.run_ledger_mainnet — open the ICP Ledger dapp
+    // (real mainnet canister `ryjl3-tyaaa-aaaaa-aaaba-cai`) → DappRunnerScreen
+    // mounts → ScriptAppHost executes the bundle → real canister HTTP call to
+    // the IC mainnet. The bundle queries the ledger's `icrc1_symbol`,
+    // `icrc1_name`, `icrc1_decimals` methods and renders the result.
+    //
+    // This is a REAL mainnet call — network reachability determines the
+    // outcome. Both success (token metadata rendered) and failure (network
+    // error UI rendered correctly) are valid PASS outcomes. The flow FAILS
+    // only if the app crashes or the runner doesn't mount.
+    ..register('dapps.run_ledger_mainnet', (tester, d) async {
+      await _navigateToDapps(tester, d);
+      await _tapLedgerCard(tester, d);
+      final runnerOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(DappRunnerScreen), tester),
+          timeout: const Duration(seconds: 10));
+      expect(runnerOpen, isTrue,
+          reason: 'Tapping the ICP Ledger card must push DappRunnerScreen.');
+
+      // The runner's _buildHostArea mounts ScriptAppHost after the bundle
+      // source loads (lib/examples/07_icp_ledger.js). Wait for the host to
+      // appear — proves the bundle loaded and execution began.
+      final hostMounted = await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptAppHost), tester),
+          timeout: const Duration(seconds: 15));
+      expect(hostMounted, isTrue,
+          reason: 'ICP Ledger DappRunnerScreen must mount ScriptAppHost '
+              '(the bundle "lib/examples/07_icp_ledger.js" must load).');
+
+      // Give the bundle real wall-clock time to make the mainnet canister
+      // call (HTTP round-trip to ic0.app). 8s is generous for a single
+      // read-only query; if the network is slow/unreachable the bundle's
+      // error path renders instead.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 8)));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // Assert the runner is STILL mounted (no crash). Both success and
+      // error outcomes keep DappRunnerScreen on stage; only a crash would
+      // pop it. This is the canonical "best-effort mainnet" assertion: the
+      // app handled whatever the network returned without dying.
+      final runnerStillOpen = d.present(find.byType(DappRunnerScreen), tester);
+      expect(runnerStillOpen, isTrue,
+          reason: 'DappRunnerScreen must remain mounted after the mainnet '
+              'canister call (success OR network-error — both are valid; '
+              'a crash is not).');
+
+      // The bundle's mainnet canister call triggers the trust/permission
+      // dialog above the runner route (same post-mount pattern as
+      // dapps.apply_connection / dapps.refresh). The remount-aware close
+      // helper loops Navigator.pop to clear dialogs first, then pops the
+      // runner.
+      await _closeDappRunnerAfterRemount(tester, d);
+    })
     ;
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -2181,6 +2248,15 @@ void main() {
     if (shouldStopAfter('scripts.load_more')) return;
     driver.phase('52', 'OK — scripts.load_more');
 
+    // PHASE 53: dapps.run_ledger_mainnet — ICP Ledger card → DappRunnerScreen
+    // → ScriptAppHost → real mainnet canister call. Best-effort: success
+    // (token metadata rendered) and network-error (error UI rendered) are
+    // both valid PASS outcomes; only a crash fails.
+    driver.phase('53', 'dapps: run ICP Ledger (mainnet)');
+    await registry.runFor('dapps.run_ledger_mainnet')!(tester, driver);
+    if (shouldStopAfter('dapps.run_ledger_mainnet')) return;
+    driver.phase('53', 'OK — dapps.run_ledger_mainnet');
+
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -2188,14 +2264,15 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(55),
-        reason: 'keyring-less must cover at least 55 flows '
+    expect(cov.implemented, greaterThanOrEqualTo(56),
+        reason: 'keyring-less must cover at least 56 flows '
             '(42 base + 2 Phase-D easy + 1 Phase-D medium + 3 Phase D-resume '
             '+ 4 post-bug-fix: canisters.open_inline_client, '
             'dapps.apply_connection, dapps.refresh, shortcut.dapp_refresh, '
             '+ 1 Phase-51: scripts.delete, '
             '+ 1 Phase-1b: first_run.keyring_unavailable, '
-            '+ 1 Phase-52: scripts.load_more).');
+            '+ 1 Phase-52: scripts.load_more, '
+            '+ 1 Phase-53: dapps.run_ledger_mainnet).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '

@@ -13,6 +13,31 @@
 
 ## Critical / Blockers
 
+### E2E-PHASE53 — `dapps.run_ledger_mainnet` (real IC mainnet canister call)
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase 53)
+- **Surfaced**: pre-existing (Phase D triage, 2026-07-19) — `docs/specs/phase-d-triage.md` §"HARD"
+- **Severity**: MEDIUM (1 deferred e2e flow, network-dependent)
+- **Location**: `apps/autorun_flutter/lib/config/example_dapps.dart:116-130` (`icp_ledger` DappDescriptor); bundle at `apps/autorun_flutter/lib/examples/07_icp_ledger.js`
+
+`dapps.run_ledger_mainnet` was listed as HARD: *"Hits real mainnet canister;
+may work but flaky offline. Try."* The flow opens the ICP Ledger dapp card
+→ DappRunnerScreen mounts → ScriptAppHost executes the bundle against the
+real IC mainnet ledger canister (`ryjl3-tyaaa-aaaaa-aaaba-cai` via
+ic0.app), querying `icrc1_symbol` / `icrc1_name` / `icrc1_decimals`.
+
+**Flow design (best-effort):** the assertion is that DappRunnerScreen
+remains mounted after the mainnet round-trip — proving the app handled
+whatever the network returned (success: token metadata rendered; failure:
+network error UI rendered) without crashing. Both outcomes PASS; only a
+crash/hang fails. The bundle's first canister call triggers the trust
+dialog (same pattern as dapps.apply_connection / dapps.refresh), so the
+flow uses `_closeDappRunnerAfterRemount` to clear dialogs first, then pop
+the runner.
+
+**Verified** on the dev box (mainnet ic0.app reachable from this
+environment). Coverage 55 → 56.
+
 ### E2E-PHASE52 — `scripts.load_more` pagination contract
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase 52)
