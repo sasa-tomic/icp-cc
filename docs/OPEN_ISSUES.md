@@ -13,6 +13,46 @@
 
 ## Critical / Blockers
 
+### E2E-PHASE52 — `scripts.load_more` pagination contract
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase 52)
+- **Surfaced**: pre-existing (Phase D triage, 2026-07-19) — `docs/specs/phase-d-triage.md` §"Flows still listed as DEFER"
+- **Severity**: MEDIUM (1 deferred e2e flow + missing app feature)
+- **Location**: `apps/autorun_flutter/lib/screens/scripts_screen.dart:99-102, 362-417` (`_isLoadingMore` / `_hasMore` / `_offset` state machine)
+
+`scripts.load_more` was DEFERRED with the note: *"Backend has 3 seeded
+scripts, no pagination trigger."* Two root causes:
+1. Backend ships with 3 hand-seeded scripts — well below the page size of 20,
+   so `_hasMore` is always false.
+2. The pagination state machine (`_isLoadingMore`, `_hasMore`, `_offset`)
+   exists in scripts_screen.dart but **no UI trigger is wired up** — there's
+   no scroll-listener, no "Load More" button, no infinite-scroll affordance.
+   The state is vestigial pending a UI feature.
+
+**Unblocked by:** `apps/autorun_flutter/tool/seed_marketplace.dart` — a
+Dart CLI that bulk-uploads N signed scripts to the marketplace backend
+(canonical Ed25519 signatures, idempotent via slug+title dedup, with a
+`--purge` mode for cleanup). Wrapped by `scripts/seed-marketplace.sh` and
+invoked INSIDE the flow body so the seeds only exist for this phase
+(earlier phases see a clean 3-script marketplace). The suite purges stale
+seeds at PHASE 0pre so a prior crashed run can't leak into earlier phases,
+and PHASE 52 purges after asserting so the next run starts clean.
+
+**Flow assertion:** the marketplace is bulk-seeded to 28 total scripts (3
+originals + 25 seeds), exceeding the page size of 20. After a remount (the
+most reliable way to trigger `_loadMarketplaceScripts`), the flow asserts
+bulk-seed tiles are visible and `ScriptsListItemTile` rows are rendered —
+proving the first page of a paginated result set materialized. A future app
+change that surfaces a "Load More" UI would extend this flow to tap it and
+assert the list grows.
+
+**Follow-up (filed, not fixed):** UX-N2 — scripts_screen.dart has vestigial
+`_isLoadingMore` / `_hasMore` / `_offset` state but no UI to trigger
+load-more. Wire a scroll-listener or "Load More" button to surface this to
+users.
+
+Coverage 54 → 55.
+
 ### E2E-PHASE1b — `first_run.keyring_unavailable` panel assertion
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase 1b)
@@ -329,6 +369,32 @@ ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
 
 "Call" button only invokes `callAnonymous`; bridge supports
 `callAuthenticated` but it's never used. Wire when an active keypair exists.
+
+### UX-N2 — Pagination UI missing (load-more state machine is vestigial)
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-20 (e2e Phase 52 implementation — `scripts.load_more`)
+- **Severity**: MEDIUM (missing app feature; e2e covers the contract only)
+- **Location**: `apps/autorun_flutter/lib/screens/scripts_screen.dart:99-102, 362-417`
+
+`ScriptsScreenState` tracks pagination state — `_isLoadingMore`,
+`_hasMore`, `_offset` — and `_loadMarketplaceScripts(isLoadMore: true)`
+fetches the next page. But **no UI trigger is wired up**: there's no
+scroll-listener on the `CustomScrollView`, no "Load More" button, no
+infinite-scroll affordance. With a backend that has more scripts than the
+page size (20), the user can never see past the first page.
+
+The e2e flow `scripts.load_more` (PHASE 52 of `suite_keyring_less_test.dart`)
+covers the pagination CONTRACT end-to-end against a bulk-seeded backend
+(via `tool/seed_marketplace.dart`), asserting the first page loads with
+`_hasMore = true`. But the actual user-facing load-more interaction is
+untested because the UI doesn't exist.
+
+**Fix:** add a `NotificationListener<ScrollEndNotification>` that calls
+`_loadMarketplaceScripts(isLoadMore: true)` when the user reaches the
+bottom of the list (or a Material 3 "Load more" button at the list tail).
+Extend PHASE 52 to tap/scroll and assert the list grows beyond the
+initial page.
 
 ### WEB-1 — Flutter Web e2e via Playwright blocked on semantics enablement
 

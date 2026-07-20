@@ -666,6 +666,25 @@ e2e-keyring-unavailable:
        --reporter=compact --timeout=240s'
 
 
+# seed-marketplace: bulk-seed the local marketplace backend with N signed
+# scripts so pagination-dependent e2e flows (scripts.load_more) can exercise
+# the page-size threshold of 20. Idempotent — running it twice with the same
+# N uploads exactly N scripts total (skips already-seeded indices).
+#
+# Usage:
+#   just seed-marketplace            # default N=25
+#   just seed-marketplace 30         # custom count
+#   just seed-marketplace --purge    # delete all bulk_seed scripts first
+#
+# Requires: backend up (just api-dev-up), Dart SDK on PATH.
+seed-marketplace count="25":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    echo "==> seed-marketplace: count={{count}} backend :$MARKETPLACE_API_PORT"
+    "{{scripts_dir}}/seed-marketplace.sh" {{count}}
+
+
 # e2e-web: REAL app on Web as widget tests via `flutter test -d chrome`
 # (headless, no chromedriver, ~5s warm). The conditional-import split selects
 # native_bridge_web.dart (real pure-Dart Ed25519/secp256k1/Argon2id/AES-GCM),
