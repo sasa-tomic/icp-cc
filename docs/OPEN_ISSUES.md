@@ -13,6 +13,59 @@
 
 ## Critical / Blockers
 
+### E2E-D-RESUME-1 — ScriptAppHost setState-after-dispose (blocks 3 dapp e2e flows)
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-20 (`docs/specs/phase-d-triage.md` § Phase D-resume)
+- **Severity**: HIGH (blocks 3 e2e flows; production error log spam + memory leak)
+- **Location**: `apps/autorun_flutter/lib/widgets/script_app_host.dart:777` (`_dispatch`)
+
+`ScriptAppHostState._dispatch` (and the chain `_runEffect` → `_enqueueMsg`
+→ `_dispatch` originating from `_boot`/`_executeEffects`) calls `setState`
+without a `mounted` guard. When the host is remounted mid-boot (via the
+DappRunnerScreen's `_applyConfig` or `_refreshDapp`, both of which
+reassign `GlobalKey<ScriptAppHostState>`), the previous State is disposed
+but the boot's async chain keeps running and fires setState on the
+defunct state.
+
+**Surfaces as**: `_pendingFrame == null` assertion in
+`LiveTestWidgetsFlutterBinding.postTest` after a test that triggers a
+remount.
+
+**Blocks**:
+- `dapps.apply_connection` — Apply button remounts the host.
+- `dapps.refresh` — Refresh icon remounts the host.
+- `shortcut.dapp_refresh` — same path via R keyboard shortcut.
+
+**Fix**: add `if (!mounted) return;` before every `setState` in the
+async boot / effect chain. Worth fixing in its own right — in production
+this leaks memory and emits error logs whenever a user clicks Apply or
+Refresh while the bundle is still booting.
+
+### E2E-D-RESUME-2 — Well-known canister card RenderFlex overflow (now fatal)
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: pre-existing (noticed in Phase D, 2026-07-19); became
+  fatal under Flutter 3.44.6 upgrade.
+- **Severity**: MEDIUM (visual layout bug + blocks 1 e2e flow)
+- **Location**: `apps/autorun_flutter/lib/widgets/well_known_canisters.dart:145-206`
+
+The card's outer `Column` uses a `Spacer()` to push the method-badge
+`Container` to the bottom. Under tight GridView constraints (which occur
+transiently during `IndexedStack` re-layout when switching to the
+Canisters tab from a non-Scripts tab), the children overflow by ~80px.
+
+Pre-Flutter-3.44.6 this was a silent warning; the new
+`IntegrationTestWidgetsFlutterBinding` treats it as a fatal test error.
+
+**Blocks**: `canisters.open_inline_client` — opening the Canisters tab
+during the suite triggers 8 overflow errors (one per card), failing
+the test.
+
+**Fix**: replace `Spacer()` with `SizedBox(height: 8)` (loses the
+"badge pinned to bottom" UX at narrow widths but eliminates the
+overflow) OR wrap the `Column` in `Flexible`/`SingleChildScrollView`.
+
 ### UX-CRIT-1 — Recovery-codes screen traps the user into lying (data loss path)
 
 - **Status**: 🟢 RESOLVED (2026-07-19, commit `b5c6168b`)

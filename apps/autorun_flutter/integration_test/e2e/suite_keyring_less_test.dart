@@ -55,10 +55,7 @@ import 'package:icp_autorun/widgets/spotlight_overlay.dart';
 import 'package:icp_autorun/widgets/script_execution_bottom_sheet.dart';
 
 import 'package:icp_autorun/screens/dapp_runner_screen.dart';
-import 'package:icp_autorun/screens/dapps_screen.dart';
 import 'package:icp_autorun/theme/modern_components.dart';
-import 'package:icp_autorun/widgets/canister_client_sheet.dart';
-import 'package:icp_autorun/widgets/script_app_host.dart';
 
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';

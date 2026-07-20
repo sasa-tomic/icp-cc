@@ -169,6 +169,86 @@ their original reasons:
 - **9 flows DEFERRED** for other reasons (web-only, non-linux, missing
   external services)
 
+## Phase D-resume (Flutter 3.38.3 → 3.44.6 upgrade)
+
+**Started:** 2026-07-20
+**Hypothesis:** the Overlay `RenderAbsorbPointer` bug cleared in Flutter
+3.44.6 (the framework has had several Overlay / modal-route barrier fixes
+between 3.38 and 3.44).
+
+### Results
+
+The Overlay `RenderAbsorbPointer` bug is **PARTIALLY cleared**. The
+framework upgrade unlocked 3 of the 7 previously-deferred flows; 4 remain
+blocked (3 by a separate app-level lifecycle bug, 1 by a pre-existing
+card-layout warning that became fatal under the new binding).
+
+#### ✅ UNBLOCKED (+3 flows; commits `9b85f5e2`, `7c63a136`, `89593e8b`)
+
+| Flow | Phase | Close mechanism | Notes |
+|------|-------|-----------------|-------|
+| `dapps.local_replica_unreachable` | 45 | `pageBack` (AppBar back-arrow) | Navigation via `ModernNavigationBar.onTap(2)` (Alt+3 unreliable after `scripts.run`). Body text-taps inside `DappRunnerScreen` are still shadowed by the residual AbsorbPointer, but this flow needs no body tap. |
+| `dapps.open_frontend` | 48 | `pageBack` (AppBar back-arrow) | AppBar `IconButton.onPressed` invoked directly (above the residual AbsorbPointer). `url_launcher` runs best-effort under Xvfb. |
+| `download_history.run` | 50 | bottom-sheet Close IconButton + `pageBack` | AppBar overflow-menu tap flaky → `PopupMenuButton.onSelected` invoked directly with `'download_history'`. The record tap fires `runLocalScript` reliably. |
+
+**Coverage: 66 → 69 / 92 desktop.**
+
+#### ❌ STILL DEFERRED — root cause: `ScriptAppHost` setState-after-dispose
+
+| Flow | Reason |
+|------|--------|
+| `dapps.apply_connection` | `_applyConfig` remounts the `ScriptAppHost` (new `GlobalKey<ScriptAppHostState>`). The previous host's State is disposed mid-boot; the Polls bundle's init chain (canister calls to an unreachable local replica) continues running async and fires `setState` on the disposed State. Surfaced as a `_pendingFrame == null` assertion in `LiveTestWidgetsFlutterBinding.postTest`. |
+| `dapps.refresh` | Same as above — `_refreshDapp` also remounts the host (new `GlobalKey`). |
+| `shortcut.dapp_refresh` | Same as `dapps.refresh` (R keyboard shortcut dispatches to the same `_refreshDapp`). |
+
+**Root cause** (app-level, not framework): `ScriptAppHost._dispatch` in
+`lib/widgets/script_app_host.dart` calls `setState` without checking
+`mounted`. The fix is to add a `mounted` guard. This is a real app bug
+worth fixing in its own right (independent of e2e coverage); it would
+leak memory + error logs in production whenever a user clicks Apply or
+Refresh while the bundle is still booting.
+
+#### ❌ STILL DEFERRED — root cause: pre-existing card layout bug
+
+| Flow | Reason |
+|------|--------|
+| `canisters.open_inline_client` | The `RenderFlex overflowed by 80 pixels` warning on `well_known_canisters.dart:145` (the inner `Column` of the well-known canister cards, which uses a `Spacer` to push the method badge to the bottom) is now FATAL under Flutter 3.44.6's `IntegrationTestWidgetsFlutterBinding`. The warnings fire transiently during the `IndexedStack`'s re-layout when switching to Canisters from a non-Scripts tab. Fix: replace the `Spacer` with a fixed `SizedBox(height: …)` (loses the "badge pinned to bottom" UX at narrow widths but eliminates the overflow) or wrap the `Column` in `Flexible`. |
+
+#### ⚠️ Framework bug behaviour changes observed on 3.44.6
+
+1. **`Alt+digit` keyboard tab-switch is unreliable** after `scripts.run`'s
+   `showModalBottomSheet` close. The keystroke doesn't reach the
+   `DesktopShortcuts` `Shortcuts` layer. Workaround: invoke
+   `ModernNavigationBar.onTap(index)` directly.
+2. **`pageBack` to the AppBar back-arrow works** for closing pushed
+   routes — the `RenderAbsorbPointer` at offset (28, 28) that shadowed
+   it on 3.38.3 is gone for the simple push case (DappRunnerScreen).
+   It DOES still intermittently fail when an Overlay entry sits above
+   the AppBar (e.g. a lingering SnackBar); `dismissOverlays` before
+   `pageBack` mitigates.
+3. **Body-content taps inside pushed routes are STILL absorbed** by a
+   residual `RenderAbsorbPointer` in the Overlay theater. AppBar
+   IconButtons are reachable (above the barrier); body `InkWell`s,
+   `FilledButton`s, and `ExpansionTile` titles are not. Workaround:
+   invoke the widget's callback directly
+   (`tester.widget<T>(finder).onPressed!()`).
+4. **Rendering errors are now FATAL** in
+   `IntegrationTestWidgetsFlutterBinding`. Pre-existing
+   `RenderFlex overflowed` warnings (previously silent) fail the test
+   outright. This is what blocks `canisters.open_inline_client`.
+
+### Phase D-resume final tally
+
+- **Desktop coverage: 69 / 92** (was 66 / 92 at Phase D end)
+- **+3 flows UNBLOCKED** (`dapps.local_replica_unreachable`,
+  `dapps.open_frontend`, `download_history.run`)
+- **4 flows still DEFERRED** with documented root causes
+- **2 distinct follow-up bugs** to file:
+  1. `ScriptAppHost._dispatch` missing `mounted` guard (causes
+     setState-after-dispose when Apply/Refresh remounts the host).
+  2. `well_known_canisters.dart:145` Spacer-based layout overflows
+     under tight GridView constraints.
+
 ## Pre-existing app bugs noticed (not fixed)
 
 1. **`well_known_canisters.dart` line 145** — `RenderFlex overflowed by
