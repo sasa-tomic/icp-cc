@@ -319,8 +319,15 @@ abstract final class FlowCatalog {
   /// for the issue tracker; extend as the real-app sweep surfaces more.
   /// Known defects discovered during Phase-0 recon. Each was a RED test → fix →
   /// GREEN in Phase 3. F1–F5, F7, F8 are **resolved** (see git history + TODO.md).
-  /// F6 remains environmental (canned-bridge test does not reproduce the 530).
+  /// F6 was resolved by Phase 56 (dapps.run_poll in suite_poll_local_test.dart
+  /// against a local dfx replica — the HTTP 530 was environmental, caused by
+  /// the replica not running; the dedicated mini-suite + start-local-replica.sh
+  /// helper now bring it up deterministically).
   static const knownIssues = <KnownIssue>[
-    KnownIssue(id: 'F6', flowId: 'dapps.run_poll', severity: IssueSeverity.major, summary: 'dapp vote flow reports HTTP 530 on catalog fetch — environmental; the test uses a canned bridge so this is likely stale', evidence: 'f_dapp_vote_flow_test.dart uses _RecordingBridge, not mainnet'),
+    // F6 resolved (Phase 56, 2026-07-20): dapps.run_poll now runs against a
+    // local dfx replica via suite_poll_local_test.dart. The original note
+    // ("HTTP 530 on catalog fetch — environmental; the test uses a canned
+    // bridge so this is likely stale") was correct — the 530 was the
+    // replica being down, not a real bug.
   ];
 }
