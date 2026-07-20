@@ -43,6 +43,7 @@ import 'package:icp_autorun/screens/bookmarks_screen.dart';
 import 'package:icp_autorun/screens/download_history_screen.dart';
 import 'package:icp_autorun/widgets/bookmarks_list.dart';
 import 'package:icp_autorun/widgets/canister_client_sheet.dart';
+import 'package:icp_autorun/widgets/script_app_host.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
@@ -158,6 +159,48 @@ Future<void> _closeDappRunner(WidgetTester tester, E2EDriver d) async {
       reason: 'DappRunnerScreen must close via one of: Esc, pageBack, '
           'Navigator.pop. None worked — Phase-D Overlay barrier bug is '
           'still present.');
+  await d.dismissOverlays(tester);
+}
+
+/// Closes [DappRunnerScreen] when the runner has JUST remounted its
+/// [ScriptAppHost] (via Connection Apply or Refresh). The remount fires the
+/// new host's init chain; if the bundle makes canister calls, the FIRST call
+/// shows a "Trust this dapp?" / per-method permission [AlertDialog] ABOVE the
+/// runner route. A single [Navigator.pop] pops the dialog, not the runner —
+/// the standard [_closeDappRunner] ladder stops at the first non-pop and
+/// fails. This helper dismisses every dialog FIRST (loop Navigator.pop while
+/// any Dialog remains), then pops the runner route.
+Future<void> _closeDappRunnerAfterRemount(
+    WidgetTester tester, E2EDriver d) async {
+  await d.dismissOverlays(tester);
+  // Phase 1: dismiss any open dialogs (AlertDialog / Dialog) ABOVE the
+  // DappRunnerScreen route. Each Navigator.pop removes the topmost route,
+  // which is a dialog while any remain. Bounded to avoid accidentally
+  // popping the main app route if the runner is somehow already gone.
+  var dialogSafety = 0;
+  while (find.byType(Dialog).evaluate().isNotEmpty && dialogSafety < 6) {
+    dialogSafety++;
+    final rootCtx = find.byType(Navigator).evaluate().first;
+    Navigator.of(rootCtx).pop();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+  // Phase 2: pop the DappRunnerScreen route itself. The runner should now be
+  // the topmost route. If Esc (which DappRunnerScreen's ScreenShortcuts binds
+  // to _handleBack → maybePop) works, prefer that (matches user behaviour).
+  // Otherwise Navigator.pop on the runner's context.
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pump(const Duration(milliseconds: 500));
+  if (d.present(find.byType(DappRunnerScreen), tester)) {
+    final runnerEl = find.byType(DappRunnerScreen).evaluate().first;
+    Navigator.of(runnerEl).pop();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+  final closed = await d.waitUntil(
+      tester, () => !d.present(find.byType(DappRunnerScreen), tester),
+      timeout: const Duration(seconds: 5));
+  expect(closed, isTrue,
+      reason: 'DappRunnerScreen must close after dismissing the post-remount '
+          'permission/trust dialogs.');
   await d.dismissOverlays(tester);
 }
 
@@ -1151,57 +1194,11 @@ void main() {
               'SnackBar.');
       // After Apply, the ScriptAppHost remounts (new GlobalKey → fresh _boot)
       // and the new host begins its init chain against the unreachable local
-      // replica. The Apply SnackBar + new host's busy indicator linger in the
-      // Overlay and shadow the AppBar back-arrow's hit-test. The standard
-      // _closeDappRunner ladder (Esc → pageBack tap → Navigator.pop) is
-      // unreliable here; invoke the back IconButton's onPressed directly
-      // (same pattern as dapps.open_frontend).
-      final runnerScaffold = find.descendant(
-          of: find.byType(DappRunnerScreen),
-          matching: find.byType(Scaffold));
-      if (runnerScaffold.evaluate().isNotEmpty) {
-        ScaffoldMessenger.of(runnerScaffold.evaluate().first)
-            .removeCurrentSnackBar();
-      }
-      await tester.pump(const Duration(milliseconds: 300));
-      await d.dismissOverlays(tester);
-      // Find the AppBar back-arrow IconButton by its 'Back' tooltip and
-      // invoke onPressed. The tooltip wraps the IconButton via Tooltip; use
-      // find.ancestor to get from the tooltip text to the IconButton.
-      final backTooltip = find.byTooltip('Back');
-      if (d.present(backTooltip, tester)) {
-        final backBtn = find.ancestor(
-            of: backTooltip, matching: find.byType(IconButton)).first;
-        tester.widget<IconButton>(backBtn).onPressed!();
-        await tester.pump(const Duration(milliseconds: 500));
-      }
-      // After Apply, the new ScriptAppHost remount fires its init chain. The
-      // Polls bundle's first canister call triggers a "Trust this dapp?"
-      // dialog (and possibly a per-method permission dialog) BEFORE the call
-      // hits the unreachable local replica. These dialogs sit ABOVE the
-      // DappRunnerScreen route, so a single Navigator.pop pops the DIALOG,
-      // not the runner. Loop dismiss+pop until the runner is gone.
-      var safety = 0;
-      while (d.present(find.byType(DappRunnerScreen), tester) &&
-          safety < 8) {
-        safety++;
-        // Dismiss any open dialogs first (Esc bound to maybePop via the
-        // dialog's own Shortcuts).
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await tester.pump(const Duration(milliseconds: 300));
-        if (!d.present(find.byType(DappRunnerScreen), tester)) break;
-        // Then pop the runner route itself.
-        final runnerEl = find.byType(DappRunnerScreen).evaluate().first;
-        Navigator.of(runnerEl).pop();
-        await tester.pump(const Duration(milliseconds: 500));
-      }
-      final closed = await d.waitUntil(
-          tester, () => !d.present(find.byType(DappRunnerScreen), tester),
-          timeout: const Duration(seconds: 5));
-      expect(closed, isTrue,
-          reason: 'DappRunnerScreen must close after dismissing the '
-              'permission/trust dialogs the post-Apply remount fires.');
-      await d.dismissOverlays(tester);
+      // replica. The first canister call fires a "Trust this dapp?" dialog
+      // above the runner route; the standard _closeDappRunner can't pop the
+      // runner until the dialog is dismissed. The remount-aware helper loops
+      // Esc + Navigator.pop to clear dialogs first.
+      await _closeDappRunnerAfterRemount(tester, d);
     })
     // ── PHASE 47 flow: dapps.refresh — Polls card → AppBar refresh icon →
     // SnackBar. Unblocked by the E2E-D-RESUME-1 fix (same root cause as
@@ -1235,7 +1232,10 @@ void main() {
           timeout: const Duration(seconds: 5));
       expect(snackBarShown, isTrue,
           reason: 'Refresh icon must show the "Dapp refreshed" SnackBar.');
-      await _closeDappRunner(tester, d);
+      // Same post-remount dialog cleanup as dapps.apply_connection: the
+      // refreshed host re-boots and its first canister call shows the trust
+      // dialog above the runner.
+      await _closeDappRunnerAfterRemount(tester, d);
     })
     // ── PHASE 48 flow: dapps.open_frontend — Polls card → tap the AppBar
     // open_in_new IconButton → triggers _openFrontend (url_launcher,
@@ -1283,11 +1283,37 @@ void main() {
       await d.waitUntil(
           tester, () => d.present(find.byType(DappRunnerScreen), tester),
           timeout: const Duration(seconds: 5));
+      // Wait for the ScriptAppHost to mount — _refreshDapp silently no-ops
+      // while _bundle == null (the bundle loads async after the runner is
+      // pushed). Without this wait, R fires before the bundle is ready and
+      // no SnackBar appears.
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptAppHost), tester),
+          timeout: const Duration(seconds: 10));
+      // Give ScreenShortcuts' Focus(autofocus: true) a frame to claim primary
+      // focus before sending the keystroke. DappRunnerScreen's route push
+      // transition + the autofocus race can take a few frames to settle.
+      await tester.pump(const Duration(milliseconds: 800));
+
+      // Tap the AppBar title to prime primary-focus onto the DappRunnerScreen
+      // (the bundle's UI may have moved focus to a focusable descendant of
+      // ScriptAppHost; without this prime, ScreenShortcuts' autofocus may
+      // have been lost to a focusable descendant). The title is non-interactive
+      // — tapping it just claims focus for the route's FocusScope.
+      final appBarTitle = find
+          .descendant(
+              of: find.byType(AppBar),
+              matching: find.byType(Text))
+          .first;
+      if (d.present(appBarTitle, tester)) {
+        await tester.tap(appBarTitle, warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 300));
+      }
 
       // Press R. ScreenShortcuts binds SingleActivator(LogicalKeyboardKey.keyR)
       // to _RefreshIntent → _refreshDapp.
       await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 500));
 
       final snackBarShown = await d.waitUntil(
           tester, () => d.present(find.textContaining('Dapp refreshed'), tester),
@@ -1295,7 +1321,8 @@ void main() {
       expect(snackBarShown, isTrue,
           reason: 'R key must trigger _refreshDapp via ScreenShortcuts → '
               '"Dapp refreshed" SnackBar.');
-      await _closeDappRunner(tester, d);
+      // Same post-remount dialog cleanup as dapps.apply_connection.
+      await _closeDappRunnerAfterRemount(tester, d);
     })
     // ── PHASE 49 flow: canisters.open_inline_client — tap a Popular Canister
     // card → CanisterClientSheet bottom sheet opens → close. Unblocked by the
