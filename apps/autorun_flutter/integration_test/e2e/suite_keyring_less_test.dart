@@ -27,6 +27,7 @@
 ///   download_history.view, download_history.remove, download_history.clear,
 ///   canisters.bookmark_well_known, canisters.save_composer,
 ///   canisters.recent_calls, canisters.tap_bookmark, canisters.refresh_pull,
+///   canisters.open_inline_client,
 ///   dapps.open_catalog
 @TestOn('linux')
 library;
@@ -39,6 +40,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:icp_autorun/screens/bookmarks_screen.dart';
 import 'package:icp_autorun/screens/download_history_screen.dart';
 import 'package:icp_autorun/widgets/bookmarks_list.dart';
+import 'package:icp_autorun/widgets/canister_client_sheet.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
@@ -1148,16 +1150,55 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await _closeDappRunner(tester, d);
     })
-    // ── PHASE 49 flow: canisters.open_inline_client — STILL DEFERRED on
-    // Flutter 3.44.6. The pre-existing RenderFlex layout warning on
-    // well_known_canisters.dart line 145 cards (Spacer in a tight-constraint
-    // GridView cell) is now FATAL under Flutter 3.44.6's
-    // IntegrationTestWidgetsFlutterBinding. The warnings fire transiently
-    // during the IndexedStack's re-layout when switching to Canisters from
-    // a non-Scripts tab. Fix requires reworking the card layout (replace
-    // Spacer with a fixed gap, OR wrap in Flexible) — out of scope for this
-    // task (the task is to write flows, not fix app bugs).
-    // ..register('canisters.open_inline_client', ...)
+    // ── PHASE 49 flow: canisters.open_inline_client — tap a Popular Canister
+    // card → CanisterClientSheet bottom sheet opens → close. Unblocked by the
+    // E2E-D-RESUME-2 fix (the RenderFlex layout overflow on the cards is now
+    // fatal under Flutter 3.44.6's IntegrationTestWidgetsFlutterBinding; the
+    // SingleChildScrollView wrap in well_known_canisters.dart eliminates the
+    // overflow at every width).
+    ..register('canisters.open_inline_client', (tester, d) async {
+      // Switch to the Canisters tab via the ModernNavigationBar's onTap
+      // callback (index 1). Alt+2 is unreliable after scripts.run's
+      // bottom-sheet close (residual RenderAbsorbPointer shadows the
+      // gesture — see Phase D-resume §"Framework bug behaviour changes" 1).
+      final navBar = tester.widget<ModernNavigationBar>(
+          find.byType(ModernNavigationBar));
+      navBar.onTap(1);
+      await tester.pump(const Duration(milliseconds: 500));
+      await d.waitUntil(
+          tester, () => d.present(find.byType(BookmarksScreen), tester),
+          timeout: const Duration(seconds: 5));
+      final ready = await d.waitUntil(
+          tester, () => d.present(find.byType(WellKnownList), tester),
+          timeout: const Duration(seconds: 10));
+      expect(ready, isTrue, reason: 'WellKnownList must render on Canisters.');
+
+      // Tap the first card's title (an NNS Registry card). The card's
+      // Semantics(button: true, label: 'Open NNS Registry') wraps the entire
+      // InkWell, so tapping the visible label fires the open-tap.
+      const canisterName = 'NNS Registry';
+      await tester.tap(find.text(canisterName).first);
+      final sheetOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(CanisterClientSheet), tester),
+          timeout: const Duration(seconds: 5));
+      expect(sheetOpen, isTrue,
+          reason: 'Tapping a Popular Canister card must open the '
+              'CanisterClientSheet inline client.');
+
+      // Close via Navigator.pop on the sheet's context. The bottom sheet's
+      // own drag-handle / close affordance is the canonical close path; the
+      // modal barrier (RenderAbsorbPointer) sometimes shadows taps right
+      // after open, so Navigator.pop is the most reliable.
+      final sheetEl = find.byType(CanisterClientSheet).evaluate().firstOrNull;
+      expect(sheetEl, isNotNull, reason: 'CanisterClientSheet must be mounted.');
+      Navigator.of(sheetEl!).pop();
+      await d.waitUntil(
+          tester, () => !d.present(find.byType(CanisterClientSheet), tester),
+          timeout: const Duration(seconds: 5));
+      // Allow the modal barrier to clear.
+      await tester.pump(const Duration(milliseconds: 300));
+      await d.dismissOverlays(tester);
+    })
     // ── PHASE 50 flow: download_history.run — open download history, tap
     // the Hello IC Starter record (added by phase 44's scripts.run via
     // recordScriptRun) → ScriptExecutionBottomSheet opens via the same
@@ -1591,8 +1632,11 @@ void main() {
     if (shouldStopAfter('dapps.open_frontend')) return;
     driver.phase('48', 'OK — dapps.open_frontend');
 
-    // PHASE 49: canisters.open_inline_client — STILL DEFERRED (pre-existing
-    // card layout overflow now fatal under Flutter 3.44.6).
+    // PHASE 49: canisters.open_inline_client — Popular Canister card → sheet.
+    driver.phase('49', 'canisters: open inline client');
+    await registry.runFor('canisters.open_inline_client')!(tester, driver);
+    if (shouldStopAfter('canisters.open_inline_client')) return;
+    driver.phase('49', 'OK — canisters.open_inline_client');
 
     // PHASE 50: download_history.run — record tap → ScriptExecutionBottomSheet.
     driver.phase('50', 'download_history: run via record tap');
@@ -1607,9 +1651,10 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(48),
-        reason: 'keyring-less must cover at least 48 flows '
-            '(42 base + 2 Phase-D easy + 1 Phase-D medium + 3 Phase D-resume).');
+    expect(cov.implemented, greaterThanOrEqualTo(49),
+        reason: 'keyring-less must cover at least 49 flows '
+            '(42 base + 2 Phase-D easy + 1 Phase-D medium + 3 Phase D-resume '
+            '+ 1 Phase D-resume-2 fix canisters.open_inline_client).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '
