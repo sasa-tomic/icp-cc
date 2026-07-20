@@ -13,6 +13,26 @@
 
 ## Critical / Blockers
 
+### E2E-PHASE51 — `scripts.delete` dialog chain (was binding-flaky on 3.38.3)
+
+- **Status**: 🟢 RESOLVED (2026-07-20, Phase 51)
+- **Surfaced**: pre-existing (Phase D triage, 2026-07-19) — `docs/specs/phase-d-triage.md` §"Flows still listed as DEFER"
+- **Severity**: MEDIUM (1 deferred e2e flow)
+- **Location**: `apps/autorun_flutter/lib/screens/scripts_screen.dart:999-1023` (`_confirmAndDeleteScript`)
+
+`scripts.delete` was DEFERRED on Flutter 3.38.3 with the note: *"Async dialog
+callback chain doesn't complete reliably under IntegrationTest binding"*
+(`docs/specs/phase-d-triage.md`). The dialog (`showDialog<bool>` → AlertDialog
+with Cancel/Delete buttons) was reachable but the second-stage `await
+showDialog` future didn't resolve under the binding's fake clock.
+
+**Unblocked by:** Flutter 3.44.6 upgrade (commit `e6c90ab0`) — the partial
+Overlay `RenderAbsorbPointer` fix lets the dialog's `FilledButton.tonal` tap
+land. The e2e flow at PHASE 51 of `suite_keyring_less_test.dart` now invokes
+`LocalScriptRowMenu.onConfirmDelete` (callback-direct, avoiding the popup-menu
+gesture interception), then taps the Delete confirmation, then asserts the
+"Script deleted" SnackBar + the script row is gone. Coverage 52 → 53.
+
 ### E2E-D-RESUME-1 — ScriptAppHost setState-after-dispose (blocks 3 dapp e2e flows)
 
 - **Status**: 🟢 RESOLVED (2026-07-20, commit `f2054990`)

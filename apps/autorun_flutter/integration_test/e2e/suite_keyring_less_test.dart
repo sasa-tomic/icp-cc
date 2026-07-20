@@ -31,6 +31,7 @@
 ///   dapps.open_catalog, dapps.local_replica_unreachable,
 ///   dapps.apply_connection, dapps.refresh, dapps.open_frontend,
 ///   shortcut.dapp_refresh,
+///   scripts.delete (Phase 51 — unblocked on Flutter 3.44.6),
 @TestOn('linux')
 library;
 
@@ -1441,6 +1442,65 @@ void main() {
       await tester.pageBack();
       await tester.pump(const Duration(milliseconds: 500));
     })
+    // ── PHASE 51 flow: scripts.delete — invoke onConfirmDelete on the
+    // downloaded Hello IC Starter script → AlertDialog → tap "Delete" →
+    // _controller.deleteScript + "Script deleted" SnackBar.
+    //
+    // Previously DEFERRED on Flutter 3.38.3 ("async dialog callback chain
+    // doesn't complete reliably under IntegrationTest binding"). On 3.44.6
+    // (with the partial Overlay `RenderAbsorbPointer` fix), tapping the
+    // dialog's Delete button now works (warnIfMissed: false as a safety net
+    // against any residual AbsorbPointer shadowing the button hit-test).
+    ..register('scripts.delete', (tester, d) async {
+      await d.dismissOverlays(tester);
+      await d.waitUntil(
+          tester, () => d.present(find.byType(ScriptsScreen), tester),
+          timeout: const Duration(seconds: 5));
+      // Find the LocalScriptRowMenu for the downloaded Hello IC Starter
+      // (added by phase 34 scripts.download_free).
+      final menus = tester.widgetList<LocalScriptRowMenu>(
+          find.byType(LocalScriptRowMenu));
+      expect(menus, isNotEmpty,
+          reason: 'At least one LocalScriptRowMenu must be present '
+              '(downloaded Hello IC Starter from phase 34).');
+      final menu = menus.firstWhere(
+          (m) => m.record.isFromMarketplace,
+          orElse: () => throw StateError(
+              'No LocalScriptRowMenu for a downloaded marketplace script. '
+              'Available: ${menus.map((m) => m.record.title)}'));
+      // Invoke the delete callback (avoids popup-menu gesture interception).
+      // onConfirmDelete opens the AlertDialog; we then tap "Delete".
+      await tester.runAsync(() async {
+        menu.onConfirmDelete();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pump(const Duration(milliseconds: 300));
+      // The AlertDialog must be present.
+      final dialogOpen = await d.waitUntil(
+          tester, () => d.present(find.byType(AlertDialog), tester),
+          timeout: const Duration(seconds: 5));
+      expect(dialogOpen, isTrue,
+          reason: 'onConfirmDelete must open the AlertDialog.');
+      // Tap the "Delete" confirmation button (FilledButton.tonal labelled
+      // "Delete"). warnIfMissed: false guards against a transient residual
+      // AbsorbPointer; the SnackBar assertion below fails loud if the tap
+      // truly missed.
+      final deleteBtn = find.widgetWithText(FilledButton, 'Delete');
+      expect(d.present(deleteBtn, tester), isTrue,
+          reason: 'Delete dialog must have a FilledButton labelled "Delete".');
+      await tester.tap(deleteBtn, warnIfMissed: false);
+      // _controller.deleteScript is async (file I/O + state mutation). Give
+      // the binding real wall-clock for the SnackBar to mount.
+      await d.waitUntil(
+          tester,
+          () => d.present(find.textContaining('Script deleted'), tester),
+          timeout: const Duration(seconds: 10));
+      // The script row must be gone (the local list no longer contains it).
+      final stillListed = d.present(
+          find.text('Hello IC Starter (Marketplace)'), tester);
+      expect(stillListed, isFalse,
+          reason: 'Delete must remove the local script row.');
+    })
     ;
 
   testWidgets('e2e suite — keyring-less: shared boot + flows', (tester) async {
@@ -1832,6 +1892,13 @@ void main() {
     if (shouldStopAfter('download_history.run')) return;
     driver.phase('50', 'OK — download_history.run');
 
+    // PHASE 51: scripts.delete — onConfirmDelete on Hello IC Starter →
+    // AlertDialog → tap Delete → SnackBar + script row gone.
+    driver.phase('51', 'scripts: delete via confirm dialog');
+    await registry.runFor('scripts.delete')!(tester, driver);
+    if (shouldStopAfter('scripts.delete')) return;
+    driver.phase('51', 'OK — scripts.delete');
+
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -1839,11 +1906,12 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(52),
-        reason: 'keyring-less must cover at least 52 flows '
+    expect(cov.implemented, greaterThanOrEqualTo(53),
+        reason: 'keyring-less must cover at least 53 flows '
             '(42 base + 2 Phase-D easy + 1 Phase-D medium + 3 Phase D-resume '
             '+ 4 post-bug-fix: canisters.open_inline_client, '
-            'dapps.apply_connection, dapps.refresh, shortcut.dapp_refresh).');
+            'dapps.apply_connection, dapps.refresh, shortcut.dapp_refresh, '
+            '+ 1 Phase-51: scripts.delete).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '
