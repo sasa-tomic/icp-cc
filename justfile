@@ -691,7 +691,7 @@ seed-marketplace count="25":
 # so NO FFI is touched. Covers all Surface.web / Surface.both flows; QuickJS /
 # IC-agent / deeplink / keyboard-shortcut flows are desktop-only.
 #
-# Two suite files run by default:
+# Two Three suite files run by default:
 #   1. suite_web_smoke_test.dart  — Tier 1 (no substrate): boot contract +
 #      nav-bar shell render (2 widget tests, no plugins).
 #   2. suite_web_flows_test.dart  — Tier A (substrate fakes at the smallest
@@ -700,15 +700,18 @@ seed-marketplace count="25":
 #      (first_run.dismiss_wizard, profile.open_menu, settings.open/theme/
 #      version_display, scripts.browse_marketplace). Same flow bodies the
 #      desktop suite uses (cross-surface sharing via flow_implementations.dart).
+#   3. suite_web_phase_l_test.dart — Phase L Tier A (substrate + visibleForTesting
+#      seams): 6 deferred flows (3 passkey + 3 deeplink) that need the platform
+#      seams to flip PasskeyPlatform.isSupported + bypass browser WebAuthn.
 #
 # Backend is the REAL local server; IC mainnet reaches the browser directly /
 # via the CORS proxy. Only ICPay checkout is mocked (ICP_E2E_MOCK_ICPAY=1 —
 # icpay.org is unreachable from the sandbox).
 #
 # Override the suite by passing `file=` (single file):
-#   just e2e-web                       # default: both suites
+#   just e2e-web                       # default: all three suites
 #   just e2e-web file=test/e2e_web/substrate_smoke_test.dart
-e2e-web file="test/e2e_web/suite_web_smoke_test.dart test/e2e_web/suite_web_flows_test.dart":
+e2e-web file="test/e2e_web/suite_web_smoke_test.dart test/e2e_web/suite_web_flows_test.dart test/e2e_web/suite_web_phase_l_test.dart":
     #!/usr/bin/env bash
     set -euo pipefail
     api_port=$(just _api-dev-port)

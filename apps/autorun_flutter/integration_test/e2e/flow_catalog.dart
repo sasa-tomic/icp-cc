@@ -262,11 +262,15 @@ abstract final class FlowCatalog {
     FlowSpec(id: 'shortcut.details_prev_next_tab', name: '←/→ — detail dialog tabs', surfaces: _d, tags: {'desktop-only', 'keyboard'}, entry: 'script_details_dialog.dart'),
   ];
 
-  // ── M. Deep links (desktop, non-linux) ───────────────────────────────────
+  // ── M. Deep links (Phase L: Web Tier A substrate lets these run on Web too)
+  // The desktop routes deep links through `app_links`; the Web Tier A
+  // harness pumps synthetic URIs through `DeepLinkService.instance.handleLink`
+  // directly (the same public API the app's listener subscribes to on
+  // non-linux surfaces) and asserts dispatch behaviour at the parsing layer.
   static const deeplink = <FlowSpec>[
-    FlowSpec(id: 'deeplink.open_script', name: 'Open script via deep link', surfaces: _d, keyring: Keyring.mockSecretService, tags: {'desktop-only'}, entry: 'main.dart'),
-    FlowSpec(id: 'deeplink.purchase_unavailable', name: 'Deep-link purchase unavailable notice', surfaces: _d, entry: 'main.dart'),
-    FlowSpec(id: 'deeplink.invalid_scheme', name: 'Invalid deep-link scheme ignored', surfaces: _d, entry: 'deep_link_service.dart'),
+    FlowSpec(id: 'deeplink.open_script', name: 'Open script via deep link', surfaces: _b, keyring: Keyring.mockSecretService, tags: {'desktop-only', 'phase-l-web'}, entry: 'main.dart'),
+    FlowSpec(id: 'deeplink.purchase_unavailable', name: 'Deep-link purchase unavailable notice', surfaces: _b, tags: {'phase-l-web'}, entry: 'main.dart'),
+    FlowSpec(id: 'deeplink.invalid_scheme', name: 'Invalid deep-link scheme ignored', surfaces: _b, tags: {'phase-l-web'}, entry: 'deep_link_service.dart'),
   ];
 
   static List<FlowSpec> get all => <FlowSpec>[

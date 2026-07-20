@@ -267,6 +267,31 @@ class SubstrateMockServer {
       );
     });
   }
+
+  /// Test-only accessor for the in-memory passkey store (Phase L). The
+  /// `defaultServer` factory captures the store in a closure when it
+  /// registers the `/api/v1/passkey/*` routes; tests use this getter to
+  /// pre-seed state and assert post-conditions. Throws [StateError] if
+  /// [defaultServer] hasn't been called or didn't wire the passkey store
+  /// (defensive — surfaces a clear "did you call defaultServer?" error
+  /// instead of a confusing null-deref later).
+  SubstratePasskeyStore get passkeyStoreForTesting {
+    final s = _passkeyStore;
+    if (s == null) {
+      throw StateError(
+        'SubstrateMockServer.passkeyStoreForTesting: the passkey store was '
+        'not bound. Call defaultServer() (which binds it) before reading.',
+      );
+    }
+    return s;
+  }
+
+  /// Test-only binder for the passkey store. Called once by [defaultServer].
+  void bindPasskeyStoreForTesting(SubstratePasskeyStore store) {
+    _passkeyStore = store;
+  }
+
+  SubstratePasskeyStore? _passkeyStore;
 }
 
 /// Pre-seeded dispatcher with the routes the Tier-A flow set needs.
@@ -499,7 +524,175 @@ SubstrateMockServer defaultServer({
     );
   });
 
+  // Passkey routes (Phase L). Backed by [SubstratePasskeyStore] — an
+  // in-memory credential list. The substrate boundary is the literal HTTP
+  // call; PasskeyService Dart code (signature generation, request building,
+  // response parsing) runs for real. The browser-side WebAuthn call
+  // (`navigator.credentials.create`) is bypassed via the
+  // NativePasskeyAuthenticator override seam — see
+  // passkey_authenticator_native.dart.
+  //
+  // SCOPING SIMPLIFICATION: the real backend resolves `account_id`
+  // server-side from the request's Ed25519 signature (the wire body does
+  // NOT carry account_id explicitly — see PasskeyService._signAccountRequest).
+  // The substrate doesn't verify signatures, so it can't do that resolution.
+  // Instead, the substrate stores passkeys in a single global bucket and the
+  // `/list/{accountId}` endpoint returns that bucket regardless of the
+  // accountId path segment. This is documented substrate boundary
+  // simplification — the passkey.list/register/delete Web Tier A flows
+  // exercise the CLIENT-SIDE wire + UI contract (HTTP, parsing, SnackBars,
+  // list refresh), not backend account-scoping (which has its own backend
+  // Rust tests).
+  final passkeys = SubstratePasskeyStore();
+  server.bindPasskeyStoreForTesting(passkeys);
+  // GET /passkey/list/:accountId → { data: [...] }.
+  server.route('GET', RegExp(r'/api/v1/passkey/list/[^/]+$'), (request) {
+    return http.Response(
+      jsonEncode(<String, dynamic>{
+        'success': true,
+        'data': passkeys.allForTesting,
+      }),
+      200,
+      headers: const <String, String>{'content-type': 'application/json'},
+    );
+  });
+  // POST /passkey/register/start → returns { challenge_id, options: {...} }.
+  // The options blob mirrors the WebAuthn PublicKeyCredentialCreationOptions
+  // shape; the substrate doesn't verify the cryptographic challenge — the
+  // finish handler accepts any well-formed credential JSON.
+  server.route('POST', RegExp(r'/api/v1/passkey/register/start$'), (request) {
+    return http.Response(
+      jsonEncode(<String, dynamic>{
+        'success': true,
+        'data': <String, dynamic>{
+          'challenge_id': 'chal-${DateTime.now().microsecondsSinceEpoch}',
+          'options': <String, dynamic>{
+            'rp': <String, dynamic>{'id': 'icpautorun.app', 'name': 'ICP Autorun'},
+            'user': <String, dynamic>{
+              'id': 'user-${DateTime.now().microsecondsSinceEpoch}',
+              'name': 'tester',
+              'displayName': 'Tester',
+            },
+            'challenge': 'substrate-challenge-base64url',
+            'pubKeyCredParams': <dynamic>[
+              <String, dynamic>{'type': 'public-key', 'alg': -7},
+            ],
+            'authenticatorSelection': <String, dynamic>{
+              'authenticatorAttachment': 'platform',
+              'userVerification': 'required',
+            },
+          },
+        },
+      }),
+      200,
+      headers: const <String, String>{'content-type': 'application/json'},
+    );
+  });
+  // POST /passkey/register/finish → stores the credential, returns the
+  // registration result envelope. Pulls device_name from the body so flows
+  // can assert on it. The passkey is added to the global bucket (see
+  // SCOPING SIMPLIFICATION above).
+  server.route('POST', RegExp(r'/api/v1/passkey/register/finish$'), (request) {
+    final dynamic decoded = jsonDecode(request.body);
+    final body = decoded is Map ? decoded : <String, dynamic>{};
+    final challengeId = body['challenge_id'] as String? ??
+        'chal-unknown';
+    final deviceName = body['device_name'] as String? ?? 'Test Device';
+    final deviceType = body['device_type'] as String? ?? 'cross-platform';
+    final id = 'pk-${DateTime.now().microsecondsSinceEpoch}';
+    final now = DateTime.now().toIso8601String();
+    final entry = <String, dynamic>{
+      'id': id,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'created_at': now,
+      'last_used_at': null,
+      '_challenge_id': challengeId,
+    };
+    passkeys.addGlobalForTesting(entry);
+    return http.Response(
+      jsonEncode(<String, dynamic>{
+        'success': true,
+        'data': <String, dynamic>{
+          'id': id,
+          'device_name': deviceName,
+          'device_type': deviceType,
+          'created_at': now,
+        },
+      }),
+      200,
+      headers: const <String, String>{'content-type': 'application/json'},
+    );
+  });
+  // DELETE /passkey/:id → removes the credential. Body carries the
+  // signature-gate fields (real PasskeyService signs the canonical payload
+  // with the active keypair; substrate ignores the signature). Returns 404
+  // envelope for unknown ids (matches real backend contract).
+  server.route('DELETE', RegExp(r'/api/v1/passkey/[^/]+$'), (request) {
+    final id = request.url.pathSegments.last;
+    final removed = passkeys.remove(id);
+    if (!removed) {
+      return http.Response(
+        jsonEncode(<String, dynamic>{
+          'success': false,
+          'error': 'Passkey not found',
+        }),
+        404,
+        headers: const <String, String>{'content-type': 'application/json'},
+      );
+    }
+    return http.Response(
+      jsonEncode(<String, dynamic>{'success': true, 'data': <String, dynamic>{}}),
+      200,
+      headers: const <String, String>{'content-type': 'application/json'},
+    );
+  });
+
   return server;
+}
+
+/// In-memory passkey store for the substrate HTTP server.
+///
+/// Backs the four `/api/v1/passkey/*` routes added in [defaultServer]. As
+/// documented in [defaultServer], the substrate does NOT scope passkeys by
+/// account (the real backend derives account_id from the Ed25519 signature,
+/// which the substrate can't verify) — there is a single global bucket,
+/// accessed via [allForTesting] / [addGlobalForTesting] / [remove].
+///
+/// State persists for the lifetime of the server (i.e. the suite) so
+/// sequential flows (register → list → delete → list-empty) see each other's
+/// writes.
+class SubstratePasskeyStore {
+  final List<Map<String, dynamic>> _global = <Map<String, dynamic>>[];
+
+  /// All passkeys currently in the global bucket (insertion-ordered).
+  /// Read-only view — mutate via [addGlobalForTesting] / [remove] /
+  /// [clearForTesting].
+  List<Map<String, dynamic>> get allForTesting =>
+      List<Map<String, dynamic>>.unmodifiable(_global);
+
+  /// Append a passkey JSON envelope to the global bucket.
+  void addGlobalForTesting(Map<String, dynamic> passkey) {
+    _global.add(passkey);
+  }
+
+  /// Remove the first passkey with matching id. Returns true iff a passkey
+  /// was removed.
+  bool remove(String passkeyId) {
+    final before = _global.length;
+    _global.removeWhere((p) => p['id'] == passkeyId);
+    return _global.length < before;
+  }
+
+  /// Test-only: clear all state. Used by the Phase L passkey phases to
+  /// start from a clean slate even after a prior crashed run leaves state
+  /// behind.
+  void clearForTesting() {
+    _global.clear();
+  }
+
+  /// Total passkey count (for assertions).
+  int get total => _global.length;
 }
 
 /// Install a [SubstrateMockServer] into both HTTP-using singletons
