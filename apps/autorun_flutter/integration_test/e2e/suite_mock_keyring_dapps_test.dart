@@ -1,11 +1,12 @@
 // ignore_for_file: lines_longer_than_80_chars
 
-/// Suite — PASS 3 (mock Secret Service / Dapp + shortcut flows split-off).
+/// Suite — PASS 3 (mock Secret Service / daps + wizard + shortcut split-off).
 ///
 /// Boots the REAL app ONCE under the mock keyring
-/// (`scripts/run-with-mock-keyring.sh`), creates a real profile + registers
-/// a real backend account, then runs the dapp trust/copy-principal flows
-/// and the Ctrl+S save-profile shortcut flow against the registered state.
+/// (`scripts/run-with-mock-keyring.sh`), drives the FULL first-run wizard
+/// (creating a real profile + registering a real backend account), then
+/// runs the dapp trust/copy-principal flows and the Ctrl+S save-profile
+/// shortcut flow against the registered state.
 ///
 /// These flows were split out of `suite_mock_keyring_test.dart` because
 /// that suite's single `testWidgets` body was approaching the flutter_test
@@ -13,11 +14,12 @@
 /// adding stream" crash past ~30 phases — same root cause as
 /// `suite_keyring_less_test.dart` per OPEN_ISSUES E2E-PHASE56+57). The
 /// profile/account/keypair/vault flows stay in the original suite; the
-/// dapp + shortcut flows move here.
+/// wizard + dapp + shortcut flows move here.
 ///
-/// Run: `just e2e-desktop` (PASS 3 — wrapped in the mock Secret Service,
+/// Run: `just e2e-desktop` (PASS 2b — wrapped in the mock Secret Service,
 /// same as PASS 2). Also runnable standalone via
-/// `just e2e-one dapps.copy_principal mock-keyring-dapps` etc.
+/// `just e2e-one first_run.create_profile_with_account mock-keyring-dapps`
+/// (or any other flow id in this suite).
 @TestOn('linux')
 library;
 
@@ -27,15 +29,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:icp_autorun/config/example_dapps.dart';
-import 'package:icp_autorun/controllers/account_controller.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
-import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/screens/account_profile_screen.dart';
 import 'package:icp_autorun/screens/dapp_runner_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
+import 'package:icp_autorun/widgets/profile_scope.dart';
 
 import 'flow_catalog.dart';
 import 'e2e_driver.dart';
@@ -52,6 +53,107 @@ void main() {
   const testProfileName = 'Dapp Suite Owner';
 
   final registry = FlowRegistry()
+    // ── first_run.create_profile_with_account: drive the FULL wizard flow
+    // (display name + username → Get Started → success → Start Exploring),
+    // creating both a profile AND a backend account. Runs as PHASE 1 in this
+    // suite (the wizard is on stage after PHASE 0's boot). Also doubles as
+    // this suite's profile setup — the dapp/shortcut phases that follow
+    // rely on the registered account this wizard call creates.
+    ..register('first_run.create_profile_with_account', (tester, d) async {
+      // The wizard must be on stage from PHASE 0.
+      expect(d.present(find.byType(UnifiedSetupWizard), tester), isTrue,
+          reason: 'PHASE 0 must have wiped state + booted, leaving the '
+              'wizard on stage.');
+
+      // Enter display name (find by hintText — the TextFormField wraps an
+      // internal TextField that carries the InputDecoration at runtime).
+      final displayNameField = find.byWidgetPredicate((w) =>
+          w is TextField &&
+          (w.decoration?.hintText?.contains('How should we call you?') ??
+              false));
+      await tester.enterText(displayNameField, testProfileName);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Enter a unique username (validation includes a real backend
+      // availability check, so the value MUST be unique across runs).
+      final uniqueUsername = 'wiz_${DateTime.now().millisecondsSinceEpoch}';
+      final usernameField = find.byWidgetPredicate((w) =>
+          w is TextField &&
+          (w.decoration?.hintText?.contains('Choose a username') ?? false));
+      await tester.enterText(usernameField, uniqueUsername);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // Username validation is debounced (~500ms) + involves a real backend
+      // round-trip (isUsernameAvailable). Wait for Get Started to become
+      // clickable (the _canCreate getter returns true only when validation
+      // passed).
+      final buttonEnabled = await d.waitUntil(
+          tester,
+          () {
+            final btn = tester.widgetList<FilledButton>(
+                find.widgetWithText(FilledButton, 'Get Started'));
+            return btn.isNotEmpty && btn.first.onPressed != null;
+          },
+          timeout: const Duration(seconds: 15));
+      expect(buttonEnabled, isTrue,
+          reason: 'After entering a valid display name + unique username, '
+              'Get Started must become enabled.');
+
+      // Tap Get Started → _handleCreate (createProfile + registerAccount +
+      // connectivity probe). Real FFI keygen + signed POST. Drive the
+      // round-trip under runAsync so the network I/O completes.
+      // NOTE: "Get Started" appears twice — as the AppBar title (size 24)
+      // AND as the FilledButton label (size 16). Use widgetWithText to
+      // disambiguate to the button.
+      await tester.runAsync(() async {
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await Future<void>.delayed(const Duration(seconds: 2));
+      });
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // The success screen renders with "Success!" header.
+      final successShown = await d.waitUntil(
+          tester, () => d.present(find.text('Success!'), tester),
+          timeout: const Duration(seconds: 20));
+      expect(successShown, isTrue,
+          reason: 'The wizard must complete profile + account creation and '
+              'show the success screen.');
+      expect(d.present(find.textContaining('marketplace account'), tester),
+          isTrue,
+          reason: 'The success copy must mention the marketplace account was '
+              'created (not the local-only path).');
+
+      // Tap "Start Exploring" → pops the wizard with the result.
+      await tester.tap(find.text('Start Exploring'));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // The wizard must have popped + the main shell must render.
+      final wizardClosed = await d.waitUntil(
+          tester, () => !d.present(find.byType(UnifiedSetupWizard), tester),
+          timeout: const Duration(seconds: 5));
+      expect(wizardClosed, isTrue,
+          reason: 'Tapping Start Exploring must dismiss the wizard.');
+      expect(d.present(find.byType(ScriptsScreen), tester), isTrue,
+          reason: 'After the wizard completes, ScriptsScreen must render.');
+
+      // Verify the profile + account actually persisted. Read via the
+      // running app's ProfileScope (the wizard used the same controller).
+      // Creating a standalone controller here would construct a fresh
+      // ProfileRepository that may not see writes that haven't been
+      // flushed yet.
+      final profileController = ProfileScope.of(
+          tester.element(find.byType(ScriptsScreen)),
+          listen: false);
+      final profile = profileController.activeProfile;
+      expect(profile, isNotNull,
+          reason: 'The wizard must have persisted an active profile.');
+      expect(profile!.name, testProfileName,
+          reason: 'The persisted profile name must match what we entered.');
+      expect(profile.username, uniqueUsername,
+          reason: 'The persisted profile username must match what we entered '
+              '(the wizard calls updateProfileUsername after registerAccount).');
+    })
     // ── dapps.copy_principal: open the ICP Ledger dapp (mainnet, no local
     // replica needed) → DappRunnerScreen mounts → the auth-status chip
     // "Signed as: <principal>" is tap-to-copy. Pre-trust the dapp via
@@ -322,46 +424,27 @@ void main() {
         reason: 'Clean store under the mock keyring must show the wizard.');
     driver.phase('0', 'OK');
 
-    // ── PHASE 1: create a REAL profile + register a backend account ───────
-    final controller = newStandaloneController();
-    String? profileId;
-    await tester.runAsync(() async {
-      final profile = await controller.createProfile(
-        profileName: testProfileName,
-        algorithm: KeyAlgorithm.ed25519,
-        setAsActive: true,
-      );
-      profileId = profile.id;
+    // ── PHASE 1: first_run.create_profile_with_account ───────────────────
+    // Drive the FULL wizard UI flow (display name + unique username → Get
+    // Started → success → Start Exploring). This is BOTH the
+    // first_run.create_profile_with_account flow AND the profile-setup
+    // phase for this suite's subsequent dapp/shortcut flows — the wizard
+    // creates a real profile + registers a real backend account, which is
+    // exactly the precondition the dapp flows need.
+    driver.phase('1', 'wizard: display name + username → account created');
+    await registry.runFor('first_run.create_profile_with_account')!(tester, driver);
+    if (shouldStopAfter('first_run.create_profile_with_account')) return;
+    driver.phase('1', 'OK — first_run.create_profile_with_account');
 
-      // Register the account against the real backend.
-      final username = 'e2edapp_${DateTime.now().millisecondsSinceEpoch}';
-      final accountController =
-          AccountController(profileController: controller);
-      final account = await accountController.registerAccount(
-        keypair: profile.primaryKeypair,
-        username: username,
-        displayName: testProfileName,
-      );
-      accountController.dispose();
-      await controller.updateProfileUsername(
-        profileId: profile.id,
-        username: username,
-      );
-      expect(account, isNotNull,
-          reason: 'Account registration must succeed against the real '
-              'backend (signed request via FFI Ed25519).');
-    });
-    expect(profileId, isNotEmpty,
-        reason: 'createProfile must succeed under the mock keyring.');
-
-    await driver.remount(tester);
+    // Verify the profile is loaded (the wizard flow already asserted the
+    // persisted state; here we just confirm the shell is interactive).
     final scriptsShown = await driver.waitUntil(
         tester, () => driver.present(find.byType(ScriptsScreen), tester),
         timeout: const Duration(seconds: 15));
     expect(scriptsShown, isTrue,
         reason: 'With a profile + registered account in the store, the '
             'remounted app loads it and skips the first-run gate.');
-    driver.phase('1', 'profile + account registered + remounted');
+    driver.phase('1b', 'profile + account loaded — wizard popped');
 
     // ── PHASE 2: dapps.copy_principal ─────────────────────────────────────
     driver.phase('2', 'dapps: copy principal (auth-status chip → clipboard)');
@@ -392,8 +475,8 @@ void main() {
     driver.phase('COVERAGE',
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
-    expect(cov.implemented, greaterThanOrEqualTo(4),
-        reason: 'mock-keyring-dapps must cover at least 4 flows.');
+    expect(cov.implemented, greaterThanOrEqualTo(5),
+        reason: 'mock-keyring-dapps must cover at least 5 flows.');
 
     // ignore: avoid_print
     print('SUITE_MOCK_KEYRING_DAPS: PASS — ${cov.implemented} flows covered.');
