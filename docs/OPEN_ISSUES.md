@@ -621,13 +621,22 @@ probe entirely. Tests in
 
 ### UX-H8 — "Canisters" tab label is unexplained jargon
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21, commit `b3fb18e1`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-8)
 - **Severity**: HIGH (first-impression confusion)
 - **Locations**: `apps/autorun_flutter/lib/main.dart:585` (uses `kCanistersTabLabel`), `apps/autorun_flutter/lib/screens/bookmarks_screen.dart:21` (defines `kCanistersTabLabel = 'Canisters'`)
 
 First-time users don't know what "Canisters" means. Rename or attach a
 one-line info popover on long-press / hover.
+
+**Fix:** additive combination A+B — keep the label "Canisters" (the correct,
+pedagogically valuable ICP term) and the existing subtitle tagline, then add
+an AppBar `IconButton(Icons.help_outline, tooltip: 'What is a canister?')`
+that opens a plain-English explainer dialog. Body copy reuses
+`TechTerm.canister.fullExplanation` (DRY single source for ICP terms); a
+"Learn more" action deep-links to the canonical ICP docs page
+(`kCanisterLearnMoreUrl`). Tests in
+`apps/autorun_flutter/test/features/bookmarks/canisters_tab_info_test.dart`.
 
 ### UX-H9 — Raw exception strings in user-facing errors
 
