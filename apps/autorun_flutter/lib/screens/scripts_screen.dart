@@ -1509,19 +1509,93 @@ class ScriptsScreenState extends State<ScriptsScreen>
             await _controller.refresh();
             await _refreshMarketplaceScripts();
           },
-          child: CustomScrollView(
-            slivers: [
-              ..._buildUnifiedListContent(
-                displayedItems: displayedItems,
-                isLoadingAnything: isLoadingAnything,
-              ),
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
-              ),
-            ],
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _onScrollNotification,
+            child: CustomScrollView(
+              slivers: [
+                ..._buildUnifiedListContent(
+                  displayedItems: displayedItems,
+                  isLoadingAnything: isLoadingAnything,
+                ),
+                _buildLoadMoreFooterSliver(),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  /// UX-N2: pagination trigger. Auto-fetches the next marketplace page when
+  /// the user scrolls within [_loadMoreTriggerMargin] of the bottom and a
+  /// follow-up page actually exists. Re-entrancy is guaranteed by both the
+  /// early-out here (`_isLoadingMore`) and inside `_loadMarketplaceScripts`.
+  ///
+  /// Gated on `!_showDownloadedOnly` because that filter is local-only — a
+  /// load-more fetch against it would always come up empty (wasted round
+  /// trip). The favorites filter is left enabled because favorites CAN
+  /// include marketplace scripts.
+  static const double _loadMoreTriggerMargin = 200; // px
+
+  bool _onScrollNotification(ScrollNotification n) {
+    if (n is! ScrollEndNotification) return false;
+    if (!_hasMore || _isLoadingMore) return false;
+    if (_showDownloadedOnly) return false;
+    final metrics = n.metrics;
+    if (metrics.pixels >= metrics.maxScrollExtent - _loadMoreTriggerMargin) {
+      _loadMarketplaceScripts(isLoadMore: true);
+    }
+    return false;
+  }
+
+  /// UX-N2: footer sliver that reflects the marketplace pagination state.
+  /// Renders one of:
+  ///   - an in-flight `CircularProgressIndicator` while a load-more fetch is
+  ///     running (the "Load more" button is hidden during this to prevent
+  ///     re-tap),
+  ///   - a "Load more" `TextButton` when there is a next page and no fetch in
+  ///     flight (keyboard / tap fallback for users who don't scroll, and a
+  ///     discoverable affordance for screen readers),
+  ///   - an honest "End of results" caption when there are no more pages and
+  ///     the marketplace list is non-empty,
+  ///   - a plain spacer when the marketplace is empty (e.g. local-only view).
+  Widget _buildLoadMoreFooterSliver() {
+    if (_marketplaceScripts.isEmpty && !_isLoadingMore) {
+      return const SliverToBoxAdapter(child: SizedBox(height: 100));
+    }
+    if (_isLoadingMore) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_hasMore) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Center(
+            child: TextButton.icon(
+              onPressed: () => _loadMarketplaceScripts(isLoadMore: true),
+              icon: const Icon(Icons.arrow_downward),
+              label: const Text('Load more'),
+            ),
+          ),
+        ),
+      );
+    }
+    return const SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: Text('End of results')),
+      ),
     );
   }
 
