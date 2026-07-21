@@ -714,7 +714,7 @@ still misleading code readers about what the UI was doing.
 
 ### UX-H11 — Three divergent "well-known canisters" catalogs
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21, commit `ac76c7b5`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-11)
 - **Severity**: HIGH (DRY/consistency; AGENTS violation)
 - **Locations**: `canister_call_builder.dart:36-46`, `well_known_canisters.dart:26-83`, `canister_registry_service.dart`
@@ -723,6 +723,65 @@ Three separate hard-coded lists with DIFFERENT members. Call Builder omits
 ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
 
 **Fix:** replace with one shared const.
+
+**Resolution (`ac76c7b5`):** all three lists collapsed into a single
+canonical `WellKnownCanister.all` const in a new file,
+`apps/autorun_flutter/lib/config/well_known_canisters.dart`. The
+`WellKnownCanister` model carries `label` / `canisterId` / `description`
+/ `icon` / `category` / optional `method` + a static `search()` helper
+(for the autocomplete). The catalog was reconciled across all three
+sources — the four entries the Call Builder previously omitted
+(ICLighthouse, Cyql Projects, Kinic Search, Canistergeek) are now in the
+single list, alongside Management Canister, Internet Identity, SNS-1
+Governance / Ledger that only the registry / builder had. Two divergent
+canister IDs were corrected (the registry service's typo `rwlct-…` for
+NNS Registry → canonical `rwlgt-…`; the Call Builder's wrong
+`qga6-…` for Cycles Minting → canonical `rkp4c-…`).
+
+The three surfaces now consume the canonical list:
+
+- `widgets/well_known_canisters.dart` (Canisters tab grid + inline client
+  quick-pick) — the `WellKnownList` widget reads `WellKnownCanister.all`
+  directly. The class + const list moved OUT of this file into config/;
+  the widget stays.
+- `widgets/canister_call_builder.dart` (Call Builder dialog dropdown) —
+  replaced its 5-entry hard-coded `Map<String,String>` list with a
+  `@visibleForTesting static buildWellKnownDropdownItems()` that maps
+  over `WellKnownCanister.all` (mirroring the snippet generator pattern
+  so the contract is testable without pumping the dialog).
+- `widgets/canister_client_sheet.dart` (autocomplete) — `RawAutocomplete`
+  now parameterised on `WellKnownCanister`, calling
+  `WellKnownCanister.search(...)`. The option row uses the per-entry
+  `icon` (was a generic storage icon for all).
+
+`services/canister_registry_service.dart` is **deleted** — its only
+unique value was the `search()` function, which is now a static on the
+canonical type; per AGENTS.md (greenfield, KISS/YAGNI) keeping a thin
+wrapper service would have been dead code. Its two callers
+(`canister_client_sheet.dart`, `test/features/canister_client/autocomplete_test.dart`)
+were updated in the same commit.
+
+**Tests (47 total, all PASS):**
+- `test/config/well_known_canisters_test.dart` (31): catalog invariants
+  (unique ids + labels, non-empty description/category), UX-H11
+  regression on the four required entries, single-source property
+  (`WellKnownList` renders exactly `WellKnownCanister.all` — verified
+  via semantics-tree walk), parameterised search coverage for every
+  entry by label + by full id.
+- `test/features/scripts/canister_call_builder_dropdown_test.dart` (3):
+  dropdown items builder emits every canonical entry exactly once;
+  explicit regression on the four previously-omitted entries.
+- `test/features/canister_client/autocomplete_test.dart` (13): the
+  registry service tests rewritten against `WellKnownCanister.search` +
+  `WellKnownCanister.all`; same coverage (id/label/case-insensitive/
+  limit/no-match) plus the UX-H11 four-entry regression.
+- `test/widgets/well_known_canisters_test.dart` (4): unchanged except
+  the per-card bookmark-button count now derives from
+  `WellKnownCanister.all.length` instead of a magic `8` — adding a
+  canister no longer requires updating a hard-coded count.
+
+**Suites:** `just test-feature canister_client` 61/61 PASS;
+`just test-feature scripts` 231/231 PASS; `flutter analyze lib/` clean.
 
 > **Note (added 2026-07-21):** there is now a fourth list —
 > `apps/autorun_flutter/lib/config/example_dapps.dart` (`exampleDapps`,
@@ -735,6 +794,7 @@ ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
 > are reference data for an interactive tool). The fix for UX-H11 should
 > still collapse the original three into one shared const, but should
 > NOT swallow `exampleDapps` — that would conflate two concepts.
+> *(Confirmed by the UX-H11 fix: `exampleDapps` is untouched.)*
 
 ### UX-H12 — No authenticated canister calls (power users can't sign)
 
