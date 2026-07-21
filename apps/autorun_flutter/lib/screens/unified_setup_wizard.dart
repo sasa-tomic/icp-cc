@@ -9,6 +9,9 @@ import '../controllers/profile_controller.dart';
 import '../services/connectivity_service.dart';
 import '../services/secure_storage_readiness.dart';
 import '../theme/app_design_system.dart';
+import '../widgets/post_registration_security_prompt.dart';
+import 'passkey_management_screen.dart';
+import 'vault_password_setup_screen.dart';
 
 class UnifiedSetupResult {
   const UnifiedSetupResult({
@@ -29,6 +32,7 @@ class UnifiedSetupWizard extends StatefulWidget {
     this.initialDisplayName,
     this.secureStorageReadiness,
     this.connectivityProbe,
+    this.isPasskeySupported = defaultIsPasskeySupported,
     super.key,
   });
 
@@ -53,6 +57,13 @@ class UnifiedSetupWizard extends StatefulWidget {
   /// username is empty (local-only profile), the probe is skipped entirely —
   /// local profile creation needs no connectivity.
   final ConnectivityProbe? connectivityProbe;
+
+  /// Whether the passkey tile is enabled on the post-registration security
+  /// prompt (UX-H6). Defaults to [defaultIsPasskeySupported] (which honours
+  /// [PasskeyPlatform.isSupported] — `false` on Linux desktop, `true`
+  /// elsewhere). Injectable so widget tests can exercise the disabled-with-
+  /// honest-copy branch on any host.
+  final bool Function() isPasskeySupported;
 
   @override
   State<UnifiedSetupWizard> createState() => _UnifiedSetupWizardState();
@@ -880,10 +891,65 @@ class _UnifiedSetupWizardState extends State<UnifiedSetupWizard> {
 
       HapticFeedback.heavyImpact();
 
+      // Stop the "creating" spinner now — the form is still painted behind
+      // the security prompt dialog while the user picks, and a forever-
+      // ticking CircularProgressIndicator blocks pumpAndSettle in tests (and
+      // burns a ticker in production). The success screen replaces the form
+      // once the prompt (and any chosen setup screen) returns. Mirrors the
+      // pattern in AccountRegistrationWizard.
+      if (mounted) setState(() => _isCreating = false);
+
+      // UX-H6: when an account was just registered (i.e. NOT a local-only
+      // profile), surface the optional vault-password + passkey enrollment
+      // steps via the shared helper. The helper is non-blocking — Skip is
+      // always offered and the OS-back dismisses it (treated as Skip). We
+      // push the chosen setup screen and await its return before showing the
+      // success screen.
+      //
+      // Local-only profiles (no marketplace username) skip the prompt
+      // entirely: both vault and passkey are account-scoped (the wire
+      // contract requires an accountId), so there is nothing to enroll yet.
+      final createdAccount = account;
+      if (createdAccount != null && mounted) {
+        final choice = await showPostRegistrationSecurityPrompt(
+          context: context,
+          account: createdAccount,
+          isPasskeySupported: widget.isPasskeySupported,
+        );
+        if (!mounted) return;
+        switch (choice) {
+          case PostRegistrationSecurityChoice.setUpVault:
+            await Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => VaultPasswordSetupScreen(
+                  accountId: createdAccount.id,
+                  keypair: profile.primaryKeypair,
+                ),
+              ),
+            );
+            if (!mounted) return;
+          case PostRegistrationSecurityChoice.enrollPasskey:
+            await Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => PasskeyManagementScreen(
+                  accountId: createdAccount.id,
+                  username: createdAccount.username,
+                  keypair: profile.primaryKeypair,
+                ),
+              ),
+            );
+            if (!mounted) return;
+          case PostRegistrationSecurityChoice.skip:
+          case null:
+            // OS-back dismisses the dialog as null; treat as Skip.
+            break;
+        }
+      }
+
+      if (!mounted) return;
       setState(() {
         _result = UnifiedSetupResult(profile: profile, account: account);
         _isSuccess = true;
-        _isCreating = false;
       });
     } catch (e) {
       // Profile creation itself failed (e.g. secure storage unavailable). No

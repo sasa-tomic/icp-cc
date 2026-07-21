@@ -5,7 +5,9 @@ import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/account.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
+import 'package:icp_autorun/screens/passkey_management_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
+import 'package:icp_autorun/screens/vault_password_setup_screen.dart';
 
 import '../shared/test_keypair_factory.dart';
 
@@ -493,6 +495,7 @@ void main() {
                         profileController: profileController,
                         accountController: accountController,
                         connectivityProbe: () async => true,
+                        isPasskeySupported: () => false,
                       ),
                     ),
                   );
@@ -516,6 +519,12 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(seconds: 2));
 
+        await tester.pumpAndSettle();
+
+        // UX-H6: the security prompt is shown after a successful account
+        // registration. Dismiss it to reach the success screen.
+        expect(find.text('Secure your account'), findsOneWidget);
+        await tester.tap(find.text('Skip for now'));
         await tester.pumpAndSettle();
 
         await tester.ensureVisible(find.text('Start Exploring'));
@@ -714,6 +723,7 @@ void main() {
             profileController: profileController,
             accountController: accountController,
             connectivityProbe: () async => true,
+            isPasskeySupported: () => false,
           ),
         ));
         await tester.pumpAndSettle();
@@ -726,6 +736,12 @@ void main() {
         await tester.testTextInput.receiveAction(TextInputAction.done);
         await tester.pump();
         await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        // UX-H6: security prompt appears after account creation; dismiss it
+        // to reach the success screen.
+        expect(find.text('Secure your account'), findsOneWidget);
+        await tester.tap(find.text('Skip for now'));
         await tester.pumpAndSettle();
 
         expect(find.text('Success!'), findsOneWidget,
@@ -856,6 +872,172 @@ void main() {
             reason: 'Local-only profiles must not require connectivity.');
         expect(probeCalls, 0,
             reason: 'The probe must not fire when the username is empty.');
+      });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // UX-H6 — post-registration security prompt (vault + passkey).
+    // ─────────────────────────────────────────────────────────────────────
+    // Both onboarding wizards call the shared
+    // `showPostRegistrationSecurityPrompt` helper after a successful account
+    // registration. Local-only profiles (no marketplace username) skip the
+    // prompt entirely — vault + passkey are account-scoped.
+    group('UX-H6 post-registration security prompt', () {
+      /// Shared pump harness — fills the form, submits, and waits for the
+      /// prompt to appear. Caller then drives the prompt (tap a tile or
+      /// Skip). Returns once the dialog is on screen.
+      Future<void> fillAndSubmitAndWaitForPrompt(
+        WidgetTester tester, {
+        bool Function()? isPasskeySupported,
+      }) async {
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+            connectivityProbe: () async => true,
+            isPasskeySupported:
+                isPasskeySupported ?? (() => true),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextFormField).first, 'Alice');
+        await tester.enterText(
+            find.byType(TextFormField).at(1), 'alice123');
+        await tester.pump(const Duration(milliseconds: 600));
+
+        await tester
+            .ensureVisible(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Secure your account'), findsOneWidget,
+            reason: 'UX-H6: shared security prompt must appear after a '
+                'successful account registration.');
+      }
+
+      testWidgets(
+          'shows the prompt with vault + passkey tiles after registering an '
+          'account', (tester) async {
+        await fillAndSubmitAndWaitForPrompt(tester);
+
+        expect(find.text('Set up vault password'), findsOneWidget);
+        expect(find.text('Enroll a passkey'), findsOneWidget);
+        expect(find.text('Skip for now'), findsOneWidget);
+
+        // Body acknowledges the just-registered @username.
+        expect(find.textContaining('@alice123'), findsOneWidget);
+      });
+
+      testWidgets(
+          'does NOT show the prompt after a local-only profile creation '
+          '(no account)', (tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: UnifiedSetupWizard(
+            profileController: profileController,
+            accountController: accountController,
+            isPasskeySupported: () => true,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextFormField).first, 'Local');
+        await tester.pump();
+
+        await tester
+            .ensureVisible(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Get Started'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        // Local-only: no account, so neither vault nor passkey applies — the
+        // success screen shows directly.
+        expect(find.text('Secure your account'), findsNothing,
+            reason: 'UX-H6: prompt only fires when an account was registered.');
+        expect(find.text('Success!'), findsOneWidget);
+      });
+
+      testWidgets(
+          'tap "Set up vault password" pushes VaultPasswordSetupScreen; the '
+          'success screen follows once the vault screen is popped',
+          (tester) async {
+        await fillAndSubmitAndWaitForPrompt(tester);
+
+        await tester.tap(find.text('Set up vault password'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(VaultPasswordSetupScreen), findsOneWidget,
+            reason: 'UX-H6: tapping the vault tile pushes the vault screen.');
+
+        // Simulate the user finishing vault setup (pop the vault screen).
+        final NavigatorState navigator =
+            tester.state(find.byType(Navigator).first);
+        navigator.pop();
+        await tester.pumpAndSettle();
+
+        // The wizard's success screen is now shown.
+        expect(find.text('Success!'), findsOneWidget);
+        expect(find.text('Start Exploring'), findsOneWidget);
+      });
+
+      testWidgets(
+          'tap "Enroll a passkey" pushes PasskeyManagementScreen; the '
+          'success screen follows once the passkey screen is popped',
+          (tester) async {
+        await fillAndSubmitAndWaitForPrompt(tester);
+
+        await tester.tap(find.text('Enroll a passkey'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PasskeyManagementScreen), findsOneWidget,
+            reason: 'UX-H6: tapping the passkey tile pushes the passkey '
+                'management screen.');
+
+        // Simulate the user finishing passkey enrollment (pop).
+        final NavigatorState navigator =
+            tester.state(find.byType(Navigator).first);
+        navigator.pop();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Success!'), findsOneWidget);
+        expect(find.text('Start Exploring'), findsOneWidget);
+      });
+
+      testWidgets(
+          'tap "Skip for now" closes the prompt and shows the success screen',
+          (tester) async {
+        await fillAndSubmitAndWaitForPrompt(tester);
+
+        await tester.tap(find.text('Skip for now'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Secure your account'), findsNothing,
+            reason: 'Skip dismisses the dialog.');
+        expect(find.text('Success!'), findsOneWidget);
+        expect(find.text('Start Exploring'), findsOneWidget);
+      });
+
+      testWidgets(
+          'when isPasskeySupported returns false, the passkey tile is '
+          'disabled but the prompt still appears with the vault tile '
+          'available', (tester) async {
+        await fillAndSubmitAndWaitForPrompt(
+          tester,
+          isPasskeySupported: () => false,
+        );
+
+        // Passkey tile paints (never silently disappears)...
+        expect(find.text('Enroll a passkey'), findsOneWidget);
+        // ...with the honest "this device doesn't support them" copy.
+        expect(find.textContaining("doesn't support them"), findsOneWidget);
+
+        // The vault tile is fully actionable.
+        await tester.tap(find.text('Set up vault password'));
+        await tester.pumpAndSettle();
+        expect(find.byType(VaultPasswordSetupScreen), findsOneWidget);
       });
     });
   });
