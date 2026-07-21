@@ -5,14 +5,10 @@ import '../models/account.dart';
 import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../theme/app_design_system.dart';
-import '../utils/passkey_platform.dart';
 import '../utils/friendly_error.dart';
+import '../widgets/post_registration_security_prompt.dart';
 import 'passkey_management_screen.dart';
-
-/// Default passkey-support probe. A top-level function so it can be used as a
-/// const default argument (tear-offs of top-level functions are constants),
-/// while still being injectable in tests.
-bool _defaultIsPasskeySupported() => PasskeyPlatform.isSupported;
+import 'vault_password_setup_screen.dart';
 
 /// Account registration screen with single-page form
 ///
@@ -25,7 +21,7 @@ class AccountRegistrationWizard extends StatefulWidget {
     required this.keypair,
     required this.accountController,
     this.initialDisplayName,
-    this.isPasskeySupported = _defaultIsPasskeySupported,
+    this.isPasskeySupported = defaultIsPasskeySupported,
     super.key,
   });
 
@@ -36,9 +32,10 @@ class AccountRegistrationWizard extends StatefulWidget {
   final String? initialDisplayName;
 
   /// Whether passkey setup is offered after a successful registration.
-  /// Defaults to [PasskeyPlatform.isSupported]. Injectable in tests so the
+  /// Defaults to [defaultIsPasskeySupported]. Injectable in tests so the
   /// passkey branch can be exercised on Linux desktop (where it is normally
-  /// false).
+  /// false). Forwarded to [showPostRegistrationSecurityPrompt] which also
+  /// uses it to grey out the passkey tile when unsupported.
   final bool Function() isPasskeySupported;
 
   @override
@@ -576,19 +573,43 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
 
       // Registration succeeded: stop the in-progress spinner now. Without this
       // the Register button's CircularProgressIndicator keeps ticking forever
-      // behind the passkey prompt (or after pop), which never lets
+      // behind the security prompt (or after pop), which never lets
       // `pumpAndSettle` settle in tests and burns a ticker in production.
       setState(() => _isRegistering = false);
 
-      if (widget.isPasskeySupported()) {
-        final shouldSetupPasskey = await _showPasskeySetupPrompt(account);
-        if (!mounted) return;
-        if (shouldSetupPasskey == true) {
-          // Replace this wizard with passkey management for the new account,
-          // resolving the caller's `Navigator.push<Account>` with the account
-          // via [result]. Returning a record here previously crashed every
-          // caller (which reads `.username`) on web/mobile where passkeys are
-          // supported; the wizard now always resolves with an [Account].
+      // UX-H6: surface the optional vault-password + passkey steps via the
+      // shared helper. The helper is the single source of truth; both
+      // onboarding wizards call it. It renders the platform-honest copy
+      // (passkey tile is disabled with an explanation when unsupported) and
+      // returns the user's selection. Each choice navigates by replacing this
+      // wizard so the caller's `push<Account>` resolves with the account via
+      // the `result` parameter — the user lands on the chosen setup screen,
+      // never back on the form they just filled in.
+      final choice = await showPostRegistrationSecurityPrompt(
+        context: context,
+        account: account,
+        isPasskeySupported: widget.isPasskeySupported,
+      );
+      if (!mounted) return;
+
+      switch (choice) {
+        case PostRegistrationSecurityChoice.setUpVault:
+          // The vault screen's own `onVaultCreated` / pop semantics handle
+          // completion; resolving the caller's future with the account
+          // immediately means a back-press on the vault screen drops the user
+          // where they expect (the wizard caller's home), not back into the
+          // wizard.
+          await Navigator.of(context).pushReplacement<Account, Account>(
+            MaterialPageRoute<Account>(
+              builder: (_) => VaultPasswordSetupScreen(
+                accountId: account.id,
+                keypair: widget.keypair,
+              ),
+            ),
+            result: account,
+          );
+          return;
+        case PostRegistrationSecurityChoice.enrollPasskey:
           await Navigator.of(context).pushReplacement<Account, Account>(
             MaterialPageRoute<Account>(
               builder: (_) => PasskeyManagementScreen(
@@ -600,7 +621,10 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
             result: account,
           );
           return;
-        }
+        case PostRegistrationSecurityChoice.skip:
+        case null:
+          // OS-back dismisses the dialog as null; treat as Skip.
+          break;
       }
       if (!mounted) return;
       Navigator.pop(context, account);
@@ -610,61 +634,5 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
         _isRegistering = false;
       });
     }
-  }
-
-  Future<bool?> _showPasskeySetupPrompt(Account account) {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.key, color: AppDesignSystem.primaryLight),
-            const SizedBox(width: 12),
-            const Text('Set Up Passkey?'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your account has been created successfully!',
-              style: AppDesignSystem.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Would you like to add a passkey for secure, passwordless login?',
-              style: AppDesignSystem.bodyMedium.copyWith(
-                color: AppDesignSystem.neutral600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'You can always set this up later from your account settings.',
-              style: AppDesignSystem.bodySmall.copyWith(
-                color: AppDesignSystem.neutral500,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Skip for now'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppDesignSystem.primaryLight,
-            ),
-            child: const Text('Set Up Passkey'),
-          ),
-        ],
-      ),
-    );
   }
 }
