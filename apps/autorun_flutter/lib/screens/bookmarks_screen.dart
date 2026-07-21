@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
 import '../theme/app_design_system.dart';
+import '../utils/friendly_error.dart';
+import '../utils/tech_terms.dart';
 import '../widgets/bookmark_composer.dart';
 import '../widgets/bookmarks_list.dart';
 import '../widgets/canister_client_sheet.dart';
-import '../utils/friendly_error.dart';
 import '../widgets/connectivity_scope.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/recent_calls_list.dart';
@@ -20,6 +22,24 @@ import '../widgets/well_known_canisters.dart';
 /// the tab they tapped and on the screen header. Previously the tab said
 /// "Canisters" while the AppBar said "Explore ICP Services" — an honesty gap.
 const String kCanistersTabLabel = 'Canisters';
+
+/// Canonical "What is a canister?" deep-link shown in this screen's help
+/// dialog (UX-H8). The issue suggested
+/// `https://internetcomputer.org/docs/building-apps/defining/canisters`, but
+/// that URL 3xx-redirects to the docs root (verified via curl) — slop. The
+/// live, canonical "Canisters" concept page is under docs.internetcomputer.org,
+/// so we link there. Single source of truth: every "Learn more" affordance in
+/// this file references THIS const.
+const String kCanisterLearnMoreUrl =
+    'https://docs.internetcomputer.org/concepts/canisters/';
+
+/// Test seam for the help dialog's "Learn more" launch. Production defaults to
+/// the real [launchUrl]; tests inject a recording stub (mirrors the
+/// `UrlLauncher` injection pattern in `icpay_service.dart`) so they can assert
+/// the URL without spinning up a browser / platform channel.
+@visibleForTesting
+Future<bool> Function(Uri url, LaunchMode mode) canisterLearnMoreLauncher =
+    (url, mode) => launchUrl(url, mode: mode);
 
 class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen({super.key, required this.bridge});
@@ -87,6 +107,97 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     );
   }
 
+  /// UX-H8 — Opens a plain-English explainer for "what is a canister?".
+  ///
+  /// The body copy reuses [TechTerm.canister.fullExplanation] — the project's
+  /// single source of truth for ICP term definitions (DRY; same source the
+  /// InfoTooltip / canister_client_sheet / settings all draw from). A
+  /// "Learn more" action deep-links to the canonical ICP docs page via
+  /// [_launchCanisterLearnMore].
+  void _showCanisterInfoDialog(BuildContext context) {
+    HapticFeedback.lightImpact();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.help_outline, size: 22),
+            SizedBox(width: 8),
+            Expanded(child: Text('What is a Canister?')),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(TechTerm.canister.fullExplanation),
+              const SizedBox(height: 12),
+              Text(
+                'Paste a canister ID below to query or update its methods.',
+                style: TextStyle(
+                  color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => _launchCanisterLearnMore(dialogContext),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: const Text('Learn more'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Opens [kCanisterLearnMoreUrl] in the external browser. Loud on failure:
+  /// a `launchUrl` returning `false` or throwing surfaces a friendly
+  /// (contextual, classified) SnackBar via [friendlyErrorMessage] — never a
+  /// silent swallow (AGENTS.md "loud failures, always").
+  Future<void> _launchCanisterLearnMore(BuildContext dialogContext) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColor = Theme.of(context).colorScheme.error;
+    try {
+      final launched = await canisterLearnMoreLauncher(
+        Uri.parse(kCanisterLearnMoreUrl),
+        LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        if (!mounted) return;
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(friendlyErrorMessage(
+              'Browser reported it could not open the link',
+              context: 'Failed to open "Learn more"',
+            )),
+            backgroundColor: errorColor,
+          ),
+        );
+        return;
+      }
+      // Launch succeeded — dismiss the explainer dialog so the user lands on
+      // the docs page without having to manually close it first.
+      if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content:
+              Text(friendlyErrorMessage(e, context: 'Failed to open "Learn more"')),
+          backgroundColor: errorColor,
+        ),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -109,6 +220,19 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
             ),
           ],
         ),
+        // UX-H8: a first-time user doesn't know what "Canisters" means. The
+        // label stays (it's the correct, pedagogically valuable ICP term —
+        // see HUMAN_EXPECTATIONS.md §"Pedagogical value"); a help IconButton
+        // surfaces a plain-English explainer on demand. POLA: mirrors the
+        // `IconButton(tooltip: ..., onPressed: ...)` pattern already used in
+        // download_history_screen.dart + settings_screen.dart's help icon.
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'What is a canister?',
+            onPressed: () => _showCanisterInfoDialog(context),
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
