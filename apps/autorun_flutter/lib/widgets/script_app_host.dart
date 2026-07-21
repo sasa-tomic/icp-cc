@@ -839,14 +839,98 @@ class ScriptAppHostState extends State<ScriptAppHost> {
     }
     final Map<String, dynamic> ui = _ui ??
         const <String, dynamic>{'type': 'column', 'children': <dynamic>[]};
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: UiV1Renderer(
-        ui: ui,
-        onEvent: (msg) => _enqueueMsg(msg),
+    return _wrapWithTheme(
+      context,
+      ui,
+      SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: UiV1Renderer(
+          ui: ui,
+          onEvent: (msg) => _enqueueMsg(msg),
+        ),
       ),
     );
   }
+
+  /// Applies an optional bundle-supplied theme to [child].
+  ///
+  /// A bundle opts into theming by including a `theme` map on the root UI node
+  /// returned from `view()`:
+  ///
+  ///   { type: 'column', theme: { background, card_background, accent,
+  ///                              text, text_muted }, children: [...] }
+  ///
+  /// Each value is a hex string (`#RRGGBB`, `RRGGBB`, `#RGB` shorthand, or
+  /// `#AARRGGBB`). Missing/invalid values are skipped silently — bundles may
+  /// ship only the fields they care about. When no field survives parsing the
+  /// child is returned unchanged (no extra widgets inserted), so theme-less
+  /// bundles render exactly as before.
+  ///
+  /// Mapping:
+  ///   - background      → ColoredBox around the scroll view (page bg).
+  ///   - card_background → colorScheme.surface + cardColor (sections / Cards).
+  ///   - accent          → colorScheme.primary (FilledButtons, highlights).
+  ///   - text            → textTheme body/display color (body Text).
+  ///   - text_muted      → hintColor + colorScheme.onSurfaceVariant.
+  Widget _wrapWithTheme(BuildContext context, Map<String, dynamic> ui,
+      Widget child) {
+    final Map<String, dynamic> raw =
+        (ui['theme'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
+    final Color? background = _parseHexColor(raw['background']);
+    final Color? card = _parseHexColor(raw['card_background']);
+    final Color? accent = _parseHexColor(raw['accent']);
+    final Color? text = _parseHexColor(raw['text']);
+    final Color? textMuted = _parseHexColor(raw['text_muted']);
+
+    if (background != null) {
+      child = ColoredBox(color: background, child: child);
+    }
+    final bool hasSchemeOverride =
+        card != null || accent != null || text != null || textMuted != null;
+    if (hasSchemeOverride) {
+      final ThemeData base = Theme.of(context);
+      child = Theme(
+        data: base.copyWith(
+          cardColor: card ?? base.cardColor,
+          colorScheme: base.colorScheme.copyWith(
+            surface: card,
+            primary: accent,
+            onSurfaceVariant: textMuted,
+          ),
+          hintColor: textMuted,
+          textTheme: text == null
+              ? base.textTheme
+              : base.textTheme.apply(
+                  bodyColor: text,
+                  displayColor: text,
+                ),
+        ),
+        child: child,
+      );
+    }
+    return child;
+  }
+}
+
+/// Parse a bundle-supplied hex color string into a [Color], or return null
+/// when the value is missing/invalid. Accepts `#RRGGBB`, `RRGGBB`, `#RGB`
+/// (shorthand, expanded to `#RRGGBB`), and `#AARRGGBB` (with alpha). A
+/// 6-digit value is implicitly fully opaque (alpha = 0xFF). Non-string values
+/// (numbers, maps, lists) are rejected silently — bundles that ship a
+/// malformed theme must not crash the host.
+Color? _parseHexColor(Object? raw) {
+  if (raw is! String) return null;
+  String s = raw.trim();
+  if (s.isEmpty) return null;
+  if (s.startsWith('#')) s = s.substring(1);
+  if (s.length == 3) {
+    s = s.split('').map((String c) => '$c$c').join();
+  }
+  if (s.length != 6 && s.length != 8) return null;
+  final int? value = int.tryParse(s, radix: 16);
+  if (value == null) return null;
+  if (s.length == 6) return Color(0xFF000000 | value);
+  return Color(value);
 }
 
 // =============================================================================
