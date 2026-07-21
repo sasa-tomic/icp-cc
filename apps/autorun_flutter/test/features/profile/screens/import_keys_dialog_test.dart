@@ -244,10 +244,20 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Import'));
       await tester.pumpAndSettle();
 
+      // UX-H5 Path 4: the message must NOT suggest destroying the existing
+      // profile. The new copy is honest + non-destructive (points to the
+      // Manage Keypairs UI instead).
       expect(
-        find.text(
-            'Profile already exists. Delete it first or use a different backup.'),
+        find.textContaining('This profile is already on this device'),
         findsOneWidget,
+      );
+      expect(
+        find.textContaining('Manage Keypairs'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Delete it first'),
+        findsNothing,
       );
     });
 

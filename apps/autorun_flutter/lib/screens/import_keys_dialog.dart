@@ -51,7 +51,10 @@ class _ImportKeysDialogState extends State<ImportKeysDialog> {
     } on ProfileAlreadyExistsException {
       if (mounted) {
         _showError(
-            'Profile already exists. Delete it first or use a different backup.');
+          'This profile is already on this device — your keys are here. '
+          'If a specific keypair is missing, add it from Profile → Manage '
+          'Keypairs.',
+        );
       }
     } on BackupDecryptionException {
       if (mounted) {

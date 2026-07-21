@@ -88,7 +88,7 @@ class _KeypairSwitcherSheetState extends State<KeypairSwitcherSheet> {
                     subtitle: 'Read-only mode, publishing disabled',
                     selected: _selectedId == null,
                     icon: Icons.visibility_off_outlined,
-                    onTap: () => _completeSelection(null),
+                    onTap: () => _previewSelection(null),
                   ),
                   if (profiles.isNotEmpty) ...[
                     const Divider(height: 24),
@@ -106,7 +106,7 @@ class _KeypairSwitcherSheetState extends State<KeypairSwitcherSheet> {
                         subtitle: '$principal ($keyCount)',
                         selected: selected,
                         icon: Icons.verified_user_outlined,
-                        onTap: () => _completeSelection(profile.id),
+                        onTap: () => _previewSelection(profile.id),
                       );
                     }),
                   ] else ...[
@@ -169,6 +169,18 @@ class _KeypairSwitcherSheetState extends State<KeypairSwitcherSheet> {
         ),
       ),
     );
+  }
+
+  /// Tile-tap handler: PREVIEW the selection without popping the sheet.
+  ///
+  /// The Apply button is the only path that actually pops with the result,
+  /// making it the meaningful commit step. This is standard picker UX
+  /// (tap-to-preview, button-to-commit) and gives the user a chance to back
+  /// out (system back gesture / Cancel) without silently switching keys.
+  /// Previously tile-tap popped immediately, making the Apply button dead
+  /// code (UX-H5 / Path 3).
+  void _previewSelection(String? profileId) {
+    setState(() => _selectedId = profileId);
   }
 
   void _completeSelection(String? profileId) {

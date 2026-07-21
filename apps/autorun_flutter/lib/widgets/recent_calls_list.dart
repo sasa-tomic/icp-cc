@@ -72,6 +72,7 @@ class _RecentCallsListState extends State<RecentCallsList> {
               icon: const Icon(Icons.delete_outline, size: 18),
               label: const Text('Clear'),
               onPressed: () async {
+                if (!await _confirmClear(context)) return;
                 await CanisterHistoryService().clearHistory();
                 await _loadHistory();
               },
@@ -182,5 +183,41 @@ class _RecentCallsListState extends State<RecentCallsList> {
     } else {
       return '${diff.inDays}d ago';
     }
+  }
+
+  /// Guards the destructive "Clear all call history" action behind a confirm
+  /// dialog. Returns true iff the user explicitly confirmed.
+  ///
+  /// The Clear button wipes ALL persisted call history — a one-click data-loss
+  /// hazard without this guard (UX-H5).
+  Future<bool> _confirmClear(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const Key('clearHistoryConfirmDialog'),
+        title: const Text('Clear call history?'),
+        content: const Text(
+          'This permanently removes every recent call from this device. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('clearHistoryCancelButton'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('clearHistoryConfirmButton'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 }

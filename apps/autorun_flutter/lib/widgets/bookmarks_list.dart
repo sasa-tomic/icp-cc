@@ -185,16 +185,51 @@ class _BookmarksListState extends State<BookmarksList> {
                         onPressed: () async {
                           HapticFeedback.mediumImpact();
                           final messenger = ScaffoldMessenger.of(context);
+                          // Capture the FULL entry before removing so the Undo
+                          // action can re-add it verbatim (preserving label).
+                          // Without this the closure only has cid+method and
+                          // the user's custom label would be lost on undo.
+                          final snapshot = entry;
                           try {
                             await BookmarksService.remove(
                                 canisterId: cid, method: method);
                             if (mounted) {
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: const Text('Bookmark removed'),
-                                  backgroundColor: Colors.blue.shade500,
-                                ),
-                              );
+                              messenger
+                                ..hideCurrentSnackBar()
+                                ..showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Bookmark removed'),
+                                    backgroundColor: Colors.blue.shade500,
+                                    duration: const Duration(seconds: 4),
+                                    action: SnackBarAction(
+                                      label: 'Undo',
+                                      textColor: Colors.white,
+                                      onPressed: () async {
+                                        try {
+                                          await BookmarksService.add(
+                                            canisterId: snapshot.canisterId,
+                                            method: snapshot.method,
+                                            label: snapshot.label,
+                                          );
+                                        } catch (e) {
+                                          // Re-add failed — surface loudly
+                                          // rather than silently dropping
+                                          // the user's intent. The list
+                                          // will reflect actual state via
+                                          // the BookmarksEvents listener.
+                                          messenger
+                                            ..hideCurrentSnackBar()
+                                            ..showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Could not restore bookmark: $e'),
+                                              ),
+                                            );
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                );
                             }
                           } catch (e) {
                             if (mounted) {

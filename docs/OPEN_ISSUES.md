@@ -553,7 +553,7 @@ and the dapp-runner Trusted-chip hint.
 
 ### UX-H5 — Unguarded destructive actions (4 paths)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-5)
 - **Severity**: HIGH (one-click data loss)
 
@@ -564,8 +564,32 @@ Four unguarded destructive paths:
 - `import_keys_dialog.dart:53-55` — "Profile already exists. Delete it first"
   suggests destroying a profile + its local data to restore a backup.
 
-**Fix:** add confirm dialogs / undo SnackBars at each; rewrite import to
-allow merge-or-replace or scope into a NEW profile.
+**Fix (shipped 2026-07-21):**
+- *Path 1 (recent calls)* — Clear button now opens an `AlertDialog`
+  (`clearHistoryConfirmDialog`) with Cancel + error-coloured Clear. Wipe
+  happens ONLY on explicit confirm; barrier-dismiss preserves history.
+- *Path 2 (bookmarks)* — trash IconButton captures the full `BookmarkEntry`
+  snapshot before remove, then shows a 4s SnackBar with `Undo` action that
+  re-adds the entry verbatim (preserving label, which would otherwise be
+  lost). Re-add errors surface loudly.
+- *Path 3 (keypair switcher)* — tile-tap now PREVIEWS the selection in-place
+  (`_previewSelection` calls setState only); only the Apply button pops with
+  the result. Standard picker UX; system-back from preview state discards
+  the preview without committing. Apply is no longer dead code.
+- *Path 4 (import keys)* — the "Profile already exists. Delete it first …"
+  copy was a destructive suggestion. Replaced with honest, non-destructive
+  copy: "This profile is already on this device — your keys are here. If a
+  specific keypair is missing, add it from Profile → Manage Keypairs."
+  Genuine merge-into-existing is a larger architectural change deferred to
+  the ALPHA-Vote follow-up track (needs per-keypair invariant guard).
+
+**Tests (10 new + 1 updated, all PASS):**
+- `test/features/canister_client/recent_calls_list_test.dart` (3 tests)
+- `test/features/bookmarks/bookmarks_list_undo_test.dart` (3 tests)
+- `test/features/profile/keypair_switcher_sheet_test.dart` (3 tests)
+- `test/features/profile/screens/import_keys_dialog_test.dart` (1 updated)
+- `just test-feature scripts` 222/222 PASS, `just test-feature profile` 144/144 PASS.
+
 
 ### UX-H6 — Wizard doesn't surface vault + passkey steps
 
