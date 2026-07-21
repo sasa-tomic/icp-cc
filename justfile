@@ -911,6 +911,32 @@ e2e-web-playwright skipbuild="":
 e2e: e2e-desktop e2e-web
     @echo "✅ e2e PASSED — desktop + web surfaces green"
 
+# e2e-web-passkey: WEB-1 — REAL passkey-on-web e2e via Playwright's modern
+# `browserContext.credentials` virtual authenticator (Playwright 1.61+).
+#
+# Brings up a DEDICATED backend (separate port + WEBAUTHN_RP_ORIGIN matching
+# the test page URL), builds the Flutter Web bundle against that backend with
+# the passkey probe entrypoint (tool/web_probe_passkey_main.dart), serves it
+# on http://localhost:8099, and runs the passkey Playwright spec.
+#
+# Two specs cover the success + failure contract:
+#   1. positive: virtual authenticator armed → full passkey registration
+#      round-trip (real Ed25519 keypair + signed account registration +
+#      WebAuthn navigator.credentials.create + backend /passkey/register/finish
+#      + list_passkeys backend verification).
+#   2. negative: NO authenticator → navigator.credentials.create hangs →
+#      probe's 20s timeout fires → loud failure with WebAuthn error class.
+#
+# The dedicated backend is torn down on exit (no orphan processes); the dev
+# backend (`api-dev-up`) is untouched.
+#
+# Run:
+#   just e2e-web-passkey                 # build + run
+#   just e2e-web-passkey --no-build      # skip build (assume bundle exists)
+#   just e2e-web-passkey --keep-servers  # debug: leave backend + static up
+e2e-web-passkey *args="":
+    "{{scripts_dir}}/web-e2e-passkey.sh" {{args}}
+
 # =============================================================================
 # Development API Server (Local Cargo-based)
 # =============================================================================
