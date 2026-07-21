@@ -10,7 +10,7 @@ import '../rust/native_bridge.dart';
 import '../screens/unified_setup_wizard.dart';
 import '../services/bookmarks_service.dart';
 import '../services/canister_history_service.dart';
-import '../services/canister_registry_service.dart';
+import '../config/well_known_canisters.dart';
 import '../services/secure_storage_readiness.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
@@ -544,15 +544,15 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           'Enter the canister ID (e.g., ryjl3-tyaaa-aaaaa-aaaba-cai) or name.',
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return RawAutocomplete<CanisterRegistryEntry>(
+          return RawAutocomplete<WellKnownCanister>(
             key: const Key('canisterAutocomplete'),
             textEditingController: _canisterController,
             focusNode: _canisterFocusNode,
             optionsBuilder: (textEditingValue) {
               if (textEditingValue.text.isEmpty) {
-                return const Iterable<CanisterRegistryEntry>.empty();
+                return const Iterable<WellKnownCanister>.empty();
               }
-              return CanisterRegistryEntry.search(textEditingValue.text);
+              return WellKnownCanister.search(textEditingValue.text);
             },
             displayStringForOption: (option) => option.canisterId,
             fieldViewBuilder: (
@@ -624,14 +624,14 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                                 Row(
                                   children: [
                                     Icon(
-                                      Icons.storage,
+                                      option.icon,
                                       size: 16,
                                       color: theme.colorScheme.primary,
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        option.name,
+                                        option.label,
                                         style: theme.textTheme.bodyMedium
                                             ?.copyWith(
                                           fontWeight: FontWeight.w600,

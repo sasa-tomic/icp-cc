@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../config/well_known_canisters.dart';
 import '../models/canister_method.dart';
 import '../services/candid_service.dart';
 import '../utils/friendly_error.dart';
@@ -83,6 +84,36 @@ class CanisterCallBuilderDialog extends StatefulWidget {
         return 'query';
     }
   }
+
+  /// UX-H11: builds the dropdown's full items list (the "Custom canister
+  /// ID" placeholder plus one entry per canonical well-known canister).
+  ///
+  /// Extracted as a `@visibleForTesting` static so the regression test can
+  /// pin the single-source property (the dropdown must surface every entry
+  /// of `WellKnownCanister.all`, no more, no less) without pumping the full
+  /// dialog — the dialog ships with a fixed 800x600 SizedBox that overflows
+  /// at the default test surface, mirroring the same pattern used for the
+  /// snippet generator (`generateBundle` above).
+  ///
+  /// Before UX-H11 this list was a divergent 5-entry hard-coded const that
+  /// omitted ICLighthouse / Cyql / Kinic / Canistergeek; the regression
+  /// test in `canister_call_builder_dropdown_test.dart` fails loudly if a
+  /// future change re-forks it.
+  @visibleForTesting
+  static List<DropdownMenuItem<String>> buildWellKnownDropdownItems() {
+    return <DropdownMenuItem<String>>[
+      const DropdownMenuItem<String>(
+        value: '',
+        child: Text('Custom canister ID'),
+      ),
+      ...WellKnownCanister.all.map(
+        (canister) => DropdownMenuItem<String>(
+          value: canister.canisterId,
+          child: Text('${canister.label} (${canister.canisterId})'),
+        ),
+      ),
+    ];
+  }
 }
 
 class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
@@ -99,18 +130,6 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
   bool _isAuthenticated = false;
   bool _isLoadingCandid = false;
   List<CanisterMethod> _availableMethods = [];
-
-  final List<Map<String, String>> _wellKnownCanisters = [
-    {'id': 'aaaaa-aa', 'name': 'Management Canister', 'host': ''},
-    {'id': 'rrkah-fqaaa-aaaaa-aaaaq-cai', 'name': 'NNS Governance', 'host': ''},
-    {'id': 'ryjl3-tyaaa-aaaaa-aaaba-cai', 'name': 'ICP Ledger', 'host': ''},
-    {'id': 'qga6-kiaaa-aaaaa-aaada-cai', 'name': 'Cycles Minting', 'host': ''},
-    {
-      'id': 'qhbym-qaaaa-aaaaa-aaafq-cai',
-      'name': 'Internet Keypair',
-      'host': ''
-    },
-  ];
 
   @override
   void initState() {
@@ -310,18 +329,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                         helperText:
                             'Select a well-known canister or enter custom ID',
                       ),
-                      items: [
-                        const DropdownMenuItem<String>(
-                          value: '',
-                          child: Text('Custom canister ID'),
-                        ),
-                        ..._wellKnownCanisters
-                            .map((canister) => DropdownMenuItem<String>(
-                                  value: canister['id'],
-                                  child: Text(
-                                      '${canister['name']} (${canister['id']})'),
-                                )),
-                      ],
+                      items: CanisterCallBuilderDialog.buildWellKnownDropdownItems(),
                       onChanged: _onCanisterChanged,
                     ),
                   ),
@@ -338,8 +346,8 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                           (v ?? '').trim().isEmpty ? 'Required' : null,
                       onChanged: (value) {
                         if (value != _selectedCanisterId &&
-                            _wellKnownCanisters
-                                .every((c) => c['id'] != value)) {
+                            WellKnownCanister.all
+                                .every((c) => c.canisterId != value)) {
                           setState(() {
                             _selectedCanisterId = value;
                           });

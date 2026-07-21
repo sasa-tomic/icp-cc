@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:icp_autorun/config/well_known_canisters.dart';
 import 'package:icp_autorun/widgets/well_known_canisters.dart';
 
 // Walking the semantics tree uses `pipelineOwner` + `SemanticsNode.hasFlag`,
@@ -110,8 +111,10 @@ void main() {
 
     expect(bookmarkButtons, isNotEmpty,
         reason: 'Bookmark buttons must remain individually focusable');
-    // One labelled bookmark button per shipped canister card (8 shipped).
-    expect(bookmarkButtons.length, 8,
+    // One labelled bookmark button per shipped canister card. Count derives
+    // from the canonical catalog (UX-H11: single source of truth) — no
+    // per-surface magic numbers.
+    expect(bookmarkButtons.length, WellKnownCanister.all.length,
         reason: 'expected one bookmark button per card');
   });
 

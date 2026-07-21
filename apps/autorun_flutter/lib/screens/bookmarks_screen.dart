@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
 import '../theme/app_design_system.dart';
+import '../config/well_known_canisters.dart';
 import '../utils/friendly_error.dart';
 import '../utils/tech_terms.dart';
 import '../widgets/bookmark_composer.dart';

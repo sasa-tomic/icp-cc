@@ -2,85 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-class WellKnownCanister {
-  const WellKnownCanister({
-    required this.label,
-    required this.canisterId,
-    required this.description,
-    required this.icon,
-    this.method,
-  });
+import '../config/well_known_canisters.dart';
 
-  final String label;
-  final String canisterId;
-  final String description;
-  final IconData icon;
-  final String? method;
-}
-
+/// Quick-pick grid of well-known canisters shown on the Canisters tab and in
+/// the inline Canister Client sheet's "Quick Start" section.
+///
+/// The list itself is the canonical [WellKnownCanister.all] — single source
+/// of truth (UX-H11). This widget only renders it.
 class WellKnownList extends StatelessWidget {
   const WellKnownList({super.key, required this.onSelect, this.onBookmark});
   final void Function(String canisterId, String? method) onSelect;
   final Future<void> Function(WellKnownCanister entry)? onBookmark;
-
-  static const List<WellKnownCanister> _items = <WellKnownCanister>[
-    WellKnownCanister(
-      label: 'NNS Registry',
-      canisterId: 'rwlgt-iiaaa-aaaaa-aaaaa-cai',
-      method: 'get_value',
-      description: 'Authoritative lookup for subnet + node records',
-      icon: Icons.dns_rounded,
-    ),
-    WellKnownCanister(
-      label: 'NNS Governance',
-      canisterId: 'rrkah-fqaaa-aaaaa-aaaaq-cai',
-      method: 'get_neuron_ids',
-      description: 'Manage neurons and follow governance proposals',
-      icon: Icons.how_to_vote_rounded,
-    ),
-    WellKnownCanister(
-      label: 'NNS Ledger',
-      canisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
-      method: 'account_balance_dfx',
-      description: 'Check ICP balances directly on the ledger',
-      icon: Icons.account_balance_wallet_rounded,
-    ),
-    WellKnownCanister(
-      label: 'Canlista Registry',
-      canisterId: 'k7gat-daaaa-aaaae-qaahq-cai',
-      method: 'http_request',
-      description: 'Community-maintained catalog of IC canisters',
-      icon: Icons.list_alt_rounded,
-    ),
-    WellKnownCanister(
-      label: 'Cyql Projects',
-      canisterId: 'n7ib3-4qaaa-aaaai-qagnq-cai',
-      method: 'http_request',
-      description: 'Curated feed of active Internet Computer dapps',
-      icon: Icons.explore_rounded,
-    ),
-    WellKnownCanister(
-      label: 'ICLighthouse',
-      canisterId: '637g5-siaaa-aaaaj-aasja-cai',
-      method: 'http_request',
-      description: 'Realtime explorer with subnet level insights',
-      icon: Icons.lightbulb_rounded,
-    ),
-    WellKnownCanister(
-      label: 'Kinic Search',
-      canisterId: '74iy7-xqaaa-aaaaf-qagra-cai',
-      method: 'http_request',
-      description: 'Native IC search engine for dapps and content',
-      icon: Icons.search_rounded,
-    ),
-    WellKnownCanister(
-      label: 'Canistergeek',
-      canisterId: 'cusyh-iyaaa-aaaah-qcpba-cai',
-      method: 'http_request',
-      description: 'Monitor cycles, memory and performance at a glance',
-      icon: Icons.analytics_rounded,
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +23,7 @@ class WellKnownList extends StatelessWidget {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _items.length,
+      itemCount: WellKnownCanister.all.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: 12,
@@ -99,7 +31,7 @@ class WellKnownList extends StatelessWidget {
         childAspectRatio: childAspectRatio,
       ),
       itemBuilder: (BuildContext context, int index) {
-        final entry = _items[index];
+        final entry = WellKnownCanister.all[index];
         return _WellKnownCard(
           entry: entry,
           onTap: () => onSelect(entry.canisterId, entry.method),
