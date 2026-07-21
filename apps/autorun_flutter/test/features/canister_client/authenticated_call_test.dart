@@ -15,6 +15,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
 import 'package:icp_autorun/models/profile_keypair.dart';
 import 'package:icp_autorun/rust/native_bridge.dart';
+import 'package:icp_autorun/screens/unified_setup_wizard.dart';
+import 'package:icp_autorun/services/secure_storage_readiness.dart';
 import 'package:icp_autorun/widgets/canister_client_sheet.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 
@@ -293,4 +295,131 @@ void main() {
     expect(bridge.lastCall, _CallKind.anonymous);
     expect(bridge.authenticatedCalls, 0);
   });
+
+  testWidgets(
+      'ProfileScope present but no active profile → CTA opens the wizard '
+      '(real controller; keyless user deep-link)', (tester) async {
+    // Real controller with NO profiles — the keyless-user production state.
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final repository = FakeSecureKeypairRepository(<ProfileKeypair>[]);
+    final controller =
+        ProfileController(profileRepository: repository.profileRepository);
+    await controller.ensureLoaded();
+
+    final bridge = _RecordingBridge();
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ProfileScope(
+          controller: controller,
+          child: CanisterClientSheet(
+            bridge: bridge,
+            // Inject a fixed-ready probe so the test is hermetic — the real
+            // probe would shell out to gnome-keyring-daemon on a Linux host
+            // and pumpAndSettle would never converge. Mirrors the deep-link
+            // test in dapp_runner_screen_test.dart.
+            testSecureStorageReadiness: _FixedReadiness(const StorageReady()),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    await _driveToReady(tester);
+
+    // Toggle is disabled (no keypair) but the CTA is tappable.
+    final switchWidget = tester.widget<SwitchListTile>(
+      find.byKey(const Key('signAsActiveProfileSwitch')),
+    );
+    expect(switchWidget.onChanged, isNull,
+        reason: 'No active keypair → toggle must be disabled.');
+    expect(find.byKey(const Key('signAsActiveProfileCreateCta')),
+        findsOneWidget);
+
+    // Tap the CTA → the wizard pushes onto the navigator. ONE tap → the real
+    // wizard (not a stub/dead-end). Same widget the first-run gate uses.
+    await tester.tap(find.byKey(const Key('signAsActiveProfileCreateCta')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(UnifiedSetupWizard), findsOneWidget);
+  });
+
+  testWidgets(
+      'mid-session profile removal: toggle was ON, profile disappeared → '
+      'tapping Call surfaces a LOUD friendly SnackBar (never silent anonymous '
+      'fallback, never a raw StateError)', (tester) async {
+    final ProfileKeypair keypair = await TestKeypairFactory.getEd25519Keypair();
+    final controller = await _controllerWithKeypair(keypair);
+    final bridge = _RecordingBridge();
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ProfileScope(
+          controller: controller,
+          child: CanisterClientSheet(bridge: bridge),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+    await _driveToReady(tester);
+
+    // Toggle sign-as-profile ON while the keypair exists.
+    await tester.tap(find.byKey(const Key('signAsActiveProfileSwitch')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<SwitchListTile>(
+          find.byKey(const Key('signAsActiveProfileSwitch'))).value,
+      isTrue,
+    );
+
+    // Simulate mid-session profile removal: drop the active profile from the
+    // SAME controller. The widget tree (and thus _CanisterClientSheetState)
+    // is preserved; ProfileScope notifies its descendants and the toggle
+    // re-renders disabled. _signAsActiveProfile stays true (defensive check).
+    await controller.setActiveProfile(null);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<SwitchListTile>(
+          find.byKey(const Key('signAsActiveProfileSwitch'))).onChanged,
+      isNull,
+      reason: 'Profile gone → toggle must re-render disabled.',
+    );
+
+    // Tap Call. The signed intent must NOT silently degrade to anonymous
+    // (AGENTS.md) and must NOT throw a raw StateError to the user.
+    await tester.tap(find.byKey(const Key('callButton')));
+    await tester.pumpAndSettle();
+
+    expect(bridge.lastCall, isNull,
+        reason: 'No bridge call should have been attempted.');
+    expect(bridge.authenticatedCalls, 0);
+    expect(bridge.anonymousCalls, 0,
+        reason: 'Never silently fall back to anonymous on a signed intent.');
+
+    // The friendly SnackBar surfaces — text from friendlyErrorMessage
+    // (ErrorCategory.userMessage), not a raw `StateError`/`Exception:` dump.
+    expect(find.byType(SnackBar), findsOneWidget);
+    final snackbarText =
+        tester.widget<SnackBar>(find.byType(SnackBar)).content;
+    expect(snackbarText, isA<Text>());
+    final message = (snackbarText as Text).data ?? '';
+    expect(message.contains('Cannot sign call'), isTrue,
+        reason: 'Context prefix from friendlyErrorMessage must be present.');
+    expect(message.contains('StateError'), isFalse,
+        reason: 'Never surface a raw type name.');
+    expect(message.contains('Exception:'), isFalse,
+        reason: 'Never surface a raw Exception prefix.');
+  });
+}
+
+/// A [SecureStorageReadiness] that returns a fixed result, so the deep-link
+/// navigation test is hermetic (the real probe would shell out to
+/// gnome-keyring-daemon on a Linux host and pumpAndSettle would never
+/// converge). Readiness is platform availability, not cryptography — the legit
+/// test seam, mirroring `dapp_runner_screen_test.dart`'s `_FixedReadiness`.
+class _FixedReadiness extends SecureStorageReadiness {
+  _FixedReadiness(this.result);
+  final StorageReadiness result;
+
+  @override
+  Future<StorageReadiness> check() async => result;
 }

@@ -43,10 +43,19 @@ class CanisterClientSheet extends StatefulWidget {
       {super.key,
       required this.bridge,
       this.initialCanisterId,
-      this.initialMethodName});
+      this.initialMethodName,
+      this.testSecureStorageReadiness});
   final RustBridgeLoader bridge;
   final String? initialCanisterId;
   final String? initialMethodName;
+
+  /// Test seam: when non-null, passed to the [UnifiedSetupWizard] opened from
+  /// the "Create a profile" CTA so the deep-link test is hermetic (the real
+  /// `SecureStorageReadiness` would shell out to gnome-keyring-daemon on a
+  /// Linux host). Mirrors the same seam on `DappRunnerScreen`. Production
+  /// callers leave this null; the wizard then constructs its own
+  /// `SecureStorageReadiness`.
+  final SecureStorageReadiness? testSecureStorageReadiness;
 
   @override
   State<CanisterClientSheet> createState() => _CanisterClientSheetState();
@@ -227,7 +236,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         builder: (_) => UnifiedSetupWizard(
           profileController: profileController,
           accountController: accountController,
-          secureStorageReadiness: SecureStorageReadiness(),
+          secureStorageReadiness:
+              widget.testSecureStorageReadiness ?? SecureStorageReadiness(),
         ),
       ),
     );
