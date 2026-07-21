@@ -100,7 +100,7 @@ void main() {
       );
     });
 
-    testWidgets('Browse Scripts action clears the favorites filter',
+    testWidgets('Browse Marketplace action clears the favorites filter',
         (tester) async {
       var clearCalls = 0;
       await pumpInScaffold(
@@ -114,7 +114,7 @@ void main() {
       // hittable (it starts at opacity 0).
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Browse Scripts'));
+      await tester.tap(find.text('Browse Marketplace'));
       await tester.pump();
 
       expect(clearCalls, 1);

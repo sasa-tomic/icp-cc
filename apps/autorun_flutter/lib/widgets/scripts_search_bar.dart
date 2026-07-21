@@ -104,10 +104,15 @@ class ScriptsSearchBar extends StatelessWidget {
   }
 
   Widget _buildRecentSearchesDropdown(BuildContext context) {
+    // Outer Container paints only the drop shadow (transparent fill). Inner
+    // Material paints the surface colour + rounded corners AND gives each
+    // ListTile a Material ancestor to paint its own background/ink effects
+    // onto — required by Flutter's debug assertion that a coloured
+    // DecoratedBox would otherwise mask. Visuals are identical to a single
+    // coloured Container.
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -117,39 +122,44 @@ class ScriptsSearchBar extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text(
-              'Recent Searches',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Text(
+                'Recent Searches',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
             ),
-          ),
-          ...(recentSearches.take(5).map((query) => ListTile(
-                dense: true,
-                leading: Icon(
-                  Icons.history,
-                  size: 20,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                title: Text(query),
-                onTap: () => onSelectRecentSearch(query),
-                trailing: IconButton(
-                  icon: Icon(
-                    Icons.close,
-                    size: 18,
+            ...(recentSearches.take(5).map((query) => ListTile(
+                  dense: true,
+                  leading: Icon(
+                    Icons.history,
+                    size: 20,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  onPressed: () => onRemoveRecentSearch(query),
-                  tooltip: 'Remove',
-                ),
-              ))),
-        ],
+                  title: Text(query),
+                  onTap: () => onSelectRecentSearch(query),
+                  trailing: IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    onPressed: () => onRemoveRecentSearch(query),
+                    tooltip: 'Remove',
+                  ),
+                ))),
+          ],
+        ),
       ),
     );
   }
