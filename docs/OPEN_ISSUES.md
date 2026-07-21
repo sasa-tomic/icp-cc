@@ -13,6 +13,71 @@
 
 ## Critical / Blockers
 
+### E2E-PHASE-O — Phase O: 100% catalog coverage (final 3 deferred flows)
+
+- **Status**: 🟢 RESOLVED (2026-07-21, Phase O commit `75e41a6e`)
+- **Surfaced**: pre-existing (the 3 last-uncovered catalog flows — `profile.create_via_menu_dialog`, `scripts.publish`, `account.register_from_publish` — were DEFERRED at Phase N pending the UX-PMD-1 production bug fix).
+- **Severity**: MEDIUM (3 deferred e2e flows + 1 blocking production bug)
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_mock_keyring_identity_test.dart` (3-phase dedicated mini-suite); bug fix in `apps/autorun_flutter/lib/widgets/profile_menu.dart` (UX-PMD-1).
+
+The three flows were split into a dedicated 3-phase mini-suite (mirroring
+the Phase N `suite_mock_keyring_dapps_test.dart` pattern) so the existing
+keyring-less + mock-keyring + mock-keyring-dapps suites stay below the
+documented flutter_test binding stability threshold (the "Cannot close
+sink while adding stream" crash past ~30 phases per OPEN_ISSUES
+E2E-PHASE56+57). All three need the mock Secret Service for real Ed25519
+keypair generation + signing, so they cannot live in the keyring-less
+suite.
+
+**Unblocked by:** UX-PMD-1 fix (Phase O commit `fe5af1ad` — capture
+`NavigatorState` before the await boundary, route through it from the
+onCreateProfile closure). Without that fix, the
+`profile.create_via_menu_dialog` flow deterministically crashed with
+`State no longer has a context` after the menu's exit animation finished.
+
+**Flow assertions:**
+- `account.register_from_publish` (PHASE 1): from a LOCAL-ONLY profile,
+  attempt to publish → "Share to Marketplace" registration prompt fires
+  → "Register Username" → AccountRegistrationWizard pushes → fill
+  username + display name → real `registerAccount` round-trip → wizard
+  pops with the Account → `_publishToMarketplace` continues into
+  QuickUploadDialog (proves the wizard returned a real Account, not
+  null) → cancel via Esc. Asserts the running ProfileScope sees the
+  username.
+- `scripts.publish` (PHASE 2): create a local script → invoke
+  `LocalScriptRowMenu.onPublish` (callback-direct — popup-menu gestures
+  are absorbed by Overlay per the documented pattern) → QuickUploadDialog
+  opens (profile is now registered from PHASE 1) → fill Title +
+  Description + Tags → tap `quick-upload-submit` key → real signed
+  `uploadScript` round-trip (verified in the test log) → success
+  SnackBar.
+- `profile.create_via_menu_dialog` (PHASE 3): the UX-PMD-1 regression
+  flow. Open profile menu → "Switch Profile" → manage sheet → "Create
+  New Profile" → UnifiedSetupWizard pushes via the post-fix navigator
+  capture path → fill display name + unique username → Get Started →
+  real `createProfile` + `registerAccount` → "Success!" → Start
+  Exploring. PHASE 3 explicitly pumps past the menu's exit animation
+  (1s wait, >250ms default Material sheet transition) before tapping
+  "Create New Profile", so the disposed-State code path is exercised.
+
+**State evolution across phases:** local-only (PHASE 0 setup) →
+registered (PHASE 1) → publish against registered (PHASE 2) → second
+profile via menu (PHASE 3). No `resetAppState` between phases. Suite
+takes ~75s wall-clock end-to-end.
+
+**Coverage implication:** desktop 89/95 → 92/95 (97%);
+catalog 95/98 → 98/98 (**100%**). The remaining 3 desktop-surface gaps
+are the 2 poll-local-replica flows (`dapps.run_poll` +
+`dapps.create_profile_to_vote` — covered separately by
+`just e2e-local-replica` against a dfx replica per OPEN_ISSUES
+E2E-PHASE56+57; the dedicated mini-suite owns its own coverage report)
+plus one catalog row reachable only through that local-replica harness.
+Web Tier A stays at 13/13 covered (`just e2e-web`).
+
+**Justfile:** `just e2e-desktop` now runs 4 PASSes (1 keyring-less +
+3 mock-keyring); `just e2e-one <flow-id> mock-keyring-identity` for
+sub-suite single-flow iteration.
+
 ### E2E-PHASE-L — Phase L: Web Tier A 6 deferred flows (3 passkey + 3 deeplink)
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase L)
@@ -519,33 +584,42 @@ ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
 
 ### UX-PMD-1 — `profile.create_via_menu_dialog` use-after-dispose
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21, Phase O commit `fe5af1ad`)
 - **Surfaced**: 2026-07-21 (Phase N — implementing `profile.create_via_menu_dialog` e2e flow; full write-up in `docs/specs/phase-n-triage.md`)
 - **Severity**: HIGH (one of the documented "Create Profile" entry points throws in production when reached via the manage sheet)
-- **Location**: `apps/autorun_flutter/lib/widgets/profile_menu.dart:515-528`
+- **Location**: `apps/autorun_flutter/lib/widgets/profile_menu.dart:514-572` (`_showManageProfilesSheet` + `_pushCreateProfileWizard`)
 
-The manage-sheet `onCreateProfile` closure captures
-`_ProfileMenuWidgetState.this` and dereferences `context` AFTER the
-State has been disposed. The closure is set in `_showManageProfilesSheet`
-(called from `_handleAction` AFTER `Navigator.of(context).pop()` has
-already closed the menu's modal). When the user eventually taps
-"Create New Profile" in the sheet, the menu's exit animation has
-finished and `_ProfileMenuWidgetState` is unmounted — the closure
-throws `Looking up a deactivated widget's ancestor`.
+The manage-sheet `onCreateProfile` closure captured
+`_ProfileMenuWidgetState.this` and dereferenced `context` AFTER the
+State has been disposed. The closure was set in `_showManageProfilesSheet`
+(called from `_handleAction` AFTER `Navigator.of(context).pop()` had
+already closed the menu's modal). When the user eventually tapped
+"Create New Profile" in the sheet, the menu's exit animation had
+finished and `_ProfileMenuWidgetState` was unmounted — the closure
+threw `State no longer has a context` inside `_showCreateProfileDialog`
+(at `Navigator.of(context).push`).
 
-**Why this hasn't been reported**: the timing window is narrow — users
-who tap within the menu's ~250ms exit animation get lucky; users who
+**Why this hadn't been reported**: the timing window was narrow — users
+who tapped within the menu's ~250ms exit animation got lucky; users who
 read the sheet for a second or more hit the bug. The deferred e2e flow
 surfaces it deterministically.
 
-**Fix sketch**: capture the `NavigatorState` / root context BEFORE the
-`await` boundary (or route through a `GlobalKey<NavigatorState>`).
+**Fix**: capture `NavigatorState` BEFORE the `showModalBottomSheet` await
+boundary (`final navigator = Navigator.of(context);`) and route through
+the captured navigator from the closure. `_showCreateProfileDialog`
+delegates to a new `_pushCreateProfileWizard(NavigatorState)` helper so
+the post-await push uses the captured navigator, not the disposed State's
+context. Canonical Flutter pattern (see
+<https://api.flutter.dev/flutter/widgets/State/mounted.html>).
 
-**Coverage implication**: `profile.create_via_menu_dialog` is DEFERRED
-until this is fixed. The other create-profile entry points
-(`first_run.create_profile`,
-`first_run.create_profile_with_account`, `account.register_from_local`)
-are all covered.
+**Test**: `apps/autorun_flutter/test/widgets/profile_menu_dispose_test.dart`
+reproduces the bug pre-fix (assertion at `profile_menu.dart:536`) and
+passes post-fix. **End-to-end coverage**: `profile.create_via_menu_dialog`
+flow (PHASE 3 of `suite_mock_keyring_identity_test.dart`) drives the full
+UI path (menu → Switch Profile → manage sheet → Create New Profile →
+wizard → real createProfile + registerAccount → success) and pumps past
+the menu's exit animation before tapping, exercising the post-dispose
+branch deterministically.
 
 ### UX-N2 — Pagination UI missing (load-more state machine is vestigial)
 
