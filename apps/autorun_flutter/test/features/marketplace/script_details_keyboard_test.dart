@@ -273,11 +273,21 @@ void main() {
         await pumpDialog(tester, client: client);
 
         // Focus the code-preview SelectableText (an EditableText lives inside
-        // it, so the guarded arrow action must refuse to fire).
+        // it, so the guarded arrow action must refuse to fire). A `tester.tap`
+        // is unreliable here: with rich script data the dialog grows tall and
+        // the SelectableText is off-screen, so the tap misses its target and
+        // focus never moves. Drive focus directly via EditableTextState.
         final selectable = find.byType(SelectableText);
         expect(selectable, findsWidgets,
             reason: 'the Details tab renders a code preview SelectableText');
-        await tester.tap(selectable.first);
+        final editable = find.descendant(
+          of: selectable.first,
+          matching: find.byType(EditableText),
+        );
+        expect(editable, findsOneWidget);
+        final editableState =
+            tester.state(editable.first) as EditableTextState;
+        editableState.requestKeyboard();
         await tester.pump();
 
         // → while the preview is focused: must NOT switch tabs / fetch.
