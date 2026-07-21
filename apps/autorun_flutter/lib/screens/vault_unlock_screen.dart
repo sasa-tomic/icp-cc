@@ -4,6 +4,7 @@ import '../services/passkey_service.dart';
 import '../services/vault_crypto_service.dart';
 import '../rust/native_bridge.dart';
 import '../theme/app_design_system.dart';
+import '../utils/friendly_error.dart';
 import 'vault_password_setup_screen.dart';
 
 /// Called after the vault is successfully decrypted locally.
@@ -133,7 +134,7 @@ class _VaultUnlockScreenState extends State<VaultUnlockScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to unlock vault: $e';
+          _errorMessage = friendlyErrorMessage(e, context: 'Failed to unlock vault');
           _isUnlocking = false;
         });
       }

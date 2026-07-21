@@ -11,6 +11,7 @@ import '../services/canister_registry_service.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
 import '../utils/candid_type_resolver.dart';
+import '../utils/friendly_error.dart';
 import '../utils/json_format.dart';
 import '../utils/tech_terms.dart';
 import 'bookmarks_list.dart';
@@ -975,8 +976,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
                     }
                   } catch (e) {
                     if (mounted) {
-                      messenger.showSnackBar(
-                          SnackBar(content: Text('Failed to save: $e')));
+                      messenger.showSnackBar(SnackBar(
+                          content: Text(friendlyErrorMessage(e,
+                              context: 'Failed to save'))));
                     }
                   }
                 },

@@ -7,6 +7,7 @@ import '../theme/app_design_system.dart';
 import '../widgets/bookmark_composer.dart';
 import '../widgets/bookmarks_list.dart';
 import '../widgets/canister_client_sheet.dart';
+import '../utils/friendly_error.dart';
 import '../widgets/connectivity_scope.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/recent_calls_list.dart';
@@ -58,7 +59,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       // error/retry state.
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Could not load bookmarks: $e'),
+          content: Text(friendlyErrorMessage(e, context: 'Could not load bookmarks')),
           backgroundColor: errorColor,
         ),
       );
@@ -316,7 +317,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     }).catchError((Object e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Failed to bookmark ${entry.label}: $e'),
+          content: Text(friendlyErrorMessage(e, context: 'Failed to bookmark ${entry.label}')),
           backgroundColor: colorScheme.error,
         ),
       );

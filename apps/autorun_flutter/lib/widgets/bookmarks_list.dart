@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../rust/native_bridge.dart';
 import '../services/bookmarks_service.dart';
 import '../theme/app_design_system.dart';
+import '../utils/friendly_error.dart';
 import 'modern_empty_state.dart';
 
 class BookmarksList extends StatefulWidget {
@@ -222,7 +223,9 @@ class _BookmarksListState extends State<BookmarksList> {
                                             ..showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                    'Could not restore bookmark: $e'),
+                                                    friendlyErrorMessage(e,
+                                                        context:
+                                                            'Could not restore bookmark')),
                                               ),
                                             );
                                         }
@@ -235,8 +238,9 @@ class _BookmarksListState extends State<BookmarksList> {
                             if (mounted) {
                               messenger.showSnackBar(
                                 SnackBar(
-                                    content:
-                                        Text('Failed to remove bookmark: $e')),
+                                    content: Text(friendlyErrorMessage(e,
+                                        context:
+                                            'Failed to remove bookmark'))),
                               );
                             }
                           }

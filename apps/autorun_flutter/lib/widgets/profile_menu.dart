@@ -14,6 +14,7 @@ import '../screens/unified_setup_wizard.dart';
 import '../screens/vault_password_setup_screen.dart';
 import '../screens/vault_unlock_screen.dart';
 import '../services/secure_storage_readiness.dart';
+import '../utils/friendly_error.dart';
 import '../utils/user_initials.dart';
 
 /// Profile menu action types
@@ -469,7 +470,9 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       if (mounted) {
         setState(() => _isProbingVault = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not check vault status: ${e.message}')),
+          SnackBar(
+              content: Text(friendlyErrorMessage(e,
+                  context: 'Could not check vault status'))),
         );
       }
       return;
@@ -794,7 +797,9 @@ class _ManageProfilesSheetState extends State<_ManageProfilesSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to rename profile: $e')),
+          SnackBar(
+              content: Text(friendlyErrorMessage(e,
+                  context: 'Failed to rename profile'))),
         );
       }
     }
@@ -835,7 +840,9 @@ class _ManageProfilesSheetState extends State<_ManageProfilesSheet> {
       );
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Failed to delete profile: $e')),
+        SnackBar(
+            content: Text(friendlyErrorMessage(e,
+                context: 'Failed to delete profile'))),
       );
     }
   }

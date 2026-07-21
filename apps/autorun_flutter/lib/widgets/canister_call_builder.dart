@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/canister_method.dart';
 import '../services/candid_service.dart';
-import '../widgets/candid_args_builder.dart';
+import '../utils/friendly_error.dart';
 import '../utils/tech_terms.dart';
+import '../widgets/candid_args_builder.dart';
 
 /// Dialog for building canister method calls that generate a TypeScript snippet
 class CanisterCallBuilderDialog extends StatefulWidget {
@@ -123,7 +124,9 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load Candid methods: $e')),
+          SnackBar(
+              content: Text(friendlyErrorMessage(e,
+                  context: 'Failed to load Candid methods'))),
         );
       }
     }

@@ -3,6 +3,7 @@ import '../models/account.dart';
 import '../models/profile.dart';
 import '../controllers/account_controller.dart';
 import '../controllers/profile_controller.dart';
+import '../utils/friendly_error.dart';
 import '../widgets/key_parameters_dialog.dart';
 import '../theme/app_design_system.dart';
 
@@ -256,7 +257,7 @@ class _AddAccountKeySheetState extends State<AddAccountKeySheet> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _errorMessage = friendlyErrorMessage(e);
           _isAdding = false;
         });
       }

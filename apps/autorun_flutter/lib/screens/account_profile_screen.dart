@@ -7,6 +7,7 @@ import '../controllers/account_controller.dart';
 import '../controllers/profile_controller.dart';
 import '../theme/app_design_system.dart';
 import '../utils/passkey_platform.dart';
+import '../utils/friendly_error.dart';
 import '../utils/tech_terms.dart';
 import '../widgets/account_key_details_sheet.dart';
 import '../widgets/add_account_key_sheet.dart';
@@ -169,7 +170,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set signing key: $e')),
+          SnackBar(content: Text(friendlyErrorMessage(e, context: 'Failed to set signing key'))),
         );
       }
     }
@@ -775,7 +776,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackbar('Failed to add key: $e');
+        _showErrorSnackbar(friendlyErrorMessage(e, context: 'Failed to add key'));
       }
     }
   }
@@ -796,7 +797,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackbar('Failed to set signing key: $e');
+        _showErrorSnackbar(
+            friendlyErrorMessage(e, context: 'Failed to set signing key'));
       }
     }
   }
@@ -907,7 +909,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to switch key: $e')),
+          SnackBar(content: Text(friendlyErrorMessage(e, context: 'Failed to switch key'))),
         );
       }
     }
@@ -1153,7 +1155,8 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackbar('Failed to update profile: ${e.toString()}');
+        _showErrorSnackbar(
+            friendlyErrorMessage(e, context: 'Failed to update profile'));
       }
     } finally {
       if (mounted) {
@@ -1835,7 +1838,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackbar(e.toString().replaceAll('Exception: ', ''));
+        _showErrorSnackbar(friendlyErrorMessage(e));
       }
     }
   }

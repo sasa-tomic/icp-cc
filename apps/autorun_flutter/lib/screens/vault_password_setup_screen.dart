@@ -4,6 +4,7 @@ import '../services/passkey_service.dart';
 import '../services/vault_crypto_service.dart';
 import '../theme/app_design_system.dart';
 import '../utils/password_strength.dart';
+import '../utils/friendly_error.dart';
 import 'recovery_codes_screen.dart';
 
 typedef VaultCreatedCallback = void Function();
@@ -178,8 +179,10 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage =
-            'Failed to ${widget.isReset ? 'reset' : 'create'} vault: $e';
+        _errorMessage = friendlyErrorMessage(
+          e,
+          context: "Failed to ${widget.isReset ? 'reset' : 'create'} vault",
+        );
         _isCreating = false;
       });
     }

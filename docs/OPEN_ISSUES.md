@@ -631,14 +631,49 @@ one-line info popover on long-press / hover.
 
 ### UX-H9 — Raw exception strings in user-facing errors
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-9)
 - **Severity**: HIGH (AGENTS violation: "human errors")
-- **Locations**: `vault_password_setup_screen.dart:175-178`, `account_registration_wizard.dart:599`, `scripts_screen.dart:607, 748, 767, 891`
+- **Locations** (original 4 was an undercount; 19+ raw-`$e` sites converted):
+  `vault_password_setup_screen.dart`, `vault_unlock_screen.dart`,
+  `account_registration_wizard.dart`, `add_account_key_sheet.dart`,
+  `scripts_screen.dart` (5 sites), `download_history_screen.dart` (3 sites),
+  `bookmarks_screen.dart` (2 sites), `script_editor_dialog.dart`,
+  `account_profile_screen.dart` (4 sites), `profile_menu.dart` (3 sites),
+  `bookmarks_list.dart` (2 sites), `canister_call_builder.dart`,
+  `canister_client_sheet.dart`, `quick_upload_dialog.dart`.
 
-Raw exception strings (HTTP bodies, stack traces) leak into SnackBars /
-error text. The friendly-error pattern already exists in `_DappErrorView` —
-extend it.
+Raw exception strings (HTTP bodies, stack traces, `Instance of 'X'`,
+`Exception: …` dumps, `PlatformException(...)` verbatim) leaked into
+SnackBars / error text. The friendly-error pattern already existed in three
+narrow, partial helpers (`friendlyIcErrorMessage`, `humanizeSecureStorageError`,
+`canister_client_sheet._friendlyError`) plus the gold-standard
+`ErrorDisplay` widget backed by `lib/utils/error_categories.dart`
+(`categorizeError` + `getErrorInfo`). What was missing was a single
+general-purpose helper for the SnackBar sites where a full widget doesn't
+fit.
+
+**Fix:**
+- New `lib/utils/friendly_error.dart` (small, DRY) — delegates to the existing
+  `error_categories.categorizeError` → `getErrorInfo` typed-classification
+  pipeline. Two functions: `friendlyErrorMessage(error, {context})` (returns
+  the typed-category user-message, prepended with `context: ` when supplied)
+  and `friendlyErrorDetail(error)` (returns verbatim minus `Exception: `
+  prefix, masking `Instance of 'X'` / raw-HTML / server-banner noise; `null`
+  when nothing beyond the friendly message survives).
+- 19+ user-facing raw-`$e` sites converted to
+  `friendlyErrorMessage(e, context: 'X failed')`; bare
+  `e.toString().replaceAll('Exception: ', '')` shapes → bare
+  `friendlyErrorMessage(e)`. No silent swallowing — every site still surfaces
+  the error loudly, just with actionable copy instead of a stack trace.
+- 14-test TDD suite at `test/utils/friendly_error_test.dart` covers each
+  typed branch (network/timeout/auth/validation/server/unknown), context
+  join, PlatformException → unknown (never verbatim), detail stripping,
+  opaque-instance masking, HTML masking, verbatim pass-through.
+- Existing narrow helpers (`friendlyIcErrorMessage`,
+  `humanizeSecureStorageError`) retained — they handle special cases
+  (HTML-body masking, code-keyword detection) the general helper intentionally
+  delegates to.
 
 ### UX-H10 — Fake progress bars
 

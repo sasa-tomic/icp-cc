@@ -7,6 +7,7 @@ import '../services/marketplace_open_api_service.dart';
 import '../services/script_signature_service.dart';
 import '../services/script_validation_service.dart';
 import '../theme/app_design_system.dart';
+import '../utils/friendly_error.dart';
 import '../utils/principal.dart';
 import '../widgets/profile_scope.dart';
 import '../widgets/script_editor.dart';
@@ -311,7 +312,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Upload failed: $_error'),
+            content: Text(friendlyErrorMessage(e, context: 'Upload failed')),
             backgroundColor: AppDesignSystem.errorColor,
           ),
         );

@@ -25,6 +25,7 @@ import '../services/onboarding_progress_service.dart';
 import '../services/secure_storage_readiness.dart';
 import '../services/service_locator.dart';
 import '../theme/app_design_system.dart';
+import '../utils/friendly_error.dart';
 
 import '../rust/native_bridge.dart';
 import '../widgets/connectivity_scope.dart';
@@ -592,7 +593,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Download failed: $e'),
+            content: Text(friendlyErrorMessage(e, context: 'Download failed')),
             backgroundColor: AppDesignSystem.errorColor,
           ),
         );
@@ -757,7 +758,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Purchase failed: $e'),
+            content: Text(friendlyErrorMessage(e, context: 'Purchase failed')),
           backgroundColor: AppDesignSystem.errorColor,
         ),
       );
@@ -827,7 +828,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       } catch (e) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Could not load payment config: $e'),
+            content: Text(friendlyErrorMessage(e, context: 'Could not load payment config')),
             backgroundColor: AppDesignSystem.errorColor,
           ),
         );
@@ -845,7 +846,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       } catch (e) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Payment setup failed: $e'),
+            content: Text(friendlyErrorMessage(e, context: 'Payment setup failed')),
             backgroundColor: AppDesignSystem.errorColor,
           ),
         );
@@ -961,7 +962,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Download failed: $e'),
+            content: Text(friendlyErrorMessage(e, context: 'Download failed')),
             backgroundColor: AppDesignSystem.errorColor,
           ),
         );
@@ -1249,7 +1250,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to duplicate script: $e'),
+            content: Text(friendlyErrorMessage(e, context: 'Failed to duplicate script')),
             backgroundColor: AppDesignSystem.errorColor,
           ),
         );

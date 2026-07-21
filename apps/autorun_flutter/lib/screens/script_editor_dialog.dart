@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/script_controller.dart';
 import '../models/script_record.dart';
 import '../theme/app_design_system.dart';
+import '../utils/friendly_error.dart';
 import '../widgets/script_editor.dart';
 
 /// Improved script editor dialog with syntax highlighting and improved UX
@@ -55,7 +56,7 @@ class ScriptEditorDialogState extends State<ScriptEditorDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Save failed: $e'),
+            content: Text(friendlyErrorMessage(e, context: 'Save failed')),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

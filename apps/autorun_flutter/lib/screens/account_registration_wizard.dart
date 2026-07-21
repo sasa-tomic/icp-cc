@@ -6,6 +6,7 @@ import '../models/profile_keypair.dart';
 import '../controllers/account_controller.dart';
 import '../theme/app_design_system.dart';
 import '../utils/passkey_platform.dart';
+import '../utils/friendly_error.dart';
 import 'passkey_management_screen.dart';
 
 /// Default passkey-support probe. A top-level function so it can be used as a
@@ -605,7 +606,7 @@ class _AccountRegistrationWizardState extends State<AccountRegistrationWizard> {
       Navigator.pop(context, account);
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = friendlyErrorMessage(e);
         _isRegistering = false;
       });
     }

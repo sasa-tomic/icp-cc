@@ -3,6 +3,7 @@ import '../services/download_history_service.dart';
 import '../controllers/script_controller.dart';
 import '../services/script_repository.dart';
 import '../theme/app_design_system.dart';
+import '../utils/friendly_error.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/modern_empty_state.dart';
 import '../widgets/script_execution_bottom_sheet.dart';
@@ -124,7 +125,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to remove: $e')),
+            SnackBar(content: Text(friendlyErrorMessage(e, context: 'Failed to remove'))),
           );
         }
       }
@@ -168,7 +169,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to clear: $e')),
+            SnackBar(content: Text(friendlyErrorMessage(e, context: 'Failed to clear'))),
           );
         }
       }
@@ -383,7 +384,7 @@ class _DownloadHistoryTile extends StatelessWidget {
         } catch (e) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error: $e')),
+              SnackBar(content: Text(friendlyErrorMessage(e))),
             );
           }
         }
