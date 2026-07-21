@@ -517,6 +517,36 @@ ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
 "Call" button only invokes `callAnonymous`; bridge supports
 `callAuthenticated` but it's never used. Wire when an active keypair exists.
 
+### UX-PMD-1 — `profile.create_via_menu_dialog` use-after-dispose
+
+- **Status**: 🔴 OPEN
+- **Surfaced**: 2026-07-21 (Phase N — implementing `profile.create_via_menu_dialog` e2e flow; full write-up in `docs/specs/phase-n-triage.md`)
+- **Severity**: HIGH (one of the documented "Create Profile" entry points throws in production when reached via the manage sheet)
+- **Location**: `apps/autorun_flutter/lib/widgets/profile_menu.dart:515-528`
+
+The manage-sheet `onCreateProfile` closure captures
+`_ProfileMenuWidgetState.this` and dereferences `context` AFTER the
+State has been disposed. The closure is set in `_showManageProfilesSheet`
+(called from `_handleAction` AFTER `Navigator.of(context).pop()` has
+already closed the menu's modal). When the user eventually taps
+"Create New Profile" in the sheet, the menu's exit animation has
+finished and `_ProfileMenuWidgetState` is unmounted — the closure
+throws `Looking up a deactivated widget's ancestor`.
+
+**Why this hasn't been reported**: the timing window is narrow — users
+who tap within the menu's ~250ms exit animation get lucky; users who
+read the sheet for a second or more hit the bug. The deferred e2e flow
+surfaces it deterministically.
+
+**Fix sketch**: capture the `NavigatorState` / root context BEFORE the
+`await` boundary (or route through a `GlobalKey<NavigatorState>`).
+
+**Coverage implication**: `profile.create_via_menu_dialog` is DEFERRED
+until this is fixed. The other create-profile entry points
+(`first_run.create_profile`,
+`first_run.create_profile_with_account`, `account.register_from_local`)
+are all covered.
+
 ### UX-N2 — Pagination UI missing (load-more state machine is vestigial)
 
 - **Status**: 🔴 OPEN
