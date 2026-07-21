@@ -1386,14 +1386,18 @@ tests) and the strength-meter widget test in
 
 ## Critical / Blockers — current session (2026-07-21 e2e harness overhaul)
 
-Plan: `docs/specs/2026-07-21-e2e-harness-overhaul.md`.
+Plan: `docs/specs/2026-07-21-e2e-harness-overhaul.md`. P0 (NEW-1, NEW-2,
+NEW-4, NEW-6) is **complete and verified green** (`just e2e-desktop` 9m16s,
+4/4 PASSes). P1 (NEW-3, NEW-5) remains open — the harness is stable but the
+suites are still monolithic single-`testWidgets` bodies and runtime exceeds
+the 5 min target.
 
 ### NEW-1 — `resetAppState` cache-manager race (suite crashes at PHASE 1)
 
-- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Status**: 🟢 RESOLVED (2026-07-21, commit `598801c8`)
 - **Surfaced**: 2026-07-21 baseline run of `just e2e-desktop` after clean DB reset.
 - **Severity**: HIGH (blocks the entire desktop e2e harness on a clean box)
-- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_helpers.dart:97-100` (`resetAppState` deletes the dir wholesale).
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_helpers.dart` (`resetAppState`).
 
 `resetAppState` deletes the entire app-support directory while
 `flutter_cache_manager`'s `JsonCacheInfoRepository` holds a lazy-write handle
@@ -1403,17 +1407,20 @@ propagates as a `_pendingFrame == null` assertion in
 `LiveTestWidgetsFlutterBinding.postTest`, killing the suite at PHASE 1
 (right after the first `resetAppState + remount` cycle).
 
-**Fix plan:** stop the cache manager explicitly before deleting
-(`DefaultCacheManager().emptyCache()` + remove the JSON file individually
-rather than `Directory.delete(recursive: true)`), OR scope the app's cache
-to a per-run temp dir via `TMPDIR` / `XDG_DATA_HOME` override.
+**Fix (P0-A):** `resetAppState` now calls a new `_stopImageCache(tester)`
+helper FIRST (under `tester.runAsync`): `DefaultCacheManager().emptyCache()`
++ `.dispose()` drains the lazy-write queue and tears down the timer. THEN
+secure storage is wiped and the app-support dir is deleted AND recreated
+empty, so any lingering `path_provider` handle lands on a valid path. No
+`try/catch` silencing (AGENTS.md compliant). Eliminates NEW-4 as a side
+effect.
 
 ### NEW-2 — No per-suite DB reset (stale scripts accumulate)
 
-- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Status**: 🟢 RESOLVED (2026-07-21, commit `bda0b1ab`)
 - **Surfaced**: 2026-07-21 (backend DB had 1110 scripts after one session).
 - **Severity**: HIGH (silently breaks any test that assumes the canonical 3-script marketplace)
-- **Location**: `justfile` (`e2e-desktop`, `e2e-web` recipes), `backend/data/marketplace-dev.db`.
+- **Location**: `justfile` (`e2e-desktop`, `e2e-fast` recipes).
 
 Tests assume the marketplace has exactly 3 canonical seed scripts
 (`Hello IC Starter`, `ICP Balance Reader`, `Interactive Counter`) and bulk-seed
@@ -1422,68 +1429,104 @@ never reset between runs, so test-inserted scripts (`Bulk Seed Script N`,
 `Pub_NNN`, `Marketplace Visibility Test N`, paid seeds, …) accumulate. After
 one active dev session the DB had **1110 scripts**, the canonical 3 were
 buried past page-1, and `find.textContaining('Hello IC Starter')` returned
-nothing within the 15s wait. Symptom: `PHASE 18` of
-`suite_keyring_less_test.dart` fails with "A marketplace tile must be present
-to open details."
+nothing within the 15s wait.
 
-**Fix plan:** add `just _e2e-reset-db` that wipes + reseeds the dev DB via
-`backend/scripts/add-sample-data.sh`, called from `e2e-desktop` / `e2e-web`
-recipes BEFORE the suites run. Long-term: a debug-only `/api/v1/admin/reset`
-endpoint (avoids shell dependency).
+**Fix (P0-B):** `e2e-desktop` and `e2e-fast` recipes now run
+`(cd "{{api_dir}}" && bash scripts/add-sample-data.sh)` BEFORE the suites.
+`add-sample-data.sh` is idempotent (DELETE then INSERT) and resets to the
+canonical 3 scripts every run. Long-term: a debug-only `/api/v1/admin/reset`
+endpoint (avoids shell dependency) — filed as a follow-up.
 
 ### NEW-3 — `suite_keyring_less_test.dart` is a 2532-line single `testWidgets`
 
-- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Status**: 🟡 IN-PROGRESS (2026-07-21) — P1-A/B pending
 - **Surfaced**: pre-existing (referenced in E2E-PHASE56+57 as the "binding stability
   threshold" root cause).
-- **Severity**: MEDIUM (maintainability + flakiness; not a runtime bug today
-  because NEW-1 masks it).
-- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart`.
+- **Severity**: MEDIUM (maintainability + flakiness; the suites ARE stable today
+  thanks to the 4-suite split, but each is still one monolithic `testWidgets`).
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart`
+  (55 phases) + `suite_mock_keyring_test.dart` (25 phases) +
+  `suite_mock_keyring_dapps_test.dart` (5 phases) +
+  `suite_mock_keyring_identity_test.dart` (3 phases).
 
 55 phases inside a single `testWidgets` body. Past ~30 phases, the
 flutter_test binding's stream protocol starts crashing with
 `"Cannot close sink while adding stream"`. Prior sessions worked around by
-splitting into 4 mini-suites (`keyring_less`, `mock_keyring`,
-`mock_keyring_dapps`, `mock_keyring_identity`). The root cause (resource
-accumulation in long single-`testWidgets` body) is not fixed.
+splitting into 4 mini-suites. The root cause (resource accumulation in long
+single-`testWidgets` body) is not fixed.
 
-**Fix plan:** split into per-feature `group()`s of small `testWidgets`
-bodies. One boot per group via shared `setUpAll`. Coverage contract
-(`flow_catalog.dart`) preserved.
+**Fix plan (P1-A/B):** split into per-feature `group()`s of small
+`testWidgets` bodies. One boot per group via shared `setUpAll`. Coverage
+contract (`flow_catalog.dart`) preserved. Each per-feature suite should
+run in <30 s, enabling `just e2e-one <flow-id>` <20 s (P1-D).
 
 ### NEW-4 — `_pendingFrame == null` postTest assertion (symptom of NEW-1)
 
-- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Status**: 🟢 RESOLVED (2026-07-21, commit `598801c8` — eliminated by NEW-1 fix)
 - **Surfaced**: 2026-07-21 (suite_keyring_less_test.dart PHASE 1).
 - **Severity**: HIGH (mask, but blocks the suite)
 - **Location**: `flutter_test/src/binding.dart:3081` (assertion site).
 
 `LiveTestWidgetsFlutterBinding.postTest` asserts `_pendingFrame == null`.
 This fires when a `setState` / pump is scheduled after the test body returns.
-In this case it's the `PathNotFoundException` from NEW-1 racing with the
-test teardown — the cache manager's recovery write triggers a frame request
+In this case it was the `PathNotFoundException` from NEW-1 racing with the
+test teardown — the cache manager's recovery write triggered a frame request
 post-test. **Fixing NEW-1 eliminates NEW-4.**
 
-### NEW-5 — E2E runtime: 3 min for 1 of 4 suites; 12 min total
+### NEW-5 — E2E runtime: 9m16s total; single-flow cycle ~90 s
 
-- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Status**: 🟡 IN-PROGRESS (2026-07-21) — P1-C/D pending
 - **Surfaced**: 2026-07-21 baseline run.
 - **Severity**: MEDIUM (dev velocity; user explicitly wants "seconds")
 - **Location**: `apps/autorun_flutter/integration_test/e2e/*`.
 
-`suite_keyring_less_test.dart` ran **2:58** wall-clock and only completed
-PHASE 0 before NEW-1 crashed it. On a healthy box the full 55-phase run is
-~5-6 min. `just e2e-desktop` is 4 such suites = ~12 min. The dev cycle for
-a single flow via `just e2e-one` is ~90 s (most of which is boot + state
-reset, not the flow under test).
+After the P0 fixes `just e2e-desktop` runs **9m16s** across all 4 PASSes
+(all green). The dev cycle for a single flow via `just e2e-one` is ~90 s
+(most of which is boot + state reset, not the flow under test). The targets
+remain unmet:
 
 **Targets:**
-- `just e2e-one <flow-id>`: < 20 s
-- `just e2e-tag smoke`: < 60 s
-- `just e2e-desktop`: < 5 min
+- `just e2e-one <flow-id>`: < 20 s (currently ~90 s)
+- `just e2e-tag smoke`: < 60 s (not yet implemented — P1-C)
+- `just e2e-desktop`: < 5 min (currently 9m16s)
 
 **Fix plan:** per-flow `testWidgets` (P1-A) + tag-based filtering (P1-C) +
 shared-boot optimization (P1-D).
+
+### NEW-6 — Post-registration security prompt blocks wizard e2e flows
+
+- **Status**: 🟢 RESOLVED (2026-07-21, commits `598801c8` + `bda0b1ab`)
+- **Surfaced**: 2026-07-21 during P0-C verification (mock-keyring-dapps +
+  mock-keyring-identity suites hung 20 s then failed at the wizard step).
+- **Severity**: HIGH (broke ALL e2e flows that register an account through a wizard)
+- **Location:** e2e helpers `apps/autorun_flutter/integration_test/e2e/suite_helpers.dart`;
+  source of the prompt `apps/autorun_flutter/lib/widgets/post_registration_security_prompt.dart`
+  (introduced by UX-H6, commit `92ba775a`, same day).
+
+UX-H6 (commit `92ba775a`, 2026-07-21) added
+`showPostRegistrationSecurityPrompt` to BOTH onboarding wizards
+(`unified_setup_wizard.dart:914`, `account_registration_wizard.dart:588`).
+After `registerAccount` succeeds, the dialog ("Secure your account" with
+vault / passkey / skip options) blocks the wizard from reaching the Success
+screen. ALL e2e flows that register an account through a wizard were broken
+(hung 20 s then failed). The keyring-less suite was UNAFFECTED (uses
+local-only profiles, no account registration).
+
+**Fix:** added shared helper
+`dismissPostRegistrationSecurityPrompt(tester, d, {timeout})` to
+`suite_helpers.dart`. Polls for dialog title 'Secure your account', taps
+'Skip for now'. Applied to 3 wizard-driving flows:
+1. `suite_mock_keyring_dapps_test.dart` (UnifiedSetup wizard flow)
+2. `suite_mock_keyring_identity_test.dart` `profile.create_via_menu_dialog` (UnifiedSetup)
+3. `suite_mock_keyring_identity_test.dart` `account.register_from_publish` (AccountRegistrationWizard)
+
+`suite_mock_keyring_test.dart` is UNAFFECTED — it creates profiles via
+controller directly, not through the wizard UI.
+
+**Verified not affected:** `ux_probe/g_first_run_wizard_happy_path_test.dart`
+enters only a display name (no username) → creates a LOCAL-ONLY profile →
+`registerAccount` is skipped → `showPostRegistrationSecurityPrompt` is
+skipped (line 913 guards on `createdAccount != null`). No fix needed.
 
 ---
 
