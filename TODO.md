@@ -166,6 +166,21 @@ Sized **S** ≈ half-day, **M** ≈ 1–2 days.
   dialog), wired to the pre-existing `ProfileController.updateKeypairLabel`.
   Frontend-only by design (YAGNI/KISS — a personal friendly name is not backend
   data). 4 widget tests added.
+- **SNS / NNS voting headliner demos.** ✅ DONE (2026-07-21, confidence 9/10) —
+  see `docs/specs/2026-07-21-sns-voting-scripts.md`. Added two read-only
+  mainnet dapps to the catalog: `nns_proposals` (browse live NNS governance
+  proposals with status+topic filters, pagination, deadline countdown, yes/no
+  tally) and `sns_proposals` (same UX for any SNS DAO; defaults to OpenChat SNS
+  governance, user can paste any SNS id inline; per-DAO colour theme). Source
+  repos cloned to `third_party/ALPHA-Vote` + `third_party/CO.DELTA`; the Rust
+  NNS neuron-automation logic (D-QUORUM follow + fallback reject) was studied
+  and is preserved there for the deferred authenticated-voting follow-up
+  below. New platform capability: bundle-controlled theming — `view()` root
+  MAY carry `theme: {background, card_background, accent, text, text_muted}`
+  (hex strings); `ScriptAppHost` wraps in `ColoredBox` + `Theme()` override
+  (theme-less bundles render unchanged). 17 new tests (7 NNS bundle + 7 SNS
+  bundle + 3 theme widget) via the REAL FFI runtime; live mainnet verified
+  via dfx for both canisters. Commits `6f11c056`, `4db4f8da`, `fc1ffab4`.
 
 ## Deferred (decided, with justification)
 
@@ -210,6 +225,16 @@ Not started; pulled from the migration spec's open questions (`docs/specs/SCRIPT
 - **G2** — Android NDK cross-compile of the QuickJS/rquickjs cdylib (NDK is not present in the current environment).
 - **G8** — `qjsc` bytecode precompilation for faster cold start (optional).
 - **G12** — Resource-limit (memory/time) tuning against a real pilot-script load test.
+- **ALPHA-Vote-style authenticated neuron voting dapp.** Deferred from the
+  2026-07-21 SNS/NNS voting work (`docs/specs/2026-07-21-sns-voting-scripts.md`
+  §3). The headliner shipped two *read-only* browsers (NNS + SNS proposals);
+  the natural follow-up is an authenticated dapp that calls
+  `manage_neuron` (`RegisterVote` / `Follow`) on NNS governance against the
+  user's own staked neuron. The Rust reference (D-QUORUM follow + 3-hour
+  deadline threshold + fallback reject) is preserved at
+  `third_party/ALPHA-Vote/src/alpha_backend/src/lib.rs`. Blocks on
+  `UX-H12` (wire `callAuthenticated` to the active profile keypair — already
+  supported by the bridge; needs UI surface in the dapp runner).
 
 ### Wave-6 follow-ups (surfaced 2026-07-11, not blockers)
 

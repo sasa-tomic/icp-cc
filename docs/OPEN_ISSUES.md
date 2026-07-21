@@ -634,6 +634,18 @@ ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
 
 **Fix:** replace with one shared const.
 
+> **Note (added 2026-07-21):** there is now a fourth list —
+> `apps/autorun_flutter/lib/config/example_dapps.dart` (`exampleDapps`,
+> added `nns_proposals` + `sns_proposals` entries with their governance
+> canister ids). It is **intentionally separate** from the UX-H11 three:
+> it is the **Dapps catalog** (headliner demo descriptors with bundle
+> asset paths, titles, themes, frontend URLs), not a registry of
+> "well-known canisters to invoke via the Call Builder." The two concerns
+> have different lifecycles (dapps ship as authored examples; canisters
+> are reference data for an interactive tool). The fix for UX-H11 should
+> still collapse the original three into one shared const, but should
+> NOT swallow `exampleDapps` — that would conflate two concepts.
+
 ### UX-H12 — No authenticated canister calls (power users can't sign)
 
 - **Status**: 🔴 OPEN

@@ -1,5 +1,15 @@
 # 2026-07-21 — SNS / NNS Voting Scripts (read-only mainnet demos)
 
+> ✅ **STATUS: COMPLETE (2026-07-21).** All three units shipped in three
+> green commits — Unit 1 `6f11c056` (NNS bundle + dapp + 7 tests), Unit 2
+> `4db4f8da` (theme support in `ScriptAppHost` + 3 widget tests), Unit 3
+> `fc1ffab4` (SNS bundle + dapp + 7 tests). 17 new tests PASS via the REAL
+> FFI runtime; live mainnet verified via dfx for both
+> `rrkah-fqaaa-aaaaa-aaaaq-cai` (NNS) and `2jvtu-yqaaa-aaaaq-aaama-cai`
+> (OpenChat SNS). No pre-existing tests regressed. Section §11 below maps
+> each commit; the rest of the document is the original plan / design
+> reference.
+>
 > Spec / plan for adding headliner voting-governance scripts to the Dapps
 > catalog. Demonstrates what icp-cc can do against **real** mainnet canisters
 > (HUMAN_EXPECTATIONS §3) with zero user setup. Source of truth for this unit
@@ -228,7 +238,34 @@ Per AGENTS.md mandatory workflow:
 
 Each commit is independently green:
 
-1. `08_nns_proposals.js` + loader + bundle test + `nns_proposals` DappDescriptor + pubspec asset. (NNS bundle works on its own — the headliner.)
-2. Theme support in `ScriptAppHost` + widget test.
-3. `09_sns_proposals.js` + loader + bundle test + `sns_proposals` DappDescriptor + pubspec asset. (Builds on #2.)
-4. Docs (OPEN_ISSUES, TODO).
+1. ✅ **Unit 1** (`6f11c056`): `08_nns_proposals.js` + loader + bundle test +
+   `nns_proposals` DappDescriptor + pubspec asset. (NNS bundle works on its
+   own — the headliner.) **7/7 tests PASS.**
+2. ✅ **Unit 2** (`4db4f8da`): Theme support in `ScriptAppHost` + widget test.
+   `view()` root MAY carry `theme: { background, card_background, accent,
+   text, text_muted }` (hex strings); host wraps the scroll view in
+   `ColoredBox(background)` + `Theme()` override. Theme-less bundles render
+   exactly as before. **3/3 widget tests PASS.**
+3. ✅ **Unit 3** (`fc1ffab4`): `09_sns_proposals.js` + loader + bundle test +
+   `sns_proposals` DappDescriptor + pubspec asset. (Builds on Unit 2.)
+   Default canister id `2jvtu-yqaaa-aaaaq-aaama-cai` (OpenChat SNS
+   governance, verified live). Args use SNS's `exclude_type` (vec nat64),
+   not NNS's `exclude_topic` (vec int32); no `omit_large_fields`. Status is
+   INFERRED from `executed_timestamp_seconds` / `failed_timestamp_seconds` /
+   `decided_timestamp_seconds` (no direct status field on SNS ProposalData).
+   **7/7 tests PASS.**
+4. ✅ **Unit 4** (docs): TODO/OPEN_ISSUES updates + this spec's status header.
+
+## 12. Deviations from the original plan (for the historical record)
+
+- **§10 SNS-out-of-box confidence** was 7/10 in the plan (default SNS
+  unverified). At PoC time we verified OpenChat SNS governance
+  (`2jvtu-yqaaa-aaaaq-aaama-cai`) returns real `list_proposals` data
+  read-only on mainnet → final confidence **9/10**.
+- **§7 paginated_list** widget was NOT used. The NNS + SNS bundles both use
+  plain `section` cards inside a `column` + prev/next `button`s for
+  pagination. (The catalog `paginated_list` widget is a load-more semantics
+  primitive for incremental fetches; we paginate against an already-fetched
+  cached page slice, which `section` + `button` expresses more directly.)
+- **SNS `proposer.id`** is a `blob` (NNS uses `record { id: nat64 }`). The
+  bundle does not display proposer identity (YAGNI for the headliner).
