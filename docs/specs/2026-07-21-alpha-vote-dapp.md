@@ -1,5 +1,27 @@
 # 2026-07-21 — ALPHA-Vote Authenticated Neuron Voting Dapp
 
+> ✅ **STATUS: COMPLETE (2026-07-21).** All three units shipped in three
+> green commits — Unit 1 `7a9981de` (bundle + descriptor + 25 bundle-logic
+> tests via the REAL FFI runtime), Unit 2 `e44d21a2` (10 host-auth + 5
+> trust-store widget tests), Unit 3 docs (this header + TODO.md strike-
+> through). 40 new tests PASS; `just test-feature scripts` 261/261 (+30
+> from the 231 baseline), `just test-feature dapps` 59/59 (+5),
+> `just test-feature marketplace` 122/122 (no regression). Live mainnet
+> PoC verified via dfx 0.32.0 against `rrkah-fqaaa-aaaaa-aaaaq-cai` — a
+> real authenticated `manage_neuron RegisterVote` and `manage_neuron
+> Follow` round-trip with a non-owned neuron returns the structured
+> `command = opt variant { Error = { error_message: "Neuron not found:
+> NeuronId { id: 12345 }"; error_type: 4 } }` (spec §10.2), proving the
+> auth path reaches NNS, is NOT anonymous-rejected, parses correctly,
+> and is rejected at the application layer. The full happy-path success
+> response (RegisterVoteResponse / FollowResponse) requires a real staked
+> neuron + 8-day dissolve delay and is OUTSIDE this plan's scope; the
+> bundle's `decodeManageNeuronResponse` handles the candid Ok-shapes per
+> the documented variant names, with a loud-fallback for any unknown
+> variant (never silent — spec §12.3). Section §11 below maps each
+> commit; the rest of the document is the original plan / design
+> reference.
+>
 > Spec / plan for the **authenticated** sequel to the read-only
 > `2026-07-21-sns-voting-scripts.md` headliner. The two read-only demos
 > (NNS Proposals + SNS DAO Proposals) shipped in three green commits

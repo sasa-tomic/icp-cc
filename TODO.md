@@ -225,7 +225,7 @@ Not started; pulled from the migration spec's open questions (`docs/specs/SCRIPT
 - **G2** — Android NDK cross-compile of the QuickJS/rquickjs cdylib (NDK is not present in the current environment).
 - **G8** — `qjsc` bytecode precompilation for faster cold start (optional).
 - **G12** — Resource-limit (memory/time) tuning against a real pilot-script load test.
-- **ALPHA-Vote-style authenticated neuron voting dapp.** Deferred from the
+- **ALPHA-Vote-style authenticated neuron voting dapp.** ~~Deferred from the
   2026-07-21 SNS/NNS voting work (`docs/specs/2026-07-21-sns-voting-scripts.md`
   §3). The headliner shipped two *read-only* browsers (NNS + SNS proposals);
   the natural follow-up is an authenticated dapp that calls
@@ -234,7 +234,26 @@ Not started; pulled from the migration spec's open questions (`docs/specs/SCRIPT
   deadline threshold + fallback reject) is preserved at
   `third_party/ALPHA-Vote/src/alpha_backend/src/lib.rs`. Blocks on
   `UX-H12` (wire `callAuthenticated` to the active profile keypair — already
-  supported by the bridge; needs UI surface in the dapp runner).
+  supported by the bridge; needs UI surface in the dapp runner).~~
+  ✅ **DONE (2026-07-21, commits `7a9981de` + `e44d21a2`, confidence 9/10)**
+  — see `docs/specs/2026-07-21-alpha-vote-dapp.md` (STATUS: COMPLETE). Shipped
+  as the **Neuron Voting** dapp (`alpha_vote` descriptor) at
+  `lib/examples/10_alpha_vote.js` — an authenticated TS/QuickJS bundle that
+  browses open NNS proposals, surfaces what ALPHA-Vote's 3 public neurons
+  (αlpha-vote, Ωmega-vote, Ωmega-reject) voted on each (transparency layer),
+  and lets the user cast a one-off `RegisterVote` (Yes/No) or set up recurring
+  `Follow` of a neuron on a topic — signed with the active profile's keypair
+  via the UX-H12 host auth path. USER-DRIVEN, NOT autonomous (the recurring
+  case delegates to NNS Governance via the Follow variant — true
+  set-and-forget, no long-running canister). Candid args verified live via
+  dfx 0.32.0 against `rrkah-fqaaa-aaaaa-aaaaq-cai`; a real authenticated
+  `manage_neuron` round-trip with a non-owned neuron returns the structured
+  `Error { error_message: "Neuron not found: NeuronId { id: 12345 }";
+  error_type: 4 }` — proving the auth path reaches NNS, is NOT anon-rejected,
+  parses correctly, and is rejected at the application layer. 40 new tests
+  (25 bundle-logic via the REAL FFI runtime + 10 host-auth widget + 5 trust
+  store); `just test-feature scripts` 261/261, `just test-feature dapps`
+  59/59, `just test-feature marketplace` 122/122 (no regression).
 
 ### Wave-6 follow-ups (surfaced 2026-07-11, not blockers)
 
