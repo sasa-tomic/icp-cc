@@ -24,8 +24,8 @@ use p256::ecdsa::{signature::Signer, DerSignature, SigningKey, VerifyingKey};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 use webauthn_rs_proto::{
-    CreationChallengeResponse, PublicKeyCredential, RegisterPublicKeyCredential,
-    RequestChallengeResponse,
+    PublicKeyCredential, PublicKeyCredentialCreationOptions,
+    PublicKeyCredentialRequestOptions, RegisterPublicKeyCredential,
 };
 
 const FLAG_USER_PRESENT: u8 = 0x01;
@@ -96,13 +96,18 @@ impl SoftAuthenticator {
 
     /// Build a registration response the real verifier will accept for the
     /// given challenge + RP.
+    ///
+    /// Takes the flat `PublicKeyCredentialCreationOptions` (the shape the
+    /// backend exposes via `PasskeyRegistrationStart.options` since the
+    /// WEB-1-PASSKEY-SHAPE fix). Browser-side simulation re-wraps in the
+    /// W3C `CredentialCreationOptions.publicKey` shape internally.
     pub fn register_response(
         &self,
-        options: &CreationChallengeResponse,
+        options: &PublicKeyCredentialCreationOptions,
         rp_id: &str,
         origin: &str,
     ) -> Result<RegisterPublicKeyCredential, String> {
-        let challenge = options.public_key.challenge.as_slice();
+        let challenge = options.challenge.as_slice();
         let client_data = build_client_data("webauthn.create", challenge, origin);
         let auth_data =
             build_registration_auth_data(rp_id, &self.credential_id, self.cose_public_key());
@@ -150,14 +155,18 @@ impl SoftAuthenticator {
     /// Build an authentication assertion for the given challenge, origin and
     /// counter. `counter` must be strictly greater than the credential's
     /// counter (as the server recorded it) for the monotonicity check to pass.
+    ///
+    /// Takes the flat `PublicKeyCredentialRequestOptions` (the shape the
+    /// backend exposes via `PasskeyAuthenticationStart.options` since the
+    /// WEB-1-PASSKEY-SHAPE fix).
     pub fn authenticate_response(
         &self,
-        options: &RequestChallengeResponse,
+        options: &PublicKeyCredentialRequestOptions,
         origin: &str,
         counter: u32,
     ) -> Result<PublicKeyCredential, String> {
-        let challenge = options.public_key.challenge.as_slice();
-        let rp_id = options.public_key.rp_id.clone();
+        let challenge = options.challenge.as_slice();
+        let rp_id = options.rp_id.clone();
         let client_data = build_client_data("webauthn.get", challenge, origin);
         let auth_data = build_assertion_auth_data(&rp_id, counter);
 

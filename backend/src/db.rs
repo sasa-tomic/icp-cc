@@ -324,14 +324,29 @@ pub async fn initialize_database(pool: &SqlitePool) {
 
     // Passkeys table for WebAuthn credentials.
     //
-    // The owning-account column is `account_id` (a keypair principal — see the
-    // FK target), consistent with the sibling `recovery_codes` / `user_vaults`
-    // tables AND every query in `passkey_repository.rs` (which all use
-    // `account_id`) + the `PasskeyRow` FromRow struct. A previous scaffold of
-    // this table used `user_principal`; the rename below upgrades any
-    // pre-existing dev DB in place. (Same QS-1b-class gap the A-4 rename fixed
-    // for recovery_codes/user_vaults — passkeys was simply missed there.)
+    // WEB-1-PASSKEY-SHAPE: `account_id` is the accounts-table UUID resolved
+    // server-side by the signature gate (from `account_public_keys.account_id`
+    // → `accounts.id`), NOT a principal string. A previous scaffold of this
+    // table used `FOREIGN KEY … REFERENCES keypair_profiles(principal)`, which
+    // was wrong for the same reason `user_vaults` and `recovery_codes` were
+    // wrong before the A-4 W4 migration: the signature gate resolves the UUID,
+    // never a principal. The bug was masked because an EARLIER shape mismatch
+    // (`CreationChallengeResponse.public_key` wrapper that the Dart `passkeys`
+    // package couldn't parse) failed the flow at /passkey/register/start before
+    // the FK failure at /passkey/register/finish could surface. With the shape
+    // mismatch fixed, the FK failure became reachable — and is now fixed here
+    // by the same drop+recreate pattern. No data loss is possible: the broken
+    // FK meant no production passkey row was ever insertable.
+    //
+    // The owning column is `account_id`, consistent with the sibling
+    // `recovery_codes` / `user_vaults` tables AND every query in
+    // `passkey_repository.rs` (which all use `account_id`) + the `PasskeyRow`
+    // FromRow struct.
     rename_legacy_user_principal_column(pool, "passkeys").await;
+    sqlx::query("DROP TABLE IF EXISTS passkeys")
+        .execute(pool)
+        .await
+        .expect("Failed to drop legacy passkeys table");
 
     sqlx::query(
         r#"
@@ -345,7 +360,7 @@ pub async fn initialize_database(pool: &SqlitePool) {
             device_type TEXT,
             created_at TEXT NOT NULL,
             last_used_at TEXT,
-            FOREIGN KEY (account_id) REFERENCES keypair_profiles(principal) ON DELETE CASCADE
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
         )
         "#,
     )

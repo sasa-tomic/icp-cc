@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use webauthn_rs::prelude::*;
+use webauthn_rs_proto::{
+    PublicKeyCredentialCreationOptions, PublicKeyCredentialRequestOptions,
+};
 
 const CHALLENGE_EXPIRY_MINUTES: i64 = 5;
 
@@ -20,7 +23,15 @@ const CHALLENGE_EXPIRY_MINUTES: i64 = 5;
 #[derive(Debug, Serialize)]
 pub struct PasskeyRegistrationStart {
     pub challenge_id: String,
-    pub options: CreationChallengeResponse,
+    /// Flat WebAuthn options, matching the Dart `passkeys` package's
+    /// `RegisterRequestType.fromJson` shape. The `webauthn-rs-proto`
+    /// `CreationChallengeResponse` wraps the same inner type under a
+    /// `public_key` field; we unwrap here because the frontend
+    /// (PasskeyService.registerPasskey → NativePasskeyAuthenticator.register
+    /// → RegisterRequestType.fromJson) expects `rp`, `user`, `challenge`,
+    /// … at the top level, NOT under `publicKey`. See WEB-1-PASSKEY-SHAPE
+    /// in docs/OPEN_ISSUES.md for the full investigation.
+    pub options: PublicKeyCredentialCreationOptions,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,7 +45,10 @@ pub struct PasskeyRegistrationFinish {
 #[derive(Debug, Serialize)]
 pub struct PasskeyAuthenticationStart {
     pub challenge_id: String,
-    pub options: RequestChallengeResponse,
+    /// Flat WebAuthn options, matching the Dart `passkeys` package's
+    /// `AuthenticateRequestType.fromJson` shape. See
+    /// `PasskeyRegistrationStart.options` doc for the shape rationale.
+    pub options: PublicKeyCredentialRequestOptions,
 }
 
 #[derive(Debug, Deserialize)]
@@ -169,7 +183,9 @@ impl PasskeyService {
 
         Ok(PasskeyRegistrationStart {
             challenge_id,
-            options: ccr,
+            // Flatten `CreationChallengeResponse.public_key` into the response
+            // — see `PasskeyRegistrationStart.options` doc + WEB-1-PASSKEY-SHAPE.
+            options: ccr.public_key,
         })
     }
 
@@ -309,7 +325,9 @@ impl PasskeyService {
 
         Ok(PasskeyAuthenticationStart {
             challenge_id,
-            options: rcr,
+            // Flatten `RequestChallengeResponse.public_key` into the response
+            // — see `PasskeyRegistrationStart.options` doc + WEB-1-PASSKEY-SHAPE.
+            options: rcr.public_key,
         })
     }
 

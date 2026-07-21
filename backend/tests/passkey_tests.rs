@@ -60,24 +60,26 @@ async fn setup() -> (PasskeyService, SqlitePool) {
     (service, pool)
 }
 
-/// Inserts a `keypair_profiles` row for `principal` so the passkeys FK
-/// (`account_id → keypair_profiles.principal`) is satisfied before a
-/// registration writes a passkey row.
-async fn seed_principal(pool: &SqlitePool, principal: &str) {
+/// Inserts an `accounts` row for `account_id` so the passkeys FK
+/// (`account_id → accounts.id`, post-WEB-1-PASSKEY-SHAPE fix) is satisfied
+/// before a registration writes a passkey row. The account_id passed here
+/// is also what `start_registration(account_id, ...)` echoes into the
+/// new passkey row.
+async fn seed_principal(pool: &SqlitePool, account_id: &str) {
     let now = "2026-07-10T00:00:00Z";
     sqlx::query(
-        r#"INSERT INTO keypair_profiles
-               (id, principal, display_name, username, created_at, updated_at)
-           VALUES (?, ?, ?, NULL, ?, ?)"#,
+        r#"INSERT INTO accounts
+               (id, username, display_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)"#,
     )
-    .bind(format!("id-{principal}"))
-    .bind(principal)
-    .bind(format!("display-{principal}"))
+    .bind(account_id)
+    .bind(format!("user-{account_id}"))
+    .bind(format!("display-{account_id}"))
     .bind(now)
     .bind(now)
     .execute(pool)
     .await
-    .expect("failed to seed keypair_profiles row");
+    .expect("failed to seed accounts row");
 }
 
 /// Drives the full registration flow with the software authenticator.
@@ -134,8 +136,10 @@ async fn start_registration_returns_challenge_with_expected_shape() {
 
     // The challenge bytes must be present and non-trivial — the authenticator
     // signs over them. A regression that returned an empty/constant challenge
-    // would break security.
-    let challenge_bytes = start.options.public_key.challenge.as_slice();
+    // would break security. Since the WEB-1-PASSKEY-SHAPE fix, `start.options`
+    // is the flat `PublicKeyCredentialCreationOptions` (no `public_key`
+    // wrapper).
+    let challenge_bytes = start.options.challenge.as_slice();
     assert!(
         challenge_bytes.len() >= 16,
         "registration challenge must be at least 16 bytes, got {}",
