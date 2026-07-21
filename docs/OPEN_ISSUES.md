@@ -729,13 +729,76 @@ ICLighthouse / Cyql / Kinic / Canistergeek that the Canisters tab shows.
 
 ### UX-H12 — No authenticated canister calls (power users can't sign)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21, commits `cba0e2a4` + `13672cb8` + `934b10b3`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-12)
 - **Severity**: HIGH (power-user surface incomplete)
-- **Location**: `apps/autorun_flutter/lib/widgets/canister_client_sheet.dart:321`
+- **Location**: `apps/autorun_flutter/lib/widgets/canister_client_sheet.dart` (interactive Call Builder sheet); `apps/autorun_flutter/lib/widgets/canister_call_builder.dart` (snippet generator)
 
-"Call" button only invokes `callAnonymous`; bridge supports
-`callAuthenticated` but it's never used. Wire when an active keypair exists.
+The interactive Call Builder sheet's Call button only invoked
+`RustBridgeLoader.callAnonymous`; the bridge has supported
+`callAuthenticated` since R-3b WU-4 (and the script-app host has used it
+since STEP-1), but the interactive sheet never wired it. Separately, the
+Call Builder dialog's snippet generator emitted broken syntax
+(`keypair_id: "<id>"` — no such host field) plus a non-running comment
+instead of the host's `authenticated: true` contract flag.
+
+**Resolution (3 commits, each independently shippable):**
+
+1. `cba0e2a4` — `feat(canisters): wire authenticated calls into Call
+   Builder sheet`. Added a `SwitchListTile.adaptive` "Sign as active
+   profile" toggle directly above the Call button. Active keypair
+   present → toggle enabled, subtitle shows the public principal (NEVER
+   the private key), and `_callMethod` dispatches
+   `bridge.callAuthenticated(privateKeyB64: kp.privateKey)`. No keypair
+   / no ProfileScope → toggle disabled with a tappable "Create a
+   profile to sign calls as your identity." CTA that deep-links into
+   `UnifiedSetupWizard`. `_callMethod` rechecks the keypair on entry so
+   a mid-session profile removal surfaces a loud `friendlyErrorMessage`
+   SnackBar (`Cannot sign call: …`) — never a silent anonymous fallback
+   (AGENTS.md). History rows tagged `(signed)` on the auth path
+   (schema unchanged).
+
+2. `13672cb8` — `feat(canisters): honest auth-failure UX in Call
+   Builder`. Added the `testSecureStorageReadiness` test seam (mirrors
+   `DappRunnerScreen`) so the wizard deep-link test is hermetic — the
+   real probe would shell out to gnome-keyring-daemon on a Linux host
+   and `pumpAndSettle` would never converge. Locked down the two
+   honest-failure paths with widget tests: keyless user (real
+   `ProfileController`, no profiles) → tap CTA pushes the real
+   `UnifiedSetupWizard`; mid-session removal (`setActiveProfile(null)`
+   after toggling ON) → tap Call surfaces the friendly SnackBar, bridge
+   records ZERO anonymous calls (never a silent fallback), message has
+   no raw `StateError` / `Exception:` text.
+
+3. `934b10b3` — `fix(canister-call-builder): emit 'authenticated: true'
+   (not broken keypair_id)`. Replaced the broken `keypair_id`/comment
+   block with a single `authenticated: true,` line when the checkbox is
+   on; deleted the dead `_keypairId` field. Extracted the generator
+   into a `@visibleForTesting static CanisterCallBuilderDialog.generateBundle({...})`
+   so the contract is testable without pumping the dialog. Fixed two
+   pre-existing snippet bugs surfaced by the extraction: empty snippet
+   when the user typed a method name without loading Candid, and
+   `method: "Instance of 'CanisterMethod'"` (no toString override) —
+   now uses the method NAME.
+
+**Tests (12 new, all PASS, real Ed25519 keypairs — no crypto mocked):**
+- `test/features/canister_client/authenticated_call_test.dart` (6 tests):
+  default anonymous path, toggle ON → callAuthenticated with the right
+  key + principal rendered + authenticated-ok result; security sweep
+  (b64 private key never in ANY rendered SelectableText); no
+  ProfileScope → disabled + CTA shown + no regression; ProfileScope +
+  no profile → CTA pushes the wizard; mid-session removal → loud
+  friendly SnackBar.
+- `test/features/scripts/canister_call_builder_snippet_test.dart` (6
+  tests): generator unit tests for the snippet text (authenticated
+  on/off, empty canister, null method); cross-validation through the
+  REAL `ScriptAppHost` — snippet authenticated=true → host invokes
+  callAuthenticated with the active keypair; snippet authenticated=false
+  → host invokes callAnonymous even with a keypair present.
+
+**Suites:** `just test-feature canister_client` 60/60 PASS;
+`just test-feature scripts` 228/228 PASS; `just test-feature profile`
+144/144 PASS. `flutter analyze` clean across all touched files.
 
 ### UX-PMD-1 — `profile.create_via_menu_dialog` use-after-dispose
 
