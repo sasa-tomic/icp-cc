@@ -101,6 +101,12 @@ const String kMainnetIcpLedgerCanisterId = 'ryjl3-tyaaa-aaaaa-aaaba-cai';
 // CO.DELTA in third_party/ automate in Rust). Public + read-only.
 const String kMainnetNnsGovernanceCanisterId = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
 
+// OpenChat SNS Governance canister — verified live 2026-07-21 via dfx
+// (`list_proposals` returns proposals; status must be INFERRED from
+// timestamp fields; topic is an opt variant). The default DAO for the SNS
+// Proposals demo; the user can paste any other SNS governance id in-app.
+const String kMainnetOpenChatSnsGovernanceCanisterId = '2jvtu-yqaaa-aaaaq-aaama-cai';
+
 // LOCAL-REPLICA example: these match a replica deployed from
 // examples/icp_poll_dapp. A fresh `dfx start --clean` + `dfx deploy` regenerates
 // different ids, which is exactly why the runner exposes editable Connection
@@ -148,6 +154,26 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
     host: kMainnetIcGateway,
     frontendUrl: 'https://nns.ic0.app/proposals',
     bundleAssetPath: 'lib/examples/08_nns_proposals.js',
+    environment: DappEnvironment.mainnet,
+    keylessHint: 'Browsing proposals is read-only. Signing is only needed '
+        'to vote (which this demo does not do).',
+  ),
+
+  // ── Always works: live SNS DAO governance proposals (read-only) ─────────
+  DappDescriptor(
+    id: 'sns_proposals',
+    title: 'SNS DAO Proposals',
+    emoji: '🏛️',
+    description: 'Browse LIVE proposals for any SNS DAO on the Internet '
+        'Computer. Defaults to OpenChat SNS — paste any other SNS governance '
+        'canister id to switch DAOs. Filter by status, watch the tally, see '
+        'real deadlines countdown. Reads straight from mainnet — works out '
+        'of the box, no setup, no signing. Demonstrates the bundle-controlled '
+        'theme knob (branded per-DAO colours).',
+    backendCanisterId: kMainnetOpenChatSnsGovernanceCanisterId,
+    host: kMainnetIcGateway,
+    frontendUrl: 'https://dashboard.internetcomputer.org/sns',
+    bundleAssetPath: 'lib/examples/09_sns_proposals.js',
     environment: DappEnvironment.mainnet,
     keylessHint: 'Browsing proposals is read-only. Signing is only needed '
         'to vote (which this demo does not do).',

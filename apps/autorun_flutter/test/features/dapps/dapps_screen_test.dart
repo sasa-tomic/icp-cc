@@ -80,6 +80,14 @@ void main() {
 }
 
 Future<void> _pumpDapps(WidgetTester tester) async {
+  // The catalog is a scrolling ListView; with 4+ entries the default
+  // 800x600 viewport clips the off-screen cards. Give ourselves a tall
+  // canvas so every card lays out (the assertions check the full catalog).
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   // A real ProfileController with no profiles: activeKeypair is null. It never
   // loads from storage during this test (no ensureLoaded call), so there is no
   // secure-storage dependency.
