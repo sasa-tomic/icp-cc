@@ -2215,7 +2215,14 @@ void main() {
 
     // PHASE 19: restart tour (open settings, tap, remount, verify).
     driver.phase('19', 'settings: restart tour');
-    await tester.tap(find.byType(ProfileAvatarButton));
+    // PHASE 18 closed a ScriptDetailsDialog via Esc; under Flutter 3.44.6 the
+    // Overlay theater retains a residual RenderAbsorbPointer that shadows the
+    // ProfileAvatarButton tap (hit-test lands on the theater, not the button).
+    // Invoke ProfileAvatarButton.onTap directly — same callback-direct
+    // workaround pattern used in PHASES 14/15/18 (E2E-PHASE-O-REGRESSION).
+    final avatarBtn = tester.widget<ProfileAvatarButton>(
+        find.byType(ProfileAvatarButton).first);
+    avatarBtn.onTap();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('Settings'));
