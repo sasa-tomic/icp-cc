@@ -78,6 +78,49 @@ Web Tier A stays at 13/13 covered (`just e2e-web`).
 3 mock-keyring); `just e2e-one <flow-id> mock-keyring-identity` for
 sub-suite single-flow iteration.
 
+### E2E-PHASE-O-REGRESSION — `suite_keyring_less_test.dart` PHASE 15 (`shortcut.new_script`) red
+
+- **Status**: 🔴 OPEN (discovered 2026-07-21 during Phase O verification)
+- **Surfaced**: running `just e2e-desktop` after landing Phase O; PASS 1
+  (keyring-less) fails deterministically at PHASE 15.
+- **Severity**: HIGH (the keyring-less PASS is RED, blocking `just e2e-desktop`
+  from going green)
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart:574-596`
+  (`shortcut.new_script` flow body)
+
+**Verified PRE-EXISTING — NOT a Phase O regression.** Running the suite at
+HEAD~3 (`f10e46a7` — before any Phase O commits, in a fresh git worktree)
+reproduces the same failure at the same phase. Phase O's only `lib/` change
+(`profile_menu.dart` UX-PMD-1 fix) was also reverted in-place and the
+failure persisted; restoring the fix did not change the outcome.
+
+**Failure mode**: `tester.sendKeyEvent(LogicalKeyboardKey.keyN)` does not
+open `ScriptCreationScreen` within the 5s timeout. The preceding PHASE 14
+(`shortcut.escape_back` — Esc closes ShortcutsHelpSheet) passes; PHASE 15
+starts with `tester.tapAt(Offset(720, 450))` (clear-focus tap) + 300ms
+pump before sending N. Focus appears to remain in a state where the
+`N → new script` shortcut handler does not receive the keypress.
+
+**Suspected root cause**: keyboard-focus residue from the Esc-closed
+`ShortcutsHelpSheet` (or from prior settings/shortcut phases) — the
+`tapAt(720, 450)` unfocus tap may not actually relinquish focus under the
+current Flutter 3.44.6 binding + Xvfb :99 keyboard handler. The other 3
+PASSes (mock-keyring + mock-keyring-dapps + mock-keyring-identity) are
+GREEN.
+
+**Recommended fix**: insert a stronger focus-reset at PHASE 15 entry
+(`FocusManager.instance.primaryFocus?.unfocus()` + longer pump), or
+refocus the ScriptsScreen explicitly before sending N. Alternatively,
+split the keyring-less suite per E2E-PHASE56+57's noted plan (the
+58-phase body is at the documented flutter_test binding stability
+threshold) — a fresh `testWidgets` boot would also reset focus state.
+
+**Coverage implication**: the `shortcut.new_script` catalog row IS still
+exercised in the keyring-less suite's coverage report up to the failing
+phase, but the runtime assertion is RED. Phase O coverage targets
+(profile.create_via_menu_dialog + scripts.publish +
+account.register_from_publish) are unaffected and remain GREEN in PASS 2c.
+
 ### E2E-PHASE-L — Phase L: Web Tier A 6 deferred flows (3 passkey + 3 deeplink)
 
 - **Status**: 🟢 RESOLVED (2026-07-20, Phase L)
