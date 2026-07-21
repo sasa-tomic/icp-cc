@@ -4,10 +4,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../controllers/account_controller.dart';
+import '../models/profile_keypair.dart';
 import '../rust/native_bridge.dart';
+import '../screens/unified_setup_wizard.dart';
 import '../services/bookmarks_service.dart';
 import '../services/canister_history_service.dart';
 import '../services/canister_registry_service.dart';
+import '../services/secure_storage_readiness.dart';
 import '../utils/candid_json_example.dart';
 import '../utils/candid_json_validate.dart';
 import '../utils/candid_type_resolver.dart';
@@ -16,6 +20,7 @@ import '../utils/json_format.dart';
 import '../utils/tech_terms.dart';
 import 'bookmarks_list.dart';
 import 'canister_args_editor.dart';
+import 'profile_scope.dart';
 import 'well_known_canisters.dart';
 
 enum _ClientFlowState { disconnected, connecting, connected, ready }
@@ -70,6 +75,12 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
   final TextEditingController _methodSearchController = TextEditingController();
   final FocusNode _methodSearchFocusNode = FocusNode();
   String _methodQuery = '';
+
+  // UX-H12: when true, the next Call dispatches via `callAuthenticated` with
+  // the active profile's keypair (instead of `callAnonymous`). The toggle is
+  // only enabled when an active keypair exists; turning it on without one
+  // surfaces a loud error instead of silently degrading to anonymous.
+  bool _signAsActiveProfile = false;
 
   void _onArgsChanged() {
     if (_resolvedArgs.isEmpty) return;
@@ -185,6 +196,41 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
       return 'Connection timed out. Please try again.';
     }
     return 'Something went wrong. Please try again.';
+  }
+
+  /// UX-H12: read the active profile's keypair without throwing. Returns
+  /// `null` when there is no [ProfileScope] ancestor (test harness /
+  /// off-tree mount) OR when the active profile has no keypair.
+  ///
+  /// Uses [dependOnInheritedWidgetOfExactType] so the sheet rebuilds when the
+  /// active profile changes (creation, switch, deletion) — the toggle's
+  /// enabled/disabled + subtitle state stays in sync with the profile source
+  /// of truth. The recheck inside [_callMethod] guards against mid-session
+  /// profile removal (AGENTS.md: no silent fallback to anonymous).
+  ProfileKeypair? _activeKeypairOrNull(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<ProfileScope>();
+    return scope?.notifier?.activeKeypair;
+  }
+
+  /// UX-H12: deep-link the keyless user into [UnifiedSetupWizard] so they can
+  /// create a profile in one tap and sign calls. Mirrors the re-open-wizard
+  /// path in `dapp_runner_screen.dart` without introducing a circular import
+  /// on the app entry point. Only invoked from a tree where [ProfileScope] is
+  /// an ancestor (production mount inside `BookmarksScreen`).
+  Future<void> _openCreateProfileWizard() async {
+    final profileController = ProfileScope.of(context, listen: false);
+    final accountController =
+        AccountController(profileController: profileController);
+    await Navigator.of(context).push<UnifiedSetupResult>(
+      MaterialPageRoute<UnifiedSetupResult>(
+        fullscreenDialog: true,
+        builder: (_) => UnifiedSetupWizard(
+          profileController: profileController,
+          accountController: accountController,
+          secureStorageReadiness: SecureStorageReadiness(),
+        ),
+      ),
+    );
   }
 
   Future<void> _fetchAndParse() async {
@@ -318,13 +364,42 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
     CallType callType = _selectedMode == 1
         ? CallType.update
         : (_selectedMode == 2 ? CallType.compositeQuery : CallType.query);
-    try {
-      final String? out = await widget.bridge.callAnonymous(
-        canisterId: cid,
-        method: method,
-        mode: _selectedMode,
-        args: args,
+
+    // UX-H12: recheck the active keypair on call entry. The toggle may have
+    // been enabled when the user opened the sheet, then the profile was
+    // deleted mid-session — never silently degrade to anonymous.
+    final bool signAsProfile = _signAsActiveProfile;
+    final ProfileKeypair? activeKeypair = _activeKeypairOrNull(context);
+    if (signAsProfile && activeKeypair == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyErrorMessage(
+            StateError('No active profile keypair'),
+            context: 'Cannot sign call',
+          )),
+        ),
       );
+      return;
+    }
+
+    try {
+      final String? out;
+      if (signAsProfile) {
+        out = await widget.bridge.callAuthenticated(
+          canisterId: cid,
+          method: method,
+          mode: _selectedMode,
+          privateKeyB64: activeKeypair!.privateKey,
+          args: args,
+        );
+      } else {
+        out = await widget.bridge.callAnonymous(
+          canisterId: cid,
+          method: method,
+          mode: _selectedMode,
+          args: args,
+        );
+      }
       setState(() {
         final raw = out ?? '';
         _resultJson = raw.isEmpty ? '' : formatJsonIfPossible(raw);
@@ -334,7 +409,7 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         methodName: method,
         arguments: args,
         callType: callType,
-        resultSummary: 'success',
+        resultSummary: signAsProfile ? 'success (signed)' : 'success',
       );
     } catch (e) {
       await CanisterHistoryService().addCall(
@@ -342,7 +417,9 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
         methodName: method,
         arguments: args,
         callType: callType,
-        resultSummary: 'error: ${e.toString()}',
+        resultSummary: signAsProfile
+            ? 'error (signed): ${e.toString()}'
+            : 'error: ${e.toString()}',
       );
       rethrow;
     }
@@ -986,6 +1063,8 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           ],
         ),
         const SizedBox(height: 8),
+        _buildSignAsProfileToggle(theme),
+        const SizedBox(height: 8),
         FilledButton.icon(
           key: const Key('callButton'),
           icon: const Icon(Icons.play_arrow),
@@ -993,6 +1072,56 @@ class _CanisterClientSheetState extends State<CanisterClientSheet> {
           onPressed: _callMethod,
         ),
       ],
+    );
+  }
+
+  /// UX-H12: the "Sign as active profile" toggle. When an active keypair
+  /// exists the user can opt in to authenticated calls (the bridge dispatches
+  /// `callAuthenticated` with that keypair's private key). When no keypair is
+  /// available the toggle is disabled and the subtitle becomes a tappable
+  /// CTA that opens [UnifiedSetupWizard] — never a silent fallback to
+  /// anonymous on a signed intent.
+  ///
+  /// NEVER renders the private key. The subtitle shows the public principal
+  /// (or a placeholder when the keypair has no principal yet).
+  Widget _buildSignAsProfileToggle(ThemeData theme) {
+    final ProfileKeypair? keypair = _activeKeypairOrNull(context);
+    final bool canSign = keypair != null;
+    final String principal = keypair?.principal ?? '';
+    return SwitchListTile.adaptive(
+      key: const Key('signAsActiveProfileSwitch'),
+      value: canSign ? _signAsActiveProfile : false,
+      onChanged: canSign
+          ? (v) => setState(() => _signAsActiveProfile = v)
+          : null,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+      dense: true,
+      secondary: Icon(
+        canSign ? Icons.verified_user_outlined : Icons.shield_outlined,
+        color: canSign ? theme.colorScheme.primary : theme.disabledColor,
+      ),
+      title: const Text('Sign as active profile'),
+      subtitle: canSign
+          ? Text(
+              principal.isEmpty
+                  ? 'Active keypair will sign this call'
+                  : 'Principal: $principal',
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          : GestureDetector(
+              key: const Key('signAsActiveProfileCreateCta'),
+              onTap: _openCreateProfileWizard,
+              child: Text(
+                'Create a profile to sign calls as your identity.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
     );
   }
 
