@@ -593,7 +593,7 @@ Four unguarded destructive paths:
 
 ### UX-H6 — Wizard doesn't surface vault + passkey steps
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21, commits `7df2c51e` + `92ba775a`)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-6)
 - **Severity**: HIGH (post-onboarding security gap)
 - **Location**: `apps/autorun_flutter/lib/screens/unified_setup_wizard.dart:798-812`
@@ -601,6 +601,49 @@ Four unguarded destructive paths:
 Both vault setup and passkey enrollment are buried behind the profile menu.
 AccountRegistrationWizard (lines 573-594) DOES show a post-registration
 passkey prompt; unify the helper and call from both wizards.
+
+**Resolution (`7df2c51e` + `92ba775a`):** extracted the inline passkey
+dialog from `AccountRegistrationWizard` into a single shared helper,
+`showPostRegistrationSecurityPrompt`
+(`apps/autorun_flutter/lib/widgets/post_registration_security_prompt.dart`),
+called from BOTH onboarding wizards after a successful account
+registration. The helper renders two skippable tiles plus an explicit
+Skip action:
+
+- **Set up vault password** — pushes `VaultPasswordSetupScreen`. Always
+  available (pure local crypto via Rust FFI; no platform authenticator
+  needed). The vault tile is a net-new affordance for users who
+  registered via `AccountRegistrationWizard` (which previously only
+  offered passkey).
+- **Enroll a passkey** — pushes `PasskeyManagementScreen`. DISABLED with
+  honest copy ("needs macOS, Windows, Android, or a browser. This device
+  doesn't support them yet.") when `PasskeyPlatform.isSupported` returns
+  `false` — never silently disappears.
+- **Skip for now** — explicit, no shame. The OS-back gesture dismisses
+  the dialog as `null` (treated as Skip).
+
+The helper itself never navigates; each wizard handles its own routing
+semantics (`push` in `UnifiedSetupWizard` to await return before the
+success screen; `pushReplacement` in `AccountRegistrationWizard` to
+resolve the caller's `push<Account>` with the account). Local-only
+profiles (no marketplace username) skip the prompt entirely — both vault
+and passkey are account-scoped on the wire (require `accountId`).
+
+The unified wizard's `_isCreating` spinner is now cleared before the
+prompt opens so `pumpAndSettle` can settle (mirrors the existing pattern
+in `AccountRegistrationWizard`).
+
+**Tests:** 9 new in `test/widgets/post_registration_security_prompt_test.dart`
+(rendering, all 3 selection paths, OS-back, disabled-with-honest-copy,
+no-navigation contract); 1 added + 4 updated in
+`test/screens/account_registration_wizard_test.dart`; 6 added + 2
+updated in `test/screens/unified_setup_wizard_test.dart` (new `UX-H6
+post-registration security prompt` group covers prompt rendering,
+local-only skip, vault navigation, passkey navigation, Skip, and the
+disabled-passkey-still-renders-honestly path). `just test-feature profile`
+144/144 PASS (no regression); `flutter test test/screens/
+test/widgets/` 337/337 PASS.
+
 
 ### UX-H7 — First-run wizard has no connectivity precheck
 
