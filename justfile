@@ -585,6 +585,24 @@ e2e-desktop:
         echo "   PASS 2b FAIL  (see $LOG)"; exit 1
     fi
 
+    # --- 4c. PASS 2c: mock Secret Service (identity + scripts publish) -----
+    # The Phase-O flows (account.register_from_publish + scripts.publish +
+    # profile.create_via_menu_dialog) live in a dedicated 3-phase mini-suite
+    # to keep the existing keyring-less + mock-keyring suites below the
+    # documented flutter_test binding stability threshold. Same mock-keyring
+    # wrap as PASS 2.
+    rm -rf "$STATE_DIR" 2>/dev/null || true
+    echo "==> PASS 2c (mock keyring identity): suite_mock_keyring_identity_test.dart"
+    if "{{scripts_dir}}/run-with-mock-keyring.sh" --display :99 -- \
+            bash -c 'cd "{{flutter_dir}}" && \
+                LD_LIBRARY_PATH="{{root}}/target/release" \
+                flutter test -d linux integration_test/e2e/suite_mock_keyring_identity_test.dart \
+                    --reporter=compact --timeout=360s' >>"$LOG" 2>&1; then
+        echo "   PASS 2c OK"
+    else
+        echo "   PASS 2c FAIL  (see $LOG)"; exit 1
+    fi
+
     # NOTE: the 2 local-replica Poll dapp flows (dapps.run_poll +
     # dapps.create_profile_to_vote) are NOT included in `just e2e-desktop`
     # because a running dfx replica destabilises the 58-phase keyring-less
@@ -595,7 +613,7 @@ e2e-desktop:
     # app fresh against the local replica (2 flows, ~60s).
     echo "==> PASS 3 (local replica): NOT included — run 'just e2e-local-replica' separately"
 
-    echo "✅ e2e-desktop PASSED — all suites green (3 boots). Log: $LOG"
+    echo "✅ e2e-desktop PASSED — all suites green (4 boots). Log: $LOG"
 
 # e2e-fast: run a SINGLE suite file for a sub-minute dev loop (default: the
 # keyring-less smoke, no mock-keyring wrap needed). Pass a file path to target
@@ -624,11 +642,13 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
 # phases, then stops immediately after the requested flow.
 # Usage: just e2e-one <flow-id> [suite]
 #   suite: keyring-less (default, includes marketplace), mock-keyring,
-#          mock-keyring-dapps (dapp trust/copy + Ctrl+S split-off suite)
+#          mock-keyring-dapps (dapp trust/copy + Ctrl+S split-off suite),
+#          mock-keyring-identity (register_from_publish + publish + UX-PMD-1)
 # Example: just e2e-one scripts.search
 #          just e2e-one settings.theme
 #          just e2e-one vault.setup mock-keyring
 #          just e2e-one dapps.trust_grant mock-keyring-dapps
+#          just e2e-one profile.create_via_menu_dialog mock-keyring-identity
 e2e-one flow suite="keyring-less":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -637,20 +657,21 @@ e2e-one flow suite="keyring-less":
     export LD_LIBRARY_PATH="{{root}}/target/release"
 
     case "{{suite}}" in
-        keyring-less)       FILE="suite_keyring_less_test.dart" ;;
-        mock-keyring)       FILE="suite_mock_keyring_test.dart" ;;
-        mock-keyring-dapps) FILE="suite_mock_keyring_dapps_test.dart" ;;
-        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring, mock-keyring-dapps"; exit 1 ;;
+        keyring-less)          FILE="suite_keyring_less_test.dart" ;;
+        mock-keyring)          FILE="suite_mock_keyring_test.dart" ;;
+        mock-keyring-dapps)    FILE="suite_mock_keyring_dapps_test.dart" ;;
+        mock-keyring-identity) FILE="suite_mock_keyring_identity_test.dart" ;;
+        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring, mock-keyring-dapps, mock-keyring-identity"; exit 1 ;;
     esac
 
-    if [[ "{{suite}}" == "mock-keyring" || "{{suite}}" == "mock-keyring-dapps" ]]; then
+    if [[ "{{suite}}" == "mock-keyring" || "{{suite}}" == "mock-keyring-dapps" || "{{suite}}" == "mock-keyring-identity" ]]; then
         export MARKETPLACE_API_PORT=$(just _api-dev-port)
         export DISPLAY=:99
         scripts/run-with-mock-keyring.sh --display :99 -- bash -c \
           'cd "{{flutter_dir}}" && flutter test -d linux \
           integration_test/e2e/'"$FILE"' \
           --dart-define=ICP_E2E_STOP_AFTER={{flow}} \
-          --reporter=compact --timeout=300s'
+          --reporter=compact --timeout=360s'
         exit 0
     fi
 
