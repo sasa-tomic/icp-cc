@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/controllers/profile_controller.dart';
@@ -771,6 +773,139 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Intl'), findsOneWidget);
+    });
+  });
+
+  // UX-H10: progress UI must never lie. The previous implementation animated
+  // through fabricated checkpoints ([0.2,0.4,0.6] / [0.3,0.6,0.9] with
+  // 100ms Future.delayed) — a fake percentage that erodes trust. The new
+  // implementation drives the indicator ONLY from real phase transitions
+  // (signing → uploading) and shows phase labels, never percentages.
+  group('QuickUploadDialog progress UI honesty (UX-H10)', () {
+    const String validBundle = '''
+"use strict";
+(() => {
+  globalThis.init = () => ({ state: { count: 0 }, effects: [] });
+  globalThis.view = (state) => ({ type: "text", props: { text: String(state.count) } });
+  globalThis.update = (_m, state) => ({ state, effects: [] });
+})();
+''';
+
+    late ProfileKeypair keypair;
+    late ProfileController profileController;
+    late _MockMarketplaceService marketplaceService;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      keypair = await TestKeypairFactory.getEd25519Keypair();
+      final repository = FakeSecureKeypairRepository(<ProfileKeypair>[keypair]);
+      profileController =
+          ProfileController(profileRepository: repository.profileRepository);
+      await profileController.ensureLoaded();
+      if (profileController.profiles.isNotEmpty) {
+        await profileController
+            .setActiveProfile(profileController.profiles.first.id);
+      }
+      marketplaceService = _MockMarketplaceService();
+    });
+
+    Future<void> pumpDialog(WidgetTester tester) async {
+      await tester.pumpWidget(
+        ProfileScope(
+          controller: profileController,
+          child: MaterialApp(
+            home: Builder(
+              builder: (BuildContext context) {
+                return Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => QuickUploadDialog(
+                            preFilledTitle: 'Prefilled Title',
+                            preFilledCode: validBundle,
+                            profileController: profileController,
+                            marketplaceService: marketplaceService,
+                          ),
+                        );
+                      },
+                      child: const Text('Open'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+        'upload button NEVER shows a fabricated percentage label '
+        'while the HTTP request is in flight', (tester) async {
+      await pumpDialog(tester);
+      await tester.enterText(
+          find.widgetWithText(TextFormField, 'Description *'),
+          'Short description');
+      await tester.pumpAndSettle();
+
+      // Hold the upload in flight: never complete the Future so the dialog
+      // stays in the "Uploading" phase for the duration of the assertion.
+      final Completer<MarketplaceScript> hang = Completer<MarketplaceScript>();
+      when(
+        () => marketplaceService.uploadScript(
+          slug: any(named: 'slug'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          category: any(named: 'category'),
+          tags: any(named: 'tags'),
+          bundle: any(named: 'bundle'),
+          price: any(named: 'price'),
+          version: any(named: 'version'),
+          canisterIds: any(named: 'canisterIds'),
+          iconUrl: any(named: 'iconUrl'),
+          screenshots: any(named: 'screenshots'),
+          compatibility: any(named: 'compatibility'),
+          authorPrincipal: any(named: 'authorPrincipal'),
+          authorPublicKey: any(named: 'authorPublicKey'),
+          signature: any(named: 'signature'),
+          timestampIso: any(named: 'timestampIso'),
+        ),
+      ).thenAnswer((_) => hang.future);
+
+      final Finder submitButton = find.byKey(const Key('quick-upload-submit'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      // Advance past the synchronous validation + signing phase so the dialog
+      // reaches the in-flight upload state. Pump without settling so the
+      // pending Future stays pending.
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // The new phase label is 'Uploading…' once signing completes and the
+      // HTTP call begins. Any 'Uploading N%' string would indicate the old
+      // fabricated-percentage path has regressed.
+      expect(find.textContaining('Uploading %'), findsNothing);
+      expect(find.text('Uploading 0%'), findsNothing);
+      expect(find.text('Uploading 20%'), findsNothing);
+      expect(find.text('Uploading 40%'), findsNothing);
+      expect(find.text('Uploading 60%'), findsNothing);
+      expect(find.text('Uploading 75%'), findsNothing);
+      expect(find.text('Uploading 90%'), findsNothing);
+
+      // Sanity: at least one of the phase labels IS rendered while in-flight.
+      expect(
+        find.byWidgetPredicate((Widget w) =>
+            w is Text &&
+            (w.data == 'Preparing…' ||
+                w.data == 'Signing…' ||
+                w.data == 'Uploading…')),
+        findsOneWidget,
+      );
     });
   });
 }

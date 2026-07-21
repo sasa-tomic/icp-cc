@@ -90,7 +90,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
   List<MarketplaceScript> _marketplaceScripts = [];
   List<String> _categories = [];
   final Set<String> _downloadingScriptIds = <String>{};
-  final Map<String, double> _downloadProgress = <String, double>{};
   Set<String> _downloadedScriptIds = {};
   // `_isMarketplaceLoading=true` shows the initial spinner; `_marketplaceLoadInitiated`
   // lets the first fetch run (the re-entrancy guard only blocks later concurrent calls).
@@ -515,20 +514,9 @@ class ScriptsScreenState extends State<ScriptsScreen>
 
     setState(() {
       _downloadingScriptIds.add(script.id);
-      _downloadProgress[script.id] = 0.0;
     });
 
     try {
-      final progressUpdates = [0.3, 0.6, 0.9];
-      for (final progress in progressUpdates) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (mounted) {
-          setState(() {
-            _downloadProgress[script.id] = progress;
-          });
-        }
-      }
-
       final bundle =
           await _marketplaceService.downloadScript(script.id, version: version);
 
@@ -613,7 +601,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
       if (mounted) {
         setState(() {
           _downloadingScriptIds.remove(script.id);
-          _downloadProgress.remove(script.id);
         });
       }
     }
@@ -921,20 +908,9 @@ class ScriptsScreenState extends State<ScriptsScreen>
 
     setState(() {
       _downloadingScriptIds.add(script.id);
-      _downloadProgress[script.id] = 0.0;
     });
 
     try {
-      final progressUpdates = [0.3, 0.6, 0.9];
-      for (final progress in progressUpdates) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (mounted) {
-          setState(() {
-            _downloadProgress[script.id] = progress;
-          });
-        }
-      }
-
       final signed = await DownloadSignatureService.createSignedRequest(
         signingKeypair: active.keypair,
         accountId: account.id,
@@ -994,7 +970,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
       if (mounted) {
         setState(() {
           _downloadingScriptIds.remove(script.id);
-          _downloadProgress.remove(script.id);
         });
       }
     }

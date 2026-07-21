@@ -642,14 +642,31 @@ extend it.
 
 ### UX-H10 — Fake progress bars
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-21)
 - **Surfaced**: 2026-07-19 (`docs/specs/2026-07-19-ux-review.md` §H-10)
 - **Severity**: HIGH (trust erosion)
 - **Locations**: `scripts_screen.dart:522-530`, `quick_upload_dialog.dart:237-246`
 
-Download + upload progress is FAKED via `[0.3, 0.6, 0.9]` with
-`Future.delayed(100ms)`. Drive from real byte/HTTP progress OR use an
-indeterminate spinner.
+Download + upload progress was FAKED via `[0.3, 0.6, 0.9]` with
+`Future.delayed(100ms)`. The download "progress" map was also WRITE-ONLY —
+the renderer never read it, so the fake animation did nothing visible while
+still misleading code readers about what the UI was doing.
+
+**Fix:**
+- `scripts_screen.dart`: deleted the write-only `_downloadProgress` map and
+  both fake-animation loops (free download + paid download). The genuine
+  in-flight indicator (`_downloadingScriptIds`, which IS read by the tile
+  renderer) is preserved — the user still sees a clear "downloading" state
+  on the tile, just no fabricated percentage.
+- `quick_upload_dialog.dart`: deleted the `[0.2, 0.4, 0.6]` fake prefix.
+  `_uploadProgress` is now `double?` (nullable) and is updated ONLY at real
+  phase transitions — `0.5` when signing begins, `0.75` when the signed
+  request is uploaded. While preparing (form validation, bundle read) the
+  indicator is indeterminate. The button label switched from
+  `'Uploading ${percent}%'` to a phase-aware label: `'Preparing…'` →
+  `'Signing…'` → `'Uploading…'`. Never a fabricated number.
+- New TDD test `QuickUploadDialog progress UI honesty (UX-H10)` asserts no
+  `'Uploading N%'` string ever renders while the HTTP call is in flight.
 
 ### UX-H11 — Three divergent "well-known canisters" catalogs
 

@@ -44,7 +44,11 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
   String _selectedCategory = 'Example';
   bool _isUploading = false;
-  double _uploadProgress = 0.0; // Track upload progress 0.0 to 1.0
+  /// Upload phase indicator. `null` = indeterminate (preparing); otherwise a
+  /// phase checkpoint in [0, 1]: 0.5 = signing, 0.75 = uploading. Drives the
+  /// CircularProgressIndicator value + the phase label. Never faked — only
+  /// updated at real phase transitions.
+  double? _uploadProgress;
   String? _error;
   Object? _errorObject;
   // Sandbox-validation failures are shown verbatim (with the specific
@@ -227,24 +231,13 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
     setState(() {
       _isUploading = true;
-      _uploadProgress = 0.0;
+      _uploadProgress = null; // indeterminate while preparing
       _error = null;
       _errorObject = null;
       _validationError = null;
     });
 
     try {
-      // Simulate upload progress for better UX (files are small, so we fake it)
-      final progressUpdates = [0.2, 0.4, 0.6];
-      for (final progress in progressUpdates) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (mounted) {
-          setState(() {
-            _uploadProgress = progress;
-          });
-        }
-      }
-
       final String title = _titleController.text.trim();
       // Generate slug from title: lowercase, replace non-alphanumeric with hyphens
       final String slug = title
@@ -261,10 +254,10 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       const String version = '1.0.0';
       final String timestamp = DateTime.now().toUtc().toIso8601String();
 
-      // Update progress: signing
+      // Phase transition: signing the upload request.
       if (mounted) {
         setState(() {
-          _uploadProgress = 0.75;
+          _uploadProgress = 0.5;
         });
       }
 
@@ -280,10 +273,10 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       );
       final String authorPrincipal = PrincipalUtils.textFromRecord(keypair);
 
-      // Update progress: uploading
+      // Phase transition: uploading the signed request to the marketplace.
       if (mounted) {
         setState(() {
-          _uploadProgress = 0.9;
+          _uploadProgress = 0.75;
         });
       }
 
@@ -327,10 +320,21 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
       if (mounted) {
         setState(() {
           _isUploading = false;
-          _uploadProgress = 0.0;
+          _uploadProgress = null;
         });
       }
     }
+  }
+
+  /// Phase label shown on the upload button while uploading. Drives from the
+  /// real `_uploadProgress` checkpoints — never fabricated. `null`/`<0.5` is
+  /// the preparing phase (form validation, bundle read), 0.5 is signing,
+  /// 0.75 is the actual HTTP upload.
+  String _uploadPhaseLabel() {
+    final p = _uploadProgress;
+    if (p == null || p < 0.5) return 'Preparing…';
+    if (p < 0.75) return 'Signing…';
+    return 'Uploading…';
   }
 
   @override
@@ -561,7 +565,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                         )
                       : const Icon(Icons.upload),
                   label: Text(_isUploading
-                      ? 'Uploading ${(_uploadProgress * 100).toInt()}%'
+                      ? _uploadPhaseLabel()
                       : 'Upload to Marketplace'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
