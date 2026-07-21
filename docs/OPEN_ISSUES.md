@@ -1384,6 +1384,109 @@ tests) and the strength-meter widget test in
 
 ---
 
+## Critical / Blockers — current session (2026-07-21 e2e harness overhaul)
+
+Plan: `docs/specs/2026-07-21-e2e-harness-overhaul.md`.
+
+### NEW-1 — `resetAppState` cache-manager race (suite crashes at PHASE 1)
+
+- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Surfaced**: 2026-07-21 baseline run of `just e2e-desktop` after clean DB reset.
+- **Severity**: HIGH (blocks the entire desktop e2e harness on a clean box)
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_helpers.dart:97-100` (`resetAppState` deletes the dir wholesale).
+
+`resetAppState` deletes the entire app-support directory while
+`flutter_cache_manager`'s `JsonCacheInfoRepository` holds a lazy-write handle
+to `libCachedImageData.json` inside that directory. The next cache write fires
+`PathNotFoundException: Cannot open file ... libCachedImageData.json`, which
+propagates as a `_pendingFrame == null` assertion in
+`LiveTestWidgetsFlutterBinding.postTest`, killing the suite at PHASE 1
+(right after the first `resetAppState + remount` cycle).
+
+**Fix plan:** stop the cache manager explicitly before deleting
+(`DefaultCacheManager().emptyCache()` + remove the JSON file individually
+rather than `Directory.delete(recursive: true)`), OR scope the app's cache
+to a per-run temp dir via `TMPDIR` / `XDG_DATA_HOME` override.
+
+### NEW-2 — No per-suite DB reset (stale scripts accumulate)
+
+- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Surfaced**: 2026-07-21 (backend DB had 1110 scripts after one session).
+- **Severity**: HIGH (silently breaks any test that assumes the canonical 3-script marketplace)
+- **Location**: `justfile` (`e2e-desktop`, `e2e-web` recipes), `backend/data/marketplace-dev.db`.
+
+Tests assume the marketplace has exactly 3 canonical seed scripts
+(`Hello IC Starter`, `ICP Balance Reader`, `Interactive Counter`) and bulk-seed
+more only inside specific phases (`scripts.load_more`). The backend DB is
+never reset between runs, so test-inserted scripts (`Bulk Seed Script N`,
+`Pub_NNN`, `Marketplace Visibility Test N`, paid seeds, …) accumulate. After
+one active dev session the DB had **1110 scripts**, the canonical 3 were
+buried past page-1, and `find.textContaining('Hello IC Starter')` returned
+nothing within the 15s wait. Symptom: `PHASE 18` of
+`suite_keyring_less_test.dart` fails with "A marketplace tile must be present
+to open details."
+
+**Fix plan:** add `just _e2e-reset-db` that wipes + reseeds the dev DB via
+`backend/scripts/add-sample-data.sh`, called from `e2e-desktop` / `e2e-web`
+recipes BEFORE the suites run. Long-term: a debug-only `/api/v1/admin/reset`
+endpoint (avoids shell dependency).
+
+### NEW-3 — `suite_keyring_less_test.dart` is a 2532-line single `testWidgets`
+
+- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Surfaced**: pre-existing (referenced in E2E-PHASE56+57 as the "binding stability
+  threshold" root cause).
+- **Severity**: MEDIUM (maintainability + flakiness; not a runtime bug today
+  because NEW-1 masks it).
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart`.
+
+55 phases inside a single `testWidgets` body. Past ~30 phases, the
+flutter_test binding's stream protocol starts crashing with
+`"Cannot close sink while adding stream"`. Prior sessions worked around by
+splitting into 4 mini-suites (`keyring_less`, `mock_keyring`,
+`mock_keyring_dapps`, `mock_keyring_identity`). The root cause (resource
+accumulation in long single-`testWidgets` body) is not fixed.
+
+**Fix plan:** split into per-feature `group()`s of small `testWidgets`
+bodies. One boot per group via shared `setUpAll`. Coverage contract
+(`flow_catalog.dart`) preserved.
+
+### NEW-4 — `_pendingFrame == null` postTest assertion (symptom of NEW-1)
+
+- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Surfaced**: 2026-07-21 (suite_keyring_less_test.dart PHASE 1).
+- **Severity**: HIGH (mask, but blocks the suite)
+- **Location**: `flutter_test/src/binding.dart:3081` (assertion site).
+
+`LiveTestWidgetsFlutterBinding.postTest` asserts `_pendingFrame == null`.
+This fires when a `setState` / pump is scheduled after the test body returns.
+In this case it's the `PathNotFoundException` from NEW-1 racing with the
+test teardown — the cache manager's recovery write triggers a frame request
+post-test. **Fixing NEW-1 eliminates NEW-4.**
+
+### NEW-5 — E2E runtime: 3 min for 1 of 4 suites; 12 min total
+
+- **Status**: 🟡 IN-PROGRESS (2026-07-21)
+- **Surfaced**: 2026-07-21 baseline run.
+- **Severity**: MEDIUM (dev velocity; user explicitly wants "seconds")
+- **Location**: `apps/autorun_flutter/integration_test/e2e/*`.
+
+`suite_keyring_less_test.dart` ran **2:58** wall-clock and only completed
+PHASE 0 before NEW-1 crashed it. On a healthy box the full 55-phase run is
+~5-6 min. `just e2e-desktop` is 4 such suites = ~12 min. The dev cycle for
+a single flow via `just e2e-one` is ~90 s (most of which is boot + state
+reset, not the flow under test).
+
+**Targets:**
+- `just e2e-one <flow-id>`: < 20 s
+- `just e2e-tag smoke`: < 60 s
+- `just e2e-desktop`: < 5 min
+
+**Fix plan:** per-flow `testWidgets` (P1-A) + tag-based filtering (P1-C) +
+shared-boot optimization (P1-D).
+
+---
+
 ## Maintenance
 
 This file is updated:

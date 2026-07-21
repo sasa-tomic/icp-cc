@@ -111,6 +111,12 @@ void main() {
       });
       await tester.pump(const Duration(milliseconds: 500));
 
+      // UX-H6: after registerAccount succeeds, the wizard shows a "Secure
+      // your account" prompt (vault password / passkey enrollment). Dismiss
+      // it (Skip) so the wizard can reach the Success screen. The vault +
+      // passkey flows are exercised by their own dedicated e2e flows.
+      await dismissPostRegistrationSecurityPrompt(tester, d);
+
       // The success screen renders with "Success!" header.
       final successShown = await d.waitUntil(
           tester, () => d.present(find.text('Success!'), tester),

@@ -346,6 +346,11 @@ void main() {
       });
       await tester.pump(const Duration(milliseconds: 500));
 
+      // UX-H6: after registerAccount succeeds, the wizard shows a "Secure
+      // your account" prompt. Dismiss it (Skip) so the wizard reaches the
+      // Success screen.
+      await dismissPostRegistrationSecurityPrompt(tester, d);
+
       final successShown = await d.waitUntil(
           tester, () => d.present(find.text('Success!'), tester),
           timeout: const Duration(seconds: 20));
