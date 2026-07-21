@@ -49,23 +49,33 @@ void main() {
       (tester) async {
     await _pumpDapps(tester);
 
-    // The always-working mainnet example advertises that it works now.
-    expect(find.text('Works now · Mainnet'), findsOneWidget,
-        reason: 'The mainnet example must be clearly marked as working now');
-    // The developer example is honestly flagged as needing a local replica.
-    expect(find.text('Local replica'), findsOneWidget,
-        reason: 'The local-replica example must not masquerade as working');
+    // The always-working mainnet examples advertise that they work now. Count
+    // derived from the registry so the assertion stays correct as the catalog
+    // grows.
+    final mainnetCount =
+        exampleDapps.where((d) => d.isMainnet).length;
+    expect(find.text('Works now · Mainnet'), findsNWidgets(mainnetCount),
+        reason: 'Every mainnet example must be marked as working now');
+    // The developer example(s) are honestly flagged as needing a local replica.
+    final localCount =
+        exampleDapps.where((d) => d.isLocalReplica).length;
+    expect(find.text('Local replica'), findsNWidgets(localCount),
+        reason: 'Local-replica examples must not masquerade as working');
   });
 
   testWidgets(
-      'every shipped example advertises the Backend-direct path; the poll '
-      'dapp also advertises Frontend-in-browser', (tester) async {
+      'every shipped example advertises the Backend-direct path; poll + NNS '
+      'also advertise Frontend-in-browser', (tester) async {
     await _pumpDapps(tester);
 
     // Every example supports Backend direct → one badge per card.
     expect(find.text('Backend direct'), findsNWidgets(exampleDapps.length));
-    // Only the poll dapp exposes the frontend-browser path.
-    expect(find.text('Frontend in browser'), findsOneWidget);
+    // The count of frontend-browser badges matches the registry (currently
+    // the poll dapp + NNS proposals; both expose a real public frontend).
+    final frontendBrowserCount =
+        exampleDapps.where((d) => d.hasFrontendBrowser).length;
+    expect(find.text('Frontend in browser'),
+        findsNWidgets(frontendBrowserCount));
   });
 }
 

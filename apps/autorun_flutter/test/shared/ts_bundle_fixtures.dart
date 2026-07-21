@@ -64,6 +64,46 @@ String loadLedgerBundle() {
       '${_ledgerBundleCandidates.join("\n")}');
 }
 
+const List<String> _nnsProposalsBundleCandidates = <String>[
+  'lib/examples/08_nns_proposals.js',
+  'apps/autorun_flutter/lib/examples/08_nns_proposals.js',
+  '/code/icp-cc/apps/autorun_flutter/lib/examples/08_nns_proposals.js',
+];
+
+/// Loads the NNS Proposals mainnet read-only browser bundle
+/// (08_nns_proposals.js). Calls NNS Governance `list_proposals` — same
+/// canister ALPHA-Vote automates in Rust. The governance headliner demo.
+String loadNnsProposalsBundle() {
+  for (final String path in _nnsProposalsBundleCandidates) {
+    final File f = File(path);
+    if (f.existsSync()) {
+      return f.readAsStringSync();
+    }
+  }
+  fail('08_nns_proposals.js not found in any candidate location:\n'
+      '${_nnsProposalsBundleCandidates.join("\n")}');
+}
+
+const List<String> _snsProposalsBundleCandidates = <String>[
+  'lib/examples/09_sns_proposals.js',
+  'apps/autorun_flutter/lib/examples/09_sns_proposals.js',
+  '/code/icp-cc/apps/autorun_flutter/lib/examples/09_sns_proposals.js',
+];
+
+/// Loads the SNS Proposals mainnet read-only browser bundle
+/// (09_sns_proposals.js). Same UI as the NNS variant but configurable per
+/// DAO via runtime canister-id override + a script-supplied colour theme.
+String loadSnsProposalsBundle() {
+  for (final String path in _snsProposalsBundleCandidates) {
+    final File f = File(path);
+    if (f.existsSync()) {
+      return f.readAsStringSync();
+    }
+  }
+  fail('09_sns_proposals.js not found in any candidate location:\n'
+      '${_snsProposalsBundleCandidates.join("\n")}');
+}
+
 bool nativeLibAvailable(RustBridgeLoader loader) {
   final String? probe = loader.jsExec(script: '1', jsonArg: null);
   return probe != null;

@@ -96,6 +96,11 @@ class DappDescriptor {
 const String kMainnetIcGateway = 'https://ic0.app';
 const String kMainnetIcpLedgerCanisterId = 'ryjl3-tyaaa-aaaaa-aaaba-cai';
 
+// NNS Governance canister — verified live 2026-07-21 via dfx
+// (`list_proposals` returns proposal_info; same canister ALPHA-Vote /
+// CO.DELTA in third_party/ automate in Rust). Public + read-only.
+const String kMainnetNnsGovernanceCanisterId = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
+
 // LOCAL-REPLICA example: these match a replica deployed from
 // examples/icp_poll_dapp. A fresh `dfx start --clean` + `dfx deploy` regenerates
 // different ids, which is exactly why the runner exposes editable Connection
@@ -127,6 +132,25 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
     environment: DappEnvironment.mainnet,
     // The ledger is a backend-only canister (no hosted frontend UI).
     paths: <DappPath>[DappPath.backendDirect],
+  ),
+
+  // ── Always works: live NNS governance proposals (read-only) ─────────────
+  DappDescriptor(
+    id: 'nns_proposals',
+    title: 'NNS Proposals',
+    emoji: '🗳️',
+    description: 'Browse LIVE Internet Computer governance proposals — open, '
+        'adopted, rejected, or executed. Filter by status and topic, watch '
+        'the yes/no tally, and see real deadlines countdown. Reads straight '
+        'from the NNS Governance canister on mainnet — works out of the box, '
+        'no setup, no signing. A headliner demo of what icp-cc can do.',
+    backendCanisterId: kMainnetNnsGovernanceCanisterId,
+    host: kMainnetIcGateway,
+    frontendUrl: 'https://nns.ic0.app/proposals',
+    bundleAssetPath: 'lib/examples/08_nns_proposals.js',
+    environment: DappEnvironment.mainnet,
+    keylessHint: 'Browsing proposals is read-only. Signing is only needed '
+        'to vote (which this demo does not do).',
   ),
 
   // ── Developer example: needs a local replica ────────────────────────────
