@@ -511,18 +511,29 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     );
   }
 
-  /// Combined profile management sheet - shows switch + create options
+  /// Combined profile management sheet - shows switch + create options.
+  ///
+  /// **UX-PMD-1 fix.** The [State.context] is captured into [navigator]
+  /// BEFORE the `showModalBottomSheet` await boundary, and the
+  /// `onCreateProfile` closure routes through that captured navigator
+  /// (and the captured [widget] refs) instead of dereferencing `this.context`
+  /// after the State has been disposed. The menu's modal route is popped
+  /// at [_handleAction] entry; its exit animation finishes while the user
+  /// reads the manage sheet, disposing `_ProfileMenuWidgetState` BEFORE the
+  /// user can tap "Create New Profile". A closure that touched `context`
+  /// post-disposal threw `State no longer has a context`.
   Future<void> _showManageProfilesSheet() async {
+    final navigator = Navigator.of(context);
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      builder: (context) => _ManageProfilesSheet(
+      builder: (sheetContext) => _ManageProfilesSheet(
         profileController: widget.profileController,
         accountController: widget.accountController,
         onCreateProfile: () async {
-          Navigator.of(context).pop();
-          await _showCreateProfileDialog();
+          navigator.pop();
+          await _pushCreateProfileWizard(navigator);
         },
       ),
     );
@@ -532,8 +543,13 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     }
   }
 
-  Future<void> _showCreateProfileDialog() async {
-    await Navigator.of(context).push<UnifiedSetupResult>(
+  /// Push the [UnifiedSetupWizard] onto [navigator].
+  ///
+  /// Takes an explicit [NavigatorState] (captured before an await boundary
+  /// by the caller) so it is safe to call from a closure that outlives this
+  /// State (the UX-PMD-1 manage-sheet → create-profile path).
+  Future<void> _pushCreateProfileWizard(NavigatorState navigator) async {
+    await navigator.push<UnifiedSetupResult>(
       MaterialPageRoute<UnifiedSetupResult>(
         fullscreenDialog: true,
         builder: (_) => UnifiedSetupWizard(
@@ -546,6 +562,10 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _showCreateProfileDialog() async {
+    await _pushCreateProfileWizard(Navigator.of(context));
   }
 }
 
