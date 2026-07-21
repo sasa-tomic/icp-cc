@@ -222,9 +222,27 @@ Sized **S** ≈ half-day, **M** ≈ 1–2 days.
 
 Not started; pulled from the migration spec's open questions (`docs/specs/SCRIPTING_RUNTIME_MIGRATION.md` §11):
 
-- **G2** — Android NDK cross-compile of the QuickJS/rquickjs cdylib (NDK is not present in the current environment).
 - **G8** — `qjsc` bytecode precompilation for faster cold start (optional).
 - **G12** — Resource-limit (memory/time) tuning against a real pilot-script load test.
+
+### Resolved
+
+- **G2** — ~~Android NDK cross-compile of the QuickJS/rquickjs cdylib (NDK is not present in the current environment).~~
+  ✅ **DONE (2026-07-21, confidence 9/10)** — The premise ("NDK not present") was false for the
+  agent container: `agent/docker-compose.yml:42` bind-mounts the host's `~/Android` read-only, and
+  the host has NDK r27 (`27.0.12077973`, 2.0 GB) at `~/Android/Sdk/ndk/`. Inside the container,
+  `scripts/common.sh::setup_android_ndk_env` auto-detects it and resolves
+  `ANDROID_NDK_HOME`, `CC_aarch64_linux_android`, `CC_x86_64_linux_android`, and `AR_*` correctly.
+  Verified end-to-end: `cargo build --release --target aarch64-linux-android` of `icp_core`
+  (including the rquickjs bindgen — the specific G2 concern) succeeds in ~4m15s, producing
+  `target/aarch64-linux-android/release/libicp_core.so` (13.6 MB; `file` confirms
+  `ELF 64-bit ... ARM aarch64 ... for Android 21, built by NDK r27 (12077973)`). The canonical
+  build path is `./scripts/build_android.sh` (all 3 ABIs → `jniLibs/`). The NDK is **not** baked
+  into the image (~2 GB uncompressed); it relies on the host mount, so clean environments (CI
+  runners, fresh boxes without `~/Android`) still need NDK install or a host mount. See
+  `docs/build-native.md` and `agent/DOCKER_README.md`. Note: only the **arm64** target was
+  exercised in this verification; `armv7` + `x86_64` use the same toolchain resolution path and
+  are expected to work but were not separately built.
 - **ALPHA-Vote-style authenticated neuron voting dapp.** ~~Deferred from the
   2026-07-21 SNS/NNS voting work (`docs/specs/2026-07-21-sns-voting-scripts.md`
   §3). The headliner shipped two *read-only* browsers (NNS + SNS proposals);

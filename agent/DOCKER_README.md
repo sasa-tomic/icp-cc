@@ -169,6 +169,14 @@ container-only (ephemeral, regenerated each start). See
 - **Cargo tools** - make, nextest, wasm-pack, sqlx-cli
 - **Just** - Modern build system
 - **PostgreSQL client** - For database operations
+- **Android NDK (host-mounted)** - r27+ for cross-compiling `libicp_core.so`
+  (incl. the rquickjs cdylib). **Not baked into the image** (~2 GB); provided
+  read-only from the host's `~/Android` via the volume mount below. When the
+  host has an NDK at `~/Android/Sdk/ndk/<version>`,
+  `scripts/common.sh::setup_android_ndk_env` auto-detects it inside the
+  container. Build with `./scripts/build_android.sh` (see
+  `docs/build-native.md`). On a host without `~/Android`, install the NDK
+  first (`sdkmanager "ndk;27.0.12077973"`).
 
 ### Safety Features
 - **Non-root user** - Container runs as 'ubuntu' user
@@ -185,6 +193,10 @@ The setup uses several volumes for caching and persistence:
 - **`home-cache`** - Home directory cache (npm, uv, etc.)
 - **`target-cache`** - Build artifacts (per-project)
 - **Project mount** - Your entire project directory at `/code/icp-cc`
+- **Android SDK + NDK (read-only)** - Host's `~/Android` mounted at
+  `/home/ubuntu/Android:ro`; `ANDROID_HOME=/home/ubuntu/Android/Sdk`. Drives
+  the Android cross-compile (`scripts/build_android.sh`) when the host has an
+  NDK installed. Not present on hosts without `~/Android`.
 - **Docker socket** - Mounted at `/var/run/docker.sock` for Docker-in-Docker access
 - **Config mounts** - `~/.claude`, `~/.happy`, `~/.opencode` for AI tool configs
 
