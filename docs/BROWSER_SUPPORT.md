@@ -22,7 +22,7 @@ native core (`libicp_core`) provides is re-implemented in **pure Dart** on Web
 | Profile + Script repositories (local stores) | ✅ Real — conditional-import JSON store (`FileJsonStore` IO / `WebJsonStore` `shared_preferences`) |
 | Secure storage (`flutter_secure_storage_web`) | ✅ Backend present (IndexedDB + AES) |
 | Backend CORS for browser fetch | ✅ Permissive by default; IC byte-relay proxy for canister calls |
-| Passkeys (`navigator.credentials`) | ✅ Compiles; WebAuthn E2E needs a real browser session |
+| Passkeys (`navigator.credentials`) | ✅ Compiles + ✅ Headless E2E proven via `just e2e-web-passkey` (Playwright 1.61+ virtual authenticator + WEB-1 Dart probe; WEB-1-PASSKEY-SHAPE backend bugs fixed) |
 | QuickJS script execution / linting (R-3a) | ✅ Real — execution (init/view/update + jsExec) AND lint/validate run on Web with native parity (51 golden vectors) |
 | IC canister calls (R-3b) | ✅ Real — `fetchCandid`/`parseCandid`/`callAnonymous`/`callAuthenticated` via `@dfinity/agent` + backend byte-relay CORS proxy, live-verified on mainnet (`symbol() → "ICP"`) |
 
@@ -180,10 +180,21 @@ is the standard, audited implementation.
 it compiles and `PasskeyPlatform.isSupported` returns `true` (unlike Linux
 desktop, where it is `false`). Full WebAuthn E2E (registration / login /
 hybrid QR) requires a real browser session with an authenticator (KeePassXC,
-Android hybrid, YubiKey, etc.) and cannot be exercised headlessly in CI.
+Android hybrid, YubiKey, etc.) — and is now **proven headlessly** in CI via
+Playwright 1.61+'s `browserContext.credentials` virtual authenticator API
+(`just e2e-web-passkey`, see `docs/OPEN_ISSUES.md` #WEB-1).
 
-The backend Relying-Party origin configuration should include the Web origin
-served by `flutter run -d chrome` (e.g. `http://localhost:<port>` in dev).
+The backend Relying-Party origin configuration MUST match the page origin
+exactly (`WEBAUTHN_RP_ID` + `WEBAUTHN_RP_ORIGIN` env vars). The default
+`localhost` / `http://localhost:58000` works for any
+`http://localhost:<port>` dev URL. `just e2e-web-passkey` brings up a
+dedicated backend with the right RP origin automatically.
+
+> **Backend bug history (2026-07-21, resolved).** Two compounding bugs in the
+> backend passkey flow (`WEB-1-PASSKEY-SHAPE` in `docs/OPEN_ISSUES.md`) had
+> made real-backend WebAuthn registration impossible since W7-13 landed.
+> Both are fixed (commit `cb7de983`); the `just e2e-web-passkey` harness is
+> the regression guard.
 
 ## Track items
 

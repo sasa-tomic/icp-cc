@@ -806,61 +806,165 @@ covers the pagination CONTRACT end-to-end against a bulk-seeded backend
 auto-load on scroll, re-entrancy guard, hasMore=false end state, tap
 fallback, in-flight indicator.
 
-### WEB-1 — Flutter Web e2e via Playwright blocked on semantics enablement
+### WEB-1 — Flutter Web e2e via Playwright (passkey-on-web unblocked)
 
-- **Status**: ⚪ DEFERRED (per 2026-07-19 plan Pivot 1 — Tier A substrate-fakes + Tier B image-based Playwright bypass the need)
+- **Status**: 🟢 RESOLVED (2026-07-21, commits `cb7de983` + `1c8b730c` + `73bc7c8f`)
 - **Surfaced**: 2026-07-17 (`docs/specs/2026-07-17-e2e-completion-and-ux-sweep.md` Phase C)
 - **Severity**: HIGH (blocks real-app web e2e coverage)
-- **Owner**: future Flutter upgrade / harness rework
+- **Was**: ⚪ DEFERRED (per 2026-07-19 plan Pivot 1 — Tier A substrate-fakes + Tier B image-based Playwright bypass the need). The 2026-07-21 work revisited the issue at the human's request and unblocked it via a different angle (Playwright 1.61+'s modern `browserContext.credentials` virtual authenticator API + a Dart probe entrypoint pattern that sidesteps the Flutter a11y tree entirely).
 
-**Problem.** The Playwright-against-built-web approach (build the bundle,
-serve via `python -m http.server`, drive with Chromium) works for *booting*
-the app — `flt-glass-pane` mounts, `flt-scene-host` has a canvas child,
-`flutterCanvasKit` is loaded. But the Flutter Web engine's a11y semantics
-tree (`flt-semantics` element) is **never enabled**, so Playwright has no
-DOM to assert against — every assertion can only see a generic canvas.
+**Was the issue title accurate?** Partly. The original blocker was real —
+Flutter Web's a11y tree (`flt-semantics` element) IS never auto-enabled in
+headless Chromium, so DOM-based assertions against the Flutter UI are
+unavailable. That was confirmed again on Flutter 3.44.6 (every force-enable
+attempt — `--force-renderer-accessibility`, Tab keydowns, CDP
+`Accessibility.enable` — left `<flt-semantics>` empty; CDP AXTree stays at 9
+generic nodes).
 
-**What I tried (all failed on Flutter 3.38.3 / canvaskit):**
-1. `SystemChannels.accessibility.send(['enableSemantics', null])` — Dart-side
-   flag set, no DOM effect.
-2. `SemanticsService.announce(...)` — public Flutter API that the docs imply
-   forces semantics on; no DOM effect.
-3. Playwright `page.keyboard.press('Tab')` — the SemanticsEnabler listens for
-   Tab keydown at the window level; no DOM effect (likely because the
-   canvaskit `flt-glass-pane` shadow-DOM intercepts/absorbs the key).
-4. Dispatching a synthetic `KeyboardEvent('keydown', {key:'Tab'})` on
-   `window` directly — same: no effect.
-5. `--web-renderer html` — flag was removed in Flutter 3.38 (canvaskit only).
-6. `--wasm` — flutter_secure_storage_web blocks Wasm (`dart:js_util` +
-   `package:js/js.dart` forbidden in Wasm).
+BUT the title implied Playwright-driven WEB AUTHN was blocked, and that turned
+out to be **false**. Playwright 1.61+'s `browserContext.credentials` API
+(`create('localhost')` + `install()`) arms a virtual authenticator that
+satisfies `navigator.credentials.create` headlessly without any Flutter-side
+a11y. The full WebAuthn round-trip works perfectly — the blocker was only the
+ASSERTION side, not the WebAuthn side.
 
-**Working theory.** Flutter Web's `SemanticsEnabler` only honours its own
-internal screen-reader detection (via `navigator.userAgent` matching known
-AT tools). Headless Chromium's UA doesn't match. There is no public JS API
-to override this; the engine internals are not exposed on `window._flutter`.
+**The actual blockers (resolved):**
 
-**Hook in place.** `lib/main.dart` keeps a `FLUTTER_WEB_FORCE_SEMANTICS`
-dart-define that calls `SemanticsService.announce()` post-frame. It's a
-no-op today but becomes effective the moment Flutter Web ships working
-programmatic semantics enablement — no further app change needed.
+1. **Two compounding production bugs** in the backend passkey flow had made
+   real-backend WebAuthn registration impossible since the W7-13 signature
+   gate landed. Both are fixed in commit `cb7de983` and tracked as
+   `WEB-1-PASSKEY-SHAPE` (see below). Bug #1 masked bug #2: the JSON-shape
+   parse failure at `/passkey/register/start` hid the FK failure at
+   `/passkey/register/finish`.
 
-**Workarounds for now.**
-- **Web Tier 1 (widget tests via `flutter test -d chrome`)** is the only
-  real-app web coverage today. Extends cleanly to ~30 Surface.web flows
-  (browse, search, filter, settings, vault crypto, profile via localStorage,
-  onboarding wizard). HTTP works (real backend), plugins need substrate
-  fakes (`SharedPreferences.setMockInitialValues`, etc.). The current
-  `suite_web_smoke_test.dart` only asserts the contract compiles; needs
-  extending.
-- **Chrome DevTools Protocol** `Accessibility.getFullAXTree` returns ~11
-  generic nodes (just the RootWebArea + canvas wrappers) — too sparse to
-  assert on.
-- **Manual web UX review** still works — a human opens the URL and looks.
+2. **The assertion-side workaround.** The Flutter UI cannot be driven
+   headlessly (a11y tree off), but the passkey flow CAN be exercised by a
+   dedicated Dart probe entrypoint that publishes its result to
+   `document.title`. The probe drives the REAL production code paths
+   (`KeypairGenerator.generate` → `AccountController.registerAccount` →
+   `PasskeyService().registerPasskey` → `PasskeyService().listPasskeys`),
+   so canvaskit + real pure-Dart Ed25519 + the real backend are all
+   exercised. This is the same probe pattern the R-3 / R-3b verification
+   (`tool/web_probe_*_main.dart`) already uses.
 
-**Revisit when:** Flutter ships an upgrade that exposes a working
-`enableSemantics()` JS API, OR `flutter drive` web is unblocked (currently
-broken by `<invalid>` exhaustiveness in `cupertino/colors.dart:1024` +
-`material/tooltip.dart:827`).
+**Resolution shape (commit `73bc7c8f`):**
+
+- `apps/autorun_flutter/web_e2e_playwright/specs/passkey.spec.ts` — 2 specs:
+  - positive: virtual authenticator installed → full passkey registration
+    round-trip succeeds (5/5 checks PASS: username, keypair, register_account,
+    register_passkey, list_passkeys count=1 expectedMatch=true).
+  - negative: NO authenticator → `navigator.credentials.create` hangs →
+    probe's 20s timeout fires → loud failure with `TimeoutException` +
+    `expect_failure_path` check PASSes.
+- `apps/autorun_flutter/tool/web_probe_passkey_main.dart` — Dart probe
+  entrypoint (`flutter build web --target=…`).
+- `scripts/web-e2e-passkey.sh` — brings up a DEDICATED backend on :41098 with
+  `WEBAUTHN_RP_ORIGIN=http://localhost:8099` (must match the page origin
+  exactly for WebAuthn), builds the probe bundle, serves it on
+  `http://localhost:8099`, runs Playwright, tears down via trap. The dev
+  `api-dev-up` backend is untouched.
+- `justfile` recipe: `just e2e-web-passkey` (with `--no-build` and
+  `--keep-servers` escape hatches).
+
+**Why `localhost` (not 127.0.0.1).** The WebAuthn RP ID is the page's
+hostname. `WEBAUTHN_RP_ID=localhost` is the backend default; the static
+server binds to `localhost` so the page origin matches the RP origin the
+backend expects. A `127.0.0.1` origin would make the backend reject the
+credential assertion (origin mismatch).
+
+**Evidence (positive spec output from `just e2e-web-passkey`, 2026-07-21):**
+
+```
+[positive] phase=complete allPassed=true
+  [PASS] username_chosen: e2eweb1784652740405
+  [PASS] keypair: pubkey=LFpARW9pKBV+… principal=4vvwz-dzixm-2imda-is5o4-irhgo-f7rhx-xalrz-pypnd-ym3tl-tkm2g-4qe
+  [PASS] register_account: id=a20e4bcd-f6b6-4a18-a8ac-10b2ffbdf058 username=e2eweb1784652740405
+  [PASS] register_passkey: passkeyId=5d5f206a-959f-4e3f-aa31-82ef703e1564 createdAt=2026-07-21T16:52:21.703423909+00:00
+  [PASS] list_passkeys: count=1 expectedMatch=true ids=5d5f206a-959f-4e3f-aa31-82ef703e1564
+  ✓  1 [chromium] › specs/passkey.spec.ts:153:5 › passkey registration round-trip succeeds with virtual authenticator (2.6s)
+[negative] phase=expect_failure allPassed=true
+  [FAIL] register_passkey: TimeoutException: WebAuthn navigator.credentials.create did not complete within 20s (expected when no virtual authenticator is installed)
+  [PASS] expect_failure_path: saw expected WebAuthn failure
+  ✓  2 [chromium] › specs/passkey.spec.ts:181:5 › passkey registration fails loudly without virtual authenticator (22.7s)
+
+  2 passed (26.5s)
+✅ WEB-1 passkey-on-web e2e PASSED
+```
+
+**What is NOT covered.** The probe drives the production passkey Dart code
+but NOT the Flutter UI itself (the `PasskeyManagementScreen` FAB →
+`_addPasskey` → `PasskeyService` chain). UI-level navigation remains
+screenshot-only (`e2e-web-playwright` Tier B + `zai-vision`). If/when
+Flutter Web ships working programmatic semantics enablement, the probe can
+be retired in favour of full-UI Playwright driving — the FLUTTER_WEB_FORCE_SEMANTICS
+hook in `lib/main.dart` remains in place for that future.
+
+---
+
+### WEB-1-PASSKEY-SHAPE — Two compounding backend bugs that blocked real-backend WebAuthn registration
+
+- **Status**: 🟢 RESOLVED (2026-07-21, commit `cb7de983`)
+- **Surfaced**: 2026-07-21 (WEB-1 investigation — Playwright virtual authenticator round-trip reached `/passkey/register/finish` only after bug #1 was patched, then surfaced bug #2)
+- **Severity**: HIGH (production passkey registration was impossible against the real backend on ANY platform — not just Web — since the W7-13 signature gate landed)
+- **Location**: `backend/src/services/passkey_service.rs` (JSON shape bug), `backend/src/db.rs` (FK schema bug); test updates in `backend/tests/passkey_tests.rs` + `backend/tests/soft_authenticator.rs`
+
+These bugs explain why the existing substrate-HTTP passkey tests
+(`test/e2e_web/substrate/substrate_http.dart`) passed while no production
+client could complete a real passkey registration. The substrate mirrors
+the FLAT options shape the Dart `passkeys` package expects; the real backend
+was returning a different shape, and the FK made the finish step fail. Both
+bugs were masked because the substrate-fake tests never exercised the real
+backend.
+
+**Bug #1 — JSON shape mismatch.** `PasskeyRegistrationStart.options` was
+typed `CreationChallengeResponse` (from `webauthn-rs-proto`), which
+serializes the inner options under a `public_key` wrapper. The Dart
+`passkeys` package's `RegisterRequestType.fromJson` expects the options
+flat at the top level (`rp`, `user`, `challenge`, …), matching the
+substrate-HTTP contract. The real backend's response shape drifted from
+the substrate by one level of nesting — enough to make
+`PasskeyService.registerPasskey` throw
+`FormatException: Expected "rp" to be a Map, got Null` on every platform.
+Same issue on the auth side (`RequestChallengeResponse.public_key`
+wrapper).
+
+**Fix:** `PasskeyRegistrationStart.options` is now typed as the inner
+`PublicKeyCredentialCreationOptions` directly; `start_registration` extracts
+`.public_key` from the webauthn-rs return value. Same change on the auth
+side. The `soft_authenticator.rs` test helper's signatures updated to take
+the inner types (its previous signature simulated the browser-side
+`CredentialCreationOptions` wrapper, which is irrelevant to the HTTP
+response shape). 14/14 backend passkey_tests pass against the real
+webauthn-rs verifier + real schema.
+
+**Bug #2 — FK schema mismatch.** `passkeys.account_id` was FK'd to
+`keypair_profiles(principal)`, but the signature gate resolves `account_id`
+as an `accounts.id` UUID (via `account_public_keys.account_id`). Same bug
+pattern the A-4 W4 migration already fixed for `user_vaults` and
+`recovery_codes` — `passkeys` was missed.
+
+**Fix:** drop+recreate `passkeys` with
+`FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE`
+(same pattern as the A-4 W4 fix). No data loss: the broken FK made
+production passkey inserts impossible, so no rows ever existed. Backend
+test `seed_principal` updated to insert an `accounts` row (was inserting a
+`keypair_profiles` row).
+
+**Why both bugs were never caught before:**
+
+- The Flutter UI never reached the real-backend passkey flow because the
+  substrate-HTTP tests bypassed it, AND production users hit the
+  PasskeyManagementScreen only after creating a profile (a flow never
+  exercised end-to-end against the real backend on Web/headless).
+- The `e2e-web-playwright` Tier B harness (boot smoke + screenshot) doesn't
+  drive any backend round-trips.
+- The desktop `e2e-desktop` suite runs in a Linux desktop build where
+  `PasskeyPlatform.isSupported` is false, so the FAB → `_addPasskey` chain
+  early-returns with the "Passkeys aren't available on Linux desktop"
+  message.
+
+WEB-1's Playwright virtual authenticator finally forced the real-backend
+flow to complete end-to-end, surfacing both bugs.
 
 ---
 
