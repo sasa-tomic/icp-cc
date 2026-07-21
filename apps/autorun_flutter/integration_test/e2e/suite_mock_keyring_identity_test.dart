@@ -152,6 +152,10 @@ void main() {
       });
       await tester.pump(const Duration(milliseconds: 500));
 
+      // UX-H6: AccountRegistrationWizard also shows the post-registration
+      // security prompt. Dismiss it (Skip) so the wizard can pop.
+      await dismissPostRegistrationSecurityPrompt(tester, d);
+
       // The wizard pops with the Account on success. The publish gate
       // then pushes QuickUploadDialog as the next step. Bail out by
       // cancelling the QuickUploadDialog (the publish flow's contract

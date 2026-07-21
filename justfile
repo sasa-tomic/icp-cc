@@ -542,6 +542,14 @@ e2e-desktop:
     export MARKETPLACE_API_PORT=$(just _api-dev-port)
     echo "==> backend: http://127.0.0.1:$MARKETPLACE_API_PORT"
 
+    # --- 3.5 Reset marketplace DB to the curated 3-script seed ---------------
+    # Prior runs (bulk-seed tools, manual uploads, ad-hoc tests) contaminate
+    # the DB with hundreds of stray scripts that break the e2e suites' text-
+    # based finders (e.g. 'Hello IC Starter' gets buried past page 1).
+    # add-sample-data.sh is idempotent (DELETE then INSERT). (NEW-2)
+    echo "==> resetting marketplace DB to curated seed (3 scripts)"
+    (cd "{{api_dir}}" && bash scripts/add-sample-data.sh) | sed 's/^/    /'
+
     # --- 3. PASS 1: keyring-less (one boot) -----------------------------------
     : > "$LOG"
     rm -rf "$STATE_DIR" 2>/dev/null || true
@@ -634,6 +642,8 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
     # honors MARKETPLACE_API_PORT → http://127.0.0.1:port). Without it the app
     # falls back to the production host and marketplace fetches throw 530.
     export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    # Reset marketplace DB to curated seed so text-based finders work (NEW-2).
+    (cd "{{api_dir}}" && bash scripts/add-sample-data.sh) >/dev/null
     echo "==> e2e-fast: {{file}} (backend :$MARKETPLACE_API_PORT)"
     cd "{{flutter_dir}}" && flutter test -d linux "{{file}}" --reporter=compact --timeout=240s
 
