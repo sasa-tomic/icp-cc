@@ -104,6 +104,27 @@ String loadSnsProposalsBundle() {
       '${_snsProposalsBundleCandidates.join("\n")}');
 }
 
+const List<String> _alphaVoteBundleCandidates = <String>[
+  'lib/examples/10_alpha_vote.js',
+  'apps/autorun_flutter/lib/examples/10_alpha_vote.js',
+  '/code/icp-cc/apps/autorun_flutter/lib/examples/10_alpha_vote.js',
+];
+
+/// Loads the ALPHA-Vote authenticated neuron voting bundle
+/// (10_alpha_vote.js). The authenticated sequel to the read-only NNS / SNS
+/// browsers: emits authenticated `manage_neuron RegisterVote` and `Follow`
+/// effects against NNS Governance, signed by the active profile's keypair.
+String loadAlphaVoteBundle() {
+  for (final String path in _alphaVoteBundleCandidates) {
+    final File f = File(path);
+    if (f.existsSync()) {
+      return f.readAsStringSync();
+    }
+  }
+  fail('10_alpha_vote.js not found in any candidate location:\n'
+      '${_alphaVoteBundleCandidates.join("\n")}');
+}
+
 bool nativeLibAvailable(RustBridgeLoader loader) {
   final String? probe = loader.jsExec(script: '1', jsonArg: null);
   return probe != null;

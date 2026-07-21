@@ -107,6 +107,20 @@ const String kMainnetNnsGovernanceCanisterId = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
 // Proposals demo; the user can paste any other SNS governance id in-app.
 const String kMainnetOpenChatSnsGovernanceCanisterId = '2jvtu-yqaaa-aaaaq-aaama-cai';
 
+// ALPHA-Vote known public neuron ids (canonical mainnet, from
+// third_party/ALPHA-Vote/README.md). Used as the recommendation surface in
+// the Neuron Voting dapp (the bundle shows what these 3 neurons voted on
+// each open proposal) + the D-QUORUM upstream diligent voter surfaced as an
+// extra Follow affordance. Verified live 2026-07-21 via dfx against NNS
+// Governance rrkah-fqaaa-aaaaa-aaaaq-cai (a real authenticated manage_neuron
+// with a non-owned neuron returns the structured "Neuron not found" Error,
+// proving the auth round-trip — see docs/specs/2026-07-21-alpha-vote-dapp.md
+// §10.2 for the transcript).
+const String kAlphaVoteNeuronId   = '2947465672511369';
+const String kOmegaVoteNeuronId   = '18363645821499695760';
+const String kOmegaRejectNeuronId = '18422777432977120264';
+const String kDQuorumNeuronId     = '4713806069430754115';
+
 // LOCAL-REPLICA example: these match a replica deployed from
 // examples/icp_poll_dapp. A fresh `dfx start --clean` + `dfx deploy` regenerates
 // different ids, which is exactly why the runner exposes editable Connection
@@ -177,6 +191,27 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
     environment: DappEnvironment.mainnet,
     keylessHint: 'Browsing proposals is read-only. Signing is only needed '
         'to vote (which this demo does not do).',
+  ),
+
+  // ── Authenticated: live NNS neuron voting (RegisterVote + Follow) ───────
+  DappDescriptor(
+    id: 'alpha_vote',
+    title: 'Neuron Voting',
+    emoji: '⚡',
+    description: 'Cast authenticated NNS votes from inside icp-cc. Browse '
+        'open proposals, see what the ALPHA-Vote public neurons (αlpha-vote, '
+        'Ωmega-vote, Ωmega-reject) recommend, then vote Yes/No or set up '
+        'recurring Following — all signed with your active profile\'s '
+        'keypair. Requires a staked NNS neuron (the dapp surfaces a clear '
+        'path if you don\'t have one).',
+    backendCanisterId: kMainnetNnsGovernanceCanisterId,
+    host: kMainnetIcGateway,
+    frontendUrl: 'https://nns.ic0.app/neurons',
+    bundleAssetPath: 'lib/examples/10_alpha_vote.js',
+    environment: DappEnvironment.mainnet,
+    paths: <DappPath>[DappPath.backendDirect],
+    keylessHint: 'Browsing proposals works without a profile. Signing '
+        'in unlocks neuron discovery and one-tap voting.',
   ),
 
   // ── Developer example: needs a local replica ────────────────────────────
