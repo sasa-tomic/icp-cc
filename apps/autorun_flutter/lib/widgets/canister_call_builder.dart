@@ -16,6 +16,73 @@ class CanisterCallBuilderDialog extends StatefulWidget {
   @override
   State<CanisterCallBuilderDialog> createState() =>
       _CanisterCallBuilderDialogState();
+
+  /// UX-H12: pure snippet generator. Extracted from the State's `_generateBundle`
+  /// so the contract is testable without pumping the dialog (the dialog ships
+  /// with a fixed 800x600 SizedBox + long canister names that overflow the
+  /// default test surface — testing the generator directly is faster,
+  /// deterministic, and orthogonal to those layout issues).
+  ///
+  /// Emits the script-app host contract directly: an `icp_call` literal with
+  /// `authenticated: true,` when [isAuthenticated]. The bundle NEVER carries
+  /// raw key material — the host resolves the auth flag to the active profile
+  /// keypair.
+  @visibleForTesting
+  static String generateBundle({
+    required String? canisterId,
+    required String? methodName,
+    required int callMode,
+    required String argsString,
+    required bool isAuthenticated,
+  }) {
+    if (canisterId == null ||
+        canisterId.isEmpty ||
+        methodName == null ||
+        methodName.isEmpty) {
+      return '';
+    }
+
+    final buffer = StringBuffer();
+
+    if (isAuthenticated) {
+      buffer.writeln('// Authenticated canister call');
+    } else {
+      buffer.writeln('// Anonymous canister call');
+    }
+    buffer.writeln('const result = icp_call({');
+    buffer.writeln('  canister_id: "$canisterId",');
+    buffer.writeln('  method: "$methodName",');
+    buffer.writeln('  mode: $callMode, // ${_callModeLabel(callMode)}');
+    buffer.writeln('  args: $argsString');
+
+    // UX-H12: emit the host contract directly. The script-app host
+    // (script_app_host.dart) resolves `authenticated: true` to the active
+    // profile keypair; the bundle NEVER carries raw key material. Previously
+    // this emitted a broken `keypair_id: "<id>"` (no such host field) plus a
+    // 'set private_key_b64 or keypair_id' comment that produced a non-running
+    // snippet.
+    if (isAuthenticated) {
+      buffer.writeln('  authenticated: true,');
+    }
+
+    buffer.writeln('});');
+    buffer.writeln();
+    buffer.writeln('// Use the result in your script');
+    buffer.writeln('return result;');
+
+    return buffer.toString();
+  }
+
+  static String _callModeLabel(int mode) {
+    switch (mode) {
+      case 1:
+        return 'update';
+      case 2:
+        return 'composite';
+      default:
+        return 'query';
+    }
+  }
 }
 
 class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
@@ -30,7 +97,6 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
   int _callMode = 0; // 0=query, 1=update, 2=composite
   Map<String, dynamic> _args = {};
   bool _isAuthenticated = false;
-  String? _keypairId;
   bool _isLoadingCandid = false;
   List<CanisterMethod> _availableMethods = [];
 
@@ -64,7 +130,6 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
     _labelController.text = spec['label'] ?? 'call1';
     _callMode = spec['mode'] ?? 0;
     _isAuthenticated = spec['authenticated'] ?? false;
-    _keypairId = spec['keypair_id'];
 
     if (spec['args'] != null) {
       _args = Map<String, dynamic>.from(spec['args']);
@@ -164,61 +229,31 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
   }
 
   String _generateBundle() {
-    if (_selectedMethod == null ||
-        _selectedCanisterId == null ||
-        _selectedCanisterId!.isEmpty) {
-      return '';
-    }
+    // Prefer the structured [CanisterMethod] (loaded from Candid), but fall
+    // back to the manually-typed method name so the snippet is functional
+    // even when the canister interface couldn't be fetched. UX-H12: a
+    // functional snippet is the user-visible contract — never an empty
+    // preview when the user has clearly entered both a canister and method.
+    final String typedMethod = _methodController.text.trim();
+    final String? methodName =
+        _selectedMethod?.name ?? (typedMethod.isEmpty ? null : typedMethod);
 
-    final argsJson = _args.isNotEmpty ? json.encode(_args) : '()';
+    // The script-app host accepts an inline JSON argument or `()` for zero-arg
+    // methods. When the user has built structured args via the form, emit them;
+    // otherwise emit `()` for zero-arg methods.
+    final String argsJson = _args.isNotEmpty ? json.encode(_args) : '()';
+    final String argsString =
+        (_selectedMethod?.args.isNotEmpty ?? false) && _args.isEmpty
+            ? '()'
+            : argsJson;
 
-    // Generate args string based on method arguments
-    String argsString = argsJson;
-    if (_selectedMethod!.args.isNotEmpty) {
-      if (_args.isEmpty) {
-        argsString = '()';
-      }
-    }
-
-    final buffer = StringBuffer();
-
-    if (_isAuthenticated) {
-      buffer.writeln('// Authenticated canister call');
-      buffer.writeln('const result = icp_call({');
-    } else {
-      buffer.writeln('// Anonymous canister call');
-      buffer.writeln('const result = icp_call({');
-    }
-
-    buffer.writeln('  canister_id: "$_selectedCanisterId",');
-    buffer.writeln('  method: "$_selectedMethod",');
-    buffer.writeln('  mode: $_callMode, // ${_getCallModeLabel(_callMode)}');
-    buffer.writeln('  args: $argsString');
-
-    if (_isAuthenticated && _keypairId != null) {
-      buffer.writeln('  keypair_id: "$_keypairId"');
-    } else if (_isAuthenticated) {
-      buffer.writeln(
-          '  // Note: You\'ll need to set private_key_b64 or keypair_id for authenticated calls');
-    }
-
-    buffer.writeln('});');
-    buffer.writeln();
-    buffer.writeln('// Use the result in your script');
-    buffer.writeln('return result;');
-
-    return buffer.toString();
-  }
-
-  String _getCallModeLabel(int mode) {
-    switch (mode) {
-      case 1:
-        return 'update';
-      case 2:
-        return 'composite';
-      default:
-        return 'query';
-    }
+    return CanisterCallBuilderDialog.generateBundle(
+      canisterId: _selectedCanisterId,
+      methodName: methodName,
+      callMode: _callMode,
+      argsString: argsString,
+      isAuthenticated: _isAuthenticated,
+    );
   }
 
   Future<void> _copyToClipboard() async {
@@ -343,7 +378,7 @@ class _CanisterCallBuilderDialogState extends State<CanisterCallBuilderDialog> {
                       .map((method) => DropdownMenuItem<CanisterMethod>(
                             value: method,
                             child: Text(
-                                  '${method.name} (${_getCallModeLabel(method.mode)})'),
+                                  '${method.name} (${CanisterCallBuilderDialog._callModeLabel(method.mode)})'),
                           ))
                       .toList(),
                   onChanged: _onMethodChanged,
