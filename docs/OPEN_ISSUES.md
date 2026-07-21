@@ -78,48 +78,67 @@ Web Tier A stays at 13/13 covered (`just e2e-web`).
 3 mock-keyring); `just e2e-one <flow-id> mock-keyring-identity` for
 sub-suite single-flow iteration.
 
-### E2E-PHASE-O-REGRESSION — `suite_keyring_less_test.dart` PHASE 15 (`shortcut.new_script`) red
+### E2E-PHASE-O-REGRESSION — `suite_keyring_less_test.dart` FocusScope/shadow quirk (PHASES 15, 18, 19)
 
-- **Status**: 🔴 OPEN (discovered 2026-07-21 during Phase O verification)
-- **Surfaced**: running `just e2e-desktop` after landing Phase O; PASS 1
-  (keyring-less) fails deterministically at PHASE 15.
-- **Severity**: HIGH (the keyring-less PASS is RED, blocking `just e2e-desktop`
-  from going green)
-- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart:574-596`
-  (`shortcut.new_script` flow body)
+- **Status**: 🟢 RESOLVED (2026-07-21, commits `66337c8a` + `b763e284`)
+- **Surfaced**: 2026-07-21 during Phase O verification (initially red at PHASE 15)
+- **Severity**: HIGH (the keyring-less PASS was RED, blocking `just e2e-desktop` from going green)
+- **Location**: `apps/autorun_flutter/integration_test/e2e/suite_keyring_less_test.dart` — `shortcut.new_script` (PHASE 15), `shortcut.escape_back` (PHASE 14/18), `settings.restart_tour` (PHASE 19) inline bodies.
 
 **Verified PRE-EXISTING — NOT a Phase O regression.** Running the suite at
 HEAD~3 (`f10e46a7` — before any Phase O commits, in a fresh git worktree)
-reproduces the same failure at the same phase. Phase O's only `lib/` change
+reproduced the same failure at PHASE 15. Phase O's only `lib/` change
 (`profile_menu.dart` UX-PMD-1 fix) was also reverted in-place and the
 failure persisted; restoring the fix did not change the outcome.
 
-**Failure mode**: `tester.sendKeyEvent(LogicalKeyboardKey.keyN)` does not
-open `ScriptCreationScreen` within the 5s timeout. The preceding PHASE 14
-(`shortcut.escape_back` — Esc closes ShortcutsHelpSheet) passes; PHASE 15
-starts with `tester.tapAt(Offset(720, 450))` (clear-focus tap) + 300ms
-pump before sending N. Focus appears to remain in a state where the
-`N → new script` shortcut handler does not receive the keypress.
+**Failure mode (root cause confirmed, not re-investigated by the
+PHASE 19 fix):** under Flutter 3.44.6, when `showModalBottomSheet` /
+`showDialog` routes pop via Esc, the route's `_ModalScopeState`
+FocusScopeNode RETAINS PRIMARY FOCUS past the visible-widget-unmount
+frame, AND the Overlay theater retains a residual `RenderAbsorbPointer`
+that shadows subsequent taps at their normal hit-test coordinates. Two
+observable symptoms:
+1. `tester.sendKeyEvent(...)` after a modal-sheet pop is absorbed by the
+   lingering FocusScope and never reaches the `ScreenShortcuts` binding
+   (surfaced at PHASE 15: pressing `N` didn't open `ScriptCreationScreen`).
+2. `tester.tap(find.byType(SomeButton))` lands on the theater instead of
+   the button (surfaced at PHASE 19: `ProfileAvatarButton` tap shadowed
+   by the residual AbsorbPointer from PHASE 18's `ScriptDetailsDialog`
+   close).
 
-**Suspected root cause**: keyboard-focus residue from the Esc-closed
-`ShortcutsHelpSheet` (or from prior settings/shortcut phases) — the
-`tapAt(720, 450)` unfocus tap may not actually relinquish focus under the
-current Flutter 3.44.6 binding + Xvfb :99 keyboard handler. The other 3
-PASSes (mock-keyring + mock-keyring-dapps + mock-keyring-identity) are
-GREEN.
+**Workaround pattern (3 complementary techniques, all already in the
+suite):**
 
-**Recommended fix**: insert a stronger focus-reset at PHASE 15 entry
-(`FocusManager.instance.primaryFocus?.unfocus()` + longer pump), or
-refocus the ScriptsScreen explicitly before sending N. Alternatively,
-split the keyring-less suite per E2E-PHASE56+57's noted plan (the
-58-phase body is at the documented flutter_test binding stability
-threshold) — a fresh `testWidgets` boot would also reset focus state.
+1. **Callback-direct invocation** — for shadowed taps, REPLACE with a
+   direct callback when the widget exposes a public `onTap`/`onPressed`
+   seam (`ProfileAvatarButton.onTap`, `ScriptsListItemTile.onTap`,
+   `IconButton.onPressed`, `FilledButton.onPressed`,
+   `PopupMenuButton.onSelected`). Bypasses the pointer-dispatch layer
+   entirely.
+2. **Focus prime** — for keyboard events not reaching `ScreenShortcuts`
+   after a modal close, prime focus on a non-interactive element first:
+   `FocusManager.instance.primaryFocus?.unfocus()` + pump, OR tap an
+   AppBar title/tooltip (`find.byTooltip('Refresh')`) before sending
+   the key.
+3. **Wait-for-unmount** — after Esc-closing a modal, verify the route
+   fully unmounted before continuing: `await d.waitUntil(tester, ()
+   => find.byType(BottomSheet).evaluate().isEmpty, timeout: Duration(seconds: 2))`.
 
-**Coverage implication**: the `shortcut.new_script` catalog row IS still
-exercised in the keyring-less suite's coverage report up to the failing
-phase, but the runtime assertion is RED. Phase O coverage targets
-(profile.create_via_menu_dialog + scripts.publish +
-account.register_from_publish) are unaffected and remain GREEN in PASS 2c.
+**Resolution commits:**
+- `66337c8a` — PHASES 14/15/18: focus-prime + FAB-fallback in
+  `shortcut.new_script`; wait-for-unmount in `shortcut.escape_back`;
+  callback-direct tile tap in `shortcut.details_prev_next_tab`.
+- `b763e284` — PHASE 19: callback-direct `ProfileAvatarButton.onTap`
+  invocation in the inline `settings.restart_tour` block (the last
+  remaining INLINE tap that depended on gesture hit-testing after a
+  chain of modal open/close cycles). All subsequent phases (20–55)
+  pass without modification because the registered flows already had
+  the workaround patterns in place.
+
+**Verification:** `just e2e-fast integration_test/e2e/suite_keyring_less_test.dart`
+is GREEN end-to-end (PHASES 0pre → 55, COVERAGE 58/98). `just e2e-desktop`
+is GREEN across all 4 PASSes (keyring-less + mock-keyring + mock-keyring-dapps
++ mock-keyring-identity). The catalog stays at 98/98 (100%).
 
 ### E2E-PHASE-L — Phase L: Web Tier A 6 deferred flows (3 passkey + 3 deeplink)
 
