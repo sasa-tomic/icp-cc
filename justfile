@@ -859,8 +859,10 @@ e2e-web file="test/e2e_web/suite_web_smoke_test.dart test/e2e_web/suite_web_flow
 # (real canvaskit + all Web platform code paths). Two specs:
 #   1. bundle boots → flt-glass-pane shadow-root canvas paints (geometry check).
 #   2. first-run wizard renders (screenshot artifact; vision-assert separately
-#      via `zai-vision_analyze_image` — DOM assertions unavailable, see
-#      docs/OPEN_ISSUES.md #WEB-1).
+#      via `zai-vision_analyze_image` — DOM assertions unavailable per
+#      docs/OPEN_ISSUES.md #WEB-1 historical investigation; the WEB-1
+#      RESOLUTION uses a separate Dart probe entrypoint, see
+#      `just e2e-web-passkey`).
 #
 # Boots its own static HTTP server on :8099; tear down via trap on exit. The
 # bundle MUST be pre-built (call `just web-dev-build` first or this target
