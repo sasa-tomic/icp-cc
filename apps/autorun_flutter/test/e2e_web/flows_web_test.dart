@@ -218,9 +218,9 @@ void main() {
     final cov = FlowCatalog.coverageReport(registry);
     // ignore: avoid_print
     print('WEB_PER_FLOW: ${cov.implemented}/${cov.total} flows registered.');
-    expect(cov.implemented, greaterThanOrEqualTo(6),
-        reason: 'Per-flow web harness must cover at least the 6 seed flows '
-            '(plus dismiss_wizard tested inline above).');
+    expect(cov.implemented, greaterThanOrEqualTo(32),
+        reason: 'Per-flow web harness must cover at least the 32 registered '
+            'flows (plus dismiss_wizard tested inline above).');
   },
       timeout: const Timeout(Duration(seconds: 30)),
       tags: ['smoke']);
