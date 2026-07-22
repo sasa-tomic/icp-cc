@@ -509,12 +509,17 @@ class ScriptsScreenState extends State<ScriptsScreen>
   }
 
   Future<void> _downloadScript(MarketplaceScript script,
-      {String? version}) async {
+      {String? version, bool popDialogOnSuccess = false}) async {
     if (_downloadingScriptIds.contains(script.id)) return;
 
     setState(() {
       _downloadingScriptIds.add(script.id);
     });
+
+    // Capture the messenger before any await so the success SnackBar survives
+    // a dialog pop (CR-1): the details dialog route may be popped below,
+    // invalidating the dialog's BuildContext for ScaffoldMessenger.of.
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final bundle =
@@ -563,8 +568,14 @@ class ScriptsScreenState extends State<ScriptsScreen>
       await OnboardingProgressService().recordFirstScriptInteraction();
 
       if (mounted) {
+        // CR-1: when the download was initiated from the details dialog,
+        // close the dialog FIRST so the Run SnackBar action is immediately
+        // reachable instead of hidden behind the dialog.
+        if (popDialogOnSuccess) {
+          Navigator.of(context).pop();
+        }
         final versionText = version != null ? ' v$version' : '';
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Row(
               children: [
@@ -590,7 +601,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text(friendlyErrorMessage(e, context: 'Download failed')),
             backgroundColor: AppDesignSystem.errorColor,
@@ -643,8 +654,10 @@ class ScriptsScreenState extends State<ScriptsScreen>
         // signed-download flow. Paid + not purchased yields a null download
         // callback so the dialog renders the Buy CTA instead.
         onDownload: isFree
-            ? () => _downloadScript(script)
-            : (owned ? () => _downloadPaidScript(script) : null),
+            ? () => _downloadScript(script, popDialogOnSuccess: true)
+            : (owned
+                ? () => _downloadPaidScript(script, popDialogOnSuccess: true)
+                : null),
         onBuy: (!isFree && !owned) ? () => _buyScript(script) : null,
         onRun: () {
           final local = _controller.scripts
@@ -885,7 +898,8 @@ class ScriptsScreenState extends State<ScriptsScreen>
   /// On `PurchaseRequiredException` (402) the user hasn't paid — route them
   /// to Buy. On `DownloadAuthException` (401) the signing key isn't bound to
   /// the account, which is a loud error (shouldn't happen in normal flow).
-  Future<void> _downloadPaidScript(MarketplaceScript script) async {
+  Future<void> _downloadPaidScript(MarketplaceScript script,
+      {bool popDialogOnSuccess = false}) async {
     if (_downloadingScriptIds.contains(script.id)) return;
 
     final active = await _resolveActiveAccount();
@@ -925,7 +939,8 @@ class ScriptsScreenState extends State<ScriptsScreen>
         nonce: signed.nonce,
       );
 
-      await _installBundle(script, bundle);
+      await _installBundle(script, bundle,
+          popDialogOnSuccess: popDialogOnSuccess);
     } on PurchaseRequiredException catch (e) {
       // Paid but not purchased — flip the local view to "not owned" and route
       // to the Buy flow.
@@ -978,8 +993,13 @@ class ScriptsScreenState extends State<ScriptsScreen>
   /// Shared install path for both free + paid downloads: integrity-check the
   /// bundle, create a local script record, record download history, and snackbar.
   /// Extracted from `_downloadScript` so the paid flow reuses it verbatim.
+  ///
+  /// When [popDialogOnSuccess] is true (download initiated from the details
+  /// dialog — CR-1), the topmost route (the dialog) is popped before the
+  /// Run SnackBar is shown so the action is immediately reachable.
   Future<void> _installBundle(
-      MarketplaceScript script, String bundle) async {
+      MarketplaceScript script, String bundle,
+      {bool popDialogOnSuccess = false}) async {
     final integrityService = ScriptIntegrityService();
     final sha256Checksum = integrityService.computeChecksum(bundle);
 
@@ -1018,7 +1038,13 @@ class ScriptsScreenState extends State<ScriptsScreen>
     await OnboardingProgressService().recordFirstScriptInteraction();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      // Capture the messenger before any pop so the SnackBar survives the
+      // dialog route being removed (CR-1).
+      final messenger = ScaffoldMessenger.of(context);
+      if (popDialogOnSuccess) {
+        Navigator.of(context).pop();
+      }
+      messenger.showSnackBar(
         SnackBar(
           content: Row(
             children: [
