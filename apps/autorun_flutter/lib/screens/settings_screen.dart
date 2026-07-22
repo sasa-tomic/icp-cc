@@ -264,103 +264,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: 'APPEARANCE',
       icon: Icons.palette_outlined,
       children: [
-        _buildThemeOption(
-          mode: ThemeMode.system,
-          label: 'System',
-          subtitle: 'Follow system settings',
-          icon: Icons.brightness_auto,
-        ),
-        _buildThemeOption(
-          mode: ThemeMode.light,
-          label: 'Light',
-          subtitle: 'Always use light theme',
-          icon: Icons.light_mode,
-        ),
-        _buildThemeOption(
-          mode: ThemeMode.dark,
-          label: 'Dark',
-          subtitle: 'Always use dark theme',
-          icon: Icons.dark_mode,
+        // Compact SegmentedButton — same 1-click selection, ~40px instead of
+        // ~180px of vertical space. The previous full-width tiles pushed
+        // other settings (Links / About) below the fold.
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment(
+                value: ThemeMode.system,
+                label: Text('System'),
+                icon: Icon(Icons.brightness_auto),
+              ),
+              ButtonSegment(
+                value: ThemeMode.light,
+                label: Text('Light'),
+                icon: Icon(Icons.light_mode),
+              ),
+              ButtonSegment(
+                value: ThemeMode.dark,
+                label: Text('Dark'),
+                icon: Icon(Icons.dark_mode),
+              ),
+            ],
+            selected: {_themeMode},
+            onSelectionChanged: (selection) => _setThemeMode(selection.first),
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildThemeOption({
-    required ThemeMode mode,
-    required String label,
-    required String subtitle,
-    required IconData icon,
-  }) {
-    final isSelected = _themeMode == mode;
-
-    return InkWell(
-      onTap: () => _setThemeMode(mode),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? context.colors.primaryContainer.withValues(alpha: 0.3)
-              : null,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: context.colors.primary, width: 2)
-              : null,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? context.colors.primary.withValues(alpha: 0.1)
-                    : context.colors.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                color: isSelected
-                    ? context.colors.primary
-                    : context.colors.onSurfaceVariant,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: AppDesignSystem.bodyMedium.copyWith(
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
-                      color: isSelected
-                          ? context.colors.primary
-                          : context.colors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppDesignSystem.bodySmall.copyWith(
-                      color: context.colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Icon(
-                Icons.check_circle,
-                color: context.colors.primary,
-                size: 24,
-              ),
-          ],
-        ),
-      ),
     );
   }
 

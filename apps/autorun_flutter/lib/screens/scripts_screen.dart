@@ -1340,6 +1340,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
                     .dismissBanner(),
               ),
               _buildSearchBar(),
+              if (_categories.length > 1) _buildCategoryChipRow(),
               Expanded(
                 child: _buildUnifiedListView(scripts, hasProfile: hasProfile),
               ),
@@ -1692,6 +1693,51 @@ class ScriptsScreenState extends State<ScriptsScreen>
         await _loadRecentSearches();
       },
       isSearching: _isSearching,
+    );
+  }
+
+  /// Horizontal chip row of categories — tap a chip to filter instantly,
+  /// bypassing the FilterBottomSheet for the most common filter action. The
+  /// filter sheet is preserved for sort/downloaded/favorites and other less
+  /// common filter combinations.
+  Widget _buildCategoryChipRow() {
+    final theme = Theme.of(context);
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final category = _categories[i];
+          final isSelected = category == _selectedCategory;
+          return Center(
+            child: ChoiceChip(
+              label: Text(category),
+              selected: isSelected,
+              onSelected: (_) => _onCategoryChanged(category),
+              labelStyle: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected
+                    ? theme.colorScheme.onPrimary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              selectedColor: theme.colorScheme.primary,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              side: BorderSide(
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outlineVariant,
+              ),
+              showCheckmark: false,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -110,15 +110,44 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
 
   void _generateDescriptionFromScript() {
     if (widget.script != null && widget.script!.bundle.isNotEmpty) {
+      // Prefer the first JSDoc / multi-line comment block as the description —
+      // it's almost always a real human-written summary, unlike the
+      // generic "A TypeScript script with N main functions" the previous
+      // version produced. Falls back to the first 2 non-comment, non-blank
+      // lines, then to a generic string.
       final lines = widget.script!.bundle.split('\n');
+      final jsdoc = <String>[];
+      var inBlock = false;
+      for (final raw in lines) {
+        final line = raw.trim();
+        if (line.startsWith('/**')) {
+          inBlock = true;
+          continue;
+        }
+        if (inBlock) {
+          if (line.endsWith('*/')) {
+            inBlock = false;
+            break;
+          }
+          final stripped = line.replaceFirst(RegExp(r'^\* ?'), '').trim();
+          if (stripped.isNotEmpty) jsdoc.add(stripped);
+          if (jsdoc.length >= 3) break;
+        }
+      }
+      if (jsdoc.isNotEmpty) {
+        _descriptionController.text = jsdoc.join(' ').trim();
+        return;
+      }
       final contentLines = lines
-          .where(
-              (line) => !line.trim().startsWith('//') && line.trim().isNotEmpty)
-          .take(3)
+          .where((line) =>
+              !line.trim().startsWith('//') &&
+              !line.trim().startsWith('/*') &&
+              line.trim().isNotEmpty)
+          .take(2)
+          .map((line) => line.trim())
           .toList();
       if (contentLines.isNotEmpty) {
-        _descriptionController.text =
-            'A TypeScript script with ${contentLines.length} main functions: ${widget.script!.title}';
+        _descriptionController.text = contentLines.join(' ').trim();
         return;
       }
     }
@@ -152,11 +181,18 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   }
 
   void _generateTagsFromScript() {
-    if (widget.script != null) {
-      _tagsController.text = 'typescript, script';
+    if (widget.script == null) {
+      _tagsController.text = 'automation, utility';
       return;
     }
-    _tagsController.text = 'automation, utility';
+    // Start from the categories the keyword detector picked (so tags agree
+    // with the visible category) + typescript as a baseline. Power users
+    // can edit; this just reduces the typical "add 3-4 tags" cost.
+    final baseTags = <String>{'typescript'};
+    if (_selectedCategory != 'All' && _selectedCategory != 'Example') {
+      baseTags.add(_selectedCategory.toLowerCase());
+    }
+    _tagsController.text = (baseTags.toList()..sort()).join(', ');
   }
 
   String _getBundle() {

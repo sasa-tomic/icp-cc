@@ -88,23 +88,11 @@ void main() {
           (WidgetTester tester) async {
         await pumpSettingsScreen(tester);
 
-        // Find the System option
-        final systemOption = find.ancestor(
-          of: find.text('System'),
-          matching: find.byType(InkWell),
+        // SegmentedButton with System segment selected.
+        final segmented = tester.widget<SegmentedButton<ThemeMode>>(
+          find.byType(SegmentedButton<ThemeMode>),
         );
-
-        // Should have the selected border
-        final container = find
-            .descendant(
-              of: systemOption,
-              matching: find.byType(Container),
-            )
-            .first;
-
-        final containerWidget = tester.widget<Container>(container);
-        final decoration = containerWidget.decoration as BoxDecoration;
-        expect(decoration.border, isNotNull);
+        expect(segmented.selected, equals({ThemeMode.system}));
       });
 
       testWidgets('selecting Light theme updates preference',
@@ -225,25 +213,26 @@ void main() {
     });
 
     group('theme option descriptions', () {
-      testWidgets('shows correct subtitle for System option',
+      testWidgets('renders all three theme segments',
           (WidgetTester tester) async {
         await pumpSettingsScreen(tester);
 
-        expect(find.text('Follow system settings'), findsOneWidget);
+        // SegmentedButton shows all three options in one row (compact).
+        expect(find.text('System'), findsOneWidget);
+        expect(find.text('Light'), findsOneWidget);
+        expect(find.text('Dark'), findsOneWidget);
       });
 
-      testWidgets('shows correct subtitle for Light option',
+      testWidgets('only the selected segment is marked selected',
           (WidgetTester tester) async {
         await pumpSettingsScreen(tester);
 
-        expect(find.text('Always use light theme'), findsOneWidget);
-      });
-
-      testWidgets('shows correct subtitle for Dark option',
-          (WidgetTester tester) async {
-        await pumpSettingsScreen(tester);
-
-        expect(find.text('Always use dark theme'), findsOneWidget);
+        // Default selection is System; only one segment is "selected".
+        final segmented = tester.widget<SegmentedButton<ThemeMode>>(
+          find.byType(SegmentedButton<ThemeMode>),
+        );
+        expect(segmented.selected.length, equals(1));
+        expect(segmented.selected.first, equals(ThemeMode.system));
       });
     });
 
