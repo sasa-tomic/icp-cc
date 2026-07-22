@@ -80,6 +80,26 @@ const Map<String, List<String>> _prereqs = <String, List<String>>{
   'scripts.empty_library': <String>[],
   'scripts.marketplace_load_error': <String>[],
   'scripts.share': <String>[],
+
+  // ── download history (need a downloaded script) ──────────────────────
+  'download_history.view': <String>[
+    'scripts.view_details',
+    'scripts.download_free',
+  ],
+  'download_history.remove': <String>[
+    'scripts.view_details',
+    'scripts.download_free',
+  ],
+  'download_history.clear': <String>[
+    'scripts.view_details',
+    'scripts.download_free',
+  ],
+
+  // ── dapps (profile-independent — catalog navigation) ─────────────────
+  'dapps.open_catalog': <String>[],
+
+  // ── canisters (profile-independent) ──────────────────────────────────
+  'canisters.refresh_pull': <String>[],
 };
 
 void main() {
@@ -119,7 +139,12 @@ void main() {
     ..register('scripts.refresh_pull', scriptsRefreshPull)
     ..register('scripts.empty_library', scriptsEmptyLibrary)
     ..register('scripts.marketplace_load_error', scriptsMarketplaceLoadError)
-    ..register('scripts.share', scriptsShare);
+    ..register('scripts.share', scriptsShare)
+    ..register('download_history.view', downloadHistoryView)
+    ..register('download_history.remove', downloadHistoryRemove)
+    ..register('download_history.clear', downloadHistoryClear)
+    ..register('dapps.open_catalog', dappsOpenCatalog)
+    ..register('canisters.refresh_pull', canistersRefreshPull);
 
   // ── SPECIAL: first_run.dismiss_wizard (self-contained, no prereqs) ─────────
   // Boot → wizard appears (or chip if onboarding already done) → dismiss.

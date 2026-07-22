@@ -25,8 +25,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:icp_autorun/screens/download_history_screen.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
+import 'package:icp_autorun/theme/modern_components.dart';
+import 'package:icp_autorun/widgets/bookmarks_list.dart';
 import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
 import 'package:icp_autorun/widgets/script_row_menus.dart';
@@ -594,4 +597,131 @@ Future<void> scriptsShare(WidgetTester tester, E2EDriver driver) async {
       timeout: const Duration(seconds: 5));
   expect(snackBar, isTrue,
       reason: 'Share must copy the marketplace URL and show a SnackBar.');
+}
+
+// ── Download history flows (need a downloaded script as prereq) ──────────────
+
+/// Navigate to the Download History screen via the AppBar overflow menu.
+/// Uses `onSelected` callback-direct invocation to avoid gesture interception.
+Future<void> _openDownloadHistory(WidgetTester tester, E2EDriver driver) async {
+  await driver.dismissOverlays(tester);
+  final appBarMenu = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byWidgetPredicate((w) => w is PopupMenuButton<String>));
+  if (!driver.present(appBarMenu, tester)) return;
+  // Invoke onSelected directly (bypasses popup gesture interception).
+  tester.widget<PopupMenuButton<String>>(appBarMenu).onSelected!('download_history');
+  await tester.pump(const Duration(milliseconds: 500));
+  await driver.waitUntil(
+      tester, () => driver.present(find.byType(DownloadHistoryScreen), tester),
+      timeout: const Duration(seconds: 5));
+}
+
+/// `download_history.view` — open history, verify the downloaded script is
+/// listed, go back. Assumes `scripts.download_free` ran as a prereq.
+Future<void> downloadHistoryView(
+    WidgetTester tester, E2EDriver driver) async {
+  await _openDownloadHistory(tester, driver);
+  final recordReady = await driver.waitUntil(
+      tester, () => driver.present(find.textContaining(kHelloTitle), tester),
+      timeout: const Duration(seconds: 5));
+  expect(recordReady, isTrue,
+      reason: 'Download history must list the downloaded script.');
+  await tester.pageBack();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+/// `download_history.remove` — open history, remove a record, verify SnackBar.
+Future<void> downloadHistoryRemove(
+    WidgetTester tester, E2EDriver driver) async {
+  await _openDownloadHistory(tester, driver);
+  final removeIcon = find.byIcon(Icons.delete_outline);
+  if (driver.present(removeIcon, tester)) {
+    await tester.tap(removeIcon.first);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Remove'));
+    final snackBar = await driver.waitUntil(
+        tester,
+        () => driver.present(find.textContaining('Removed from history'), tester),
+        timeout: const Duration(seconds: 5));
+    expect(snackBar, isTrue,
+        reason: 'Removing a download record must confirm via SnackBar.');
+  }
+  await tester.pageBack();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+/// `download_history.clear` — open history, tap Clear, verify SnackBar.
+Future<void> downloadHistoryClear(
+    WidgetTester tester, E2EDriver driver) async {
+  await _openDownloadHistory(tester, driver);
+  final clearBtn = find.widgetWithIcon(IconButton, Icons.delete_sweep);
+  if (driver.present(clearBtn, tester)) {
+    // Invoke onPressed directly (the IconButton is at the viewport edge and
+    // the tap offset falls outside the hit-test area).
+    tester.widget<IconButton>(clearBtn).onPressed!();
+    await tester.pump(const Duration(milliseconds: 500));
+    final clearDialogBtn = find.widgetWithText(TextButton, 'Clear');
+    if (driver.present(clearDialogBtn, tester)) {
+      await tester.tap(clearDialogBtn);
+    }
+    final snackBar = await driver.waitUntil(
+        tester,
+        () => driver.present(find.textContaining('History cleared'), tester),
+        timeout: const Duration(seconds: 5));
+    expect(snackBar, isTrue,
+        reason: 'Clearing history must confirm via SnackBar.');
+  }
+  await tester.pageBack();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+// ── Dapps flows (profile-independent — catalog navigation) ───────────────────
+
+/// Navigate to the Dapps tab via the ModernNavigationBar's onTap callback.
+Future<void> _navigateToDapps(WidgetTester tester, E2EDriver driver) async {
+  await driver.dismissOverlays(tester);
+  final navBar = tester.widget<ModernNavigationBar>(
+      find.byType(ModernNavigationBar));
+  navBar.onTap(2);
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+/// `dapps.open_catalog` — switch to the Dapps tab, verify the catalog body
+/// renders (On-chain Polls card title).
+Future<void> dappsOpenCatalog(WidgetTester tester, E2EDriver driver) async {
+  await _navigateToDapps(tester, driver);
+  final bodyReady = await driver.waitUntil(
+      tester, () => driver.present(find.textContaining('On-chain Polls'), tester),
+      timeout: const Duration(seconds: 10));
+  expect(bodyReady, isTrue,
+      reason: 'Dapps catalog must render the On-chain Polls card.');
+}
+
+// ── Canisters flows (profile-independent — bookmark navigation) ──────────────
+
+/// Navigate to the Canisters/Bookmarks tab via the ModernNavigationBar.
+Future<void> _navigateToCanisters(WidgetTester tester, E2EDriver driver) async {
+  await driver.dismissOverlays(tester);
+  final navBar = tester.widget<ModernNavigationBar>(
+      find.byType(ModernNavigationBar));
+  navBar.onTap(1);
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+/// `canisters.refresh_pull` — pull-to-refresh the bookmarks list.
+Future<void> canistersRefreshPull(
+    WidgetTester tester, E2EDriver driver) async {
+  await _navigateToCanisters(tester, driver);
+  // Wait for BookmarksScreen to render.
+  await driver.waitUntil(
+      tester, () => driver.present(find.byType(BookmarksList), tester),
+      timeout: const Duration(seconds: 10));
+  final scrollable = find.byType(Scrollable).first;
+  if (!driver.present(scrollable, tester)) return;
+  await tester.fling(scrollable, const Offset(0, 300), 1000);
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump(const Duration(milliseconds: 500));
+  expect(driver.present(find.byType(BookmarksList), tester), isTrue,
+      reason: 'Bookmarks tab must remain on stage after pull-to-refresh.');
 }
