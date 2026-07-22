@@ -58,6 +58,10 @@ FlowRegistry buildMockKeyringDappsRegistry() {
           w is TextField &&
           (w.decoration?.hintText?.contains('How should we call you?') ??
               false));
+      // Wait for the wizard's text fields to render (cold-compile races
+      // can leave the wizard widget present but its children not yet laid out).
+      await d.waitUntil(tester, () => d.present(displayNameField, tester),
+          timeout: const Duration(seconds: 5));
       await tester.enterText(displayNameField, kDappsProfileName);
       await tester.pump(const Duration(milliseconds: 300));
 
