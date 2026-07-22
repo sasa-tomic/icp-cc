@@ -45,7 +45,6 @@ import '../widgets/scripts_search_bar.dart';
 import 'script_creation_screen.dart';
 import 'download_history_screen.dart';
 import 'account_registration_wizard.dart';
-import 'account_registration_prompt_dialog.dart';
 import 'script_editor_dialog.dart';
 import 'script_filter_sheet.dart';
 import 'unified_setup_wizard.dart';
@@ -1141,14 +1140,9 @@ class ScriptsScreenState extends State<ScriptsScreen>
     final profile = profileController.activeProfile;
 
     if (profile?.username == null) {
-      // User doesn't have an account - show registration prompt
-      final shouldRegister = await _showAccountRegistrationPrompt();
-      if (!shouldRegister) {
-        // User declined to register
-        return;
-      }
-
-      // Navigate to registration wizard
+      // No account — go straight to the registration wizard (it has its own
+      // cancel button). The intermediate confirmation dialog was removed to
+      // save a click on the most important action a local-only user can take.
       if (!mounted) return;
       final Account? account = await Navigator.push<Account>(
         context,
@@ -1194,16 +1188,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
         );
       }
     }
-  }
-
-  /// Shows a prompt asking user to register for marketplace publishing
-  /// Returns true if user wants to register, false if dismissed
-  Future<bool> _showAccountRegistrationPrompt() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => const AccountRegistrationPromptDialog(),
-    );
-    return result ?? false;
   }
 
   void _viewInMarketplace(ScriptRecord record) {

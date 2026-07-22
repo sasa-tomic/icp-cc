@@ -127,7 +127,28 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   }
 
   void _detectCategoryFromScript() {
-    _selectedCategory = 'Example';
+    final bundle = widget.script?.bundle.toLowerCase() ?? '';
+    final title = widget.script?.title.toLowerCase() ?? '';
+    final haystack = '$bundle $title';
+
+    if (haystack.contains('icrc') ||
+        haystack.contains('ledger') ||
+        haystack.contains('balance') ||
+        haystack.contains('transfer')) {
+      _selectedCategory = 'Finance';
+    } else if (haystack.contains('nft') || haystack.contains('token')) {
+      _selectedCategory = 'NFT';
+    } else if (haystack.contains('poll') ||
+        haystack.contains('vote') ||
+        haystack.contains('governance') ||
+        haystack.contains('dao') ||
+        haystack.contains('proposal')) {
+      _selectedCategory = 'Social';
+    } else if (haystack.contains('game') || haystack.contains('play')) {
+      _selectedCategory = 'Gaming';
+    } else {
+      _selectedCategory = 'Utilities';
+    }
   }
 
   void _generateTagsFromScript() {

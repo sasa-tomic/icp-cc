@@ -5,7 +5,7 @@ import 'package:icp_autorun/controllers/script_controller.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
 import 'package:icp_autorun/models/profile.dart';
 import 'package:icp_autorun/models/script_template.dart';
-import 'package:icp_autorun/screens/account_registration_prompt_dialog.dart';
+import 'package:icp_autorun/screens/account_registration_wizard.dart';
 import 'package:icp_autorun/screens/script_creation_screen.dart';
 import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/widgets/quick_upload_dialog.dart';
@@ -153,7 +153,7 @@ void main() {
   });
 
   testWidgets(
-      'WU-3: Publish snackbar action opens the registration prompt when no account is registered',
+      'WU-3: Publish snackbar action opens the registration wizard when no account is registered',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final profileController = await _profileControllerWith(username: null);
@@ -161,8 +161,9 @@ void main() {
     await _driveCreateToPublishSnackbar(tester, profileController: profileController);
 
     await tester.tap(find.text("Publish"));
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.byType(AccountRegistrationPromptDialog), findsOneWidget);
+    expect(find.byType(AccountRegistrationWizard), findsOneWidget);
   });
 }

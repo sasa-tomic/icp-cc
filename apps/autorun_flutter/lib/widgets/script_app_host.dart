@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../config/example_dapps.dart';
 import '../models/profile_keypair.dart';
@@ -662,22 +663,38 @@ class ScriptAppHostState extends State<ScriptAppHost> {
     final _Decision? choice = await showDialog<_Decision>(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(title),
-          content: SingleChildScrollView(child: Text(details)),
-          actions: <Widget>[
-            TextButton(
-                onPressed: () => Navigator.of(context).pop(_Decision.deny),
-                child: const Text('Deny')),
-            if (allowLabel != null)
-              TextButton(
-                  onPressed: () => Navigator.of(context).pop(_Decision.allowOnce),
-                  child: Text(allowLabel)),
-            FilledButton(
-                onPressed: () =>
-                    Navigator.of(context).pop(_Decision.allowAlways),
-                child: Text(allowAlwaysLabel)),
-          ],
+        return Focus(
+          autofocus: true,
+          child: CallbackShortcuts(
+            bindings: <ShortcutActivator, VoidCallback>{
+              const SingleActivator(LogicalKeyboardKey.enter): () =>
+                  Navigator.of(context).pop(
+                    allowLabel != null
+                        ? _Decision.allowOnce
+                        : _Decision.allowAlways,
+                  ),
+              const SingleActivator(LogicalKeyboardKey.escape): () =>
+                  Navigator.of(context).pop(_Decision.deny),
+            },
+            child: AlertDialog(
+              title: Text(title),
+              content: SingleChildScrollView(child: Text(details)),
+              actions: <Widget>[
+                TextButton(
+                    onPressed: () => Navigator.of(context).pop(_Decision.deny),
+                    child: const Text('Deny')),
+                if (allowLabel != null)
+                  TextButton(
+                      onPressed: () =>
+                          Navigator.of(context).pop(_Decision.allowOnce),
+                      child: Text(allowLabel)),
+                FilledButton(
+                    onPressed: () =>
+                        Navigator.of(context).pop(_Decision.allowAlways),
+                    child: Text(allowAlwaysLabel)),
+              ],
+            ),
+          ),
         );
       },
     );

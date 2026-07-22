@@ -522,7 +522,7 @@ void main() {
           slug: 'upload-test-script',
           title: 'Upload Test Script',
           description: 'Test description',
-          category: 'Example',
+          category: any(named: 'category'),
           tags: any(named: 'tags'),
           bundle: actualBundle,
           price: 0.0,

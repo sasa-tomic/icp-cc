@@ -54,6 +54,7 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
   Future<void> _copyAllCodes() async {
     await Clipboard.setData(ClipboardData(text: widget.codes.join('\n')));
     if (mounted) {
+      setState(() => _hasConfirmed = true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Recovery codes copied to clipboard')),
       );
@@ -73,6 +74,7 @@ class _RecoveryCodesScreenState extends State<RecoveryCodesScreen> {
       );
       await file.writeAsString(text);
       if (mounted) {
+        setState(() => _hasConfirmed = true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Saved recovery codes to:\n${file.path}'),

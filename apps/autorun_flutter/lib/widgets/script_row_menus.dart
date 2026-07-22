@@ -240,16 +240,13 @@ class MarketplaceScriptRowMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hoverRevealActions = <Widget>[
+    final alwaysVisibleActions = <Widget>[
       ScriptActionButton(
         icon: isDownloaded ? Icons.info_outline : Icons.download,
         onPressed: isDownloaded ? onViewDetails : onDownload,
         tooltip: isDownloaded ? 'View details' : 'Download',
         isLoading: isDownloading,
       ),
-    ];
-
-    final alwaysVisibleActions = <Widget>[
       FavoriteStarButton(isFavorite: isFavorite, onToggle: onToggleFavorite),
     ];
 
@@ -257,7 +254,7 @@ class MarketplaceScriptRowMenu extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         HoverRevealActions(
-          actions: hoverRevealActions,
+          actions: const [],
           alwaysVisibleActions: alwaysVisibleActions,
         ),
         PopupMenuButton<String>(
