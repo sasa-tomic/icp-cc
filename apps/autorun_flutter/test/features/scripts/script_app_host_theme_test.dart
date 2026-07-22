@@ -202,7 +202,7 @@ void main() {
               'accent': <String, dynamic>{} /* wrong type */,
               // 'text' / 'text_muted' absent entirely.
             },
-            'children': const <dynamic>[],
+            'children': <dynamic>[],
           }),
           script: '/* bundle */',
         ),

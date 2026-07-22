@@ -88,6 +88,10 @@ dev_dependencies:
   # inject a failing store (InMemorySharedPreferencesStore) to prove write
   # errors are surfaced, not swallowed. Adds nothing new to the resolved tree.
   shared_preferences_platform_interface: ^2.4.0
+  # Transitive dep of cached_network_image; declared here because the e2e
+  # suite helpers import DefaultCacheManager directly to flush the image
+  # cache between phases. Adds nothing new to the resolved tree.
+  flutter_cache_manager: ^3.4.1
 flutter:
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
