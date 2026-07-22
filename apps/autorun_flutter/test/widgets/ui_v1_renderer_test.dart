@@ -264,6 +264,44 @@ void main() {
       expect(find.text('Refresh'), findsOneWidget);
       expect(find.byIcon(Icons.copy), findsOneWidget);
     });
+
+    testWidgets(
+        'row with toggle renders without layout exception (DEFECT-3 sibling)',
+        (tester) async {
+      // The toggle renderer uses Row([Expanded(Text), Switch]) internally.
+      // Inside a parent row it receives unbounded width → Expanded asserts.
+      await pumpUi(
+        tester,
+        ui: {
+          'type': 'column',
+          'children': [
+            {
+              'type': 'row',
+              'children': [
+                {
+                  'type': 'toggle',
+                  'props': {
+                    'label': 'Auto-refresh',
+                    'value': true,
+                    'on_change': {'type': 'toggle_refresh'},
+                  },
+                },
+                {
+                  'type': 'button',
+                  'props': {
+                    'label': 'Apply',
+                    'on_press': {'type': 'apply'},
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      );
+      expect(find.text('Auto-refresh'), findsOneWidget);
+      expect(find.text('Apply'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('UiV1Renderer select options (DEFECT-2 hardening)', () {

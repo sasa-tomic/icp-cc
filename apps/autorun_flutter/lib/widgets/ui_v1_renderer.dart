@@ -99,7 +99,8 @@ class UiV1Renderer extends StatelessWidget {
           final String childType = (m['type'] as String? ?? '').trim();
           if (childType == 'select' ||
               childType == 'text_field' ||
-              childType == 'text') {
+              childType == 'text' ||
+              childType == 'toggle') {
             return Flexible(child: w);
           }
           return w;
