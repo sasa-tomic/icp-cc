@@ -95,10 +95,13 @@ class RustBridgeLoader {
       for (final path in paths) {
         try {
           return ffi.DynamicLibrary.open(path);
-        } on ArgumentError catch (e) {
-          debugPrint('native_bridge: macOS $path open failed: $e');
+        } on ArgumentError {
+          // Try next path; single consolidated warning below if all fail.
         }
       }
+      debugPrint('native_bridge: libicp_core not found at any macOS path. '
+          'Pure-Dart test runtime is unaffected; native FFI features '
+          '(QuickJS, vault crypto) need the library.');
       return null;
     }
     if (Platform.isLinux) {
@@ -110,10 +113,13 @@ class RustBridgeLoader {
       for (final path in paths) {
         try {
           return ffi.DynamicLibrary.open(path);
-        } on ArgumentError catch (e) {
-          debugPrint('native_bridge: Linux $path open failed: $e');
+        } on ArgumentError {
+          // Try next path; single consolidated warning below if all fail.
         }
       }
+      debugPrint('native_bridge: libicp_core not found at any Linux path. '
+          'Pure-Dart test runtime is unaffected; native FFI features '
+          '(QuickJS, vault crypto) need the library.');
       return null;
     }
     if (Platform.isWindows) {
