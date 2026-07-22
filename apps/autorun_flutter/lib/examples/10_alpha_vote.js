@@ -423,8 +423,9 @@
   }
 
   // ───────────────────────── Decoding helpers ─────────────────────────────
-  // unwrapOpt / unwrapOptInt / decodeProposal / statusLabel / topicLabel /
-  // filterByTopic / topicOptions reused verbatim from 08_nns_proposals.js.
+  // unwrapOpt / unwrapOptInt / statusLabel / topicLabel / filterByTopic are
+  // reused verbatim from 08_nns_proposals.js. decodeProposal is extended
+  // (adds alpha_signal) and topicOptionsMap mirrors 08's topicOptions.
   function unwrapOpt(v, fallback) {
     if (Array.isArray(v)) {
       return v.length > 0 ? v[0] : (fallback == null ? null : fallback);
