@@ -63,6 +63,23 @@ const Map<String, List<String>> _prereqs = <String, List<String>>{
 
   // ── scripts (marketplace read flows — no profile needed) ───────────────
   'scripts.browse_marketplace': <String>[],
+  'scripts.search': <String>[],
+  // scripts.search_no_results: BLOCKED — MockClient stream-read needs runAsync
+  // which re-evaluates the wizard gate post-boot. See flow docstring.
+  'scripts.filter_category': <String>[],
+  'scripts.filter_sort': <String>[],
+  'scripts.view_details': <String>[],
+  'scripts.download_free': <String>['scripts.view_details'],
+  'scripts.filter_downloaded_only': <String>[
+    'scripts.view_details',
+    'scripts.download_free',
+  ],
+  'scripts.toggle_favorite': <String>[],
+  'scripts.filter_favorites_only': <String>['scripts.toggle_favorite'],
+  'scripts.refresh_pull': <String>[],
+  'scripts.empty_library': <String>[],
+  'scripts.marketplace_load_error': <String>[],
+  'scripts.share': <String>[],
 };
 
 void main() {
@@ -89,7 +106,20 @@ void main() {
     ..register('settings.unlock_dev_options', settingsUnlockDevOptions)
     ..register('settings.copy_api_endpoint', settingsCopyApiEndpoint)
     ..register('settings.clear_dev_options', settingsClearDevOptions)
-    ..register('scripts.browse_marketplace', scriptsBrowseMarketplace);
+    ..register('scripts.browse_marketplace', scriptsBrowseMarketplace)
+    ..register('scripts.search', scriptsSearch)
+    // scripts.search_no_results: not registered (BLOCKED — see flow docstring)
+    ..register('scripts.filter_category', scriptsFilterCategory)
+    ..register('scripts.filter_sort', scriptsFilterSort)
+    ..register('scripts.view_details', scriptsViewDetails)
+    ..register('scripts.download_free', scriptsDownloadFree)
+    ..register('scripts.filter_downloaded_only', scriptsFilterDownloadedOnly)
+    ..register('scripts.toggle_favorite', scriptsToggleFavorite)
+    ..register('scripts.filter_favorites_only', scriptsFilterFavoritesOnly)
+    ..register('scripts.refresh_pull', scriptsRefreshPull)
+    ..register('scripts.empty_library', scriptsEmptyLibrary)
+    ..register('scripts.marketplace_load_error', scriptsMarketplaceLoadError)
+    ..register('scripts.share', scriptsShare);
 
   // ── SPECIAL: first_run.dismiss_wizard (self-contained, no prereqs) ─────────
   // Boot → wizard appears (or chip if onboarding already done) → dismiss.
