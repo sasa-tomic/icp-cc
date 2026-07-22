@@ -100,9 +100,6 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // Empty password → score 0 → "Weak".
-      expect(find.text('Weak'), findsOneWidget);
-
       // Type a strong password → "Strong".
       await tester.enterText(
           find.byType(TextFormField).at(0), 'Aa1! Aa1! Aa1!');
@@ -113,6 +110,32 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), 'aaaaaaaa');
       await tester.pump();
       expect(find.text('Fair'), findsOneWidget);
+    });
+
+    testWidgets(
+        'DEFECT-6: an empty password shows NO strength meter (no red Weak)',
+        (tester) async {
+      final keypair = await TestKeypairFactory.getEd25519Keypair();
+
+      await tester.pumpWidget(MaterialApp(
+        home: VaultPasswordSetupScreen(
+          accountId: 'acct-1',
+          keypair: keypair,
+          vaultCrypto: const _NoOpVaultCrypto(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Before typing anything: no "Weak" label, no strength bar.
+      expect(find.text('Weak'), findsNothing,
+          reason: 'an empty password must not paint a red Weak meter');
+      expect(find.byType(LinearProgressIndicator), findsNothing,
+          reason: 'the strength bar must be hidden until the user types');
+
+      // Type one character → meter appears (even if Weak, it is earned).
+      await tester.enterText(find.byType(TextFormField).at(0), 'a');
+      await tester.pump();
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
     });
 
     testWidgets('meter uses the shared passwordStrength scoring algorithm',

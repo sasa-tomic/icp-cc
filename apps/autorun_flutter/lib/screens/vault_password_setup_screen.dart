@@ -301,6 +301,11 @@ class _VaultPasswordSetupScreenState extends State<VaultPasswordSetupScreen> {
   }
 
   Widget _buildStrengthMeter() {
+    // DEFECT-6: an empty password scored 0 → red "Weak" bar before the user
+    // typed anything. Hide the meter entirely until there is input.
+    if (_passwordController.text.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final score = passwordStrength(_passwordController.text);
     final label = passwordStrengthLabel(score);
     final color = _strengthColor(score);
