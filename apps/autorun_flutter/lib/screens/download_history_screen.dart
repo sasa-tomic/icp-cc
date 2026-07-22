@@ -331,26 +331,12 @@ class _DownloadHistoryTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: PopupMenuButton<String>(
-        onSelected: (value) {
-          switch (value) {
-            case 'remove':
-              onRemove();
-              break;
-          }
-        },
-        itemBuilder: (context) => const [
-          PopupMenuItem(
-            value: 'remove',
-            child: Row(
-              children: [
-                Icon(Icons.remove_circle_outline),
-                SizedBox(width: 8),
-                Text('Remove from history'),
-              ],
-            ),
-          ),
-        ],
+      // CR-4: a single-item PopupMenuButton costs two taps (open + pick).
+      // A direct trash IconButton opens the same confirm dialog in one tap.
+      trailing: IconButton(
+        tooltip: 'Remove from history',
+        icon: const Icon(Icons.delete_outline),
+        onPressed: onRemove,
       ),
       onTap: () async {
         // Open the downloaded script via the same run flow used everywhere
