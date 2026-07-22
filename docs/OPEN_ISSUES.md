@@ -11,6 +11,83 @@
 
 ---
 
+## 2026-07-22 P4 Visual Sweep
+
+> Findings from a broader functional/visual sweep of **every** user-facing
+> screen (`integration_test/app_visual_sweep_test.dart`, commit `b7f7fc26`).
+> The sweep boots the REAL app (real FFI, real widget tree, real navigation
+> against the live local backend) and captures a screenshot of each screen
+> while draining framework exceptions. **Zero** rendering-library exceptions
+> were drained across all 14 captured screens — the app is in strong visual
+> shape. The 3 defects below are the only ones surfaced. Screenshots live in
+> `/tmp/opencode/app-sweep/`.
+>
+> Severity key: 🔴 CRITICAL • 🟠 HIGH • 🟡 MEDIUM • 🔵 LOW
+
+### DEFECT-5 — Passkey screen shows an enabled "Add Passkey" FAB on unsupported Linux desktop
+
+- **Status**: 🔴 OPEN
+- **Severity**: 🟡 MEDIUM (graceful-degradation gap — a primary action contradicts the screen's own "unsupported" message)
+- **Surfaced**: 2026-07-22 P4 visual sweep (`integration_test/app_visual_sweep_test.dart`).
+- **Location**: `apps/autorun_flutter/lib/screens/passkey_management_screen.dart` — the `Scaffold.floatingActionButton` in `build()` is rendered **unconditionally** (lines 179-185), independent of the body's `!PasskeyPlatform.isSupported` branch.
+- **Screenshot**: `/tmp/opencode/app-sweep/11_passkey_management.png`
+
+**Root cause:** The body's `_buildBody()` correctly renders the
+`_buildUnsupportedPlatformError()` panel ("Passkeys aren't available on Linux
+desktop") when `!PasskeyPlatform.isSupported`, but the `Scaffold`'s
+`FloatingActionButton.extended` ("Add Passkey") is in the `Scaffold` itself,
+not the body — so it stays mounted and fully enabled on every platform. Tapping
+it on Linux calls `_addPasskey` → `PasskeyService().registerPasskey(...)`,
+which routes into the unsupported platform authenticator: at best a SnackBar
+error, at worst an unhandled (non-`PasskeyException`) platform-channel failure.
+Either way the user is offered a prominent action the screen simultaneously
+says is impossible.
+
+**Fix (reported, not fixed):** hide or disable the FAB when
+`!PasskeyPlatform.isSupported` (e.g. set `floatingActionButton` to `null`, or
+`onPressed: null` so it renders disabled). The post-registration prompt already
+greys out its passkey tile on Linux for the same reason — this screen should
+match.
+
+### DEFECT-6 — Vault setup shows a red "Weak" strength meter for an EMPTY password
+
+- **Status**: 🔴 OPEN
+- **Severity**: 🔵 LOW (cosmetic; does not affect functionality — the "Create Vault" button is correctly disabled)
+- **Surfaced**: 2026-07-22 P4 visual sweep.
+- **Location**: `apps/autorun_flutter/lib/screens/vault_password_setup_screen.dart:303-334` (`_buildStrengthMeter`).
+- **Screenshot**: `/tmp/opencode/app-sweep/12_vault_setup.png`
+
+**Root cause:** `_buildStrengthMeter()` always renders. For an empty password,
+`passwordStrength('')` returns score 0 → `_strengthColor(0)` returns
+`colorScheme.error` (red) and `passwordStrengthLabel(0)` returns "Weak", so the
+meter paints a red bar at 25% (`(0+1)/4`) with a red "Weak" label before the
+user has typed anything. An empty field should show a neutral/hidden meter, not
+"Weak".
+
+**Fix (reported, not fixed):** return early (e.g. an empty `SizedBox` or a
+neutral "—" label) when `_passwordController.text.isEmpty`.
+
+### DEFECT-7 — Publish dialog auto-fills the Description field with raw source code
+
+- **Status**: 🔴 OPEN
+- **Severity**: 🔵 LOW (pre-fill heuristic; user can edit, but the default looks broken)
+- **Surfaced**: 2026-07-22 P4 visual sweep.
+- **Location**: `apps/autorun_flutter/lib/widgets/quick_upload_dialog.dart:111-156` (`_generateDescriptionFromScript`).
+- **Screenshot**: `/tmp/opencode/app-sweep/15_script_upload_form.png`
+
+**Root cause:** When publishing a local script, `_generateDescriptionFromScript`
+prefers a JSDoc block, then falls back to **the first 2 non-comment code lines**
+(lines 141-151), then a generic string. The default sample bundle (and any
+script without a JSDoc header) therefore pre-fills the Description field with
+literal JS such as `"use strict"; (() => {` — which reads as broken/garbage to
+the author and ships as the listing description if they don't notice.
+
+**Fix (reported, not fixed):** drop the raw-code-lines fallback (it is worse
+than the generic string); go straight to the generic string (or leave the field
+empty) when no JSDoc comment exists.
+
+---
+
 ## Critical / Blockers
 
 ### E2E-PHASE-O — Phase O: 100% catalog coverage (final 3 deferred flows)
