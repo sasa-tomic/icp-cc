@@ -99,12 +99,13 @@ void main() {
       });
 
       testWidgets(
-          'does NOT show "Register @username" (replaced by "My Account")',
+          'shows direct "Register @username" tile for local-only profiles',
           (WidgetTester tester) async {
         await pumpProfileMenuWithAccount(tester, hasAccount: false);
 
-        expect(find.text('Register @username'), findsNothing,
-            reason: '"Register @username" should be replaced by "My Account"');
+        expect(find.text('Register @username'), findsOneWidget,
+            reason:
+                'Local-only profiles get a direct registration tile (UX click-reduction)');
       });
 
       testWidgets('does NOT show separate "My Identity" item',

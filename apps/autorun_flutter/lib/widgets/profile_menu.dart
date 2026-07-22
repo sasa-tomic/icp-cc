@@ -9,6 +9,7 @@ import '../models/account.dart';
 import '../services/passkey_service.dart';
 import '../services/settings_service.dart';
 import '../screens/account_profile_screen.dart';
+import '../screens/account_registration_wizard.dart';
 import '../screens/settings_screen.dart';
 import '../screens/unified_setup_wizard.dart';
 import '../screens/vault_password_setup_screen.dart';
@@ -21,6 +22,7 @@ import '../utils/user_initials.dart';
 enum ProfileMenuAction {
   editProfile,
   createAccount,
+  registerUsername,
   settings,
   manageProfiles,
   vault,
@@ -225,6 +227,18 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
         // Always rendered: on a first run (no active profile) the tap routes to
         // profile creation/selection instead of being a silent no-op.
         _buildMyAccountTile(profile, hasAccount),
+        // 1a. Direct "Register @username" tile for local-only profiles (no
+        // backend account yet). Collapses 3 clicks (My Account → scroll to
+        // Register CTA → tap) into 1 click. Only shown when the active profile
+        // exists but has no registered account.
+        if (profile != null && !hasAccount)
+          _MenuTile(
+            icon: Icons.person_add,
+            label: 'Register @username',
+            subtitle: 'Publish scripts and sync keys',
+            onTap: () => _handleAction(ProfileMenuAction.registerUsername),
+            highlight: true,
+          ),
         // 1b. Vault — the zero-knowledge credential store (A-4). Account-scoped:
         // the opaque blob is keyed by the backend account id, so the tile is only
         // reachable when the active profile has a registered account (hasAccount).
@@ -384,6 +398,13 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
           await _showManageProfilesSheet();
         }
         break;
+      case ProfileMenuAction.registerUsername:
+        // Direct registration from the menu (local-only profile). Routes
+        // straight to the wizard using the active profile's primary keypair.
+        if (profile != null) {
+          await _navigateToRegistrationWizard(profile);
+        }
+        break;
       case ProfileMenuAction.settings:
         await _navigateToSettings();
         break;
@@ -411,6 +432,30 @@ class _ProfileMenuWidgetState extends State<ProfileMenuWidget> {
       ),
     );
     if (mounted) {
+      await _loadActiveAccount();
+      setState(() {});
+    }
+  }
+
+  /// Direct registration from the menu — routes straight to
+  /// [AccountRegistrationWizard] using the active profile's primary keypair.
+  /// On success, persists the username on the profile and refreshes the menu.
+  Future<void> _navigateToRegistrationWizard(Profile profile) async {
+    widget.onNavigate?.call();
+    final createdAccount = await Navigator.of(context).push<Account>(
+      MaterialPageRoute<Account>(
+        builder: (context) => AccountRegistrationWizard(
+          keypair: profile.primaryKeypair,
+          accountController: widget.accountController,
+          initialDisplayName: profile.name,
+        ),
+      ),
+    );
+    if (createdAccount != null && mounted) {
+      await widget.profileController.updateProfileUsername(
+        profileId: profile.id,
+        username: createdAccount.username,
+      );
       await _loadActiveAccount();
       setState(() {});
     }

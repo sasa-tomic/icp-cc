@@ -78,7 +78,7 @@ void main() {
       });
 
       testWidgets(
-          'menu hides the Vault tile for users without account (still 3 items)',
+          'menu hides the Vault tile for users without account (4 items)',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
@@ -88,6 +88,9 @@ void main() {
             reason: 'Vault must be hidden for local-only profiles');
         expect(find.text('My Account'), findsOneWidget,
             reason: '"My Account" should be visible even without account');
+        expect(find.text('Register @username'), findsOneWidget,
+            reason:
+                'Direct "Register @username" tile for local-only profiles (UX click-reduction)');
         expect(find.text('Switch Profile'), findsOneWidget,
             reason: '"Switch Profile" should be visible');
         expect(find.text('Settings'), findsOneWidget,
@@ -95,9 +98,9 @@ void main() {
 
         final menuTiles = find.byType(ListTile);
         final tileCount = menuTiles.evaluate().length;
-        expect(tileCount, equals(3),
+        expect(tileCount, equals(4),
             reason:
-                'Profile menu should have exactly 3 items without an account. '
+                'Profile menu should have exactly 4 items without an account. '
                 'Found $tileCount.');
       });
     });
@@ -142,14 +145,16 @@ void main() {
             reason: '"My Account" should be the unified account item');
       });
 
-      testWidgets('"Register @username" is replaced by "My Account"',
+      testWidgets(
+          '"Register @username" is a direct tile for local-only profiles',
           (WidgetTester tester) async {
         await pumpProfileMenu(tester, hasAccount: false);
 
-        expect(find.text('Register @username'), findsNothing,
-            reason: '"Register @username" should be replaced by "My Account"');
+        expect(find.text('Register @username'), findsOneWidget,
+            reason:
+                'Local-only profiles get a direct registration tile (saves 2 clicks)');
         expect(find.text('My Account'), findsOneWidget,
-            reason: '"My Account" should be visible, prompting registration');
+            reason: '"My Account" should also be visible');
       });
     });
 
