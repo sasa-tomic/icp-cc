@@ -59,7 +59,7 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
   bool _isCreating = false;
   ScriptTemplate? _selectedTemplate;
   late List<ScriptTemplate> _availableTemplates;
-  bool _templatesExpanded = true;
+  bool _templatesExpanded = false;
 
   @override
   void initState() {
