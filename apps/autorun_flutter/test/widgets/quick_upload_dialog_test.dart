@@ -269,6 +269,111 @@ void main() {
     });
   });
 
+  group('QuickUploadDialog description pre-fill (DEFECT-7)', () {
+    late ProfileKeypair keypair;
+    late ProfileController profileController;
+    late _MockMarketplaceService marketplaceService;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      keypair = await TestKeypairFactory.getEd25519Keypair();
+      final repository = FakeSecureKeypairRepository(<ProfileKeypair>[keypair]);
+      profileController =
+          ProfileController(profileRepository: repository.profileRepository);
+      await profileController.ensureLoaded();
+      if (profileController.profiles.isNotEmpty) {
+        await profileController
+            .setActiveProfile(profileController.profiles.first.id);
+      }
+      marketplaceService = _MockMarketplaceService();
+    });
+
+    Future<String> descriptionText(WidgetTester tester, String bundle) async {
+      final ScriptRecord script = ScriptRecord(
+        id: 'desc-script',
+        title: 'Desc Script',
+        bundle: bundle,
+        createdAt: DateTime(2024, 1, 1),
+        updatedAt: DateTime(2024, 1, 1),
+      );
+
+      await tester.pumpWidget(
+        ProfileScope(
+          controller: profileController,
+          child: MaterialApp(
+            home: Builder(
+              builder: (BuildContext context) {
+                return Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => QuickUploadDialog(
+                            script: script,
+                            profileController: profileController,
+                            marketplaceService: marketplaceService,
+                          ),
+                        );
+                      },
+                      child: const Text('Open'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextFormField>(
+        find.widgetWithText(TextFormField, 'Description *'),
+      );
+      return (field.controller as TextEditingController).text;
+    }
+
+    testWidgets(
+        'a script WITHOUT a JSDoc leaves the Description EMPTY (never raw '
+        'source lines)', (tester) async {
+      const String noJsdocBundle = '''"use strict";
+(() => {
+  globalThis.init = () => ({ state: { n: 0 }, effects: [] });
+  globalThis.view = (s) => ({ type: "text", props: { text: "n=" + s.n } });
+})();
+''';
+
+      final desc = await descriptionText(tester, noJsdocBundle);
+
+      expect(desc, isEmpty,
+          reason: 'no raw code lines should ever be auto-filled as the '
+              'description');
+      expect(desc, isNot(contains('use strict')));
+      expect(desc, isNot(contains('globalThis')));
+    });
+
+    testWidgets(
+        'a script WITH a JSDoc still extracts the human-written summary',
+        (tester) async {
+      const String jsdocBundle = '''/**
+ * Polls the IC ledger for the current balance.
+ * Useful for dashboards.
+ */
+"use strict";
+(() => {
+  globalThis.init = () => ({ state: { n: 0 }, effects: [] });
+})();
+''';
+
+      final desc = await descriptionText(tester, jsdocBundle);
+
+      expect(desc, contains('Polls the IC ledger'));
+      expect(desc, isNot(contains('use strict')));
+    });
+  });
+
   group('QuickUploadDialog price label (UX-CRIT-3)', () {
     late ProfileKeypair keypair;
     late ProfileController profileController;

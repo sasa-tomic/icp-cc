@@ -111,10 +111,7 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   void _generateDescriptionFromScript() {
     if (widget.script != null && widget.script!.bundle.isNotEmpty) {
       // Prefer the first JSDoc / multi-line comment block as the description —
-      // it's almost always a real human-written summary, unlike the
-      // generic "A TypeScript script with N main functions" the previous
-      // version produced. Falls back to the first 2 non-comment, non-blank
-      // lines, then to a generic string.
+      // it's almost always a real human-written summary.
       final lines = widget.script!.bundle.split('\n');
       final jsdoc = <String>[];
       var inBlock = false;
@@ -138,21 +135,11 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
         _descriptionController.text = jsdoc.join(' ').trim();
         return;
       }
-      final contentLines = lines
-          .where((line) =>
-              !line.trim().startsWith('//') &&
-              !line.trim().startsWith('/*') &&
-              line.trim().isNotEmpty)
-          .take(2)
-          .map((line) => line.trim())
-          .toList();
-      if (contentLines.isNotEmpty) {
-        _descriptionController.text = contentLines.join(' ').trim();
-        return;
-      }
+      // DEFECT-7: when no JSDoc is extractable, leave the field EMPTY so the
+      // author writes a real description. NEVER fall back to raw source lines
+      // (e.g. `"use strict"; (() => {`) — that read as garbage and shipped as
+      // the listing description if unnoticed.
     }
-    _descriptionController.text =
-        'A TypeScript script for automation and utility tasks.';
   }
 
   void _detectCategoryFromScript() {
