@@ -1,0 +1,131 @@
+// ignore_for_file: lines_longer_than_80_chars
+
+/// Per-flow Web e2e tests — ONE `testWidgets` per flow.
+///
+/// Mirrors the desktop per-flow pattern (`flows_keyring_less_test.dart`) but
+/// for the Web surface (`flutter test -d chrome`). Each flow boots the REAL
+/// app on Chromium with substrate fakes at the smallest I/O boundary.
+///
+/// Currently covers the 7 cross-surface flows already ported to
+/// `flow_implementations.dart`. The full web migration (~66 more flows) is
+/// tracked in `docs/specs/2026-07-21-e2e-harness-overhaul.md` Phase P2.
+///
+/// Run a single flow:
+///   `just e2e-web-one first_run.dismiss_wizard`
+///   `just e2e-web-one scripts.browse_marketplace`
+///
+/// Or directly:
+///   `flutter test -d chrome test/e2e_web/flows_web_test.dart \
+///     --name first_run.dismiss_wizard`
+@Tags(['web'])
+library;
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:icp_autorun/screens/unified_setup_wizard.dart';
+
+import '../../integration_test/e2e/e2e_driver.dart';
+import '../../integration_test/e2e/flow_catalog.dart';
+import '../../integration_test/e2e/flow_implementations.dart';
+import 'web_suite_helpers.dart';
+
+/// Prerequisite flow chains for the non-self-booting flows. Each assumes the
+/// common setup: `resetWebAppState → boot (substrateAware) → dismissWizard`.
+const Map<String, List<String>> _prereqs = <String, List<String>>{
+  'first_run.reopen_wizard_chip': <String>[],
+  'profile.open_menu': <String>[],
+  'settings.open': <String>['profile.open_menu'],
+  'settings.theme': <String>['profile.open_menu', 'settings.open'],
+  'settings.version_display': <String>['profile.open_menu', 'settings.open'],
+  'scripts.browse_marketplace': <String>[],
+};
+
+void main() {
+  setUpAll(() {
+    installWebSubstrate();
+  });
+
+  final driver = E2EDriver(surface: E2ESurface.web, substrateAware: true);
+
+  final tagsById = <String, Set<String>>{
+    for (final s in FlowCatalog.all) s.id: s.tags,
+  };
+
+  final registry = FlowRegistry()
+    ..register('first_run.reopen_wizard_chip', firstRunReopenWizardChip)
+    ..register('profile.open_menu', profileOpenMenu)
+    ..register('settings.open', settingsOpen)
+    ..register('settings.theme', settingsTheme)
+    ..register('settings.version_display', settingsVersionDisplay)
+    ..register('scripts.browse_marketplace', scriptsBrowseMarketplace);
+
+  // ── SPECIAL: first_run.dismiss_wizard (self-contained, no prereqs) ─────────
+  // Boot → wizard appears (or chip if onboarding already done) → dismiss.
+  testWidgets('first_run.dismiss_wizard', (tester) async {
+    await driver.boot(tester);
+    // The boot's substrateAware loop bails when EITHER the wizard or the
+    // "Set up profile" chip appears. On a clean store, the wizard shows.
+    // If onboarding was already completed (substrate state leak), the chip
+    // shows instead — both are valid boot outcomes.
+    final wizardVisible = await driver.waitUntil(
+        tester, () => driver.present(find.byType(UnifiedSetupWizard), tester),
+        timeout: const Duration(seconds: 15));
+    if (wizardVisible) {
+      await driver.dismissWizard(tester);
+      expect(driver.present(find.byType(UnifiedSetupWizard), tester), isFalse,
+          reason: 'Tapping close must dismiss the wizard.');
+    } else {
+      // Fallback: chip visible (onboarding already done from substrate state).
+      final chip = find.textContaining('Set up profile');
+      expect(driver.present(chip, tester), isTrue,
+          reason: 'Either the wizard or the "Set up profile" chip must be '
+              'visible after boot.');
+    }
+    // Drain cache timer for clean teardown.
+    await tester.pump(const Duration(seconds: 11));
+  },
+      timeout: const Timeout(Duration(seconds: 60)),
+      tags: ['onboarding']);
+
+  // ── STANDARD: per-flow testWidgets with common setup ──────────────────────
+  for (final entry in _prereqs.entries) {
+    final flowId = entry.key;
+    final prereqIds = entry.value;
+
+    testWidgets(flowId, (tester) async {
+      resetWebAppState();
+      await driver.boot(tester);
+      await driver.dismissWizard(tester);
+
+      // Run prerequisite flows (sets up screen state).
+      for (final prereqId in prereqIds) {
+        await registry.runFor(prereqId)!(tester, driver);
+      }
+
+      // Settle: let async content finish rendering.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // Run the target flow.
+      await registry.runFor(flowId)!(tester, driver);
+
+      // Drain flutter_cache_manager's cleanup timer so the binding's
+      // timersPending invariant doesn't trip on teardown.
+      await tester.pump(const Duration(seconds: 11));
+    },
+        timeout: const Timeout(Duration(seconds: 120)),
+        tags: tagsById[flowId]?.toList());
+  }
+
+  // ── Coverage report ───────────────────────────────────────────────────────
+  testWidgets('web coverage report', (tester) async {
+    final cov = FlowCatalog.coverageReport(registry);
+    // ignore: avoid_print
+    print('WEB_PER_FLOW: ${cov.implemented}/${cov.total} flows registered.');
+    expect(cov.implemented, greaterThanOrEqualTo(6),
+        reason: 'Per-flow web harness must cover at least the 6 seed flows '
+            '(plus dismiss_wizard tested inline above).');
+  },
+      timeout: const Timeout(Duration(seconds: 30)),
+      tags: ['smoke']);
+}

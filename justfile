@@ -1020,6 +1020,63 @@ e2e-web-playwright skipbuild="":
     echo "==> Running Playwright"
     cd "$PW_DIR" && npx playwright test --reporter=list --workers=1
 
+# e2e-web-one: run a SINGLE web e2e flow by id (per-flow isolation).
+#
+# Usage: just e2e-web-one <flow-id>
+#   just e2e-web-one first_run.dismiss_wizard
+#   just e2e-web-one scripts.browse_marketplace
+#   just e2e-web-one settings.theme
+#
+# Backend NOT required (substrate fakes handle HTTP). No Xvfb needed.
+e2e-web-one flow:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${CHROME_EXECUTABLE:-}" ]]; then
+        bin=$(find "$HOME/.cache/ms-playwright" -type f -name chrome \
+            -path "*/chrome-linux64/*" 2>/dev/null | sort -V | tail -1 || true)
+        if [[ -z "$bin" ]]; then
+            echo "==> No Chromium in Playwright cache; installing..."
+            cd "{{flutter_dir}}" && npx playwright install chromium >/dev/null
+            bin=$(find "$HOME/.cache/ms-playwright" -type f -name chrome \
+                -path "*/chrome-linux64/*" 2>/dev/null | sort -V | tail -1)
+        fi
+        export CHROME_EXECUTABLE="$bin"
+    fi
+    echo "==> e2e-web-one: {{flow}} (Chromium: $CHROME_EXECUTABLE)"
+    cd "{{flutter_dir}}" && CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
+        flutter test -d chrome \
+        --dart-define=ICP_E2E=1 \
+        --dart-define=ICP_E2E_MOCK_ICPAY=1 \
+        test/e2e_web/flows_web_test.dart \
+        --name '^{{flow}}$' --reporter=compact --timeout=120s
+
+# e2e-web-tag: run web e2e flows matching a tag.
+#
+# Usage: just e2e-web-tag <tag>
+#   just e2e-web-tag smoke
+#   just e2e-web-tag onboarding
+e2e-web-tag tag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${CHROME_EXECUTABLE:-}" ]]; then
+        bin=$(find "$HOME/.cache/ms-playwright" -type f -name chrome \
+            -path "*/chrome-linux64/*" 2>/dev/null | sort -V | tail -1 || true)
+        if [[ -z "$bin" ]]; then
+            echo "==> No Chromium in Playwright cache; installing..."
+            cd "{{flutter_dir}}" && npx playwright install chromium >/dev/null
+            bin=$(find "$HOME/.cache/ms-playwright" -type f -name chrome \
+                -path "*/chrome-linux64/*" 2>/dev/null | sort -V | tail -1)
+        fi
+        export CHROME_EXECUTABLE="$bin"
+    fi
+    echo "==> e2e-web-tag: {{tag}} (Chromium: $CHROME_EXECUTABLE)"
+    cd "{{flutter_dir}}" && CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
+        flutter test -d chrome \
+        --dart-define=ICP_E2E=1 \
+        --dart-define=ICP_E2E_MOCK_ICPAY=1 \
+        test/e2e_web/flows_web_test.dart \
+        --tags '{{tag}}' --concurrency=1 --reporter=compact --timeout=120s
+
 # e2e: BOTH surfaces (desktop then web). The full real-app e2e contract.
 e2e: e2e-desktop e2e-web
     @echo "✅ e2e PASSED — desktop + web surfaces green"
