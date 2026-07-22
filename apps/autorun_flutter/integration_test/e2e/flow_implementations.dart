@@ -78,25 +78,20 @@ Future<void> settingsOpen(WidgetTester tester, E2EDriver driver) async {
   expect(opened, isTrue, reason: 'Tapping Settings must open SettingsScreen.');
 }
 
-/// `settings.theme` — tap "Dark", expect the check indicator to move; then
-/// restore "System" so the theme doesn't leak across flows.
+/// `settings.theme` — tap "Dark", expect the `SegmentedButton<ThemeMode>`
+/// selected segment to move; then restore "System" so the theme doesn't leak
+/// across flows.
 Future<void> settingsTheme(WidgetTester tester, E2EDriver driver) async {
   await tester.ensureVisible(find.text('Dark'));
   await tester.pump(const Duration(milliseconds: 300));
   await tester.tap(find.text('Dark'));
   await tester.pump(const Duration(milliseconds: 500));
-  // The check_circle is a sibling of the label text, inside the same
-  // InkWell — search within the InkWell ancestor.
-  final darkOption =
-      find.ancestor(of: find.text('Dark'), matching: find.byType(InkWell));
-  expect(
-    driver.present(
-        find.descendant(
-            of: darkOption, matching: find.byIcon(Icons.check_circle)),
-        tester),
-    isTrue,
-    reason: 'Selecting Dark must show the check-circle indicator.',
-  );
+  // The theme picker is a SegmentedButton<ThemeMode>. The selected segment
+  // is reflected in the button's `selected` set.
+  final segmented =
+      tester.widget<SegmentedButton<ThemeMode>>(find.byType(SegmentedButton<ThemeMode>));
+  expect(segmented.selected, equals({ThemeMode.dark}),
+      reason: 'Selecting Dark must mark the Dark segment as selected.');
   // Restore System to avoid leaking the theme across phases. Re-scroll into
   // view first: switching themes reflows the layout.
   await tester.ensureVisible(find.text('System'));
@@ -156,4 +151,107 @@ Future<void> firstRunReopenWizardChip(
   expect(reopened, isTrue, reason: 'Tapping the chip must re-open the wizard.');
   // Dismiss it again to leave the shell in a known state for the next flow.
   await driver.dismissWizard(tester);
+}
+
+// ── Settings flows (assume settings.open already ran: SettingsScreen on stage)
+// All ported cross-surface from the desktop keyring-less suite. These are
+// surface-agnostic widget-tree interactions (no dart:io, no FFI).
+
+/// `settings.unlock_dev_options` — tap the version row 7 times to reveal the
+/// hidden DEVELOPER INFO section. Assumes SettingsScreen is already mounted.
+Future<void> settingsUnlockDevOptions(
+    WidgetTester tester, E2EDriver driver) async {
+  final versionReady = await driver.waitUntil(
+      tester, () => driver.present(find.textContaining('Version'), tester),
+      timeout: const Duration(seconds: 5));
+  expect(versionReady, isTrue,
+      reason: 'Settings must display a version entry.');
+  await tester.ensureVisible(find.textContaining('Version').first);
+  await tester.pump(const Duration(milliseconds: 300));
+  for (var i = 0; i < 7; i++) {
+    await tester.tap(find.textContaining('Version').first);
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  final devVisible = await driver.waitUntil(
+      tester, () => driver.present(find.text('DEVELOPER INFO'), tester),
+      timeout: const Duration(seconds: 3));
+  expect(devVisible, isTrue,
+      reason: 'Seven taps on version must reveal the DEVELOPER INFO section.');
+}
+
+/// `settings.docs_link` — assert the Documentation row renders.
+Future<void> settingsDocsLink(WidgetTester tester, E2EDriver driver) async {
+  expect(driver.present(find.text('Documentation'), tester), isTrue,
+      reason: 'Settings must show a Documentation link.');
+}
+
+/// `settings.report_issue` — assert the Report Issue row renders.
+Future<void> settingsReportIssue(WidgetTester tester, E2EDriver driver) async {
+  expect(driver.present(find.text('Report Issue'), tester), isTrue,
+      reason: 'Settings must show a Report Issue link.');
+}
+
+/// `settings.getting_started` — tap "Getting Started", expect a confirmation
+/// SnackBar.
+Future<void> settingsGettingStarted(
+    WidgetTester tester, E2EDriver driver) async {
+  await tester.ensureVisible(find.text('Getting Started'));
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.text('Getting Started'));
+  final snackBar = await driver.waitUntil(
+      tester,
+      () => driver.present(find.textContaining('Getting Started guide'), tester),
+      timeout: const Duration(seconds: 3));
+  expect(snackBar, isTrue,
+      reason: 'Getting Started must show a confirmation SnackBar.');
+}
+
+/// `settings.restart_tour` — tap "Restart Tour", expect the scheduling SnackBar.
+Future<void> settingsRestartTour(WidgetTester tester, E2EDriver driver) async {
+  await tester.ensureVisible(find.text('Restart Tour'));
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.text('Restart Tour'));
+  final tourScheduled = await driver.waitUntil(
+      tester,
+      () => driver.present(find.textContaining('Tour will start'), tester),
+      timeout: const Duration(seconds: 3));
+  expect(tourScheduled, isTrue,
+      reason: 'Restart Tour must schedule the spotlight tour.');
+}
+
+/// `settings.copy_api_endpoint` — assumes dev options unlocked (run
+/// `settings.unlock_dev_options` first). Taps the Copy IconButton and expects
+/// a SnackBar.
+Future<void> settingsCopyApiEndpoint(
+    WidgetTester tester, E2EDriver driver) async {
+  expect(driver.present(find.text('API Endpoint'), tester), isTrue,
+      reason: 'Dev-options card must show the API Endpoint row.');
+  await tester.ensureVisible(find.text('API Endpoint'));
+  await tester.pump(const Duration(milliseconds: 300));
+  final copyBtn = find.widgetWithIcon(IconButton, Icons.copy);
+  expect(driver.present(copyBtn, tester), isTrue,
+      reason: 'API Endpoint row must have a Copy IconButton.');
+  tester.widget<IconButton>(copyBtn).onPressed!();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  final copied = await driver.waitUntil(
+      tester, () => driver.present(find.byType(SnackBar), tester),
+      timeout: const Duration(seconds: 3));
+  expect(copied, isTrue, reason: 'Copy callback must show a SnackBar.');
+}
+
+/// `settings.clear_dev_options` — assumes dev options unlocked. Taps "Clear
+/// Developer Options" and expects the DEVELOPER INFO card to vanish.
+Future<void> settingsClearDevOptions(
+    WidgetTester tester, E2EDriver driver) async {
+  await tester.ensureVisible(find.text('Clear Developer Options'));
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.text('Clear Developer Options'), warnIfMissed: false);
+  await tester.pump(const Duration(seconds: 1));
+  await tester.pump(const Duration(milliseconds: 500));
+  final devGone = await driver.waitUntil(
+      tester, () => !driver.present(find.text('DEVELOPER INFO'), tester),
+      timeout: const Duration(seconds: 5));
+  expect(devGone, isTrue,
+      reason: 'Clearing dev options must remove the DEVELOPER INFO card.');
 }

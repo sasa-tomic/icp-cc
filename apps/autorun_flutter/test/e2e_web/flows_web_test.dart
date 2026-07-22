@@ -32,11 +32,36 @@ import 'web_suite_helpers.dart';
 /// Prerequisite flow chains for the non-self-booting flows. Each assumes the
 /// common setup: `resetWebAppState → boot (substrateAware) → dismissWizard`.
 const Map<String, List<String>> _prereqs = <String, List<String>>{
+  // ── first_run ──────────────────────────────────────────────────────────
   'first_run.reopen_wizard_chip': <String>[],
+
+  // ── profile ────────────────────────────────────────────────────────────
   'profile.open_menu': <String>[],
+
+  // ── settings (each builds on profile.open_menu → settings.open) ────────
   'settings.open': <String>['profile.open_menu'],
   'settings.theme': <String>['profile.open_menu', 'settings.open'],
   'settings.version_display': <String>['profile.open_menu', 'settings.open'],
+  'settings.docs_link': <String>['profile.open_menu', 'settings.open'],
+  'settings.report_issue': <String>['profile.open_menu', 'settings.open'],
+  'settings.getting_started': <String>['profile.open_menu', 'settings.open'],
+  'settings.restart_tour': <String>['profile.open_menu', 'settings.open'],
+  'settings.unlock_dev_options': <String>[
+    'profile.open_menu',
+    'settings.open',
+  ],
+  'settings.copy_api_endpoint': <String>[
+    'profile.open_menu',
+    'settings.open',
+    'settings.unlock_dev_options',
+  ],
+  'settings.clear_dev_options': <String>[
+    'profile.open_menu',
+    'settings.open',
+    'settings.unlock_dev_options',
+  ],
+
+  // ── scripts (marketplace read flows — no profile needed) ───────────────
   'scripts.browse_marketplace': <String>[],
 };
 
@@ -57,6 +82,13 @@ void main() {
     ..register('settings.open', settingsOpen)
     ..register('settings.theme', settingsTheme)
     ..register('settings.version_display', settingsVersionDisplay)
+    ..register('settings.docs_link', settingsDocsLink)
+    ..register('settings.report_issue', settingsReportIssue)
+    ..register('settings.getting_started', settingsGettingStarted)
+    ..register('settings.restart_tour', settingsRestartTour)
+    ..register('settings.unlock_dev_options', settingsUnlockDevOptions)
+    ..register('settings.copy_api_endpoint', settingsCopyApiEndpoint)
+    ..register('settings.clear_dev_options', settingsClearDevOptions)
     ..register('scripts.browse_marketplace', scriptsBrowseMarketplace);
 
   // ── SPECIAL: first_run.dismiss_wizard (self-contained, no prereqs) ─────────
