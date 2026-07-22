@@ -1530,6 +1530,48 @@ enters only a display name (no username) → creates a LOCAL-ONLY profile →
 `registerAccount` is skipped → `showPostRegistrationSecurityPrompt` is
 skipped (line 913 guards on `createdAccount != null`). No fix needed.
 
+### UX-QW — Click-reduction quick wins (5 fixes)
+
+- **Status**: 🟢 RESOLVED (2026-07-22, commit `0fc3d03a`)
+- **Surfaced**: 2026-07-22 UX planner subagent sweep.
+- **Severity**: MEDIUM (UX friction on high-frequency flows)
+- **Location**: `scripts_screen.dart`, `recovery_codes_screen.dart`, `script_row_menus.dart`, `quick_upload_dialog.dart`, `script_app_host.dart`.
+
+Five click-reduction fixes identified by orchestrator-planner subagent and
+implemented:
+
+1. **QW-1** (`scripts_screen.dart`): Removed `AccountRegistrationPromptDialog`
+   — publishing with no account now goes directly to `AccountRegistrationWizard`
+   (saves 1 click). Dialog file deleted.
+2. **QW-2** (`recovery_codes_screen.dart`): Download/Copy auto-checks the "I
+   have saved these codes" checkbox (saves 1 click; gate stays per UX-CRIT-1).
+3. **QW-3** (`script_row_menus.dart`): Marketplace download button moved from
+   hover-reveal to always-visible (saves 1 click + improves discoverability/a11y).
+4. **QW-4** (`quick_upload_dialog.dart`): `_detectCategoryFromScript` now
+   keyword-based instead of hardcoded 'Example' (Finance/NFT/Social/Gaming/
+   Utilities detection).
+5. **QW-5** (`script_app_host.dart`): Trust dialog Enter→"Allow once",
+   Esc→Deny (keyboard shortcut for dapp trust grant).
+
+### P2-WEB — Web per-flow e2e harness (first increment)
+
+- **Status**: 🟢 RESOLVED (2026-07-22, commit `6ad286b7`)
+- **Surfaced**: 2026-07-22 web-e2e planner subagent (P2 of e2e overhaul plan).
+- **Severity**: MEDIUM (web e2e coverage was 13/79 web-eligible flows, monolith only)
+- **Location**: `test/e2e_web/flows_web_test.dart`, `test/e2e_web/web_suite_helpers.dart`, `justfile`.
+
+First increment of P2 (web per-flow pattern):
+- `web_suite_helpers.dart`: `resetWebAppState()` using
+  `SharedPreferences.resetStatic()` + `setMockInitialValues({})` +
+  `FlutterSecureStorage.setMockInitialValues({})` for clean inter-testWidgets
+  isolation. Substrate singleton reset proven working.
+- `flows_web_test.dart`: 7 cross-surface flows from `flow_implementations.dart`,
+  one `testWidgets` per flow, tag-injected for `--tags` filtering.
+- `justfile`: `e2e-web-one <flow>` (~7s/flow) and `e2e-web-tag <tag>` recipes.
+- Full file: 8 tests in 29s; smoke tag: 4 flows in 10s.
+- **Remaining:** ~66 more web flows to port (tracked in P2 spec, dispatchable
+  to parallel subagents per category).
+
 ---
 
 ## Maintenance

@@ -175,6 +175,15 @@ just test-feature profile       # Profile/account management
 # Full suite (before committing)
 just test                       # All tests (Rust + Flutter)
 
+# E2E (desktop + Web)
+just e2e-desktop                # All 4 desktop suites (~9m, 91 flows)
+just e2e-one <flow-id> [suite]  # Single flow in isolation (9-25s)
+just e2e-tag <tag> [suite]      # Tag-filtered subset (e.g. smoke, vault)
+just e2e-web                    # All Web suites (substrate fakes, ~30s)
+just e2e-web-one <flow-id>      # Single Web flow (~7s)
+just e2e-web-tag <tag>          # Tag-filtered Web subset
+just e2e-tags                   # List available flow tags
+
 # Specific file
 cd apps/autorun_flutter && flutter test test/features/marketplace/browse_test.dart
 ```
