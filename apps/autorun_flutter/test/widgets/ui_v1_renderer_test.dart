@@ -229,6 +229,41 @@ void main() {
       expect(find.text('Yes'), findsOneWidget);
       expect(find.text('No'), findsOneWidget);
     });
+
+    testWidgets('row with copyable text renders without layout exception (DEFECT-3 regression)',
+        (tester) async {
+      await pumpUi(
+        tester,
+        ui: {
+          'type': 'column',
+          'children': [
+            {
+              'type': 'row',
+              'children': [
+                {
+                  'type': 'text',
+                  'props': {
+                    'text': 'Neuron ID: 753ai-something-long-principal-id-here',
+                    'copy': true,
+                    'copy_label': 'Copy ID',
+                  },
+                },
+                {
+                  'type': 'button',
+                  'props': {
+                    'label': 'Refresh',
+                    'on_press': {'type': 'refresh'},
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      );
+      expect(find.textContaining('Neuron ID:'), findsOneWidget);
+      expect(find.text('Refresh'), findsOneWidget);
+      expect(find.byIcon(Icons.copy), findsOneWidget);
+    });
   });
 
   group('UiV1Renderer select options (DEFECT-2 hardening)', () {

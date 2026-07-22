@@ -97,7 +97,9 @@ class UiV1Renderer extends StatelessWidget {
             .map((m) {
           final Widget w = _buildNode(context, m);
           final String childType = (m['type'] as String? ?? '').trim();
-          if (childType == 'select' || childType == 'text_field') {
+          if (childType == 'select' ||
+              childType == 'text_field' ||
+              childType == 'text') {
             return Flexible(child: w);
           }
           return w;
