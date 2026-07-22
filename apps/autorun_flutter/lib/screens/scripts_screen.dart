@@ -1142,17 +1142,24 @@ class ScriptsScreenState extends State<ScriptsScreen>
                     style: TextStyle(fontWeight: FontWeight.w500),
                   ),
                 ),
+                // CR-2: Run is the more common next action for a fresh/scratch
+                // script; Publish stays alongside for authors ready to share.
+                TextButton(
+                  onPressed: () => _runScript(rec),
+                  child: const Text('Run',
+                      style: TextStyle(color: Colors.white)),
+                ),
+                TextButton(
+                  onPressed: () => _publishToMarketplace(rec),
+                  child: const Text('Publish',
+                      style: TextStyle(color: Colors.white)),
+                ),
               ],
             ),
             backgroundColor: AppDesignSystem.successColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-            ),
-            action: SnackBarAction(
-              label: 'Publish',
-              textColor: Colors.white,
-              onPressed: () => _publishToMarketplace(rec),
             ),
           ),
         );

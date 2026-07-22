@@ -166,4 +166,25 @@ void main() {
 
     expect(find.byType(AccountRegistrationWizard), findsOneWidget);
   });
+
+  testWidgets(
+      'CR-2: create-success SnackBar also offers a Run action that opens the '
+      'execution sheet', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final profileController = await _profileControllerWith(username: null);
+
+    await _driveCreateToPublishSnackbar(tester, profileController: profileController);
+
+    // Both next-actions are present on the create-success SnackBar.
+    expect(find.text('Publish'), findsOneWidget);
+    expect(find.text('Run'), findsOneWidget,
+        reason: 'Run is the more common next action for a fresh/scratch '
+            'script; it must be reachable from the create SnackBar');
+
+    await tester.tap(find.text('Run'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.byType(ScriptExecutionBottomSheet), findsOneWidget);
+  });
 }
