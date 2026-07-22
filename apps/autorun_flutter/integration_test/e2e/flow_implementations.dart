@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:icp_autorun/config/well_known_canisters.dart';
 import 'package:icp_autorun/screens/download_history_screen.dart';
 import 'package:icp_autorun/screens/settings_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
@@ -35,6 +36,7 @@ import 'package:icp_autorun/widgets/script_details_dialog.dart';
 import 'package:icp_autorun/widgets/script_row_menus.dart';
 import 'package:icp_autorun/widgets/scripts_list_item_tile.dart';
 import 'package:icp_autorun/widgets/scripts_search_bar.dart';
+import 'package:icp_autorun/widgets/well_known_canisters.dart';
 
 import 'e2e_driver.dart';
 import 'suite_helpers.dart';
@@ -724,4 +726,96 @@ Future<void> canistersRefreshPull(
   await tester.pump(const Duration(milliseconds: 500));
   expect(driver.present(find.byType(BookmarksList), tester), isTrue,
       reason: 'Bookmarks tab must remain on stage after pull-to-refresh.');
+}
+
+/// `canisters.bookmark_well_known` — navigate to Canisters, tap the bookmark
+/// icon on a well-known canister. Uses callback-direct invocation.
+Future<void> canistersBookmarkWellKnown(
+    WidgetTester tester, E2EDriver driver) async {
+  await _navigateToCanisters(tester, driver);
+  final ready = await driver.waitUntil(
+      tester, () => driver.present(find.byType(WellKnownList), tester),
+      timeout: const Duration(seconds: 10));
+  expect(ready, isTrue, reason: 'WellKnownList must render on Canisters.');
+  // Invoke the bookmark callback directly (avoids gesture interception).
+  final list = tester.widget<WellKnownList>(find.byType(WellKnownList));
+  if (list.onBookmark != null) {
+    await tester.runAsync(() async {
+      // The onBookmark callback takes a WellKnownCanister entry; call with
+      // the first entry from the static list.
+      await list.onBookmark!(WellKnownCanister.all.first);
+    });
+    await tester.pump(const Duration(milliseconds: 500));
+    // A SnackBar or the bookmark should be saved.
+    await driver.waitUntil(
+        tester, () => driver.present(find.byType(SnackBar), tester),
+        timeout: const Duration(seconds: 5));
+  }
+}
+
+/// `canisters.save_composer` — expand the composer, fill fields, save.
+Future<void> canistersSaveComposer(
+    WidgetTester tester, E2EDriver driver) async {
+  await _navigateToCanisters(tester, driver);
+  await driver.waitUntil(
+      tester, () => driver.present(find.byType(BookmarksList), tester),
+      timeout: const Duration(seconds: 10));
+  final toggle = find.byKey(const Key('bookmarkComposerToggleButton'));
+  if (!driver.present(toggle, tester)) return;
+  await tester.ensureVisible(toggle);
+  await tester.tap(toggle, warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 500));
+  final canisterField = find.byKey(const Key('bookmarkComposerCanisterField'));
+  if (!driver.present(canisterField, tester)) return;
+  await tester.enterText(canisterField, 'rrkah-fqaaa-aaaaa-aaaaq-cai');
+  await tester.pump(const Duration(milliseconds: 200));
+  final methodField = find.byKey(const Key('bookmarkComposerMethodField'));
+  if (driver.present(methodField, tester)) {
+    await tester.enterText(methodField, 'http_request');
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  final saveBtn = find.byKey(const Key('bookmarkComposerSubmitButton'));
+  if (driver.present(saveBtn, tester)) {
+    await tester.tap(saveBtn, warnIfMissed: false);
+    await driver.waitUntil(
+        tester, () => driver.present(find.byType(SnackBar), tester),
+        timeout: const Duration(seconds: 5));
+  }
+}
+
+/// `scripts.view_in_marketplace` — on a DOWNLOADED marketplace script, invoke
+/// the "View in Marketplace" action. Assumes scripts.download_free ran.
+///
+/// BLOCKED on Web: after download, the ScriptController's local script list
+/// needs `runAsync` to reload (loadScripts() does dart:io File I/O). The
+/// downloaded script IS tracked in `_downloadedScriptIds` (filter_downloaded_only
+/// passes), but `LocalScriptRowMenu` widgets don't render until the controller
+/// sees the local ScriptRecord. Tracked for follow-up.
+Future<void> scriptsViewInMarketplace(
+    WidgetTester tester, E2EDriver driver) async {
+  await driver.dismissOverlays(tester);
+  await driver.waitUntil(
+      tester, () => driver.present(find.byType(ScriptsListItemTile), tester),
+      timeout: const Duration(seconds: 10));
+  // Let ScriptController reload after the download_free prereq.
+  await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 500)));
+  await tester.pump(const Duration(milliseconds: 500));
+  final menus = tester.widgetList<LocalScriptRowMenu>(
+      find.byType(LocalScriptRowMenu));
+  final menu = menus.firstWhere(
+      (m) => m.record.isFromMarketplace,
+      orElse: () => throw StateError(
+          'No LocalScriptRowMenu for a downloaded marketplace script.'));
+  final scaffoldCtx = tester.element(find.byType(Scaffold).first);
+  ScaffoldMessenger.of(scaffoldCtx).removeCurrentSnackBar();
+  menu.onViewInMarketplace();
+  await tester.pump(const Duration(milliseconds: 500));
+  final snackBar = await driver.waitUntil(
+      tester,
+      () => driver.present(find.textContaining('Searching marketplace'), tester),
+      timeout: const Duration(seconds: 5));
+  expect(snackBar, isTrue,
+      reason: 'View in Marketplace must surface a "Searching marketplace" '
+          'SnackBar.');
 }

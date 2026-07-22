@@ -100,6 +100,12 @@ const Map<String, List<String>> _prereqs = <String, List<String>>{
 
   // ── canisters (profile-independent) ──────────────────────────────────
   'canisters.refresh_pull': <String>[],
+  'canisters.bookmark_well_known': <String>[],
+  'canisters.save_composer': <String>[],
+
+  // scripts.view_in_marketplace: BLOCKED — LocalScriptRowMenu doesn't render
+  // on web after download (ScriptController.loadScripts needs runAsync). See
+  // flow docstring.
 };
 
 void main() {
@@ -144,7 +150,10 @@ void main() {
     ..register('download_history.remove', downloadHistoryRemove)
     ..register('download_history.clear', downloadHistoryClear)
     ..register('dapps.open_catalog', dappsOpenCatalog)
-    ..register('canisters.refresh_pull', canistersRefreshPull);
+    ..register('canisters.refresh_pull', canistersRefreshPull)
+    ..register('canisters.bookmark_well_known', canistersBookmarkWellKnown)
+    ..register('canisters.save_composer', canistersSaveComposer);
+    // scripts.view_in_marketplace: not registered (BLOCKED — see flow docstring)
 
   // ── SPECIAL: first_run.dismiss_wizard (self-contained, no prereqs) ─────────
   // Boot → wizard appears (or chip if onboarding already done) → dismiss.
