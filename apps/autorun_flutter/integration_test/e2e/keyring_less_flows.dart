@@ -1518,7 +1518,11 @@ FlowRegistry buildKeyringLessRegistry() {
       // Tap the first card's title (an NNS Registry card). The card's
       // Semantics(button: true, label: 'Open NNS Registry') wraps the entire
       // InkWell, so tapping the visible label fires the open-tap.
+      // ensureVisible first: the card may be scrolled off-screen depending
+      // on viewport height / theme metrics.
       const canisterName = 'NNS Registry';
+      await tester.ensureVisible(find.text(canisterName).first);
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text(canisterName).first);
       final sheetOpen = await d.waitUntil(
           tester, () => d.present(find.byType(CanisterClientSheet), tester),
