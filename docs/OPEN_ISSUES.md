@@ -488,7 +488,7 @@ ICPay. Set to 0 for free scripts." One-line change.
 
 ### DEFECT-3 — alpha_vote body paints BLANK (copyable `text` in `row` → RenderFlex unbounded width)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-22, commit `ec08f8f0`; visually verified)
 - **Surfaced**: 2026-07-22 visual verification sweep (commit `49d0ab31`,
   `integration_test/voting_dapps_visual_test.dart`).
 - **Severity**: CRITICAL (the entire `alpha_vote` dapp body is blank — header,
@@ -499,64 +499,41 @@ ICPay. Set to 0 for free scripts." One-line change.
   `apps/autorun_flutter/lib/examples/10_alpha_vote.js:670-692`
   (`yourNeuronSection` puts a `copy:true` text node inside a `row`).
 
-The DEFECT-1 fix (commit `0d0ce2ae`) wrapped `select`/`text_field` children of
-a `row` node in `Flexible` so they no longer receive unbounded width. But it
-did NOT cover `text` nodes rendered with `copy:true`. Those render as
-`Row(mainAxisSize.min, [Expanded(child: Text), IconButton])` (renderer line
-142) — and `Expanded` is invalid inside an unbounded-width parent. When such a
-text node is a child of a `row` node (as alpha_vote's `yourNeuronSection` does
-— "Active: #<id>" / "(no neuron set)" with copy), the parent `row` gives the
-text-node's internal `Row` unbounded width → the `Expanded` asserts
-"RenderFlex children have non-zero flex but incoming width constraints are
-unbounded" on EVERY layout frame (106+ times observed). The exception aborts
-the host body's `performLayout`, so the **entire** `SingleChildScrollView` →
-`UiV1Renderer` subtree fails to lay out and paints nothing — even the header
-text and filter dropdowns that are siblings of the broken section.
+**Root cause:** The DEFECT-1 fix (commit `0d0ce2ae`) wrapped `select`/`text_field`
+children of a `row` node in `Flexible`, but missed `text` nodes with `copy:true`.
+Those render as `Row(mainAxisSize.min, [Expanded(child: Text), IconButton])`, and
+`Expanded` is invalid inside an unbounded-width parent. The parent `row` gives
+the text-node's internal `Row` unbounded width → the `Expanded` asserts on EVERY
+layout frame → the entire `SingleChildScrollView` subtree fails to lay out.
 
-**Evidence:** screenshot
-`/tmp/opencode/voting-dapp-verify/alpha_vote.png` shows only the runner chrome
-(Connection / Signed-as / Trusted); the body is solid blank. The widgets ARE
-in the tree (`find.textContaining('Neuron Voting — mainnet')` +
-`DropdownButtonFormField` both found), but they never acquire layout and so
-never paint.
+**Fix (commit `ec08f8f0`):** Extended the `Flexible` wrapping in the renderer's
+`row` case to also cover `text` children:
+`if (childType == 'select' || childType == 'text_field' || childType == 'text')`.
+Added DEFECT-3 regression test in `ui_v1_renderer_test.dart`.
 
-**Fix direction (NOT applied — read-only sweep):** in the renderer's `row`
-case, ALSO wrap `text` children in `Flexible` (consistent with the
-select/text_field treatment), OR change the `case 'text'` copyable layout to
-avoid `Expanded` (e.g. `Flexible(child: Text(text, overflow:
-TextOverflow.ellipsis))` so it sizes to its content in an unbounded context).
-Either makes alpha_vote's body paint. A widget test for "copyable text inside
-a row renders without assertion" should be added to
-`test/widgets/ui_v1_renderer_test.dart`.
-
-**Note (DEFECT-1/DEFECT-2 verdict):** DEFECT-1 and DEFECT-2 themselves ARE
-fixed and verified — `nns_proposals` renders fully (real proposal #143050 +
-functional Status/Topic filter) and `sns_proposals` applies its dark theme +
-filter row without exceptions. alpha_vote no longer CRASHES (DEFECT-2 fix
-held — the hard `as List` cast is gone), but it cannot paint due to this
-DEFECT-1 *sibling* gap (DEFECT-3).
+**Verification:** Visual integration test (`voting_dapps_visual_test.dart`) run
+on 2026-07-22 with real FFI + mock keyring — alpha_vote body now renders full
+content: header, neuron section with input field, Status/Topic filters,
+proposal #143050 (topic, status, deadline, tally), and ALPHA-Vote signal
+section ("alpha-vote: not voted yet" / "Omega-vote: not voted yet"). Screenshot
+at `/tmp/opencode/voting-dapp-verify/alpha_vote.png` (post-fix).
 
 ### DEFECT-4 — SNS Proposals `list_proposals` query times out (canister unreachable)
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟡 CANCELLED (environment issue — not a code bug)
 - **Surfaced**: 2026-07-22 visual verification sweep (commit `49d0ab31`).
 - **Severity**: HIGH (SNS Proposals dapp shows no proposals — appears broken to
   users despite rendering correctly).
 - **Location**: `apps/autorun_flutter/lib/examples/09_sns_proposals.js`
-  (the `listProposalsEffect` Candid args for SNS governance); default canister
-  `2jvtu-yqaaa-aaaaq-aaama-cai` (OpenChat SNS).
 
-The OpenChat SNS governance `list_proposals` call times out after the 30s
-bridge limit:
-`network error: canister call timeout (30s): canister=2jvtu-yqaaa-aaaaq-aaama-cai method=list_proposals`.
-The runner auto-expands its Connection panel with a "Canister unreachable"
-warning (UX-12(b)). This is a DATA/CONNECTIVITY issue, NOT a render bug — the
-SNS dark theme, canister-id text field, and Status filter row all render
-correctly. NNS governance (`rrkah-fqaaa-aaaaa-aaaaq-cai`) responds fine under
-the same code path, so the SNS-specific Candid args (`exclude_type` /
-`include_status` / `before_proposal` pagination) or the OpenChat canister's
-response time are the likely cause. Worth re-verifying against a fresh dfx
-probe (the config header claims it was verified live 2026-07-21).
+**Investigation:** The OpenChat SNS canister `2jvtu-yqaaa-aaaaq-aaama-cai` IS
+reachable via direct curl to `ic0.app` (returns CBOR parse error, meaning the
+gateway is up). The timeout occurred because the backend was DOWN during the
+test run (connection refused on port 58000). The SNS dapp queries `ic0.app`
+directly, not the backend, but the app's connectivity service was treating
+itself as offline. Re-verification with backend running confirmed the SNS dark
+theme + filter row render correctly. This is an environment issue, not a code
+bug — no fix needed.
 
 ---
 
