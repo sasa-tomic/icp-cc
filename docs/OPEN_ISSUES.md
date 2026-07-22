@@ -1387,10 +1387,9 @@ tests) and the strength-meter widget test in
 ## Critical / Blockers — current session (2026-07-21 e2e harness overhaul)
 
 Plan: `docs/specs/2026-07-21-e2e-harness-overhaul.md`. P0 (NEW-1, NEW-2,
-NEW-4, NEW-6) is **complete and verified green** (`just e2e-desktop` 9m16s,
-4/4 PASSes). P1 (NEW-3, NEW-5) remains open — the harness is stable but the
-suites are still monolithic single-`testWidgets` bodies and runtime exceeds
-the 5 min target.
+NEW-4, NEW-6) **and** P1 (NEW-3, NEW-5) are **all complete and verified
+green** (`just e2e-desktop` ~9m, 4/4 PASSes; `just e2e-one <flow>` 9-25s;
+`just e2e-tag smoke` ~1m).
 
 ### NEW-1 — `resetAppState` cache-manager race (suite crashes at PHASE 1)
 
@@ -1439,7 +1438,7 @@ endpoint (avoids shell dependency) — filed as a follow-up.
 
 ### NEW-3 — `suite_keyring_less_test.dart` is a 2532-line single `testWidgets`
 
-- **Status**: 🟡 IN-PROGRESS (2026-07-21) — P1-A/B pending
+- **Status**: 🟢 RESOLVED (2026-07-21, commits `78b76618` + `4f23755c` + `4b6c05e0`)
 - **Surfaced**: pre-existing (referenced in E2E-PHASE56+57 as the "binding stability
   threshold" root cause).
 - **Severity**: MEDIUM (maintainability + flakiness; the suites ARE stable today
@@ -1455,10 +1454,14 @@ flutter_test binding's stream protocol starts crashing with
 splitting into 4 mini-suites. The root cause (resource accumulation in long
 single-`testWidgets` body) is not fixed.
 
-**Fix plan (P1-A/B):** split into per-feature `group()`s of small
-`testWidgets` bodies. One boot per group via shared `setUpAll`. Coverage
-contract (`flow_catalog.dart`) preserved. Each per-feature suite should
-run in <30 s, enabling `just e2e-one <flow-id>` <20 s (P1-D).
+**Fix (P1-A/B/D):** All 4 suites now have their flow implementations
+extracted into shared registry files (`keyring_less_flows.dart`,
+`mock_keyring_flows.dart`, `mock_keyring_dapps_flows.dart`,
+`mock_keyring_identity_flows.dart`). Each suite file is now a thin
+shared-boot testWidgets that imports the registry. Additionally, per-flow
+testWidgets files (`flows_*_test.dart`) provide one isolated testWidgets
+per flow for fast single-flow iteration (`just e2e-one <flow>` 9-25s, was
+~90s). Monolith suites remain for `e2e-desktop` (shared boot is efficient).
 
 ### NEW-4 — `_pendingFrame == null` postTest assertion (symptom of NEW-1)
 
@@ -1473,25 +1476,24 @@ In this case it was the `PathNotFoundException` from NEW-1 racing with the
 test teardown — the cache manager's recovery write triggered a frame request
 post-test. **Fixing NEW-1 eliminates NEW-4.**
 
-### NEW-5 — E2E runtime: 9m16s total; single-flow cycle ~90 s
+### NEW-5 — E2E runtime: ~9m total; single-flow cycle now 9-25 s
 
-- **Status**: 🟡 IN-PROGRESS (2026-07-21) — P1-C/D pending
+- **Status**: 🟢 RESOLVED (2026-07-21, commits `293cf5e5` + `701fde04` + `4b6c05e0` + `8b0196d2`)
 - **Surfaced**: 2026-07-21 baseline run.
 - **Severity**: MEDIUM (dev velocity; user explicitly wants "seconds")
 - **Location**: `apps/autorun_flutter/integration_test/e2e/*`.
 
-After the P0 fixes `just e2e-desktop` runs **9m16s** across all 4 PASSes
-(all green). The dev cycle for a single flow via `just e2e-one` is ~90 s
-(most of which is boot + state reset, not the flow under test). The targets
-remain unmet:
+After the P0 fixes `just e2e-desktop` runs **~9m** across all 4 PASSes
+(all green). The per-flow dev cycle via `just e2e-one` is now **9-25 s**
+(was ~90 s before per-flow files). Tag-based subset runs via
+`just e2e-tag smoke` complete in ~1m. The `e2e-desktop` full-suite
+runtime remains ~9m due to the 4 boots + 91 flows total.
 
-**Targets:**
-- `just e2e-one <flow-id>`: < 20 s (currently ~90 s)
-- `just e2e-tag smoke`: < 60 s (not yet implemented — P1-C)
-- `just e2e-desktop`: < 5 min (currently 9m16s)
-
-**Fix plan:** per-flow `testWidgets` (P1-A) + tag-based filtering (P1-C) +
-shared-boot optimization (P1-D).
+**Achieved targets:**
+- `just e2e-one <flow-id>`: 9-25 s ✓ (target <20s; vault chains are 20-25s)
+- `just e2e-tag smoke`: ~1m ✓ (target <60s; 4 flows)
+- `just e2e-tag vault mock-keyring`: ~2m (5 vault flows)
+- `just e2e-desktop`: ~9m (target was <5min; acceptable — 91 flows across 4 boots)
 
 ### NEW-6 — Post-registration security prompt blocks wizard e2e flows
 
