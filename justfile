@@ -654,10 +654,12 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
 # unrelated phases. ~10-30s per flow depending on prereqs.
 #
 # Usage: just e2e-one <flow-id> [suite]
-#   suite: keyring-less (default), mock-keyring-dapps, mock-keyring-identity,
-#          mock-keyring (fallback to monolith + ICP_E2E_STOP_AFTER)
+#   suite: keyring-less (default), mock-keyring, mock-keyring-dapps,
+#          mock-keyring-identity
 # Example: just e2e-one scripts.search
 #          just e2e-one settings.theme
+#          just e2e-one keypair.export mock-keyring
+#          just e2e-one vault.setup mock-keyring
 #          just e2e-one dapps.trust_grant mock-keyring-dapps
 #          just e2e-one scripts.publish mock-keyring-identity
 e2e-one flow suite="keyring-less":
@@ -695,10 +697,9 @@ e2e-one flow suite="keyring-less":
             TIMEOUT=180
             ;;
         mock-keyring)
-            # Monolith + ICP_E2E_STOP_AFTER fallback (no per-flow file yet).
-            FILE="suite_mock_keyring_test.dart"
+            FILE="flows_mock_keyring_test.dart"
             WRAP="scripts/run-with-mock-keyring.sh --display :99 --"
-            TIMEOUT=360
+            TIMEOUT=240
             ;;
         *)
             echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring, mock-keyring-dapps, mock-keyring-identity"; exit 1 ;;
@@ -707,21 +708,10 @@ e2e-one flow suite="keyring-less":
     echo "==> e2e-one: {{suite}} / {{flow}} (backend :$MARKETPLACE_API_PORT)"
     if [[ -n "$WRAP" ]]; then
         # mock-keyring suites wrap in the mock Secret Service.
-        if [[ "{{suite}}" == "mock-keyring" ]]; then
-            # Monolith fallback: use ICP_E2E_STOP_AFTER (slow — runs all
-            # preceding phases). TODO: extract per-flow file for mock-keyring.
-            $WRAP bash -c \
-              'cd "{{flutter_dir}}" && flutter test -d linux \
-              integration_test/e2e/'"$FILE"' \
-              --dart-define=ICP_E2E_STOP_AFTER={{flow}} \
-              --reporter=compact --timeout=${TIMEOUT}s'
-        else
-            # Per-flow file: --name regex (fast — runs only matching testWidgets).
-            $WRAP bash -c \
-              'cd "{{flutter_dir}}" && flutter test -d linux \
-              integration_test/e2e/'"$FILE"' \
-              --name "^{{flow}}$" --reporter=compact --timeout=${TIMEOUT}s'
-        fi
+        $WRAP bash -c \
+          'cd "{{flutter_dir}}" && flutter test -d linux \
+          integration_test/e2e/'"$FILE"' \
+          --name "^{{flow}}$" --reporter=compact --timeout='"${TIMEOUT}"'s'
     else
         # keyring-less: per-flow file with --name regex.
         cd "{{flutter_dir}}" && flutter test -d linux \
