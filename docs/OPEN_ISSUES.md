@@ -26,7 +26,7 @@
 
 ### DEFECT-5 — Passkey screen shows an enabled "Add Passkey" FAB on unsupported Linux desktop
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-22, commit `7ad8f88b`)
 - **Severity**: 🟡 MEDIUM (graceful-degradation gap — a primary action contradicts the screen's own "unsupported" message)
 - **Surfaced**: 2026-07-22 P4 visual sweep (`integration_test/app_visual_sweep_test.dart`).
 - **Location**: `apps/autorun_flutter/lib/screens/passkey_management_screen.dart` — the `Scaffold.floatingActionButton` in `build()` is rendered **unconditionally** (lines 179-185), independent of the body's `!PasskeyPlatform.isSupported` branch.
@@ -43,15 +43,15 @@ error, at worst an unhandled (non-`PasskeyException`) platform-channel failure.
 Either way the user is offered a prominent action the screen simultaneously
 says is impossible.
 
-**Fix (reported, not fixed):** hide or disable the FAB when
-`!PasskeyPlatform.isSupported` (e.g. set `floatingActionButton` to `null`, or
-`onPressed: null` so it renders disabled). The post-registration prompt already
-greys out its passkey tile on Linux for the same reason — this screen should
-match.
+**Fix:** `floatingActionButton` is now `null` when
+`!PasskeyPlatform.isSupported` (the body already explains unavailability; the
+FAB must not offer a broken action). Coverage added in
+`test/features/passkey/passkey_management_screen_test.dart` (unsupported → no
+FAB; supported → FAB shown).
 
 ### DEFECT-6 — Vault setup shows a red "Weak" strength meter for an EMPTY password
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-22, commit `010346a8`)
 - **Severity**: 🔵 LOW (cosmetic; does not affect functionality — the "Create Vault" button is correctly disabled)
 - **Surfaced**: 2026-07-22 P4 visual sweep.
 - **Location**: `apps/autorun_flutter/lib/screens/vault_password_setup_screen.dart:303-334` (`_buildStrengthMeter`).
@@ -64,27 +64,31 @@ meter paints a red bar at 25% (`(0+1)/4`) with a red "Weak" label before the
 user has typed anything. An empty field should show a neutral/hidden meter, not
 "Weak".
 
-**Fix (reported, not fixed):** return early (e.g. an empty `SizedBox` or a
-neutral "—" label) when `_passwordController.text.isEmpty`.
+**Fix:** `_buildStrengthMeter` returns `SizedBox.shrink()` when
+`_passwordController.text.isEmpty`. Once the user types, the meter reflects the
+real score (including a legitimate "Weak" for a short non-empty password).
+Coverage in `test/screens/vault_password_setup_screen_test.dart`.
 
 ### DEFECT-7 — Publish dialog auto-fills the Description field with raw source code
 
-- **Status**: 🔴 OPEN
+- **Status**: 🟢 RESOLVED (2026-07-22, commit `c136f4ba`)
 - **Severity**: 🔵 LOW (pre-fill heuristic; user can edit, but the default looks broken)
 - **Surfaced**: 2026-07-22 P4 visual sweep.
 - **Location**: `apps/autorun_flutter/lib/widgets/quick_upload_dialog.dart:111-156` (`_generateDescriptionFromScript`).
 - **Screenshot**: `/tmp/opencode/app-sweep/15_script_upload_form.png`
 
 **Root cause:** When publishing a local script, `_generateDescriptionFromScript`
-prefers a JSDoc block, then falls back to **the first 2 non-comment code lines**
-(lines 141-151), then a generic string. The default sample bundle (and any
-script without a JSDoc header) therefore pre-fills the Description field with
-literal JS such as `"use strict"; (() => {` — which reads as broken/garbage to
-the author and ships as the listing description if they don't notice.
+prefers a JSDoc block, then fell back to **the first 2 non-comment code lines**,
+then a generic string. The default sample bundle (and any script without a
+JSDoc header) therefore pre-filled the Description field with literal JS such
+as `"use strict"; (() => {` — which read as broken/garbage to the author and
+shipped as the listing description if they didn't notice.
 
-**Fix (reported, not fixed):** drop the raw-code-lines fallback (it is worse
-than the generic string); go straight to the generic string (or leave the field
-empty) when no JSDoc comment exists.
+**Fix:** the raw-code-lines fallback was removed entirely. When no JSDoc is
+extractable the Description field is left EMPTY so the author writes a real
+summary (the field's required validator already enforces non-empty on submit).
+JSDoc extraction is unchanged. Coverage in
+`test/widgets/quick_upload_dialog_test.dart`.
 
 ---
 
