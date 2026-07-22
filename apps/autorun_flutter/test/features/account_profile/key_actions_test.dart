@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -598,7 +600,7 @@ void main() {
               username: any(named: 'username'),
               keyId: any(named: 'keyId'),
               signingKeypair: any(named: 'signingKeypair'),
-            )).thenThrow(Exception('Network error'));
+            )).thenThrow(SocketException('Network error'));
 
         await AccountProfileScreenTestHelper.pumpAccountProfileScreen(
           tester,
@@ -618,7 +620,7 @@ void main() {
         await tester.tap(find.widgetWithText(FilledButton, 'Remove Key'));
         await tester.pumpAndSettle();
 
-        expect(find.textContaining('Network error'), findsOneWidget);
+        expect(find.textContaining('Could not connect'), findsOneWidget);
       });
     });
   });
