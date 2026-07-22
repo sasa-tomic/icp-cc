@@ -124,7 +124,11 @@
     kids.push({
       type: "row",
       children: [
-        selectNode("Status", state.status_filter, STATUS_FILTER_VALUE, "set_status"),
+        selectNode("Status", state.status_filter,
+            Object.keys(STATUS_FILTER_VALUE).map(function (k) {
+              return { value: k, label: k.charAt(0).toUpperCase() + k.slice(1) };
+            }),
+            "set_status"),
         selectNode("Topic", state.topic_filter, topicOptionsMap(), "set_topic"),
         {
           type: "button",

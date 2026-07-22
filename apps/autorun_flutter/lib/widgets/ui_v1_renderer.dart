@@ -76,8 +76,9 @@ class UiV1Renderer extends StatelessWidget {
     }
     final Map<String, dynamic> props =
         (node['props'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
-    final List<dynamic> rawChildren =
-        (node['children'] as List<dynamic>?) ?? const <dynamic>[];
+    final List<dynamic> rawChildren = node['children'] is List<dynamic>
+        ? (node['children'] as List<dynamic>)
+        : const <dynamic>[];
     final List<Widget> children = rawChildren
         .whereType<Map<String, dynamic>>()
         .map((m) => _buildNode(context, m))
@@ -91,9 +92,19 @@ class UiV1Renderer extends StatelessWidget {
           children: children,
         );
       case 'row':
+        final List<Widget> rowChildren = rawChildren
+            .whereType<Map<String, dynamic>>()
+            .map((m) {
+          final Widget w = _buildNode(context, m);
+          final String childType = (m['type'] as String? ?? '').trim();
+          if (childType == 'select' || childType == 'text_field') {
+            return Flexible(child: w);
+          }
+          return w;
+        }).toList(growable: false);
         return Row(
           mainAxisSize: MainAxisSize.min,
-          children: children,
+          children: rowChildren,
         );
       case 'section':
         final String title = (props['title'] ?? '').toString();
@@ -224,8 +235,13 @@ class UiV1Renderer extends StatelessWidget {
       case 'select':
         final String label = (props['label'] ?? '').toString();
         final String value = (props['value'] ?? '').toString();
+        final dynamic rawOptions = props['options'];
+        if (rawOptions != null && rawOptions is! List<dynamic>) {
+          return _error(
+              'Select options must be an array, got ${rawOptions.runtimeType}');
+        }
         final List<dynamic> options =
-            (props['options'] as List<dynamic>?) ?? <dynamic>[];
+            (rawOptions as List<dynamic>?) ?? <dynamic>[];
         final bool enabled = (props['enabled'] as bool?) ?? true;
         final Map<String, dynamic>? onChange =
             props['on_change'] as Map<String, dynamic>?;
@@ -535,14 +551,14 @@ class UiV1Renderer extends StatelessWidget {
           initiallyExpanded: initiallyExpanded,
         );
       case 'table':
-        final List<dynamic>? rawColumns = props['columns'] as List<dynamic>?;
-        final List<dynamic> rawRows =
-            (props['rows'] as List<dynamic>?) ?? const <dynamic>[];
-        final String tableTitle = (props['title'] ?? '').toString();
-
-        if (rawColumns == null || rawColumns.isEmpty) {
-          return _error('Table requires columns property');
+        final dynamic rawColumns = props['columns'];
+        if (rawColumns == null || rawColumns is! List<dynamic> || rawColumns.isEmpty) {
+          return _error('Table requires a non-empty columns array');
         }
+        final List<dynamic> rawRows = props['rows'] is List<dynamic>
+            ? (props['rows'] as List<dynamic>)
+            : const <dynamic>[];
+        final String tableTitle = (props['title'] ?? '').toString();
 
         final List<Map<String, dynamic>> columns =
             rawColumns.whereType<Map<String, dynamic>>().toList();
