@@ -201,7 +201,7 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
         'active profile\'s keypair. Requires a staked NNS neuron.',
     backendCanisterId: kMainnetNnsGovernanceCanisterId,
     host: kMainnetIcGateway,
-    frontendUrl: 'https://nns.ic0.app/neurons',
+    frontendUrl: '',
     bundleAssetPath: 'lib/examples/10_alpha_vote.js',
     environment: DappEnvironment.mainnet,
     paths: <DappPath>[DappPath.backendDirect],

@@ -148,7 +148,8 @@
     if (state.action_in_flight) {
       kids.push({ type: "text", props: { text: "Signing + sending vote…" } });
     } else if (state.last_action_result && state.last_action_result.length > 0) {
-      kids.push({ type: "text", props: { text: state.last_action_result } });
+      var prefix = state.last_action_ok ? "✓ " : "✗ ";
+      kids.push({ type: "text", props: { text: prefix + state.last_action_result } });
     }
 
     if (state.loading && state.proposals.length === 0) {
@@ -753,12 +754,12 @@
     }
     var canFollow = state.neuron_id && state.neuron_id.length > 0 &&
         !state.action_in_flight;
-    var quickFollowButtons = [
-      { id: "2947465672511369", label: "αlpha-vote" },
-      { id: "18363645821499695760", label: "Ωmega-vote" },
-      { id: "18422777432977120264", label: "Ωmega-reject" },
-      { id: D_QUORUM_NEURON_ID, label: "D-QUORUM" },
-    ].map(function (entry) {
+    var quickFollowButtons = Object.keys(ALPHA_VOTE_NEURONS)
+        .map(function (id) {
+          return { id: id, label: ALPHA_VOTE_NEURONS[id] };
+        })
+        .concat([{ id: D_QUORUM_NEURON_ID, label: "D-QUORUM" }])
+        .map(function (entry) {
       return buttonNode(
           "Follow " + entry.label + " on " + topicLabel(Number(defaultTopic)),
           { type: "follow", topic: defaultTopic, followee_id: entry.id },

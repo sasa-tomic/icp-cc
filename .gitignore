@@ -63,3 +63,4 @@ examples/icp_poll_dapp/canister_ids.local.json
 examples/icp_poll_dapp/src/declarations/
 backend/.api-dev-port
 docs/specs/ux_screenshots/e2e_web_playwright/*.png
+data/*.db
