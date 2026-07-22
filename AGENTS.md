@@ -382,9 +382,10 @@ After completing any feature or fix, verify ALL of these before committing:
 7. **E2E Tests**: Added for user-facing features
 8. **Zombie Code**: Removed unused functions, dead imports, legacy comments
 9. **Clean Build**: `flutter analyze` clean, no warnings
-10. **Minimal Diff**: `git diff` shows only necessary changes
-11. **Confidence**: 8+/10, or STOP and ask
-12. **Commit**: Only when fully implemented, tested, lint-clean
+10. **No Layout Overflow**: No `RenderFlex overflowed by N pixels` or other framework-layout warnings. In debug/profile these paint yellow-black stripes; in release they silently clip content. Check the console during `flutter run`/`flutter test` and drain+assert on `tester.takeException()` in widget tests. Fix at the source (`Flexible`/`Expanded`/`Wrap`/`FittedBox`/`maxLines`), never by shrinking text or hiding content.
+11. **Minimal Diff**: `git diff` shows only necessary changes
+12. **Confidence**: 8+/10, or STOP and ask
+13. **Commit**: Only when fully implemented, tested, lint-clean
 
 ---
 
@@ -424,6 +425,7 @@ After completing any feature or fix, verify ALL of these before committing:
 - ❌ Mocking cryptography in tests - Use real keypairs
 - ❌ `let _ = ...` or ignoring return values - Always handle results
 - ❌ Backend-only changes without user access - Add UI/CLI
+- ❌ `RenderFlex overflowed by N pixels` - Layout overflow warnings. These clip content in release and paint yellow-black stripes in debug. Fix at the source with `Flexible`/`Expanded`/`Wrap`/`FittedBox`/`maxLines`, never by shrinking text or hiding content. Drain `tester.takeException()` in widget tests to catch them.
 
 ---
 
