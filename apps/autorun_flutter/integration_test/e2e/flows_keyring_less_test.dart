@@ -25,6 +25,7 @@ import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 
 import 'e2e_driver.dart';
+import 'flow_catalog.dart';
 import 'suite_helpers.dart';
 import 'keyring_less_flows.dart';
 
@@ -146,6 +147,12 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final registry = buildKeyringLessRegistry();
 
+  // FlowSpec tags by id — inject into testWidgets so `flutter test --tags smoke`
+  // / `--exclude-tags desktop-only` work natively.
+  final tagsById = <String, Set<String>>{
+    for (final s in FlowCatalog.all) s.id: s.tags,
+  };
+
   // ── SPECIAL: self-booting flows ──────────────────────────────────────────
   // first_run.dismiss_wizard: boot → wait for wizard → dismiss.
   // The flow closure in keyring_less_flows.dart is a thin wrapper that doesn't
@@ -161,7 +168,7 @@ void main() {
     expect(wizardVisible, isTrue,
         reason: 'A clean store must show the setup wizard on boot.');
     await driver.dismissWizard(tester);
-  }, timeout: const Timeout(Duration(seconds: 60)));
+  }, timeout: const Timeout(Duration(seconds: 60)), tags: ['onboarding']);
 
   // first_run.keyring_unavailable needs the wizard VISIBLE (boot without
   // dismissWizard) to assert the readiness panel / setup form.
@@ -170,7 +177,7 @@ void main() {
     await resetAppState(tester: tester, wipeSecureStorage: false);
     await driver.boot(tester);
     await registry.runFor('first_run.keyring_unavailable')!(tester, driver);
-  }, timeout: const Timeout(Duration(seconds: 60)));
+  }, timeout: const Timeout(Duration(seconds: 60)), tags: ['onboarding', 'linux']);
 
   // ── STANDARD: per-flow testWidgets with common setup ─────────────────────
   for (final entry in _prereqs.entries) {
@@ -205,6 +212,8 @@ void main() {
 
       // Run the target flow.
       await registry.runFor(flowId)!(tester, driver);
-    }, timeout: const Timeout(Duration(seconds: 90)));
+    },
+        timeout: const Timeout(Duration(seconds: 90)),
+        tags: tagsById[flowId]?.toList());
   }
 }

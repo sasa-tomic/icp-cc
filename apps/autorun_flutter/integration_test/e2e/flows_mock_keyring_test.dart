@@ -35,11 +35,28 @@ import 'package:icp_autorun/widgets/profile_menu.dart';
 import 'package:icp_autorun/widgets/profile_scope.dart';
 
 import 'e2e_driver.dart';
+import 'flow_catalog.dart';
 import 'mock_keyring_flows.dart';
 import 'suite_helpers.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  // FlowSpec tags by id — inject into testWidgets so `flutter test --tags smoke`
+  // / `--exclude-tags desktop-only` work natively.
+  final tagsById = <String, Set<String>>{
+    for (final s in FlowCatalog.all) s.id: s.tags,
+  };
+
+  /// testWidgets wrapper that auto-injects FlowSpec tags by flow id.
+  void ftw(String flowId, Future<void> Function(WidgetTester) body,
+      {int timeoutSeconds = 120}) {
+    testWidgets(
+      flowId,
+      body,
+      timeout: Timeout(Duration(seconds: timeoutSeconds)),
+      tags: tagsById[flowId]?.toList(),
+    );  }
 
   // ── Setup helpers ────────────────────────────────────────────────────
 
@@ -136,7 +153,7 @@ void main() {
   // ── SPECIAL: first_run.create_profile (self-booting) ─────────────────
   // This flow boots the app itself, creates a profile via the controller,
   // then remounts. We verify the wizard suppresses after profile creation.
-  testWidgets('first_run.create_profile', (tester) async {
+  ftw('first_run.create_profile', (tester) async {
     final driver = E2EDriver(surface: E2ESurface.desktop);
     await resetAppState(tester: tester);
     await driver.boot(tester);
@@ -158,53 +175,53 @@ void main() {
         timeout: const Duration(seconds: 15));
     expect(scriptsShown, isTrue,
         reason: 'After profile creation + remount, ScriptsScreen must render.');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
   // ── Group: ScriptsScreen entry ───────────────────────────────────────
 
-  testWidgets('profile.switch_inline', (tester) async {
+  ftw('profile.switch_inline', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await bootToScripts(tester, d);
     await registry.runFor('profile.switch_inline')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 90)));
+  }, timeoutSeconds: 90);
 
-  testWidgets('profile.open_menu', (tester) async {
+  ftw('profile.open_menu', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await bootToScripts(tester, d);
     await registry.runFor('profile.open_menu')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 90)));
+  }, timeoutSeconds: 90);
 
-  testWidgets('scripts.create', (tester) async {
+  ftw('scripts.create', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await bootToScripts(tester, d);
     await registry.runFor('scripts.create')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 90)));
+  }, timeoutSeconds: 90);
 
   // ── Group: profile menu open entry ───────────────────────────────────
 
-  testWidgets('profile.switch_via_manage_sheet', (tester) async {
+  ftw('profile.switch_via_manage_sheet', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await bootToScripts(tester, d);
     await registry.runFor('profile.open_menu')!(tester, d);
     await registry.runFor('profile.switch_via_manage_sheet')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 90)));
+  }, timeoutSeconds: 90);
 
-  testWidgets('profile.open_account_profile', (tester) async {
+  ftw('profile.open_account_profile', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await bootToScripts(tester, d);
     await registry.runFor('profile.open_menu')!(tester, d);
     await registry.runFor('profile.open_account_profile')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 90)));
+  }, timeoutSeconds: 90);
 
   // ── Group: ScriptsScreen with script entry ───────────────────────────
 
@@ -218,17 +235,17 @@ void main() {
     await registry.runFor(flowId)!(tester, d);
   }
 
-  testWidgets('scripts.duplicate', (tester) async {
+  ftw('scripts.duplicate', (tester) async {
     await runWithCreatedScript(tester, 'scripts.duplicate');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('scripts.edit', (tester) async {
+  ftw('scripts.edit', (tester) async {
     await runWithCreatedScript(tester, 'scripts.edit');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('scripts.copy_source', (tester) async {
+  ftw('scripts.copy_source', (tester) async {
     await runWithCreatedScript(tester, 'scripts.copy_source');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
   // ── Group: AccountProfileScreen (local) entry ────────────────────────
 
@@ -240,11 +257,11 @@ void main() {
     await registry.runFor(flowId)!(tester, d);
   }
 
-  testWidgets('keypair.generate_local', (tester) async {
+  ftw('keypair.generate_local', (tester) async {
     await runAtAccountProfile(tester, 'keypair.generate_local');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('keypair.set_signing', (tester) async {
+  ftw('keypair.set_signing', (tester) async {
     // Needs ≥2 keys: generate_local runs first.
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
@@ -252,31 +269,31 @@ void main() {
     await toAccountProfile(tester, d);
     await registry.runFor('keypair.generate_local')!(tester, d);
     await registry.runFor('keypair.set_signing')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('keypair.edit_label', (tester) async {
+  ftw('keypair.edit_label', (tester) async {
     await runAtAccountProfile(tester, 'keypair.edit_label');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('keypair.export', (tester) async {
+  ftw('keypair.export', (tester) async {
     await runAtAccountProfile(tester, 'keypair.export');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('keypair.import', (tester) async {
+  ftw('keypair.import', (tester) async {
     await runAtAccountProfile(tester, 'keypair.import');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('passkey.unsupported_linux', (tester) async {
+  ftw('passkey.unsupported_linux', (tester) async {
     await runAtAccountProfile(tester, 'passkey.unsupported_linux');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('account.register_from_local', (tester) async {
+  ftw('account.register_from_local', (tester) async {
     await runAtAccountProfile(tester, 'account.register_from_local');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
   // ── Group: registered account entry ──────────────────────────────────
 
-  testWidgets('account.refresh', (tester) async {
+  ftw('account.refresh', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
@@ -284,27 +301,27 @@ void main() {
     await registry.runFor('account.register_from_local')!(tester, d);
     // account.refresh checks for refresh icon on AccountProfileScreen.
     await registry.runFor('account.refresh')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('account.edit_profile', (tester) async {
+  ftw('account.edit_profile', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await toRegisteredScripts(tester, d);
     // account.edit_profile opens ProfileAvatarButton → My Account itself.
     await registry.runFor('account.edit_profile')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('keypair.generate_registered', (tester) async {
+  ftw('keypair.generate_registered', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await toRegisteredScripts(tester, d);
     // keypair.generate_registered opens menu → My Account itself.
     await registry.runFor('keypair.generate_registered')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('keypair.delete_registered', (tester) async {
+  ftw('keypair.delete_registered', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
@@ -312,48 +329,48 @@ void main() {
     // Needs ≥2 active keys: generate_registered runs first.
     await registry.runFor('keypair.generate_registered')!(tester, d);
     await registry.runFor('keypair.delete_registered')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 150)));
+  }, timeoutSeconds: 150);
 
   // ── Group: vault flows ───────────────────────────────────────────────
 
-  testWidgets('vault.route_from_menu', (tester) async {
+  ftw('vault.route_from_menu', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await toRegisteredScripts(tester, d);
     await openProfileMenu(tester, d);
     await registry.runFor('vault.route_from_menu')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  });
 
-  testWidgets('vault.setup', (tester) async {
+  ftw('vault.setup', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await toVaultSetup(tester, d);
     await registry.runFor('vault.setup')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 150)));
+  }, timeoutSeconds: 150);
 
-  testWidgets('vault.unlock', (tester) async {
+  ftw('vault.unlock', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await toVaultReady(tester, d, state);
     await registry.runFor('vault.unlock')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 150)));
+  }, timeoutSeconds: 150);
 
-  testWidgets('vault.unlock_wrong_password', (tester) async {
+  ftw('vault.unlock_wrong_password', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await toVaultReady(tester, d, state);
     await registry.runFor('vault.unlock_wrong_password')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 150)));
+  }, timeoutSeconds: 150);
 
-  testWidgets('vault.use_recovery_code', (tester) async {
+  ftw('vault.use_recovery_code', (tester) async {
     final d = E2EDriver(surface: E2ESurface.desktop);
     final state = MockKeyringSuiteState();
     final registry = buildMockKeyringRegistry(state);
     await toVaultReady(tester, d, state);
     await registry.runFor('vault.use_recovery_code')!(tester, d);
-  }, timeout: const Timeout(Duration(seconds: 150)));
+  }, timeoutSeconds: 150);
 }

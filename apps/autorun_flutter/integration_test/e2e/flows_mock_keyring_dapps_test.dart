@@ -27,6 +27,7 @@ import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 
 import 'e2e_driver.dart';
+import 'flow_catalog.dart';
 import 'mock_keyring_dapps_flows.dart';
 import 'suite_helpers.dart';
 
@@ -43,6 +44,9 @@ const Map<String, List<String>> _prereqs = <String, List<String>>{
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final registry = buildMockKeyringDappsRegistry();
+  final tagsById = <String, Set<String>>{
+    for (final s in FlowCatalog.all) s.id: s.tags,
+  };
 
   // ── SPECIAL: self-booting wizard flow ─────────────────────────────────
   // first_run.create_profile_with_account: boot → wait for wizard → run
@@ -59,7 +63,7 @@ void main() {
         reason: 'A clean store must show the setup wizard on boot.');
     await registry.runFor('first_run.create_profile_with_account')!(
         tester, driver);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+    }, timeout: const Timeout(Duration(seconds: 120)), tags: ['onboarding']);
 
   // ── STANDARD: per-flow testWidgets with shared setup ──────────────────
   for (final entry in _prereqs.entries) {
@@ -94,6 +98,8 @@ void main() {
 
       // Run the target flow.
       await registry.runFor(flowId)!(tester, driver);
-    }, timeout: const Timeout(Duration(seconds: 180)));
+    },
+        timeout: const Timeout(Duration(seconds: 180)),
+        tags: tagsById[flowId]?.toList());
   }
 }

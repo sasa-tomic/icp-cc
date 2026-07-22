@@ -30,12 +30,16 @@ import 'package:icp_autorun/services/profile_repository.dart';
 import 'package:icp_autorun/controllers/account_controller.dart';
 
 import 'e2e_driver.dart';
+import 'flow_catalog.dart';
 import 'mock_keyring_identity_flows.dart';
 import 'suite_helpers.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final registry = buildMockKeyringIdentityRegistry();
+  final tagsById = <String, Set<String>>{
+    for (final s in FlowCatalog.all) s.id: s.tags,
+  };
 
   // ── account.register_from_publish: needs a LOCAL-ONLY profile (no account)
   // so the publish gate fires the registration prompt. Setup = create local
@@ -59,7 +63,8 @@ void main() {
         timeout: const Duration(seconds: 15));
 
     await registry.runFor('account.register_from_publish')!(tester, driver);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  }, timeout: const Timeout(Duration(seconds: 120)),
+      tags: tagsById['account.register_from_publish']?.toList());
 
   // ── scripts.publish: needs a REGISTERED account. Setup = create profile +
   // register account via controllers (fast, no wizard UI), then remount.
@@ -98,7 +103,8 @@ void main() {
         timeout: const Duration(seconds: 15));
 
     await registry.runFor('scripts.publish')!(tester, driver);
-  }, timeout: const Timeout(Duration(seconds: 120)));
+  }, timeout: const Timeout(Duration(seconds: 120)),
+      tags: tagsById['scripts.publish']?.toList());
 
   // ── profile.create_via_menu_dialog: needs a LOCAL-ONLY profile (so the
   // profile menu opens with the active profile). Same setup as
@@ -121,5 +127,6 @@ void main() {
         timeout: const Duration(seconds: 15));
 
     await registry.runFor('profile.create_via_menu_dialog')!(tester, driver);
-  }, timeout: const Timeout(Duration(seconds: 150)));
+  }, timeout: const Timeout(Duration(seconds: 150)),
+      tags: tagsById['profile.create_via_menu_dialog']?.toList());
 }

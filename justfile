@@ -720,7 +720,85 @@ e2e-one flow suite="keyring-less":
     fi
 
 
-# e2e-keyring-unavailable: run the `first_run.keyring_unavailable` flow
+# e2e-tags: list all available flow tags from FlowCatalog.
+# Tags are defined in flow_catalog.dart on each FlowSpec.
+# Use with: just e2e-tag <tag> [suite]
+e2e-tags:
+    @echo "Available e2e flow tags (from FlowCatalog):"
+    @echo "  smoke          — fast regression subset (~10 flows)"
+    @echo "  marketplace    — browse/search/filter/download flows"
+    @echo "  onboarding     — first-run wizard + profile creation"
+    @echo "  vault          — vault setup/unlock/recovery"
+    @echo "  desktop-only   — flows that require native desktop (QuickJS, canisters, shortcuts)"
+    @echo "  keyboard       — keyboard shortcut flows"
+    @echo "  linux          — Linux-specific flows (keyring-down panel)"
+    @echo "  web-only       — passkey flows (browser-only authenticator)"
+    @echo ""
+    @echo "Usage: just e2e-tag <tag> [suite]"
+    @echo "  just e2e-tag smoke              # all smoke flows (keyring-less)"
+    @echo "  just e2e-tag vault mock-keyring # vault flows under mock keyring"
+    @echo "  just e2e-tag marketplace        # marketplace flows (keyring-less)"
+
+
+# e2e-tag: run flows matching a tag from the per-flow files.
+# Uses Flutter's native --tags flag (injected via testWidgets tags: param).
+#
+# Usage: just e2e-tag <tag> [suite]
+#   suite: keyring-less (default), mock-keyring, mock-keyring-dapps, mock-keyring-identity
+# Example: just e2e-tag smoke
+#          just e2e-tag vault mock-keyring
+#          just e2e-tag marketplace
+e2e-tag tag suite="keyring-less":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    [[ -f "$RELEASE_LIB" ]] || { echo "❌ build first: cargo build --release"; exit 1; }
+    export LD_LIBRARY_PATH="{{root}}/target/release"
+
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        Xvfb :99 -screen 0 1440x900x24 -ac >/dev/null 2>&1 &
+        for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
+    fi
+    export DISPLAY=:99
+    rm -rf "{{state_dir}}" 2>/dev/null || true
+    export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    (cd "{{api_dir}}" && bash scripts/add-sample-data.sh) >/dev/null
+
+    case "{{suite}}" in
+        keyring-less)
+            FILE="flows_keyring_less_test.dart"
+            WRAP=""
+            ;;
+        mock-keyring)
+            FILE="flows_mock_keyring_test.dart"
+            WRAP="scripts/run-with-mock-keyring.sh --display :99 --"
+            ;;
+        mock-keyring-dapps)
+            FILE="flows_mock_keyring_dapps_test.dart"
+            WRAP="scripts/run-with-mock-keyring.sh --display :99 --"
+            ;;
+        mock-keyring-identity)
+            FILE="flows_mock_keyring_identity_test.dart"
+            WRAP="scripts/run-with-mock-keyring.sh --display :99 --"
+            ;;
+        *)
+            echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring, mock-keyring-dapps, mock-keyring-identity"; exit 1 ;;
+    esac
+
+    echo "==> e2e-tag: {{suite}} / --tags {{tag}} (backend :$MARKETPLACE_API_PORT)"
+    if [[ -n "$WRAP" ]]; then
+        $WRAP bash -c \
+          'cd "{{flutter_dir}}" && flutter test -d linux \
+          integration_test/e2e/'"$FILE"' \
+          --tags "{{tag}}" --reporter=compact --concurrency=1'
+    else
+        cd "{{flutter_dir}}" && flutter test -d linux \
+          integration_test/e2e/$FILE \
+          --tags '{{tag}}' --reporter=compact --concurrency=1
+    fi
+
+
+
 # under scripts/run-without-keyring.sh — a wrapper that kills any running
 # gnome-keyring-daemon + blanks DBUS_SESSION_BUS_ADDRESS so the
 # SecureStorageReadiness probe in the app returns StorageUnavailable and the
