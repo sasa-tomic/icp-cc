@@ -161,9 +161,8 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
     emoji: '🗳️',
     description: 'Browse LIVE Internet Computer governance proposals — open, '
         'adopted, rejected, or executed. Filter by status and topic, watch '
-        'the yes/no tally, and see real deadlines countdown. Reads straight '
-        'from the NNS Governance canister on mainnet — works out of the box, '
-        'no setup, no signing. A headliner demo of what icp-cc can do.',
+        'the tally, see real deadlines. Reads from the NNS Governance '
+        'canister — no setup required.',
     backendCanisterId: kMainnetNnsGovernanceCanisterId,
     host: kMainnetIcGateway,
     frontendUrl: 'https://nns.ic0.app/proposals',
@@ -179,11 +178,9 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
     title: 'SNS DAO Proposals',
     emoji: '🏛️',
     description: 'Browse LIVE proposals for any SNS DAO on the Internet '
-        'Computer. Defaults to OpenChat SNS — paste any other SNS governance '
-        'canister id to switch DAOs. Filter by status, watch the tally, see '
-        'real deadlines countdown. Reads straight from mainnet — works out '
-        'of the box, no setup, no signing. Demonstrates the bundle-controlled '
-        'theme knob (branded per-DAO colours).',
+        'Computer. Defaults to OpenChat SNS — paste any SNS governance '
+        'canister id to switch. Filter by status, watch the tally, see '
+        'deadlines countdown. Demonstrates per-DAO branded themes.',
     backendCanisterId: kMainnetOpenChatSnsGovernanceCanisterId,
     host: kMainnetIcGateway,
     frontendUrl: 'https://dashboard.internetcomputer.org/sns',
@@ -199,11 +196,9 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
     title: 'Neuron Voting',
     emoji: '⚡',
     description: 'Cast authenticated NNS votes from inside icp-cc. Browse '
-        'open proposals, see what the ALPHA-Vote public neurons (αlpha-vote, '
-        'Ωmega-vote, Ωmega-reject) recommend, then vote Yes/No or set up '
-        'recurring Following — all signed with your active profile\'s '
-        'keypair. Requires a staked NNS neuron (the dapp surfaces a clear '
-        'path if you don\'t have one).',
+        'open proposals, see what the ALPHA-Vote public neurons recommend, '
+        'then vote Yes/No or set up recurring Following — signed with your '
+        'active profile\'s keypair. Requires a staked NNS neuron.',
     backendCanisterId: kMainnetNnsGovernanceCanisterId,
     host: kMainnetIcGateway,
     frontendUrl: 'https://nns.ic0.app/neurons',
@@ -220,10 +215,8 @@ const List<DappDescriptor> exampleDapps = <DappDescriptor>[
     title: 'On-chain Polls',
     emoji: '🗳️',
     description: 'Create polls and vote live on the Internet Computer. A '
-        'DEVELOPER example — start a local replica '
-        '(`cd examples/icp_poll_dapp && dfx start --clean && dfx deploy`), '
-        'then paste the backend canister id into Connection. Authenticated '
-        'effects sign as your active profile — the bundle never holds keys.',
+        'developer example — start a local replica and paste the backend '
+        'canister id. Authenticated effects sign as your active profile.',
     backendCanisterId: kLocalPollBackendCanisterId,
     host: kLocalPollHost,
     frontendUrl: kLocalPollFrontendUrl,

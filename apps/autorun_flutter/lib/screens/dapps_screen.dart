@@ -167,7 +167,7 @@ class _DappCard extends StatelessWidget {
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            maxLines: 4,
+                            maxLines: 5,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),

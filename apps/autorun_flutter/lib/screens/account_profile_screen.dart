@@ -653,11 +653,14 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  _shortenKey(keypair.publicKey),
-                  style: AppDesignSystem.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'monospace',
+                child: Tooltip(
+                  message: keypair.publicKey,
+                  child: Text(
+                    _shortenKey(keypair.publicKey),
+                    style: AppDesignSystem.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                    ),
                   ),
                 ),
               ),
@@ -697,11 +700,17 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    keypair.principal!,
-                    style: AppDesignSystem.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
+                  child: Tooltip(
+                    message: keypair.principal!,
+                    child: Text(
+                      keypair.principal!,
+                      softWrap: true,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppDesignSystem.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
                 ),
@@ -1679,11 +1688,14 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    key.displayKey,
-                    style: AppDesignSystem.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
+                  child: Tooltip(
+                    message: key.publicKey,
+                    child: Text(
+                      key.displayKey,
+                      style: AppDesignSystem.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
                 ),
@@ -1723,11 +1735,17 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    key.displayPrincipal,
-                    style: AppDesignSystem.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
+                  child: Tooltip(
+                    message: key.icPrincipal,
+                    child: Text(
+                      key.displayPrincipal,
+                      softWrap: true,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppDesignSystem.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
                 ),
