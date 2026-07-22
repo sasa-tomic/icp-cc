@@ -7,8 +7,9 @@
 /// need a Secret Service for keypair generation + signing:
 ///
 ///   PHASE 1 — `account.register_from_publish` (group D account)
-///     A LOCAL-ONLY profile tries to publish → "Register Username" prompt
-///     → AccountRegistrationWizard → real `registerAccount` round-trip.
+///     A LOCAL-ONLY profile tries to publish → AccountRegistrationWizard
+///     pushes directly (QW-1 removed the intermediate prompt) → real
+///     `registerAccount` round-trip.
 ///
 ///   PHASE 2 — `scripts.publish` (group E scripts)
 ///     Now that the profile has a registered account, create a local script

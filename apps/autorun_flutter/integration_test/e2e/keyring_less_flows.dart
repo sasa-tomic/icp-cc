@@ -405,18 +405,13 @@ FlowRegistry buildKeyringLessRegistry() {
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('Dark'));
       await tester.pump(const Duration(milliseconds: 500));
-      // The check_circle is a sibling of the label text, inside the same
-      // InkWell — search within the InkWell ancestor.
-      final darkOption = find.ancestor(
-          of: find.text('Dark'), matching: find.byType(InkWell));
-      expect(
-        d.present(
-            find.descendant(
-                of: darkOption, matching: find.byIcon(Icons.check_circle)),
-            tester),
-        isTrue,
-        reason: 'Selecting Dark must show the check-circle indicator.',
-      );
+      // The theme picker is now a SegmentedButton (compact). The selected
+      // segment is reflected in the button's `selected` set, not via a
+      // check-circle icon (which was specific to the old full-tile layout).
+      final segmented = tester.widget<SegmentedButton<ThemeMode>>(
+          find.byType(SegmentedButton<ThemeMode>));
+      expect(segmented.selected, equals({ThemeMode.dark}),
+          reason: 'Selecting Dark must mark the Dark segment as selected.');
       // Restore System to avoid leaking the theme across phases. Re-scroll
       // into view first: switching themes reflows the layout (font metrics
       // differ between light/dark) and the System option may now sit above

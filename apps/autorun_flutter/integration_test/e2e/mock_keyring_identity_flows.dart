@@ -38,11 +38,12 @@ const kIdentityProfileName = 'Identity Suite Owner';
 FlowRegistry buildMockKeyringIdentityRegistry() {
   return FlowRegistry()
     // ── account.register_from_publish: from a LOCAL-ONLY profile, attempt
-    // to publish → the marketplace-publish gate fires the "Share to
-    // Marketplace" prompt → "Register Username" → AccountRegistrationWizard
-    // pushes → fill username + display name → real registerAccount →
-    // wizard pops with the Account. Then CANCEL the subsequent
-    // QuickUploadDialog (the flow's contract ends at registration success).
+    // to publish → the marketplace-publish gate routes directly to the
+    // AccountRegistrationWizard (QW-1 removed the intermediate
+    // AccountRegistrationPromptDialog — one less click). Fill username +
+    // display name → real registerAccount → wizard pops with the Account.
+    // Then CANCEL the subsequent QuickUploadDialog (the flow's contract
+    // ends at registration success).
     ..register('account.register_from_publish', (tester, d) async {
       await createLocalScript(tester, d, title: 'Register From Publish');
 
@@ -56,21 +57,14 @@ FlowRegistry buildMockKeyringIdentityRegistry() {
       });
       await tester.pump(const Duration(milliseconds: 500));
 
-      final promptShown = await d.waitUntil(
-          tester,
-          () => d.present(find.text('Share to Marketplace'), tester),
-          timeout: const Duration(seconds: 5));
-      expect(promptShown, isTrue,
-          reason: 'A local-only profile attempting to publish must surface '
-              'the "Share to Marketplace" registration prompt.');
-
-      await tester.tap(find.text('Register Username'));
+      // QW-1: the wizard pushes directly (no intermediate prompt).
       final wizardPushed = await d.waitUntil(
           tester,
           () => d.present(find.byType(AccountRegistrationWizard), tester),
           timeout: const Duration(seconds: 5));
       expect(wizardPushed, isTrue,
-          reason: 'Tapping Register Username must push the wizard.');
+          reason: 'Publishing from a local-only profile must push the '
+              'AccountRegistrationWizard directly (QW-1).');
 
       final displayNameField = find.byWidgetPredicate((w) =>
           w is TextField && w.decoration?.labelText == 'Display Name *');
