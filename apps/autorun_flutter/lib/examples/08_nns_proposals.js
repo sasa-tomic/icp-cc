@@ -80,6 +80,7 @@
       topic_filter: "all",
       page: 0,
       page_size: PAGE_SIZE,
+      cursor_history: [], // cursor_history[N] = min proposal id from page N-1
       loading: false,
       loaded: false,
       error: "",
@@ -193,10 +194,9 @@
     var t = (msg && msg.type) || "";
 
     if (t === "refresh") {
-      return {
-        state: setStateShallow(state, { loading: true, error: "", page: 0 }),
-        effects: [listProposalsEffect(state, 0)],
-      };
+      var refreshed = setStateShallow(
+          state, {loading: true, error: "", page: 0, cursor_history: []});
+      return { state: refreshed, effects: [listProposalsEffect(refreshed, 0)] };
     }
 
     if (t === "set_status") {
@@ -205,6 +205,7 @@
         loading: true,
         error: "",
         page: 0,
+        cursor_history: [],
       });
       return { state: next, effects: [listProposalsEffect(next, 0)] };
     }
@@ -215,6 +216,7 @@
         loading: true,
         error: "",
         page: 0,
+        cursor_history: [],
       });
       return { state: nextTopic, effects: [listProposalsEffect(nextTopic, 0)] };
     }
@@ -243,13 +245,19 @@
   // ───────────────────────── Effects ──────────────────────────────────────
   function listProposalsEffect(state, pageOverride) {
     var page = pageOverride != null ? pageOverride : state.page;
-    var offset = page * state.page_size;
     var statusVec = buildStatusVec(state.status_filter);
     var topicVec = buildTopicVec(state.topic_filter);
+    var history = state.cursor_history || [];
+    var cursor = history[page] != null ? history[page] : null;
+    var beforeProposal = cursor != null
+        ? "before_proposal = opt record { id = " + cursor + " : nat64 }"
+        : "before_proposal = null";
     var args =
       "(record { limit = " +
       state.page_size +
-      " : nat32; exclude_topic = " +
+      " : nat32; " +
+      beforeProposal +
+      "; exclude_topic = " +
       topicVec +
       "; include_reward_status = vec {}; include_status = " +
       statusVec +
@@ -303,12 +311,25 @@
       });
     }
     var filtered = filterByTopic(info, state.topic_filter);
+    var decoded = filtered.map(decodeProposal);
+    var newHistory = (state.cursor_history || []).slice();
+    if (info.length >= state.page_size) {
+      var minId = null;
+      for (var i = 0; i < info.length; i++) {
+        var pid = unwrapOptInt(unwrapOpt(info[i].id, {}).id, 0);
+        if (pid && (minId === null || pid < minId)) minId = pid;
+      }
+      if (minId !== null) {
+        newHistory[(state.page || 0) + 1] = minId;
+      }
+    }
     return setState(state, {
       loading: false,
       loaded: true,
       error: "",
-      proposals: filtered.map(decodeProposal),
+      proposals: decoded,
       has_more: info.length >= state.page_size,
+      cursor_history: newHistory,
     });
   }
 

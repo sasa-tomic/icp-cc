@@ -92,6 +92,7 @@
       status_filter: "open",
       page: 0,
       page_size: PAGE_SIZE,
+      cursor_history: [],
       loading: false,
       loaded: false,
       error: "",
@@ -219,10 +220,9 @@
 
     if (t === "refresh") {
       if (!state.backend_id) return { state: state, effects: [] };
-      return {
-        state: setStateShallow(state, { loading: true, error: "", page: 0 }),
-        effects: [listProposalsEffect(state, 0)],
-      };
+      var refreshed = setStateShallow(
+          state, {loading: true, error: "", page: 0, cursor_history: []});
+      return { state: refreshed, effects: [listProposalsEffect(refreshed, 0)] };
     }
 
     if (t === "set_status") {
@@ -231,6 +231,7 @@
         loading: true,
         error: "",
         page: 0,
+        cursor_history: [],
       });
       return { state: next, effects: [listProposalsEffect(next, 0)] };
     }
@@ -243,6 +244,7 @@
           proposals: [],
           loaded: false,
           error: "",
+          cursor_history: [],
         });
       }
       var swapped = Object.assign({}, state, {
@@ -252,6 +254,7 @@
         page: 0,
         proposals: [],
         loaded: false,
+        cursor_history: [],
       });
       return { state: swapped, effects: [listProposalsEffect(swapped, 0)] };
     }
@@ -281,12 +284,19 @@
   function listProposalsEffect(state, pageOverride) {
     var page = pageOverride != null ? pageOverride : state.page;
     var statusVec = buildStatusVec(state.status_filter);
+    var history = state.cursor_history || [];
+    var cursor = history[page] != null ? history[page] : null;
+    var beforeProposal = cursor != null
+        ? "before_proposal = opt record { id = " + cursor + " : nat64 }"
+        : "before_proposal = null";
     // SNS args — verified live. NOTE the 'exclude_TYPE' (not 'exclude_topic')
     // and NO omit_large_fields. See header docstring.
     var args =
       "(record { limit = " +
       state.page_size +
-      " : nat32; exclude_type = vec {}; include_reward_status = vec {}; include_status = " +
+      " : nat32; " +
+      beforeProposal +
+      "; exclude_type = vec {}; include_reward_status = vec {}; include_status = " +
       statusVec +
       "; })";
     return {
@@ -325,12 +335,25 @@
         error: "list_proposals: malformed reply (proposals not an array)",
       });
     }
+    var decoded = arr.map(decodeProposal);
+    var newHistory = (state.cursor_history || []).slice();
+    if (arr.length >= state.page_size) {
+      var minId = null;
+      for (var i = 0; i < decoded.length; i++) {
+        var pid = decoded[i].id;
+        if (pid && (minId === null || pid < minId)) minId = pid;
+      }
+      if (minId !== null) {
+        newHistory[(state.page || 0) + 1] = minId;
+      }
+    }
     return setState(state, {
       loading: false,
       loaded: true,
       error: "",
-      proposals: arr.map(decodeProposal),
+      proposals: decoded,
       has_more: arr.length >= state.page_size,
+      cursor_history: newHistory,
     });
   }
 
@@ -374,10 +397,16 @@
   }
 
   // SNS status inference (see header). Executed > Failed > Decided > Open.
+  // When decided, distinguish adopted vs rejected by tally (yes >= no → Adopted).
   function inferStatus(raw) {
     if (unwrapOptInt(raw.executed_timestamp_seconds, 0) !== 0) return STATUS[4];
     if (unwrapOptInt(raw.failed_timestamp_seconds, 0) !== 0) return STATUS[5];
-    if (unwrapOptInt(raw.decided_timestamp_seconds, 0) !== 0) return STATUS[3];
+    if (unwrapOptInt(raw.decided_timestamp_seconds, 0) !== 0) {
+      var tallyNode = unwrapOpt(raw.latest_tally, {});
+      var yes = unwrapOptInt(tallyNode.yes, 0);
+      var no = unwrapOptInt(tallyNode.no, 0);
+      return yes >= no ? STATUS[3] : STATUS[2];
+    }
     return STATUS[1]; // Open
   }
 

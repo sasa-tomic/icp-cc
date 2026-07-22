@@ -423,5 +423,169 @@ void main() {
         expect(v, matches(RegExp(r'^#[0-9a-fA-F]{6}$')));
       }
     });
+
+    test(
+        'inferStatus distinguishes adopted vs rejected when decided '
+        '(yes >= no → Adopted, yes < no → Rejected)', () async {
+      final boot = await _boot(bundle);
+      if (boot == null) return;
+      final ScriptAppRuntime rt = boot.$1;
+      var state = boot.$2;
+
+      // Two decided proposals: one adopted (yes > no), one rejected (no > yes).
+      final reply = <String, dynamic>{
+        'ok': true,
+        'result': <String, dynamic>{
+          'proposals': <dynamic>[
+            <String, dynamic>{
+              'id': <dynamic>[
+                <String, dynamic>{'id': 300}
+              ],
+              'topic': <dynamic>[
+                <String, dynamic>{'Governance': null}
+              ],
+              'action': 10000,
+              'decided_timestamp_seconds': 1783696546,
+              'executed_timestamp_seconds': 0,
+              'failed_timestamp_seconds': 0,
+              'wait_for_quiet_state': <dynamic>[
+                <String, dynamic>{'current_deadline_timestamp_seconds': 0}
+              ],
+              'latest_tally': <dynamic>[
+                <String, dynamic>{
+                  'yes': 9000, 'no': 1000, 'total': 10000,
+                  'timestamp_seconds': 0,
+                }
+              ],
+              'proposal': <dynamic>[
+                <String, dynamic>{
+                  'title': <String>['Adopted proposal'],
+                  'summary': 'yes > no',
+                  'url': <String>[],
+                }
+              ],
+            },
+            <String, dynamic>{
+              'id': <dynamic>[
+                <String, dynamic>{'id': 299}
+              ],
+              'topic': <dynamic>[
+                <String, dynamic>{'Governance': null}
+              ],
+              'action': 10000,
+              'decided_timestamp_seconds': 1783696546,
+              'executed_timestamp_seconds': 0,
+              'failed_timestamp_seconds': 0,
+              'wait_for_quiet_state': <dynamic>[
+                <String, dynamic>{'current_deadline_timestamp_seconds': 0}
+              ],
+              'latest_tally': <dynamic>[
+                <String, dynamic>{
+                  'yes': 1000, 'no': 9000, 'total': 10000,
+                  'timestamp_seconds': 0,
+                }
+              ],
+              'proposal': <dynamic>[
+                <String, dynamic>{
+                  'title': <String>['Rejected proposal'],
+                  'summary': 'no > yes',
+                  'url': <String>[],
+                }
+              ],
+            },
+          ],
+        },
+      };
+
+      final out = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{
+            'type': 'effect/result',
+            'id': 'list_proposals',
+            'ok': true,
+            'data': reply,
+          },
+          state: state,
+          budgetMs: 1000);
+      state = Map<String, dynamic>.from(out['state'] as Map);
+      final proposals = state['proposals'] as List<dynamic>;
+      expect(proposals, hasLength(2));
+      expect((proposals[0] as Map<String, dynamic>)['status'], 'Adopted');
+      expect((proposals[1] as Map<String, dynamic>)['status'], 'Rejected');
+    });
+
+    test(
+        'pagination: Next page sends before_proposal cursor with the min '
+        'proposal id from the previous page', () async {
+      final boot = await _boot(bundle);
+      if (boot == null) return;
+      final ScriptAppRuntime rt = boot.$1;
+      var state = boot.$2;
+
+      // Feed a FULL page (PAGE_SIZE=10 proposals) so has_more=true.
+      final fullPage = <String, dynamic>{
+        'ok': true,
+        'result': <String, dynamic>{
+          'proposals': List<Map<String, dynamic>>.generate(
+              10,
+              (i) => <String, dynamic>{
+                    'id': <dynamic>[
+                      <String, dynamic>{'id': 100 - i}
+                    ],
+                    'topic': <dynamic>[
+                      <String, dynamic>{'Governance': null}
+                    ],
+                    'action': 10000,
+                    'decided_timestamp_seconds': 0,
+                    'executed_timestamp_seconds': 0,
+                    'failed_timestamp_seconds': 0,
+                    'wait_for_quiet_state': <dynamic>[
+                      <String, dynamic>{'current_deadline_timestamp_seconds': 0}
+                    ],
+                    'latest_tally': <dynamic>[
+                      <String, dynamic>{
+                        'yes': 1000, 'no': 500, 'total': 1500,
+                        'timestamp_seconds': 0,
+                      }
+                    ],
+                    'proposal': <dynamic>[
+                      <String, dynamic>{
+                        'title': <String>['SNS ${100 - i}'],
+                        'summary': 'Test.',
+                        'url': <String>[],
+                      }
+                    ],
+                  }),
+        },
+      };
+
+      var out = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{
+            'type': 'effect/result',
+            'id': 'list_proposals',
+            'ok': true,
+            'data': fullPage,
+          },
+          state: state,
+          budgetMs: 1000);
+      state = Map<String, dynamic>.from(out['state'] as Map);
+
+      expect(state['has_more'], true);
+      final history = state['cursor_history'] as List<dynamic>;
+      expect(history[1], 91);
+
+      // Send Next page.
+      out = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{'type': 'page', 'delta': 1},
+          state: state,
+          budgetMs: 1000);
+      final effects = out['effects'] as List<dynamic>;
+      expect(effects, hasLength(1));
+      final args = (effects[0] as Map<String, dynamic>)['args'] as String;
+      expect(args,
+          contains('before_proposal = opt record { id = 91 : nat64 }'));
+    });
   });
 }

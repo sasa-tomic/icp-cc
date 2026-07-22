@@ -374,5 +374,78 @@ void main() {
       // has only topic-12 proposals, so all stay.
       expect(state['topic_filter'], '12');
     });
+
+    test(
+        'pagination: Next page sends before_proposal cursor with the min '
+        'proposal id from the previous page', () async {
+      final boot = await _boot(bundle);
+      if (boot == null) return;
+      final ScriptAppRuntime rt = boot.$1;
+      var state = boot.$2;
+
+      // Feed a FULL page (PAGE_SIZE=10 proposals) so has_more=true and the
+      // cursor is computed. IDs descend: 100, 99, ..., 91 → min = 91.
+      final fullPage = <String, dynamic>{
+        'ok': true,
+        'result': <String, dynamic>{
+          'proposal_info': List<Map<String, dynamic>>.generate(
+              10,
+              (i) => <String, dynamic>{
+                    'id': <dynamic>[
+                      <String, dynamic>{'id': 100 - i}
+                    ],
+                    'status': 1,
+                    'topic': 12,
+                    'deadline_timestamp_seconds': <dynamic>[1752979200],
+                    'latest_tally': <dynamic>[
+                      <String, dynamic>{
+                        'yes': 1000,
+                        'no': 500,
+                        'total': 1500,
+                        'timestamp_seconds': 0,
+                      }
+                    ],
+                    'proposal': <dynamic>[
+                      <String, dynamic>{
+                        'url': <String>[],
+                        'title': <String>['Proposal ${100 - i}'],
+                        'summary': 'Test proposal.',
+                      }
+                    ],
+                    'proposer': <dynamic>[],
+                    'reward_status': 1,
+                  }),
+        },
+      };
+
+      var out = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{
+            'type': 'effect/result',
+            'id': 'list_proposals',
+            'ok': true,
+            'data': fullPage,
+          },
+          state: state,
+          budgetMs: 1000);
+      state = Map<String, dynamic>.from(out['state'] as Map);
+
+      expect(state['has_more'], true);
+      final history = state['cursor_history'] as List<dynamic>;
+      expect(history[1], 91,
+          reason: 'cursor_history[1] must be the min proposal id from page 0');
+
+      // Send Next page.
+      out = await rt.update(
+          script: bundle,
+          msg: <String, dynamic>{'type': 'page', 'delta': 1},
+          state: state,
+          budgetMs: 1000);
+      final effects = out['effects'] as List<dynamic>;
+      expect(effects, hasLength(1));
+      final args = (effects[0] as Map<String, dynamic>)['args'] as String;
+      expect(args,
+          contains('before_proposal = opt record { id = 91 : nat64 }'));
+    });
   });
 }

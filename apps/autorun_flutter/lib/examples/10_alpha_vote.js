@@ -91,6 +91,7 @@
       topic_filter: "all",
       page: 0,
       page_size: PAGE_SIZE,
+      cursor_history: [],
       loading: false,
       loaded: false,
       error: "",
@@ -188,7 +189,8 @@
 
     if (t === "refresh") {
       return {
-        state: setStateShallow(state, { loading: true, error: "", page: 0 }),
+        state: setStateShallow(state, {
+            loading: true, error: "", page: 0, cursor_history: []}),
         effects: refreshEffects(state),
       };
     }
@@ -196,6 +198,7 @@
       var next = Object.assign({}, state, {
         status_filter: String(msg.value || "all"),
         loading: true, error: "", page: 0,
+        cursor_history: [],
       });
       return { state: next, effects: [listProposalsEffect(next, 0)] };
     }
@@ -203,6 +206,7 @@
       var nextTopic = Object.assign({}, state, {
         topic_filter: String(msg.value || "all"),
         loading: true, error: "", page: 0,
+        cursor_history: [],
       });
       return { state: nextTopic, effects: [listProposalsEffect(nextTopic, 0)] };
     }
@@ -289,9 +293,16 @@
   }
 
   function listProposalsEffect(state, pageOverride) {
+    var page = pageOverride != null ? pageOverride : state.page;
     var statusVec = buildStatusVec(state.status_filter);
+    var history = state.cursor_history || [];
+    var cursor = history[page] != null ? history[page] : null;
+    var beforeProposal = cursor != null
+        ? "before_proposal = opt record { id = " + cursor + " : nat64 }"
+        : "before_proposal = null";
     var args =
       "(record { limit = " + state.page_size + " : nat32; " +
+      beforeProposal + "; " +
       "exclude_topic = vec {}; include_reward_status = vec {}; " +
       "include_status = " + statusVec + "; omit_large_fields = opt true; })";
     return {
@@ -374,10 +385,23 @@
       });
     }
     var filtered = filterByTopic(info, state.topic_filter);
+    var decoded = filtered.map(decodeProposal);
+    var newHistory = (state.cursor_history || []).slice();
+    if (info.length >= state.page_size) {
+      var minId = null;
+      for (var i = 0; i < info.length; i++) {
+        var pid = unwrapOptInt(unwrapOpt(info[i].id, {}).id, 0);
+        if (pid && (minId === null || pid < minId)) minId = pid;
+      }
+      if (minId !== null) {
+        newHistory[(state.page || 0) + 1] = minId;
+      }
+    }
     return setState(state, {
       loading: false, loaded: true, error: "",
-      proposals: filtered.map(decodeProposal),
+      proposals: decoded,
       has_more: info.length >= state.page_size,
+      cursor_history: newHistory,
     });
   }
 
