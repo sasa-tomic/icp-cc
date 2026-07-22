@@ -32,6 +32,9 @@ void main() {
     });
 
     testWidgets('shows add passkey button', (tester) async {
+      // The FAB is only meaningful on a supported platform; pretend to be one.
+      PasskeyPlatform.isSupportedOverrideForTesting = true;
+      addTearDown(() => PasskeyPlatform.isSupportedOverrideForTesting = null);
       await tester.pumpWidget(
         MaterialApp(
           home: PasskeyManagementScreen(
@@ -44,6 +47,51 @@ void main() {
 
       expect(find.text('Add Passkey'), findsOneWidget);
     });
+
+    testWidgets(
+        'DEFECT-5: on an unsupported platform the Add Passkey FAB is hidden',
+        (tester) async {
+      PasskeyPlatform.isSupportedOverrideForTesting = false;
+      addTearDown(() => PasskeyPlatform.isSupportedOverrideForTesting = null);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PasskeyManagementScreen(
+            accountId: 'test-account',
+            username: 'testuser',
+            keypair: keypair,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The body explains passkeys aren't available; the FAB must NOT offer a
+      // broken action that contradicts that message.
+      expect(find.text('Add Passkey'), findsNothing);
+      expect(find.byType(FloatingActionButton), findsNothing);
+    });
+
+    testWidgets(
+        'DEFECT-5: on a supported platform the Add Passkey FAB is shown',
+        (tester) async {
+      PasskeyPlatform.isSupportedOverrideForTesting = true;
+      addTearDown(() => PasskeyPlatform.isSupportedOverrideForTesting = null);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PasskeyManagementScreen(
+            accountId: 'test-account',
+            username: 'testuser',
+            keypair: keypair,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.text('Add Passkey'), findsOneWidget);
+    });
+
 
     testWidgets('on Linux desktop shows unsupported platform error',
         (tester) async {

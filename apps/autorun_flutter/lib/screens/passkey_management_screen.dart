@@ -176,13 +176,19 @@ class _PasskeyManagementScreenState extends State<PasskeyManagementScreen> {
         centerTitle: true,
       ),
       body: _buildBody(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addPasskey,
-        backgroundColor: AppDesignSystem.primaryLight,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Passkey'),
-      ),
+      // DEFECT-5: the body renders an "unsupported platform" panel when
+      // passkeys aren't available; the FAB must not offer a broken action
+      // that contradicts that message. Hidden entirely on unsupported
+      // platforms (the body already explains why).
+      floatingActionButton: PasskeyPlatform.isSupported
+          ? FloatingActionButton.extended(
+              onPressed: _addPasskey,
+              backgroundColor: AppDesignSystem.primaryLight,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Passkey'),
+            )
+          : null,
     );
   }
 
