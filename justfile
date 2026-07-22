@@ -649,19 +649,17 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
 
 # e2e-one: run a SINGLE flow for fast iteration (<20s target).
 #
-# keyring-less: uses the per-flow file (flows_keyring_less_test.dart) — each
-#   flow gets its own testWidgets with --name regex matching. Boot + flow
-#   only, no preceding phases. ~7-15s per flow.
-# mock-keyring*: uses the monolith suite with ICP_E2E_STOP_AFTER (runs all
-#   preceding phases). Slower but works until P1-B adds per-flow files.
+# All suites use per-flow files: each flow gets its own testWidgets with
+# --name regex matching. Boot + prerequisite chain + target flow only, no
+# unrelated phases. ~10-30s per flow depending on prereqs.
 #
 # Usage: just e2e-one <flow-id> [suite]
-#   suite: keyring-less (default), mock-keyring, mock-keyring-dapps,
-#          mock-keyring-identity
+#   suite: keyring-less (default), mock-keyring-dapps, mock-keyring-identity,
+#          mock-keyring (fallback to monolith + ICP_E2E_STOP_AFTER)
 # Example: just e2e-one scripts.search
 #          just e2e-one settings.theme
-#          just e2e-one vault.setup mock-keyring
 #          just e2e-one dapps.trust_grant mock-keyring-dapps
+#          just e2e-one scripts.publish mock-keyring-identity
 e2e-one flow suite="keyring-less":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -669,38 +667,67 @@ e2e-one flow suite="keyring-less":
     [[ -f "$RELEASE_LIB" ]] || { echo "❌ build first: cargo build --release"; exit 1; }
     export LD_LIBRARY_PATH="{{root}}/target/release"
 
-    # ── keyring-less: fast per-flow file with --name regex ──────────────
-    if [[ "{{suite}}" == "keyring-less" ]]; then
-        if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
-            Xvfb :99 -screen 0 1440x900x24 -ac >/dev/null 2>&1 &
-            for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
-        fi
-        export DISPLAY=:99
-        rm -rf "{{state_dir}}" 2>/dev/null || true
-        export MARKETPLACE_API_PORT=$(just _api-dev-port)
-        (cd "{{api_dir}}" && bash scripts/add-sample-data.sh) >/dev/null
-        echo "==> e2e-one: keyring-less / {{flow}} (backend :$MARKETPLACE_API_PORT)"
-        cd "{{flutter_dir}}" && flutter test -d linux \
-          integration_test/e2e/flows_keyring_less_test.dart \
-          --name '^{{flow}}$' --reporter=compact --timeout=90s
-        exit 0
+    # Xvfb display (shared across all suites).
+    if [[ ! -S /tmp/.X11-unix/X99 ]] || ! pgrep -x Xvfb >/dev/null 2>&1; then
+        Xvfb :99 -screen 0 1440x900x24 -ac >/dev/null 2>&1 &
+        for _ in $(seq 1 30); do [[ -S /tmp/.X11-unix/X99 ]] && break; sleep 0.2; done
     fi
+    export DISPLAY=:99
+    rm -rf "{{state_dir}}" 2>/dev/null || true
+    export MARKETPLACE_API_PORT=$(just _api-dev-port)
+    (cd "{{api_dir}}" && bash scripts/add-sample-data.sh) >/dev/null
 
-    # ── mock-keyring*: monolith with ICP_E2E_STOP_AFTER (fallback) ───────
+    # ── per-flow file selection ─────────────────────────────────────────
     case "{{suite}}" in
-        mock-keyring)          FILE="suite_mock_keyring_test.dart" ;;
-        mock-keyring-dapps)    FILE="suite_mock_keyring_dapps_test.dart" ;;
-        mock-keyring-identity) FILE="suite_mock_keyring_identity_test.dart" ;;
-        *) echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring, mock-keyring-dapps, mock-keyring-identity"; exit 1 ;;
+        keyring-less)
+            FILE="flows_keyring_less_test.dart"
+            WRAP=""
+            TIMEOUT=90
+            ;;
+        mock-keyring-dapps)
+            FILE="flows_mock_keyring_dapps_test.dart"
+            WRAP="scripts/run-with-mock-keyring.sh --display :99 --"
+            TIMEOUT=240
+            ;;
+        mock-keyring-identity)
+            FILE="flows_mock_keyring_identity_test.dart"
+            WRAP="scripts/run-with-mock-keyring.sh --display :99 --"
+            TIMEOUT=180
+            ;;
+        mock-keyring)
+            # Monolith + ICP_E2E_STOP_AFTER fallback (no per-flow file yet).
+            FILE="suite_mock_keyring_test.dart"
+            WRAP="scripts/run-with-mock-keyring.sh --display :99 --"
+            TIMEOUT=360
+            ;;
+        *)
+            echo "❌ Unknown suite '{{suite}}'. Use: keyring-less, mock-keyring, mock-keyring-dapps, mock-keyring-identity"; exit 1 ;;
     esac
 
-    export MARKETPLACE_API_PORT=$(just _api-dev-port)
-    export DISPLAY=:99
-    scripts/run-with-mock-keyring.sh --display :99 -- bash -c \
-      'cd "{{flutter_dir}}" && flutter test -d linux \
-      integration_test/e2e/'"$FILE"' \
-      --dart-define=ICP_E2E_STOP_AFTER={{flow}} \
-      --reporter=compact --timeout=360s'
+    echo "==> e2e-one: {{suite}} / {{flow}} (backend :$MARKETPLACE_API_PORT)"
+    if [[ -n "$WRAP" ]]; then
+        # mock-keyring suites wrap in the mock Secret Service.
+        if [[ "{{suite}}" == "mock-keyring" ]]; then
+            # Monolith fallback: use ICP_E2E_STOP_AFTER (slow — runs all
+            # preceding phases). TODO: extract per-flow file for mock-keyring.
+            $WRAP bash -c \
+              'cd "{{flutter_dir}}" && flutter test -d linux \
+              integration_test/e2e/'"$FILE"' \
+              --dart-define=ICP_E2E_STOP_AFTER={{flow}} \
+              --reporter=compact --timeout=${TIMEOUT}s'
+        else
+            # Per-flow file: --name regex (fast — runs only matching testWidgets).
+            $WRAP bash -c \
+              'cd "{{flutter_dir}}" && flutter test -d linux \
+              integration_test/e2e/'"$FILE"' \
+              --name "^{{flow}}$" --reporter=compact --timeout=${TIMEOUT}s'
+        fi
+    else
+        # keyring-less: per-flow file with --name regex.
+        cd "{{flutter_dir}}" && flutter test -d linux \
+          integration_test/e2e/$FILE \
+          --name '^{{flow}}$' --reporter=compact --timeout=${TIMEOUT}s
+    fi
 
 
 # e2e-keyring-unavailable: run the `first_run.keyring_unavailable` flow
