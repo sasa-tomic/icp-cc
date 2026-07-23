@@ -27,54 +27,17 @@ pub mod test_support {
 
     use crate::{models::AppState, rate_limit::SlidingWindowRateLimiter, services};
 
-    /// Builds an `AppState` with the **Stub** payment provider (dev default).
-    /// Used by integration tests that don't exercise payment paths.
+    /// Builds an `AppState` for integration tests.
     pub fn app_state_stub(
         pool: sqlx::SqlitePool,
         passkey_service: services::PasskeyService,
         recovery_rate_limiter: Arc<SlidingWindowRateLimiter>,
     ) -> AppState {
-        let stub = Arc::new(services::StubPaymentProvider::new(
-            crate::repositories::PurchaseRepository::new(pool.clone()),
-        ));
-        let provider: Arc<dyn services::PaymentProvider> = stub;
         AppState {
             account_service: services::AccountService::new(pool.clone()),
             script_service: services::ScriptService::new(pool.clone()),
             review_service: services::ReviewService::new(pool.clone()),
             passkey_service,
-            purchase_repo: crate::repositories::PurchaseRepository::new(pool.clone()),
-            payment_provider: provider,
-            icpay_provider: None,
-            recovery_rate_limiter,
-            pool,
-        }
-    }
-
-    /// Builds an `AppState` with the **ICPay** payment provider, explicitly
-    /// configured (used by the legacy ICPay webhook / config tests).
-    pub fn app_state_icpay(
-        pool: sqlx::SqlitePool,
-        passkey_service: services::PasskeyService,
-        recovery_rate_limiter: Arc<SlidingWindowRateLimiter>,
-        publishable_key: Option<String>,
-        webhook_secret: Option<String>,
-    ) -> AppState {
-        let icpay = Arc::new(services::ICPayPaymentProvider::with_config(
-            publishable_key,
-            None,
-            webhook_secret,
-            pool.clone(),
-        ));
-        let provider: Arc<dyn services::PaymentProvider> = icpay.clone();
-        AppState {
-            account_service: services::AccountService::new(pool.clone()),
-            script_service: services::ScriptService::new(pool.clone()),
-            review_service: services::ReviewService::new(pool.clone()),
-            passkey_service,
-            purchase_repo: crate::repositories::PurchaseRepository::new(pool.clone()),
-            payment_provider: provider,
-            icpay_provider: Some(icpay),
             recovery_rate_limiter,
             pool,
         }

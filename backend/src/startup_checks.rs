@@ -171,41 +171,6 @@ pub fn warn_if_insecure_prod_admin_token(environment: Environment, admin_token: 
     true
 }
 
-/// Logs a clear `tracing::warn!` when any ICPay env var is missing. Does NOT
-/// crash — the marketplace must still boot and browse when ICPay is
-/// unconfigured. The individual payment endpoints (webhook / config) surface
-/// the misconfig loudly (500 / 503) at call time.
-pub fn warn_if_icpay_unconfigured() {
-    let publishable = env::var("ICPAY_PUBLISHABLE_KEY")
-        .ok()
-        .filter(|v| !v.is_empty());
-    let secret = env::var("ICPAY_SECRET_KEY").ok().filter(|v| !v.is_empty());
-    let webhook = env::var("ICPAY_WEBHOOK_SECRET")
-        .ok()
-        .filter(|v| !v.is_empty());
-
-    if publishable.is_some() && secret.is_some() && webhook.is_some() {
-        return;
-    }
-
-    let missing: Vec<&str> = [
-        ("ICPAY_PUBLISHABLE_KEY", publishable.is_some()),
-        ("ICPAY_SECRET_KEY", secret.is_some()),
-        ("ICPAY_WEBHOOK_SECRET", webhook.is_some()),
-    ]
-    .into_iter()
-    .filter(|(_, set)| !set)
-    .map(|(name, _)| name)
-    .collect();
-
-    tracing::warn!(
-        "ICPay env vars not set — payments disabled (missing: {}). \
-         Marketplace browsing still works; payment endpoints will 5xx/503 \
-         when invoked. Set real values before the live PoC.",
-        missing.join(", ")
-    );
-}
-
 /// Verifies that the authenticated user owns the script
 pub async fn verify_script_ownership(
     state: &Arc<AppState>,

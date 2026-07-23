@@ -4,7 +4,6 @@
 //! backend:
 //! - [`crate::middleware::admin_auth`] — admin bearer-token check
 //! - [`crate::vault`] — recovery-code hash verification
-//! - [`crate::services::payment_service`] — ICPay webhook HMAC signature check
 //!
 //! A `==` compare short-circuits on the first differing byte, leaking how many
 //! leading bytes of a guessed secret are correct via timing. This helper

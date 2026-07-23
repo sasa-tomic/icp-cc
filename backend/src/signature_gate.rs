@@ -5,7 +5,7 @@
 //! resolve the caller's `account_id` SERVER-SIDE from the verified public key,
 //! verify an Ed25519 (or secp256k1) signature over a canonical payload, enforce
 //! replay prevention, and record the audit (fail-closed). This is the exact
-//! pattern proven by `entitlement_check` (W7-2, commit `22e96a6b`), factored out
+//! pattern proven by the signed download endpoint, factored out
 //! so the vault / passkey / recovery / review gates can never drift from it.
 //!
 //! ## Why this is the single source of truth
@@ -52,7 +52,7 @@ pub struct AuthGateRejection {
 /// Verifies a signed account-scoped request and resolves the caller's
 /// `account_id` SERVER-SIDE (never trusts a client-supplied identity).
 ///
-/// Steps (mirrors `entitlement_check`):
+/// Steps (mirrors the signed download endpoint):
 /// 1. Resolve `account_id` from `find_public_key_by_value` (unknown key → 401).
 /// 2. Build the canonical payload via `build_payload(&resolved_account_id)` and
 ///    verify the Ed25519/secp256k1 signature over it (mismatch → 401).

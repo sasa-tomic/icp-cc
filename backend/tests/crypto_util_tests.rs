@@ -1,9 +1,8 @@
 //! W7-3 (security): the backend compares secrets — the admin bearer token
-//! (`middleware::admin_auth`), the recovery-code hash (`vault`), and the ICPay
-//! webhook HMAC (`services::payment_service`) — with a single shared
-//! constant-time byte comparison. Timing attacks against `==` can leak the
-//! number of leading correct bytes; a constant-time scan reads the full length
-//! unconditionally.
+//! (`middleware::admin_auth`) and the recovery-code hash (`vault`) — with a
+//! single shared constant-time byte comparison. Timing attacks against `==`
+//! can leak the number of leading correct bytes; a constant-time scan reads
+//! the full length unconditionally.
 //!
 //! This file locks the contract of the shared helper and proves it is wired
 //! into the admin-auth path (correct token passes, wrong token 401s). The

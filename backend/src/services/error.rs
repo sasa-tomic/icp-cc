@@ -153,23 +153,6 @@ service_error! {
     }
 }
 
-service_error! {
-    /// Errors emitted by [`super::PaymentService::verify_webhook`] and the
-    /// generic [`super::PaymentProvider`] trait. The signature-failure path
-    /// is 401; a malformed body is 400; misconfig (unset secret / bad
-    /// length) is 500; `PaymentsDisabled` (Phase K: `PAYMENT_PROVIDER=none`
-    /// or unrecognised) is 503 — surfaced as
-    /// `{"error":"payments_disabled","provider":"none"}` by the purchase
-    /// handler (NOT the canonical `{"success":false,...}` shape, per
-    /// AGENTS.md "fail fast").
-    PaymentError {
-        BadRequest => BAD_REQUEST,
-        Unauthorized => UNAUTHORIZED,
-        Internal => INTERNAL_SERVER_ERROR,
-        PaymentsDisabled => SERVICE_UNAVAILABLE,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -333,38 +316,6 @@ mod tests {
             PasskeyError::Unauthorized("WebAuthn verification failed".into()),
             StatusCode::UNAUTHORIZED,
             "WebAuthn verification failed",
-        )
-        .await;
-    }
-
-    // ---- PaymentError: the three verify_webhook outcomes. ----
-
-    #[tokio::test]
-    async fn payment_unauthorized_maps_401() {
-        assert_wire(
-            PaymentError::Unauthorized("Invalid ICPay webhook signature".into()),
-            StatusCode::UNAUTHORIZED,
-            "Invalid ICPay webhook signature",
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn payment_bad_request_maps_400() {
-        assert_wire(
-            PaymentError::BadRequest("Invalid ICPay webhook body".into()),
-            StatusCode::BAD_REQUEST,
-            "Invalid ICPay webhook body",
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn payment_internal_maps_500() {
-        assert_wire(
-            PaymentError::Internal("ICPAY_WEBHOOK_SECRET not configured".into()),
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "ICPAY_WEBHOOK_SECRET not configured",
         )
         .await;
     }

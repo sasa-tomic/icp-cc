@@ -533,15 +533,8 @@ pub async fn initialize_database(pool: &SqlitePool) {
         .expect("Failed to drop legacy passkeys user_principal index");
 
     // -----------------------------------------------------------------------
-    // Purchases ledger (ICPay payment integration, migration 006).
-    //
-    // One row = one entitlement: a successful ICPay payment that grants
-    // `account_id` access to paid `script_id`'s bundle. The
-    // `UNIQUE(account_id, script_id)` constraint makes ICPay webhook
-    // redelivery idempotent — the repository issues
-    // `INSERT ... ON CONFLICT(account_id, script_id) DO NOTHING` so a
-    // duplicate delivery is a no-op, not an error. This is the table the
-    // entitlement gate in `get_script` / `POST /scripts/:id/download` checks.
+    // Purchases ledger — retained for historical data (all scripts are now
+    // free; no new rows are written). The table is never dropped (DB rule).
     // See migrations/006_create_purchases_sqlite.sql.
     // -----------------------------------------------------------------------
     sqlx::query(

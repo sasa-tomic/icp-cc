@@ -3,12 +3,7 @@
 //! /scripts/:id` STILL carries the bundle for a free script.
 //!
 //! Uses the real handlers over an in-memory SQLite `AppState` via Poem's
-//! `TestClient` — no re-implemented SQL, no mocked serialization. The paid-
-//! script entitlement gate on `GET /scripts/:id` (free→bundle present,
-//! paid→null) is already pinned exhaustively in
-//! `src/handlers/payments/payment_http_tests.rs`; this file covers the NEW
-//! list-omission behavior and a single complementary detail-endpoint check so
-//! the two contracts sit side by side.
+//! `TestClient` — no re-implemented SQL, no mocked serialization.
 
 use icp_marketplace_api::db::initialize_database;
 use icp_marketplace_api::handlers::{
@@ -206,9 +201,8 @@ async fn search_scripts_omits_bundle() {
     assert_no_bundle_anywhere(&items);
 }
 
-/// Complementary check: the detail endpoint STILL ships the bundle for a free
-/// script (the run flow depends on it). The paid-gate cases (paid→null,
-/// paid+purchase→present) live in `payment_http_tests.rs`.
+/// Complementary check: the detail endpoint STILL ships the bundle (the run
+/// flow depends on it). All scripts are free, so the bundle is always present.
 #[tokio::test]
 async fn get_script_detail_free_still_includes_bundle() {
     let client = TestClient::new(build_app(build_state().await));
@@ -218,7 +212,6 @@ async fn get_script_detail_free_still_includes_bundle() {
     assert_eq!(json["success"], true);
     assert_eq!(
         json["data"]["bundle"], "print('free source')",
-        "free-script detail MUST still carry the full bundle (run flow)"
+        "script detail MUST carry the full bundle (run flow)"
     );
-    assert_eq!(json["data"]["purchased"], true);
 }
