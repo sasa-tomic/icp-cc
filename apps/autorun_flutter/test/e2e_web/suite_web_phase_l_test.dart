@@ -34,6 +34,7 @@
 //       directly; the test subscribes to `linkStream` to assert dispatch.
 //
 // Run via: `just e2e-web` (default suite list now includes this file).
+@TestOn('browser')
 @Tags(['web'])
 library;
 

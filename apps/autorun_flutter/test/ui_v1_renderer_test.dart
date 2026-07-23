@@ -505,7 +505,8 @@ void main() {
       await tester.pumpWidget(createTestWidget(ui));
       await tester.pumpAndSettle();
 
-      expect(find.text('Table requires columns property'), findsOneWidget);
+      expect(find.text('Table requires a non-empty columns array'),
+          findsOneWidget);
     });
 
     testWidgets('converts numeric values to strings',

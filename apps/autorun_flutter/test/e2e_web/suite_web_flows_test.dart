@@ -26,6 +26,7 @@
 // Run via: `just e2e-web` (justfile picks up the default smoke file). To run
 // THIS suite explicitly:
 //   just e2e-web file=test/e2e_web/suite_web_flows_test.dart
+@TestOn('browser')
 @Tags(['web'])
 library;
 

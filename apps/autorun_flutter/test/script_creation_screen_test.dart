@@ -320,6 +320,9 @@ void main() {
         ),
       );
 
+      await tester.pump();
+      // CR-5: template grid is collapsed by default — expand it first
+      await tester.tap(find.text('Choose a Template'));
       await tester.pumpAndSettle();
 
       // Template cards should be visible (using keys with template_card_ prefix)

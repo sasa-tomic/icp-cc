@@ -17,6 +17,7 @@
 /// Or directly:
 ///   `flutter test -d chrome test/e2e_web/flows_web_test.dart \
 ///     --name first_run.dismiss_wizard`
+@TestOn('browser')
 @Tags(['web'])
 library;
 

@@ -159,7 +159,7 @@ flutter-tests:
     # flutter process, before grep/tee) — NOT by grepping the log. The grep
     # below is a secondary belt-and-braces check on the now-fresh log only.
     set +e
-    cd {{flutter_dir}} && flutter test --reporter=github --concurrency=$(nproc) --timeout=360s 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
+    cd {{flutter_dir}} && flutter test --run-skipped --reporter=github --concurrency=$(nproc) --timeout=360s 2>&1 | grep -v "✅ " | tee -a {{logs_dir}}/test-output.log
     flutter_exit=${PIPESTATUS[0]}
     set -e
     if [ "$flutter_exit" -ne 0 ]; then echo "❌ Flutter tests failed (exit $flutter_exit)!"; exit 1; fi

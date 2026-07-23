@@ -7,6 +7,7 @@
 /// is the canary for the full `suite_web_flows_test.dart` harness.
 ///
 /// Run: `just e2e-web file=test/e2e_web/substrate_smoke_test.dart`
+@TestOn('browser')
 @Tags(['web'])
 library;
 

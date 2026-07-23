@@ -1,3 +1,8 @@
 tags:
   web:
     description: "Tests that run on the Web platform (flutter test -d chrome)"
+  integration:
+    description: "Integration tests requiring a running backend (just api-dev-up)"
+    # Skip by default — bare `flutter test` doesn't start the backend.
+    # `just flutter-tests` passes `--run-skipped` to include them.
+    skip: "Requires running backend. Run via: just test"

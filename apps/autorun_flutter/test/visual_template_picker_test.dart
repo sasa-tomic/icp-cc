@@ -18,6 +18,18 @@ void main() {
     await ScriptTemplates.ensureInitialized();
   });
 
+  /// Helper: pump the screen and expand the collapsed template grid so the
+  /// individual template cards are in the widget tree.
+  /// (CR-5: the grid is collapsed by default to keep the editor above the fold.)
+  Future<void> pumpAndExpand(WidgetTester tester, ScriptController controller) async {
+    await tester.pumpWidget(
+      MaterialApp(home: ScriptCreationScreen(controller: controller)),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Choose a Template'));
+    await tester.pumpAndSettle();
+  }
+
   group('Visual Template Picker - PoC', () {
     late MockScriptController mockController;
 
@@ -54,15 +66,7 @@ void main() {
     testWidgets(
         'shows template cards with emoji, title, description, difficulty',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
+      await pumpAndExpand(tester, mockController);
 
       // Find the Hello World template content somewhere on screen
       expect(find.text('👋'), findsWidgets);
@@ -73,15 +77,7 @@ void main() {
 
     testWidgets('each template card shows emoji icon prominently',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
+      await pumpAndExpand(tester, mockController);
 
       // Template emojis should be visible - they're key identifiers
       expect(find.text('👋'), findsWidgets); // Hello World
@@ -92,15 +88,7 @@ void main() {
 
     testWidgets('difficulty badges show correct levels',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
+      await pumpAndExpand(tester, mockController);
 
       // Should show difficulty badges with full text
       expect(find.text('Beginner'), findsWidgets);
@@ -110,15 +98,7 @@ void main() {
 
     testWidgets('Blank Script is available as a template option',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
+      await pumpAndExpand(tester, mockController);
 
       // Blank Script should be visible as a template card
       expect(find.text('Blank Script'), findsOneWidget);
@@ -126,15 +106,7 @@ void main() {
 
     testWidgets('template card selection populates code editor',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
+      await pumpAndExpand(tester, mockController);
 
       // Tap on the Hello World template card
       final helloWorldCard = find.ancestor(
@@ -156,15 +128,7 @@ void main() {
 
     testWidgets('selected template card is highlighted',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
+      await pumpAndExpand(tester, mockController);
 
       // Find the template cards - they have unique keys based on template id
       expect(
@@ -176,31 +140,23 @@ void main() {
 
     testWidgets('template section is collapsible after selection',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
+      await pumpAndExpand(tester, mockController);
 
+      // When expanded, the collapse icon (expand_less) is shown
+      expect(find.byIcon(Icons.expand_less), findsWidgets);
+
+      // Tap to collapse
+      await tester.tap(find.text('Choose a Template'));
       await tester.pumpAndSettle();
 
-      // Should show a collapse/expand button for template section
-      expect(find.byIcon(Icons.expand_less), findsWidgets);
+      // Now collapsed — expand_more is shown, cards hidden
+      expect(find.byIcon(Icons.expand_more), findsWidgets);
+      expect(find.byKey(const Key('template_card_hello_world')), findsNothing);
     });
 
     testWidgets('tapping different template updates code editor',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ScriptCreationScreen(
-            controller: mockController,
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
+      await pumpAndExpand(tester, mockController);
 
       // First, tap on the Canister Query Demo template
       final icpDemoCard = find.ancestor(

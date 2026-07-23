@@ -29,6 +29,7 @@
 //   lands in Phase 2 with the flow migration.
 //
 // Run via: `just e2e-web`
+@TestOn('browser')
 @Tags(['web'])
 library;
 

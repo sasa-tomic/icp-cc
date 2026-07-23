@@ -3,7 +3,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/models/canister_method.dart';
 import 'package:icp_autorun/services/candid_service.dart';
 import 'package:icp_autorun/widgets/frontend_scaffold_dialog.dart';
 
