@@ -131,4 +131,5 @@ class FileJsonStore implements JsonDocumentStore {
 /// On Web the argument is accepted (for a uniform call site) and ignored — the
 /// browser has no filesystem.
 JsonDocumentStore openJsonDocumentStore({Directory? overrideDirectory}) =>
-    FileJsonStore(overrideDirectory: overrideDirectory);
+    // ignore: invalid_use_of_visible_for_testing_member
+    testJsonStoreOverride ?? FileJsonStore(overrideDirectory: overrideDirectory);

@@ -447,7 +447,9 @@ Future<void> scriptsDownloadFree(WidgetTester tester, E2EDriver driver) async {
 Future<void> scriptsFilterDownloadedOnly(
     WidgetTester tester, E2EDriver driver) async {
   await openFilterSheet(tester, driver);
-  await tester.tap(find.widgetWithText(FilterChip, 'Downloaded'));
+  await tester.tap(find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.widgetWithText(FilterChip, 'Downloaded')));
   await tester.pump(const Duration(milliseconds: 500));
   await closeFilterSheet(tester);
   final helloVisible = await driver.waitUntil(
@@ -458,7 +460,9 @@ Future<void> scriptsFilterDownloadedOnly(
       reason: 'Downloaded-only filter must show the downloaded script.');
   // Reset.
   await openFilterSheet(tester, driver);
-  await tester.tap(find.widgetWithText(FilterChip, 'Downloaded'));
+  await tester.tap(find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.widgetWithText(FilterChip, 'Downloaded')));
   await tester.pump(const Duration(milliseconds: 500));
   await closeFilterSheet(tester);
 }
@@ -512,7 +516,9 @@ Future<void> scriptsToggleFavorite(
 Future<void> scriptsFilterFavoritesOnly(
     WidgetTester tester, E2EDriver driver) async {
   await openFilterSheet(tester, driver);
-  await tester.tap(find.widgetWithText(FilterChip, 'Favorites'));
+  await tester.tap(find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.widgetWithText(FilterChip, 'Favorites')));
   await tester.pump(const Duration(milliseconds: 500));
   await closeFilterSheet(tester);
   final counterVisible = await driver.waitUntil(
@@ -522,7 +528,9 @@ Future<void> scriptsFilterFavoritesOnly(
       reason: 'Favorites-only filter must show Interactive Counter.');
   // Reset.
   await openFilterSheet(tester, driver);
-  await tester.tap(find.widgetWithText(FilterChip, 'Favorites'));
+  await tester.tap(find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.widgetWithText(FilterChip, 'Favorites')));
   await tester.pump(const Duration(milliseconds: 500));
   await closeFilterSheet(tester);
 }
@@ -637,18 +645,36 @@ Future<void> downloadHistoryView(
 Future<void> downloadHistoryRemove(
     WidgetTester tester, E2EDriver driver) async {
   await _openDownloadHistory(tester, driver);
-  final removeIcon = find.byIcon(Icons.delete_outline);
-  if (driver.present(removeIcon, tester)) {
-    await tester.tap(removeIcon.first);
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.text('Remove'));
-    final snackBar = await driver.waitUntil(
-        tester,
-        () => driver.present(find.textContaining('Removed from history'), tester),
-        timeout: const Duration(seconds: 5));
-    expect(snackBar, isTrue,
-        reason: 'Removing a download record must confirm via SnackBar.');
+  // Wait for a record to appear (mirrors downloadHistoryView).
+  final recordReady = await driver.waitUntil(
+      tester,
+      () => driver.present(find.byIcon(Icons.delete_outline), tester),
+      timeout: const Duration(seconds: 5));
+  if (!recordReady) {
+    await tester.pageBack();
+    return;
   }
+  // Invoke the IconButton's onPressed directly — gesture hit-testing in widget
+  // tests can miss list items whose render objects haven't settled yet.
+  await tester.pumpAndSettle(const Duration(milliseconds: 100));
+  final iconBtnFinder = find.ancestor(
+      of: find.byIcon(Icons.delete_outline).first,
+      matching: find.byType(IconButton));
+  tester.widget<IconButton>(iconBtnFinder).onPressed!();
+  await tester.pumpAndSettle(const Duration(milliseconds: 100));
+  // The confirm dialog's "Remove" action is a FilledButton.tonal — invoke its
+  // onPressed directly (same hit-test workaround as the delete icon above).
+  final removeBtnFinder = find.ancestor(
+      of: find.text('Remove'),
+      matching: find.byWidgetPredicate((w) => w is FilledButton));
+  tester.widget<FilledButton>(removeBtnFinder).onPressed!();
+  await tester.pump(const Duration(milliseconds: 500));
+  final snackBar = await driver.waitUntil(
+      tester,
+      () => driver.present(find.textContaining('Removed from history'), tester),
+      timeout: const Duration(seconds: 5));
+  expect(snackBar, isTrue,
+      reason: 'Removing a download record must confirm via SnackBar.');
   await tester.pageBack();
   await tester.pump(const Duration(milliseconds: 500));
 }

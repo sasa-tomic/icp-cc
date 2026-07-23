@@ -647,6 +647,30 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
     echo "==> e2e-fast: {{file}} (backend :$MARKETPLACE_API_PORT)"
     cd "{{flutter_dir}}" && flutter test -d linux "{{file}}" --reporter=compact --timeout=240s
 
+# e2e-widget: run the FAST widget-test e2e harness (33 flows, ~75s, no Xvfb,
+# no backend). Boots the REAL KeypairApp() widget tree on the Dart VM with
+# substrate fakes (HTTP, prefs, secure storage, JsonDocumentStore) + REAL FFI
+# (libicp_core.so). All cross-surface flows from flow_implementations.dart.
+#
+# Usage:
+#   just e2e-widget                              # all 33 flows
+#   just e2e-widget --name scripts.search        # single flow by name
+#   just e2e-widget test/e2e_fast/fast_smoke_test.dart  # smoke subset
+e2e-widget file="test/e2e_fast/fast_suite_test.dart" extra="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RELEASE_LIB="{{root}}/target/release/libicp_core.so"
+    DEBUG_LIB="{{flutter_dir}}/build/linux/x64/debug/bundle/lib/libicp_core.so"
+    if [[ -f "$RELEASE_LIB" ]]; then
+        export LD_LIBRARY_PATH="{{root}}/target/release"
+    elif [[ -f "$DEBUG_LIB" ]]; then
+        export LD_LIBRARY_PATH="{{flutter_dir}}/build/linux/x64/debug/bundle/lib"
+    else
+        echo "❌ build first: cargo build --release"; exit 1
+    fi
+    echo "==> e2e-widget: {{file}}"
+    cd "{{flutter_dir}}" && flutter test "{{file}}" {{extra}} --reporter=compact --timeout=300s
+
 # e2e-one: run a SINGLE flow for fast iteration (<20s target).
 #
 # All suites use per-flow files: each flow gets its own testWidgets with

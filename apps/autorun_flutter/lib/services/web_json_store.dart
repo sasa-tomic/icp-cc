@@ -72,6 +72,11 @@ class WebJsonStore implements JsonDocumentStore {
 /// filesystem, so it MUST be null and is ignored. Typed as `Object?` (rather
 /// than `dart:io`'s `Directory?`) so this file need not import `dart:io`.
 JsonDocumentStore openJsonDocumentStore({Object? overrideDirectory}) {
+  // ignore: invalid_use_of_visible_for_testing_member
+  if (testJsonStoreOverride != null) {
+    // ignore: invalid_use_of_visible_for_testing_member
+    return testJsonStoreOverride!;
+  }
   assert(
     overrideDirectory == null,
     'overrideDirectory is not supported on Web (no filesystem).',

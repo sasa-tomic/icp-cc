@@ -25,6 +25,8 @@
 /// absent. Both impls honour this so callers need not special-case the platform.
 library;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 // Conditional export: IO file store on every non-Web target, localStorage-backed
 // Web store in the browser. `openJsonDocumentStore()` and the concrete store
 // class come from whichever file is selected here. This file itself imports NO
@@ -46,3 +48,10 @@ abstract class JsonDocumentStore {
   /// Removes [key]; a no-op (not an error) if [key] is absent.
   Future<void> delete(String key);
 }
+
+/// Test-only: when non-null, `openJsonDocumentStore()` returns this instead of
+/// the platform default ([FileJsonStore] / [WebJsonStore]). Widget and fast e2e
+/// tests set this to an in-memory store to avoid real file I/O hanging under
+/// the Flutter test binding's fake clock. MUST be set back to `null` in tearDown.
+@visibleForTesting
+JsonDocumentStore? testJsonStoreOverride;
