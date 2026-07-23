@@ -13,21 +13,19 @@
 //     bug was a `catch (e) { return []; }` that silently produced an empty
 //     dropdown.
 //
-// The mock HTTP client stands in for the Candid registry (the optional
-// `__get_candid_interface_tmp` probe misses in the test env and falls through,
-// exactly as in `candid_fetch_test.dart`).
+// The injected fetcher stands in for the certified read_state path (the
+// optional `__get_candid_interface_tmp` probe misses in the test env and
+// falls through, exactly as in `candid_fetch_test.dart`).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:icp_autorun/models/canister_method.dart';
 import 'package:icp_autorun/services/candid_service.dart';
 
 const _canisterId = 'ryjl3-tyaaa-aaaaa-aaaba-cai'; // ICP Ledger id (fixture only)
 
-/// Mock registry that returns [candid] verbatim with HTTP 200.
+/// Injected fetcher that returns [candid] verbatim.
 CandidService _serviceFor(String candid) =>
-    CandidService(httpClient: MockClient((_) async => http.Response(candid, 200)));
+    CandidService(fetchCandid: (_, __) async => candid);
 
 /// Fetches methods, asserting the call succeeds, and returns them keyed by name
 /// for per-method assertions.

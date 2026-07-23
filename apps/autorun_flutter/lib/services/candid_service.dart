@@ -1,68 +1,46 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 
-import '../config/app_config.dart';
 import '../models/canister_method.dart';
 import '../rust/native_bridge.dart';
 import '../rust/web/candid_interface_parser.dart';
-import '../theme/app_design_system.dart';
 
-/// The canonical Candid registry host — the authoritative source `dfx` uses
-/// (`icp-api.io/api/v2/canister/…/candid`). Single source of truth for this
-/// host so the literal cannot drift inline. (A-W6-11: was an inline magic
-/// string at the call site.)
-const String kCandidRegistryHost = 'https://icp-api.io';
+/// Overrides the production Candid fetcher. In production the real FFI bridge
+/// ([RustBridgeLoader.fetchCandid]) does the certified `read_state`
+/// `candid:service` read; tests inject a fake to assert behavior without a
+/// native library.
+typedef CandidFetcher = Future<String?> Function(String canisterId, String? host);
 
 /// Why a Candid interface could not be loaded for a canister.
 ///
-/// Surfaced loudly to the caller (the canister-call builder UI) so the user
-/// sees *why* the fetch failed instead of a silent null that feeds stale
-/// signatures. Replaces the previous swallowed catch + hardcoded inline-Candid
-/// fallback (TD-3).
+/// R-3 (fixed 2026-07-23): the old HTTP registry path
+/// (`icp-api.io/api/v2/canister/…/candid`) returned 404 for ALL canisters and
+/// has been replaced by the certified FFI `read_state` `candid:service` path.
+/// The FFI returns `null` for any failure (network, invalid id, no metadata,
+/// library unavailable) without distinguishing the cause at the Dart boundary,
+/// so there is a single kind.
 enum CandidFetchErrorKind {
-  /// Socket / DNS / timeout — the registry could not be reached at all.
-  network,
-
-  /// The registry answered with a non-success status code.
-  non200,
-
-  /// 200 OK but the body was empty.
-  emptyBody,
+  /// The certified `read_state` path (via FFI `icp_fetch_candid`) returned no
+  /// usable response — network error, canister not found, the bridge library
+  /// is unavailable, or the canister doesn't expose `candid:service` metadata.
+  fetchFailed,
 }
 
-/// Typed failure produced by [CandidService._fetchCandidFromRegistry].
+/// Typed failure produced by [CandidService._fetchCandidViaReadState].
 ///
 /// `toString()` renders the user-visible message:
-/// `"Couldn't load Candid for <canister>: <body> (<code>)"`.
+/// `"Couldn't load Candid for <canister> via certified read_state"`.
 class CandidFetchException implements Exception {
-  CandidFetchException({
-    required this.canisterId,
-    required this.kind,
-    this.statusCode,
-    this.body,
-    this.cause,
-  });
+  CandidFetchException({required this.canisterId, this.cause});
 
   final String canisterId;
-  final CandidFetchErrorKind kind;
-  final int? statusCode;
-  final String? body;
+  final CandidFetchErrorKind kind = CandidFetchErrorKind.fetchFailed;
   final Object? cause;
 
-  String get _reason {
-    switch (kind) {
-      case CandidFetchErrorKind.network:
-        return 'network error (${cause ?? "unreachable"})';
-      case CandidFetchErrorKind.non200:
-        return '${body ?? "<empty body>"} ($statusCode)';
-      case CandidFetchErrorKind.emptyBody:
-        return 'empty response body ($statusCode)';
-    }
-  }
-
   @override
-  String toString() => "Couldn't load Candid for $canisterId: $_reason";
+  String toString() =>
+      "Couldn't load Candid for $canisterId via certified read_state"
+      "${cause != null ? ': $cause' : ''}";
 }
 
 /// Why a fetched Candid interface could not be parsed into methods.
@@ -94,19 +72,27 @@ class CandidParseException implements Exception {
 }
 
 /// Service for fetching and parsing Candid interfaces.
+///
+/// R-3 (fixed 2026-07-23): the old HTTP registry path (`icp-api.io`) that 404'd
+/// for ALL canisters has been replaced by the certified FFI `read_state`
+/// `candid:service` path. Two real sources are consulted in order:
+///   1. The canister's own `__get_candid_interface_tmp` query hook (fast for
+///      canisters that implement it; absence is normal and falls through).
+///   2. The certified `read_state` metadata path via FFI `icp_fetch_candid`
+///      (`canister_client::fetch_candid`), the robust path that works for ALL
+///      canisters including those without the hook (e.g. the ICP Ledger).
 class CandidService {
-  CandidService({http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  CandidService({CandidFetcher? fetchCandid}) : _customFetchCandid = fetchCandid;
 
-  final http.Client _httpClient;
-  final RustBridgeLoader _bridge = RustBridgeLoader();
+  final CandidFetcher? _customFetchCandid;
+  final RustBridgeLoader _bridge = const RustBridgeLoader();
 
   /// Fetch methods for a canister by parsing its Candid interface.
   ///
-  /// Throws [CandidFetchException] when the Candid registry cannot supply the
-  /// interface, and [CandidParseException] when the fetched interface text is
-  /// malformed — never returns a stale/hardcoded fallback, never swallows a
-  /// parse failure into an empty list.
+  /// Throws [CandidFetchException] when neither the probe hook nor the certified
+  /// read_state path can supply the interface, and [CandidParseException] when
+  /// the fetched interface text is malformed — never returns a stale/hardcoded
+  /// fallback, never swallows a parse failure into an empty list.
   Future<List<CanisterMethod>> fetchCanisterMethods(
       String canisterId, [String? host]) async {
     final candidString = await _getCandidInterface(canisterId, host);
@@ -121,20 +107,24 @@ class CandidService {
   /// Two real sources are consulted in order; neither is a hardcoded fallback:
   ///   1. The canister's own `__get_candid_interface_tmp` query hook (not all
   ///      canisters implement it — absence is normal and falls through).
-  ///   2. The Candid registry (`icp-api.io/api/v2/canister/…/candid`), the
-  ///      authoritative source `dfx` uses. Failures here surface as
-  ///      [CandidFetchException].
+  ///   2. The certified `read_state` `candid:service` metadata path via FFI
+  ///      (`icp_fetch_candid`), the robust path that works for ALL canisters.
+  ///      Failures here surface as [CandidFetchException].
   Future<String> _getCandidInterface(String canisterId, [String? host]) async {
     final direct = await _probeDirectCandid(canisterId, host);
     if (direct != null) {
       return direct;
     }
-    return _fetchCandidFromRegistry(canisterId, host);
+    final readState = await _fetchCandidViaReadState(canisterId, host);
+    if (readState != null && readState.trim().isNotEmpty) {
+      return readState;
+    }
+    throw CandidFetchException(canisterId: canisterId);
   }
 
   /// Best-effort probe of the canister's temporary Candid hook. Returns `null`
   /// when the canister does not expose the hook (or the FFI bridge is absent);
-  /// in either case the registry is the authoritative fallback source.
+  /// in either case the certified read_state path is the robust fallback.
   Future<String?> _probeDirectCandid(String canisterId, [String? host]) async {
     try {
       final response = await _bridge.callAnonymous(
@@ -159,51 +149,38 @@ class CandidService {
       return null;
     } catch (e) {
       // The hook is optional. Surface the probe miss in debug logs (not
-      // silently swallowed) and let the registry resolve the interface loudly.
+      // silently swallowed) and let read_state resolve the interface loudly.
       debugPrint('candid: __get_candid_interface_tmp probe miss for '
           '$canisterId: $e');
       return null;
     }
   }
 
-  /// Fetch Candid from the registry. Throws [CandidFetchException] loudly on
-  /// any failure — no swallow, no null, no hardcoded fallback.
-  Future<String> _fetchCandidFromRegistry(String canisterId,
+  /// Fetch Candid via the certified `read_state` `candid:service` path. This is
+  /// the robust path that works for ALL canisters, including those that don't
+  /// implement the `__get_candid_interface_tmp` hook (e.g. the ICP Ledger).
+  ///
+  /// R-3: replaces the dead HTTP registry (`icp-api.io/api/v2/…`) which 404'd
+  /// for every canister. In production this delegates to the FFI bridge
+  /// (`icp_fetch_candid` → `canister_client::fetch_candid` →
+  /// `read_state_canister_metadata("candid:service")`); tests inject via the
+  /// constructor's [CandidFetcher].
+  ///
+  /// Returns `null` when the FFI bridge is unavailable or the read_state fails
+  /// — the caller ([_getCandidInterface]) surfaces this as a typed
+  /// [CandidFetchException].
+  Future<String?> _fetchCandidViaReadState(String canisterId,
       [String? host]) async {
-    final baseUrl = host ?? kCandidRegistryHost;
-    final url = Uri.parse('$baseUrl/api/v2/canister/$canisterId/candid');
-
-    final http.Response response;
     try {
-      response = await _httpClient
-          .get(url, headers: {'User-Agent': AppConfig.userAgent})
-          .timeout(AppDurations.networkRequest);
+      if (_customFetchCandid != null) {
+        return await _customFetchCandid(canisterId, host);
+      }
+      return await _bridge.fetchCandid(canisterId: canisterId, host: host);
     } catch (e) {
-      throw CandidFetchException(
-        canisterId: canisterId,
-        kind: CandidFetchErrorKind.network,
-        cause: e,
-      );
+      debugPrint('candid: certified read_state fetch failed for '
+          '$canisterId: $e');
+      return null;
     }
-
-    if (response.statusCode != 200) {
-      throw CandidFetchException(
-        canisterId: canisterId,
-        kind: CandidFetchErrorKind.non200,
-        statusCode: response.statusCode,
-        body: response.body,
-      );
-    }
-
-    if (response.body.isEmpty) {
-      throw CandidFetchException(
-        canisterId: canisterId,
-        kind: CandidFetchErrorKind.emptyBody,
-        statusCode: response.statusCode,
-      );
-    }
-
-    return response.body;
   }
 
   /// Parse a Candid interface into [CanisterMethod]s using the robust

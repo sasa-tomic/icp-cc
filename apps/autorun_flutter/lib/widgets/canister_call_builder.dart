@@ -88,18 +88,19 @@ class CanisterCallBuilderDialog extends StatefulWidget {
   /// UX-H11: builds the dropdown's full items list (the "Custom canister
   /// ID" placeholder plus one entry per canonical well-known canister).
   ///
-  /// Extracted as a `@visibleForTesting` static so the regression test can
-  /// pin the single-source property (the dropdown must surface every entry
-  /// of `WellKnownCanister.all`, no more, no less) without pumping the full
-  /// dialog — the dialog ships with a fixed 800x600 SizedBox that overflows
-  /// at the default test surface, mirroring the same pattern used for the
-  /// snippet generator (`generateBundle` above).
+  /// Shared by the Call Builder dialog, the Canister Client autocomplete, AND
+  /// the Frontend Scaffold dialog — every "pick a canister" surface honors the
+  /// single source of truth ([WellKnownCanister.all], no more, no less).
+  ///
+  /// Extracted as a static so the regression test can pin the single-source
+  /// property without pumping the full dialog — the dialog ships with a fixed
+  /// 800x600 SizedBox that overflows at the default test surface, mirroring
+  /// the same pattern used for the snippet generator (`generateBundle` above).
   ///
   /// Before UX-H11 this list was a divergent 5-entry hard-coded const that
   /// omitted ICLighthouse / Cyql / Kinic / Canistergeek; the regression
   /// test in `canister_call_builder_dropdown_test.dart` fails loudly if a
   /// future change re-forks it.
-  @visibleForTesting
   static List<DropdownMenuItem<String>> buildWellKnownDropdownItems() {
     return <DropdownMenuItem<String>>[
       const DropdownMenuItem<String>(

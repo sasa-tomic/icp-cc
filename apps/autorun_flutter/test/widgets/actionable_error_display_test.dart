@@ -173,35 +173,12 @@ void main() {
         );
       });
 
-      test('CandidFetchException network kind is network', () {
+      test('CandidFetchException is categorized as network', () {
         expect(
           categorizeError(CandidFetchException(
             canisterId: 'x',
-            kind: CandidFetchErrorKind.network,
           )),
           equals(ErrorCategoryType.network),
-        );
-      });
-
-      test('CandidFetchException non200 kind is server', () {
-        expect(
-          categorizeError(CandidFetchException(
-            canisterId: 'x',
-            kind: CandidFetchErrorKind.non200,
-            statusCode: 500,
-          )),
-          equals(ErrorCategoryType.server),
-        );
-      });
-
-      test('CandidFetchException emptyBody kind is validation', () {
-        expect(
-          categorizeError(CandidFetchException(
-            canisterId: 'x',
-            kind: CandidFetchErrorKind.emptyBody,
-            statusCode: 200,
-          )),
-          equals(ErrorCategoryType.validation),
         );
       });
     });

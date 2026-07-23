@@ -118,14 +118,7 @@ ErrorCategoryType categorizeError(Object? error) {
   }
 
   if (error is CandidFetchException) {
-    switch (error.kind) {
-      case CandidFetchErrorKind.network:
-        return ErrorCategoryType.network;
-      case CandidFetchErrorKind.non200:
-        return ErrorCategoryType.server;
-      case CandidFetchErrorKind.emptyBody:
-        return ErrorCategoryType.validation;
-    }
+    return ErrorCategoryType.network;
   }
 
   if (error is PasskeyException) {

@@ -6,6 +6,8 @@ import '../services/script_runner.dart';
 import '../services/service_locator.dart';
 import '../theme/app_design_system.dart';
 import 'dapp_runner_screen.dart';
+import 'scaffolded_frontend_screen.dart';
+import '../widgets/frontend_scaffold_dialog.dart';
 
 /// The Dapps catalog tab. Lists every shipped example dapp as a tappable card;
 /// tapping one opens [DappRunnerScreen] (Path B: backend direct).
@@ -46,6 +48,14 @@ class DappsScreen extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Scaffold frontend from canister',
+            icon: const Icon(Icons.auto_fix_high_rounded),
+            onPressed: () => _openScaffoldDialog(context, bridge),
+          ),
+          const SizedBox(width: AppDesignSystem.spacing4),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -75,6 +85,28 @@ class DappsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Opens the "Scaffold frontend from canister" dialog (Phase 1). On a
+  /// successful generation, pushes [ScaffoldedFrontendScreen] with the bundle
+  /// + connection values so the user immediately runs the generated UI.
+  Future<void> _openScaffoldDialog(
+      BuildContext context, ScriptBridge? testBridge) async {
+    final FrontendScaffoldResult? result = await showDialog<FrontendScaffoldResult>(
+      context: context,
+      builder: (_) => const FrontendScaffoldDialog(),
+    );
+    if (result == null) return;
+    if (!context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => ScaffoldedFrontendScreen(
+        title: 'Scaffolded · ${result.canisterId}',
+        bundle: result.bundle,
+        canisterId: result.canisterId,
+        host: result.host,
+        testBridge: testBridge,
+      ),
+    ));
   }
 }
 
