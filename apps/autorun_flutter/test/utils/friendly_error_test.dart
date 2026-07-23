@@ -37,17 +37,6 @@ void main() {
         friendlyErrorMessage(const FormatException('bad json')),
         'The data provided is not valid',
       );
-      expect(
-        friendlyErrorMessage(const PurchaseRequiredException(9.99)),
-        'The data provided is not valid',
-      );
-    });
-
-    test('server -> Something went wrong on our end', () {
-      expect(
-        friendlyErrorMessage(PaymentsNotConfiguredException()),
-        'Something went wrong on our end',
-      );
     });
 
     test('unknown -> An unexpected error occurred', () {

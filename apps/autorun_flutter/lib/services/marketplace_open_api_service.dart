@@ -4,14 +4,13 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../models/marketplace_script.dart';
 import '../models/profile_keypair.dart';
-import '../models/purchase_record.dart';
+import '../models/script_review.dart';
 import '../models/account.dart';
 import '../utils/base64_utils.dart';
 import '../utils/principal.dart';
 import '../theme/app_design_system.dart';
 import 'account_signature_service.dart';
 import 'api_routes.dart';
-import 'script_signature_service.dart';
 
 // Flag to control debug output in tests
 bool suppressDebugOutput = false;
@@ -19,17 +18,6 @@ bool suppressDebugOutput = false;
 /// Single source of truth for the signed review-create action name (W7-15).
 /// Mirrors the backend `REVIEW_CREATE_ACTION` const in handlers/reviews.rs.
 const String kReviewCreateAction = 'review:create';
-
-/// Thrown by `POST /api/v1/scripts/:id/download` when the caller is entitled
-/// to FREE download but the script is paid and the caller has no purchase
-/// record (HTTP 402). Carries the price so the UI can render the Buy CTA.
-class PurchaseRequiredException implements Exception {
-  final double price;
-  const PurchaseRequiredException(this.price);
-
-  @override
-  String toString() => 'PurchaseRequiredException: price \$$price';
-}
 
 /// Thrown when an authenticated download fails signature / public-key
 /// verification (HTTP 401). Indicates the signing keypair is not bound to any
@@ -40,46 +28,6 @@ class DownloadAuthException implements Exception {
 
   @override
   String toString() => 'DownloadAuthException: $detail';
-}
-
-/// Thrown by `GET /api/v1/payments/config` (or the legacy
-/// `/payments/icpay/config`) when the publishable key is unset server-side
-/// (HTTP 503). The caller must surface this LOUDLY to the user ("Payments
-/// not configured") rather than silently swallowing it.
-class PaymentsNotConfiguredException implements Exception {
-  const PaymentsNotConfiguredException();
-  @override
-  String toString() =>
-      'PaymentsNotConfiguredException: payment provider exposes no client config';
-}
-
-/// Thrown by `POST /api/v1/scripts/:id/purchase` when the backend is running
-/// with `PAYMENT_PROVIDER=none` (or an unrecognised value) — Phase K. The
-/// backend returns `503 {"error":"payments_disabled","provider":"none"}` (NOT
-/// the canonical `{"success":false,...}` envelope — the spec is explicit).
-/// Callers MUST surface this to the user ("Payments are disabled on this
-/// server") rather than retrying or silently swallowing.
-class PaymentsDisabledException implements Exception {
-  final String provider;
-  const PaymentsDisabledException(this.provider);
-  @override
-  String toString() =>
-      'PaymentsDisabledException: payments disabled (provider=$provider)';
-}
-
-/// Thrown when the ICPay config payload is structurally incomplete — i.e. the
-/// backend returned 200 `success:true` but a required field (`shortcode` or
-/// `apiUrl`) is missing/empty. Carries the raw body so the caller can surface
-/// exactly what the server sent. This is a LOUD failure: the client must NOT
-/// silently substitute a duplicated literal for the missing value (AUD-8 — the
-/// backend is the single source for the ICPay API host).
-class PaymentsConfigMalformedException implements Exception {
-  final String detail;
-  final String rawBody;
-  const PaymentsConfigMalformedException(this.detail, this.rawBody);
-  @override
-  String toString() =>
-      'PaymentsConfigMalformedException: $detail (raw body: $rawBody)';
 }
 
 /// Thrown by `GET /api/v1/scripts/:id/reviews` when the response `data` does
@@ -218,12 +166,8 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
 
   // Get script details by ID.
   //
-  // (W7-2) The `GET /scripts/:id` endpoint NEVER returns the paid bundle —
-  // `bundle` is `null` and `purchased` is `false` for every paid script here.
-  // The paid source is obtainable only via the authenticated signed
-  // `POST /scripts/:id/download`. To learn whether the active account owns /
-  // has purchased a paid script (so the UI can render Download vs Buy), call
-  // [checkEntitlement] — the sole signed source of truth for entitlement.
+  // The backend always includes the full `bundle` in this response (all
+  // scripts are free).
   Future<MarketplaceScript> getScriptDetails(String scriptId) async {
     try {
       final response = await _httpClient
@@ -240,142 +184,6 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       return MarketplaceScript.fromJson(data);
     } catch (e) {
       if (!suppressDebugOutput) debugPrint('Get script details failed: $e');
-      rethrow;
-    }
-  }
-
-  /// Signed entitlement check — `POST /api/v1/scripts/:id/entitlement` (W7-2).
-  ///
-  /// Returns `{purchased, owns}` for the caller identified by [signed]. The
-  /// server resolves the caller's `account_id` from the verified public key
-  /// (NEVER trusts a client-supplied account id). This is the metadata-only
-  /// replacement for the entitlement branch removed from `GET /scripts/:id`
-  /// (which leaked the paid bundle). Drives the Buy/Download CTA on the
-  /// frontend without ever shipping the bundle.
-  ///
-  /// Throws on 401 (unknown public key / bad signature / replay) and any
-  /// non-2xx, routed through the shared `_decodeSuccessResponse` /
-  /// `_decodeDataField` helpers (no hand-rolled jsonDecode).
-  Future<({bool purchased, bool owns})> checkEntitlement(
-    String scriptId, {
-    required SignedEntitlementRequest signed,
-  }) async {
-    try {
-      final response = await _httpClient
-          .post(
-            Uri.parse(ApiRoutes.scriptEntitlement(scriptId)),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'signature': signed.signatureB64,
-              'author_public_key': signed.authorPublicKeyB64,
-              'author_principal': signed.authorPrincipal,
-              'timestamp': signed.timestamp,
-              'nonce': signed.nonce,
-            }),
-          )
-          .timeout(AppDurations.browseTimeout);
-
-      final responseData = _decodeSuccessResponse(response,
-          label: 'Entitlement check');
-      final data = _decodeDataField<Map<String, dynamic>>(responseData,
-          label: 'Entitlement check');
-      final purchased = data['purchased'];
-      final owns = data['owns'];
-      if (purchased is! bool || owns is! bool) {
-        throw FormatException(
-          'Entitlement response missing boolean purchased/owns fields: $data',
-        );
-      }
-      return (purchased: purchased, owns: owns);
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Entitlement check failed: $e');
-      rethrow;
-    }
-  }
-
-  /// Provider-agnostic purchase — `POST /api/v1/scripts/:id/purchase`
-  /// (Phase K). The signed payload is the canonical JSON
-  /// `{action:"purchase", id:<script_id>, nonce:<nonce>, ts:<unix_seconds>}`
-  /// produced by [ScriptSignatureService.signPurchase] (mirrors the
-  /// /entitlement signing path — only the action field differs).
-  ///
-  /// Returns a [PurchaseResult] describing the provider's outcome:
-  ///   * `purchased == true` (stub Completed): entitlement granted
-  ///     immediately — the caller can refresh entitlement + flip the CTA to
-  ///     Download.
-  ///   * `purchased == false && checkoutUrl != null` (icpay Pending with
-  ///     hosted checkout): the caller opens the URL via url_launcher, then
-  ///     polls /entitlement on app resume.
-  ///   * `purchased == false && checkoutUrl == null` (icpay Pending without
-  ///     a URL — the current Phase K shape): the caller falls back to its
-  ///     ICPay client SDK to drive the hosted checkout.
-  ///
-  /// Throws [PaymentsDisabledException] on HTTP 503 with body
-  /// `{"error":"payments_disabled","provider":<name>}` (the spec-mandated
-  /// shape for `PAYMENT_PROVIDER=none` — distinct from the canonical
-  /// `{"success":false,...}` envelope). Throws on 401 (bad signature /
-  /// unknown key) + any other non-2xx, routed through the shared
-  /// `_decodeSuccessResponse` / `_decodeDataField` helpers.
-  Future<PurchaseResult> purchaseScript(
-    String scriptId, {
-    required SignedEntitlementRequest signed,
-  }) async {
-    try {
-      final response = await _httpClient
-          .post(
-            Uri.parse(ApiRoutes.scriptPurchase(scriptId)),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'signature': signed.signatureB64,
-              'author_public_key': signed.authorPublicKeyB64,
-              'author_principal': signed.authorPrincipal,
-              'timestamp': signed.timestamp,
-              'nonce': signed.nonce,
-            }),
-          )
-          .timeout(AppDurations.browseTimeout);
-
-      // 503 with the spec-mandated body shape → PaymentsDisabledException
-      // BEFORE the shared success-decode helper (which would treat it as a
-      // generic non-2xx error).
-      if (response.statusCode == 503) {
-        try {
-          final decoded = jsonDecode(response.body);
-          if (decoded is Map<String, dynamic> &&
-              decoded['error'] == 'payments_disabled') {
-            throw PaymentsDisabledException(
-                decoded['provider']?.toString() ?? 'none');
-          }
-        } on PaymentsDisabledException {
-          rethrow;
-        } on FormatException catch (e) {
-          debugPrint('purchaseScript 503 body decode failed: $e');
-        }
-      }
-
-      final responseData = _decodeSuccessResponse(response, label: 'Purchase');
-      final data = _decodeDataField<Map<String, dynamic>>(responseData,
-          label: 'Purchase');
-      final purchased = data['purchased'];
-      if (purchased is! bool) {
-        throw FormatException(
-          'Purchase response missing boolean purchased field: $data',
-        );
-      }
-      final intentRaw = data['intent'];
-      if (intentRaw is! Map<String, dynamic>) {
-        throw FormatException(
-          'Purchase response missing intent object: $data',
-        );
-      }
-      return PurchaseResult(
-        purchased: purchased,
-        intent: PurchaseIntentData.fromJson(intentRaw),
-      );
-    } on PaymentsDisabledException {
-      rethrow;
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Purchase failed: $e');
       rethrow;
     }
   }
@@ -666,10 +474,6 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
         script = await getScriptDetails(scriptId);
       }
 
-      if (script.price > 0) {
-        throw Exception('Paid scripts require authentication to download');
-      }
-
       if (!script.isPublic) {
         throw Exception('Script is not available for download');
       }
@@ -679,136 +483,6 @@ class MarketplaceOpenApiService implements MarketplaceOpenApi {
       if (!suppressDebugOutput) debugPrint('Download script failed: $e');
       rethrow;
     }
-  }
-
-  /// Fetch the public ICPay client config. `GET /api/v1/payments/icpay/config`.
-  ///
-  /// Returns the browser-safe publishable key + token shortcode + ICPay API
-  /// URL. Throws [PaymentsNotConfiguredException] on HTTP 503 (publishable key
-  /// unset server-side) — the caller MUST surface this to the user, not
-  /// swallow it. Other non-2xx statuses throw a plain [Exception].
-  Future<IcpayClientConfig> getIcpayConfig() async {
-    try {
-      final response = await _httpClient
-          .get(Uri.parse(ApiRoutes.paymentsIcpayConfig))
-          .timeout(AppDurations.browseTimeout);
-
-      if (response.statusCode == 503) {
-        throw const PaymentsNotConfiguredException();
-      }
-
-      final responseData =
-          _decodeSuccessResponse(response, label: 'ICPay config');
-      final data = _decodeDataField<Map<String, dynamic>>(responseData,
-          label: 'ICPay config');
-      return IcpayClientConfig.fromJson(data, rawBody: response.body);
-    } on PaymentsNotConfiguredException {
-      rethrow;
-    } on PaymentsConfigMalformedException {
-      rethrow;
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Get ICPay config failed: $e');
-      rethrow;
-    }
-  }
-
-  /// Authenticated paid-bundle retrieval. `POST /api/v1/scripts/:id/download`.
-  ///
-  /// [accountId] is the backend Account.id of the caller — NOT sent in the
-  /// request body (the backend resolves the account from [publicKeyB64] via
-  /// the public-keys table). Kept on the signature for caller intent + so the
-  /// high-level orchestrator can correlate the download with the active
-  /// account in logs.
-  ///
-  /// The body sent is exactly `{"public_key","signature","timestamp","nonce"}`
-  /// (snake_case, matching the backend `DownloadRequest` deserialiser). The
-  /// signature is Ed25519 over the canonical string
-  /// `download:{script_id}:{timestamp}:{nonce}` — produced by
-  /// [DownloadSignatureService].
-  ///
-  /// Returns the script bundle on 200. Throws:
-  /// - [PurchaseRequiredException] (with price) on 402 — UI routes to Buy.
-  /// - [DownloadAuthException] on 401 — signature/key problem; loud error.
-  Future<String> downloadPaidScriptBundle(
-    String scriptId, {
-    required String accountId,
-    required String publicKeyB64,
-    required String signatureB64,
-    required String timestamp,
-    required String nonce,
-  }) async {
-    final body = jsonEncode({
-      'public_key': publicKeyB64,
-      'signature': signatureB64,
-      'timestamp': timestamp,
-      'nonce': nonce,
-    });
-
-    if (!suppressDebugOutput) {
-      debugPrint('Paid download request: script=$scriptId account=$accountId');
-    }
-
-    http.Response response;
-    try {
-      response = await _httpClient
-          .post(
-            Uri.parse(ApiRoutes.scriptDownload(scriptId)),
-            headers: {'Content-Type': 'application/json'},
-            body: body,
-          )
-          .timeout(AppDurations.downloadTimeout);
-    } catch (e) {
-      if (!suppressDebugOutput) debugPrint('Paid download failed: $e');
-      rethrow;
-    }
-
-    // 402 / 401 carry typed exceptions with extracted detail (price / auth
-    // reason); they must run BEFORE the shared success-decode helper, which
-    // would treat them as generic non-2xx errors.
-    if (response.statusCode == 402) {
-      double? price;
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          final data = decoded['data'];
-          if (data is Map<String, dynamic>) {
-            price = (data['price'] as num?)?.toDouble();
-          }
-        }
-      } on FormatException catch (e) {
-        debugPrint('downloadPaidScriptBundle 402 body decode failed: $e');
-      }
-      throw PurchaseRequiredException(price ?? 0.0);
-    }
-    if (response.statusCode == 401) {
-      String detail = 'Authentication failed';
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic> && decoded['error'] is String) {
-          detail = decoded['error'] as String;
-        }
-      } on FormatException catch (e) {
-        debugPrint('downloadPaidScriptBundle 401 body decode failed: $e');
-      }
-      throw DownloadAuthException(detail);
-    }
-
-    // W7-7b/e: the success path (status + decode + success flag + data shape)
-    // is now governed by the shared helpers — no hand-rolled jsonDecode, no
-    // one-sided `> 299` bound (the helper uses `< 200 || > 299`), no unguarded
-    // shape check.
-    final responseData = _decodeSuccessResponse(
-      response,
-      label: 'Paid download',
-      failureFallback: 'Paid download failed',
-    );
-    final data = _decodeDataField<Map<String, dynamic>>(responseData,
-        label: 'Paid download');
-    final bundle = data['bundle'] as String?;
-    if (bundle == null) {
-      throw Exception('Paid download response missing bundle field');
-    }
-    return bundle;
   }
 
   Future<MarketplaceScript> getScriptVersion(
@@ -1462,66 +1136,10 @@ class ScriptValidationResult {
   }
 }
 
-/// Public ICPay client config (browser-safe). Mirrors the backend
-/// `GET /api/v1/payments/icpay/config` data payload — camelCase on the wire.
-/// The secret key never leaves the server; this only carries the publishable
-/// key the client uses to create payment intents against ICPay's API.
-class IcpayClientConfig {
-  final String publishableKey;
-  final String shortcode;
-  final String apiUrl;
-
-  const IcpayClientConfig({
-    required this.publishableKey,
-    required this.shortcode,
-    required this.apiUrl,
-  });
-
-  factory IcpayClientConfig.fromJson(Map<String, dynamic> json,
-      {required String rawBody}) {
-    // The token shortcode is the canonical token id used to charge callers.
-    // It MUST come from the backend payments config (single source: the
-    // server's ICPAY_TOKEN_SHORTCODE); never silently shadowed by a client-side
-    // literal fallback. If it is absent the server config is incomplete — fail
-    // loudly (the fully-unconfigured case already surfaces as HTTP 503 in
-    // getIcpayConfig).
-    final shortcode = json['shortcode'] as String?;
-    if (shortcode == null || shortcode.isEmpty) {
-      throw PaymentsConfigMalformedException(
-        'ICPay config is missing the required "shortcode" field — the backend '
-            'payments config is incomplete',
-        rawBody,
-      );
-    }
-    // The ICPay API host MUST come from the backend (AUD-8: no duplicated
-    // client-side literal fallback). If absent the server config is incomplete
-    // — fail loudly rather than silently pointing at a stale host.
-    final apiUrl = json['apiUrl'] as String?;
-    if (apiUrl == null || apiUrl.isEmpty) {
-      throw PaymentsConfigMalformedException(
-        'ICPay config is missing the required "apiUrl" field — the backend '
-            'payments config is incomplete',
-        rawBody,
-      );
-    }
-    return IcpayClientConfig(
-      publishableKey: json['publishableKey'] as String? ?? '',
-      shortcode: shortcode,
-      apiUrl: apiUrl,
-    );
-  }
-
-  @override
-  String toString() =>
-      'IcpayClientConfig{shortcode: $shortcode, apiUrl: $apiUrl, '
-      'hasKey: ${publishableKey.isNotEmpty}}';
-}
-
 /// Lightweight browse-time preview of a script (UX-6).
 /// Mirrors the backend `GET /api/v1/scripts/:id/preview` payload: a CAPPED
 /// excerpt of the source plus browse-relevant metadata. Deliberately has no
-/// `bundle` field — the full source is never carried here (and for paid
-/// scripts it is never sent over the wire at all).
+/// `bundle` field — the full source is never carried here.
 class ScriptPreview {
   final String id;
   final String description;
@@ -1563,80 +1181,4 @@ class ScriptPreview {
   String toString() =>
       'ScriptPreview{id: $id, version: $version, price: $price, '
       'lines: $totalLines, truncated: $previewTruncated}';
-}
-
-/// Provider-agnostic purchase outcome (Phase K). Returned by
-/// [MarketplaceOpenApiService.purchaseScript]. Mirrors the backend's
-/// `POST /api/v1/scripts/:id/purchase` response `data` field shape verbatim
-/// (camelCase on the wire).
-class PurchaseResult {
-  /// `true` when the entitlement is already granted (stub Completed, free
-  /// script, or — for icpay — after the webhook lands). `false` when the
-  /// caller must wait for an external round-trip (icpay Pending).
-  final bool purchased;
-
-  /// The provider's intent record. Carries `status`, `provider`, `id`, an
-  /// optional `checkoutUrl` (icpay), and the `usdAmount` charged.
-  final PurchaseIntentData intent;
-
-  const PurchaseResult({required this.purchased, required this.intent});
-
-  @override
-  String toString() =>
-      'PurchaseResult{purchased: $purchased, intent: $intent}';
-}
-
-/// The intent sub-object inside a [PurchaseResult]. Mirrors the backend
-/// `PurchaseIntent` serde shape (`camelCase`): `{id, status, checkoutUrl,
-/// provider, usdAmount}`.
-///
-/// `status` is the lowercase string the backend serialised from its
-/// `PurchaseStatus` enum: `"completed"` (stub + free), `"pending"` (icpay
-/// pre-webhook), or `"failed"` (declined / refunded). The frontend treats
-/// any non-`"completed"` value as "wait / show checkout URL" — see
-/// `_buyScript` in scripts_screen.dart.
-class PurchaseIntentData {
-  final String id;
-  final String status;
-  final String? checkoutUrl;
-  final String provider;
-  final double usdAmount;
-
-  const PurchaseIntentData({
-    required this.id,
-    required this.status,
-    required this.provider,
-    required this.usdAmount,
-    this.checkoutUrl,
-  });
-
-  /// `true` when the backend already granted the entitlement (status ==
-  /// "completed"). Convenience wrapper so callers don't have to compare
-  /// strings.
-  bool get isCompleted => status == 'completed';
-
-  factory PurchaseIntentData.fromJson(Map<String, dynamic> json) {
-    final id = json['id'] as String?;
-    final status = json['status'] as String?;
-    final provider = json['provider'] as String?;
-    final usdAmount = json['usdAmount'];
-    if (id == null || status == null || provider == null || usdAmount is! num) {
-      throw FormatException(
-        'PurchaseIntentData missing required fields (id, status, provider, '
-        'usdAmount): $json',
-      );
-    }
-    return PurchaseIntentData(
-      id: id,
-      status: status,
-      provider: provider,
-      usdAmount: usdAmount.toDouble(),
-      checkoutUrl: json['checkoutUrl'] as String?,
-    );
-  }
-
-  @override
-  String toString() =>
-      'PurchaseIntentData{id: $id, status: $status, provider: $provider, '
-      'usdAmount: $usdAmount, hasCheckoutUrl: ${checkoutUrl != null}}';
 }

@@ -45,8 +45,8 @@ void main() {
     expect(find.byType(ScriptDetailsDialog), findsOneWidget,
         reason: 'details dialog should be open after tapping the tile');
 
-    // Tap Download FREE inside the dialog.
-    await tester.tap(find.text('Download FREE'));
+    // Tap Download inside the dialog.
+    await tester.tap(find.text('Download'));
     await tester.pumpAndSettle();
 
     expect(find.byType(ScriptDetailsDialog), findsNothing,

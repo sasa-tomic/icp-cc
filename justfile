@@ -961,8 +961,7 @@ e2e-local-replica:
 #      seams to flip PasskeyPlatform.isSupported + bypass browser WebAuthn.
 #
 # Backend is the REAL local server; IC mainnet reaches the browser directly /
-# via the CORS proxy. Only ICPay checkout is mocked (ICP_E2E_MOCK_ICPAY=1 —
-# icpay.org is unreachable from the sandbox).
+# via the CORS proxy.
 #
 # Override the suite by passing `file=` (single file):
 #   just e2e-web                       # default: all three suites
@@ -989,7 +988,6 @@ e2e-web file="test/e2e_web/suite_web_smoke_test.dart test/e2e_web/suite_web_flow
         flutter test -d chrome \
         --dart-define=PUBLIC_API_ENDPOINT=http://127.0.0.1:$api_port \
         --dart-define=ICP_E2E=1 \
-        --dart-define=ICP_E2E_MOCK_ICPAY=1 \
         {{file}} --reporter=compact --timeout=240s
 
 # e2e-web-playwright: Tier B — Playwright against the BUILT Flutter Web bundle
@@ -1072,7 +1070,6 @@ e2e-web-one flow:
     cd "{{flutter_dir}}" && CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
         flutter test -d chrome \
         --dart-define=ICP_E2E=1 \
-        --dart-define=ICP_E2E_MOCK_ICPAY=1 \
         test/e2e_web/flows_web_test.dart \
         --name '^{{flow}}$' --reporter=compact --timeout=120s
 
@@ -1099,7 +1096,6 @@ e2e-web-tag tag:
     cd "{{flutter_dir}}" && CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
         flutter test -d chrome \
         --dart-define=ICP_E2E=1 \
-        --dart-define=ICP_E2E_MOCK_ICPAY=1 \
         test/e2e_web/flows_web_test.dart \
         --tags '{{tag}}' --concurrency=1 --reporter=compact --timeout=120s
 

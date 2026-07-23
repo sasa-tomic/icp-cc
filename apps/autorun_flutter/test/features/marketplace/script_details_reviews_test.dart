@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/models/marketplace_script.dart';
-import 'package:icp_autorun/models/purchase_record.dart';
+import 'package:icp_autorun/models/script_review.dart';
 import 'package:icp_autorun/services/marketplace_open_api_service.dart';
 import 'package:icp_autorun/widgets/script_details_dialog.dart';
 

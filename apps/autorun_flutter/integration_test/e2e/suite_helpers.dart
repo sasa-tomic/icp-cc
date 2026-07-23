@@ -170,11 +170,6 @@ const kCounterTitle = 'Interactive Counter';
 const kBalanceTitle = 'ICP Balance Reader';
 const kHelloTitle = 'Hello IC Starter';
 
-/// Title of the paid-seed script uploaded by `tool/seed_marketplace.dart
-/// --paid` (slug `paid-seed-script`, price \$4.99). Used by the
-/// scripts.buy + scripts.download_paid e2e flows (Phase K).
-const kPaidSeedTitle = 'Paid Seed Script';
-
 /// Enter text into the search bar, clear first, then wait for debounce + fetch.
 Future<void> enterSearch(
     WidgetTester tester, E2EDriver d, String query) async {
@@ -195,9 +190,9 @@ Future<void> clearSearch(WidgetTester tester, E2EDriver d) async {
       matching: find.byType(TextField));
   await tester.enterText(searchField, '');
   await tester.pump(const Duration(milliseconds: 500));
-  // Unfocus the search field (enterText leaves it focused, which can absorb
-  // pointer events on the nearby filter button). Tap the screen center.
-  await tester.tapAt(const Offset(720, 450));
+  // Unfocus the search field without tapping the screen — a center-screen
+  // tap hits a script tile and opens a details dialog.
+  FocusManager.instance.primaryFocus?.unfocus();
   await tester.pump(const Duration(milliseconds: 300));
   // Wait for at least one marketplace script to reappear after clearing.
   await d.waitUntil(

@@ -116,7 +116,7 @@ void main() {
         (tester) async {
       await pumpDialog(tester, onDownload: () {}, onRun: () {}, isDownloaded: false);
 
-      expect(find.text('Download FREE'), findsOneWidget);
+      expect(find.text('Download'), findsOneWidget);
       expect(find.text('Run'), findsNothing);
     });
 

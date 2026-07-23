@@ -35,8 +35,7 @@ const String kCanisterLearnMoreUrl =
     'https://docs.internetcomputer.org/concepts/canisters/';
 
 /// Test seam for the help dialog's "Learn more" launch. Production defaults to
-/// the real [launchUrl]; tests inject a recording stub (mirrors the
-/// `UrlLauncher` injection pattern in `icpay_service.dart`) so they can assert
+/// the real [launchUrl]; tests inject a recording stub so they can assert
 /// the URL without spinning up a browser / platform channel.
 @visibleForTesting
 Future<bool> Function(Uri url, LaunchMode mode) canisterLearnMoreLauncher =

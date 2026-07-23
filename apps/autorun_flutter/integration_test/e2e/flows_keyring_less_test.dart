@@ -139,8 +139,6 @@ const Map<String, List<String>> _prereqs = <String, List<String>>{
 
   // ── flows with internal resetAppState (manage their own boot) ──────────
   'scripts.load_more': <String>[],
-  'scripts.buy': <String>[],
-  'scripts.download_paid': <String>[],
 };
 
 void main() {

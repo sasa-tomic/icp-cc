@@ -37,11 +37,6 @@
 ///   --count=25` to seed the backend past the page-size threshold of 20),
 ///   dapps.run_ledger_mainnet (Phase 53 — real IC mainnet canister call;
 ///   best-effort, network-dependent),
-///   scripts.buy (Phase 54 — provider-agnostic purchase CTA + keyring-less UX
-///   fallback; the full signed purchase round-trip is covered by the Rust
-///   payment_http_tests against the stub provider),
-///   scripts.download_paid (Phase 55 — paid-script details dialog rendering;
-///   the post-purchase Download path is covered by payment_http_tests),
 @TestOn('linux')
 library;
 
@@ -508,26 +503,6 @@ void main() {
     if (shouldStopAfter('dapps.run_ledger_mainnet')) return;
     driver.phase('53', 'OK — dapps.run_ledger_mainnet');
 
-    // PHASE 54: scripts.buy — provider-agnostic purchase flow against the
-    // stub backend (PAYMENT_PROVIDER=stub default). Seeds a paid script,
-    // opens the details dialog, asserts the "Buy for $4.99" CTA renders,
-    // taps Buy, asserts the keyring-less "Create a profile first" SnackBar.
-    // The full signed purchase round-trip is covered by the 16 new
-    // payment_http_tests in the Rust suite.
-    driver.phase('54', 'scripts: buy paid script (stub provider)');
-    await registry.runFor('scripts.buy')!(tester, driver);
-    if (shouldStopAfter('scripts.buy')) return;
-    driver.phase('54', 'OK — scripts.buy');
-
-    // PHASE 55: scripts.download_paid — paid-script details dialog after
-    // (or without) purchase. The full post-purchase Download path is
-    // covered by payment_http_tests.purchase_with_stub_then_download_succeeds;
-    // this flow covers the UN-purchased rendering (Buy CTA + gated preview).
-    driver.phase('55', 'scripts: download paid script');
-    await registry.runFor('scripts.download_paid')!(tester, driver);
-    if (shouldStopAfter('scripts.download_paid')) return;
-    driver.phase('55', 'OK — scripts.download_paid');
-
 
     // ── COVERAGE REPORT ────────────────────────────────────────────────────
     final cov = FlowCatalog.coverageReport(registry);
@@ -535,17 +510,15 @@ void main() {
         '${cov.implemented}/${cov.total} implemented; '
         'this suite covers: ${cov.covered.join(", ")}');
     expect(cov.total, greaterThan(90), reason: 'Catalog must list all flows.');
-    expect(cov.implemented, greaterThanOrEqualTo(58),
-        reason: 'keyring-less must cover at least 58 flows '
+    expect(cov.implemented, greaterThanOrEqualTo(56),
+        reason: 'keyring-less must cover at least 56 flows '
             '(42 base + 2 Phase-D easy + 1 Phase-D medium + 3 Phase D-resume '
             '+ 4 post-bug-fix: canisters.open_inline_client, '
             'dapps.apply_connection, dapps.refresh, shortcut.dapp_refresh, '
             '+ 1 Phase-51: scripts.delete, '
             '+ 1 Phase-1b: first_run.keyring_unavailable, '
             '+ 1 Phase-52: scripts.load_more, '
-            '+ 1 Phase-53: dapps.run_ledger_mainnet, '
-            '+ 1 Phase-54: scripts.buy (provider-agnostic purchase), '
-            '+ 1 Phase-55: scripts.download_paid).');
+            '+ 1 Phase-53: dapps.run_ledger_mainnet).');
 
     // ignore: avoid_print
     print('SUITE_KEYRING_LESS: PASS — ${cov.implemented} flows covered '

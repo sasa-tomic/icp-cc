@@ -258,38 +258,6 @@ void main() {
         expect(captured, isA<TimeoutException>());
       });
     });
-
-    test('paid bundle download uses the download budget, not browse '
-        '(downloadPaidScriptBundle)', () {
-      fakeAsync((async) {
-        service.overrideHttpClient(hangingClient());
-
-        Object? captured;
-        service
-            .downloadPaidScriptBundle(
-          'script-1',
-          accountId: 'a',
-          publicKeyB64: 'dGVzdA==',
-          signatureB64: 'dGVzdA==',
-          timestamp: 'ts',
-          nonce: 'n',
-        )
-            .then<void>(
-              (_) {},
-              onError: (Object e) => captured = e,
-            );
-
-        async.flushMicrotasks();
-        async.elapse(AppDurations.browseTimeout + const Duration(seconds: 1));
-        async.flushMicrotasks();
-        expect(captured, isNull,
-            reason: 'full-bundle download must use the download budget');
-
-        async.elapse(AppDurations.downloadTimeout);
-        async.flushMicrotasks();
-        expect(captured, isA<TimeoutException>());
-      });
-    });
   });
 
   group('network failure / transport error', () {
@@ -706,50 +674,6 @@ void main() {
           throwsA(isA<Exception>()
               .having((e) => e.toString(), 'carries status',
                   contains('HTTP 100'))),
-        );
-      });
-    });
-
-    group('downloadPaidScriptBundle (was bypassing _decodeSuccessResponse)', () {
-      test('1xx is NOT treated as success (W7-7e)', () {
-        // Old code: `if (response.statusCode > 299)` after the 401/402 branches
-        // → 100 falls through to jsonDecode('') → FormatException. Now routed
-        // through _decodeSuccessResponse which uses `< 200 || > 299`.
-        service.overrideHttpClient(_statusClient(100, body: ''));
-        expect(
-          () => service.downloadPaidScriptBundle(
-            'script-1',
-            accountId: 'a',
-            publicKeyB64: 'pk',
-            signatureB64: 'sig',
-            timestamp: 'ts',
-            nonce: 'n',
-          ),
-          throwsA(isA<Exception>()
-              .having((e) => e.toString(), 'carries status',
-                  contains('HTTP 100'))),
-        );
-      });
-
-      test('throws a typed Exception when data is missing on 200 (W7-7b)', () {
-        // Routed through _decodeDataField — a missing data field must produce a
-        // clear Exception, not a null-dereference.
-        service.overrideHttpClient(_statusClient(
-          200,
-          body: jsonEncode({'success': true}),
-        ));
-        expect(
-          () => service.downloadPaidScriptBundle(
-            'script-1',
-            accountId: 'a',
-            publicKeyB64: 'pk',
-            signatureB64: 'sig',
-            timestamp: 'ts',
-            nonce: 'n',
-          ),
-          throwsA(isA<Exception>()
-              .having((e) => e.toString(), 'mentions data',
-                  contains('data'))),
         );
       });
     });

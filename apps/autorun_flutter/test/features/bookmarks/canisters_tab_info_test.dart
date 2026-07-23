@@ -126,8 +126,7 @@ void main() {
         'and closes the dialog', (tester) async {
       Uri? capturedUri;
       LaunchMode? capturedMode;
-      // Override the test seam (mirrors icpay_service.dart's UrlLauncher
-      // injection pattern).
+      // Override the test seam (UrlLauncher injection pattern).
       canisterLearnMoreLauncher = (uri, mode) async {
         capturedUri = uri;
         capturedMode = mode;

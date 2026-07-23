@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -13,18 +12,13 @@ import '_marketplace_test_harness.dart';
 
 /// UX-6 — the Script Details dialog must render its code preview from the
 /// lightweight `GET /scripts/:id/preview` endpoint instead of downloading the
-/// full bundle, and it must NEVER full-download a paid script for preview.
+/// full bundle.
 ///
-/// Four branches are pinned here, one per test:
-///  1. FREE script, preview OK → hits `/preview`, does NOT hit the full
-///     `/scripts/:id` download; renders the lightweight preview text.
-///  2. FREE script, preview FAILS → falls back to the legacy full download
+/// Two branches are pinned here, one per test:
+///  1. Preview OK → hits `/preview`, does NOT hit the full `/scripts/:id`
+///     download; renders the lightweight preview text.
+///  2. Preview FAILS → falls back to the legacy full download
 ///     (`GET /scripts/:id`); renders `take(50)` of the bundle.
-///  3. PAID script, preview OK → hits `/preview` only; never hits the full
-///     download (the teaser cap is enforced server-side, so this is the path
-///     that must run for paid scripts in practice).
-///  4. PAID script, preview FAILS → NEVER falls back to full download; shows
-///     the "Purchase to view source" gate message.
 void main() {
   group('ScriptDetailsDialog preview (UX-6)', () {
     late MarketplaceOpenApiService service;
@@ -57,23 +51,6 @@ void main() {
           updatedAt: DateTime.now(),
         );
 
-    MarketplaceScript paidScript() => MarketplaceScript(
-          id: 'script-paid',
-          title: 'Paid Script',
-          description: 'A paid script description',
-          category: 'Development',
-          tags: const ['test'],
-          authorName: 'Test Author',
-          price: 9.99,
-          downloads: 5,
-          rating: 4.5,
-          reviewCount: 2,
-          bundle:
-              List.generate(100, (i) => 'paid bundle line ${i + 1}').join('\n'),
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          updatedAt: DateTime.now(),
-        );
-
     /// The lightweight preview payload the backend returns for a free script
     /// (server-side cap = 50 lines). Uses a distinctive sentinel so the test
     /// can prove the pane renders THIS text (not the full bundle).
@@ -87,21 +64,6 @@ void main() {
             'language': 'typescript',
             'preview':
                 List.generate(50, (i) => '// preview line ${i + 1}').join('\n'),
-            'previewTruncated': true,
-            'totalLines': 100,
-          },
-        });
-
-    String paidPreviewJson() => jsonEncode({
-          'success': true,
-          'data': {
-            'id': 'script-paid',
-            'description': 'A paid script description',
-            'version': '1.2.0',
-            'price': 9.99,
-            'language': 'typescript',
-            'preview':
-                List.generate(20, (i) => '// teaser line ${i + 1}').join('\n'),
             'previewTruncated': true,
             'totalLines': 100,
           },
@@ -233,69 +195,6 @@ void main() {
       // take(50) of the bundle: first line is present, line 51 is not.
       expect(find.textContaining('free bundle line 1'), findsOneWidget);
       expect(find.textContaining('free bundle line 51'), findsNothing);
-    });
-
-    testWidgets(
-        'PAID script: dialog renders the capped teaser via /preview and does '
-        'NOT full-download', (tester) async {
-      final script = paidScript();
-      int previewFetches = 0;
-      int fullFetches = 0;
-
-      final client = buildClient(
-        script: script,
-        previewResponse: () => ok(paidPreviewJson()),
-        fullDetailsResponse: () => ok(fullScriptJson(script)),
-        onPreview: () => previewFetches++,
-        onFullDetails: () => fullFetches++,
-      );
-      service.overrideHttpClient(client);
-      addTearDown(client.close);
-
-      await openDialog(tester, script);
-
-      expect(previewFetches, 1, reason: 'paid preview must call /preview');
-      expect(fullFetches, 0,
-          reason: 'paid script must NEVER full-download for preview');
-      // Renders the server-capped teaser (inside a SelectableText), never the
-      // bundle.
-      expect(find.textContaining('// teaser line 1'), findsOneWidget);
-      expect(find.textContaining('paid bundle line'), findsNothing,
-          reason: 'the paid bundle must not be rendered');
-    });
-
-    testWidgets(
-        'PAID script: when /preview fails, NEVER full-downloads — shows the '
-        'purchase gate instead', (tester) async {
-      final script = paidScript();
-      int previewFetches = 0;
-      int fullFetches = 0;
-
-      final client = buildClient(
-        script: script,
-        previewResponse: serverError,
-        fullDetailsResponse: () => ok(fullScriptJson(script)),
-        onPreview: () => previewFetches++,
-        onFullDetails: () => fullFetches++,
-      );
-      service.overrideHttpClient(client);
-      addTearDown(client.close);
-
-      await openDialog(tester, script);
-
-      expect(previewFetches, 1, reason: 'preview endpoint must be attempted');
-      expect(fullFetches, 0,
-          reason: 'paid script must NEVER fall back to full download — '
-              'that would ship paid source the user has not purchased');
-      // Purchase gate renders (this is expected UX, not an error string).
-      expect(find.text('Purchase to view source'), findsOneWidget);
-      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
-      // The description (already on `widget.script`) is still shown.
-      expect(find.text('A paid script description'), findsWidgets);
-      // The paid bundle must never appear.
-      expect(find.textContaining('paid bundle line'), findsNothing);
-      // And no red error string for the gate (it is not an error).
-      expect(find.textContaining('Failed to load preview'), findsNothing);
     });
   });
 }

@@ -16,7 +16,6 @@ import 'services/deep_link_service.dart';
 import 'services/marketplace_open_api_service.dart';
 import 'services/onboarding_service.dart';
 import 'services/script_repository.dart';
-import 'services/script_signature_service.dart';
 import 'services/secure_storage_readiness.dart';
 import 'services/service_locator.dart';
 import 'services/settings_service.dart';
@@ -145,19 +144,7 @@ class _KeypairAppState extends State<KeypairApp> {
     );
 
     try {
-      // W7-2: `GET /scripts/:id` no longer carries entitlement (that branch
-      // leaked the paid bundle). Fetch metadata-only, then resolve the
-      // signed entitlement separately so the right CTA (Download vs Buy)
-      // renders for paid scripts.
-      var script = await MarketplaceOpenApiService().getScriptDetails(scriptId);
-
-      // For a paid script with unknown entitlement, ask the signed endpoint.
-      if (script.price > 0 && script.purchased == null) {
-        final purchased = await _resolveDeepLinkEntitlement(scriptId);
-        if (purchased != null) {
-          script = script.copyWith(purchased: purchased);
-        }
-      }
+      final script = await MarketplaceOpenApiService().getScriptDetails(scriptId);
 
       if (!mounted) return;
       // ignore: use_build_context_synchronously
@@ -166,21 +153,13 @@ class _KeypairAppState extends State<KeypairApp> {
       // ignore: use_build_context_synchronously
       Navigator.of(navContext).pop();
 
-      final owned = script.isDownloadable;
       // ignore: use_build_context_synchronously
       await showDialog<void>(
         // ignore: use_build_context_synchronously
         context: navContext,
         builder: (ctx) => ScriptDetailsDialog(
           script: script,
-          onDownload: script.price == 0
-              ? () => _downloadScriptFromDeepLink(navContext, script)
-              : (owned
-                  ? () => _downloadScriptFromDeepLink(navContext, script)
-                  : null),
-          onBuy: (script.price > 0 && !owned)
-              ? () => _showPurchaseUnavailableFromDeepLink(navContext, script)
-              : null,
+          onDownload: () => _downloadScriptFromDeepLink(navContext, script),
         ),
       );
     } catch (e) {
@@ -200,39 +179,6 @@ class _KeypairAppState extends State<KeypairApp> {
         ),
       );
     }
-  }
-
-  /// Best-effort signed entitlement check for the deep-link path (W7-2).
-  /// Returns the `purchased` boolean for [scriptId] on success, or `null` if
-  /// there is no active profile / account, the keypair is missing, or the
-  /// signed check failed (callers fall back to the safe default — Buy CTA).
-  Future<bool?> _resolveDeepLinkEntitlement(String scriptId) async {
-    final profile = _profileController.activeProfile;
-    if (profile == null) return null;
-    final keypair = profile.primaryKeypair;
-    try {
-      final signed = await ScriptSignatureService.signEntitlement(
-        signingKeypair: keypair,
-        scriptId: scriptId,
-      );
-      final result = await MarketplaceOpenApiService()
-          .checkEntitlement(scriptId, signed: signed);
-      return result.purchased;
-    } catch (e) {
-      debugPrint('Deep-link entitlement check for $scriptId failed: $e');
-      return null;
-    }
-  }
-
-  Future<void> _showPurchaseUnavailableFromDeepLink(
-      BuildContext context, dynamic script) async {
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Open the Scripts tab to purchase this paid script.'),
-        duration: Duration(seconds: 4),
-      ),
-    );
   }
 
   Future<void> _downloadScriptFromDeepLink(

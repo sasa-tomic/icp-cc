@@ -425,12 +425,10 @@ Future<void> _deeplinkOpenScriptFlow(
   driver.phase('L.4-emit', 'script URI dispatched: ${emitted.first}');
 }
 
-/// `deeplink.purchase_unavailable` — pump a synthetic URI with the
-/// `purchase` host (unknown to DeepLinkService; only `script` is handled).
+/// `deeplink.unknown_host` — pump a synthetic URI with an unknown host
+/// (`purchase` — not handled by DeepLinkService; only `script` is handled).
 /// The service gracefully ignores it: no event emitted, no exception.
-/// This is the "purchase unavailable on this platform" semantics — there's
-/// no `purchase` host handler because purchases route through the script
-/// details dialog's Buy CTA, not deep links.
+/// This proves the deep-link service is robust against unrecognised hosts.
 Future<void> _deeplinkPurchaseUnavailableFlow(
     WidgetTester tester, E2EDriver driver) async {
   DeepLinkService.resetForTesting();
@@ -443,12 +441,10 @@ Future<void> _deeplinkPurchaseUnavailableFlow(
 
   expect(emitted, isEmpty,
       reason: 'Unknown host ("purchase") must be silently ignored — no '
-          'DeepLinkData emitted, no exception. The current DeepLinkService '
-          'has no "purchase" host; the actual "purchase unavailable" UI is '
-          'reached via the script details dialog Buy CTA, not via this URI '
-          'host. This flow proves the service does not fabricate a script '
-          'event for an unrecognised purchase URI.');
-  driver.phase('L.5-ignore', 'purchase URI ignored (no event)');
+          'DeepLinkData emitted, no exception. The DeepLinkService has no '
+          '"purchase" host; this flow proves the service does not fabricate '
+          'a script event for an unrecognised URI host.');
+  driver.phase('L.5-ignore', 'unknown URI host ignored (no event)');
 }
 
 /// `deeplink.invalid_scheme` — pump a URI with a WRONG scheme. The service

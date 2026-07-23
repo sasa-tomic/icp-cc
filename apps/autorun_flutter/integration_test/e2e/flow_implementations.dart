@@ -403,25 +403,28 @@ Future<void> scriptsViewDetails(WidgetTester tester, E2EDriver driver) async {
 }
 
 /// `scripts.download_free` — assumes the details dialog is open from
-/// `scripts.view_details` (Hello IC Starter — free). Taps Download FREE,
+/// `scripts.view_details` (Hello IC Starter — free). Taps Download,
 /// expects the "added to your library" SnackBar, closes the dialog.
 Future<void> scriptsDownloadFree(WidgetTester tester, E2EDriver driver) async {
-  // Scope to the details dialog (on web, multiple "Download FREE" labels may
+  // Scope to the details dialog (on web, multiple "Download" labels may
   // exist in the widget tree — the dialog's primary action + any inline tile
   // actions).
   final downloadBtn = find.descendant(
       of: find.byType(ScriptDetailsDialog),
-      matching: find.text('Download FREE'));
+      matching: find.text('Download'));
   final btnPresent = await driver.waitUntil(
       tester, () => driver.present(downloadBtn, tester),
       timeout: const Duration(seconds: 5));
   expect(btnPresent, isTrue,
-      reason: 'Free script details must show a "Download FREE" button.');
+      reason: 'Script details must show a "Download" button.');
   // Invoke the FilledButton's onPressed directly (bypasses gesture
-  // interception by overlays).
-  final filledBtn = find.ancestor(
-      of: find.text('Download FREE'),
-      matching: find.byType(FilledButton));
+  // interception by overlays). Scope the ancestor search to the dialog too
+  // so we don't accidentally tap a FilledButton elsewhere in the tree.
+  final filledBtn = find.descendant(
+      of: find.byType(ScriptDetailsDialog),
+      matching: find.ancestor(
+          of: find.text('Download'),
+          matching: find.byType(FilledButton)));
   await tester.runAsync(() async {
     tester.widget<FilledButton>(filledBtn.first).onPressed!();
     // The download does file I/O (ScriptRepository.createScript) which needs

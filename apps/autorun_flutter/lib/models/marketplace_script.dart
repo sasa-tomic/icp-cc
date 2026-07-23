@@ -26,11 +26,6 @@ class MarketplaceScript {
   final String? compatibility;
   final String? version;
   final bool isPublic;
-  /// Whether the active account has purchased this script. Nullable for
-  /// back-compat with list/legacy responses that omit the field (treated as
-  /// "unknown" — see [isDownloadable]). Set by the backend's
-  /// `GET /api/v1/scripts/:id?account_id=` entitlement view.
-  final bool? purchased;
   final DateTime createdAt;
   final DateTime updatedAt;
   final MarketplaceAuthor? author;
@@ -59,21 +54,13 @@ class MarketplaceScript {
     this.compatibility,
     this.version,
     this.isPublic = true,
-    this.purchased,
     required this.createdAt,
     required this.updatedAt,
     this.author,
   });
 
-  /// Whether the active account may download this script's full bundle.
-  ///
-  /// A script is downloadable when it is free (`price == 0`) OR when the
-  /// backend has confirmed a purchase / ownership (`purchased == true`).
-  /// `purchased == null` (absent on legacy list responses) is treated as
-  /// "not confirmed" — paid scripts in that state are NOT downloadable until
-  /// `MarketplaceOpenApiService.checkEntitlement` (W7-2 signed check)
-  /// confirms entitlement.
-  bool get isDownloadable => price <= 0 || purchased == true;
+  /// All marketplace scripts are free — always downloadable.
+  bool get isDownloadable => true;
 
   static bool _parseBool(dynamic value) {
     if (value is bool) return value;
@@ -152,7 +139,6 @@ class MarketplaceScript {
       compatibility: json['compatibility'] as String?,
       version: json['version'] as String?,
       isPublic: _parseBool(json['isPublic'] ?? json['is_public'] ?? true),
-      purchased: json['purchased'] as bool?,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ??
               json['created_at'] as String? ??
               json['\$createdAt'] as String? ??
@@ -191,7 +177,6 @@ class MarketplaceScript {
       'compatibility': compatibility,
       'version': version,
       'isPublic': isPublic,
-      if (purchased != null) 'purchased': purchased,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'author': author?.toJson(),
@@ -219,7 +204,6 @@ class MarketplaceScript {
     String? compatibility,
     String? version,
     bool? isPublic,
-    bool? purchased,
     DateTime? createdAt,
     DateTime? updatedAt,
     MarketplaceAuthor? author,
@@ -245,7 +229,6 @@ class MarketplaceScript {
       compatibility: compatibility ?? this.compatibility,
       version: version ?? this.version,
       isPublic: isPublic ?? this.isPublic,
-      purchased: purchased ?? this.purchased,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       author: author ?? this.author,
@@ -254,9 +237,8 @@ class MarketplaceScript {
 
   @override
   String toString() {
-    return 'MarketplaceScript{id: $id, title: $title, category: $category, '
-        'author: $authorName, price: $price, purchased: $purchased, '
-        'rating: $rating}';
+    return         'MarketplaceScript{id: $id, title: $title, category: $category, '
+        'author: $authorName, price: $price, rating: $rating}';
   }
 
   @override

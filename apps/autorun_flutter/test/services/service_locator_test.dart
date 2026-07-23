@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icp_autorun/services/icpay_service.dart';
 import 'package:icp_autorun/services/script_runner.dart';
 import 'package:icp_autorun/services/service_locator.dart';
 
@@ -46,26 +45,5 @@ void main() {
     await resetServiceLocator();
     expect(scriptBridgeOverride, isNull,
         reason: 'tearDown must restore the production (null) state.');
-  });
-
-  group('IcpayService registration', () {
-    test('setupServiceLocator registers a process-wide IcpayService singleton',
-        () {
-      setupServiceLocator();
-      expect(getIt.isRegistered<IcpayService>(), isTrue);
-      // Idempotent — a second setup must not throw.
-      setupServiceLocator();
-      expect(getIt.isRegistered<IcpayService>(), isTrue);
-    });
-
-    test('tests can override the registration (test-double injection)', () {
-      setupServiceLocator();
-      final fake = IcpayService();
-      if (getIt.isRegistered<IcpayService>()) {
-        getIt.unregister<IcpayService>();
-      }
-      getIt.registerSingleton<IcpayService>(fake);
-      expect(identical(getIt<IcpayService>(), fake), isTrue);
-    });
   });
 }

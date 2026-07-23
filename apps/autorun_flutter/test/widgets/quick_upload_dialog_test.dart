@@ -374,65 +374,6 @@ void main() {
     });
   });
 
-  group('QuickUploadDialog price label (UX-CRIT-3)', () {
-    late ProfileKeypair keypair;
-    late ProfileController profileController;
-    late _MockMarketplaceService marketplaceService;
-
-    setUp(() async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      keypair = await TestKeypairFactory.getEd25519Keypair();
-      final repository = FakeSecureKeypairRepository(<ProfileKeypair>[keypair]);
-      profileController =
-          ProfileController(profileRepository: repository.profileRepository);
-      await profileController.ensureLoaded();
-      if (profileController.profiles.isNotEmpty) {
-        await profileController
-            .setActiveProfile(profileController.profiles.first.id);
-      }
-      marketplaceService = _MockMarketplaceService();
-    });
-
-    testWidgets('price field is labelled USD, not ICP', (tester) async {
-      await tester.pumpWidget(
-        ProfileScope(
-          controller: profileController,
-          child: MaterialApp(
-            home: Builder(
-              builder: (BuildContext context) {
-                return Scaffold(
-                  body: Center(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        showDialog<void>(
-                          context: context,
-                          builder: (_) => QuickUploadDialog(
-                            preFilledTitle: 'Prefilled Title',
-                            preFilledCode: 'console.log("noop");',
-                            profileController: profileController,
-                            marketplaceService: marketplaceService,
-                          ),
-                        );
-                      },
-                      child: const Text('Open'),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Price (USD) *'), findsOneWidget);
-      expect(find.text('Price (ICP) *'), findsNothing);
-      expect(find.text('Price (ICP)'), findsNothing);
-    });
-  });
-
   group('QuickUploadDialog script source handling', () {
     late ProfileKeypair keypair;
     late ProfileController profileController;

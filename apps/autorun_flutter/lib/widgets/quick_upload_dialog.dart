@@ -41,7 +41,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _tagsController;
-  late final TextEditingController _priceController;
 
   String _selectedCategory = 'Example';
   bool _isUploading = false;
@@ -86,7 +85,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     _titleController = TextEditingController();
     _descriptionController = TextEditingController();
     _tagsController = TextEditingController();
-    _priceController = TextEditingController(text: '0.0');
 
     _initializeFromScript();
   }
@@ -224,7 +222,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
     _titleController.dispose();
     _descriptionController.dispose();
     _tagsController.dispose();
-    _priceController.dispose();
     super.dispose();
   }
 
@@ -295,7 +292,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
           .map((String tag) => tag.trim())
           .where((String tag) => tag.isNotEmpty)
           .toList();
-      final double price = double.tryParse(_priceController.text.trim()) ?? 0.0;
       const String version = '1.0.0';
       final String timestamp = DateTime.now().toUtc().toIso8601String();
 
@@ -332,7 +328,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
         category: _selectedCategory,
         tags: tags,
         bundle: bundle,
-        price: price,
         version: version,
         authorPrincipal: authorPrincipal,
         authorPublicKey: keypair.publicKey,
@@ -554,26 +549,6 @@ class _QuickUploadDialogState extends State<QuickUploadDialog> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _priceController,
-                            decoration: const InputDecoration(
-                              labelText: 'Price (USD) *',
-                              border: OutlineInputBorder(),
-                              helperText: 'Set to 0 for free scripts',
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Price is required';
-                              }
-                              final price = double.tryParse(value.trim());
-                              if (price == null || price < 0) {
-                                return 'Invalid price';
-                              }
-                              return null;
-                            },
-                          ),
                         ],
                       ),
                       const SizedBox(height: 16),

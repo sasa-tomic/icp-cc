@@ -102,9 +102,6 @@ ErrorCategoryType categorizeError(Object? error) {
     return ErrorCategoryType.authentication;
   }
 
-  if (error is PurchaseRequiredException) {
-    return ErrorCategoryType.validation;
-  }
   if (error is ProfileAlreadyExistsException) {
     return ErrorCategoryType.validation;
   }
@@ -112,10 +109,6 @@ ErrorCategoryType categorizeError(Object? error) {
     return ErrorCategoryType.validation;
   }
   if (error is FormatException) return ErrorCategoryType.validation;
-
-  if (error is PaymentsNotConfiguredException) {
-    return ErrorCategoryType.server;
-  }
 
   if (error is CandidFetchException) {
     return ErrorCategoryType.network;

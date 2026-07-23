@@ -138,13 +138,6 @@ void main() {
         );
       });
 
-      test('PurchaseRequiredException (HTTP 402) is validation', () {
-        expect(
-          categorizeError(const PurchaseRequiredException(1.5)),
-          equals(ErrorCategoryType.validation),
-        );
-      });
-
       test('ProfileAlreadyExistsException is validation (conflict)', () {
         expect(
           categorizeError(ProfileAlreadyExistsException('profile-1')),
@@ -163,13 +156,6 @@ void main() {
         expect(
           categorizeError(FormatException('not json')),
           equals(ErrorCategoryType.validation),
-        );
-      });
-
-      test('PaymentsNotConfiguredException (HTTP 503) is server', () {
-        expect(
-          categorizeError(const PaymentsNotConfiguredException()),
-          equals(ErrorCategoryType.server),
         );
       });
 
@@ -379,18 +365,6 @@ void main() {
         ));
 
         final info = getErrorInfo(ErrorCategoryType.notFound);
-        expect(find.text(info.title), findsOneWidget);
-      });
-
-      testWidgets(
-          'shows server error-specific title for PaymentsNotConfiguredException',
-          (tester) async {
-        await tester.pumpWidget(createWidget(
-          error: 'Server issue',
-          errorObject: const PaymentsNotConfiguredException(),
-        ));
-
-        final info = getErrorInfo(ErrorCategoryType.server);
         expect(find.text(info.title), findsOneWidget);
       });
 

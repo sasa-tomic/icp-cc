@@ -220,8 +220,8 @@ Future<void> dappsRunPoll(WidgetTester tester, E2EDriver d) async {
 /// The FULL create-profile-then-vote round-trip requires a Secret Service
 /// (the mock-keyring surface or a real gnome-keyring); this flow covers
 /// the FRONTEND rendering + wizard deep-link, NOT the profile creation
-/// itself (which is exercised end-to-end by first_run.create_profile +
-/// scripts.buy in the mock-keyring suite).
+/// itself (which is exercised end-to-end by first_run.create_profile
+/// in the mock-keyring suite).
 Future<void> dappsCreateProfileToVote(WidgetTester tester, E2EDriver d) async {
   // Reuse the same pre-state check — the replica should still be up.
   final ready = await pollReplicaReady(tester);

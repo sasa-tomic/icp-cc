@@ -6,24 +6,18 @@ import '../config/app_config.dart';
 import '../controllers/script_controller.dart';
 import '../controllers/account_controller.dart';
 import '../models/account.dart';
-import '../models/profile.dart';
-import '../models/profile_keypair.dart';
 import '../models/script_record.dart';
 import '../models/marketplace_script.dart';
 import '../models/script_list_item.dart';
 import '../services/script_repository.dart';
 import '../services/script_runner.dart';
-import '../services/script_signature_service.dart';
 import '../services/marketplace_open_api_service.dart';
 import '../services/download_history_service.dart';
-import '../services/download_signature_service.dart';
 import '../services/favorites_service.dart';
-import '../services/icpay_service.dart';
 import '../services/script_integrity_service.dart';
 import '../services/search_history_service.dart';
 import '../services/onboarding_progress_service.dart';
 import '../services/secure_storage_readiness.dart';
-import '../services/service_locator.dart';
 import '../theme/app_design_system.dart';
 import '../utils/friendly_error.dart';
 
@@ -63,8 +57,7 @@ class ScriptsScreen extends StatefulWidget {
   State<ScriptsScreen> createState() => ScriptsScreenState();
 }
 
-class ScriptsScreenState extends State<ScriptsScreen>
-    with WidgetsBindingObserver {
+class ScriptsScreenState extends State<ScriptsScreen> {
   late final ScriptController _controller;
   final RustScriptBridge _bridge = RustScriptBridge(const RustBridgeLoader());
 
@@ -73,14 +66,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
   late final MarketplaceOpenApi _marketplaceService =
       widget.marketplaceService ?? MarketplaceOpenApiService();
 
-  /// Typed view of [_marketplaceService] as the concrete service. The paid
-  /// download + buy flows (and entitlement queries with account_id) need
-  /// methods that live on [MarketplaceOpenApiService] (not the minimal browse
-  /// interface). Production always registers the concrete service; browse-only
-  /// test fakes that inject a different [MarketplaceOpenApi] never invoke
-  /// these flows, so the cast is safe.
-  MarketplaceOpenApiService get _api =>
-      _marketplaceService as MarketplaceOpenApiService;
   final DownloadHistoryService _downloadHistoryService =
       DownloadHistoryService();
   final SearchHistoryService _searchHistoryService = SearchHistoryService();
@@ -123,7 +108,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _controller = (widget.controller ?? ScriptController(ScriptRepository.instance))
       ..addListener(_onChanged);
     _controller.ensureLoaded();
@@ -138,113 +122,12 @@ class ScriptsScreenState extends State<ScriptsScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _controller
       ..removeListener(_onChanged)
       ..dispose();
     super.dispose();
-  }
-
-  /// App-resume detection for return-from-ICPay-checkout. When the user taps
-  /// Buy we open the hosted checkout in the external browser; on resume we
-  /// refetch the scripts the user is mid-purchase on so a completed payment
-  /// (recorded by the ICPay webhook) flips `purchased` to true and the UI
-  /// swaps the Buy CTA for Download.
-  ///
-  /// Why [WidgetsBindingObserver] and not `app_links`: `app_links` is for
-  /// INBOUND deep links (custom URL scheme), and ICPay's hosted checkout does
-  /// not redirect back into the app via a deep link — the user simply
-  /// returns to the app after paying in the browser. `didChangeAppLifecycleState`
-  /// is the single, platform-agnostic signal for "user came back to the app".
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) return;
-    if (_pendingPurchaseAccountIds.isEmpty) return;
-    _refetchPendingPurchases();
-  }
-
-  /// Script IDs the user has opened ICPay checkout for, mapped to the backend
-  /// account id that initiated the purchase. Drained as each refetch confirms
-  /// the purchase. Storing the account id at Buy-tap time avoids re-resolving
-  /// it (a backend round-trip) on every app resume.
-  final Map<String, String> _pendingPurchaseAccountIds = <String, String>{};
-
-  Future<void> _refetchPendingPurchases() async {
-    if (_pendingPurchaseAccountIds.isEmpty) return;
-    // All pending entries are for the SAME active account; resolve the
-    // keypair once so we can sign the entitlement check (W7-2: the backend
-    // resolves account_id from the verified public key — no client-supplied
-    // identity is trusted anymore).
-    final active = await _resolveActiveAccount();
-    if (active?.account == null || active?.keypair == null) {
-      // No usable identity — leave entries pending so the next resume retries.
-      return;
-    }
-    final entries = _pendingPurchaseAccountIds.entries.toList();
-    for (final entry in entries) {
-      final scriptId = entry.key;
-      try {
-        final signed = await ScriptSignatureService.signEntitlement(
-          signingKeypair: active!.keypair,
-          scriptId: scriptId,
-        );
-        final result = await _api.checkEntitlement(scriptId, signed: signed);
-        if (!mounted) return;
-        if (result.purchased) {
-          _pendingPurchaseAccountIds.remove(scriptId);
-          setState(() {
-            _marketplaceScripts = _marketplaceScripts
-                .map((s) => s.id == scriptId
-                    ? s.copyWith(purchased: true)
-                    : s)
-                .toList();
-          });
-          if (mounted) {
-            final title = _marketplaceScripts
-                .firstWhere((s) => s.id == scriptId,
-                    orElse: () => throw StateError('missing script'))
-                .title;
-            ScaffoldMessenger.of(context).showSnackBar(
-              AppDesignSystem.successSnackBar(
-                'Payment confirmed — "$title" is ready to download!',
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        // Network/backend hiccup — leave the entry pending so the next resume
-        // retries. Do NOT spam the user on every failed refetch.
-        debugPrint('Refetch pending purchase $scriptId failed: $e');
-      }
-    }
-  }
-
-  /// Resolves the backend [Account] for the active profile via
-  /// [AccountController] (cached, falls back to a backend fetch). Returns null
-  /// if the user has no profile / unregistered profile.
-  ///
-  /// Buy + paid-download both need the backend Account.id (for entitlement
-  /// queries) and the active keypair (for signing) — this returns both so the
-  /// two flows share one resolution path.
-  Future<_ActiveAccount?> _resolveActiveAccount() async {
-    final profileController = ProfileScope.of(context, listen: false);
-    final profile = profileController.activeProfile;
-    if (profile == null) return null;
-    final keypair = profile.primaryKeypair;
-    if (profile.username == null) {
-      return _ActiveAccount(profile: profile, keypair: keypair, account: null);
-    }
-    final accountController =
-        AccountController(profileController: profileController);
-    try {
-      final account = await accountController.getAccountForProfile(profile);
-      return _ActiveAccount(
-          profile: profile, keypair: keypair, account: account);
-    } finally {
-      accountController.dispose();
-    }
   }
 
   Future<void> _loadFavorites() async {
@@ -645,47 +528,11 @@ class ScriptsScreenState extends State<ScriptsScreen>
   }
 
   Future<void> _showScriptDetails(BuildContext context, MarketplaceScript script) async {
-    final isFree = script.price <= 0;
-    // W7-2: for a paid script whose entitlement is unknown (`purchased` is
-    // null — list endpoints don't carry it), resolve it NOW via the signed
-    // entitlement endpoint so the dialog opens with the right CTA (Download
-    // for an owner/purchaser, Buy otherwise). The GET endpoint no longer
-    // leaks entitlement (or the bundle); the signed check is the sole source
-    // of truth. Best-effort: any failure / no-account leaves `purchased`
-    // unchanged (null → Buy CTA, the safe default).
-    if (!isFree && script.purchased == null) {
-      final resolved = await _resolveEntitlement(script);
-      if (resolved != null && mounted) {
-        setState(() {
-          _marketplaceScripts = _marketplaceScripts
-              .map((s) => s.id == script.id
-                  ? s.copyWith(purchased: resolved)
-                  : s)
-              .toList();
-          script = _marketplaceScripts.firstWhere(
-            (s) => s.id == script.id,
-            orElse: () => script,
-          );
-        });
-      }
-    }
-    if (!mounted) return;
-    final owned = script.isDownloadable;
     showDialog(
-      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => ScriptDetailsDialog(
         script: script,
-        // Free scripts use the legacy bundle-from-details download; paid
-        // scripts that have been purchased go through the authenticated
-        // signed-download flow. Paid + not purchased yields a null download
-        // callback so the dialog renders the Buy CTA instead.
-        onDownload: isFree
-            ? () => _downloadScript(script, popDialogOnSuccess: true)
-            : (owned
-                ? () => _downloadPaidScript(script, popDialogOnSuccess: true)
-                : null),
-        onBuy: (!isFree && !owned) ? () => _buyScript(script) : null,
+        onDownload: () => _downloadScript(script, popDialogOnSuccess: true),
         onRun: () {
           final local = _controller.scripts
               .where((s) => s.marketplaceId == script.id)
@@ -705,396 +552,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
         isDownloaded: _downloadedScriptIds.contains(script.id),
       ),
     );
-  }
-
-  /// Best-effort signed entitlement check for [script]. Returns the
-  /// `purchased` boolean on success, or `null` if the active profile has no
-  /// account / the check failed (callers fall back to the safe default —
-  /// the Buy CTA). W7-2 replacement for the removed `?account_id=` GET
-  /// query param.
-  Future<bool?> _resolveEntitlement(MarketplaceScript script) async {
-    final active = await _resolveActiveAccount();
-    if (active?.account == null || active?.keypair == null) return null;
-    try {
-      final signed = await ScriptSignatureService.signEntitlement(
-        signingKeypair: active!.keypair,
-        scriptId: script.id,
-      );
-      final result = await _api.checkEntitlement(script.id, signed: signed);
-      return result.purchased;
-    } catch (e) {
-      debugPrint('Entitlement check for ${script.id} failed: $e');
-      return null;
-    }
-  }
-
-  /// Buy CTA for a paid, not-yet-purchased script (Phase K — provider-agnostic).
-  ///
-  /// Flow:
-  ///   1. Resolve the active account (must be registered with the backend).
-  ///   2. Sign a purchase request via [ScriptSignatureService.signPurchase]
-  ///      and POST it to the generic `/scripts/:id/purchase` endpoint.
-  ///   3. Branch on the provider outcome:
-  ///      - **purchased == true** (stub Completed): flip the local tile to
-  ///        purchased, refresh entitlement, show "Purchased!" SnackBar. The
-  ///        user can immediately tap Download.
-  ///      - **checkoutUrl != null** (icpay Pending with hosted checkout URL):
-  ///        open it via url_launcher, then record the pending account id so
-  ///        app-resume refetches entitlement (matches the pre-Phase-K flow).
-  ///      - **purchased == false && checkoutUrl == null** (icpay Pending
-  ///        without a URL — the legacy ICPay client-SDK path): fall back to
-  ///        the [IcpayService] flow (create intent directly with ICPay's API
-  ///        + open hosted checkout). Preserves the existing ICPay client
-  ///        behaviour for providers that don't expose a server-side
-  ///        checkout URL.
-  ///   4. Catch [PaymentsDisabledException] (provider=none) → friendly
-  ///      "Payments are disabled on this server" SnackBar.
-  Future<void> _buyScript(MarketplaceScript script) async {
-    final active = await _resolveActiveAccount();
-    if (!mounted) return;
-    if (active == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Create a profile first to purchase scripts.'),
-        ),
-      );
-      return;
-    }
-    final account = active.account;
-    if (account == null) {
-      // Profile exists but isn't registered on the backend — signing up is a
-      // prerequisite for purchase (the backend credits purchases by account).
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Register a marketplace account first to purchase.'),
-        ),
-      );
-      return;
-    }
-    final keypair = active.keypair;
-
-    final messenger = ScaffoldMessenger.of(context);
-    PurchaseResult result;
-    try {
-      final signed = await ScriptSignatureService.signPurchase(
-        signingKeypair: keypair,
-        scriptId: script.id,
-      );
-      result = await _api.purchaseScript(script.id, signed: signed);
-    } on PaymentsDisabledException catch (e) {
-      // Backend is running with PAYMENT_PROVIDER=none (or unrecognised).
-      // The backend logged the misconfig LOUDLY; show a friendly message
-      // (NOT the raw provider name string).
-      debugPrint('Purchase rejected: payments disabled ($e)');
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-              "Payments aren't available on this server."),
-          backgroundColor: AppDesignSystem.errorColor,
-        ),
-      );
-      return;
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-            content: Text(friendlyErrorMessage(e, context: 'Purchase failed')),
-          backgroundColor: AppDesignSystem.errorColor,
-        ),
-      );
-      return;
-    }
-
-    if (result.purchased) {
-      // Stub / free-script path: entitlement already granted. Flip the
-      // local tile + show immediate confirmation.
-      setState(() {
-        _marketplaceScripts = _marketplaceScripts
-            .map((s) =>
-                s.id == script.id ? s.copyWith(purchased: true) : s)
-            .toList();
-      });
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Purchase complete! You can now download the script.'),
-          backgroundColor: AppDesignSystem.successColor,
-          duration: Duration(seconds: 4),
-        ),
-      );
-      return;
-    }
-
-    // Pending purchase (icpay). If the backend returned a hosted checkout
-    // URL, open it directly; else fall back to the ICPay client-SDK flow.
-    final checkoutUrl = result.intent.checkoutUrl;
-    if (checkoutUrl != null && checkoutUrl.startsWith('http')) {
-      final icpay = getIt<IcpayService>();
-      final launched = await icpay.openCheckout(
-        // Reuse PaymentIntent so openCheckout doesn't change signature.
-        PaymentIntent(
-          id: result.intent.id,
-          status: result.intent.status,
-          checkoutUrl: checkoutUrl,
-          raw: <String, dynamic>{},
-        ),
-      );
-      if (!launched) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Could not open the checkout page. '
-                'Check that a browser is installed.'),
-          ),
-        );
-        return;
-      }
-    } else {
-      // Legacy ICPay client-SDK path. The Phase K backend returns
-      // {status:'pending', checkoutUrl:null} for icpay (server-side intent
-      // creation is a future enhancement) — preserve the pre-Phase-K flow
-      // by driving ICPay's hosted checkout from the client side.
-      final icpay = getIt<IcpayService>();
-      IcpayClientConfig config;
-      try {
-        config = await icpay.loadConfig(_api);
-      } on PaymentsNotConfiguredException {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-                "Payments aren't available on this server yet."),
-            backgroundColor: AppDesignSystem.errorColor,
-          ),
-        );
-        return;
-      } catch (e) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(friendlyErrorMessage(e, context: 'Could not load payment config')),
-            backgroundColor: AppDesignSystem.errorColor,
-          ),
-        );
-        return;
-      }
-
-      PaymentIntent intent;
-      try {
-        intent = await icpay.createPaymentIntent(
-          accountId: account.id,
-          scriptId: script.id,
-          usdAmount: script.price,
-          config: config,
-        );
-      } catch (e) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(friendlyErrorMessage(e, context: 'Payment setup failed')),
-            backgroundColor: AppDesignSystem.errorColor,
-          ),
-        );
-        return;
-      }
-
-      final launched = await icpay.openCheckout(intent);
-      if (!launched) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Could not open the checkout page. '
-                'Check that a browser is installed.'),
-          ),
-        );
-        return;
-      }
-    }
-
-    // Record the pending purchase so app-resume refetches entitlement. The
-    // webhook (received by the backend) records the actual purchase; this
-    // just drives the client-side UI refresh.
-    _pendingPurchaseAccountIds[script.id] = account.id;
-
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text(
-            'Complete payment in your browser, then return to download.'),
-        duration: Duration(seconds: 6),
-      ),
-    );
-  }
-
-  /// Authenticated paid-bundle download. Signs `download:{id}:{ts}:{nonce}`
-  /// with the active keypair, POSTs to the authenticated download endpoint,
-  /// then hands the bundle to the same install flow as free downloads.
-  ///
-  /// On `PurchaseRequiredException` (402) the user hasn't paid — route them
-  /// to Buy. On `DownloadAuthException` (401) the signing key isn't bound to
-  /// the account, which is a loud error (shouldn't happen in normal flow).
-  Future<void> _downloadPaidScript(MarketplaceScript script,
-      {bool popDialogOnSuccess = false}) async {
-    if (_downloadingScriptIds.contains(script.id)) return;
-
-    final active = await _resolveActiveAccount();
-    if (!mounted) return;
-    if (active == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Create a profile first to download paid scripts.')),
-      );
-      return;
-    }
-    final account = active.account;
-    if (account == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Register a marketplace account first to download.')),
-      );
-      return;
-    }
-
-    setState(() {
-      _downloadingScriptIds.add(script.id);
-    });
-
-    try {
-      final signed = await DownloadSignatureService.createSignedRequest(
-        signingKeypair: active.keypair,
-        accountId: account.id,
-        scriptId: script.id,
-      );
-      final bundle = await _api.downloadPaidScriptBundle(
-        script.id,
-        accountId: account.id,
-        publicKeyB64: signed.publicKeyB64,
-        signatureB64: signed.signatureB64,
-        timestamp: signed.timestamp,
-        nonce: signed.nonce,
-      );
-
-      await _installBundle(script, bundle,
-          popDialogOnSuccess: popDialogOnSuccess);
-    } on PurchaseRequiredException catch (e) {
-      // Paid but not purchased — flip the local view to "not owned" and route
-      // to the Buy flow.
-      setState(() {
-        _marketplaceScripts = _marketplaceScripts
-            .map((s) => s.id == script.id ? s.copyWith(purchased: false) : s)
-            .toList();
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Purchase required (\$${e.price.toStringAsFixed(2)}). '
-                'Tap Buy to unlock.'),
-            duration: const Duration(seconds: 4),
-          ),
-        );
-        await _buyScript(script);
-      }
-    } on DownloadAuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Download authentication failed: ${e.detail}. '
-                'Try re-registering your account.'),
-            backgroundColor: AppDesignSystem.errorColor,
-            duration: const Duration(seconds: 6),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(friendlyErrorMessage(e, context: 'Download failed')),
-            backgroundColor: AppDesignSystem.errorColor,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _downloadingScriptIds.remove(script.id);
-        });
-      }
-    }
-  }
-
-  /// Shared install path for both free + paid downloads: integrity-check the
-  /// bundle, create a local script record, record download history, and snackbar.
-  /// Extracted from `_downloadScript` so the paid flow reuses it verbatim.
-  ///
-  /// When [popDialogOnSuccess] is true (download initiated from the details
-  /// dialog — CR-1), the topmost route (the dialog) is popped before the
-  /// Run SnackBar is shown so the action is immediately reachable.
-  Future<void> _installBundle(
-      MarketplaceScript script, String bundle,
-      {bool popDialogOnSuccess = false}) async {
-    final integrityService = ScriptIntegrityService();
-    final sha256Checksum = integrityService.computeChecksum(bundle);
-
-    final effectiveVersion = script.version ?? '1.0.0';
-    final createdScript = await _controller.createScript(
-      title: '${script.title} (Marketplace)',
-      // W6-9: persist the marketplace artwork so the installed tile keeps its
-      // icon. 📦 remains the image-load-failure fallback.
-      imageUrl: script.iconUrl,
-      emoji: '📦',
-      bundleOverride: bundle,
-      metadata: {
-        'marketplace_id': script.id,
-        'marketplace_title': script.title,
-        'marketplace_author': script.authorName,
-        'marketplace_version': effectiveVersion,
-        'downloaded_at': DateTime.now().toIso8601String(),
-        'sha256_checksum': sha256Checksum,
-      },
-    );
-
-    if (!mounted) return;
-
-    await _downloadHistoryService.addToHistory(
-      marketplaceScriptId: script.id,
-      title: script.title,
-      authorName: script.authorName ?? 'Unknown',
-      version: effectiveVersion,
-      localScriptId: createdScript.id,
-    );
-
-    setState(() {
-      _downloadedScriptIds.add(script.id);
-    });
-
-    await OnboardingProgressService().recordFirstScriptInteraction();
-
-    if (mounted) {
-      // Capture the messenger before any pop so the SnackBar survives the
-      // dialog route being removed (CR-1).
-      final messenger = ScaffoldMessenger.of(context);
-      if (popDialogOnSuccess) {
-        Navigator.of(context).pop();
-      }
-      messenger.showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '"${script.title}" added to your library!',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppDesignSystem.successColor,
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'Run',
-            textColor: Colors.white,
-            onPressed: () => _runScript(createdScript),
-          ),
-        ),
-      );
-    }
   }
 
   Future<void> _runScript(ScriptRecord record) async {
@@ -2177,21 +1634,6 @@ class ScriptsScreenState extends State<ScriptsScreen>
 /// function so the behavior is unit-testable without pumping the full screen.
 Future<void> copyScriptSourceToClipboard(ScriptRecord record) {
   return Clipboard.setData(ClipboardData(text: record.bundle));
-}
-
-/// Resolved active-profile context for purchase + paid-download flows.
-/// [account] is null when the profile isn't registered on the backend yet —
-/// callers gate on that to prompt registration before purchasing.
-class _ActiveAccount {
-  final Profile profile;
-  final ProfileKeypair keypair;
-  final Account? account;
-
-  const _ActiveAccount({
-    required this.profile,
-    required this.keypair,
-    required this.account,
-  });
 }
 
 /// Typed marketplace browse-load failure (UXR-5 / AUD-1). Carries a single

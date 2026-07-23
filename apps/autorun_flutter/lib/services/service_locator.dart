@@ -1,6 +1,5 @@
 import 'package:get_it/get_it.dart';
 
-import 'icpay_service.dart';
 import 'script_runner.dart';
 
 /// Process-wide service locator.
@@ -20,12 +19,8 @@ final GetIt getIt = GetIt.instance;
 /// drive the catalog→runner→canister flow with deterministic responses while
 /// still exercising the real app boot.
 void setupServiceLocator() {
-  // ICPay client is a process-wide singleton so config is fetched once and
-  // cached. Tests override it via `getIt.unregister<IcpayService>()` followed
-  // by a test-double registration (mirroring registerTestScriptBridge).
-  if (!getIt.isRegistered<IcpayService>()) {
-    getIt.registerSingleton<IcpayService>(IcpayService());
-  }
+  // Intentionally empty: no process-wide singletons are needed. Kept as a
+  // stable boot hook so future services register here.
 }
 
 /// The optional test-only [ScriptBridge] override, or `null` in production.

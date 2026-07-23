@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/marketplace_script.dart';
-import '../models/purchase_record.dart';
+import '../models/script_review.dart';
 import '../theme/app_design_system.dart';
 import 'script_details_helpers.dart';
 
