@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
@@ -329,6 +331,90 @@ void main() {
       expect(
           find.byKey(const Key('template_card_hello_world')), findsOneWidget);
       expect(find.byKey(const Key('template_card_blank')), findsOneWidget);
+    });
+
+    testWidgets('Ctrl/Cmd+Enter creates script with valid form (CR-11)',
+        (tester) async {
+      final previous = debugDefaultTargetPlatformOverride;
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        when(mockController.createScript(
+          title: anyNamed('title'),
+          emoji: anyNamed('emoji'),
+          imageUrl: anyNamed('imageUrl'),
+          bundleOverride: anyNamed('bundleOverride'),
+        )).thenAnswer((_) async => MockScriptRecord());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ScriptCreationScreen(
+              controller: mockController,
+              initialTemplate: testTemplate,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+        await tester.pump();
+
+        verify(mockController.createScript(
+          title: testTemplate.title,
+          emoji: testTemplate.emoji,
+          imageUrl: null,
+          bundleOverride: testTemplate.bundle,
+        )).called(1);
+      } finally {
+        debugDefaultTargetPlatformOverride = previous;
+      }
+    });
+
+    testWidgets('Ctrl/Cmd+Enter validates empty title (CR-11)',
+        (tester) async {
+      final previous = debugDefaultTargetPlatformOverride;
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        when(mockController.createScript(
+          title: anyNamed('title'),
+          emoji: anyNamed('emoji'),
+          imageUrl: anyNamed('imageUrl'),
+          bundleOverride: anyNamed('bundleOverride'),
+        )).thenAnswer((_) async => MockScriptRecord());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ScriptCreationScreen(controller: mockController),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Clear the title field (screen defaults to 'Hello World').
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Title *'),
+          '',
+        );
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // Ctrl+Enter must not bypass validation — createScript is never called.
+        verifyNever(mockController.createScript(
+          title: anyNamed('title'),
+          emoji: anyNamed('emoji'),
+          imageUrl: anyNamed('imageUrl'),
+          bundleOverride: anyNamed('bundleOverride'),
+        ));
+      } finally {
+        debugDefaultTargetPlatformOverride = previous;
+      }
     });
   });
 }

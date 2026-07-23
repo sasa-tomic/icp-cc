@@ -14,7 +14,13 @@ void main() {
 
       expect(find.text('Filters'), findsOneWidget);
       expect(find.text('Source'), findsOneWidget);
-      expect(find.widgetWithText(FilterChip, 'Downloaded'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.widgetWithText(FilterChip, 'Downloaded'),
+        ),
+        findsOneWidget,
+      );
 
       await tester.binding.setSurfaceSize(null);
     });
@@ -27,7 +33,10 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
 
       final downloadedChip = tester.widget<FilterChip>(
-        find.widgetWithText(FilterChip, 'Downloaded'),
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.widgetWithText(FilterChip, 'Downloaded'),
+        ),
       );
       expect(downloadedChip.selected, isFalse);
 

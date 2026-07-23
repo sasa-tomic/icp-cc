@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// A label + dismiss-callback pair describing one active filter chip rendered
 /// below the Scripts search bar.
@@ -20,7 +21,10 @@ class ScriptsActiveFilter {
 /// (filter values, recent searches, searching flag) and all side effects
 /// (search-history mutation, filter popover, marketplace reload) stay in the
 /// caller; this widget only renders what it is given.
-class ScriptsSearchBar extends StatelessWidget {
+///
+/// CR-7: when the recent-searches dropdown is visible, ↑/↓ navigates the
+/// highlight and Enter selects — fully keyboard-reachable.
+class ScriptsSearchBar extends StatefulWidget {
   const ScriptsSearchBar({
     super.key,
     required this.searchController,
@@ -51,6 +55,73 @@ class ScriptsSearchBar extends StatelessWidget {
   final bool isSearching;
 
   @override
+  State<ScriptsSearchBar> createState() => _ScriptsSearchBarState();
+}
+
+class _ScriptsSearchBarState extends State<ScriptsSearchBar> {
+  int _highlightedIndex = -1;
+
+  List<String> get _visibleSearches => widget.recentSearches.take(5).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.searchFocusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    widget.searchFocusNode.removeListener(_onFocusChange);
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!widget.searchFocusNode.hasFocus) {
+      _resetHighlight();
+    }
+  }
+
+  void _resetHighlight() {
+    if (_highlightedIndex != -1) {
+      setState(() => _highlightedIndex = -1);
+    }
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (!widget.showRecentSearches || _visibleSearches.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    final searches = _visibleSearches;
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _highlightedIndex = (_highlightedIndex + 1) % searches.length;
+      });
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _highlightedIndex = _highlightedIndex <= 0
+            ? searches.length - 1
+            : _highlightedIndex - 1;
+      });
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter &&
+        _highlightedIndex >= 0 &&
+        _highlightedIndex < searches.length) {
+      widget.onSelectRecentSearch(searches[_highlightedIndex]);
+      _resetHighlight();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _resetHighlight();
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -59,10 +130,10 @@ class ScriptsSearchBar extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           child: _buildConsolidatedSearchBar(context),
         ),
-        if (activeFilterCount > 0) _buildActiveFilterChips(),
-        if (showRecentSearches && recentSearches.isNotEmpty)
+        if (widget.activeFilterCount > 0) _buildActiveFilterChips(),
+        if (widget.showRecentSearches && widget.recentSearches.isNotEmpty)
           _buildRecentSearchesDropdown(context),
-        if (isSearching) const LinearProgressIndicator(minHeight: 2),
+        if (widget.isSearching) const LinearProgressIndicator(minHeight: 2),
       ],
     );
   }
@@ -77,7 +148,7 @@ class ScriptsSearchBar extends StatelessWidget {
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: activeFilters
+              children: widget.activeFilters
                   .map((filter) => _ActiveFilterChip(
                         label: filter.label,
                         onDismiss: filter.onDismiss,
@@ -85,10 +156,10 @@ class ScriptsSearchBar extends StatelessWidget {
                   .toList(),
             ),
           ),
-          if (activeFilters.length > 1) ...[
+          if (widget.activeFilters.length > 1) ...[
             const SizedBox(width: 8),
             TextButton(
-              onPressed: onClearAllFilters,
+              onPressed: widget.onClearAllFilters,
               style: TextButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -104,12 +175,7 @@ class ScriptsSearchBar extends StatelessWidget {
   }
 
   Widget _buildRecentSearchesDropdown(BuildContext context) {
-    // Outer Container paints only the drop shadow (transparent fill). Inner
-    // Material paints the surface colour + rounded corners AND gives each
-    // ListTile a Material ancestor to paint its own background/ink effects
-    // onto — required by Flutter's debug assertion that a coloured
-    // DecoratedBox would otherwise mask. Visuals are identical to a single
-    // coloured Container.
+    final searches = _visibleSearches;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -139,25 +205,39 @@ class ScriptsSearchBar extends StatelessWidget {
                     ),
               ),
             ),
-            ...(recentSearches.take(5).map((query) => ListTile(
-                  dense: true,
-                  leading: Icon(
-                    Icons.history,
-                    size: 20,
+            ...searches.asMap().entries.map((entry) {
+              final index = entry.key;
+              final query = entry.value;
+              final isHighlighted = index == _highlightedIndex;
+              return ListTile(
+                dense: true,
+                leading: Icon(
+                  Icons.history,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                title: Text(query),
+                tileColor: isHighlighted
+                    ? Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.12)
+                    : null,
+                onTap: () {
+                  widget.onSelectRecentSearch(query);
+                  _resetHighlight();
+                },
+                trailing: IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    size: 18,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  title: Text(query),
-                  onTap: () => onSelectRecentSearch(query),
-                  trailing: IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    onPressed: () => onRemoveRecentSearch(query),
-                    tooltip: 'Remove',
-                  ),
-                ))),
+                  onPressed: () => widget.onRemoveRecentSearch(query),
+                  tooltip: 'Remove',
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -165,54 +245,61 @@ class ScriptsSearchBar extends StatelessWidget {
   }
 
   Widget _buildConsolidatedSearchBar(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: searchController,
-              focusNode: searchFocusNode,
-              onChanged: onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Search scripts...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          searchController.clear();
-                          onSearchChanged('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: _handleKeyEvent,
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: widget.searchController,
+                focusNode: widget.searchFocusNode,
+                onChanged: (value) {
+                  _resetHighlight();
+                  widget.onSearchChanged(value);
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search scripts...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: widget.searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            widget.searchController.clear();
+                            widget.onSearchChanged('');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surface,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        _buildFilterButton(context, activeFilterCount),
-      ],
+          const SizedBox(width: 8),
+          _buildFilterButton(context, widget.activeFilterCount),
+        ],
+      ),
     );
   }
 
@@ -239,7 +326,7 @@ class ScriptsSearchBar extends StatelessWidget {
                   ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            onPressed: onFilterButtonPressed,
+            onPressed: widget.onFilterButtonPressed,
             tooltip: 'Filter options',
           ),
         ),

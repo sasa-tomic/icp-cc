@@ -43,7 +43,11 @@ void main() {
       await tester.tap(find.byIcon(Icons.tune));
       await tester.pump(const Duration(seconds: 1));
 
-      expect(find.text('Last Run'), findsOneWidget);
+      expect(
+        find.descendant(
+            of: find.byType(BottomSheet), matching: find.text('Last Run')),
+        findsOneWidget,
+      );
     });
   });
 

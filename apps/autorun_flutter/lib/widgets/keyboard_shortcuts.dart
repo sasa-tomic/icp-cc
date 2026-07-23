@@ -39,6 +39,7 @@ const Map<String, ShortcutSpec> kShortcutSpecs = <String, ShortcutSpec>{
   // the binding from the single source of truth.
   'dapp_refresh': ShortcutSpec('Refresh the dapp', 'R'),
   'account_save': ShortcutSpec('Save profile edits', 'mod+S'),
+  'form_submit': ShortcutSpec('Submit the form', 'mod+Enter'),
   'back': ShortcutSpec('Back / close screen', 'Esc'),
   // Script Details dialog (UX-9 part B). Esc-to-close is the framework's
   // dialog-route default (verified — Flutter maps Escape → DismissIntent →
@@ -243,12 +244,14 @@ class ScreenShortcuts extends StatelessWidget {
     this.onRefresh,
     this.onSave,
     this.onBack,
+    this.onSubmit,
   });
 
   final Widget child;
   final VoidCallback? onRefresh;
   final VoidCallback? onSave;
   final VoidCallback? onBack;
+  final VoidCallback? onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -262,6 +265,8 @@ class ScreenShortcuts extends StatelessWidget {
               const _RefreshIntent(),
         if (onSave != null)
           _platformModifier(LogicalKeyboardKey.keyS): const _SaveIntent(),
+        if (onSubmit != null)
+          _platformModifier(LogicalKeyboardKey.enter): const _SubmitIntent(),
         if (onBack != null)
           const SingleActivator(LogicalKeyboardKey.escape): const _BackIntent(),
       },
@@ -269,6 +274,7 @@ class ScreenShortcuts extends StatelessWidget {
         actions: <Type, Action<Intent>>{
           if (onRefresh != null) _RefreshIntent: _RefreshAction(onRefresh!),
           if (onSave != null) _SaveIntent: _SaveAction(onSave!),
+          if (onSubmit != null) _SubmitIntent: _SubmitAction(onSubmit!),
           if (onBack != null) _BackIntent: _BackAction(onBack!),
         },
         // Autofocus so the shortcut layer has a primary-focus descendant the
@@ -362,6 +368,10 @@ class _NavigateTabIntent extends Intent {
 
 class _SaveIntent extends Intent {
   const _SaveIntent();
+}
+
+class _SubmitIntent extends Intent {
+  const _SubmitIntent();
 }
 
 class _BackIntent extends Intent {
@@ -509,6 +519,22 @@ class _BackAction extends Action<_BackIntent> {
   @override
   Object? invoke(_BackIntent intent) {
     onBack();
+    return null;
+  }
+}
+
+/// Ctrl/Cmd+Enter form-submit action. NOT guarded — the platform modifier
+/// means this never conflicts with typing, and firing from a focused text
+/// field is the desired desktop idiom ("fill in the form, then Ctrl+Enter to
+/// submit"). Same rationale as [_SaveAction].
+class _SubmitAction extends Action<_SubmitIntent> {
+  _SubmitAction(this.onSubmit);
+
+  final VoidCallback onSubmit;
+
+  @override
+  Object? invoke(_SubmitIntent intent) {
+    onSubmit();
     return null;
   }
 }

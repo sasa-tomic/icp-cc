@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../controllers/script_controller.dart';
 import '../models/script_template.dart';
 import '../theme/app_design_system.dart';
+import '../widgets/keyboard_shortcuts.dart';
 import '../widgets/script_editor.dart';
 
 /// Blank script template for starting from scratch
@@ -185,30 +186,34 @@ class _ScriptCreationScreenState extends State<ScriptCreationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create New Script'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTemplateSelector(),
-                  const SizedBox(height: 16),
-                  _buildDetailsForm(),
-                  const SizedBox(height: 16),
-                  _buildCodeEditor(),
-                ],
+    return ScreenShortcuts(
+      onBack: () => Navigator.of(context).maybePop(),
+      onSubmit: _createScript,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Create New Script'),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTemplateSelector(),
+                    const SizedBox(height: 16),
+                    _buildDetailsForm(),
+                    const SizedBox(height: 16),
+                    _buildCodeEditor(),
+                  ],
+                ),
               ),
             ),
-          ),
-          _buildBottomButton(),
-        ],
+            _buildBottomButton(),
+          ],
+        ),
       ),
     );
   }

@@ -480,6 +480,33 @@ class ScriptsScreenState extends State<ScriptsScreen>
         _selectedCategory = savedCategory;
       });
     }
+    // CR-6: persist sort + downloaded/favorites across restarts (category
+    // was already persisted; sort/toggles reset on every cold start).
+    final savedSort = prefs.getString('last_sort_option');
+    final savedAscending = prefs.getBool('last_sort_ascending');
+    final savedDownloaded = prefs.getBool('last_downloaded_only');
+    final savedFavorites = prefs.getBool('last_favorites_only');
+    if (mounted) {
+      setState(() {
+        if (savedSort != null) {
+          _allScriptsSortOption = ScriptSortOption.values.firstWhere(
+            (e) => e.name == savedSort,
+            orElse: () => ScriptSortOption.lastRun,
+          );
+        }
+        if (savedAscending != null) _allScriptsSortAscending = savedAscending;
+        if (savedDownloaded != null) _showDownloadedOnly = savedDownloaded;
+        if (savedFavorites != null) _showFavoritesOnly = savedFavorites;
+      });
+    }
+  }
+
+  Future<void> _persistFilters() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_sort_option', _allScriptsSortOption.name);
+    await prefs.setBool('last_sort_ascending', _allScriptsSortAscending);
+    await prefs.setBool('last_downloaded_only', _showDownloadedOnly);
+    await prefs.setBool('last_favorites_only', _showFavoritesOnly);
   }
 
   void _onCategoryChanged(String category) async {
@@ -1374,6 +1401,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
               ),
               _buildSearchBar(),
               if (_categories.length > 1) _buildCategoryChipRow(),
+              _buildInlineFilterRow(),
               Expanded(
                 child: _buildUnifiedListView(scripts, hasProfile: hasProfile),
               ),
@@ -1774,6 +1802,147 @@ class ScriptsScreenState extends State<ScriptsScreen>
     );
   }
 
+  /// CR-8: inline quick-filter row — sort menu + Downloaded/Favorites toggle
+  /// chips placed directly below the category chips so the three
+  /// highest-frequency filter controls are one tap away (the bottom sheet
+  /// is retained for the full category grid + reset).
+  Widget _buildInlineFilterRow() {
+    final theme = Theme.of(context);
+    final chipBackgroundColor = theme.colorScheme.surfaceContainerHighest;
+    final chipSide = BorderSide(color: theme.colorScheme.outlineVariant);
+
+    Widget sortChip = PopupMenuButton<ScriptSortOption>(
+      tooltip: 'Sort scripts',
+      onSelected: (option) {
+        setState(() {
+          _allScriptsSortOption = option;
+          // Tapping the same sort cycles ascending/descending; tapping a
+          // new sort resets to the natural order for that option.
+          _allScriptsSortAscending = false;
+        });
+        _persistFilters();
+      },
+      itemBuilder: (_) => ScriptSortOption.values.map((option) {
+        return PopupMenuItem<ScriptSortOption>(
+          value: option,
+          child: Row(
+            children: [
+              Icon(
+                option == _allScriptsSortOption
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                size: 18,
+                color: option == _allScriptsSortOption
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Text(option.label),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: chipBackgroundColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.fromBorderSide(chipSide),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.sort_rounded,
+                size: 16, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 4),
+            Text(
+              _allScriptsSortOption.label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(Icons.arrow_drop_down_rounded,
+                size: 18, color: theme.colorScheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+
+    Widget downloadedChip = FilterChip(
+      label: const Text('Downloaded'),
+      selected: _showDownloadedOnly,
+      onSelected: (value) {
+        setState(() => _showDownloadedOnly = value);
+        _persistFilters();
+      },
+      showCheckmark: false,
+      avatar: Icon(
+        _showDownloadedOnly ? Icons.download_done : Icons.download_outlined,
+        size: 16,
+      ),
+      labelStyle: theme.textTheme.bodySmall?.copyWith(
+        fontWeight: _showDownloadedOnly ? FontWeight.w600 : FontWeight.w500,
+        color: _showDownloadedOnly
+            ? theme.colorScheme.onPrimary
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+      selectedColor: theme.colorScheme.primary,
+      backgroundColor: chipBackgroundColor,
+      side: BorderSide(
+        color: _showDownloadedOnly
+            ? theme.colorScheme.primary
+            : theme.colorScheme.outlineVariant,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+
+    Widget favoritesChip = FilterChip(
+      label: const Text('Favorites'),
+      selected: _showFavoritesOnly,
+      onSelected: (value) {
+        setState(() => _showFavoritesOnly = value);
+        _persistFilters();
+      },
+      showCheckmark: false,
+      avatar: Icon(
+        _showFavoritesOnly ? Icons.star_rounded : Icons.star_outline_rounded,
+        size: 16,
+      ),
+      labelStyle: theme.textTheme.bodySmall?.copyWith(
+        fontWeight: _showFavoritesOnly ? FontWeight.w600 : FontWeight.w500,
+        color: _showFavoritesOnly
+            ? theme.colorScheme.onPrimary
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+      selectedColor: theme.colorScheme.primary,
+      backgroundColor: chipBackgroundColor,
+      side: BorderSide(
+        color: _showFavoritesOnly
+            ? theme.colorScheme.primary
+            : theme.colorScheme.outlineVariant,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          Center(child: sortChip),
+          const SizedBox(width: 8),
+          Center(child: downloadedChip),
+          const SizedBox(width: 8),
+          Center(child: favoritesChip),
+        ],
+      ),
+    );
+  }
+
   /// Returns a list of active filters with their labels and dismiss callbacks.
   List<ScriptsActiveFilter> _getActiveFilters() {
     final filters = <ScriptsActiveFilter>[];
@@ -1800,6 +1969,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
             _allScriptsSortOption = ScriptSortOption.lastRun;
             _allScriptsSortAscending = false;
           });
+          _persistFilters();
         },
       ));
     }
@@ -1832,6 +2002,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
       _showDownloadedOnly = false;
       _showFavoritesOnly = false;
     });
+    _persistFilters();
     _loadMarketplaceScripts();
   }
 
@@ -1840,6 +2011,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
     setState(() {
       _showDownloadedOnly = false;
     });
+    _persistFilters();
   }
 
   /// Clears the "Favorites" filter to show all scripts.
@@ -1847,6 +2019,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
     setState(() {
       _showFavoritesOnly = false;
     });
+    _persistFilters();
   }
 
   /// Clears the active search query (W6-8). The primary action of the
@@ -1947,6 +2120,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
             _allScriptsSortOption = option;
             _allScriptsSortAscending = ascending;
           });
+          _persistFilters();
           // Sort is a one-shot selection (like category), so close the sheet
           // immediately after applying — leaving it open forces the user to
           // manually dismiss, and an open modal sheet intercepts AppBar taps
@@ -1957,11 +2131,13 @@ class ScriptsScreenState extends State<ScriptsScreen>
           setState(() {
             _showDownloadedOnly = value;
           });
+          _persistFilters();
         },
         onFavoritesFilterChanged: (value) {
           setState(() {
             _showFavoritesOnly = value;
           });
+          _persistFilters();
         },
         onReset: () {
           setState(() {
@@ -1971,6 +2147,7 @@ class ScriptsScreenState extends State<ScriptsScreen>
             _showDownloadedOnly = false;
             _showFavoritesOnly = false;
           });
+          _persistFilters();
           Navigator.of(context).pop();
           _loadMarketplaceScripts();
         },
