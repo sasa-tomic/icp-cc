@@ -1704,6 +1704,49 @@ First increment of P2 (web per-flow pattern):
 
 ---
 
+## 2026-07-23 Session — Canister Frontend Vision + E2E Overhaul + UX
+
+### WS-1 — Phase 1 Candid-driven frontend scaffold + R-3 fix
+
+- **Status**: 🟢 RESOLVED (2026-07-23, commit `7ece3efb`)
+- **Severity**: HIGH (R-3 blocked ALL candid loading from the app)
+- **Changes**:
+  - **R-3 fix**: Rewired `CandidService` from dead HTTP registry (`icp-api.io` 404'd for ALL canisters) to certified FFI `read_state` `candid:service` path.
+  - **FrontendScaffoldGenerator** (~230 LOC): walks `List<CanisterMethod>` → emits starter `ui_v1_renderer` bundle (button per query/update method, result_display per reply). Opens in `ScriptAppHost` for live execution.
+  - **UI entry point**: "Scaffold frontend from canister" action on Dapps screen. Dialog with well-known canister dropdown + custom ID field → generated bundle opens in `ScaffoldedFrontendScreen`.
+  - **Acceptance**: ICP Ledger canister (`ryjl3-tyaaa-aaaaa-aaaba-cai`) loads candid (which lacks `__get_candid_interface_tmp` — proves R-3 fix works structurally). 79 canister_client tests pass, 268 scripts tests pass, 122 marketplace tests pass.
+
+### WS-3a — Test harness contamination fixes
+
+- **Status**: 🟢 RESOLVED (2026-07-23, commit `dff6d292`)
+- **Severity**: HIGH (57 spurious test failures on bare `flutter test`)
+- **Root cause**: ALL 57 pre-existing failures were test-harness configuration issues (wrong platform annotation, missing backend, stale expectations after UX changes) — NOT app bugs.
+- **Fixes**: Added `@TestOn('browser')` to 5 web e2e files (were running on VM, hitting production URLs). Added `integration` tag skip to `dart_test.yaml` (needs running backend). Fixed 11 stale test expectations after CR-5/CR-8 UX changes. Full `flutter test`: 2266 pass / 16 skip / 0 fail.
+
+### WS-3b — UX click-reduction (CR-6/7/8/11)
+
+- **Status**: 🟢 RESOLVED (2026-07-23, commit `d7fc96ec`)
+- **Severity**: MEDIUM (UX friction)
+- **Changes**:
+  - **CR-6**: Persist sort + downloaded/favorites filters across restarts (SharedPreferences).
+  - **CR-7**: Keyboard nav (ArrowUp/Down/Enter/Escape) for recent searches dropdown.
+  - **CR-8**: Inline sort PopupMenuButton + Downloaded/Favorites FilterChips on scripts screen (no more opening the filter sheet for common operations).
+  - **CR-11**: Ctrl/Cmd+Enter to submit form on ScriptCreationScreen.
+  - 334 tests pass, 17 new tests added.
+
+### WS-2 — Radical e2e harness improvement
+
+- **Status**: 🟢 RESOLVED (2026-07-23, commits `8087a175`, `3872bde9`)
+- **Severity**: HIGH (e2e took 9m for 91 flows)
+- **Achievement**: Created `test/e2e_fast/` harness — boots REAL `KeypairApp()` widget tree on Dart VM with substrate fakes + REAL FFI (`libicp_core.so`). No Xvfb, no backend, no keyring needed.
+  - **48/98 flows covered** in ~3 minutes (33 shared + 15 identity).
+  - `just e2e-widget` recipe.
+  - Key substrate addition: `SubstrateJsonStore` (in-memory `JsonDocumentStore`).
+  - Fixed `E2EDriver.remount` for substrate-aware boot + `ScriptTemplates.ensureInitialized()`.
+  - Remaining 50 flows (vault, passkey, shortcuts, deeplink, dapp trust) still covered by integration suites (~9m).
+
+---
+
 ## Maintenance
 
 This file is updated:
