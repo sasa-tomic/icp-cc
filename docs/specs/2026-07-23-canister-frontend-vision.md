@@ -252,14 +252,14 @@ update(msg) → on 'call': emit icp_call({canister_id, method, mode:0, args:'()'
 
 ---
 
-## §8 Open questions needing human decisions
+## §8 Decisions (RESOLVED 2026-07-23)
 
-1. **Phase order confirmation.** Recommended D → (B+A-read-only) → C → A-interactive. Alternative: ship A-read-only first (highest user-visible wow) if the webview-fragmentation risk (R-4) is acceptable early.
-2. **Webview engine choice for desktop.** `flutter_inappwebview` (cross-desktop, adds `webkit2gtk` Linux dep) vs restricting in-app webview to mobile+web only (desktop keeps "open in browser"). This affects Linux-desktop packaging (`build-native.md`).
-3. **Provider impersonation policy.** Should icp-cc impersonate `window.ic.plug` (broadest dapp compat) or expose a distinct `window.icpcc` provider that opt-in dapps detect? Plug-impersonation maximizes compat but inherits Plug's API churn.
-4. **User-script trust model.** Per-script trust prompt (like marketplace scripts) or per-dapp broad grant (like `DappTrustStore`)? R-6 leans per-script.
-5. **R-3 side-fix scope.** Rewire `CandidService` to the robust read_state path as part of Phase 1 (recommended — it unblocks scaffolding canisters without `__get_candid_interface_tmp`), or file separately?
-6. **Discovery disambiguation UX.** Present a ranked candidate list (1-tap confirm) vs auto-pick top candidate (faster, occasionally wrong). Recommended: candidate list.
+1. **Phase order: D → (B+A-read-only) → C → A-interactive.** D-first (safe, fixes the R-3 candid bug, compounds into later phases). *(human-confirmed)*
+2. **Webview engine: `flutter_inappwebview`.** The only cross-desktop option; required to ship in-app webview on Linux desktop. Accept the `webkit2gtk` build dep; document in `build-native.md`. *(agent-decided — technical packaging tradeoff within remit)*
+3. **Provider identity: impersonate `window.ic.plug`.** Max dapp compatibility. Known downside (accepted): inherits Plug's full method set + versioned API churn — mitigated by pinning to a Plug API snapshot and versioning the shim. Distinct `window.icpcc` rejected (would get ~zero dapp adoption). *(human-confirmed, conditional on no blocking downsides — confirmed manageable)*
+4. **User-script trust model: per-script prompt** (mirrors the marketplace script trust flow, POLA). *(agent-decided — UX/security within remit)*
+5. **R-3 side-fix scope: fold into Phase 1.** Rewire `CandidService` to the robust `read_state` `candid:service` path (FFI `icp_fetch_candid`) as part of Phase 1 — it unblocks scaffolding canisters lacking `__get_candid_interface_tmp` (e.g. ICP Ledger). *(agent-decided — sequencing within remit)*
+6. **Discovery disambiguation UX: ranked candidate list + 1-tap confirm.** *(agent-decided — UX within remit)*
 
 ---
 
