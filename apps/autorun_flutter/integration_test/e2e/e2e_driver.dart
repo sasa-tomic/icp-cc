@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icp_autorun/main.dart' as app;
+import 'package:icp_autorun/screens/scripts_screen.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 
 /// Which surface the driver is running on.
@@ -194,7 +195,24 @@ class E2EDriver {
   /// key is load-bearing here. Does NOT rebuild the native bundle.
   Future<void> remount(WidgetTester tester) async {
     await tester.pumpWidget(app.KeypairApp(key: UniqueKey()));
-    await _settle(tester);
+    if (substrateAware && surface == E2ESurface.web) {
+      for (var i = 0; i < 30; i++) {
+        await tester.runAsync<void>(() =>
+            Future<void>.delayed(const Duration(milliseconds: 200)));
+        await tester.pump();
+        final settled = present(
+          find.byWidgetPredicate((w) =>
+              w is UnifiedSetupWizard ||
+              (w is Text &&
+                  (w.data?.contains('Set up profile') ?? false)) ||
+              w is ScriptsScreen),
+          tester,
+        );
+        if (settled) break;
+      }
+    } else {
+      await _settle(tester);
+    }
   }
 
   /// Dismiss the first-run wizard by tapping its close (X) button. Bounded —

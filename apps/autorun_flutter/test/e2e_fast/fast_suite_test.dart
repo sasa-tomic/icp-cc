@@ -153,6 +153,6 @@ void main() {
     // ignore: avoid_print
     print('FAST_SUITE: ${cov.implemented}/${cov.total} flows registered.');
     expect(cov.implemented, greaterThanOrEqualTo(32),
-        reason: 'Fast suite must cover at least the shared flow set.');
+        reason: 'Fast shared suite must cover at least the shared flow set.');
   }, timeout: const Timeout(Duration(seconds: 10)));
 }

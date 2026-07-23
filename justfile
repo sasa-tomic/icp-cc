@@ -647,15 +647,17 @@ e2e-fast file="integration_test/e2e/suite_keyring_less_test.dart":
     echo "==> e2e-fast: {{file}} (backend :$MARKETPLACE_API_PORT)"
     cd "{{flutter_dir}}" && flutter test -d linux "{{file}}" --reporter=compact --timeout=240s
 
-# e2e-widget: run the FAST widget-test e2e harness (33 flows, ~75s, no Xvfb,
+# e2e-widget: run the FAST widget-test e2e harness (48 flows, ~3m, no Xvfb,
 # no backend). Boots the REAL KeypairApp() widget tree on the Dart VM with
 # substrate fakes (HTTP, prefs, secure storage, JsonDocumentStore) + REAL FFI
-# (libicp_core.so). All cross-surface flows from flow_implementations.dart.
+# (libicp_core.so). All cross-surface flows from flow_implementations.dart +
+# identity flows from mock_keyring_flows.dart.
 #
 # Usage:
-#   just e2e-widget                              # all 33 flows
-#   just e2e-widget --name scripts.search        # single flow by name
-#   just e2e-widget test/e2e_fast/fast_smoke_test.dart  # smoke subset
+#   just e2e-widget                                    # all 33 shared flows
+#   just e2e-widget test/e2e_fast/fast_identity_suite_test.dart  # 15 identity flows
+#   just e2e-widget --name scripts.search              # single flow by name
+#   just e2e-widget test/e2e_fast/fast_smoke_test.dart # smoke subset
 e2e-widget file="test/e2e_fast/fast_suite_test.dart" extra="":
     #!/usr/bin/env bash
     set -euo pipefail

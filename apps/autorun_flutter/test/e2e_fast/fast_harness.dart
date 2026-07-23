@@ -36,6 +36,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:icp_autorun/config/app_config.dart';
 import 'package:icp_autorun/main.dart' as app;
+import 'package:icp_autorun/models/script_template.dart';
 import 'package:icp_autorun/screens/unified_setup_wizard.dart';
 import 'package:icp_autorun/services/json_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -72,6 +73,11 @@ class FastHarness {
 
   /// Install ALL substrate fakes. Call once per suite (`setUpAll`).
   Future<void> setUp() async {
+    // 0. ScriptTemplates: main() normally does this, but the fast harness
+    //    boots via pumpWidget (bypassing main()). Load templates from the
+    //    test asset bundle so ScriptCreationScreen works.
+    await ScriptTemplates.ensureInitialized();
+
     // 1. SharedPreferences: SDK-blessed in-memory mock.
     SharedPreferences.setMockInitialValues(<String, Object>{});
     SharedPreferences.resetStatic();
