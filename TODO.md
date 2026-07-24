@@ -7,9 +7,9 @@ A focused, current backlog. Historical work lives in git history and
 
 **No active work.** The app is in clean shape:
 - `flutter analyze`: 0 issues
-- `flutter test`: 2266 pass / 16 skip / 0 fail
+- `flutter test`: 2284 pass / 16 skip / 0 fail
 - `OPEN_ISSUES.md`: every item RESOLVED
-- E2E: 48/98 flows in ~3m via fast widget-test harness; remaining 50 via integration suites (~9m)
+- E2E: 48/96 flows in ~3m via fast widget-test harness; remaining 48 via integration suites (~9m)
 
 ## Open Items
 
@@ -38,15 +38,12 @@ From `docs/specs/2026-07-22-ux-click-reduction-audit.md`:
   many need platform-specific channels.
 - **Web e2e**: ~47 more web-eligible flows to port to `test/e2e_web/`.
 
-### ICPay — Verify-Live
+### ICPay — RETIRED (2026-07-23)
 
-The ICPay integration is code-complete but the sandbox was network-blocked during
-development. Three items need verification against a live ICPay sandbox:
-1. Hosted-checkout URL / field name (`PaymentIntent.fromJson` reads multiple keys
-   defensively; verify the canonical name)
-2. Webhook signature scheme (hex vs base64, header name, raw-body vs
-   `timestamp.body`)
-3. End-to-end create-intent → pay → webhook → `purchased:true` → download
+ICPay has been fully removed (backend commit `9b5d8ef3`, frontend commit
+`a0d8931a`). All scripts are free. The `purchases` table is retained in the DB
+schema (never drop DB) but no longer written to. The `price` column is kept
+(always 0.0 for new scripts).
 
 ## Deferred (decided, with justification)
 
